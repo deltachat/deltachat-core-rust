@@ -11,6 +11,7 @@ from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
 from deltachat.hookspec import account_hookimpl
 from deltachat.message import Message
+from deltachat.tracker import ImexFailed
 
 
 @pytest.mark.parametrize(
@@ -496,7 +497,7 @@ class TestOfflineChat:
         with pytest.raises(ValueError):
             ac1.set_config("addr", "123@example.org")
 
-    def test_import_export_one_contact(self, acfactory, tmpdir):
+    def test_import_export_on_unencrypted_acct(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
@@ -515,6 +516,162 @@ class TestOfflineChat:
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_all(path)
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@example.org"
+        chat2 = contact2.create_chat()
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
+
+    def test_import_export_on_encrypted_acct(self, acfactory, tmpdir):
+        passphrase1 = "passphrase1"
+        passphrase2 = "passphrase2"
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_pseudo_configured_account(passphrase=passphrase1)
+
+        chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
+        # send a text message
+        msg = chat.send_text("msg1")
+        # send a binary file
+        bin = tmpdir.join("some.bin")
+        with bin.open("w") as f:
+            f.write("\00123" * 10000)
+        msg = chat.send_file(bin.strpath)
+        contact = msg.get_sender_contact()
+        assert contact == ac1.get_self_contact()
+
+        assert not backupdir.listdir()
+        ac1.stop_io()
+
+        path = ac1.export_all(backupdir.strpath)
+        assert os.path.exists(path)
+
+        ac2 = acfactory.get_unconfigured_account(closed=True)
+        ac2.open(passphrase2)
+        ac2.import_all(path)
+
+        # check data integrity
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@example.org"
+        chat2 = contact2.create_chat()
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
+
+        ac2.shutdown()
+
+        # check that passphrase is not lost after import:
+        ac2 = Account(ac2.db_path, logging=ac2._logging, closed=True)
+        ac2.open(passphrase2)
+
+        # check data integrity
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@example.org"
+        chat2 = contact2.create_chat()
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
+
+    def test_import_export_with_passphrase(self, acfactory, tmpdir):
+        passphrase = "test_passphrase"
+        wrong_passphrase = "wrong_passprase"
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_pseudo_configured_account()
+
+        chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
+        # send a text message
+        msg = chat.send_text("msg1")
+        # send a binary file
+        bin = tmpdir.join("some.bin")
+        with bin.open("w") as f:
+            f.write("\00123" * 10000)
+        msg = chat.send_file(bin.strpath)
+        contact = msg.get_sender_contact()
+        assert contact == ac1.get_self_contact()
+
+        assert not backupdir.listdir()
+        ac1.stop_io()
+
+        path = ac1.export_all(backupdir.strpath, passphrase)
+        assert os.path.exists(path)
+
+        ac2 = acfactory.get_unconfigured_account()
+        with pytest.raises(ImexFailed):
+            ac2.import_all(path, wrong_passphrase)
+        ac2.import_all(path, passphrase)
+
+        # check data integrity
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@example.org"
+        chat2 = contact2.create_chat()
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
+
+    def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmpdir):
+        """
+        Test that account passphrase isn't lost if backup failed to be imported.
+        See https://github.com/deltachat/deltachat-core-rust/issues/3379
+        """
+        acct_passphrase = "passphrase1"
+        bak_passphrase = "passphrase2"
+        wrong_passphrase = "wrong_passprase"
+        backupdir = tmpdir.mkdir("backup")
+
+        ac1 = acfactory.get_pseudo_configured_account()
+        chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
+        # send a text message
+        msg = chat.send_text("msg1")
+        # send a binary file
+        bin = tmpdir.join("some.bin")
+        with bin.open("w") as f:
+            f.write("\00123" * 10000)
+        msg = chat.send_file(bin.strpath)
+        contact = msg.get_sender_contact()
+        assert contact == ac1.get_self_contact()
+
+        assert not backupdir.listdir()
+        ac1.stop_io()
+
+        path = ac1.export_all(backupdir.strpath, bak_passphrase)
+        assert os.path.exists(path)
+
+        ac2 = acfactory.get_unconfigured_account(closed=True)
+        ac2.open(acct_passphrase)
+        with pytest.raises(ImexFailed):
+            ac2.import_all(path, wrong_passphrase)
+        ac2.import_all(path, bak_passphrase)
+
+        # check data integrity
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@example.org"
+        chat2 = contact2.create_chat()
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
+
+        ac2.shutdown()
+
+        # check that passphrase is not lost after import
+        ac2 = Account(ac2.db_path, logging=ac2._logging, closed=True)
+        ac2.open(acct_passphrase)
+
+        # check data integrity
         contacts = ac2.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]

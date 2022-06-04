@@ -11,7 +11,7 @@ import threading
 import time
 import weakref
 from queue import Queue
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 import pytest
 import requests
@@ -429,16 +429,16 @@ class ACFactory:
         if addr in self.testprocess._addr2files:
             return self._getaccount(addr)
 
-    def get_unconfigured_account(self):
-        return self._getaccount()
+    def get_unconfigured_account(self, closed=False):
+        return self._getaccount(closed=closed)
 
-    def _getaccount(self, try_cache_addr=None):
+    def _getaccount(self, try_cache_addr=None, closed=False):
         logid = "ac{}".format(len(self._accounts) + 1)
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
         if try_cache_addr:
             self.testprocess.cache_maybe_retrieve_configured_db_files(try_cache_addr, path)
-        ac = Account(path.strpath, logging=self._logging)
+        ac = Account(path.strpath, logging=self._logging, closed=closed)
         ac._logid = logid  # later instantiated FFIEventLogger needs this
         ac._evtracker = ac.add_account_plugin(FFIEventTracker(ac))
         if self.pytestconfig.getoption("--debug-setup"):
@@ -467,9 +467,11 @@ class ACFactory:
             else:
                 print("WARN: could not use preconfigured keys for {!r}".format(addr))
 
-    def get_pseudo_configured_account(self):
+    def get_pseudo_configured_account(self, passphrase: Optional[str] = None) -> Account:
         # do a pseudo-configured account
-        ac = self.get_unconfigured_account()
+        ac = self.get_unconfigured_account(closed=bool(passphrase))
+        if passphrase:
+            ac.open(passphrase)
         acname = ac._logid
         addr = "{}@offline.org".format(acname)
         ac.update_config(
