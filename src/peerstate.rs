@@ -302,6 +302,7 @@ impl Peerstate {
                         timestamp_sort,
                         Some(timestamp),
                         None,
+                        None,
                     )
                     .await?;
                     context.emit_event(EventType::ChatModified(*chat_id));

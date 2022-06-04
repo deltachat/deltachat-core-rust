@@ -438,6 +438,7 @@ impl ChatId {
                 dc_create_smeared_timestamp(context).await,
                 None,
                 None,
+                None,
             )
             .await?;
         }
@@ -3380,6 +3381,7 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
 /// Adds an informational message to chat.
 ///
 /// For example, it can be a message showing that a member was added to a group.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn add_info_msg_with_cmd(
     context: &Context,
     chat_id: ChatId,
@@ -3389,6 +3391,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     // Timestamp to show to the user (if this is None, `timestamp_sort` will be shown to the user)
     timestamp_sent_rcvd: Option<i64>,
     parent: Option<&Message>,
+    from_id: Option<ContactId>,
 ) -> Result<MsgId> {
     let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
@@ -3404,7 +3407,7 @@ pub(crate) async fn add_info_msg_with_cmd(
         VALUES (?,?,?, ?,?,?,?,?, ?,?,?, ?,?);",
         paramsv![
             chat_id,
-            ContactId::INFO,
+            from_id.unwrap_or(ContactId::INFO),
             ContactId::INFO,
             timestamp_sort,
             timestamp_sent_rcvd.unwrap_or(0),
@@ -3440,8 +3443,27 @@ pub(crate) async fn add_info_msg(
         timestamp,
         None,
         None,
+        None,
     )
     .await
+}
+
+pub(crate) async fn update_msg_text_and_timestamp(
+    context: &Context,
+    chat_id: ChatId,
+    msg_id: MsgId,
+    text: &str,
+    timestamp: i64,
+) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET txt=?, timestamp=? WHERE id=?;",
+            paramsv![text, timestamp, msg_id],
+        )
+        .await?;
+    context.emit_msgs_changed(chat_id, msg_id);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -4518,6 +4540,7 @@ mod tests {
             "foo bar info",
             SystemMessage::EphemeralTimerChanged,
             10000,
+            None,
             None,
             None,
         )

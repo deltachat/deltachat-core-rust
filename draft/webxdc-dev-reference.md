@@ -34,8 +34,9 @@ To get a shared state, the peers use `sendUpdate()` to send updates to each othe
 - `update`: an object with the following properties:  
     - `update.payload`: any javascript primitive, array or object.
     - `update.info`: optional, short, informational message that will be added to the chat,
-       eg. "Alice voted" or "Bob scored 123 in MyGame";
-       usually only one line of text is shown,
+       eg. "Alice voted" or "Bob scored 123 in MyGame".
+       usually only one line of text is shown
+       and if there are series of info messages, older ones may be dropped.
        use this option sparingly to not spam the chat.
     - `update.document`: optional, name of the document in edit,
        must not be used eg. in games where the Webxdc does not create documents
