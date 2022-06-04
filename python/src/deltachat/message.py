@@ -159,6 +159,10 @@ class Message(object):
         """
         return from_dc_charpointer(lib.dc_get_msg_info(self.account._dc_context, self.id))
 
+    def get_summarytext(self, width: int) -> str:
+        """Get a message summary as a single line of text. Typically used for notifications."""
+        return from_dc_charpointer(lib.dc_msg_get_summarytext(self._dc_msg, width))
+
     def continue_key_transfer(self, setup_code):
         """extract key and use it as primary key for this account."""
         res = lib.dc_continue_key_transfer(self.account._dc_context, self.id, as_dc_charpointer(setup_code))

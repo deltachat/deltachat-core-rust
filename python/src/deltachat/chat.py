@@ -65,27 +65,65 @@ class Chat(object):
     # ------  chat status/metadata API ------------------------------
 
     def is_group(self) -> bool:
-        """return true if this chat is a group chat.
+        """Return True if this chat is a group chat.
 
-        :returns: True if chat is a group-chat, false otherwise
+        :returns: True if chat is a group-chat, False otherwise
         """
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
+
+    def is_single(self) -> bool:
+        """Return True if this chat is a single/direct chat, False otherwise"""
+        return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_SINGLE
+
+    def is_mailinglist(self) -> bool:
+        """Return True if this chat is a mailing list, False otherwise"""
+        return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_MAILINGLIST
+
+    def is_broadcast(self) -> bool:
+        """Return True if this chat is a broadcast list, False otherwise"""
+        return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_BROADCAST
+
+    def is_multiuser(self) -> bool:
+        """Return True if this chat is a multi-user chat (group, mailing list or broadcast), False otherwise"""
+        return lib.dc_chat_get_type(self._dc_chat) in (
+            const.DC_CHAT_TYPE_GROUP,
+            const.DC_CHAT_TYPE_MAILINGLIST,
+            const.DC_CHAT_TYPE_BROADCAST,
+        )
+
+    def is_self_talk(self) -> bool:
+        """Return True if this chat is the self-chat (a.k.a. "Saved Messages"), False otherwise"""
+        return bool(lib.dc_chat_is_self_talk(self._dc_chat))
+
+    def is_device_talk(self) -> bool:
+        """Returns True if this chat is the "Device Messages" chat, False otherwise"""
+        return bool(lib.dc_chat_is_device_talk(self._dc_chat))
 
     def is_muted(self) -> bool:
         """return true if this chat is muted.
 
         :returns: True if chat is muted, False otherwise.
         """
-        return lib.dc_chat_is_muted(self._dc_chat)
+        return bool(lib.dc_chat_is_muted(self._dc_chat))
 
-    def is_contact_request(self):
+    def is_pinned(self) -> bool:
+        """Return True if this chat is pinned, False otherwise"""
+        return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_PINNED
+
+    def is_archived(self) -> bool:
+        """Return True if this chat is archived, False otherwise.
+        :returns: True if archived, False otherwise
+        """
+        return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_ARCHIVED
+
+    def is_contact_request(self) -> bool:
         """return True if this chat is a contact request chat.
 
         :returns: True if chat is a contact request chat, False otherwise.
         """
-        return lib.dc_chat_is_contact_request(self._dc_chat)
+        return bool(lib.dc_chat_is_contact_request(self._dc_chat))
 
-    def is_promoted(self):
+    def is_promoted(self) -> bool:
         """return True if this chat is promoted, i.e.
         the member contacts are aware of their membership,
         have been sent messages.
@@ -100,14 +138,14 @@ class Chat(object):
 
         :returns: True if the chat is writable, False otherwise
         """
-        return lib.dc_chat_can_send(self._dc_chat)
+        return bool(lib.dc_chat_can_send(self._dc_chat))
 
     def is_protected(self) -> bool:
         """return True if this chat is a protected chat.
 
         :returns: True if chat is protected, False otherwise.
         """
-        return lib.dc_chat_is_protected(self._dc_chat)
+        return bool(lib.dc_chat_is_protected(self._dc_chat))
 
     def get_name(self) -> Optional[str]:
         """return name of this chat.
@@ -124,6 +162,18 @@ class Chat(object):
         """
         name = as_dc_charpointer(name)
         return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name))
+
+    def get_color(self):
+        """return the color of the chat.
+        :returns: color as 0x00rrggbb
+        """
+        return lib.dc_chat_get_color(self._dc_chat)
+
+    def get_summary(self):
+        """return dictionary with summary information."""
+        dc_res = lib.dc_chat_get_info_json(self.account._dc_context, self.id)
+        s = from_dc_charpointer(dc_res)
+        return json.loads(s)
 
     def mute(self, duration: Optional[int] = None) -> None:
         """mutes the chat
@@ -147,6 +197,24 @@ class Chat(object):
         ret = lib.dc_set_chat_mute_duration(self.account._dc_context, self.id, 0)
         if not bool(ret):
             raise ValueError("Failed to unmute chat")
+
+    def pin(self) -> None:
+        """Pin the chat."""
+        lib.dc_set_chat_visibility(self.account._dc_context, self.id, const.DC_CHAT_VISIBILITY_PINNED)
+
+    def unpin(self) -> None:
+        """Unpin the chat."""
+        if self.is_pinned():
+            lib.dc_set_chat_visibility(self.account._dc_context, self.id, const.DC_CHAT_VISIBILITY_NORMAL)
+
+    def archive(self) -> None:
+        """Archive the chat."""
+        lib.dc_set_chat_visibility(self.account._dc_context, self.id, const.DC_CHAT_VISIBILITY_ARCHIVED)
+
+    def unarchive(self) -> None:
+        """Unarchive the chat."""
+        if self.is_archived():
+            lib.dc_set_chat_visibility(self.account._dc_context, self.id, const.DC_CHAT_VISIBILITY_NORMAL)
 
     def get_mute_duration(self) -> int:
         """Returns the number of seconds until the mute of this chat is lifted.
@@ -364,12 +432,6 @@ class Chat(object):
         """
         return lib.dc_marknoticed_chat(self.account._dc_context, self.id)
 
-    def get_summary(self):
-        """return dictionary with summary information."""
-        dc_res = lib.dc_chat_get_info_json(self.account._dc_context, self.id)
-        s = from_dc_charpointer(dc_res)
-        return json.loads(s)
-
     # ------  group management API ------------------------------
 
     def add_contact(self, obj):
@@ -460,12 +522,6 @@ class Chat(object):
             return None
         return from_dc_charpointer(dc_res)
 
-    def get_color(self):
-        """return the color of the chat.
-        :returns: color as 0x00rrggbb
-        """
-        return lib.dc_chat_get_color(self._dc_chat)
-
     # ------  location streaming API ------------------------------
 
     def is_sending_locations(self):
@@ -473,12 +529,6 @@ class Chat(object):
         :returns: True if location sending is enabled.
         """
         return lib.dc_is_sending_locations_to_chat(self.account._dc_context, self.id)
-
-    def is_archived(self):
-        """return True if this chat is archived.
-        :returns: True if archived.
-        """
-        return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_ARCHIVED
 
     def enable_sending_locations(self, seconds):
         """enable sending locations for this chat.

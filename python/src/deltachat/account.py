@@ -62,12 +62,15 @@ class Account(object):
 
     MissingCredentials = MissingCredentials
 
-    def __init__(self, db_path, os_name=None, logging=True) -> None:
+    def __init__(self, db_path, os_name=None, logging=True, closed=False) -> None:
         """initialize account object.
 
         :param db_path: a path to the account database. The database
                         will be created if it doesn't exist.
-        :param os_name: this will be put to the X-Mailer header in outgoing messages
+        :param os_name: [Deprecated]
+        :param logging: enable logging for this account
+        :param closed: set to True to avoid automatically opening the account
+                       after creation.
         """
         # initialize per-account plugin system
         self._pm = hookspec.PerAccount._make_plugin_manager()
@@ -80,7 +83,7 @@ class Account(object):
             db_path = db_path.encode("utf8")
 
         self._dc_context = ffi.gc(
-            lib.dc_context_new(as_dc_charpointer(os_name), db_path, ffi.NULL),
+            lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL),
             lib.dc_context_unref,
         )
         if self._dc_context == ffi.NULL:
@@ -91,6 +94,17 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         hook = hookspec.Global._get_plugin_manager().hook
         hook.dc_account_init(account=self)
+
+    def open(self, passphrase: Optional[str] = None) -> bool:
+        """Open the account's database with the given passphrase.
+        This can only be used on a closed account. If the account is new, this
+        operation sets the database passphrase. For existing databases the passphrase
+        should be the one used to encrypt the database the first time.
+
+        :returns: True if the database is opened with this passphrase, False if the
+                  passphrase is incorrect or an error occurred.
+        """
+        return bool(lib.dc_context_open(self._dc_context, as_dc_charpointer(passphrase)))
 
     def disable_logging(self) -> None:
         """disable logging."""
@@ -209,13 +223,13 @@ class Account(object):
 
         :returns: True if account is configured.
         """
-        return True if lib.dc_is_configured(self._dc_context) else False
+        return bool(lib.dc_is_configured(self._dc_context))
 
     def is_open(self) -> bool:
         """Determine if account is open
 
         :returns True if account is open."""
-        return True if lib.dc_context_is_open(self._dc_context) else False
+        return bool(lib.dc_context_is_open(self._dc_context))
 
     def set_avatar(self, img_path: Optional[str]) -> None:
         """Set self avatar.
@@ -461,21 +475,24 @@ class Account(object):
         """
         return self._export(path, imex_cmd=const.DC_IMEX_EXPORT_SELF_KEYS)
 
-    def export_all(self, path):
-        """return new file containing a backup of all database state
-        (chats, contacts, keys, media, ...). The file is created in the
-        the `path` directory.
+    def export_all(self, path: str, passphrase: Optional[str] = None) -> str:
+        """Export a backup of all database state (chats, contacts, keys, media, ...).
+
+        :param path: the directory where the backup will be stored.
+        :param passphrase: the backup will be encrypted with the passphrase, if it is
+                           None or empty string, the backup is not encrypted.
+        :returns: path to the created backup.
 
         Note that the account has to be stopped; call stop_io() if necessary.
         """
-        export_files = self._export(path, const.DC_IMEX_EXPORT_BACKUP)
+        export_files = self._export(path, const.DC_IMEX_EXPORT_BACKUP, passphrase)
         if len(export_files) != 1:
             raise RuntimeError("found more than one new file")
         return export_files[0]
 
-    def _export(self, path, imex_cmd):
+    def _export(self, path: str, imex_cmd: int, passphrase: Optional[str] = None) -> list:
         with self.temp_plugin(ImexTracker()) as imex_tracker:
-            self.imex(path, imex_cmd)
+            self.imex(path, imex_cmd, passphrase)
             return imex_tracker.wait_finish()
 
     def import_self_keys(self, path):
@@ -487,21 +504,23 @@ class Account(object):
         """
         self._import(path, imex_cmd=const.DC_IMEX_IMPORT_SELF_KEYS)
 
-    def import_all(self, path):
-        """import delta chat state from the specified backup `path` (a file).
-
+    def import_all(self, path: str, passphrase: Optional[str] = None) -> None:
+        """Import Delta Chat state from the specified backup file.
         The account must be in unconfigured state for import to attempted.
+
+        :param path: path to the backup file.
+        :param passphrase: if not None or empty, the backup will be opened with the passphrase.
         """
         assert not self.is_configured(), "cannot import into configured account"
-        self._import(path, imex_cmd=const.DC_IMEX_IMPORT_BACKUP)
+        self._import(path, imex_cmd=const.DC_IMEX_IMPORT_BACKUP, passphrase=passphrase)
 
-    def _import(self, path, imex_cmd):
+    def _import(self, path: str, imex_cmd: int, passphrase: Optional[str] = None) -> None:
         with self.temp_plugin(ImexTracker()) as imex_tracker:
-            self.imex(path, imex_cmd)
+            self.imex(path, imex_cmd, passphrase)
             imex_tracker.wait_finish()
 
-    def imex(self, path, imex_cmd):
-        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), ffi.NULL)
+    def imex(self, path: str, imex_cmd: int, passphrase: Optional[str] = None) -> None:
+        lib.dc_imex(self._dc_context, imex_cmd, as_dc_charpointer(path), as_dc_charpointer(passphrase))
 
     def initiate_key_transfer(self) -> str:
         """return setup code after a Autocrypt setup message

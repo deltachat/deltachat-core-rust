@@ -11,6 +11,24 @@
 - do not reset our database if imported backup cannot be decrypted #3397
 - node: remove `npx` from build script, this broke flathub build #3396
 
+### API-Changes
+- python: added optional `closed` parameter to `Account` constructor #3394
+- python: added optional `passphrase` parameter to `Account.export_all()` and `Account.import_all()` #3394
+- python: added `Account.open()` #3394
+- python: added `Chat.is_single()` #3394
+- python: added `Chat.is_mailinglist()` #3394
+- python: added `Chat.is_broadcast()` #3394
+- python: added `Chat.is_multiuser()` #3394
+- python: added `Chat.is_self_talk()` #3394
+- python: added `Chat.is_device_talk()` #3394
+- python: added `Chat.is_pinned()` #3394
+- python: added `Chat.pin()` #3394
+- python: added `Chat.unpin()` #3394
+- python: added `Chat.archive()` #3394
+- python: added `Chat.unarchive()` #3394
+- python: added `Message.get_summarytext()` #3394
+- python: added optional `closed` parameter to `ACFactory.get_unconfigured_account()` (pytest plugin) #3394
+- python: added optional `passphrase` parameter to `ACFactory.get_pseudo_configured_account()` (pytest plugin) #3394
 
 ## 1.85.0
 
