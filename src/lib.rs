@@ -93,6 +93,7 @@ mod dehtml;
 mod color;
 pub mod html;
 pub mod plaintext;
+mod ratelimit;
 pub mod summary;
 
 pub mod dc_receive_imf;

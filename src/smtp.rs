@@ -479,12 +479,32 @@ pub(crate) async fn send_msg_to_smtp(
     }
 }
 
+/// Attempts to send queued MDNs.
+///
+/// Returns true if there are more MDNs to send, but rate limiter does not
+/// allow to send them. Returns false if there are no more MDNs to send.
+/// If sending an MDN fails, returns an error.
+async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
+    loop {
+        if !context.ratelimit.read().await.can_send() {
+            info!(context, "Ratelimiter does not allow sending MDNs now");
+            return Ok(true);
+        }
+
+        let more_mdns = send_mdn(context, connection).await?;
+        if !more_mdns {
+            // No more MDNs to send.
+            return Ok(false);
+        }
+    }
+}
+
 /// Tries to send all messages currently in `smtp` and `smtp_mdns` tables.
 ///
 /// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
 /// does not block other messages in the queue from being sent.
 ///
-/// Returns true if all messages were sent successfully, false otherwise.
+/// Returns true if sending was ratelimited, false otherwise. Errors are propagated to the caller.
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
     context.send_sync_msg().await?; // Add sync message to the end of the queue if needed.
     let rowids = context
@@ -503,28 +523,16 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             },
         )
         .await?;
-    let mut success = true;
     for rowid in rowids {
-        if let Err(err) = send_msg_to_smtp(context, connection, rowid).await {
-            info!(context, "Failed to send message over SMTP: {:#}.", err);
-            success = false;
-        }
+        send_msg_to_smtp(context, connection, rowid)
+            .await
+            .context("failed to send message")?;
     }
 
-    loop {
-        match send_mdn(context, connection).await {
-            Err(err) => {
-                info!(context, "Failed to send MDNs over SMTP: {:#}.", err);
-                success = false;
-                break;
-            }
-            Ok(false) => {
-                break;
-            }
-            Ok(true) => {}
-        }
-    }
-    Ok(success)
+    let ratelimited = send_mdns(context, connection)
+        .await
+        .context("failed to send MDNs")?;
+    Ok(ratelimited)
 }
 
 /// Tries to send MDN for message `msg_id` to `contact_id`.

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- limit the rate of MDN sending #3402
 
 ### Fixes
 - set a default error if NDN does not provide an error

@@ -7,8 +7,8 @@ use async_std::{
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::maybe_add_time_based_warnings;
 use crate::dc_tools::time;
+use crate::dc_tools::{duration_to_str, maybe_add_time_based_warnings};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job;
@@ -325,16 +325,30 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
         let mut timeout = None;
         loop {
-            let res = send_smtp_messages(&ctx, &mut connection).await;
-            if let Err(err) = &res {
-                warn!(ctx, "send_smtp_messages failed: {:#}", err);
+            match send_smtp_messages(&ctx, &mut connection).await {
+                Err(err) => {
+                    warn!(ctx, "send_smtp_messages failed: {:#}", err);
+                    timeout = Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
+                }
+                Ok(ratelimited) => {
+                    if ratelimited {
+                        let duration_until_can_send = ctx.ratelimit.read().await.until_can_send();
+                        info!(
+                            ctx,
+                            "smtp got rate limited, waiting for {} until can send again",
+                            duration_to_str(duration_until_can_send)
+                        );
+                        async_std::future::timeout(duration_until_can_send, async {
+                            idle_interrupt_receiver.recv().await.unwrap_or_default()
+                        })
+                        .await
+                        .unwrap_or_default();
+                        continue;
+                    } else {
+                        timeout = None;
+                    }
+                }
             }
-            let success = res.unwrap_or(false);
-            timeout = if success {
-                None
-            } else {
-                Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
-            };
 
             // Fake Idle
             info!(ctx, "smtp fake idle - started");

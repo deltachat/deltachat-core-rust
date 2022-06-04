@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{ensure, Result};
 use async_std::{
@@ -22,6 +22,7 @@ use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
+use crate::ratelimit::Ratelimit;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 
@@ -55,6 +56,7 @@ pub struct InnerContext {
     pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Option<Scheduler>>,
+    pub(crate) ratelimit: RwLock<Ratelimit>,
 
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.
@@ -186,6 +188,7 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             events: Events::default(),
             scheduler: RwLock::new(None),
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
