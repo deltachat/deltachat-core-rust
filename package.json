@@ -42,7 +42,7 @@
     "build": "npm run build:core && npm run build:bindings",
     "build:bindings": "npm run build:bindings:c && npm run build:bindings:ts",
     "build:bindings:c": "npm run build:bindings:c:c && npm run build:bindings:c:postinstall",
-    "build:bindings:c:c": "cd node && npx node-gyp rebuild",
+    "build:bindings:c:c": "cd node && node-gyp rebuild",
     "build:bindings:c:postinstall": "node node/scripts/postinstall.js",
     "build:bindings:ts": "cd node && tsc",
     "build:core": "npm run build:core:rust && npm run build:core:constants",
