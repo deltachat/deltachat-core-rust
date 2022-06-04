@@ -6,7 +6,7 @@ use std::fmt;
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self};
 use crate::chatlist::Chatlist;
-use crate::contact::{Contact, Origin};
+use crate::contact::{addr_cmp, Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -405,8 +405,7 @@ impl Peerstate {
     }
 
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
-        if self.addr.to_lowercase() != header.addr.to_lowercase() {
-            // TODO is this a problem? Just because addr might have changed
+        if !addr_cmp(&self.addr, &header.addr) {
             return;
         }
 
