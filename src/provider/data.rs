@@ -514,7 +514,7 @@ static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// hermes.radio.md: hermes.radio
+// hermes.radio.md: ac.hermes.radio, ac1.hermes.radio, ac2.hermes.radio, ac3.hermes.radio, ac4.hermes.radio, ac5.hermes.radio, ac6.hermes.radio, ac7.hermes.radio, ac8.hermes.radio, ac9.hermes.radio, ac10.hermes.radio, ac11.hermes.radio, ac12.hermes.radio, ac13.hermes.radio, ac14.hermes.radio, ac15.hermes.radio, ka.hermes.radio, ka1.hermes.radio, ka2.hermes.radio, ka3.hermes.radio, ka4.hermes.radio, ka5.hermes.radio, ka6.hermes.radio, ka7.hermes.radio, ka8.hermes.radio, ka9.hermes.radio, ka10.hermes.radio, ka11.hermes.radio, ka12.hermes.radio, ka13.hermes.radio, ka14.hermes.radio, ka15.hermes.radio, hermes.radio
 static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
     id: "hermes.radio",
     status: Status::Ok,
@@ -530,10 +530,6 @@ static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
         ConfigDefault {
             key: Config::E2eeEnabled,
             value: "0",
-        },
-        ConfigDefault {
-            key: Config::MediaQuality,
-            value: "1",
         },
         ConfigDefault {
             key: Config::ShowEmails,
@@ -1619,6 +1615,38 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("gmx.info", &*P_GMX_NET),
         ("gmx.biz", &*P_GMX_NET),
         ("gmx.com", &*P_GMX_NET),
+        ("ac.hermes.radio", &*P_HERMES_RADIO),
+        ("ac1.hermes.radio", &*P_HERMES_RADIO),
+        ("ac2.hermes.radio", &*P_HERMES_RADIO),
+        ("ac3.hermes.radio", &*P_HERMES_RADIO),
+        ("ac4.hermes.radio", &*P_HERMES_RADIO),
+        ("ac5.hermes.radio", &*P_HERMES_RADIO),
+        ("ac6.hermes.radio", &*P_HERMES_RADIO),
+        ("ac7.hermes.radio", &*P_HERMES_RADIO),
+        ("ac8.hermes.radio", &*P_HERMES_RADIO),
+        ("ac9.hermes.radio", &*P_HERMES_RADIO),
+        ("ac10.hermes.radio", &*P_HERMES_RADIO),
+        ("ac11.hermes.radio", &*P_HERMES_RADIO),
+        ("ac12.hermes.radio", &*P_HERMES_RADIO),
+        ("ac13.hermes.radio", &*P_HERMES_RADIO),
+        ("ac14.hermes.radio", &*P_HERMES_RADIO),
+        ("ac15.hermes.radio", &*P_HERMES_RADIO),
+        ("ka.hermes.radio", &*P_HERMES_RADIO),
+        ("ka1.hermes.radio", &*P_HERMES_RADIO),
+        ("ka2.hermes.radio", &*P_HERMES_RADIO),
+        ("ka3.hermes.radio", &*P_HERMES_RADIO),
+        ("ka4.hermes.radio", &*P_HERMES_RADIO),
+        ("ka5.hermes.radio", &*P_HERMES_RADIO),
+        ("ka6.hermes.radio", &*P_HERMES_RADIO),
+        ("ka7.hermes.radio", &*P_HERMES_RADIO),
+        ("ka8.hermes.radio", &*P_HERMES_RADIO),
+        ("ka9.hermes.radio", &*P_HERMES_RADIO),
+        ("ka10.hermes.radio", &*P_HERMES_RADIO),
+        ("ka11.hermes.radio", &*P_HERMES_RADIO),
+        ("ka12.hermes.radio", &*P_HERMES_RADIO),
+        ("ka13.hermes.radio", &*P_HERMES_RADIO),
+        ("ka14.hermes.radio", &*P_HERMES_RADIO),
+        ("ka15.hermes.radio", &*P_HERMES_RADIO),
         ("hermes.radio", &*P_HERMES_RADIO),
         ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
@@ -1851,4 +1879,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 5, 3));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 6, 4));
