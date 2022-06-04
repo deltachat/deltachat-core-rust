@@ -214,10 +214,7 @@ pub async fn try_decrypt(
 
     // `signatures` is non-empty exactly if the message is signed correctly
     let (out_mail, signatures) =
-        match decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await? {
-            Some((out_mail, signatures)) => (Some(out_mail), signatures),
-            None => (None, HashSet::default()),
-        };
+        decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await?;
 
     if let Some(ref mut peerstate) = peerstate {
         maybe_do_aeap_transition(
@@ -391,7 +388,7 @@ async fn decrypt_if_autocrypt_message(
     context: &Context,
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
         .or_else(|| get_attachment_mime(mail))
@@ -445,7 +442,7 @@ async fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {
@@ -458,7 +455,7 @@ async fn decrypt_part(
         if let Some((content, valid_detached_signatures)) =
             validate_detached_signature(&decrypted_part, &public_keyring_for_validate)?
         {
-            return Ok(Some((content, valid_detached_signatures)));
+            return Ok((Some(content), valid_detached_signatures));
         } else {
             // If the message was wrongly or not signed, still return the plain text.
             // The caller has to check the signatures then.
@@ -466,11 +463,11 @@ async fn decrypt_part(
             // The caller has to check if the signatures set is empty then.
             // (because that's the only thing the caller does)
 
-            return Ok(Some((plain, ret_valid_signatures)));
+            return Ok((Some(plain), ret_valid_signatures));
         }
     }
 
-    Ok(None)
+    Ok((None, HashSet::new()))
 }
 
 #[allow(clippy::indexing_slicing)]
