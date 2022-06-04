@@ -219,61 +219,53 @@ impl MimeMessage {
 
         let (mail, signatures, warn_empty_signature) =
             match e2ee::try_decrypt(context, &mail, message_time).await {
-                Ok((raw, signatures)) => {
-                    if let Some(raw) = raw {
-                        // Encrypted, but maybe unsigned message. Only if
-                        // `signatures` set is non-empty, it is a valid
-                        // autocrypt message.
+                Ok((Some(raw), signatures)) => {
+                    // Encrypted, but maybe unsigned message. Only if
+                    // `signatures` set is non-empty, it is a valid
+                    // autocrypt message.
 
-                        mail_raw = raw;
-                        let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                            info!(context, "decrypted message mime-body:");
-                            println!("{}", String::from_utf8_lossy(&mail_raw));
-                        }
-
-                        // Handle any gossip headers if the mail was encrypted.  See section
-                        // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-                        // but only if the mail was correctly signed:
-                        if !signatures.is_empty() {
-                            let gossip_headers =
-                                decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                            gossiped_addr = update_gossip_peerstates(
-                                context,
-                                message_time,
-                                &mail,
-                                gossip_headers,
-                            )
-                            .await?;
-                        }
-
-                        // let known protected headers from the decrypted
-                        // part override the unencrypted top-level
-
-                        // Signature was checked for original From, so we
-                        // do not allow overriding it.
-                        let mut throwaway_from = from.clone();
-
-                        // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
-                        // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                        headers.remove("subject");
-
-                        MimeMessage::merge_headers(
-                            context,
-                            &mut headers,
-                            &mut recipients,
-                            &mut throwaway_from,
-                            &mut list_post,
-                            &mut chat_disposition_notification_to,
-                            &decrypted_mail.headers,
-                        );
-
-                        (Ok(decrypted_mail), signatures, true)
-                    } else {
-                        // Message was not encrypted
-                        (Ok(mail), signatures, false)
+                    mail_raw = raw;
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(context, "decrypted message mime-body:");
+                        println!("{}", String::from_utf8_lossy(&mail_raw));
                     }
+
+                    // Handle any gossip headers if the mail was encrypted.  See section
+                    // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+                    // but only if the mail was correctly signed:
+                    if !signatures.is_empty() {
+                        let gossip_headers =
+                            decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
+                        gossiped_addr =
+                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)
+                                .await?;
+                    }
+
+                    // let known protected headers from the decrypted
+                    // part override the unencrypted top-level
+
+                    // Signature was checked for original From, so we
+                    // do not allow overriding it.
+                    let mut throwaway_from = from.clone();
+
+                    // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
+                    // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+                    headers.remove("subject");
+
+                    MimeMessage::merge_headers(
+                        context,
+                        &mut headers,
+                        &mut recipients,
+                        &mut throwaway_from,
+                        &mut list_post,
+                        &mut chat_disposition_notification_to,
+                        &decrypted_mail.headers,
+                    );
+
+                    (Ok(decrypted_mail), signatures, true)
                 }
+                Ok((None, signatures)) => (Ok(mail), signatures, false),
                 Err(err) => {
                     warn!(context, "decryption failed: {}", err);
                     (Err(err), Default::default(), true)

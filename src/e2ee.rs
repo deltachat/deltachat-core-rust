@@ -133,6 +133,54 @@ impl EncryptHelper {
     }
 }
 
+/// Applies Autocrypt header to Autocrypt peer state.
+///
+/// Returns updated peer state.
+pub(crate) async fn get_autocrypt_peerstate(
+    context: &Context,
+    from: &str,
+    autocrypt_header: Option<&Aheader>,
+    message_time: i64,
+) -> Result<Option<Peerstate>> {
+    let mut peerstate;
+
+    // Apply Autocrypt header
+    if let Some(header) = autocrypt_header {
+        // TODO performance...
+        // The "from_nongossiped_fingerprint" part is for AEAP:
+        // If we know this fingerprint from another addr,
+        // we may want to do a transition from this other addr
+        // (and keep its peerstate)
+        peerstate = Peerstate::from_nongossiped_fingerprint_or_addr(
+            context,
+            &header.public_key.fingerprint(),
+            from,
+        )
+        .await?;
+
+        if let Some(ref mut peerstate) = peerstate {
+            if addr_cmp(&peerstate.addr, from) {
+                peerstate.apply_header(header, message_time);
+                peerstate.save_to_db(&context.sql, false).await?;
+            }
+            // If `peerstate.addr` and `from` differ, this means that
+            // someone is using the same key but a different addr, probably
+            // because they made an AEAP transition.
+            // But we don't know if that's legit until we checked the
+            // signatures, so wait until then with writing anything
+            // to the database.
+        } else {
+            let p = Peerstate::from_header(header, message_time);
+            p.save_to_db(&context.sql, true).await?;
+            peerstate = Some(p);
+        }
+    } else {
+        peerstate = Peerstate::from_addr(context, from).await?;
+    }
+
+    Ok(peerstate)
+}
+
 /// Tries to decrypt a message, but only if it is structured as an
 /// Autocrypt message.
 ///
@@ -154,54 +202,15 @@ pub async fn try_decrypt(
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
         .unwrap_or_default();
-
-    // TODO comment
-    let mut peerstate;
-
-    // Apply Autocrypt header
     let autocrypt_header = Aheader::from_headers(&from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    if let Some(ref header) = autocrypt_header {
-        // TODO performance...
-        peerstate = Peerstate::from_nongossiped_fingerprint_or_addr(
-            context,
-            &header.public_key.fingerprint(),
-            &from,
-        )
-        .await?;
-
-        if let Some(ref mut peerstate) = peerstate {
-            if addr_cmp(&peerstate.addr, &from) {
-                peerstate.apply_header(header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
-            }
-            // If `peerstate.addr` and `from` differ, this means that
-            // someone is using the same key but a different addr, probably
-            // because they made an AEAP transition.
-            // But we don't know if that's legit until we checked the
-            // signatures, so wait until then with writing anything
-            // to the database.
-        } else {
-            let p = Peerstate::from_header(header, message_time);
-            p.save_to_db(&context.sql, true).await?;
-            peerstate = Some(p);
-        }
-    } else {
-        peerstate = Peerstate::from_addr(context, &from).await?;
-    }
+    let mut peerstate =
+        get_autocrypt_peerstate(context, &from, autocrypt_header.as_ref(), message_time).await?;
 
     // Possibly perform decryption
-    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
-
-    if let Some(ref peerstate) = peerstate {
-        if let Some(key) = &peerstate.public_key {
-            public_keyring_for_validate.add(key.clone());
-        } else if let Some(key) = &peerstate.gossip_key {
-            public_keyring_for_validate.add(key.clone());
-        }
-    }
+    let public_keyring_for_validate = keyring_from_peerstate(&peerstate);
 
     // `signatures` is non-empty exactly if the message is signed correctly
     let (out_mail, signatures) =
@@ -211,41 +220,16 @@ pub async fn try_decrypt(
         };
 
     if let Some(ref mut peerstate) = peerstate {
-        // If `peerstate.addr` and `from` differ, this means that
-        // someone is using the same key but a different addr, probably
-        // because they made an AEAP transition.
-        if !addr_cmp(&peerstate.addr, &from)
-            // Check if the message is signed correctly.
-            // If it's not signed correctly, the whole autocrypt header will be mostly
-            // ignored anyway and the message shown as not encrypted, so we don't
-            // have to handle this case.
-            && !signatures.is_empty()
-            // Check if it's a chat message; we do this to avoid
-            // some accidental transitions if someone writes from multiple
-            // addresses with an MUA.
-            && mail.headers.get_header(HeaderDef::ChatVersion).is_some()
-            && message_time > peerstate.last_seen
-        {
-            peerstate
-                .handle_address_change(context, message_time, &from)
-                .await?;
-
-            peerstate.addr = from.clone();
-            let header = autocrypt_header.context(
-                "`!addr_cmp(&peerstate.addr, &from)` was true, i.e. peerstate.addr != from, \
-                so the peerstate must have been loaded because its fingerprint is equal to \
-                `header.public_key.fingerprint()`. But now there is no autocrypt header??",
-            )?;
-            peerstate.apply_header(&header, message_time);
-            peerstate.to_save = Some(ToSave::All);
-
-            // We don't know whether a peerstate with this address already existed, or a
-            // new one should be created, so just try both create=false and create=true,
-            // and if this fails, create=true, one will succeed (this is a very cold path,
-            // so performance doesn't really matter).
-            peerstate.save_to_db(&context.sql, true).await?;
-            peerstate.save_to_db(&context.sql, false).await?;
-        }
+        maybe_do_aeap_transition(
+            context,
+            peerstate,
+            from,
+            &signatures,
+            mail,
+            message_time,
+            autocrypt_header,
+        )
+        .await?;
 
         peerstate
             .handle_fingerprint_change(context, message_time)
@@ -265,6 +249,51 @@ pub async fn try_decrypt(
         println!("dbg {:?}", String::from_utf8_lossy(out_mail));
     }
     Ok((out_mail, signatures))
+}
+
+async fn maybe_do_aeap_transition(
+    context: &Context,
+    peerstate: &mut Peerstate,
+    from: String,
+    signatures: &HashSet<Fingerprint>,
+    mail: &ParsedMail<'_>,
+    message_time: i64,
+    autocrypt_header: Option<Aheader>,
+) -> Result<(), anyhow::Error> {
+    if !addr_cmp(&peerstate.addr, &from)
+        // Check if the message is signed correctly.
+        // If it's not signed correctly, the whole autocrypt header will be mostly
+        // ignored anyway and the message shown as not encrypted, so we don't
+        // have to handle this case.
+        && !signatures.is_empty()
+        // Check if it's a chat message; we do this to avoid
+        // some accidental transitions if someone writes from multiple
+        // addresses with an MUA.
+        && mail.headers.get_header(HeaderDef::ChatVersion).is_some()
+        && message_time > peerstate.last_seen
+    {
+        peerstate
+            .handle_address_change(context, message_time, &from)
+            .await?;
+
+        peerstate.addr = from.clone();
+        let header = autocrypt_header.context(
+            "`!addr_cmp(&peerstate.addr, &from)` was true, i.e. peerstate.addr != from, \
+                so the peerstate must have been loaded because its fingerprint is equal to \
+                `header.public_key.fingerprint()`. But now there is no autocrypt header??",
+        )?;
+        peerstate.apply_header(&header, message_time);
+        peerstate.to_save = Some(ToSave::All);
+
+        // We don't know whether a peerstate with this address already existed, or a
+        // new one should be created, so just try both create=false and create=true,
+        // and if this fails, create=true, one will succeed (this is a very cold path,
+        // so performance doesn't really matter).
+        peerstate.save_to_db(&context.sql, true).await?;
+        peerstate.save_to_db(&context.sql, false).await?;
+    }
+
+    Ok(())
 }
 
 /// Returns a reference to the encrypted payload of a valid PGP/MIME message.
@@ -344,6 +373,18 @@ fn get_attachment_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMai
     } else {
         None
     }
+}
+
+fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublicKey> {
+    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
+    if let Some(ref peerstate) = *peerstate {
+        if let Some(key) = &peerstate.public_key {
+            public_keyring_for_validate.add(key.clone());
+        } else if let Some(key) = &peerstate.gossip_key {
+            public_keyring_for_validate.add(key.clone());
+        }
+    }
+    public_keyring_for_validate
 }
 
 async fn decrypt_if_autocrypt_message(

@@ -861,8 +861,8 @@ Message w/out In-Reply-To
         chat::add_contact_to_chat(&bob, group, bob_alice_contact).await?;
 
         // Alice sends a message which Bob doesn't receive or something
-        // A real attack would rather re-use a message that was sent to some-
-        // one else or replace the Message-Id or whatever.
+        // A real attack would rather re-use a message that was sent to a group
+        // and replace the Message-Id or so.
         let chat = alice.create_chat(&bob).await;
         let sent = alice.send_text(chat.id, "whoop whoop").await;
 
