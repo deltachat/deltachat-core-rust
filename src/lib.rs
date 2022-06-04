@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 #![deny(
+    unused,
     clippy::correctness,
     missing_debug_implementations,
     clippy::all,
@@ -24,7 +25,6 @@ extern crate num_derive;
 extern crate smallvec;
 #[macro_use]
 extern crate rusqlite;
-extern crate strum;
 #[macro_use]
 extern crate strum_macros;
 

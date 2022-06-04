@@ -1,4 +1,4 @@
-#![deny(clippy::all)]
+#![deny(unused, clippy::all)]
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -11,8 +11,6 @@
 
 #[macro_use]
 extern crate human_panic;
-extern crate num_traits;
-extern crate serde_json;
 
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
