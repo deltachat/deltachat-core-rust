@@ -34,8 +34,6 @@ impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
 
 #[macro_use]
 pub mod log;
-#[macro_use]
-pub mod error;
 
 #[cfg(feature = "internals")]
 #[macro_use]
