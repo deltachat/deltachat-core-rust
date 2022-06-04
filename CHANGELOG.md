@@ -2,14 +2,12 @@
 
 ## Unreleased
 
-## Changes
-- refactorings #3375
-- clean up series of webxdc info messages;
-  `DC_EVENT_MSGS_CHANGED` is emitted on changes of existing info messages #3395
+### Changes
 
-## Fixes
-- do not reset our database if imported backup cannot be decrypted #3397
-- node: remove `npx` from build script, this broke flathub build #3396
+### Fixes
+
+
+## 1.86.0
 
 ### API-Changes
 - python: added optional `closed` parameter to `Account` constructor #3394
@@ -30,6 +28,17 @@
 - python: added optional `closed` parameter to `ACFactory.get_unconfigured_account()` (pytest plugin) #3394
 - python: added optional `passphrase` parameter to `ACFactory.get_pseudo_configured_account()` (pytest plugin) #3394
 
+### Changes
+- clean up series of webxdc info messages;
+  `DC_EVENT_MSGS_CHANGED` is emitted on changes of existing info messages #3395
+- update provider database #3399
+- refactorings #3375 #3403 #3398 #3404
+
+### Fixes
+- do not reset our database if imported backup cannot be decrypted #3397
+- node: remove `npx` from build script, this broke flathub build #3396
+
+
 ## 1.85.0
 
 ### Changes
@@ -37,7 +46,6 @@
 - node: move split2 to devDependencies
 - python: build Python 3.10 wheels #3392
 - update Rust dependencies
-
 
 ### Fixes
 - delete outgoing MDNs found in the Sent folder on Gmail #3372
@@ -66,10 +74,11 @@
 ### Fixes
 - fix node prebuild & package ci #3337
 
+
 ## 1.82.0
 
 ### API-Changes
-- re-add removed DC_MSG_ID_MARKER1 as in use on iOS #3330
+- re-add removed `DC_MSG_ID_MARKER1` as in use on iOS #3330
 
 ### Changes
 - refactorings #3328
