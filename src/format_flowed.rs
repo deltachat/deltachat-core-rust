@@ -30,13 +30,6 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
         if c == ' ' {
             buffer.push(c);
             after_space = true;
-        } else if c == '>' {
-            if buffer.is_empty() {
-                // Space stuffing, see RFC 3676
-                buffer.push(' ');
-            }
-            buffer.push(c);
-            after_space = false;
         } else {
             if after_space && buffer.len() >= 72 && !c.is_whitespace() {
                 // Flush the buffer and insert soft break (SP CRLF).
@@ -62,12 +55,7 @@ fn format_flowed_prefix(text: &str, prefix: &str) -> String {
         if prefix.len() + line.len() > 78 {
             result += &format_line_flowed(line, prefix);
         } else {
-            result += prefix;
-            if prefix.is_empty() && line.starts_with('>') {
-                // Space stuffing, see RFC 3676
-                result.push(' ');
-            }
-            result += line;
+            result += prefix + line;
         }
     }
     result
