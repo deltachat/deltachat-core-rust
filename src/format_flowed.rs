@@ -55,7 +55,8 @@ fn format_flowed_prefix(text: &str, prefix: &str) -> String {
         if prefix.len() + line.len() > 78 {
             result += &format_line_flowed(line, prefix);
         } else {
-            result += prefix + line;
+            result += prefix;
+            result += line;
         }
     }
     result
