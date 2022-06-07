@@ -4416,12 +4416,10 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
     block_on(async move { accounts.write().await.maybe_network_lost().await });
 }
 
-pub type dc_accounts_event_emitter_t = EventEmitter;
-
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     accounts: *mut dc_accounts_t,
-) -> *mut dc_accounts_event_emitter_t {
+) -> *mut dc_event_emitter_t {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_get_event_emitter()");
         return ptr::null_mut();
@@ -4431,31 +4429,6 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     let emitter = block_on(async move { accounts.read().await.get_event_emitter().await });
 
     Box::into_raw(Box::new(emitter))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_accounts_event_emitter_unref(
-    emitter: *mut dc_accounts_event_emitter_t,
-) {
-    if emitter.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_event_emitter_unref()");
-        return;
-    }
-    let _ = Box::from_raw(emitter);
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_accounts_get_next_event(
-    emitter: *mut dc_accounts_event_emitter_t,
-) -> *mut dc_event_t {
-    if emitter.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_get_next_event()");
-        return ptr::null_mut();
-    }
-    let emitter = &mut *emitter;
-    block_on(emitter.recv())
-        .map(|ev| Box::into_raw(Box::new(ev)))
-        .unwrap_or_else(ptr::null_mut)
 }
 
 #[cfg(feature = "jsonrpc")]

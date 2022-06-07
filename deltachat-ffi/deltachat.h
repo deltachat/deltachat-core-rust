@@ -22,7 +22,6 @@ typedef struct _dc_lot      dc_lot_t;
 typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
-typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
 typedef struct _dc_jsonrpc_instance dc_jsonrpc_instance_t;
 
 /**
@@ -2844,13 +2843,13 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  * @memberof dc_accounts_t
  * @param accounts The account manager as created by dc_accounts_new().
  * @return Returns the event emitter, NULL on errors.
- *     Must be freed using dc_accounts_event_emitter_unref() after usage.
+ *     Must be freed using dc_event_emitter_unref() after usage.
  *
  * Note: Use only one event emitter per account manager.
  * Having more than one event emitter running at the same time on the same account manager
  * will result in events randomly delivered to the one or to the other.
  */
-dc_accounts_event_emitter_t* dc_accounts_get_event_emitter (dc_accounts_t* accounts);
+dc_event_emitter_t* dc_accounts_get_event_emitter (dc_accounts_t* accounts);
 
 
 /**
@@ -5261,9 +5260,8 @@ char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
  * @class dc_event_emitter_t
  *
  * Opaque object that is used to get events from a single context.
- * You can get an event emitter from a context using dc_get_event_emitter().
- * If you are using the dc_accounts_t account manager,
- * dc_accounts_event_emitter_t must be used instead.
+ * You can get an event emitter from a context using dc_get_event_emitter()
+ * or dc_accounts_get_event_emitter().
  */
 
 /**
@@ -5288,39 +5286,6 @@ dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
  *     If NULL is given, nothing is done and an error is logged.
  */
 void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
-
-
-/**
- * @class dc_accounts_event_emitter_t
- *
- * Opaque object that is used to get events from the dc_accounts_t account manager.
- * You get an event emitter from the account manager using dc_accounts_get_event_emitter().
- * If you are not using the dc_accounts_t account manager but just a single dc_context_t object,
- * dc_event_emitter_t must be used instead.
- */
-
-/**
- * Get the next event from an accounts event emitter object.
- *
- * @memberof dc_accounts_event_emitter_t
- * @param emitter Event emitter object as returned from dc_accounts_get_event_emitter().
- * @return An event as an dc_event_t object.
- *     You can query the event for information using dc_event_get_id(), dc_event_get_data1_int() and so on;
- *     if you are done with the event, you have to free the event using dc_event_unref().
- *     If NULL is returned, the contexts belonging to the event emitter are unref'd and no more events will come;
- *     in this case, free the event emitter using dc_accounts_event_emitter_unref().
- */
-dc_event_t* dc_accounts_get_next_event (dc_accounts_event_emitter_t* emitter);
-
-
-/**
- * Free an accounts event emitter object.
- *
- * @memberof dc_accounts_event_emitter_t
- * @param emitter Event emitter object as returned from dc_accounts_get_event_emitter().
- *     If NULL is given, nothing is done and an error is logged.
- */
-void dc_accounts_event_emitter_unref(dc_accounts_event_emitter_t* emitter);
 
 
 /**
@@ -5393,7 +5358,7 @@ char* dc_event_get_data2_str(dc_event_t* event);
  * To get the context object belonging to the event, use dc_accounts_get_account().
  *
  * @memberof dc_event_t
- * @param event The event object as returned from dc_accounts_get_next_event().
+ * @param event The event object as returned from dc_get_next_event().
  * @return The account ID belonging to the event, 0 for account manager errors.
  */
 uint32_t dc_event_get_account_id(dc_event_t* event);
