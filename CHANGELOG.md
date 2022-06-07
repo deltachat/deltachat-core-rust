@@ -5,6 +5,7 @@
 ### Changes
 
 ### Fixes
+- set a default error if NDN does not provide an error
 
 
 ## 1.86.0
