@@ -1401,8 +1401,9 @@ impl MimeMessage {
             let error = parts
                 .iter()
                 .find(|p| p.typ == Viewtype::Text)
-                .map(|p| p.msg.clone());
-            if let Err(e) = message::handle_ndn(context, failure_report, error).await {
+                .map(|p| p.msg.clone())
+                .unwrap_or("Non-Delivery-Notification without further details.".to_string());
+            if let Err(e) = message::handle_ndn(context, failure_report, &error).await {
                 warn!(context, "Could not handle ndn: {}", e);
             }
         }

@@ -2068,7 +2068,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
         Err(err) => {
-            message::set_msg_failed(context, msg_id, Some(err.to_string())).await;
+            message::set_msg_failed(context, msg_id, &err.to_string()).await;
             Err(err)
         }
     }?;
@@ -2078,7 +2078,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         message::set_msg_failed(
             context,
             msg_id,
-            Some("End-to-end-encryption unavailable unexpectedly."),
+            "End-to-end-encryption unavailable unexpectedly.",
         )
         .await;
         bail!(
