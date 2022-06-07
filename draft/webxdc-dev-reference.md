@@ -1,6 +1,12 @@
 # Webxdc Developer Reference
 
-(This document may eventually be merged with the [webxdc guidebook](https://deltachat.github.io/webxdc_docs/), where you may currently find other useful information.)
+This document gives a quick overview about the Webxdc specification,
+It is meant for both, developing Webxdc apps
+and developing Webxdc implementations.
+
+The [Webxdc guidebook](https://deltachat.github.io/webxdc_docs/) shows more detailed information
+when developing Webxdc apps.
+
 
 ## Webxdc File Format
 
