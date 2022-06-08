@@ -133,8 +133,8 @@ mod tests {
                         client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
 
-        let text = "> Not a quote";
-        assert_eq!(format_flowed(text), " > Not a quote");
+        let text = "> Handmade quote";
+        assert_eq!(format_flowed(text), "> Handmade quote");
 
         // Test space stuffing of wrapped lines
         let text = "> This is the Autocrypt Setup Message used to transfer your key between clients.\n\
