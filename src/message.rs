@@ -1424,9 +1424,8 @@ pub async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
     }
 }
 
-pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: Option<impl AsRef<str>>) {
+pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
-        let error = error.map(|e| e.as_ref().to_string()).unwrap_or_default();
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
             warn!(context, "{} failed: {}", msg_id, error);
@@ -1541,7 +1540,7 @@ pub async fn handle_mdn(
 pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
-    error: Option<impl AsRef<str>>,
+    error: &str,
 ) -> Result<()> {
     if failed.rfc724_mid.is_empty() {
         return Ok(());
@@ -1575,7 +1574,7 @@ pub(crate) async fn handle_ndn(
     let mut first = true;
     for msg in msgs.into_iter() {
         let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, msg_id, error.as_ref()).await;
+        set_msg_failed(context, msg_id, error).await;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
@@ -2218,7 +2217,7 @@ mod tests {
         update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await?;
         assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
 
-        set_msg_failed(&alice, alice_msg.id, Some("badly failed")).await;
+        set_msg_failed(&alice, alice_msg.id, "badly failed").await;
         assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
 
         // check incoming message states on receiver side
