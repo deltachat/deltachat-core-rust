@@ -6,7 +6,7 @@
 
 ### Fixes
 - set a default error if NDN does not provide an error
-
+- python: avoid exceptions when messages/contacts/chats are compared with `None`
 
 ## 1.86.0
 

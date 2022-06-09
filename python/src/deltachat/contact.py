@@ -22,7 +22,9 @@ class Contact(object):
         self.account = account
         self.id = id
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
+        if other is None:
+            return False
         return self.account._dc_context == other.account._dc_context and self.id == other.id
 
     def __ne__(self, other):
