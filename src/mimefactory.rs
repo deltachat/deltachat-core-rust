@@ -29,6 +29,7 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
+use crate::webxdc::StatusUpdateSerial;
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -1180,7 +1181,7 @@ impl<'a> MimeFactory<'a> {
             parts.push(context.build_status_update_part(json).await);
         } else if self.msg.viewtype == Viewtype::Webxdc {
             if let Some(json) = context
-                .render_webxdc_status_update_object(self.msg.id, None)
+                .render_webxdc_status_update_object(self.msg.id, StatusUpdateSerial::new(0))
                 .await?
             {
                 parts.push(context.build_status_update_part(&json).await);

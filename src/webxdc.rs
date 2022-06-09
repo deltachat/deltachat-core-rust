@@ -379,12 +379,9 @@ impl Context {
                 .set_cmd(SystemMessage::WebxdcStatusUpdate);
             status_update.param.set(
                 Param::Arg,
-                self.render_webxdc_status_update_object(
-                    instance_msg_id,
-                    Some(status_update_serial),
-                )
-                .await?
-                .ok_or_else(|| format_err!("Status object expected."))?,
+                self.render_webxdc_status_update_object(instance_msg_id, status_update_serial)
+                    .await?
+                    .ok_or_else(|| format_err!("Status object expected."))?,
             );
             status_update.set_quote(self, Some(&instance)).await?;
             status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
@@ -510,21 +507,18 @@ impl Context {
     ///
     /// Example: `{"updates": [{"payload":"any update data"},
     ///                        {"payload":"another update data"}]}`
-    /// If `status_update_serial` is set, exactly that update is rendered, otherwise all updates are rendered.
+    /// Updates with serials larger or equal than `first_serial` are returned.
+    /// To get all updates, set `first_serial` to 0.
     pub(crate) async fn render_webxdc_status_update_object(
         &self,
         instance_msg_id: MsgId,
-        status_update_serial: Option<StatusUpdateSerial>,
+        first_serial: StatusUpdateSerial,
     ) -> Result<Option<String>> {
         let json = self
             .sql
             .query_map(
-                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND (1=? OR id=?) ORDER BY id",
-                paramsv![
-                    instance_msg_id,
-                    if status_update_serial.is_some() { 0 } else { 1 },
-                    status_update_serial.unwrap_or(StatusUpdateSerial(0))
-                ],
+                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND id>=? ORDER BY id",
+                paramsv![instance_msg_id, first_serial],
                 |row| row.get::<_, String>(0),
                 |rows| {
                     let mut json = String::default();
@@ -1315,14 +1309,14 @@ mod tests {
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         assert!(t
-            .render_webxdc_status_update_object(instance.id, None)
+            .render_webxdc_status_update_object(instance.id, StatusUpdateSerial(0))
             .await?
             .is_none());
 
         t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "bla")
             .await?;
         assert!(t
-            .render_webxdc_status_update_object(instance.id, None)
+            .render_webxdc_status_update_object(instance.id, StatusUpdateSerial(0))
             .await?
             .is_some());
 
