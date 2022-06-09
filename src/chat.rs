@@ -1951,7 +1951,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
                 }
             }
             msg.param.remove(Param::PrepForwards);
-            msg.update_param(context).await;
+            msg.update_param(context).await?;
         }
         return send_msg_inner(context, chat_id, msg).await;
     }
@@ -2120,7 +2120,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     if rendered_msg.is_encrypted && !needs_encryption {
         msg.param.set_int(Param::GuaranteeE2ee, 1);
-        msg.update_param(context).await;
+        msg.update_param(context).await?;
     }
 
     ensure!(!recipients.is_empty(), "no recipients for smtp job set");
@@ -2128,7 +2128,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
     let recipients = recipients.join(" ");
 
     msg.subject = rendered_msg.subject.clone();
-    msg.update_subject(context).await;
+    msg.update_subject(context).await?;
 
     let row_id = context
         .sql
@@ -3117,7 +3117,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                         .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
                 }
 
-                msg.update_param(context).await;
+                msg.update_param(context).await?;
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;
@@ -3165,7 +3165,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         for mut msg in msgs {
             if msg.get_showpadlock() && !chat.is_protected() {
                 msg.param.remove(Param::GuaranteeE2ee);
-                msg.update_param(context).await;
+                msg.update_param(context).await?;
             }
             match msg.get_state() {
                 MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {

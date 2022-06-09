@@ -306,7 +306,7 @@ impl Context {
         }
 
         if param_changed {
-            instance.update_param(self).await;
+            instance.update_param(self).await?;
             self.emit_msgs_changed(instance.chat_id, instance.id);
         }
 

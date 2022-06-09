@@ -23,7 +23,6 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
-use crate::log::LogExt;
 use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
@@ -404,7 +403,7 @@ impl Message {
                     }
 
                     if !self.id.is_unset() {
-                        self.update_param(context).await;
+                        self.update_param(context).await?;
                     }
                 }
             }
@@ -762,7 +761,7 @@ impl Message {
         width: i32,
         height: i32,
         duration: i32,
-    ) {
+    ) -> Result<()> {
         if width > 0 && height > 0 {
             self.param.set_int(Param::Width, width);
             self.param.set_int(Param::Height, height);
@@ -770,7 +769,8 @@ impl Message {
         if duration > 0 {
             self.param.set_int(Param::Duration, duration);
         }
-        self.update_param(context).await;
+        self.update_param(context).await?;
+        Ok(())
     }
 
     /// Sets message quote.
@@ -850,26 +850,26 @@ impl Message {
         self.param.set_int(Param::ForcePlaintext, 1);
     }
 
-    pub async fn update_param(&self, context: &Context) {
+    pub async fn update_param(&self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
                 "UPDATE msgs SET param=? WHERE id=?;",
                 paramsv![self.param.to_string(), self.id],
             )
-            .await
-            .ok_or_log(context);
+            .await?;
+        Ok(())
     }
 
-    pub(crate) async fn update_subject(&self, context: &Context) {
+    pub(crate) async fn update_subject(&self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
                 "UPDATE msgs SET subject=? WHERE id=?;",
                 paramsv![self.subject, self.id],
             )
-            .await
-            .ok_or_log(context);
+            .await?;
+        Ok(())
     }
 
     /// Gets the error status of the message.
