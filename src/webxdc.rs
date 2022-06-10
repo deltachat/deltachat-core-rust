@@ -3,7 +3,7 @@
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
+use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std, duration_to_str};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -367,10 +367,57 @@ impl Context {
         if send_now {
             // send update now
             // (also send updates on MessagesState::Failed, maybe only one member cannot receive)
+            if !instance.param.exists(Param::WebxdcPendingSerial) {
+                // TODO: param changes should be protected by a mutex
+                instance.param.set_int(
+                    Param::WebxdcPendingSerial,
+                    status_update_serial.to_u32() as i32,
+                );
+            }
+            instance.param.set(Param::LastSubject, descr);
+            instance.update_param(&self).await?;
+
+            if self.ratelimit.read().await.can_send() {
+                let status_update_msg_id = self.flush_status_updates(instance).await?;
+                Ok(status_update_msg_id)
+            } else {
+                let duration_until_can_send = self.ratelimit.read().await.until_can_send();
+                info!(
+                    self,
+                    "webxdc updates got rate limited, waiting for {}",
+                    duration_to_str(duration_until_can_send)
+                );
+                // TODO: do not create the task if there is already another one waiting
+                // TODO: if the app is restarted before sending is scheduled (not uncommon when delay is eg. 2 minutes),
+                //       updates will be sent only if another update is sent
+                let ctx = self.clone();
+                async_std::task::spawn(async move {
+                    async_std::task::sleep(duration_until_can_send).await;
+                    if let Err(err) = ctx.flush_status_updates(instance).await {
+                        warn!(ctx, "webxdc flushing failed: {}", err);
+                    }
+                });
+                Ok(None)
+            }
+        } else {
+            // send update once the instance is actually send
+            Ok(None)
+        }
+    }
+
+    async fn flush_status_updates(&self, mut instance: Message) -> Result<Option<MsgId>> {
+        if let Some(pending_serial) = instance.param.get_int(Param::WebxdcPendingSerial) {
+            instance.param.remove(Param::WebxdcPendingSerial); // TODO: param changes should be protected by a mutex
+            instance.update_param(self).await?;
+
+            let pending_serial = StatusUpdateSerial(pending_serial as u32);
             let mut status_update = Message {
                 chat_id: instance.chat_id,
                 viewtype: Viewtype::Text,
-                text: Some(descr.to_string()),
+                text: instance
+                    .param
+                    .get(Param::LastSubject)
+                    .map(|s| s.to_string()),
                 hidden: true,
                 ..Default::default()
             };
@@ -379,7 +426,7 @@ impl Context {
                 .set_cmd(SystemMessage::WebxdcStatusUpdate);
             status_update.param.set(
                 Param::Arg,
-                self.render_webxdc_status_update_object(instance_msg_id, status_update_serial)
+                self.render_webxdc_status_update_object(instance.id, pending_serial)
                     .await?
                     .ok_or_else(|| format_err!("Status object expected."))?,
             );
@@ -389,7 +436,6 @@ impl Context {
                 chat::send_msg(self, instance.chat_id, &mut status_update).await?;
             Ok(Some(status_update_msg_id))
         } else {
-            // send update once the instance is actually send
             Ok(None)
         }
     }
