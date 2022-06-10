@@ -120,6 +120,9 @@ jobs:
       - name: install dependencies without running scripts
         run: |
           npm install --ignore-scripts
+      - name: build constants
+        run: |
+          npm run build:core:constants
       - name: build typescript part
         run: |
           npm run build:bindings:ts
