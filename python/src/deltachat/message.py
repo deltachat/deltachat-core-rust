@@ -1,9 +1,10 @@
 """ The Message object. """
 
+import json
 import os
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Union
 
 from . import const, props
 from .capi import ffi, lib
@@ -54,8 +55,8 @@ class Message(object):
     def new_empty(cls, account, view_type):
         """create a non-persistent message.
 
-        :param: view_type is the message type code or one of the strings:
-           "text", "audio", "video", "file", "sticker"
+        :param view_type: the message type code or one of the strings:
+           "text", "audio", "video", "file", "sticker", "videochat", "webxdc"
         """
         if isinstance(view_type, int):
             view_type_code = view_type
@@ -129,6 +130,36 @@ class Message(object):
     def filemime(self) -> str:
         """mime type of the file (if it exists)"""
         return from_dc_charpointer(lib.dc_msg_get_filemime(self._dc_msg))
+
+    def get_status_updates(self, serial: int = 0) -> list:
+        """Get the status updates of this webxdc message.
+
+        The status updates may be sent by yourself or by other members.
+        If this message doesn't have a webxdc instance, an empty list is returned.
+
+        :param serial: The last known serial. Pass 0 if there are no known serials to receive all updates.
+        """
+        return json.loads(
+            from_dc_charpointer(lib.dc_get_webxdc_status_updates(self.account._dc_context, self.id, serial))
+        )
+
+    def send_status_update(self, json_data: Union[str, dict], description: str) -> bool:
+        """Send an status update for the webxdc instance of this message.
+
+        If the webxdc instance is a draft, the update is not sent immediately.
+        Instead, the updates are collected and sent out in a batch when the instance is actually sent.
+
+        :param json_data: program-readable data, the actual payload.
+        :param description: The user-visible description of JSON data
+        :returns: True on success, False otherwise
+        """
+        if isinstance(json_data, dict):
+            json_data = json.dumps(json_data, default=str)
+        return bool(
+            lib.dc_send_webxdc_status_update(
+                self.account._dc_context, self.id, as_dc_charpointer(json_data), as_dc_charpointer(description)
+            )
+        )
 
     def is_system_message(self):
         """return True if this message is a system/info message."""
@@ -402,6 +433,14 @@ class Message(object):
         """return True if it's a video message."""
         return self._view_type == const.DC_MSG_VIDEO
 
+    def is_videochat_invitation(self):
+        """return True if it's a videochat invitation message."""
+        return self._view_type == const.DC_MSG_VIDEOCHAT_INVITATION
+
+    def is_webxdc(self):
+        """return True if it's a Webxdc message."""
+        return self._view_type == const.DC_MSG_WEBXDC
+
     def is_file(self):
         """return True if it's a file message."""
         return self._view_type == const.DC_MSG_FILE
@@ -421,6 +460,8 @@ _view_type_mapping = {
     "video": const.DC_MSG_VIDEO,
     "file": const.DC_MSG_FILE,
     "sticker": const.DC_MSG_STICKER,
+    "videochat": const.DC_MSG_VIDEOCHAT_INVITATION,
+    "webxdc": const.DC_MSG_WEBXDC,
 }
 
 

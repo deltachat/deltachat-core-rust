@@ -238,6 +238,70 @@ def test_html_message(acfactory, lp):
     assert html_text in msg2.html
 
 
+def test_videochat_invitation_message(acfactory, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+    text = "You are invited to a video chat, click https://meet.jit.si/WxEGad0gGzX to join."
+
+    lp.sec("ac1: prepare and send text message to ac2")
+    msg1 = chat.send_text("message0")
+    assert not msg1.is_videochat_invitation()
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == "message0"
+    assert not msg2.is_videochat_invitation()
+
+    lp.sec("ac1: prepare and send videochat invitation to ac2")
+    msg1 = Message.new_empty(ac1, "videochat")
+    msg1.set_text(text)
+    msg1 = chat.send_msg(msg1)
+    assert msg1.is_videochat_invitation()
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == text
+    assert msg2.is_videochat_invitation()
+
+
+def test_webxdc_message(acfactory, data, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: prepare and send text message to ac2")
+    msg1 = chat.send_text("message0")
+    assert not msg1.is_webxdc()
+    assert not msg1.send_status_update({"payload": "not an webxdc"}, "invalid")
+    assert not msg1.get_status_updates()
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == "message0"
+    assert not msg2.is_webxdc()
+    assert not msg1.get_status_updates()
+
+    lp.sec("ac1: prepare and send webxdc instance to ac2")
+    msg1 = Message.new_empty(ac1, "webxdc")
+    msg1.set_text("message1")
+    msg1.set_file(data.get_path("webxdc/minimal.xdc"))
+    msg1 = chat.send_msg(msg1)
+    assert msg1.is_webxdc()
+    assert msg1.filename
+
+    assert msg1.send_status_update({"payload": "test1"}, "some test data")
+    assert msg1.send_status_update({"payload": "test2"}, "more test data")
+    assert len(msg1.get_status_updates()) == 2
+    update1 = msg1.get_status_updates()[0]
+    assert update1["payload"] == "test1"
+    assert len(msg1.get_status_updates(update1["serial"])) == 1
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == "message1"
+    assert msg2.is_webxdc()
+    assert msg2.filename
+
+
 def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac1: start with mvbox thread")
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)
