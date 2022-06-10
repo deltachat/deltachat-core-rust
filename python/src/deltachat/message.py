@@ -26,7 +26,9 @@ class Message(object):
         msg_id = self.id
         assert msg_id is not None and msg_id >= 0, repr(msg_id)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
+        if other is None:
+            return False
         return self.account == other.account and self.id == other.id
 
     def __repr__(self):

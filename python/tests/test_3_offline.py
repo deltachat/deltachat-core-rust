@@ -155,9 +155,11 @@ class TestOfflineContact:
         ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
         contact2 = ac1.create_contact("some1@example.org", name="some1")
+        contact3 = None
         str(contact1)
         repr(contact1)
         assert contact1 == contact2
+        assert contact1 != contact3
         assert contact1.id
         assert contact1.addr == "some1@example.org"
         assert contact1.display_name == "some1"
@@ -251,10 +253,12 @@ class TestOfflineChat:
     def test_chat_idempotent(self, chat1, ac1):
         contact1 = chat1.get_contacts()[0]
         chat2 = contact1.create_chat()
+        chat3 = None
         assert chat2.id == chat1.id
         assert chat2.get_name() == chat1.get_name()
         assert chat1 == chat2
         assert not (chat1 != chat2)
+        assert chat1 != chat3
 
         for ichat in ac1.get_chats():
             if ichat.id == chat1.id:
@@ -406,6 +410,8 @@ class TestOfflineChat:
 
     def test_message_eq_contains(self, chat1):
         msg = chat1.send_text("msg1")
+        msg2 = None
+        assert msg != msg2
         assert msg in chat1.get_messages()
         assert not (msg not in chat1.get_messages())
         str(msg)

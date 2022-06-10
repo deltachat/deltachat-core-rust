@@ -32,6 +32,8 @@ class Chat(object):
         self.id = id
 
     def __eq__(self, other) -> bool:
+        if other is None:
+            return False
         return self.id == getattr(other, "id", None) and self.account._dc_context == other.account._dc_context
 
     def __ne__(self, other) -> bool:
