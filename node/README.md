@@ -60,6 +60,19 @@ building from source or clone this repository and follow this steps:
 > not inside this folder. (We need this in order to include the rust source
 > code in the npm package.)
 
+### Use a git branch in deltachat-desktop
+
+You can directly install a core branch, but make sure:
+- that you have typescript in your project dependencies, as it is likely required
+- you know that there are **no prebuilds** and so it's build during instalation which is why it takes so long
+
+```
+npm install https://github.com/deltachat/deltachat-core-rust.git#branch
+```
+
+If you want prebuilds for a branch that has a core pr, you might find an npm tar.gz package for that branch at <https://download.delta.chat/node/preview/>.
+The github ci also posts a link to it in the checks for each pr.
+
 ### Use build-from-source in deltachat-desktop
 
 If you want to use the manually built node bindings in the desktop client (for
