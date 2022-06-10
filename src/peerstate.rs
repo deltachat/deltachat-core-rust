@@ -389,10 +389,8 @@ impl Peerstate {
 
                 chat::remove_from_chat_contacts_table(context, *chat_id, old_contact_id).await?;
 
-                // TODO now we're using lookup_id_by_addr() which filters out blocked contacts,
-                // above we did our own SQL statement...
                 let (new_contact_id, _) =
-                    Contact::add_or_lookup(context, "", new_addr, Origin::Hidden).await?;
+                    Contact::add_or_lookup(context, "", new_addr, Origin::IncomingReplyTo).await?;
                 chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
 
                 context.emit_event(EventType::ChatModified(*chat_id));

@@ -136,6 +136,7 @@ impl EncryptHelper {
 /// Applies Autocrypt header to Autocrypt peer state.
 ///
 /// Returns updated peer state.
+// TODO correct docs
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
     from: &str,
@@ -228,6 +229,9 @@ pub async fn try_decrypt(
         )
         .await?;
 
+        // TODO actually I think we should handle_fingerprint_change() before save_to_db()
+        // to prevent saving it and then not adding the info messages.
+        // Maybe we can push save_to_db() to the end?
         peerstate
             .handle_fingerprint_change(context, message_time)
             .await?;
@@ -242,9 +246,6 @@ pub async fn try_decrypt(
         }
     }
 
-    if let Some(out_mail) = &out_mail {
-        println!("dbg {:?}", String::from_utf8_lossy(out_mail));
-    }
     Ok((out_mail, signatures))
 }
 
@@ -463,6 +464,7 @@ async fn decrypt_part(
             // The caller has to check if the signatures set is empty then.
             // (because that's the only thing the caller does)
 
+            // TODO is this correct??
             return Ok((Some(plain), ret_valid_signatures));
         }
     }

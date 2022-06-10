@@ -253,6 +253,9 @@ impl MimeMessage {
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
                     headers.remove("subject");
 
+                    // TODO why don't we check if `signatures` is empty here?
+                    // If they are empty (and the mail was incorrectly signed), then do we really
+                    // want to allow "secure-join-fingerprint" and "chat-verified" headers?
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
