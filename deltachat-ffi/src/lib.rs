@@ -3574,7 +3574,8 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
         ffi_msg
             .message
             .latefiling_mediasize(ctx, width, height, duration)
-    });
+    })
+    .ok_or_log_msg(ctx, "Cannot set media size");
 }
 
 #[no_mangle]
