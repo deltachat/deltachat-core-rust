@@ -19,7 +19,6 @@
     "prebuildify": "^3.0.0",
     "prebuildify-ci": "^1.0.4",
     "prettier": "^2.0.5",
-    "split2": "^4.1.0",
     "typedoc": "^0.17.0",
     "typescript": "^3.9.10"
   },

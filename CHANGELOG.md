@@ -7,6 +7,7 @@
 - ignore ratelimits for bots #3439
 - remove `msgs_mdns` references to deleted messages during housekeeping #3387
 - format message lines starting with `>` as quotes #3434
+- node: remove `split2` dependency
 
 ### Fixes
 - set a default error if NDN does not provide an error
