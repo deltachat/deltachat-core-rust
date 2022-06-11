@@ -679,7 +679,7 @@ impl Deref for TestContext {
 
 impl Drop for TestContext {
     fn drop(&mut self) {
-        async_std::task::block_on(async move {
+        async_std::task::block_on(async {
             println!("\n========== Chats of {}: ==========", self.name());
             if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
                 for (chat, _) in chats.iter() {
