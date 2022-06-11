@@ -35,13 +35,6 @@ use crate::mimeparser::MimeMessage;
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
 
-/// `tcm.sec()` adds info events that mark a section in the log, e.g.:
-///
-/// ========== Example section ==========
-///
-/// This is the id for these events.
-const SEC_EVENT_ID: u32 = 0;
-
 /// Map of [`Context::id`] to names for [`TestContext`]s.
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
@@ -87,8 +80,8 @@ impl TestContextManager {
     pub fn sec(&self, msg: &str) {
         self.log_tx
             .try_send(Event {
-                id: SEC_EVENT_ID,
-                typ: EventType::Info(msg.to_string()),
+                id: 0,
+                typ: EventType::Info(format!("\n========== {} ==========", msg)),
             })
             .expect("The events channel should be unbounded and not closed, so try_send() shouldn't fail");
     }
@@ -932,7 +925,7 @@ fn print_event(event: &Event) {
     let context_names = CONTEXT_NAMES.read().unwrap();
     match context_names.get(&event.id) {
         Some(name) => println!("{} {}", name, msg),
-        None if event.id == SEC_EVENT_ID => println!("\n========== {} ==========", msg),
+        None if event.id == 0 => println!("{}", msg), // Event without account ID emitted by the test itself.
         None => println!("{} {}", event.id, msg),
     }
 }
