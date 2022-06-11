@@ -9,10 +9,9 @@ use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use async_std::{fs, io};
 
-use anyhow::{format_err, Context as _, Error};
+use anyhow::{format_err, Context as _, Error, Result};
 use image::{DynamicImage, ImageFormat};
 use num_traits::FromPrimitive;
-use thiserror::Error;
 
 use crate::config::Config;
 use crate::constants::{
@@ -44,31 +43,15 @@ impl<'a> BlobObject<'a> {
     /// name, followed by a random number and followed by a possible
     /// extension.  The `data` will be written into the file without
     /// race-conditions.
-    ///
-    /// # Errors
-    ///
-    /// [BlobError::CreateFailure] is used when the file could not
-    /// be created.  You can expect [BlobError.cause] to contain an
-    /// underlying error.
-    ///
-    /// [BlobError::WriteFailure] is used when the file could not
-    /// be written to.  You can expect [BlobError.cause] to contain an
-    /// underlying error.
     pub async fn create(
         context: &'a Context,
         suggested_name: &str,
         data: &[u8],
-    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+    ) -> Result<BlobObject<'a>> {
         let blobdir = context.get_blobdir();
         let (stem, ext) = BlobObject::sanitise_name(suggested_name);
         let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
-        file.write_all(data)
-            .await
-            .map_err(|err| BlobError::WriteFailure {
-                blobdir: blobdir.to_path_buf(),
-                blobname: name.clone(),
-                cause: err.into(),
-            })?;
+        file.write_all(data).await.context("file write failure")?;
 
         // workaround a bug in async-std
         // (the executor does not handle blocking operation in Drop correctly,
@@ -89,7 +72,7 @@ impl<'a> BlobObject<'a> {
         dir: &Path,
         stem: &str,
         ext: &str,
-    ) -> Result<(String, fs::File), BlobError> {
+    ) -> Result<(String, fs::File)> {
         const MAX_ATTEMPT: u32 = 16;
         let mut attempt = 0;
         let mut name = format!("{}{}", stem, ext);
@@ -105,11 +88,7 @@ impl<'a> BlobObject<'a> {
                 Ok(file) => return Ok((name, file)),
                 Err(err) => {
                     if attempt >= MAX_ATTEMPT {
-                        return Err(BlobError::CreateFailure {
-                            blobdir: dir.to_path_buf(),
-                            blobname: name,
-                            cause: err,
-                        });
+                        return Err(err).context("failed to create file");
                     } else if attempt == 1 && !dir.exists().await {
                         fs::create_dir_all(dir).await.ok_or_log(context);
                     } else {
@@ -126,40 +105,19 @@ impl<'a> BlobObject<'a> {
     /// but also copies an existing file into it.  This is done in a
     /// in way which avoids race-conditions when multiple files are
     /// concurrently created.
-    ///
-    /// # Errors
-    ///
-    /// In addition to the errors in [BlobObject::create] the
-    /// [BlobError::CopyFailure] is used when the data can not be
-    /// copied.
-    pub async fn create_and_copy(
-        context: &'a Context,
-        src: &Path,
-    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+    pub async fn create_and_copy(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
         let mut src_file = fs::File::open(src)
             .await
-            .map_err(|err| BlobError::CopyFailure {
-                blobdir: context.get_blobdir().to_path_buf(),
-                blobname: String::from(""),
-                src: src.to_path_buf(),
-                cause: err,
-            })?;
+            .with_context(|| format!("failed to open file {}", src.display()))?;
         let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
         let (name, mut dst_file) =
             BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
         if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
-            {
-                // Attempt to remove the failed file, swallow errors resulting from that.
-                let path = context.get_blobdir().join(&name_for_err);
-                fs::remove_file(path).await.ok();
-            }
-            return Err(BlobError::CopyFailure {
-                blobdir: context.get_blobdir().to_path_buf(),
-                blobname: name_for_err,
-                src: src.to_path_buf(),
-                cause: err,
-            });
+            // Attempt to remove the failed file, swallow errors resulting from that.
+            let path = context.get_blobdir().join(&name_for_err);
+            fs::remove_file(path).await.ok();
+            return Err(err).context("failed to copy file");
         }
 
         // workaround, see create() for details
@@ -184,16 +142,7 @@ impl<'a> BlobObject<'a> {
     ///
     /// Paths into the blob directory may be either defined by an absolute path
     /// or by the relative prefix `$BLOBDIR`.
-    ///
-    /// # Errors
-    ///
-    /// This merely delegates to the [BlobObject::create_and_copy] and
-    /// the [BlobObject::from_path] methods.  See those for possible
-    /// errors.
-    pub async fn new_from_path(
-        context: &'a Context,
-        src: &Path,
-    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+    pub async fn new_from_path(context: &'a Context, src: &Path) -> Result<BlobObject<'a>> {
         if src.starts_with(context.get_blobdir()) {
             BlobObject::from_path(context, src)
         } else if src.starts_with("$BLOBDIR/") {
@@ -209,32 +158,14 @@ impl<'a> BlobObject<'a> {
     /// must use a valid blob name.  That is after sanitisation the
     /// name must still be the same, that means it must be valid UTF-8
     /// and not have any special characters in it.
-    ///
-    /// # Errors
-    ///
-    /// [BlobError::WrongBlobdir] is used if the path is not in
-    /// the blob directory.
-    ///
-    /// [BlobError::WrongName] is used if the file name does not
-    /// remain identical after sanitisation.
-    pub fn from_path(
-        context: &'a Context,
-        path: &Path,
-    ) -> std::result::Result<BlobObject<'a>, BlobError> {
-        let rel_path =
-            path.strip_prefix(context.get_blobdir())
-                .map_err(|_| BlobError::WrongBlobdir {
-                    blobdir: context.get_blobdir().to_path_buf(),
-                    src: path.to_path_buf(),
-                })?;
+    pub fn from_path(context: &'a Context, path: &Path) -> Result<BlobObject<'a>> {
+        let rel_path = path
+            .strip_prefix(context.get_blobdir())
+            .context("wrong blobdir")?;
         if !BlobObject::is_acceptible_blob_name(rel_path) {
-            return Err(BlobError::WrongName {
-                blobname: path.to_path_buf(),
-            });
+            return Err(format_err!("wrong name"));
         }
-        let name = rel_path.to_str().ok_or_else(|| BlobError::WrongName {
-            blobname: path.to_path_buf(),
-        })?;
+        let name = rel_path.to_str().context("wrong name")?;
         BlobObject::from_name(context, name.to_string())
     }
 
@@ -244,24 +175,13 @@ impl<'a> BlobObject<'a> {
     /// prefixed, as returned by [BlobObject::as_name].  This is how
     /// you want to create a [BlobObject] for a filename read from the
     /// database.
-    ///
-    /// # Errors
-    ///
-    /// [BlobError::WrongName] is used if the name is not a valid
-    /// blobname, i.e. if [BlobObject::sanitise_name] does modify the
-    /// provided name.
-    pub fn from_name(
-        context: &'a Context,
-        name: String,
-    ) -> std::result::Result<BlobObject<'a>, BlobError> {
+    pub fn from_name(context: &'a Context, name: String) -> Result<BlobObject<'a>> {
         let name: String = match name.starts_with("$BLOBDIR/") {
             true => name.splitn(2, '/').last().unwrap().to_string(),
             false => name,
         };
         if !BlobObject::is_acceptible_blob_name(&name) {
-            return Err(BlobError::WrongName {
-                blobname: PathBuf::from(name),
-            });
+            return Err(format_err!("not an acceptable blob name: {}", &name));
         }
         Ok(BlobObject {
             blobdir: context.get_blobdir(),
@@ -394,7 +314,7 @@ impl<'a> BlobObject<'a> {
         true
     }
 
-    pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {
         let blob_abs = self.to_abs_path();
 
         let img_wh =
@@ -416,7 +336,7 @@ impl<'a> BlobObject<'a> {
         Ok(())
     }
 
-    pub async fn recode_to_image_size(&self, context: &Context) -> Result<(), BlobError> {
+    pub async fn recode_to_image_size(&self, context: &Context) -> Result<()> {
         let blob_abs = self.to_abs_path();
         if message::guess_msgtype_from_suffix(Path::new(&blob_abs))
             != Some((Viewtype::Image, "image/jpeg"))
@@ -439,8 +359,7 @@ impl<'a> BlobObject<'a> {
         {
             return Err(format_err!(
                 "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
-            )
-            .into());
+            ));
         }
         Ok(())
     }
@@ -451,12 +370,8 @@ impl<'a> BlobObject<'a> {
         mut blob_abs: PathBuf,
         mut img_wh: u32,
         max_bytes: Option<usize>,
-    ) -> Result<Option<String>, BlobError> {
-        let mut img = image::open(&blob_abs).map_err(|err| BlobError::RecodeFailure {
-            blobdir: context.get_blobdir().to_path_buf(),
-            blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-            cause: err,
-        })?;
+    ) -> Result<Option<String>> {
+        let mut img = image::open(&blob_abs).context("image recode failure")?;
         let orientation = self.get_exif_orientation(context);
         let mut encoded = Vec::new();
         let mut changed_name = None;
@@ -520,8 +435,7 @@ impl<'a> BlobObject<'a> {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B",
                                 max_bytes.unwrap_or_default()
-                            )
-                            .into());
+                            ));
                         }
 
                         img_wh = img_wh * 2 / 3;
@@ -555,11 +469,7 @@ impl<'a> BlobObject<'a> {
 
             fs::write(&blob_abs, &encoded)
                 .await
-                .map_err(|err| BlobError::WriteFailure {
-                    blobdir: context.get_blobdir().to_path_buf(),
-                    blobname: blob_abs.to_str().unwrap_or_default().to_string(),
-                    cause: err.into(),
-                })?;
+                .context("failed to write recoded blob to file")?;
         }
 
         Ok(changed_name)
@@ -588,46 +498,6 @@ impl<'a> fmt::Display for BlobObject<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "$BLOBDIR/{}", self.name)
     }
-}
-
-/// Errors for the [BlobObject].
-#[derive(Debug, Error)]
-pub enum BlobError {
-    #[error("Failed to create blob {blobname} in {}", .blobdir.display())]
-    CreateFailure {
-        blobdir: PathBuf,
-        blobname: String,
-        #[source]
-        cause: std::io::Error,
-    },
-    #[error("Failed to write data to blob {blobname} in {}", .blobdir.display())]
-    WriteFailure {
-        blobdir: PathBuf,
-        blobname: String,
-        #[source]
-        cause: anyhow::Error,
-    },
-    #[error("Failed to copy data from {} to blob {blobname} in {}", .src.display(), .blobdir.display())]
-    CopyFailure {
-        blobdir: PathBuf,
-        blobname: String,
-        src: PathBuf,
-        #[source]
-        cause: std::io::Error,
-    },
-    #[error("Failed to recode to blob {blobname} in {}", .blobdir.display())]
-    RecodeFailure {
-        blobdir: PathBuf,
-        blobname: String,
-        #[source]
-        cause: image::ImageError,
-    },
-    #[error("File path {} is not in {}", .src.display(), .blobdir.display())]
-    WrongBlobdir { blobdir: PathBuf, src: PathBuf },
-    #[error("Blob has a badname {}", .blobname.display())]
-    WrongName { blobname: PathBuf },
-    #[error("{0}")]
-    Other(#[from] anyhow::Error),
 }
 
 #[cfg(test)]

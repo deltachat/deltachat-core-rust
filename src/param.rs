@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Error, Result};
 use async_std::path::PathBuf;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
-use crate::blob::{BlobError, BlobObject};
+use crate::blob::BlobObject;
 use crate::context::Context;
 use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
@@ -320,11 +320,7 @@ impl Params {
     ///
     /// See also [Params::get_blob] and [Params::get_path] which may
     /// be more convenient.
-    pub fn get_file<'a>(
-        &self,
-        key: Param,
-        context: &'a Context,
-    ) -> Result<Option<ParamsFile<'a>>, BlobError> {
+    pub fn get_file<'a>(&self, key: Param, context: &'a Context) -> Result<Option<ParamsFile<'a>>> {
         let val = match self.get(key) {
             Some(val) => val,
             None => return Ok(None),
@@ -337,8 +333,8 @@ impl Params {
     /// This parses the parameter value as a [ParamsFile] and than
     /// tries to return a [BlobObject] for that file.  If the file is
     /// not yet a valid blob, one will be created by copying the file
-    /// only if `create` is set to `true`, otherwise the a [BlobError]
-    /// will result.
+    /// only if `create` is set to `true`, otherwise an error is
+    /// returned.
     ///
     /// Note that in the [ParamsFile::FsPath] case the blob can be
     /// created without copying if the path already referes to a valid
@@ -350,7 +346,7 @@ impl Params {
         key: Param,
         context: &'a Context,
         create: bool,
-    ) -> Result<Option<BlobObject<'a>>, BlobError> {
+    ) -> Result<Option<BlobObject<'a>>> {
         let val = match self.get(key) {
             Some(val) => val,
             None => return Ok(None),
@@ -370,7 +366,7 @@ impl Params {
     ///
     /// This parses the parameter value as a [ParamsFile] and returns
     /// a [PathBuf] to the file.
-    pub fn get_path(&self, key: Param, context: &Context) -> Result<Option<PathBuf>, BlobError> {
+    pub fn get_path(&self, key: Param, context: &Context) -> Result<Option<PathBuf>> {
         let val = match self.get(key) {
             Some(val) => val,
             None => return Ok(None),
@@ -425,7 +421,7 @@ impl<'a> ParamsFile<'a> {
     ///
     /// If the value was stored into the [Params] correctly this
     /// should not fail.
-    pub fn from_param(context: &'a Context, src: &str) -> Result<ParamsFile<'a>, BlobError> {
+    pub fn from_param(context: &'a Context, src: &str) -> Result<ParamsFile<'a>> {
         let param = match src.starts_with("$BLOBDIR/") {
             true => ParamsFile::Blob(BlobObject::from_name(context, src.to_string())?),
             false => ParamsFile::FsPath(PathBuf::from(src)),
@@ -524,12 +520,8 @@ mod tests {
         let fname: PathBuf = fname.into();
         assert_eq!(path, fname);
 
-        // Blob does not exist yet, expect BlobError.
-        let err = p.get_blob(Param::File, &t, false).await.unwrap_err();
-        match err {
-            BlobError::WrongBlobdir { .. } => (),
-            _ => panic!("wrong error type/variant: {:?}", err),
-        }
+        // Blob does not exist yet, expect error.
+        assert!(p.get_blob(Param::File, &t, false).await.is_err());
 
         fs::write(fname, b"boo").await.unwrap();
         let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
