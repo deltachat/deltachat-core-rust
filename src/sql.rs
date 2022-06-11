@@ -19,6 +19,7 @@ use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
 use crate::dc_tools::{dc_delete_file, time};
 use crate::ephemeral::start_ephemeral_timers;
+use crate::log::LogExt;
 use crate::message::{Message, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
@@ -649,6 +650,15 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     {
         warn!(context, "Can't set config: {}", e);
     }
+
+    context
+        .sql
+        .execute(
+            "DELETE FROM msgs_mdns WHERE msg_id NOT IN (SELECT id FROM msgs)",
+            paramsv![],
+        )
+        .await
+        .ok_or_log_msg(context, "failed to remove old MDNs");
 
     info!(context, "Housekeeping done.");
     Ok(())

@@ -4,6 +4,7 @@
 
 ### Changes
 - limit the rate of MDN sending #3402
+- remove `msgs_mdns` references to deleted messages during housekeeping #3387
 
 ### Fixes
 - set a default error if NDN does not provide an error
