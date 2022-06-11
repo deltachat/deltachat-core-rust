@@ -64,7 +64,7 @@ building from source or clone this repository and follow this steps:
 
 You can directly install a core branch, but make sure:
 - that you have typescript in your project dependencies, as it is likely required
-- you know that there are **no prebuilds** and so it's build during instalation which is why it takes so long
+- you know that there are **no prebuilds** and so core is built during installation which is why it takes so long
 
 ```
 npm install https://github.com/deltachat/deltachat-core-rust.git#branch
