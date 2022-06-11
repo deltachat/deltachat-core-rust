@@ -1,12 +1,15 @@
 use async_std::task::block_on;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::context::Context;
+use deltachat::Events;
 use std::path::Path;
 
 async fn search_benchmark(path: impl AsRef<Path>) {
     let dbfile = path.as_ref();
     let id = 100;
-    let context = Context::new(dbfile.into(), id).await.unwrap();
+    let context = Context::new(dbfile.into(), id, Events::new())
+        .await
+        .unwrap();
 
     for _ in 0..10u32 {
         context.search_msgs(None, "hello").await.unwrap();

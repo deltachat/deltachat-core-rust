@@ -115,8 +115,8 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 
 impl Context {
     /// Creates new context and opens the database.
-    pub async fn new(dbfile: PathBuf, id: u32) -> Result<Context> {
-        let context = Self::new_closed(dbfile, id).await?;
+    pub async fn new(dbfile: PathBuf, id: u32, events: Events) -> Result<Context> {
+        let context = Self::new_closed(dbfile, id, events).await?;
 
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
@@ -126,7 +126,7 @@ impl Context {
     }
 
     /// Creates new context without opening the database.
-    pub async fn new_closed(dbfile: PathBuf, id: u32) -> Result<Context> {
+    pub async fn new_closed(dbfile: PathBuf, id: u32, events: Events) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
@@ -134,7 +134,7 @@ impl Context {
         if !blobdir.exists().await {
             async_std::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile, blobdir, id).await?;
+        let context = Context::with_blobdir(dbfile, blobdir, id, events).await?;
         Ok(context)
     }
 
@@ -169,6 +169,7 @@ impl Context {
         dbfile: PathBuf,
         blobdir: PathBuf,
         id: u32,
+        events: Events,
     ) -> Result<Context> {
         ensure!(
             blobdir.is_dir().await,
@@ -186,7 +187,7 @@ impl Context {
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: RwLock::new(HashMap::new()),
-            events: Events::default(),
+            events,
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
             quota: RwLock::new(None),
@@ -683,7 +684,7 @@ mod tests {
         let tmp = tempfile::tempdir()?;
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123")?;
-        let res = Context::new(dbfile.into(), 1).await?;
+        let res = Context::new(dbfile.into(), 1, Events::new()).await?;
 
         // Broken database is indistinguishable from encrypted one.
         assert_eq!(res.is_open().await, false);
@@ -829,7 +830,7 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(dbfile.into(), 1).await.unwrap();
+        Context::new(dbfile.into(), 1, Events::new()).await.unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -840,7 +841,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(dbfile.into(), 1).await;
+        let res = Context::new(dbfile.into(), 1, Events::new()).await;
         assert!(res.is_err());
     }
 
@@ -850,7 +851,7 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(dbfile.into(), 1).await.unwrap();
+        Context::new(dbfile.into(), 1, Events::new()).await.unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -860,7 +861,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile.into(), blobdir, 1).await;
+        let res = Context::with_blobdir(dbfile.into(), blobdir, 1, Events::new()).await;
         assert!(res.is_err());
     }
 
@@ -869,7 +870,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile.into(), blobdir.into(), 1).await;
+        let res = Context::with_blobdir(dbfile.into(), blobdir.into(), 1, Events::new()).await;
         assert!(res.is_err());
     }
 
@@ -1038,7 +1039,7 @@ mod tests {
         let dbfile = dir.path().join("db.sqlite");
 
         let id = 1;
-        let context = Context::new_closed(dbfile.clone().into(), id)
+        let context = Context::new_closed(dbfile.clone().into(), id, Events::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.open("foo".to_string()).await?, true);
@@ -1046,7 +1047,7 @@ mod tests {
         drop(context);
 
         let id = 2;
-        let context = Context::new(dbfile.into(), id)
+        let context = Context::new(dbfile.into(), id, Events::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.is_open().await, false);

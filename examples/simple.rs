@@ -6,7 +6,7 @@ use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::message::Message;
-use deltachat::EventType;
+use deltachat::{EventType, Events};
 
 fn cb(event: EventType) {
     match event {
@@ -36,7 +36,7 @@ async fn main() {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     log::info!("creating database {:?}", dbfile);
-    let ctx = Context::new(dbfile.into(), 0)
+    let ctx = Context::new(dbfile.into(), 0, Events::new())
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;

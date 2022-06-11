@@ -9,7 +9,8 @@ use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
 use crate::webxdc::StatusUpdateSerial;
 
-#[derive(Debug)]
+/// Event channel.
+#[derive(Debug, Clone)]
 pub struct Events {
     receiver: Receiver<Event>,
     sender: Sender<Event>,
@@ -17,13 +18,17 @@ pub struct Events {
 
 impl Default for Events {
     fn default() -> Self {
-        let (sender, receiver) = channel::bounded(1_000);
-
-        Self { receiver, sender }
+        Self::new()
     }
 }
 
 impl Events {
+    pub fn new() -> Self {
+        let (sender, receiver) = channel::bounded(1_000);
+
+        Self { receiver, sender }
+    }
+
     pub fn emit(&self, event: Event) {
         match self.sender.try_send(event) {
             Ok(()) => {}

@@ -19,7 +19,7 @@ use deltachat::config;
 use deltachat::context::*;
 use deltachat::oauth2::*;
 use deltachat::securejoin::*;
-use deltachat::EventType;
+use deltachat::{EventType, Events};
 use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::config::OutputStreamType;
@@ -298,7 +298,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new(Path::new(&args[1]).to_path_buf(), 0).await?;
+    let context = Context::new(Path::new(&args[1]).to_path_buf(), 0, Events::new()).await?;
 
     let events = context.get_event_emitter();
     async_std::task::spawn(async move {

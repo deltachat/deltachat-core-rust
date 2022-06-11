@@ -27,7 +27,7 @@ use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::dc_receive_imf::dc_receive_imf;
 use crate::dc_tools::EmailAddress;
-use crate::events::{Event, EventType};
+use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
@@ -266,7 +266,7 @@ impl TestContext {
             let mut context_names = CONTEXT_NAMES.write().unwrap();
             context_names.insert(id, name);
         }
-        let ctx = Context::new(dbfile.into(), id)
+        let ctx = Context::new(dbfile.into(), id, Events::new())
             .await
             .expect("failed to create context");
 

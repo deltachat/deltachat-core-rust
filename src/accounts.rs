@@ -2,18 +2,15 @@
 
 use std::collections::BTreeMap;
 
-use async_std::channel::{self, Receiver, Sender};
 use async_std::fs;
 use async_std::path::PathBuf;
-use async_std::prelude::*;
-use async_std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::context::Context;
-use crate::events::{Event, EventType, Events};
+use crate::events::{Event, EventEmitter, EventType, Events};
 
 /// Account manager, that can handle multiple accounts in a single place.
 #[derive(Debug)]
@@ -21,7 +18,6 @@ pub struct Accounts {
     dir: PathBuf,
     config: Config,
     accounts: BTreeMap<u32, Context>,
-    emitter: EventEmitter,
 
     /// Event channel to emit account manager errors.
     events: Events,
@@ -63,28 +59,16 @@ impl Accounts {
         let config = Config::from_file(config_file)
             .await
             .context("failed to load accounts config")?;
+        let events = Events::new();
         let accounts = config
-            .load_accounts()
+            .load_accounts(&events)
             .await
             .context("failed to load accounts")?;
-
-        let emitter = EventEmitter::new();
-
-        let events = Events::default();
-
-        emitter.sender.send(events.get_emitter()).await?;
-
-        for account in accounts.values() {
-            emitter.add_account(account).await.with_context(|| {
-                format!("failed to add account {} to event emitter", account.id)
-            })?;
-        }
 
         Ok(Self {
             dir,
             config,
             accounts,
-            emitter,
             events,
         })
     }
@@ -121,8 +105,12 @@ impl Accounts {
     pub async fn add_account(&mut self) -> Result<u32> {
         let account_config = self.config.new_account(&self.dir).await?;
 
-        let ctx = Context::new(account_config.dbfile().into(), account_config.id).await?;
-        self.emitter.add_account(&ctx).await?;
+        let ctx = Context::new(
+            account_config.dbfile().into(),
+            account_config.id,
+            self.events.clone(),
+        )
+        .await?;
         self.accounts.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -132,8 +120,12 @@ impl Accounts {
     pub async fn add_closed_account(&mut self) -> Result<u32> {
         let account_config = self.config.new_account(&self.dir).await?;
 
-        let ctx = Context::new_closed(account_config.dbfile().into(), account_config.id).await?;
-        self.emitter.add_account(&ctx).await?;
+        let ctx = Context::new_closed(
+            account_config.dbfile().into(),
+            account_config.id,
+            self.events.clone(),
+        )
+        .await?;
         self.accounts.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -225,8 +217,7 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx = Context::new(new_dbfile, account_config.id).await?;
-                self.emitter.add_account(&ctx).await?;
+                let ctx = Context::new(new_dbfile, account_config.id, self.events.clone()).await?;
                 self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
@@ -302,74 +293,9 @@ impl Accounts {
         self.events.emit(Event { id: 0, typ: event })
     }
 
-    /// Returns unified event emitter.
+    /// Returns event emitter.
     pub async fn get_event_emitter(&self) -> EventEmitter {
-        self.emitter.clone()
-    }
-}
-
-/// Unified event emitter for multiple accounts.
-#[derive(Debug, Clone)]
-pub struct EventEmitter {
-    /// Aggregate stream of events from all accounts.
-    stream: Arc<RwLock<futures::stream::SelectAll<crate::events::EventEmitter>>>,
-
-    /// Sender for the channel where new account emitters will be pushed.
-    sender: Sender<crate::events::EventEmitter>,
-
-    /// Receiver for the channel where new account emitters will be pushed.
-    receiver: Receiver<crate::events::EventEmitter>,
-}
-
-impl EventEmitter {
-    pub fn new() -> Self {
-        let (sender, receiver) = channel::unbounded();
-        Self {
-            stream: Arc::new(RwLock::new(futures::stream::SelectAll::new())),
-            sender,
-            receiver,
-        }
-    }
-
-    /// Blocking recv of an event. Return `None` if all `Sender`s have been droped.
-    pub fn recv_sync(&mut self) -> Option<Event> {
-        async_std::task::block_on(self.recv()).unwrap_or_default()
-    }
-
-    /// Async recv of an event. Return `None` if all `Sender`s have been dropped.
-    pub async fn recv(&mut self) -> Result<Option<Event>> {
-        let mut stream = self.stream.write().await;
-        loop {
-            match futures::future::select(self.receiver.recv(), stream.next()).await {
-                futures::future::Either::Left((emitter, _)) => {
-                    stream.push(emitter?);
-                }
-                futures::future::Either::Right((ev, _)) => return Ok(ev),
-            }
-        }
-    }
-
-    /// Add event emitter of a new account to the aggregate event emitter.
-    pub async fn add_account(&self, context: &Context) -> Result<()> {
-        self.sender.send(context.get_event_emitter()).await?;
-        Ok(())
-    }
-}
-
-impl Default for EventEmitter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl async_std::stream::Stream for EventEmitter {
-    type Item = Event;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
-        std::pin::Pin::new(&mut self).poll_next(cx)
+        self.events.get_emitter()
     }
 }
 
@@ -426,17 +352,21 @@ impl Config {
         Ok(Config { file, inner })
     }
 
-    pub async fn load_accounts(&self) -> Result<BTreeMap<u32, Context>> {
+    pub async fn load_accounts(&self, events: &Events) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(account_config.dbfile().into(), account_config.id)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed to create context from file {:?}",
-                        account_config.dbfile()
-                    )
-                })?;
+            let ctx = Context::new(
+                account_config.dbfile().into(),
+                account_config.id,
+                events.clone(),
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to create context from file {:?}",
+                    account_config.dbfile()
+                )
+            })?;
 
             accounts.insert(account_config.id, ctx);
         }
@@ -610,7 +540,9 @@ mod tests {
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other").into();
-        let ctx = Context::new(extern_dbfile.clone(), 0).await.unwrap();
+        let ctx = Context::new(extern_dbfile.clone(), 0, Events::new())
+            .await
+            .unwrap();
         ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))
             .await
             .unwrap();
@@ -746,7 +678,7 @@ mod tests {
         assert_eq!(accounts.accounts.len(), 0);
 
         // Create event emitter.
-        let mut event_emitter = accounts.get_event_emitter().await;
+        let event_emitter = accounts.get_event_emitter().await;
 
         // Test that event emitter does not return `None` immediately.
         let duration = std::time::Duration::from_millis(1);
@@ -756,7 +688,7 @@ mod tests {
 
         // When account manager is dropped, event emitter is exhausted.
         drop(accounts);
-        assert_eq!(event_emitter.recv().await?, None);
+        assert_eq!(event_emitter.recv().await, None);
 
         Ok(())
     }

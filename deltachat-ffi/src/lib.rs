@@ -77,7 +77,11 @@ pub unsafe extern "C" fn dc_context_new(
     let ctx = if blobdir.is_null() || *blobdir == 0 {
         // generate random ID as this functionality is not yet available on the C-api.
         let id = rand::thread_rng().gen();
-        block_on(Context::new(as_path(dbfile).to_path_buf().into(), id))
+        block_on(Context::new(
+            as_path(dbfile).to_path_buf().into(),
+            id,
+            Events::new(),
+        ))
     } else {
         eprintln!("blobdir can not be defined explicitly anymore");
         return ptr::null_mut();
@@ -104,6 +108,7 @@ pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *
     match block_on(Context::new_closed(
         as_path(dbfile).to_path_buf().into(),
         id,
+        Events::new(),
     )) {
         Ok(context) => Box::into_raw(Box::new(context)),
         Err(err) => {
@@ -4376,7 +4381,7 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
     block_on(async move { accounts.write().await.maybe_network_lost().await });
 }
 
-pub type dc_accounts_event_emitter_t = deltachat::accounts::EventEmitter;
+pub type dc_accounts_event_emitter_t = EventEmitter;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_get_event_emitter(
