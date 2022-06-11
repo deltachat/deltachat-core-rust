@@ -18,15 +18,13 @@ if __name__ == "__main__":
 
     cmd = ["cargo", "build", "-p", "deltachat_ffi"]
 
-    if target == 'release':
+    if target == "release":
         os.environ["CARGO_PROFILE_RELEASE_LTO"] = "on"
         cmd.append("--release")
 
     print("running:", " ".join(cmd))
     subprocess.check_call(cmd)
-    subprocess.check_call("rm -rf build/ src/deltachat/*.so src/deltachat/*.dylib src/deltachat/*.dll" , shell=True)
+    subprocess.check_call("rm -rf build/ src/deltachat/*.so src/deltachat/*.dylib src/deltachat/*.dll", shell=True)
 
     if len(sys.argv) <= 1 or sys.argv[1] != "onlybuild":
-        subprocess.check_call([
-            sys.executable, "-m", "pip", "install", "-e", "."
-        ])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", "."])
