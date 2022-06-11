@@ -19,6 +19,7 @@ from .cutil import (
     from_dc_charpointer,
     from_optional_dc_charpointer,
     iter_array,
+    safe_unref,
 )
 from .events import EventThread
 from .message import Message
@@ -38,7 +39,7 @@ def get_core_info():
         return get_dc_info_as_dict(
             ffi.gc(
                 lib.dc_context_new(as_dc_charpointer(""), as_dc_charpointer(path.name), ffi.NULL),
-                lib.dc_context_unref,
+                safe_unref(lib.dc_context_unref),
             )
         )
 
@@ -84,7 +85,7 @@ class Account(object):
 
         self._dc_context = ffi.gc(
             lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL),
-            lib.dc_context_unref,
+            safe_unref(lib.dc_context_unref),
         )
         if self._dc_context == ffi.NULL:
             raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
@@ -342,7 +343,7 @@ class Account(object):
 
         :returns: list of :class:`deltachat.contact.Contact` objects.
         """
-        dc_array = ffi.gc(lib.dc_get_blocked_contacts(self._dc_context), lib.dc_array_unref)
+        dc_array = ffi.gc(lib.dc_get_blocked_contacts(self._dc_context), safe_unref(lib.dc_array_unref))
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_contacts(
@@ -365,12 +366,12 @@ class Account(object):
             flags |= const.DC_GCL_VERIFIED_ONLY
         if with_self:
             flags |= const.DC_GCL_ADD_SELF
-        dc_array = ffi.gc(lib.dc_get_contacts(self._dc_context, flags, query), lib.dc_array_unref)
+        dc_array = ffi.gc(lib.dc_get_contacts(self._dc_context, flags, query), safe_unref(lib.dc_array_unref))
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_fresh_messages(self) -> Generator[Message, None, None]:
         """yield all fresh messages from all chats."""
-        dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), lib.dc_array_unref)
+        dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), safe_unref(lib.dc_array_unref))
         yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
 
     def create_chat(self, obj) -> Chat:
@@ -404,7 +405,7 @@ class Account(object):
 
         :returns: a list of :class:`deltachat.chat.Chat` objects.
         """
-        dc_chatlist = ffi.gc(lib.dc_get_chatlist(self._dc_context, 0, ffi.NULL, 0), lib.dc_chatlist_unref)
+        dc_chatlist = ffi.gc(lib.dc_get_chatlist(self._dc_context, 0, ffi.NULL, 0), safe_unref(lib.dc_chatlist_unref))
 
         assert dc_chatlist != ffi.NULL
         chatlist = []
@@ -545,7 +546,7 @@ class Account(object):
 
     def check_qr(self, qr):
         """check qr code and return :class:`ScannedQRCode` instance representing the result"""
-        res = ffi.gc(lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), lib.dc_lot_unref)
+        res = ffi.gc(lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), safe_unref(lib.dc_lot_unref))
         lot = DCLot(res)
         if lot.state() == const.DC_QR_ERROR:
             raise ValueError("invalid or unknown QR code: {}".format(lot.text1()))

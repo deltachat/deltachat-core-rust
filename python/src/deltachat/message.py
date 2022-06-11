@@ -8,7 +8,12 @@ from typing import Optional, Union
 
 from . import const, props
 from .capi import ffi, lib
-from .cutil import as_dc_charpointer, from_dc_charpointer, from_optional_dc_charpointer
+from .cutil import (
+    as_dc_charpointer,
+    from_dc_charpointer,
+    from_optional_dc_charpointer,
+    safe_unref,
+)
 
 
 class Message(object):
@@ -49,7 +54,7 @@ class Message(object):
     @classmethod
     def from_db(cls, account, id):
         assert id > 0
-        return cls(account, ffi.gc(lib.dc_get_msg(account._dc_context, id), lib.dc_msg_unref))
+        return cls(account, ffi.gc(lib.dc_get_msg(account._dc_context, id), safe_unref(lib.dc_msg_unref)))
 
     @classmethod
     def new_empty(cls, account, view_type):
@@ -64,7 +69,7 @@ class Message(object):
             view_type_code = get_viewtype_code_from_name(view_type)
         return Message(
             account,
-            ffi.gc(lib.dc_msg_new(account._dc_context, view_type_code), lib.dc_msg_unref),
+            ffi.gc(lib.dc_msg_new(account._dc_context, view_type_code), safe_unref(lib.dc_msg_unref)),
         )
 
     def create_chat(self):
@@ -278,7 +283,7 @@ class Message(object):
 
         mime_headers = lib.dc_get_mime_headers(self.account._dc_context, self.id)
         if mime_headers:
-            s = ffi.string(ffi.gc(mime_headers, lib.dc_str_unref))
+            s = ffi.string(ffi.gc(mime_headers, safe_unref(lib.dc_str_unref)))
             if isinstance(s, bytes):
                 return email.message_from_bytes(s)
             return email.message_from_string(s)
@@ -337,7 +342,7 @@ class Message(object):
             dc_msg = self._dc_msg
         else:
             # load message from db to get a fresh/current state
-            dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
+            dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), safe_unref(lib.dc_msg_unref))
         return lib.dc_msg_get_state(dc_msg)
 
     def is_in_fresh(self):

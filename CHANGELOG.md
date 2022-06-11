@@ -7,6 +7,7 @@
 ### Fixes
 - set a default error if NDN does not provide an error
 - python: avoid exceptions when messages/contacts/chats are compared with `None`
+- python: avoid careless calls to unref functions
 
 ### API-Changes
 - python: added `Message.get_status_updates()`  #3416

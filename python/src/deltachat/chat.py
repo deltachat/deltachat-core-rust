@@ -14,6 +14,7 @@ from .cutil import (
     from_dc_charpointer,
     from_optional_dc_charpointer,
     iter_array,
+    safe_unref,
 )
 from .message import Message
 
@@ -44,7 +45,7 @@ class Chat(object):
 
     @property
     def _dc_chat(self):
-        return ffi.gc(lib.dc_get_chat(self.account._dc_context, self.id), lib.dc_chat_unref)
+        return ffi.gc(lib.dc_get_chat(self.account._dc_context, self.id), safe_unref(lib.dc_chat_unref))
 
     def delete(self) -> None:
         """Delete this chat and all its messages.
@@ -416,7 +417,7 @@ class Chat(object):
         """
         dc_array = ffi.gc(
             lib.dc_get_chat_msgs(self.account._dc_context, self.id, 0, 0),
-            lib.dc_array_unref,
+            safe_unref(lib.dc_array_unref),
         )
         return list(iter_array(dc_array, lambda x: Message.from_db(self.account, x)))
 
@@ -469,7 +470,7 @@ class Chat(object):
 
         dc_array = ffi.gc(
             lib.dc_get_chat_contacts(self.account._dc_context, self.id),
-            lib.dc_array_unref,
+            safe_unref(lib.dc_array_unref),
         )
         return list(iter_array(dc_array, lambda id: Contact(self.account, id)))
 
@@ -477,7 +478,7 @@ class Chat(object):
         """return number of contacts in this chat."""
         dc_array = ffi.gc(
             lib.dc_get_chat_contacts(self.account._dc_context, self.id),
-            lib.dc_array_unref,
+            safe_unref(lib.dc_array_unref),
         )
         return lib.dc_array_get_cnt(dc_array)
 

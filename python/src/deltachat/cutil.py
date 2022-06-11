@@ -6,6 +6,14 @@ from .capi import ffi, lib
 T = TypeVar("T")
 
 
+def safe_unref(unref: Callable) -> Callable:
+    def wrapper(obj) -> None:
+        if obj != ffi.NULL:
+            unref(obj)
+
+    return wrapper
+
+
 def as_dc_charpointer(obj):
     if obj == ffi.NULL or obj is None:
         return ffi.NULL

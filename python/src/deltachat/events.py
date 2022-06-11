@@ -11,7 +11,7 @@ from queue import Empty, Queue
 import deltachat
 
 from .capi import ffi, lib
-from .cutil import from_optional_dc_charpointer
+from .cutil import from_optional_dc_charpointer, safe_unref
 from .hookspec import account_hookimpl
 from .message import map_system_message
 
@@ -229,7 +229,7 @@ class EventThread(threading.Thread):
     def _inner_run(self):
         event_emitter = ffi.gc(
             lib.dc_get_event_emitter(self.account._dc_context),
-            lib.dc_event_emitter_unref,
+            safe_unref(lib.dc_event_emitter_unref),
         )
         while not self._marked_for_shutdown:
             event = lib.dc_get_next_event(event_emitter)

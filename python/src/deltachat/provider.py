@@ -1,7 +1,7 @@
 """Provider info class."""
 
 from .capi import ffi, lib
-from .cutil import as_dc_charpointer, from_dc_charpointer
+from .cutil import as_dc_charpointer, from_dc_charpointer, safe_unref
 
 
 class ProviderNotFoundError(Exception):
@@ -17,7 +17,7 @@ class Provider(object):
     def __init__(self, account, addr) -> None:
         provider = ffi.gc(
             lib.dc_provider_new_from_email(account._dc_context, as_dc_charpointer(addr)),
-            lib.dc_provider_unref,
+            safe_unref(lib.dc_provider_unref),
         )
         if provider == ffi.NULL:
             raise ProviderNotFoundError("Provider not found")
