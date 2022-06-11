@@ -241,6 +241,7 @@ def data(request):
                 os.path.normpath(x)
                 for x in [
                     os.path.join(os.path.dirname(request.fspath.strpath), "data"),
+                    os.path.join(os.path.dirname(request.fspath.strpath), "..", "..", "test-data"),
                     os.path.join(os.path.dirname(__file__), "..", "..", "..", "test-data"),
                 ]
             ]
