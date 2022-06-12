@@ -40,7 +40,7 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
 pub struct TestContextManager {
-    log_tx: Sender<Event>,
+    log_tx: Sender<LogEvent>,
     _log_sink: LogSink,
 }
 
@@ -79,11 +79,10 @@ impl TestContextManager {
     /// ========== `msg` goes here ==========
     pub fn section(&self, msg: &str) {
         self.log_tx
-            .try_send(Event {
-                id: 0,
-                typ: EventType::Section(msg.to_string()),
-            })
-            .expect("The events channel should be unbounded and not closed, so try_send() shouldn't fail");
+            .try_send(LogEvent::Section(msg.to_string()))
+            .expect(
+            "The events channel should be unbounded and not closed, so try_send() shouldn't fail",
+        );
     }
 
     /// - Let one TestContext send a message
@@ -126,7 +125,7 @@ impl TestContextManager {
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
-    log_sink: Option<Sender<Event>>,
+    log_sink: Option<Sender<LogEvent>>,
 }
 
 impl TestContextBuilder {
@@ -166,7 +165,7 @@ impl TestContextBuilder {
     /// using a single [`LogSink`] for both contexts.  This shows the log messages in
     /// sequence as they occurred rather than all messages from each context in a single
     /// block.
-    pub fn with_log_sink(mut self, sink: Sender<Event>) -> Self {
+    pub fn with_log_sink(mut self, sink: Sender<LogEvent>) -> Self {
         self.log_sink = Some(sink);
         self
     }
@@ -259,7 +258,7 @@ impl TestContext {
     /// `log_sender` is assumed to be the sender for a [`LogSink`].  If not supplied a new
     /// [`LogSink`] will be created so that events are logged to this test when the
     /// [`TestContext`] is dropped.
-    async fn new_internal(name: Option<String>, log_sender: Option<Sender<Event>>) -> Self {
+    async fn new_internal(name: Option<String>, log_sender: Option<Sender<LogEvent>>) -> Self {
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let id = rand::thread_rng().gen();
@@ -282,7 +281,7 @@ impl TestContext {
         };
 
         let (evtracker_sender, evtracker_receiver) = channel::unbounded();
-        let event_senders = Arc::new(RwLock::new(vec![log_sender, evtracker_sender]));
+        let event_senders = Arc::new(RwLock::new(vec![evtracker_sender]));
         let senders = Arc::clone(&event_senders);
 
         task::spawn(async move {
@@ -292,6 +291,7 @@ impl TestContext {
                     // an unbounded channel if you want all events.
                     sender.try_send(event.clone()).ok();
                 }
+                log_sender.try_send(LogEvent::Event(event.clone())).ok();
             }
         });
 
@@ -684,6 +684,14 @@ impl Drop for TestContext {
     }
 }
 
+pub enum LogEvent {
+    /// Logged event.
+    Event(Event),
+
+    /// Test output section.
+    Section(String),
+}
+
 /// A receiver of [`Event`]s which will log the events to the captured test stdout.
 ///
 /// Tests redirect the stdout of the test thread and capture this, showing the captured
@@ -697,12 +705,12 @@ impl Drop for TestContext {
 /// [`TestContextBuilder::with_log_sink`].
 #[derive(Debug)]
 pub struct LogSink {
-    events: Receiver<Event>,
+    events: Receiver<LogEvent>,
 }
 
 impl LogSink {
     /// Creates a new [`LogSink`] and returns the attached event sink.
-    pub fn create() -> (Sender<Event>, Self) {
+    pub fn create() -> (Sender<LogEvent>, Self) {
         let (tx, rx) = channel::unbounded();
         (tx, Self { events: rx })
     }
@@ -711,7 +719,7 @@ impl LogSink {
 impl Drop for LogSink {
     fn drop(&mut self) {
         while let Ok(event) = self.events.try_recv() {
-            print_event(&event);
+            print_logevent(&event);
         }
     }
 }
@@ -862,6 +870,13 @@ pub(crate) async fn get_chat_msg(
     Message::load_from_db(&t.ctx, msg_id).await.unwrap()
 }
 
+fn print_logevent(logevent: &LogEvent) {
+    match logevent {
+        LogEvent::Event(event) => print_event(event),
+        LogEvent::Section(msg) => println!("\n========== {} ==========", msg),
+    }
+}
+
 /// Pretty-print an event to stdout
 ///
 /// Done during tests this is captured by `cargo test` and associated with the test itself.
@@ -871,7 +886,6 @@ fn print_event(event: &Event) {
     let red = Color::Red.normal();
 
     let msg = match &event.typ {
-        EventType::Section(msg) => format!("\n========== {} ==========", msg),
         EventType::Info(msg) => format!("INFO: {}", msg),
         EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
         EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),
@@ -926,7 +940,6 @@ fn print_event(event: &Event) {
     let context_names = CONTEXT_NAMES.read().unwrap();
     match context_names.get(&event.id) {
         Some(name) => println!("{} {}", name, msg),
-        None if event.id == 0 => println!("{}", msg), // Event without account ID emitted by the test itself.
         None => println!("{} {}", event.id, msg),
     }
 }

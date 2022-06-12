@@ -107,10 +107,6 @@ pub struct Event {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventType {
-    /// Separator for test output.
-    #[cfg(test)]
-    Section(String),
-
     /// The library-user may write an informational string to the log.
     ///
     /// This event should *not* be reported to the end-user using a popup or something like
