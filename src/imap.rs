@@ -1569,6 +1569,59 @@ impl Imap {
         self.configure_folders(context, create_mvbox).await
     }
 
+    /// Attempts to configure mvbox.
+    ///
+    /// Tries to find any folder in the given list of `folders`. If none is found, tries to create
+    /// any of them in the same order. This method does not use LIST command to ensure that
+    /// configuration works even if mailbox lookup is forbidden via Access Control List (see
+    /// <https://datatracker.ietf.org/doc/html/rfc4314>).
+    ///
+    /// Returns first found or created folder name.
+    async fn configure_mvbox<'a>(
+        &mut self,
+        context: &Context,
+        folders: &[&'a str],
+        create_mvbox: bool,
+    ) -> Result<Option<&'a str>> {
+        // Close currently selected folder if needed.
+        // We are going to select folders using low-level EXAMINE operations below.
+        self.select_folder(context, None).await?;
+
+        let session = self
+            .session
+            .as_mut()
+            .context("no IMAP connection established")?;
+
+        for folder in folders {
+            info!(context, "Looking for MVBOX-folder \"{}\"...", &folder);
+            let res = session.examine(&folder).await;
+            if res.is_ok() {
+                info!(
+                    context,
+                    "MVBOX-folder {:?} successfully selected, using it.", &folder
+                );
+                session.close().await?;
+                return Ok(Some(folder));
+            }
+        }
+
+        if create_mvbox {
+            for folder in folders {
+                match session.create(&folder).await {
+                    Ok(_) => {
+                        info!(context, "MVBOX-folder {} created.", &folder);
+                        return Ok(Some(folder));
+                    }
+                    Err(err) => {
+                        warn!(context, "Cannot create MVBOX-folder {:?}: {}", &folder, err);
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
     pub async fn configure_folders(&mut self, context: &Context, create_mvbox: bool) -> Result<()> {
         let session = self
             .session
@@ -1581,9 +1634,7 @@ impl Imap {
             .context("list_folders failed")?;
         let mut delimiter = ".".to_string();
         let mut delimiter_is_default = true;
-        let mut mvbox_folder = None;
         let mut folder_configs = BTreeMap::new();
-        let mut fallback_folder = get_fallback_folder(&delimiter);
 
         while let Some(folder) = folders.next().await {
             let folder = folder?;
@@ -1593,22 +1644,13 @@ impl Imap {
             if let Some(d) = folder.delimiter() {
                 if delimiter_is_default && !d.is_empty() && delimiter != d {
                     delimiter = d.to_string();
-                    fallback_folder = get_fallback_folder(&delimiter);
                     delimiter_is_default = false;
                 }
             }
 
             let folder_meaning = get_folder_meaning(&folder);
             let folder_name_meaning = get_folder_meaning_by_name(folder.name());
-            if folder.name() == "DeltaChat" {
-                // Always takes precedence
-                mvbox_folder = Some(folder.name().to_string());
-            } else if folder.name() == fallback_folder {
-                // only set if none has been already set
-                if mvbox_folder.is_none() {
-                    mvbox_folder = Some(folder.name().to_string());
-                }
-            } else if let Some(config) = folder_meaning.to_config() {
+            if let Some(config) = folder_meaning.to_config() {
                 // Always takes precedence
                 folder_configs.insert(config, folder.name().to_string());
             } else if let Some(config) = folder_name_meaning.to_config() {
@@ -1622,47 +1664,17 @@ impl Imap {
 
         info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
 
-        if mvbox_folder.is_none() && create_mvbox {
-            info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
+        let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+        let mvbox_folder = self
+            .configure_mvbox(context, &["DeltaChat", &fallback_folder], create_mvbox)
+            .await
+            .context("failed to configure mvbox")?;
 
-            match session.create("DeltaChat").await {
-                Ok(_) => {
-                    mvbox_folder = Some("DeltaChat".into());
-                    info!(context, "MVBOX-folder created.",);
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "Cannot create MVBOX-folder, trying to create INBOX subfolder. ({})", err
-                    );
-
-                    match session.create(&fallback_folder).await {
-                        Ok(_) => {
-                            mvbox_folder = Some(fallback_folder);
-                            info!(
-                                context,
-                                "MVBOX-folder created as INBOX subfolder. ({})", err
-                            );
-                        }
-                        Err(err) => {
-                            warn!(context, "Cannot create MVBOX-folder. ({})", err);
-                        }
-                    }
-                }
-            }
-            // SUBSCRIBE is needed to make the folder visible to the LSUB command
-            // that may be used by other MUAs to list folders.
-            // for the LIST command, the folder is always visible.
-            if let Some(ref mvbox) = mvbox_folder {
-                if let Err(err) = session.subscribe(mvbox).await {
-                    warn!(context, "could not subscribe to {:?}: {:?}", mvbox, err);
-                }
-            }
-        }
         context
             .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
             .await?;
-        if let Some(ref mvbox_folder) = mvbox_folder {
+        if let Some(mvbox_folder) = mvbox_folder {
+            info!(context, "Setting MVBOX FOLDER TO {}", &mvbox_folder);
             context
                 .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                 .await?;
@@ -2050,10 +2062,6 @@ pub(crate) async fn prefetch_should_download(
 
     let should_download = (show && !blocked_contact) || maybe_ndn;
     Ok(should_download)
-}
-
-fn get_fallback_folder(delimiter: &str) -> String {
-    format!("INBOX{}DeltaChat", delimiter)
 }
 
 /// Marks messages in `msgs` table as seen, searching for them by UID.
