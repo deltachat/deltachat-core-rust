@@ -27,7 +27,7 @@ use crate::location;
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::simplify::simplify;
+use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
 
@@ -927,22 +927,27 @@ impl MimeMessage {
 
                         let mut dehtml_failed = false;
 
-                        let (simplified_txt, is_forwarded, is_cut, top_quote, footer) =
-                            if decoded_data.is_empty() {
-                                ("".to_string(), false, false, None, None)
-                            } else {
-                                let is_html = mime_type == mime::TEXT_HTML;
-                                let out = if is_html {
-                                    self.is_mime_modified = true;
-                                    dehtml(&decoded_data).unwrap_or_else(|| {
-                                        dehtml_failed = true;
-                                        decoded_data.clone()
-                                    })
-                                } else {
+                        let SimplifiedText {
+                            text: simplified_txt,
+                            is_forwarded,
+                            is_cut,
+                            top_quote,
+                            footer,
+                        } = if decoded_data.is_empty() {
+                            Default::default()
+                        } else {
+                            let is_html = mime_type == mime::TEXT_HTML;
+                            let out = if is_html {
+                                self.is_mime_modified = true;
+                                dehtml(&decoded_data).unwrap_or_else(|| {
+                                    dehtml_failed = true;
                                     decoded_data.clone()
-                                };
-                                simplify(out, self.has_chat_version())
+                                })
+                            } else {
+                                decoded_data.clone()
                             };
+                            simplify(out, self.has_chat_version())
+                        };
 
                         self.is_mime_modified = self.is_mime_modified
                             || ((is_forwarded || is_cut || top_quote.is_some())

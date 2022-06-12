@@ -287,7 +287,7 @@ pub fn dehtml_manually(buf: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::simplify::simplify;
+    use crate::simplify::{simplify, SimplifiedText};
 
     #[test]
     fn test_dehtml() {
@@ -311,7 +311,7 @@ mod tests {
             ("<!some invalid html code>\n<b>some text</b>", "some text"),
         ];
         for (input, output) in cases {
-            assert_eq!(simplify(dehtml(input).unwrap(), true).0, output);
+            assert_eq!(simplify(dehtml(input).unwrap(), true).text, output);
         }
         let none_cases = vec!["<html> </html>", ""];
         for input in none_cases {
@@ -387,10 +387,16 @@ mod tests {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
         let dehtml = dehtml(input).unwrap();
         println!("{}", dehtml);
-        let (msg, forwarded, cut, top_quote, footer) = simplify(dehtml, false);
-        assert_eq!(msg, "Test");
-        assert_eq!(forwarded, false);
-        assert_eq!(cut, false);
+        let SimplifiedText {
+            text,
+            is_forwarded,
+            is_cut,
+            top_quote,
+            footer,
+        } = simplify(dehtml, false);
+        assert_eq!(text, "Test");
+        assert_eq!(is_forwarded, false);
+        assert_eq!(is_cut, false);
         assert_eq!(top_quote.as_deref(), Some("test"));
         assert_eq!(footer, None);
     }
