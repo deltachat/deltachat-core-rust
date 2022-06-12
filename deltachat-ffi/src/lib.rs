@@ -18,6 +18,7 @@ use std::fmt::Write;
 use std::ops::Deref;
 use std::ptr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -4093,11 +4094,11 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
 /// Reader-writer lock wrapper for accounts manager to guarantee thread safety when using
 /// `dc_accounts_t` in multiple threads at once.
 pub struct AccountsWrapper {
-    inner: RwLock<Accounts>,
+    inner: Arc<RwLock<Accounts>>,
 }
 
 impl Deref for AccountsWrapper {
-    type Target = RwLock<Accounts>;
+    type Target = Arc<RwLock<Accounts>>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -4106,7 +4107,7 @@ impl Deref for AccountsWrapper {
 
 impl AccountsWrapper {
     fn new(accounts: Accounts) -> Self {
-        let inner = RwLock::new(accounts);
+        let inner = Arc::new(RwLock::new(accounts));
         Self { inner }
     }
 }
@@ -4423,4 +4424,74 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
         .recv_sync()
         .map(|ev| Box::into_raw(Box::new(ev)))
         .unwrap_or_else(ptr::null_mut)
+}
+
+use deltachat_jsonrpc::api::CommandApi;
+use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
+
+pub struct dc_json_api_instance_t {
+    receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
+    handle: MessageHandle<CommandApi>,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_json_api(
+    account_manager: *mut dc_accounts_t,
+) -> *mut dc_json_api_instance_t {
+    if account_manager.is_null() {
+        eprintln!("ignoring careless call to dc_get_json_api()");
+        return ptr::null_mut();
+    }
+
+    let cmd_api =
+        deltachat_jsonrpc::api::CommandApi::new_from_cffi((*account_manager).inner.clone());
+
+    let (request_handle, receiver) = RpcHandle::new();
+    let handle = MessageHandle::new(request_handle, cmd_api);
+
+    let instance = dc_json_api_instance_t { receiver, handle };
+
+    Box::into_raw(Box::new(instance))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_instance_t) {
+    if json_api_instance.is_null() {
+        eprintln!("ignoring careless call to dc_json_api_unref()");
+        return;
+    }
+
+    Box::from_raw(json_api_instance);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_json_request(
+    json_api_instance: *mut dc_json_api_instance_t,
+    request: *const libc::c_char,
+) {
+    if json_api_instance.is_null() || request.is_null() {
+        eprintln!("ignoring careless call to dc_json_request()");
+        return;
+    }
+
+    let api = &*json_api_instance;
+    let handle = &api.handle;
+    let request = to_string_lossy(request);
+    async_std::task::spawn(async move {
+        handle.handle_message(&request).await;
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_next_json_response(
+    json_api_instance: *mut dc_json_api_instance_t,
+) -> *mut libc::c_char {
+    if json_api_instance.is_null() {
+        eprintln!("ignoring careless call to dc_get_next_json_response()");
+        return ptr::null_mut();
+    }
+    let api = &*json_api_instance;
+    async_std::task::block_on(api.receiver.recv())
+        .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
+        .unwrap_or(ptr::null_mut())
 }

@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-jsonrpc"
-version = "0.1.0"
+version = "1.86.0"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -1349,6 +1349,7 @@ dependencies = [
  "anyhow",
  "async-std",
  "deltachat",
+ "deltachat-jsonrpc",
  "human-panic",
  "libc",
  "num-traits",

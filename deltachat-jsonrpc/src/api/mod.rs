@@ -39,6 +39,10 @@ impl CommandApi {
         }
     }
 
+    pub fn new_from_cffi(accounts: Arc<RwLock<Accounts>>) -> Self {
+        CommandApi { accounts }
+    }
+
     async fn get_context(&self, id: u32) -> Result<deltachat::context::Context> {
         let sc = self
             .accounts
