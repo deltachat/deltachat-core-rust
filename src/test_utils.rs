@@ -2,6 +2,7 @@
 //!
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
+#![allow(dead_code)] // Can be removed once PR #3385 is merged
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
@@ -39,7 +40,7 @@ static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
 pub struct TestContextManager {
-    log_tx: Sender<Event>,
+    log_tx: Sender<LogEvent>,
     _log_sink: LogSink,
 }
 
@@ -64,12 +65,67 @@ impl TestContextManager {
             .build()
             .await
     }
+
+    pub async fn fiona(&mut self) -> TestContext {
+        TestContext::builder()
+            .configure_fiona()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
+    }
+
+    /// Writes info events to the log that mark a section, e.g.:
+    ///
+    /// ========== `msg` goes here ==========
+    pub fn section(&self, msg: &str) {
+        self.log_tx
+            .try_send(LogEvent::Section(msg.to_string()))
+            .expect(
+            "The events channel should be unbounded and not closed, so try_send() shouldn't fail",
+        );
+    }
+
+    /// - Let one TestContext send a message
+    /// - Let the other TestContext receive it and accept the chat
+    /// - Assert that the message arrived
+    pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
+        self.section(&format!(
+            "{} sends a message '{}' to {}",
+            from.name(),
+            msg,
+            to.name()
+        ));
+
+        let chat = from.create_chat(to).await;
+        let sent = from.send_text(chat.id, msg).await;
+
+        let received_msg = to.recv_msg(&sent).await;
+        received_msg.chat_id.accept(to).await.unwrap();
+        assert_eq!(received_msg.text.as_deref().unwrap(), msg);
+    }
+
+    pub async fn change_addr(&self, test_context: &TestContext, new_addr: &str) {
+        self.section(&format!(
+            "{} changes her self address and reconfigures",
+            test_context.name()
+        ));
+        test_context.set_primary_self_addr(new_addr).await.unwrap();
+        // ensure_secret_key_exists() is called during configure
+        crate::e2ee::ensure_secret_key_exists(test_context)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            test_context.get_primary_self_addr().await.unwrap(),
+            new_addr
+        );
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct TestContextBuilder {
     key_pair: Option<KeyPair>,
-    log_sink: Option<Sender<Event>>,
+    log_sink: Option<Sender<LogEvent>>,
 }
 
 impl TestContextBuilder {
@@ -109,7 +165,7 @@ impl TestContextBuilder {
     /// using a single [`LogSink`] for both contexts.  This shows the log messages in
     /// sequence as they occurred rather than all messages from each context in a single
     /// block.
-    pub fn with_log_sink(mut self, sink: Sender<Event>) -> Self {
+    pub fn with_log_sink(mut self, sink: Sender<LogEvent>) -> Self {
         self.log_sink = Some(sink);
         self
     }
@@ -202,7 +258,7 @@ impl TestContext {
     /// `log_sender` is assumed to be the sender for a [`LogSink`].  If not supplied a new
     /// [`LogSink`] will be created so that events are logged to this test when the
     /// [`TestContext`] is dropped.
-    async fn new_internal(name: Option<String>, log_sender: Option<Sender<Event>>) -> Self {
+    async fn new_internal(name: Option<String>, log_sender: Option<Sender<LogEvent>>) -> Self {
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         let id = rand::thread_rng().gen();
@@ -225,7 +281,7 @@ impl TestContext {
         };
 
         let (evtracker_sender, evtracker_receiver) = channel::unbounded();
-        let event_senders = Arc::new(RwLock::new(vec![log_sender, evtracker_sender]));
+        let event_senders = Arc::new(RwLock::new(vec![evtracker_sender]));
         let senders = Arc::clone(&event_senders);
 
         task::spawn(async move {
@@ -235,6 +291,7 @@ impl TestContext {
                     // an unbounded channel if you want all events.
                     sender.try_send(event.clone()).ok();
                 }
+                log_sender.try_send(LogEvent::Event(event.clone())).ok();
             }
         });
 
@@ -255,6 +312,15 @@ impl TestContext {
         context_names
             .entry(self.ctx.get_id())
             .or_insert_with(|| name.into());
+    }
+
+    /// Returns the name of this [`TestContext`].
+    ///
+    /// This is the same name that is shown in events logged in the test output.
+    pub fn name(&self) -> String {
+        let context_names = CONTEXT_NAMES.read().unwrap();
+        let id = &self.ctx.id;
+        context_names.get(id).unwrap_or(&id.to_string()).to_string()
     }
 
     /// Adds a new [`Event`]s sender.
@@ -352,7 +418,10 @@ impl TestContext {
     /// Receive a message using the `dc_receive_imf()` pipeline. Panics if it's not shown
     /// in the chat as exactly one message.
     pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
-        let received = self.recv_msg_opt(msg).await.unwrap();
+        let received = self
+            .recv_msg_opt(msg)
+            .await
+            .expect("dc_receive_imf() seems not to have added a new message to the db");
 
         assert_eq!(
             received.msg_ids.len(),
@@ -500,8 +569,13 @@ impl TestContext {
     /// the message.
     pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage {
         chat::prepare_msg(self, chat_id, msg).await.unwrap();
-        chat::send_msg(self, chat_id, msg).await.unwrap();
-        self.pop_sent_msg().await
+        let msg_id = chat::send_msg(self, chat_id, msg).await.unwrap();
+        let res = self.pop_sent_msg().await;
+        assert_eq!(
+            res.sender_msg_id, msg_id,
+            "Apparently the message was not actually sent out"
+        );
+        res
     }
 
     /// Prints out the entire chat to stdout.
@@ -596,6 +670,28 @@ impl Deref for TestContext {
     }
 }
 
+impl Drop for TestContext {
+    fn drop(&mut self) {
+        async_std::task::block_on(async {
+            println!("\n========== Chats of {}: ==========", self.name());
+            if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
+                for (chat, _) in chats.iter() {
+                    self.print_chat(*chat).await;
+                }
+            }
+            println!();
+        });
+    }
+}
+
+pub enum LogEvent {
+    /// Logged event.
+    Event(Event),
+
+    /// Test output section.
+    Section(String),
+}
+
 /// A receiver of [`Event`]s which will log the events to the captured test stdout.
 ///
 /// Tests redirect the stdout of the test thread and capture this, showing the captured
@@ -609,12 +705,12 @@ impl Deref for TestContext {
 /// [`TestContextBuilder::with_log_sink`].
 #[derive(Debug)]
 pub struct LogSink {
-    events: Receiver<Event>,
+    events: Receiver<LogEvent>,
 }
 
 impl LogSink {
     /// Creates a new [`LogSink`] and returns the attached event sink.
-    pub fn create() -> (Sender<Event>, Self) {
+    pub fn create() -> (Sender<LogEvent>, Self) {
         let (tx, rx) = channel::unbounded();
         (tx, Self { events: rx })
     }
@@ -623,7 +719,7 @@ impl LogSink {
 impl Drop for LogSink {
     fn drop(&mut self) {
         while let Ok(event) = self.events.try_recv() {
-            print_event(&event);
+            print_logevent(&event);
         }
     }
 }
@@ -758,7 +854,6 @@ impl EventTracker {
 /// Gets a specific message from a chat and asserts that the chat has a specific length.
 ///
 /// Panics if the length of the chat is not `asserted_msgs_count` or if the chat item at `index` is not a Message.
-#[allow(clippy::indexing_slicing)]
 pub(crate) async fn get_chat_msg(
     t: &TestContext,
     chat_id: ChatId,
@@ -773,6 +868,13 @@ pub(crate) async fn get_chat_msg(
         panic!("Wrong item type");
     };
     Message::load_from_db(&t.ctx, msg_id).await.unwrap()
+}
+
+fn print_logevent(logevent: &LogEvent) {
+    match logevent {
+        LogEvent::Event(event) => print_event(event),
+        LogEvent::Section(msg) => println!("\n========== {} ==========", msg),
+    }
 }
 
 /// Pretty-print an event to stdout
@@ -846,9 +948,13 @@ fn print_event(event: &Event) {
 ///
 /// This includes a bunch of the message meta-data as well.
 async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
-    let contact = Contact::get_by_id(context, msg.get_from_id())
-        .await
-        .expect("invalid contact");
+    let contact = match Contact::get_by_id(context, msg.get_from_id()).await {
+        Ok(contact) => contact,
+        Err(e) => {
+            println!("Can't log message: invalid contact: {}", e);
+            return;
+        }
+    };
 
     let contact_name = contact.get_name();
     let contact_id = contact.get_id();
