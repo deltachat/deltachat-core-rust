@@ -396,7 +396,7 @@ async fn decrypt_if_autocrypt_message(
     {
         None => {
             // not an autocrypt mime message, abort and ignore
-            return Ok(None);
+            return Ok((None, HashSet::new()));
         }
         Some(res) => res,
     };

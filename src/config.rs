@@ -579,7 +579,7 @@ mod tests {
 
         tcm.change_addr(&alice, "alice@someotherdomain.xyz").await;
 
-        tcm.sec("Bob sends a message to Alice, encrypting to her previous key");
+        tcm.section("Bob sends a message to Alice, encrypting to her previous key");
         let sent = bob.send_text(bob_alice_chat.id, "hi back").await;
 
         // Alice set up message forwarding so that she still receives
@@ -590,7 +590,7 @@ mod tests {
         let alice_bob_chat = alice.create_chat(&bob).await;
         assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
-        tcm.sec("Bob sends a message to Alice without In-Reply-To");
+        tcm.section("Bob sends a message to Alice without In-Reply-To");
         // Even if Bob sends a message to Alice without In-Reply-To,
         // it's still assigned to the 1:1 chat with Bob and not to
         // a group (without secondary addresses, an ad-hoc group
@@ -720,20 +720,20 @@ Message w/out In-Reply-To
 
         // groups 0 and 2 stay unpromoted (i.e. local
         // on Bob's device, Alice doesn't know about them)
-        tcm.sec("Promoting group 1");
+        tcm.section("Promoting group 1");
         let sent = bob.send_text(groups[1], "group created").await;
         let group1_alice = alice.recv_msg(&sent).await.chat_id;
 
         let mut group3_alice = None;
         if verified {
-            tcm.sec("Promoting group 3");
+            tcm.section("Promoting group 3");
             let sent = bob.send_text(groups[3], "group created").await;
             group3_alice = Some(alice.recv_msg(&sent).await.chat_id);
         }
 
         tcm.change_addr(&alice, ALICE_NEW_ADDR).await;
 
-        tcm.sec("Alice sends another message to Bob, this time from her new addr");
+        tcm.section("Alice sends another message to Bob, this time from her new addr");
         // No matter to which chat Alice send, the transition should be done in all groups
         let chat_to_send = match round {
             0 => alice.create_chat(&bob).await.id,
@@ -747,7 +747,7 @@ Message w/out In-Reply-To
         let recvd = bob.recv_msg(&sent).await;
         assert_eq!(recvd.text.unwrap(), "Hello from my new addr!");
 
-        tcm.sec("Check that the AEAP transition worked");
+        tcm.section("Check that the AEAP transition worked");
         check_that_transition_worked(
             &groups,
             &alice,
@@ -758,7 +758,7 @@ Message w/out In-Reply-To
         )
         .await;
 
-        tcm.sec("Test switching back");
+        tcm.section("Test switching back");
         tcm.change_addr(&alice, "alice@example.org").await;
         let sent = alice
             .send_text(chat_to_send, "Hello from my old addr!")
