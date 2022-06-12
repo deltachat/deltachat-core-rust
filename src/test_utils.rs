@@ -77,7 +77,7 @@ impl TestContextManager {
     /// Writes info events to the log that mark a section, e.g.:
     ///
     /// ========== `msg` goes here ==========
-    pub fn sec(&self, msg: &str) {
+    pub fn section(&self, msg: &str) {
         self.log_tx
             .try_send(Event {
                 id: 0,
@@ -90,7 +90,7 @@ impl TestContextManager {
     /// - Let the other TestContext receive it and accept the chat
     /// - Assert that the message arrived
     pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
-        self.sec(&format!(
+        self.section(&format!(
             "{} sends a message '{}' to {}",
             from.name(),
             msg,
@@ -106,7 +106,7 @@ impl TestContextManager {
     }
 
     pub async fn change_addr(&self, test_context: &TestContext, new_addr: &str) {
-        self.sec(&format!(
+        self.section(&format!(
             "{} changes her self address and reconfigures",
             test_context.name()
         ));
