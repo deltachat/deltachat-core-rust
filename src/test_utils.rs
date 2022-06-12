@@ -81,7 +81,7 @@ impl TestContextManager {
         self.log_tx
             .try_send(Event {
                 id: 0,
-                typ: EventType::Info(format!("\n========== {} ==========", msg)),
+                typ: EventType::Section(msg.to_string()),
             })
             .expect("The events channel should be unbounded and not closed, so try_send() shouldn't fail");
     }
@@ -871,6 +871,7 @@ fn print_event(event: &Event) {
     let red = Color::Red.normal();
 
     let msg = match &event.typ {
+        EventType::Section(msg) => format!("\n========== {} ==========", msg),
         EventType::Info(msg) => format!("INFO: {}", msg),
         EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
         EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),
