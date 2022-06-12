@@ -40,3 +40,17 @@ node/old_docs.md
 .vscode/
 .github/
 node/.prettierrc.yml
+
+deltachat-jsonrpc/TODO.md
+deltachat-jsonrpc/README.MD
+deltachat-jsonrpc/.gitignore
+deltachat-jsonrpc/typescript/.gitignore
+deltachat-jsonrpc/typescript/.prettierignore
+deltachat-jsonrpc/typescript/accounts/
+deltachat-jsonrpc/typescript/index.html
+deltachat-jsonrpc/typescript/node-demo.js
+deltachat-jsonrpc/typescript/report_api_coverage.mjs
+deltachat-jsonrpc/typescript/test
+deltachat-jsonrpc/typescript/example.ts
+
+.DS_Store
