@@ -23,7 +23,7 @@ typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
-
+typedef struct _dc_json_api_instance dc_json_api_instance_t;
 
 /**
  * @mainpage Getting started
@@ -5177,6 +5177,55 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @}
  */
 
+
+
+/**
+ * @class dc_json_api_instance_t
+ *
+ * Opaque object for using the json rpc api from the cffi bindings.
+ */
+
+/**
+ * Create the jsonrpc instance that is used to call the jsonrpc.
+ *
+ * @memberof dc_accounts_t
+ * @param account_manager The accounts object as created by dc_accounts_new().
+ * @return Returns the jsonrpc instance, NULL on errors.
+ *     Must be freed using dc_json_api_unref() after usage.
+ *
+ */
+dc_json_api_instance_t* dc_get_json_api(dc_accounts_t* account_manager);
+
+/**
+ * Free a jsonrpc instance.
+ *
+ * @memberof dc_json_api_instance_t
+ * @param json_api_instance jsonrpc instance as returned from dc_get_json_api().
+ *     If NULL is given, nothing is done and an error is logged.
+ */
+void dc_json_api_unref(dc_json_api_instance_t* json_api_instance);
+
+/**
+ * Makes an asynchronous jsonrpc request,
+ * returns immediately and once the result is ready it can be retrieved via dc_get_next_json_response()
+ * the jsonrpc specification defines an invocation id that can then be used to match request and response.
+ *
+ * @memberof dc_json_api_instance_t
+ * @param json_api_instance jsonrpc instance as returned from dc_get_json_api().
+ * @param request JSON-RPC request as string
+ */
+void dc_json_request(dc_json_api_instance_t* json_api_instance, char* request);
+
+/**
+ * Get the next json_rpc response, blocks until there is a new event, so call this in a loop from a thread.
+ *
+ * @memberof dc_json_api_instance_t
+ * @param json_api_instance jsonrpc instance as returned from dc_get_json_api().
+ * @return JSON-RPC response as string
+ *     If NULL is returned, the accounts_t belonging to the jsonrpc instance is unref'd and no more events will come;
+ *     in this case, free the jsonrpc instance using dc_json_api_unref().
+ */
+char* dc_get_next_json_response(dc_json_api_instance_t* json_api_instance);
 
 /**
  * @class dc_event_emitter_t

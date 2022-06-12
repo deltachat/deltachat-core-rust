@@ -19,10 +19,11 @@ interface NativeAccount {}
 export class AccountManager extends EventEmitter {
   dcn_accounts: NativeAccount
   accountDir: string
+  json_rpc_started = false
 
   constructor(cwd: string, os = 'deltachat-node') {
-    debug('DeltaChat constructor')
     super()
+    debug('DeltaChat constructor')
 
     this.accountDir = cwd
     this.dcn_accounts = binding.dcn_accounts_new(os, this.accountDir)
@@ -112,6 +113,31 @@ export class AccountManager extends EventEmitter {
       this.handleCoreEvent.bind(this)
     )
     debug('Started event handler')
+  }
+
+  startJSONRPCHandler(callback: ((response: string) => void) | null) {
+    if (this.dcn_accounts === null) {
+      throw new Error('dcn_account is null')
+    }
+    if (!callback) {
+      throw new Error('no callback set')
+    }
+    if (this.json_rpc_started) {
+      throw new Error('jsonrpc was started already')
+    }
+
+    binding.dcn_accounts_start_jsonrpc(this.dcn_accounts, callback.bind(this))
+    debug('Started jsonrpc handler')
+    this.json_rpc_started = true
+  }
+
+  jsonRPCRequest(message: string) {
+    if (!this.json_rpc_started) {
+      throw new Error(
+        'jsonrpc is not active, start it with startJSONRPCHandler first'
+      )
+    }
+    binding.dcn_json_rpc_request(this.dcn_accounts, message)
   }
 
   startIO() {
