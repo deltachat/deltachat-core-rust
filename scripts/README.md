@@ -25,7 +25,7 @@ and an own build machine.
 
 There is experimental support for triggering a remote Python or Rust test run 
 from your local checkout/branch. You will need to be authorized to login to 
-the build machine (ask your friendly sysadmin on #deltachat freenode) to type::
+the build machine (ask your friendly sysadmin on #deltachat Libera Chat) to type::
 
     scripts/manual_remote_tests.sh rust
     scripts/manual_remote_tests.sh python
