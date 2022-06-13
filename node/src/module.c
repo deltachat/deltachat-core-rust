@@ -3261,8 +3261,8 @@ static void accounts_jsonrpc_thread_func(void* arg)
     }
     response = dc_get_next_json_response(dcn_accounts->jsonrpc_instance);
     if (response == NULL) {
-      //TRACE("received NULL event, skipping");
-      continue;
+      // done or broken
+      break;
     }
 
     if (!dcn_accounts->threadsafe_jsonrpc_handler) {
