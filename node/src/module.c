@@ -348,7 +348,7 @@ NAPI_METHOD(dcn_start_event_handler) {
     callback,
     0,
     async_resource_name,
-    1,
+    1000, // max_queue_size
     1,
     NULL,
     NULL,
@@ -3226,7 +3226,7 @@ NAPI_METHOD(dcn_accounts_start_event_handler) {
     callback,
     0,
     async_resource_name,
-    1,
+    1000, // max_queue_size
     1,
     NULL,
     NULL,
