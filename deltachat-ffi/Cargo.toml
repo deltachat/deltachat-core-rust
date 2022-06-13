@@ -16,7 +16,7 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 deltachat = { path = "../", default-features = false }
-deltachat-jsonrpc = { path = "../deltachat-jsonrpc" }
+deltachat-jsonrpc = { path = "../deltachat-jsonrpc", optional = true }
 libc = "0.2"
 human-panic = "1"
 num-traits = "0.2"
@@ -27,7 +27,8 @@ thiserror = "1"
 rand = "0.7"
 
 [features]
-default = ["vendored"]
+default = ["vendored", "jsonrpc"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
+jsonrpc = ["deltachat-jsonrpc"]
 

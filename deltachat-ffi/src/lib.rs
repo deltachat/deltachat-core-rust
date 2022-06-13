@@ -4426,14 +4426,18 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
         .unwrap_or_else(ptr::null_mut)
 }
 
+#[cfg(feature = "jsonrpc")]
 use deltachat_jsonrpc::api::CommandApi;
+#[cfg(feature = "jsonrpc")]
 use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
 
+#[cfg(feature = "jsonrpc")]
 pub struct dc_json_api_instance_t {
     receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
     handle: MessageHandle<CommandApi>,
 }
 
+#[cfg(feature = "jsonrpc")]
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_json_api(
     account_manager: *mut dc_accounts_t,
@@ -4454,6 +4458,7 @@ pub unsafe extern "C" fn dc_get_json_api(
     Box::into_raw(Box::new(instance))
 }
 
+#[cfg(feature = "jsonrpc")]
 #[no_mangle]
 pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_instance_t) {
     if json_api_instance.is_null() {
@@ -4464,6 +4469,7 @@ pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_i
     Box::from_raw(json_api_instance);
 }
 
+#[cfg(feature = "jsonrpc")]
 #[no_mangle]
 pub unsafe extern "C" fn dc_json_request(
     json_api_instance: *mut dc_json_api_instance_t,
@@ -4482,6 +4488,7 @@ pub unsafe extern "C" fn dc_json_request(
     });
 }
 
+#[cfg(feature = "jsonrpc")]
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_next_json_response(
     json_api_instance: *mut dc_json_api_instance_t,
