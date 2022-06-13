@@ -277,6 +277,9 @@ impl Accounts {
     }
 
     pub async fn stop_io(&self) {
+        // Sending an event here wakes up event loop even
+        // if there are no accounts.
+        info!(self, "Stopping IO for all accounts");
         for account in self.accounts.values() {
             account.stop_io().await;
         }
