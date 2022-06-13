@@ -9,6 +9,7 @@
 ### Fixes
 - set a default error if NDN does not provide an error
 - python: avoid exceptions when messages/contacts/chats are compared with `None`
+- node: wait for the event loop to stop before destroying contexts #3431
 
 ### API-Changes
 - python: added `Message.get_status_updates()`  #3416
