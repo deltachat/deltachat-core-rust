@@ -503,7 +503,12 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
 ///
 /// Returns true if sending was ratelimited, false otherwise. Errors are propagated to the caller.
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
-    context.send_sync_msg().await?; // Add sync message to the end of the queue if needed.
+    // If needed, add status updates and sync messages to end of sending queue
+    let mut ratelimited = context.flush_status_updates().await?;
+    if !ratelimited {
+        context.send_sync_msg().await?;
+    }
+
     let rowids = context
         .sql
         .query_map(
@@ -526,9 +531,12 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             .context("failed to send message")?;
     }
 
-    let ratelimited = send_mdns(context, connection)
-        .await
-        .context("failed to send MDNs")?;
+    if !ratelimited {
+        ratelimited = send_mdns(context, connection)
+            .await
+            .context("failed to send MDNs")?;
+    }
+
     Ok(ratelimited)
 }
 

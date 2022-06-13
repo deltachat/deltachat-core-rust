@@ -131,7 +131,6 @@ pub enum Param {
     /// For Chats: On sending a new message we set the subject to "Re: <last subject>".
     /// Usually we just use the subject of the parent message, but if the parent message
     /// is deleted, we use the LastSubject of the chat.
-    /// For Webxdc instances: Pending description, see `WebxdcPendingSerial`
     LastSubject = b't',
 
     /// For Chats
@@ -181,10 +180,6 @@ pub enum Param {
 
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
-
-    /// For Webxdc Message Instances: serial of pending update,
-    /// pending descr is set in `LastSubject`
-    WebxdcPendingSerial = b'v',
 }
 
 /// An object for handling key=value parameter lists.

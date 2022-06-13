@@ -637,6 +637,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 91 {
+        info!(context, "[migration] v91");
+        sql.execute_migration(
+            r#"CREATE TABLE smtp_status_updates (
+              msg_id INTEGER NOT NULL,
+              first_serial INTEGER NOT NULL,
+              last_serial INTEGER NOT NULL,
+              descr TEXT NOT NULL
+            );"#,
+            91,
+        )
+        .await?;
+    }
 
     Ok((
         recalc_fingerprints,

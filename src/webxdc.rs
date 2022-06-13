@@ -3,11 +3,12 @@
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std, duration_to_str};
+use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
+use crate::scheduler::InterruptInfo;
 use crate::{chat, EventType};
 use anyhow::{bail, ensure, format_err, Result};
 use async_std::path::PathBuf;
@@ -332,15 +333,13 @@ impl Context {
     ///
     /// If the instance is a draft,
     /// the status update is sent once the instance is actually sent.
-    ///
-    /// If an update is sent immediately, the message-id of the update-message is returned,
-    /// this update-message is visible in chats, however, the id may be useful.
+    /// Otherwise, the update is sent as soon as possible.
     pub async fn send_webxdc_status_update(
         &self,
         instance_msg_id: MsgId,
         update_str: &str,
         descr: &str,
-    ) -> Result<Option<MsgId>> {
+    ) -> Result<()> {
         let mut instance = Message::load_from_db(self, instance_msg_id).await?;
         if instance.viewtype != Viewtype::Webxdc {
             bail!("send_webxdc_status_update: is no webxdc message");
@@ -365,78 +364,98 @@ impl Context {
             .await?;
 
         if send_now {
-            // send update now
-            // (also send updates on MessagesState::Failed, maybe only one member cannot receive)
-            if !instance.param.exists(Param::WebxdcPendingSerial) {
-                // TODO: param changes should be protected by a mutex
-                instance.param.set_int(
-                    Param::WebxdcPendingSerial,
-                    status_update_serial.to_u32() as i32,
-                );
-            }
-            instance.param.set(Param::LastSubject, descr);
-            instance.update_param(&self).await?;
-
-            if self.ratelimit.read().await.can_send() {
-                let status_update_msg_id = self.flush_status_updates(instance).await?;
-                Ok(status_update_msg_id)
-            } else {
-                let duration_until_can_send = self.ratelimit.read().await.until_can_send();
-                info!(
-                    self,
-                    "webxdc updates got rate limited, waiting for {}",
-                    duration_to_str(duration_until_can_send)
-                );
-                // TODO: do not create the task if there is already another one waiting
-                // TODO: if the app is restarted before sending is scheduled (not uncommon when delay is eg. 2 minutes),
-                //       updates will be sent only if another update is sent
-                let ctx = self.clone();
-                async_std::task::spawn(async move {
-                    async_std::task::sleep(duration_until_can_send).await;
-                    if let Err(err) = ctx.flush_status_updates(instance).await {
-                        warn!(ctx, "webxdc flushing failed: {}", err);
+            // TODO: start critical
+            match self
+                .sql
+                .query_get_value(
+                    "SELECT first_serial FROM smtp_status_updates WHERE msg_id=?",
+                    paramsv![instance.id],
+                )
+                .await?
+            {
+                Some(first_serial) => {
+                    if status_update_serial <= first_serial {
+                        bail!("bad serial");
                     }
-                });
-                Ok(None)
-            }
-        } else {
-            // send update once the instance is actually send
-            Ok(None)
+                    self.sql
+                        .execute(
+                            "UPDATE smtp_status_updates SET last_serial=?, descr=? WHERE msg_id=?",
+                            paramsv![status_update_serial, descr, instance.id],
+                        )
+                        .await?;
+                }
+                None => {
+                    self.sql.insert(
+                        "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?);",
+                        paramsv![instance.id, status_update_serial, status_update_serial, descr],
+                    ).await?;
+                }
+            };
+            // TODO: end critical
+
+            self.interrupt_smtp(InterruptInfo::new(false)).await;
         }
+        Ok(())
     }
 
-    async fn flush_status_updates(&self, mut instance: Message) -> Result<Option<MsgId>> {
-        if let Some(pending_serial) = instance.param.get_int(Param::WebxdcPendingSerial) {
-            instance.param.remove(Param::WebxdcPendingSerial); // TODO: param changes should be protected by a mutex
-            instance.update_param(self).await?;
+    /// Attempts to send queued webxdx status updates.
+    ///
+    /// Returns true if there are more status updates to send, but rate limiter does not
+    /// allow to send them. Returns false if there are no more status updates to send.
+    pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
+        loop {
+            if !self.ratelimit.read().await.can_send() {
+                info!(self, "Ratelimiter does not allow sending updates now");
+                return Ok(true);
+            }
 
-            let pending_serial = StatusUpdateSerial(pending_serial as u32);
-            let mut status_update = Message {
-                chat_id: instance.chat_id,
-                viewtype: Viewtype::Text,
-                text: instance
-                    .param
-                    .get(Param::LastSubject)
-                    .map(|s| s.to_string()),
-                hidden: true,
-                ..Default::default()
+            // TODO: start critical
+            let (instance_id, first_serial, last_serial, descr) = match self
+                .sql
+                .query_row_optional(
+                    "SELECT msg_id, first_serial, last_serial, descr FROM smtp_status_updates LIMIT 1",
+                    paramsv![],
+                    |row| {
+                        let instance_id = row.get::<_, MsgId>(0)?;
+                        let first_serial = row.get::<_, StatusUpdateSerial>(1)?;
+                        let last_serial = row.get::<_, StatusUpdateSerial>(2)?;
+                        let descr = row.get::<_, String>(3)?;
+                        Ok((instance_id, first_serial, last_serial, descr))
+                    },
+                )
+                .await?
+            {
+                Some(res) => res,
+                None => return Ok(false),
             };
-            status_update
-                .param
-                .set_cmd(SystemMessage::WebxdcStatusUpdate);
-            status_update.param.set(
-                Param::Arg,
-                self.render_webxdc_status_update_object(instance.id, pending_serial)
-                    .await?
-                    .ok_or_else(|| format_err!("Status object expected."))?,
-            );
-            status_update.set_quote(self, Some(&instance)).await?;
-            status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
-            let status_update_msg_id =
+            self.sql
+                .execute(
+                    "DELETE FROM smtp_status_updates WHERE msg_id=?;",
+                    paramsv![instance_id],
+                )
+                .await?;
+            // TODO: end critical
+
+            if let Some(json) = self
+                .render_webxdc_status_update_object(instance_id, Some((first_serial, last_serial)))
+                .await?
+            {
+                let instance = Message::load_from_db(self, instance_id).await?;
+                let mut status_update = Message {
+                    chat_id: instance.chat_id,
+                    viewtype: Viewtype::Text,
+                    text: Some(descr.to_string()),
+                    hidden: true,
+                    ..Default::default()
+                };
+                status_update
+                    .param
+                    .set_cmd(SystemMessage::WebxdcStatusUpdate);
+                status_update.param.set(Param::Arg, json);
+                status_update.set_quote(self, Some(&instance)).await?;
+                status_update.param.remove(Param::GuaranteeE2ee); // may be set by set_quote(), if #2985 is done, this line can be removed
                 chat::send_msg(self, instance.chat_id, &mut status_update).await?;
-            Ok(Some(status_update_msg_id))
-        } else {
-            Ok(None)
+            }
         }
     }
 
@@ -553,18 +572,20 @@ impl Context {
     ///
     /// Example: `{"updates": [{"payload":"any update data"},
     ///                        {"payload":"another update data"}]}`
-    /// Updates with serials larger or equal than `first_serial` are returned.
-    /// To get all updates, set `first_serial` to 0.
     pub(crate) async fn render_webxdc_status_update_object(
         &self,
         instance_msg_id: MsgId,
-        first_serial: StatusUpdateSerial,
+        range: Option<(StatusUpdateSerial, StatusUpdateSerial)>,
     ) -> Result<Option<String>> {
         let json = self
             .sql
             .query_map(
-                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND id>=? ORDER BY id",
-                paramsv![instance_msg_id, first_serial],
+                "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND id>=? AND id<=? ORDER BY id",
+                paramsv![
+                    instance_msg_id,
+                    range.map(|r|r.0).unwrap_or(StatusUpdateSerial(0)),
+                    range.map(|r|r.1).unwrap_or(StatusUpdateSerial(u32::MAX)),
+                ],
                 |row| row.get::<_, String>(0),
                 |rows| {
                     let mut json = String::default();
@@ -1255,17 +1276,17 @@ mod tests {
         assert_eq!(alice_instance.viewtype, Viewtype::Webxdc);
         assert!(!sent1.payload().contains("report-type=status-update"));
 
-        let status_update_msg_id = alice
+        alice
             .send_webxdc_status_update(
                 alice_instance.id,
                 r#"{"payload" : {"foo":"bar"}}"#,
                 "descr text",
             )
-            .await?
-            .unwrap();
+            .await?;
+        alice.flush_status_updates().await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
         let sent2 = &alice.pop_sent_msg().await;
-        let alice_update = Message::load_from_db(&alice, status_update_msg_id).await?;
+        let alice_update = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
         assert!(alice_update.hidden);
         assert_eq!(alice_update.viewtype, Viewtype::Text);
         assert_eq!(alice_update.get_filename(), None);
@@ -1291,8 +1312,7 @@ mod tests {
                 r#"{"payload":{"snipp":"snapp"}}"#,
                 "bla text",
             )
-            .await?
-            .unwrap();
+            .await?;
         assert_eq!(
             alice
                 .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
@@ -1355,17 +1375,55 @@ mod tests {
         .await?;
         chat_id.set_draft(&t, Some(&mut instance)).await?;
         assert!(t
-            .render_webxdc_status_update_object(instance.id, StatusUpdateSerial(0))
+            .render_webxdc_status_update_object(instance.id, None)
             .await?
             .is_none());
 
         t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "bla")
             .await?;
         assert!(t
-            .render_webxdc_status_update_object(instance.id, StatusUpdateSerial(0))
+            .render_webxdc_status_update_object(instance.id, None)
             .await?
             .is_some());
 
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_render_webxdc_status_update_object_range() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 1}"#, "d")
+            .await?;
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 2}"#, "d")
+            .await?;
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 3}"#, "d")
+            .await?;
+        t.send_webxdc_status_update(instance.id, r#"{"payload": 4}"#, "d")
+            .await?;
+        let json = t
+            .render_webxdc_status_update_object(
+                instance.id,
+                Some((StatusUpdateSerial(2), StatusUpdateSerial(3))),
+            )
+            .await?
+            .unwrap();
+        assert_eq!(json, "{\"updates\":[{\"payload\":2},\n{\"payload\":3}]}");
+
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM smtp_status_updates", paramsv![],)
+                .await?,
+            1
+        );
+        t.flush_status_updates().await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM smtp_status_updates", paramsv![],)
+                .await?,
+            0
+        );
         Ok(())
     }
 
@@ -1388,15 +1446,20 @@ mod tests {
             .await?;
         let mut alice_instance = alice_chat_id.get_draft(&alice).await?.unwrap();
 
-        let status_update_msg_id = alice
+        alice
             .send_webxdc_status_update(alice_instance.id, r#"{"payload": {"foo":"bar"}}"#, "descr")
             .await?;
-        assert_eq!(status_update_msg_id, None);
         expect_status_update_event(&alice, alice_instance.id).await?;
-        let status_update_msg_id = alice
+        alice
             .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#, "descr")
             .await?;
-        assert_eq!(status_update_msg_id, None);
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM smtp_status_updates", paramsv![],)
+                .await?,
+            0
+        );
         assert!(!alice.get_last_msg().await.is_info()); // 'info: "i"' message not added in draft mode
 
         // send webxdc instance,
@@ -1705,6 +1768,7 @@ sth_for_the = "future""#
                 "descr",
             )
             .await?;
+        alice.flush_status_updates().await?;
         let sent_update1 = &alice.pop_sent_msg().await;
         let info = Message::load_from_db(&alice, alice_instance.id)
             .await?
@@ -1719,6 +1783,7 @@ sth_for_the = "future""#
                 "descr",
             )
             .await?;
+        alice.flush_status_updates().await?;
         let sent_update2 = &alice.pop_sent_msg().await;
         let info = Message::load_from_db(&alice, alice_instance.id)
             .await?
@@ -1770,6 +1835,7 @@ sth_for_the = "future""#
                 "descr",
             )
             .await?;
+        alice.flush_status_updates().await?;
         let sent_update1 = &alice.pop_sent_msg().await;
         let info = Message::load_from_db(&alice, alice_instance.id)
             .await?
@@ -1809,6 +1875,7 @@ sth_for_the = "future""#
                 "descr text",
             )
             .await?;
+        alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         let info_msg = alice.get_last_msg().await;
@@ -1894,11 +1961,13 @@ sth_for_the = "future""#
         alice
             .send_webxdc_status_update(alice_instance.id, r#"{"info":"i1", "payload":1}"#, "d")
             .await?;
+        alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         alice
             .send_webxdc_status_update(alice_instance.id, r#"{"info":"i2", "payload":2}"#, "d")
             .await?;
+        alice.flush_status_updates().await?;
         let sent3 = &alice.pop_sent_msg().await;
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         let info_msg = alice.get_last_msg().await;
@@ -1956,12 +2025,12 @@ sth_for_the = "future""#
         alice_chat_id.accept(&alice).await?;
         let alice_instance = send_webxdc_instance(&alice, alice_chat_id).await?;
         let sent1 = &alice.pop_sent_msg().await;
-        let update_msg_id = alice
+        alice
             .send_webxdc_status_update(alice_instance.id, r#"{"payload":42}"#, "descr")
-            .await?
-            .unwrap();
-        let update_msg = Message::load_from_db(&alice, update_msg_id).await?;
+            .await?;
+        alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
+        let update_msg = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
         assert!(alice_instance.get_showpadlock());
         assert!(update_msg.get_showpadlock());
 
@@ -1977,11 +2046,11 @@ sth_for_the = "future""#
             Contact::create(&bob, "", "claire@example.org").await?,
         )
         .await?;
-        let update_msg_id = bob
-            .send_webxdc_status_update(bob_instance.id, r#"{"payload":43}"#, "descr")
-            .await?
-            .unwrap();
-        let update_msg = Message::load_from_db(&bob, update_msg_id).await?;
+        bob.send_webxdc_status_update(bob_instance.id, r#"{"payload":43}"#, "descr")
+            .await?;
+        bob.flush_status_updates().await?;
+        let sent3 = bob.pop_sent_msg().await;
+        let update_msg = Message::load_from_db(&bob, sent3.sender_msg_id).await?;
         assert!(!update_msg.get_showpadlock());
 
         Ok(())
