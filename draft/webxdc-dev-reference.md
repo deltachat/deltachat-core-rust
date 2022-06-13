@@ -148,9 +148,9 @@ If no icon is set, a default icon will be used.
 
 - `localStorage`, `sessionStorage`, `indexedDB` are okay to be used
 - `visibilitychange`-events are okay to be used
-- `window.navigator.language` is okay to be used, on desktop, this is currently always "en-GB"
+- `window.navigator.language` is okay to be used, on desktop it is the system language
 - `<a href="localfile.html">` and other internal links are okay to be used
-- `<a href="mailto:addr@example.org?body=...">`-links are okay to be used
+- `<a href="mailto:addr@example.org?body=...">`- mailto links are okay to be used
 - `<meta name="viewport" ...>` usage is okay to be used
   and useful esp. different webviews have different defaults
 
@@ -174,7 +174,7 @@ If no icon is set, a default icon will be used.
 
 ## Webxdc Examples
 
-The following example shows an input field and  every input is show on all peers.
+The following example shows an input field and every input is show on all peers.
 
 ```html
 <!DOCTYPE html>
