@@ -403,12 +403,11 @@ impl Context {
     /// Returns true if there are more status updates to send, but rate limiter does not
     /// allow to send them. Returns false if there are no more status updates to send.
     pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
+        if !self.ratelimit.read().await.can_send() {
+            info!(self, "Ratelimiter does not allow sending updates now");
+            return Ok(true);
+        }
         loop {
-            if !self.ratelimit.read().await.can_send() {
-                info!(self, "Ratelimiter does not allow sending updates now");
-                return Ok(true);
-            }
-
             let guard = self.status_updates_mutex.lock().await;
             let (instance_id, first_serial, last_serial, descr) = match self
                 .sql
