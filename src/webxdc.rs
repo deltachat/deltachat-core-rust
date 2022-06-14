@@ -364,7 +364,7 @@ impl Context {
             .await?;
 
         if send_now {
-            // TODO: start critical
+            let guard = self.status_updates_mutex.lock().await;
             match self
                 .sql
                 .query_get_value(
@@ -391,7 +391,7 @@ impl Context {
                     ).await?;
                 }
             };
-            // TODO: end critical
+            drop(guard);
 
             self.interrupt_smtp(InterruptInfo::new(false)).await;
         }
@@ -409,7 +409,7 @@ impl Context {
                 return Ok(true);
             }
 
-            // TODO: start critical
+            let guard = self.status_updates_mutex.lock().await;
             let (instance_id, first_serial, last_serial, descr) = match self
                 .sql
                 .query_row_optional(
@@ -434,7 +434,7 @@ impl Context {
                     paramsv![instance_id],
                 )
                 .await?;
-            // TODO: end critical
+            drop(guard);
 
             if let Some(json) = self
                 .render_webxdc_status_update_object(instance_id, Some((first_serial, last_serial)))
@@ -1449,10 +1449,12 @@ mod tests {
         alice
             .send_webxdc_status_update(alice_instance.id, r#"{"payload": {"foo":"bar"}}"#, "descr")
             .await?;
+        alice.flush_status_updates().await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
         alice
             .send_webxdc_status_update(alice_instance.id, r#"{"payload":42, "info":"i"}"#, "descr")
             .await?;
+        alice.flush_status_updates().await?;
         assert_eq!(
             alice
                 .sql
