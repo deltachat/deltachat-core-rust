@@ -398,7 +398,7 @@ impl Context {
         Ok(())
     }
 
-    /// Attempts to send queued webxdx status updates.
+    /// Attempts to send queued webxdc status updates.
     ///
     /// Returns true if there are more status updates to send, but rate limiter does not
     /// allow to send them. Returns false if there are no more status updates to send.
