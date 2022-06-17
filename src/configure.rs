@@ -75,6 +75,24 @@ impl Context {
             }))
             .await;
 
+        if let Err(err) = res.as_ref() {
+            progress!(
+                self,
+                0,
+                Some(
+                    stock_str::configuration_failed(
+                        self,
+                        // We are using Anyhow's .context() and to show the
+                        // inner error, too, we need the {:#}:
+                        format!("{:#}", err),
+                    )
+                    .await
+                )
+            );
+        } else {
+            progress!(self, 1000);
+        }
+
         self.free_ongoing().await;
 
         res
@@ -114,30 +132,10 @@ impl Context {
             }
         }
 
-        match success {
-            Ok(_) => {
-                self.set_config(Config::NotifyAboutWrongPw, Some("1"))
-                    .await?;
-                progress!(self, 1000);
-                Ok(())
-            }
-            Err(err) => {
-                progress!(
-                    self,
-                    0,
-                    Some(
-                        stock_str::configuration_failed(
-                            self,
-                            // We are using Anyhow's .context() and to show the
-                            // inner error, too, we need the {:#}:
-                            format!("{:#}", err),
-                        )
-                        .await
-                    )
-                );
-                Err(err)
-            }
-        }
+        success?;
+        self.set_config(Config::NotifyAboutWrongPw, Some("1"))
+            .await?;
+        Ok(())
     }
 }
 

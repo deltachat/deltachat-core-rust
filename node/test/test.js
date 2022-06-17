@@ -128,7 +128,7 @@ describe('Basic offline Tests', function () {
 
     await expect(
       context.configure({ addr: 'delta1@delta.localhost' })
-    ).to.eventually.be.rejectedWith('Please enter a password.')
+    ).to.eventually.be.rejectedWith('Missing (IMAP) password.')
     await expect(context.configure({ mailPw: 'delta1' })).to.eventually.be
       .rejected
 
