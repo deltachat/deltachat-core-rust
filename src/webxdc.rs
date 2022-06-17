@@ -392,7 +392,9 @@ impl Context {
             let (instance_id, first_serial, last_serial, descr) = match self
                 .sql
                 .query_row_optional(
-                    "SELECT msg_id, first_serial, last_serial, descr FROM smtp_status_updates LIMIT 1",
+                    "DELETE FROM smtp_status_updates
+                     WHERE msg_id IN (SELECT msg_id FROM smtp_status_updates LIMIT 1)
+                     RETURNING msg_id, first_serial, last_serial, descr",
                     paramsv![],
                     |row| {
                         let instance_id: MsgId = row.get(0)?;
@@ -407,12 +409,6 @@ impl Context {
                 Some(res) => res,
                 None => return Ok(false),
             };
-            self.sql
-                .execute(
-                    "DELETE FROM smtp_status_updates WHERE msg_id=?;",
-                    paramsv![instance_id],
-                )
-                .await?;
             drop(guard);
 
             if let Some(json) = self
