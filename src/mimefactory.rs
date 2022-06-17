@@ -1085,10 +1085,15 @@ impl<'a> MimeFactory<'a> {
             }
         };
 
-        let quoted_text = self
+        let mut quoted_text = self
             .msg
             .quoted_text()
             .map(|quote| format_flowed_quote(&quote) + "\r\n\r\n");
+        if quoted_text.is_none() && final_text.starts_with('>') {
+            // Insert empty line to avoid receiver treating user-sent quote as topquote inserted by
+            // Delta Chat.
+            quoted_text = Some("\r\n".to_string());
+        }
         let flowed_text = format_flowed(final_text);
 
         let footer = &self.selfstatus;

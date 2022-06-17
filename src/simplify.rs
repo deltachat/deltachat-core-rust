@@ -204,13 +204,11 @@ fn remove_top_quote<'a>(lines: &'a [&str]) -> (&'a [&'a str], Option<String>) {
                 first_quoted_line = l;
             }
             last_quoted_line = Some(l)
-        } else if !is_empty_line(line) {
-            if is_quoted_headline(line) && !has_quoted_headline && last_quoted_line.is_none() {
-                has_quoted_headline = true
-            } else {
-                /* non-quoting line found */
-                break;
-            }
+        } else if is_quoted_headline(line) && !has_quoted_headline && last_quoted_line.is_none() {
+            has_quoted_headline = true
+        } else {
+            /* non-quoting line found */
+            break;
         }
     }
     if let Some(last_quoted_line) = last_quoted_line {

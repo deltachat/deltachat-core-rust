@@ -51,14 +51,26 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
     result + &buffer
 }
 
-fn format_flowed_prefix(text: &str, prefix: &str) -> String {
+/// Returns text formatted according to RFC 3767 (format=flowed).
+///
+/// This function accepts text separated by LF, but returns text
+/// separated by CRLF.
+///
+/// RFC 2646 technique is used to insert soft line breaks, so DelSp
+/// SHOULD be set to "no" when sending.
+pub(crate) fn format_flowed(text: &str) -> String {
     let mut result = String::new();
 
     for line in text.split('\n') {
         if !result.is_empty() {
             result += "\r\n";
         }
-        let line = line.trim_end();
+
+        let line_no_prefix = line.strip_prefix('>');
+        let is_quote = line_no_prefix.is_some();
+        let line = line_no_prefix.unwrap_or(line).trim();
+        let prefix = if is_quote { "> " } else { "" };
+
         if prefix.len() + line.len() > 78 {
             result += &format_line_flowed(line, prefix);
         } else {
@@ -70,23 +82,23 @@ fn format_flowed_prefix(text: &str, prefix: &str) -> String {
             result += line;
         }
     }
-    result
-}
 
-/// Returns text formatted according to RFC 3767 (format=flowed).
-///
-/// This function accepts text separated by LF, but returns text
-/// separated by CRLF.
-///
-/// RFC 2646 technique is used to insert soft line breaks, so DelSp
-/// SHOULD be set to "no" when sending.
-pub fn format_flowed(text: &str) -> String {
-    format_flowed_prefix(text, "")
+    result
 }
 
 /// Same as format_flowed(), but adds "> " prefix to each line.
 pub fn format_flowed_quote(text: &str) -> String {
-    format_flowed_prefix(text, "> ")
+    let mut result = String::new();
+
+    for line in text.split('\n') {
+        if !result.is_empty() {
+            result += "\n";
+        }
+        result += "> ";
+        result += line;
+    }
+
+    format_flowed(&result)
 }
 
 /// Joins lines in format=flowed text.
@@ -129,6 +141,7 @@ pub fn unformat_flowed(text: &str, delsp: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::TestContext;
 
     #[test]
     fn test_format_flowed() {
@@ -144,18 +157,18 @@ mod tests {
                         client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
 
-        let text = "> Not a quote";
-        assert_eq!(format_flowed(text), " > Not a quote");
+        let text = "> A quote";
+        assert_eq!(format_flowed(text), "> A quote");
 
         // Test space stuffing of wrapped lines
         let text = "> This is the Autocrypt Setup Message used to transfer your key between clients.\n\
                     >                               \n\
                     > To decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device.";
-        let expected = "\x20> This is the Autocrypt Setup Message used to transfer your key between \r\n\
-                        clients.\r\n\
-                        \x20>\r\n\
-                        \x20> To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
-                        client and enter the setup code presented on the generating device.";
+        let expected = "> This is the Autocrypt Setup Message used to transfer your key between \r\n\
+                        > clients.\r\n\
+                        > \r\n\
+                        > To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
+                        > client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
     }
 
@@ -175,6 +188,10 @@ mod tests {
         let expected = "> this is a quoted line";
         assert_eq!(format_flowed_quote(quote), expected);
 
+        let quote = "first quoted line\nsecond quoted line";
+        let expected = "> first quoted line\r\n> second quoted line";
+        assert_eq!(format_flowed_quote(quote), expected);
+
         let quote = "> foo bar baz";
         let expected = "> > foo bar baz";
         assert_eq!(format_flowed_quote(quote), expected);
@@ -184,5 +201,26 @@ mod tests {
             "> this is a very long quote that should be wrapped using format=flowed and \r\n\
             > unwrapped on the receiver";
         assert_eq!(format_flowed_quote(quote), expected);
+    }
+
+    #[async_std::test]
+    async fn test_send_quotes() -> anyhow::Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+
+        let sent = alice.send_text(chat.id, "> First quote").await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some("> First quote"));
+        assert!(received.quoted_text().is_none());
+        assert!(received.quoted_message(&bob).await?.is_none());
+
+        let sent = alice.send_text(chat.id, "> Second quote").await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some("> Second quote"));
+        assert!(received.quoted_text().is_none());
+        assert!(received.quoted_message(&bob).await?.is_none());
+
+        Ok(())
     }
 }
