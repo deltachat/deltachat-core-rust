@@ -364,14 +364,12 @@ impl Context {
             .await?;
 
         if send_now {
-            let guard = self.status_updates_mutex.lock().await;
             self.sql.insert(
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
                  ON CONFLICT(msg_id)
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 paramsv![instance.id, status_update_serial, status_update_serial, descr],
             ).await?;
-            drop(guard);
 
             self.interrupt_smtp(InterruptInfo::new(false)).await;
         }
@@ -388,7 +386,6 @@ impl Context {
             return Ok(true);
         }
         loop {
-            let guard = self.status_updates_mutex.lock().await;
             let (instance_id, first_serial, last_serial, descr) = match self
                 .sql
                 .query_row_optional(
@@ -409,7 +406,6 @@ impl Context {
                 Some(res) => res,
                 None => return Ok(false),
             };
-            drop(guard);
 
             if let Some(json) = self
                 .render_webxdc_status_update_object(instance_id, Some((first_serial, last_serial)))
