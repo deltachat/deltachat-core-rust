@@ -415,10 +415,10 @@ impl Context {
                     "SELECT msg_id, first_serial, last_serial, descr FROM smtp_status_updates LIMIT 1",
                     paramsv![],
                     |row| {
-                        let instance_id = row.get::<_, MsgId>(0)?;
-                        let first_serial = row.get::<_, StatusUpdateSerial>(1)?;
-                        let last_serial = row.get::<_, StatusUpdateSerial>(2)?;
-                        let descr = row.get::<_, String>(3)?;
+                        let instance_id: MsgId = row.get(0)?;
+                        let first_serial: StatusUpdateSerial = row.get(1)?;
+                        let last_serial: StatusUpdateSerial = row.get(2)?;
+                        let descr: String = row.get(3)?;
                         Ok((instance_id, first_serial, last_serial, descr))
                     },
                 )
