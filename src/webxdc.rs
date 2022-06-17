@@ -365,32 +365,12 @@ impl Context {
 
         if send_now {
             let guard = self.status_updates_mutex.lock().await;
-            match self
-                .sql
-                .query_get_value(
-                    "SELECT first_serial FROM smtp_status_updates WHERE msg_id=?",
-                    paramsv![instance.id],
-                )
-                .await?
-            {
-                Some(first_serial) => {
-                    if status_update_serial <= first_serial {
-                        bail!("bad serial");
-                    }
-                    self.sql
-                        .execute(
-                            "UPDATE smtp_status_updates SET last_serial=?, descr=? WHERE msg_id=?",
-                            paramsv![status_update_serial, descr, instance.id],
-                        )
-                        .await?;
-                }
-                None => {
-                    self.sql.insert(
-                        "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?);",
-                        paramsv![instance.id, status_update_serial, status_update_serial, descr],
-                    ).await?;
-                }
-            };
+            self.sql.insert(
+                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
+                 ON CONFLICT(msg_id)
+                 DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
+                paramsv![instance.id, status_update_serial, status_update_serial, descr],
+            ).await?;
             drop(guard);
 
             self.interrupt_smtp(InterruptInfo::new(false)).await;
