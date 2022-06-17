@@ -376,6 +376,30 @@ impl Context {
         Ok(())
     }
 
+    /// Pops one record of queued webxdc status updates.
+    /// This function exists to make the sqlite statement testable.
+    async fn pop_smtp_status_update(
+        &self,
+    ) -> Result<Option<(MsgId, StatusUpdateSerial, StatusUpdateSerial, String)>> {
+        let res = self
+            .sql
+            .query_row_optional(
+                "DELETE FROM smtp_status_updates
+                     WHERE msg_id IN (SELECT msg_id FROM smtp_status_updates LIMIT 1)
+                     RETURNING msg_id, first_serial, last_serial, descr",
+                paramsv![],
+                |row| {
+                    let instance_id: MsgId = row.get(0)?;
+                    let first_serial: StatusUpdateSerial = row.get(1)?;
+                    let last_serial: StatusUpdateSerial = row.get(2)?;
+                    let descr: String = row.get(3)?;
+                    Ok((instance_id, first_serial, last_serial, descr))
+                },
+            )
+            .await?;
+        Ok(res)
+    }
+
     /// Attempts to send queued webxdc status updates.
     ///
     /// Returns true if there are more status updates to send, but rate limiter does not
@@ -386,26 +410,11 @@ impl Context {
             return Ok(true);
         }
         loop {
-            let (instance_id, first_serial, last_serial, descr) = match self
-                .sql
-                .query_row_optional(
-                    "DELETE FROM smtp_status_updates
-                     WHERE msg_id IN (SELECT msg_id FROM smtp_status_updates LIMIT 1)
-                     RETURNING msg_id, first_serial, last_serial, descr",
-                    paramsv![],
-                    |row| {
-                        let instance_id: MsgId = row.get(0)?;
-                        let first_serial: StatusUpdateSerial = row.get(1)?;
-                        let last_serial: StatusUpdateSerial = row.get(2)?;
-                        let descr: String = row.get(3)?;
-                        Ok((instance_id, first_serial, last_serial, descr))
-                    },
-                )
-                .await?
-            {
-                Some(res) => res,
-                None => return Ok(false),
-            };
+            let (instance_id, first_serial, last_serial, descr) =
+                match self.pop_smtp_status_update().await? {
+                    Some(res) => res,
+                    None => return Ok(false),
+                };
 
             if let Some(json) = self
                 .render_webxdc_status_update_object(instance_id, Some((first_serial, last_serial)))
@@ -1395,6 +1404,66 @@ mod tests {
                 .await?,
             0
         );
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_pop_status_update() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
+        let instance1 = send_webxdc_instance(&t, chat_id).await?;
+        let instance2 = send_webxdc_instance(&t, chat_id).await?;
+        let instance3 = send_webxdc_instance(&t, chat_id).await?;
+        assert!(t.pop_smtp_status_update().await?.is_none());
+
+        t.send_webxdc_status_update(instance1.id, r#"{"payload": "1a"}"#, "descr1a")
+            .await?;
+        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2a"}"#, "descr2a")
+            .await?;
+        t.send_webxdc_status_update(instance2.id, r#"{"payload": "2b"}"#, "descr2b")
+            .await?;
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3a"}"#, "descr3a")
+            .await?;
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3b"}"#, "descr3b")
+            .await?;
+        t.send_webxdc_status_update(instance3.id, r#"{"payload": "3c"}"#, "descr3c")
+            .await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM smtp_status_updates", paramsv![],)
+                .await?,
+            3
+        );
+
+        // order of pop_status_update() is not defined, therefore the more complicated test
+        let mut instances_checked = 0;
+        for i in 0..3 {
+            let (instance, min_ser, max_ser, descr) = t.pop_smtp_status_update().await?.unwrap();
+            if instance == instance1.id {
+                assert_eq!(min_ser, max_ser);
+                assert_eq!(descr, "descr1a");
+                instances_checked += 1;
+            } else if instance == instance2.id {
+                assert_eq!(min_ser.to_u32(), max_ser.to_u32() - 1);
+                assert_eq!(descr, "descr2b");
+                instances_checked += 1;
+            } else if instance == instance3.id {
+                assert_eq!(min_ser.to_u32(), max_ser.to_u32() - 2);
+                assert_eq!(descr, "descr3c");
+                instances_checked += 1;
+            } else {
+                bail!("unexpected instance");
+            }
+            assert_eq!(
+                t.sql
+                    .count("SELECT COUNT(*) FROM smtp_status_updates", paramsv![],)
+                    .await?,
+                2 - i
+            );
+        }
+        assert_eq!(instances_checked, 3);
+        assert!(t.pop_smtp_status_update().await?.is_none());
+
         Ok(())
     }
 
