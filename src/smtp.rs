@@ -504,10 +504,13 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
 /// Returns true if sending was ratelimited, false otherwise. Errors are propagated to the caller.
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
     // If needed, add status updates and sync messages to end of sending queue
-    let mut ratelimited = context.flush_status_updates().await?;
-    if !ratelimited {
+    let mut ratelimited = if context.ratelimit.read().await.can_send() {
+        context.flush_status_updates().await?;
         context.send_sync_msg().await?;
-    }
+        false
+    } else {
+        true
+    };
 
     let rowids = context
         .sql

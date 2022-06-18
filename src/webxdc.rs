@@ -370,7 +370,6 @@ impl Context {
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 paramsv![instance.id, status_update_serial, status_update_serial, descr],
             ).await?;
-
             self.interrupt_smtp(InterruptInfo::new(false)).await;
         }
         Ok(())
@@ -405,10 +404,6 @@ impl Context {
     /// Returns true if there are more status updates to send, but rate limiter does not
     /// allow to send them. Returns false if there are no more status updates to send.
     pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
-        if !self.ratelimit.read().await.can_send() {
-            info!(self, "Ratelimiter does not allow sending updates now");
-            return Ok(true);
-        }
         loop {
             let (instance_id, first_serial, last_serial, descr) =
                 match self.pop_smtp_status_update().await? {
