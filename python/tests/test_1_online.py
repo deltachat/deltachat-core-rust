@@ -1433,8 +1433,9 @@ def test_set_get_contact_avatar(acfactory, data, lp):
 
 
 def test_add_remove_member_remote_events(acfactory, lp):
-    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
     ac1_addr = ac1.get_config("addr")
+    ac3_addr = ac3.get_config("addr")
     # activate local plugin for ac2
     in_list = queue.Queue()
 
@@ -1476,7 +1477,7 @@ def test_add_remove_member_remote_events(acfactory, lp):
     lp.sec("ac1: add address2")
     # note that if the above create_chat() would not
     # happen we would not receive a proper member_added event
-    contact2 = chat.add_contact("devnull@testrun.org")
+    contact2 = chat.add_contact(ac3_addr)
     ev = in_list.get()
     assert ev.action == "chat-modified"
     ev = in_list.get()
@@ -1484,7 +1485,7 @@ def test_add_remove_member_remote_events(acfactory, lp):
     ev = in_list.get()
     assert ev.action == "added"
     assert ev.message.get_sender_contact().addr == ac1_addr
-    assert ev.contact.addr == "devnull@testrun.org"
+    assert ev.contact.addr == ac3_addr
 
     lp.sec("ac1: remove address2")
     chat.remove_contact(contact2)
