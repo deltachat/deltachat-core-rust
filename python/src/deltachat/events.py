@@ -271,7 +271,8 @@ class EventThread(threading.Thread):
             data1 = ffi_event.data1
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
-                yield "ac_configure_completed", dict(success=success)
+                comment = ffi_event.data2
+                yield "ac_configure_completed", dict(success=success, comment=comment)
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = account.get_message_by_id(ffi_event.data2)
             yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))

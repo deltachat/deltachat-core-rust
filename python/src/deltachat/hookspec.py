@@ -38,7 +38,7 @@ class PerAccount:
         """log a message related to the account."""
 
     @account_hookspec
-    def ac_configure_completed(self, success):
+    def ac_configure_completed(self, success, comment):
         """Called after a configure process completed."""
 
     @account_hookspec

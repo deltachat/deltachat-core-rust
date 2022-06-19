@@ -294,8 +294,8 @@ class ACSetup:
 
         class PendingTracker:
             @account_hookimpl
-            def ac_configure_completed(this, success):
-                self._configured_events.put((account, success))
+            def ac_configure_completed(this, success: bool, comment: Optional[str]) -> None:
+                self._configured_events.put((account, success, comment))
 
         account.add_account_plugin(PendingTracker(), name="pending_tracker")
         self._account2state[account] = self.CONFIGURING
@@ -333,9 +333,9 @@ class ACSetup:
         print("finished, account2state", self._account2state)
 
     def _pop_config_success(self):
-        acc, success = self._configured_events.get()
+        acc, success, comment = self._configured_events.get()
         if not success:
-            pytest.fail("configuring online account failed: {}".format(acc))
+            pytest.fail("configuring online account {} failed: {}".format(acc, comment))
         self._account2state[acc] = self.CONFIGURED
         return acc
 

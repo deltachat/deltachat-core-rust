@@ -35,7 +35,7 @@ class TestACSetup:
         monkeypatch.setattr(acc, "configure", lambda **kwargs: None)
         pc.start_configure(acc)
         assert pc._account2state[acc] == pc.CONFIGURING
-        pc._configured_events.put((acc, True))
+        pc._configured_events.put((acc, True, None))
         monkeypatch.setattr(pc, "init_imap", lambda *args, **kwargs: None)
         pc.wait_one_configured(acc)
         assert pc._account2state[acc] == pc.CONFIGURED
@@ -55,11 +55,11 @@ class TestACSetup:
         pc.start_configure(ac2)
         assert pc._account2state[ac1] == pc.CONFIGURING
         assert pc._account2state[ac2] == pc.CONFIGURING
-        pc._configured_events.put((ac1, True))
+        pc._configured_events.put((ac1, True, None))
         pc.wait_one_configured(ac1)
         assert pc._account2state[ac1] == pc.CONFIGURED
         assert pc._account2state[ac2] == pc.CONFIGURING
-        pc._configured_events.put((ac2, True))
+        pc._configured_events.put((ac2, True, None))
         pc.bring_online()
         assert pc._account2state[ac1] == pc.IDLEREADY
         assert pc._account2state[ac2] == pc.IDLEREADY
