@@ -3,6 +3,7 @@
 use super::Smtp;
 use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
 
+use crate::config::Config;
 use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;
 use crate::context::Context;
 use crate::events::EventType;
@@ -32,10 +33,12 @@ impl Smtp {
         message: &[u8],
         rowid: i64,
     ) -> Result<()> {
-        // Notify ratelimiter about sent message regardless of whether quota is exceeded or not.
-        // Checking whether sending is allowed for low-priority messages should be done by the
-        // caller.
-        context.ratelimit.write().await.send();
+        if !context.get_config_bool(Config::Bot).await? {
+            // Notify ratelimiter about sent message regardless of whether quota is exceeded or not.
+            // Checking whether sending is allowed for low-priority messages should be done by the
+            // caller.
+            context.ratelimit.write().await.send();
+        }
 
         let message_len_bytes = message.len();
 
