@@ -84,7 +84,7 @@ describe('static tests', function () {
   })
 })
 
-describe.only('JSON RPC', function () {
+describe('JSON RPC', function () {
   it('smoketest', async function () {
     const { dc } = DeltaChat.newTemporary()
     let promise_resolve
@@ -108,14 +108,13 @@ describe.only('JSON RPC', function () {
       },
       JSON.parse(await promise)
     )
-    // TODO: fix that shutdown crashes!
     dc.close()
   })
 
   it('basic test', async function () {
     const { dc } = DeltaChat.newTemporary()
 
-    const promises = {};
+    const promises = {}
     dc.startJSONRPCHandler((msg) => {
       const response = JSON.parse(msg)
       promises[response.id](response)
@@ -123,7 +122,7 @@ describe.only('JSON RPC', function () {
     })
     const call = (request) => {
       dc.jsonRPCRequest(JSON.stringify(request))
-      return new Promise((res, _rej)=> {
+      return new Promise((res, _rej) => {
         promises[request.id] = res
       })
     }
