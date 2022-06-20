@@ -34,8 +34,8 @@ async fn request_handler(
 }
 
 async fn event_loop(state: CommandApi, rpc: RpcHandle) -> anyhow::Result<()> {
-    let mut events = state.accounts.read().await.get_event_emitter().await;
-    while let Ok(Some(event)) = events.recv().await {
+    let events = state.accounts.read().await.get_event_emitter().await;
+    while let Some(event) = events.recv().await {
         // log::debug!("event {:?}", event);
         let event = event_to_json_rpc_notification(event);
         rpc.notify("event", Some(event)).await?;
