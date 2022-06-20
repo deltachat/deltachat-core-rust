@@ -2928,7 +2928,8 @@ NAPI_METHOD(dcn_accounts_unref) {
     dcn_accounts->event_handler_thread = 0;
   }
   if (dcn_accounts->jsonrpc_instance) {
-    dc_json_api_unref(dcn_accounts->jsonrpc_instance);
+    dc_json_request(dcn_accounts->jsonrpc_instance, "{}");
+    uv_thread_join(&dcn_accounts->jsonrpc_thread);
     dcn_accounts->jsonrpc_instance = NULL;
   }
   dc_accounts_unref(dcn_accounts->dc_accounts);
@@ -3247,10 +3248,6 @@ static void accounts_jsonrpc_thread_func(void* arg)
   TRACE("accounts_jsonrpc_thread_func starting");
   char* response;
   while (true) {
-    if (dcn_accounts->jsonrpc_instance == NULL) {
-      TRACE("jsonrpc is null, bailing");
-      break;
-    }
     response = dc_get_next_json_response(dcn_accounts->jsonrpc_instance);
     if (response == NULL) {
       // done or broken
