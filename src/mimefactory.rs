@@ -496,9 +496,9 @@ impl<'a> MimeFactory<'a> {
 
         // Start with Internet Message Format headers in the order of the standard example
         // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
-        headers
-            .unprotected
-            .push(Header::new_with_value("From".into(), vec![from]).unwrap());
+        let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
+        headers.unprotected.push(from_header.clone());
+
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
                 Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
@@ -666,6 +666,8 @@ impl<'a> MimeFactory<'a> {
         };
 
         let outer_message = if is_encrypted {
+            headers.protected.push(from_header);
+
             // Store protected headers in the inner message.
             let message = headers
                 .protected

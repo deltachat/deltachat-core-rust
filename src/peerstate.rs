@@ -14,7 +14,7 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _, Result};
 use num_traits::FromPrimitive;
 
 #[derive(Debug)]
@@ -615,6 +615,58 @@ impl Peerstate {
             false
         }
     }
+}
+
+// TODO Docs
+// TODO could be moved somewhere else
+pub async fn maybe_do_aeap_transition(
+    context: &Context,
+    info: &mut crate::e2ee::DecryptionInfo,
+    mime_parser: &crate::mimeparser::MimeMessage,
+) -> Result<(), anyhow::Error> {
+    if let Some(peerstate) = &mut info.peerstate {
+        if let Some(from) = mime_parser.from.first() {
+            // If the from addr is different from the peerstate address we know,
+            // we may want to do an AEAP transition.
+            if !addr_cmp(&peerstate.addr, &from.addr)
+                // Check if it's a chat message; we do this to avoid
+                // some accidental transitions if someone writes from multiple
+                // addresses with an MUA.
+                && mime_parser.has_chat_version()
+                // Check if the message is signed correctly.
+                // If it's not signed correctly, the whole autocrypt header will be mostly
+                // ignored anyway and the message shown as not encrypted, so we don't
+                // have to handle this case.
+                && !mime_parser.signatures.is_empty()
+                // Check if the From: address was also in the signed part of the email.
+                // Without this check, an attacker could replay a message from Alice 
+                // to Bob. Then Bob's device would do an AEAP transition from Alice's
+                // to the attacker's address, allowing for easier phishing.
+                && mime_parser.from_is_signed
+                && info.message_time > peerstate.last_seen
+            {
+                peerstate
+                    .handle_address_change(context, info.message_time, &info.from)
+                    .await?;
+
+                peerstate.addr = info.from.clone();
+                let header = info.autocrypt_header.as_ref().context(
+                    "Internal error: Tried to do an AEAP transition without an autocrypt header??",
+                )?;
+                peerstate.apply_header(header, info.message_time);
+                peerstate.to_save = Some(ToSave::All);
+
+                // We don't know whether a peerstate with this address already existed, or a
+                // new one should be created, so just try both create=false and create=true,
+                // and if this fails, create=true, one will succeed (this is a very cold path,
+                // so performance doesn't really matter).
+                peerstate.save_to_db(&context.sql, true).await?;
+                peerstate.save_to_db(&context.sql, false).await?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// Removes duplicate peerstates from `acpeerstates` database table.

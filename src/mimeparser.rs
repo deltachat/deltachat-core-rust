@@ -13,11 +13,11 @@ use once_cell::sync::Lazy;
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
-use crate::contact::{addr_normalize, ContactId};
+use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
-use crate::e2ee;
+use crate::e2ee::{self};
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -47,6 +47,9 @@ pub struct MimeMessage {
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
     pub from: Vec<SingleInfo>,
+    /// Whether the From address was repeated in the signed part
+    /// (and we know that the signer intended to send from this address)
+    pub from_is_signed: bool,
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decrypting_failed: bool,
@@ -216,10 +219,14 @@ impl MimeMessage {
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
         let mut gossiped_addr = Default::default();
+        let mut from_is_signed = false;
+        let mut decryption_info =
+            e2ee::create_decryption_info(context, &mail, message_time).await?;
 
+        // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
         let (mail, signatures, warn_empty_signature) =
-            match e2ee::try_decrypt(context, &mail, message_time).await {
-                Ok((Some(raw), signatures)) => {
+            match e2ee::try_decrypt(context, &mail, &decryption_info).await {
+                Ok(Some((raw, signatures))) => {
                     // Encrypted, but maybe unsigned message. Only if
                     // `signatures` set is non-empty, it is a valid
                     // autocrypt message.
@@ -247,7 +254,7 @@ impl MimeMessage {
 
                     // Signature was checked for original From, so we
                     // do not allow overriding it.
-                    let mut throwaway_from = from.clone();
+                    let mut signed_from = Vec::new();
 
                     // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
@@ -256,22 +263,53 @@ impl MimeMessage {
                     // TODO why don't we check if `signatures` is empty here?
                     // If they are empty (and the mail was incorrectly signed), then do we really
                     // want to allow "secure-join-fingerprint" and "chat-verified" headers?
+                    // (which we didn't allow in the unencrypted headers above)
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
                         &mut recipients,
-                        &mut throwaway_from,
+                        &mut signed_from,
                         &mut list_post,
                         &mut chat_disposition_notification_to,
                         &decrypted_mail.headers,
                     );
+                    if let Some(signed_from) = signed_from.first() {
+                        if let Some(from) = from.first() {
+                            if addr_cmp(&signed_from.addr, &from.addr) {
+                                from_is_signed = true;
+                            } else {
+                                // TODO there is a From: header in the encrypted &
+                                // signed part, but it doesn't match the outer one.
+                                // This _might_ be because the sender's mail server
+                                // replaced the sending address, e.g. in a mailing list.
+                                // Or it's because someone is doing some replay attack
+                                // - OTOH, I can't come up with an attack where
+                                // someone would send someone else's email from their
+                                // own email address (except for the mentioned AEAP
+                                // attack, which we guard against by checking
+                                // from_is_signed)
+                            }
+                        }
+                    }
 
                     (Ok(decrypted_mail), signatures, true)
                 }
-                Ok((None, signatures)) => (Ok(mail), signatures, false),
+                Ok(None) => {
+                    // Message was not encrypted.
+                    // If it is not a read receipt, degrade encryption.
+                    if let Some(peerstate) = &mut decryption_info.peerstate {
+                        if message_time > peerstate.last_seen_autocrypt
+                            && mail.ctype.mimetype != "multipart/report"
+                        {
+                            peerstate.degrade_encryption(message_time);
+                            peerstate.save_to_db(&context.sql, false).await?;
+                        }
+                    }
+                    (Ok(mail), HashSet::new(), false)
+                }
                 Err(err) => {
                     warn!(context, "decryption failed: {}", err);
-                    (Err(err), Default::default(), true)
+                    (Err(err), HashSet::new(), true)
                 }
             };
 
@@ -281,6 +319,7 @@ impl MimeMessage {
             recipients,
             list_post,
             from,
+            from_is_signed,
             chat_disposition_notification_to,
             decrypting_failed: mail.is_err(),
 
@@ -342,6 +381,16 @@ impl MimeMessage {
 
         if parser.is_mime_modified {
             parser.decoded_data = mail_raw;
+        }
+
+        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
+        if let Some(peerstate) = decryption_info.peerstate {
+            // TODO this is done pretty late here, far after saving the changed peerstate to the db.
+            // This may be bad, since we may have crashed since then, and changed the peerstate
+            // but not added the warning.
+            peerstate
+                .handle_fingerprint_change(context, message_time)
+                .await?;
         }
 
         Ok(parser)

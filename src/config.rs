@@ -447,6 +447,7 @@ mod tests {
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::Message;
     use crate::peerstate;
+    use crate::peerstate::Peerstate;
     use crate::stock_str;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
@@ -745,6 +746,7 @@ Message w/out In-Reply-To
             .send_text(chat_to_send, "Hello from my new addr!")
             .await;
         let recvd = bob.recv_msg(&sent).await;
+        let sent_timestamp = recvd.timestamp_sent;
         assert_eq!(recvd.text.unwrap(), "Hello from my new addr!");
 
         tcm.section("Check that the AEAP transition worked");
@@ -757,6 +759,15 @@ Message w/out In-Reply-To
             &bob,
         )
         .await;
+
+        // Assert that the autocrypt header is also applied to the peerstate
+        // if the address changed
+        let bob_alice_peerstate = Peerstate::from_addr(&bob, ALICE_NEW_ADDR)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(bob_alice_peerstate.last_seen, sent_timestamp);
+        assert_eq!(bob_alice_peerstate.last_seen_autocrypt, sent_timestamp);
 
         tcm.section("Test switching back");
         tcm.change_addr(&alice, "alice@example.org").await;
@@ -873,14 +884,14 @@ Message w/out In-Reply-To
             .replace("addr=alice@example.org;", "addr=fiona@example.net;");
         sent.find("From: <fiona@example.net>").unwrap(); // Assert that it worked
         sent.find("addr=fiona@example.net;").unwrap(); // Assert that it worked
-                                                       // ...and forwards it to Bob
-        let recvd = dc_receive_imf(&bob, sent.as_bytes(), false).await?.unwrap();
 
-        let msg = Message::load_from_db(&bob, recvd.msg_ids[0]).await?;
-        println!("dbg {:?}", msg);
+        tcm.section("Fiona replaced the From addr and forwards the message to Bob");
+        dc_receive_imf(&bob, sent.as_bytes(), false).await?.unwrap();
 
-        // TODO actually test that the transition was not done (problem: it's currently
-        // still done, i.e. it would be a failing test)
+        // Check that no transition was done
+        assert!(chat::is_contact_in_chat(&bob, group, bob_alice_contact).await?);
+        let bob_fiona_contact = Contact::create(&bob, "", "fiona@example.net").await?;
+        assert!(!chat::is_contact_in_chat(&bob, group, bob_fiona_contact).await?);
 
         Ok(())
     }

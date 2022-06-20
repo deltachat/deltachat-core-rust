@@ -15,7 +15,7 @@ use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus, ToSave};
+use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::pgp;
 
 #[derive(Debug)]
@@ -137,6 +137,7 @@ impl EncryptHelper {
 ///
 /// Returns updated peer state.
 // TODO correct docs
+// TODO refactoring: may be better in peerstate.rs?
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
     from: &str,
@@ -190,12 +191,24 @@ pub(crate) async fn get_autocrypt_peerstate(
 ///
 /// If the message is wrongly signed, this will still return the decrypted
 /// message but the HashSet will be empty.
-// TODO make this nicer, similarly to https://github.com/deltachat/deltachat-core-rust/pull/3390
+// TODO refactoring: make this nicer, similarly to https://github.com/deltachat/deltachat-core-rust/pull/3390
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
+    decryption_info: &DecryptionInfo,
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+    // Possibly perform decryption
+    let public_keyring_for_validate = keyring_from_peerstate(&decryption_info.peerstate);
+
+    // TODO refactoring: this could be inlined since this fn here got very short
+    decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await
+}
+
+pub async fn create_decryption_info(
+    context: &Context,
+    mail: &ParsedMail<'_>,
     message_time: i64,
-) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
+) -> Result<DecryptionInfo> {
     let from = mail
         .headers
         .get_header(HeaderDef::From_)
@@ -203,95 +216,35 @@ pub async fn try_decrypt(
         .and_then(|from| from.extract_single_info())
         .map(|from| from.addr)
         .unwrap_or_default();
+
     let autocrypt_header = Aheader::from_headers(&from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let mut peerstate =
+    let peerstate =
         get_autocrypt_peerstate(context, &from, autocrypt_header.as_ref(), message_time).await?;
 
-    // Possibly perform decryption
-    let public_keyring_for_validate = keyring_from_peerstate(&peerstate);
-
-    // `signatures` is non-empty exactly if the message is signed correctly
-    let (out_mail, signatures) =
-        decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await?;
-
-    if let Some(ref mut peerstate) = peerstate {
-        maybe_do_aeap_transition(
-            context,
-            peerstate,
-            from,
-            &signatures,
-            mail,
-            message_time,
-            autocrypt_header,
-        )
-        .await?;
-
-        // TODO actually I think we should handle_fingerprint_change() before save_to_db()
-        // to prevent saving it and then not adding the info messages.
-        // Maybe we can push save_to_db() to the end?
-        peerstate
-            .handle_fingerprint_change(context, message_time)
-            .await?;
-
-        // If message is not encrypted and it is not a read receipt, degrade encryption.
-        if out_mail.is_none()
-            && message_time > peerstate.last_seen_autocrypt
-            && !contains_report(mail)
-        {
-            peerstate.degrade_encryption(message_time);
-            peerstate.save_to_db(&context.sql, false).await?;
-        }
-    }
-
-    Ok((out_mail, signatures))
+    Ok(DecryptionInfo {
+        from,
+        autocrypt_header,
+        peerstate,
+        message_time,
+    })
 }
 
-async fn maybe_do_aeap_transition(
-    context: &Context,
-    peerstate: &mut Peerstate,
-    from: String,
-    signatures: &HashSet<Fingerprint>,
-    mail: &ParsedMail<'_>,
-    message_time: i64,
-    autocrypt_header: Option<Aheader>,
-) -> Result<(), anyhow::Error> {
-    if !addr_cmp(&peerstate.addr, &from)
-        // Check if the message is signed correctly.
-        // If it's not signed correctly, the whole autocrypt header will be mostly
-        // ignored anyway and the message shown as not encrypted, so we don't
-        // have to handle this case.
-        && !signatures.is_empty()
-        // Check if it's a chat message; we do this to avoid
-        // some accidental transitions if someone writes from multiple
-        // addresses with an MUA.
-        && mail.headers.get_header(HeaderDef::ChatVersion).is_some()
-        && message_time > peerstate.last_seen
-    {
-        peerstate
-            .handle_address_change(context, message_time, &from)
-            .await?;
-
-        peerstate.addr = from.clone();
-        let header = autocrypt_header.context(
-            "`!addr_cmp(&peerstate.addr, &from)` was true, i.e. peerstate.addr != from, \
-                so the peerstate must have been loaded because its fingerprint is equal to \
-                `header.public_key.fingerprint()`. But now there is no autocrypt header??",
-        )?;
-        peerstate.apply_header(&header, message_time);
-        peerstate.to_save = Some(ToSave::All);
-
-        // We don't know whether a peerstate with this address already existed, or a
-        // new one should be created, so just try both create=false and create=true,
-        // and if this fails, create=true, one will succeed (this is a very cold path,
-        // so performance doesn't really matter).
-        peerstate.save_to_db(&context.sql, true).await?;
-        peerstate.save_to_db(&context.sql, false).await?;
-    }
-
-    Ok(())
+#[derive(Debug)]
+pub struct DecryptionInfo {
+    /// The From address. This is the address from the unnencrypted, outer
+    /// From header.
+    pub from: String,
+    pub autocrypt_header: Option<Aheader>,
+    /// The peerstate that will be used to validate the signatures
+    pub peerstate: Option<Peerstate>,
+    /// The timestamp when the message was sent.
+    /// If this is older than the peerstate's last_seen, this probably
+    /// means out-of-order message arrival, We don't modify the
+    /// peerstate in this case.
+    pub message_time: i64,
 }
 
 /// Returns a reference to the encrypted payload of a valid PGP/MIME message.
@@ -389,14 +342,14 @@ async fn decrypt_if_autocrypt_message(
     context: &Context,
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
         .or_else(|| get_attachment_mime(mail))
     {
         None => {
             // not an autocrypt mime message, abort and ignore
-            return Ok((None, HashSet::new()));
+            return Ok(None);
         }
         Some(res) => res,
     };
@@ -443,7 +396,7 @@ async fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
-) -> Result<(Option<Vec<u8>>, HashSet<Fingerprint>)> {
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {
@@ -456,7 +409,7 @@ async fn decrypt_part(
         if let Some((content, valid_detached_signatures)) =
             validate_detached_signature(&decrypted_part, &public_keyring_for_validate)?
         {
-            return Ok((Some(content), valid_detached_signatures));
+            return Ok(Some((content, valid_detached_signatures)));
         } else {
             // If the message was wrongly or not signed, still return the plain text.
             // The caller has to check the signatures then.
@@ -465,11 +418,11 @@ async fn decrypt_part(
             // (because that's the only thing the caller does)
 
             // TODO is this correct??
-            return Ok((Some(plain), ret_valid_signatures));
+            return Ok(Some((plain, ret_valid_signatures)));
         }
     }
 
-    Ok((None, HashSet::new()))
+    Ok(None)
 }
 
 #[allow(clippy::indexing_slicing)]
@@ -484,18 +437,6 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
     }
 
     false
-}
-
-/// Checks if a MIME structure contains a multipart/report part.
-///
-/// As reports are often unencrypted, we do not reset the Autocrypt header in
-/// this case.
-///
-/// However, Delta Chat itself has no problem with encrypted multipart/report
-/// parts and MUAs should be encouraged to encrpyt multipart/reports as well so
-/// that we could use the normal Autocrypt processing.
-fn contains_report(mail: &ParsedMail<'_>) -> bool {
-    mail.ctype.mimetype == "multipart/report"
 }
 
 /// Ensures a private key exists for the configured user.
