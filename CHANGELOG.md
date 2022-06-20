@@ -4,6 +4,7 @@
 
 ### Changes
 - limit the rate of MDN sending #3402
+- ignore ratelimits for bots #3439
 - remove `msgs_mdns` references to deleted messages during housekeeping #3387
 
 ### Fixes
