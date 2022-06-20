@@ -1,7 +1,7 @@
 //! # Delta Chat Core Library.
 
 #![forbid(unsafe_code)]
-#![deny(
+#![warn(
     unused,
     clippy::correctness,
     missing_debug_implementations,
