@@ -12,6 +12,7 @@
 - python: avoid exceptions when messages/contacts/chats are compared with `None`
 - node: wait for the event loop to stop before destroying contexts #3431
 - emit configuration errors via event on failure #3433
+- report configure and imex success/failure after freeing ongoing process #3442
 
 ### API-Changes
 - python: added `Message.get_status_updates()`  #3416

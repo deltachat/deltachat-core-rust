@@ -75,6 +75,8 @@ impl Context {
             }))
             .await;
 
+        self.free_ongoing().await;
+
         if let Err(err) = res.as_ref() {
             progress!(
                 self,
@@ -92,8 +94,6 @@ impl Context {
         } else {
             progress!(self, 1000);
         }
-
-        self.free_ongoing().await;
 
         res
     }

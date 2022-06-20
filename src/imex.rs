@@ -86,29 +86,23 @@ pub async fn imex(
 ) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
 
-    let res = async {
-        let success = imex_inner(context, what, path, passphrase).await;
-        match success {
-            Ok(()) => {
-                info!(context, "IMEX successfully completed");
-                context.emit_event(EventType::ImexProgress(1000));
-                Ok(())
-            }
-            Err(err) => {
-                // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-                error!(context, "{:#}", err);
-                context.emit_event(EventType::ImexProgress(0));
-                bail!("IMEX FAILED to complete: {}", err);
-            }
-        }
-    }
-    .race(async {
-        cancel.recv().await.ok();
-        Err(format_err!("canceled"))
-    })
-    .await;
+    let res = imex_inner(context, what, path, passphrase)
+        .race(async {
+            cancel.recv().await.ok();
+            Err(format_err!("canceled"))
+        })
+        .await;
 
     context.free_ongoing().await;
+
+    if let Err(err) = res.as_ref() {
+        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+        error!(context, "IMEX failed to complete: {:#}", err);
+        context.emit_event(EventType::ImexProgress(0));
+    } else {
+        info!(context, "IMEX successfully completed");
+        context.emit_event(EventType::ImexProgress(1000));
+    }
 
     res
 }
