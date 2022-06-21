@@ -621,7 +621,7 @@ Message w/out In-Reply-To
         Ok(())
     }
 
-    // TODO should this really be placed here? But I wouldn't know a better place, either
+    // TODO refactoring: Should this really be placed here? But I wouldn't know a better place, either
     #[async_std::test]
     async fn test_aeap_transition_0() {
         check_aeap_transition(0, false, false).await;

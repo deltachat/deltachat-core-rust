@@ -133,10 +133,12 @@ impl EncryptHelper {
     }
 }
 
-/// Applies Autocrypt header to Autocrypt peer state.
+/// Applies Autocrypt header to Autocrypt peer state and saves it into the database.
 ///
-/// Returns updated peer state.
-// TODO correct docs
+/// If we already know this fingerprint from another contact's peerstate, return that
+/// peerstate in order to make AEAP work, but don't save it into the db yet.
+///
+/// Returns updated peerstate.
 // TODO refactoring: may be better in peerstate.rs?
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
@@ -412,12 +414,8 @@ async fn decrypt_part(
             return Ok(Some((content, valid_detached_signatures)));
         } else {
             // If the message was wrongly or not signed, still return the plain text.
-            // The caller has to check the signatures then.
-            // TODO: I think this means:
             // The caller has to check if the signatures set is empty then.
-            // (because that's the only thing the caller does)
 
-            // TODO is this correct??
             return Ok(Some((plain, ret_valid_signatures)));
         }
     }

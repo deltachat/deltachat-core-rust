@@ -260,7 +260,7 @@ impl MimeMessage {
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
                     headers.remove("subject");
 
-                    // TODO why don't we check if `signatures` is empty here?
+                    // TODO question: Why don't we check if `signatures` is empty here?
                     // If they are empty (and the mail was incorrectly signed), then do we really
                     // want to allow "secure-join-fingerprint" and "chat-verified" headers?
                     // (which we didn't allow in the unencrypted headers above)
@@ -278,7 +278,7 @@ impl MimeMessage {
                             if addr_cmp(&signed_from.addr, &from.addr) {
                                 from_is_signed = true;
                             } else {
-                                // TODO there is a From: header in the encrypted &
+                                // TODO question: there is a From: header in the encrypted &
                                 // signed part, but it doesn't match the outer one.
                                 // This _might_ be because the sender's mail server
                                 // replaced the sending address, e.g. in a mailing list.

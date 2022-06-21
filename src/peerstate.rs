@@ -421,11 +421,6 @@ impl Peerstate {
             }
 
             if self.public_key.as_ref() != Some(&header.public_key) {
-                // TODO comment:
-                // here keys are compared byte-by-byte
-                // but that's fine since `recalc_fingerprint()` only sets `fingerprint_changed`
-                // to true if the fingerprint changed, and if it stayed the same we just save
-                // the new key
                 self.public_key = Some(header.public_key.clone());
                 self.recalc_fingerprint();
                 self.to_save = Some(ToSave::All);
@@ -617,7 +612,9 @@ impl Peerstate {
     }
 }
 
-// TODO Docs
+/// Do an AEAP transition, if necessary.
+///
+/// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
 // TODO could be moved somewhere else
 pub async fn maybe_do_aeap_transition(
     context: &Context,
