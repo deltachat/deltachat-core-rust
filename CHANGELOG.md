@@ -7,6 +7,7 @@
 - upgrade to `pgp@0.8.0` #3467
 - add IMAP ID extension support #3468
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
+- build PyPy wheels #6683
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
