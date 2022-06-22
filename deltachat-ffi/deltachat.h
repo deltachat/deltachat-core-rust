@@ -1791,6 +1791,11 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
 /**
  * Forward messages to another chat.
  *
+ * All types of messages can be forwarded,
+ * however, they will be flagged as such (dc_msg_is_forwarded() is set).
+ *
+ * Original sender, info-state and webxdc updates are not forwarded on purpose.
+ *
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_ids An array of uint32_t containing all message IDs that should be forwarded.
@@ -3979,7 +3984,7 @@ int             dc_msg_is_sent                (const dc_msg_t* msg);
  *
  * For privacy reasons, we do not provide the name or the e-mail address of the
  * original author (in a typical GUI, you select the messages text and click on
- * "forwared"; you won't expect other data to be send to the new recipient,
+ * "forwarded"; you won't expect other data to be send to the new recipient,
  * esp. as the new recipient may not be in any relationship to the original author)
  *
  * @memberof dc_msg_t
