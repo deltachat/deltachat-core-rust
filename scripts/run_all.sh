@@ -5,7 +5,6 @@
 set -e -x
 
 # Perform clean build of core and install.
-export TOXWORKDIR=.docker-tox
 
 # compile core lib
 
@@ -21,17 +20,8 @@ export DCC_RS_TARGET=release
 # needed by tox below.
 export PATH=$PATH:/opt/python/cp37-cp37m/bin
 export PYTHONDONTWRITEBYTECODE=1
-pushd /bin
-rm -f python3.7
-ln -s /opt/python/cp37-cp37m/bin/python3.7
-rm -f python3.8
-ln -s /opt/python/cp38-cp38/bin/python3.8
-rm -f python3.9
-ln -s /opt/python/cp39-cp39/bin/python3.9
-rm -f python3.10
-ln -s /opt/python/cp310-cp310/bin/python3.10
-popd
 
+TOXWORKDIR=.docker-tox
 pushd python
 # prepare a clean tox run
 rm -rf tests/__pycache__
