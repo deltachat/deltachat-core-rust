@@ -1,13 +1,12 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
+use futures::stream::StreamExt;
 
 use crate::config::Config;
 use crate::imap::Imap;
 use crate::log::LogExt;
 use crate::{context::Context, imap::FolderMeaning};
-
-use async_std::stream::StreamExt;
 
 use super::{get_folder_meaning, get_folder_meaning_by_name};
 
@@ -104,7 +103,7 @@ impl Imap {
         let list = session
             .list(Some(""), Some("*"))
             .await?
-            .filter_map(|f| f.ok_or_log_msg(context, "list_folders() can't get folder"));
+            .filter_map(|f| async { f.ok_or_log_msg(context, "list_folders() can't get folder") });
         Ok(list.collect().await)
     }
 }

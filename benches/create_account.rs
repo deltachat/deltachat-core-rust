@@ -1,12 +1,11 @@
-use async_std::path::PathBuf;
-use async_std::task::block_on;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::accounts::Accounts;
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 async fn create_accounts(n: u32) {
     let dir = tempdir().unwrap();
-    let p: PathBuf = dir.path().join("accounts").into();
+    let p: PathBuf = dir.path().join("accounts");
 
     let mut accounts = Accounts::new(p.clone()).await.unwrap();
 
@@ -18,7 +17,8 @@ async fn create_accounts(n: u32) {
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("create 1 account", |b| {
-        b.iter(|| block_on(async { create_accounts(black_box(1)).await }))
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.to_async(&rt).iter(|| create_accounts(black_box(1)))
     });
 }
 

@@ -1,6 +1,6 @@
 //! # QR code module.
 
-use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
+use anyhow::{bail, ensure, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -355,13 +355,13 @@ struct CreateAccountResponse {
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
 
-    let parsed: CreateAccountResponse = surf::post(url_str).recv_json().await.map_err(|err| {
-        format_err!(
-            "Cannot create account, request to {:?} failed: {}",
-            url_str,
-            err
-        )
-    })?;
+    let parsed: CreateAccountResponse = reqwest::Client::new()
+        .post(url_str)
+        .send()
+        .await?
+        .json()
+        .await
+        .with_context(|| format!("Cannot create account, request to {:?} failed", url_str))?;
 
     context
         .set_config(Config::Addr, Some(&parsed.email))
@@ -565,7 +565,7 @@ mod tests {
     use crate::test_utils::{alice_keypair, TestContext};
     use anyhow::Result;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_http() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -580,7 +580,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_https() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -595,7 +595,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_text() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -610,7 +610,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_vcard() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -632,7 +632,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_matmsg() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -652,7 +652,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_mailto() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -682,7 +682,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_smtp() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -698,7 +698,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_openpgp_group() -> Result<()> {
         let ctx = TestContext::new().await;
         let qr = check_qr(
@@ -741,7 +741,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_openpgp_secure_join() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -788,7 +788,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_openpgp_fingerprint() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -850,7 +850,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_openpgp_without_addr() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -886,7 +886,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_withdraw_verifycontact() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let qr = dc_get_securejoin_qr(&alice, None).await?;
@@ -920,7 +920,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_withdraw_verifygroup() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
@@ -953,7 +953,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_account() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -985,7 +985,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_webrtc_instance() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -1011,7 +1011,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_decode_account_bad_scheme() {
         let ctx = TestContext::new().await;
         let res = check_qr(
@@ -1030,7 +1030,7 @@ mod tests {
         assert!(res.is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_set_config_from_qr() -> Result<()> {
         let ctx = TestContext::new().await;
 

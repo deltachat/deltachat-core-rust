@@ -19,12 +19,12 @@ deltachat_derive = { path = "./deltachat_derive" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1"
-async-imap = { git = "https://github.com/async-email/async-imap" }
-async-native-tls = { version = "0.3" }
-async-smtp = { git = "https://github.com/async-email/async-smtp", branch="master", default-features=false, features = ["smtp-transport", "socks5"] }
-async-std-resolver = "0.21"
-async-std = { version = "1" }
-async-tar = { version = "0.4", default-features=false }
+async-imap = { git = "https://github.com/async-email/async-imap", branch = "runtimes", default-features = false, features = ["runtime-tokio"] }
+async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
+async-smtp = { git = "https://github.com/async-email/async-smtp", branch="tokio", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
+trust-dns-resolver = "0.21"
+tokio = { version = "1", features = ["full"] }
+tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 backtrace = "0.3"
 base64 = "0.13"
 bitflags = "1.3"
@@ -65,22 +65,24 @@ sha2 = "0.10"
 smallvec = "1"
 strum = "0.24"
 strum_macros = "0.24"
-surf = { version = "2.3", default-features = false, features = ["h1-client"] }
 thiserror = "1"
 toml = "0.5"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
-fast-socks5 = "0.4"
+fast-socks5 = "0.8"
 humansize = "1"
 qrcodegen = "1.7.0"
 tagger = "4.3.3"
 textwrap = "0.15.0"
 zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
+async-channel = "1.6.1"
+futures-lite = "1.12.0"
+tokio-stream = { version = "0.1.9", features = ["fs"] }
+reqwest = { version = "0.11.11", features = ["json"] }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
-async-std = { version = "1", features = ["unstable", "attributes"] }
-criterion = { version = "0.3.4", features = ["async_std"] }
+criterion = { version = "0.3.4", features = ["async_tokio"] }
 futures-lite = "1.12"
 log = "0.4"
 pretty_env_logger = "0.4"
@@ -132,5 +134,10 @@ harness = false
 default = ["vendored"]
 internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
-vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored", "rusqlite/bundled-sqlcipher-vendored-openssl"]
+vendored = [
+  "async-native-tls/vendored",
+  "async-smtp/native-tls-vendored",
+  "rusqlite/bundled-sqlcipher-vendored-openssl",
+  "reqwest/native-tls-vendored"
+]
 nightly = ["pgp/nightly"]

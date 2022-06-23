@@ -448,7 +448,7 @@ mod tests {
             .unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_next_job_two() -> Result<()> {
         // We want to ensure that loading jobs skips over jobs which
         // fails to load from the database instead of failing to load
@@ -464,7 +464,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_next_job_one() -> Result<()> {
         let t = TestContext::new().await;
 

@@ -552,7 +552,7 @@ mod tests {
     use super::*;
     use crate::test_utils::alice_keypair;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_peerstate_save_to_db() {
         let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(peerstate, peerstate_new2);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_peerstate_double_create() {
         let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
@@ -628,7 +628,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_peerstate_with_empty_gossip_key_save_to_db() {
         let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
@@ -665,7 +665,7 @@ mod tests {
         assert_eq!(Some(peerstate), peerstate_new);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_peerstate_load_db_defaults() {
         let ctx = crate::test_utils::TestContext::new().await;
         let addr = "hello@mail.com";
@@ -694,7 +694,7 @@ mod tests {
         assert_eq!(peerstate.verified_key_fingerprint, None);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_peerstate_degrade_reordering() {
         let addr = "example@example.org";
         let pub_key = alice_keypair().public;

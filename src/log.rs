@@ -1,7 +1,6 @@
 //! # Logging.
 
 use crate::context::Context;
-use async_std::task::block_on;
 
 #[macro_export]
 macro_rules! info {
@@ -49,15 +48,13 @@ impl Context {
     /// Set last error string.
     /// Implemented as blocking as used from macros in different, not always async blocks.
     pub fn set_last_error(&self, error: &str) {
-        block_on(async move {
-            let mut last_error = self.last_error.write().await;
-            *last_error = error.to_string();
-        });
+        let mut last_error = self.last_error.write().unwrap();
+        *last_error = error.to_string();
     }
 
     /// Get last error string.
-    pub async fn get_last_error(&self) -> String {
-        let last_error = &*self.last_error.read().await;
+    pub fn get_last_error(&self) -> String {
+        let last_error = &*self.last_error.read().unwrap();
         last_error.clone()
     }
 }
@@ -159,24 +156,24 @@ mod tests {
     use crate::test_utils::TestContext;
     use anyhow::Result;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_last_error() -> Result<()> {
         let t = TestContext::new().await;
 
-        assert_eq!(t.get_last_error().await, "");
+        assert_eq!(t.get_last_error(), "");
 
         error!(t, "foo-error");
-        assert_eq!(t.get_last_error().await, "foo-error");
+        assert_eq!(t.get_last_error(), "foo-error");
 
         warn!(t, "foo-warning");
-        assert_eq!(t.get_last_error().await, "foo-error");
+        assert_eq!(t.get_last_error(), "foo-error");
 
         info!(t, "foo-info");
-        assert_eq!(t.get_last_error().await, "foo-error");
+        assert_eq!(t.get_last_error(), "foo-error");
 
         error!(t, "bar-error");
         error!(t, "baz-error");
-        assert_eq!(t.get_last_error().await, "baz-error");
+        assert_eq!(t.get_last_error(), "baz-error");
 
         Ok(())
     }

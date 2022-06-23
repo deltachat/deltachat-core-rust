@@ -62,9 +62,9 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{ensure, Context as _, Result};
-use async_std::channel::Receiver;
-use async_std::future::timeout;
+use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
+use tokio::time::timeout;
 
 use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
@@ -581,7 +581,7 @@ mod tests {
         dc_tools::IsNoneOrEmpty,
     };
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_stock_ephemeral_messages() {
         let context = TestContext::new().await;
 
@@ -711,7 +711,7 @@ mod tests {
     }
 
     /// Test enabling and disabling ephemeral timer remotely.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ephemeral_enable_disable() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -743,7 +743,7 @@ mod tests {
     }
 
     /// Test that timer is enabled even if the message explicitly enabling the timer is lost.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ephemeral_enable_lost() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -785,7 +785,7 @@ mod tests {
 
     /// Test that Alice replying to the chat without a timer at the same time as Bob enables the
     /// timer does not result in disabling the timer on the Bob's side.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ephemeral_timer_rollback() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -859,7 +859,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ephemeral_delete_msgs() -> Result<()> {
         let t = TestContext::new_alice().await;
         let self_chat = t.get_self_chat().await;
@@ -985,7 +985,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_delete_expired_imap_messages() -> Result<()> {
         let t = TestContext::new_alice().await;
         const HOUR: i64 = 60 * 60;
@@ -1096,7 +1096,7 @@ mod tests {
     }
 
     // Regression test for a bug in the timer rollback protection.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ephemeral_timer_references() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

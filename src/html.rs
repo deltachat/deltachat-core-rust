@@ -284,7 +284,7 @@ mod tests {
     use crate::message::{MessengerMessage, Viewtype};
     use crate::test_utils::TestContext;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_plain_unspecified() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
@@ -300,7 +300,7 @@ This message does not have Content-Type nor Subject.<br/>
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_plain_iso88591() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_iso88591.eml");
@@ -316,7 +316,7 @@ message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_plain_flowed() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_flowed.eml");
@@ -336,7 +336,7 @@ and will be wrapped as usual.<br/>
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_alt_plain() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
@@ -355,7 +355,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
@@ -373,7 +373,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_alt_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
@@ -388,7 +388,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_alt_plain_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
@@ -405,7 +405,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_htmlparse_apple_cid_jpg() {
         // load raw mime html-data with related image-part (cid:)
         // and make sure, Content-Id has angle-brackets that are removed correctly.
@@ -424,14 +424,14 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(!parser.html.contains("cid:"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_html_invalid_msgid() {
         let t = TestContext::new().await;
         let msg_id = MsgId::new(100);
         assert!(msg_id.get_html(&t).await.is_err())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_html_forwarding() {
         // alice receives a non-delta html-message
         let alice = TestContext::new_alice().await;
@@ -478,7 +478,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(html.contains("this is <b>html</b>"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_html_forwarding_encrypted() {
         // Alice receives a non-delta html-message
         // (`ShowEmails=1` lets Alice actually receive non-delta messages for known contacts,
@@ -515,7 +515,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(html.contains("this is <b>html</b>"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_set_html() {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -547,7 +547,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(html.contains("<b>html</b> text"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_cp1252_html() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await?;

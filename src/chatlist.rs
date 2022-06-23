@@ -376,7 +376,7 @@ mod tests {
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_try_load() {
         let t = TestContext::new().await;
         let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
@@ -432,7 +432,7 @@ mod tests {
         assert_eq!(chats.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_sort_self_talk_up_on_forward() {
         let t = TestContext::new().await;
         t.update_device_chats().await.unwrap();
@@ -457,7 +457,7 @@ mod tests {
             .is_self_talk());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_search_special_chat_names() {
         let t = TestContext::new().await;
         t.update_device_chats().await.unwrap();
@@ -488,7 +488,7 @@ mod tests {
         assert_eq!(chats.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_search_single_chat() -> anyhow::Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -548,7 +548,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_search_single_chat_without_authname() -> anyhow::Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -610,7 +610,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_summary_unwrap() {
         let t = TestContext::new().await;
         let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")

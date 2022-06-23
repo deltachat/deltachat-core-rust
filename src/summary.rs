@@ -189,7 +189,7 @@ mod tests {
     use super::*;
     use crate::test_utils as test;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_summary_text() {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;

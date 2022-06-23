@@ -1,7 +1,6 @@
-use crate::context::Context;
+use anyhow::{anyhow, format_err};
 
-use anyhow::format_err;
-use anyhow::Context as _;
+use crate::context::Context;
 
 pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
     match read_url_inner(context, url).await {
@@ -16,24 +15,27 @@ pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
     }
 }
 
-pub async fn read_url_inner(context: &Context, mut url: &str) -> anyhow::Result<String> {
-    let mut _temp; // For the borrow checker
+pub async fn read_url_inner(context: &Context, url: &str) -> anyhow::Result<String> {
+    let client = reqwest::Client::new();
+    let mut url = url.to_string();
 
     // Follow up to 10 http-redirects
     for _i in 0..10 {
-        let mut response = surf::get(url).send().await.map_err(|e| e.into_inner())?;
+        let response = client.get(&url).send().await?;
         if response.status().is_redirection() {
-            _temp = response
-                .header("location")
-                .context("Redirection doesn't have a target location")?
+            let headers = response.headers();
+            let header = headers
+                .get_all("location")
+                .iter()
                 .last()
-                .to_string();
-            info!(context, "Following redirect to {}", _temp);
-            url = &_temp;
+                .ok_or_else(|| anyhow!("Redirection doesn't have a target location"))?
+                .to_str()?;
+            info!(context, "Following redirect to {}", header);
+            url = header.to_string();
             continue;
         }
 
-        return response.body_string().await.map_err(|e| e.into_inner());
+        return response.text().await.map_err(Into::into);
     }
 
     Err(format_err!("Followed 10 redirections"))

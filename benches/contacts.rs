@@ -1,4 +1,3 @@
-use async_std::task::block_on;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -9,9 +8,7 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = 100;
-    let context = Context::new(dbfile.into(), id, Events::new())
-        .await
-        .unwrap();
+    let context = Context::new(dbfile, id, Events::new()).await.unwrap();
 
     let book = (0..n)
         .map(|i| format!("Name {}\naddr{}@example.org\n", i, i))
@@ -27,12 +24,16 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
     c.bench_function("create 500 contacts", |b| {
-        b.iter(|| block_on(async { address_book_benchmark(black_box(500), black_box(0)).await }))
+        b.to_async(&rt)
+            .iter(|| async { address_book_benchmark(black_box(500), black_box(0)).await })
     });
 
     c.bench_function("create 100 contacts and read it 1000 times", |b| {
-        b.iter(|| block_on(async { address_book_benchmark(black_box(100), black_box(1000)).await }))
+        b.to_async(&rt)
+            .iter(|| async { address_book_benchmark(black_box(100), black_box(1000)).await })
     });
 }
 

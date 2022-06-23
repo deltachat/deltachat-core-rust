@@ -2,16 +2,15 @@
 
 use std::any::Any;
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use async_std::{
-    fs::{self, File},
-    path::{Path, PathBuf},
-    prelude::*,
-};
-use async_tar::Archive;
+use futures::{StreamExt, TryStreamExt};
+use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
+use tokio::fs::{self, File};
+use tokio_tar::Archive;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
@@ -109,24 +108,22 @@ pub async fn imex(
 
 /// Returns the filename of the backup found (otherwise an error)
 pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
-    let mut dir_iter = async_std::fs::read_dir(dir_name).await?;
+    let mut dir_iter = tokio::fs::read_dir(dir_name).await?;
     let mut newest_backup_name = "".to_string();
     let mut newest_backup_path: Option<PathBuf> = None;
 
-    while let Some(dirent) = dir_iter.next().await {
-        if let Ok(dirent) = dirent {
-            let path = dirent.path();
-            let name = dirent.file_name();
-            let name: String = name.to_string_lossy().into();
-            if name.starts_with("delta-chat")
-                && name.ends_with(".tar")
-                && (newest_backup_name.is_empty() || name > newest_backup_name)
-            {
-                // We just use string comparison to determine which backup is newer.
-                // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
-                newest_backup_path = Some(path);
-                newest_backup_name = name;
-            }
+    while let Ok(Some(dirent)) = dir_iter.next_entry().await {
+        let path = dirent.path();
+        let name = dirent.file_name();
+        let name: String = name.to_string_lossy().into();
+        if name.starts_with("delta-chat")
+            && name.ends_with(".tar")
+            && (newest_backup_name.is_empty() || name > newest_backup_name)
+        {
+            // We just use string comparison to determine which backup is newer.
+            // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+            newest_backup_path = Some(path);
+            newest_backup_name = name;
         }
     }
 
@@ -177,7 +174,7 @@ async fn do_initiate_key_transfer(context: &Context) -> Result<String> {
     let msg_id = chat::send_msg(context, chat_id, &mut msg).await?;
     info!(context, "Wait for setup message being sent ...",);
     while !context.shall_stop_ongoing().await {
-        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         if let Ok(msg) = Message::load_from_db(context, msg_id).await {
             if msg.is_sent() {
                 info!(context, "... setup message sent.",);
@@ -446,7 +443,7 @@ async fn import_backup(
 
     context.sql.config_cache.write().await.clear();
 
-    let archive = Archive::new(backup_file);
+    let mut archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
     let mut last_progress = 0;
@@ -477,7 +474,7 @@ async fn import_backup(
             // async_tar will unpack to blobdir/BLOBS_BACKUP_NAME, so we move the file afterwards.
             f.unpack_in(context.get_blobdir()).await?;
             let from_path = context.get_blobdir().join(f.path()?);
-            if from_path.is_file().await {
+            if from_path.is_file() {
                 if let Some(name) = from_path.file_name() {
                     fs::rename(&from_path, context.get_blobdir().join(name)).await?;
                 } else {
@@ -499,10 +496,7 @@ async fn import_backup(
 /// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
 /// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-async fn get_next_backup_path(
-    folder: &Path,
-    backup_time: i64,
-) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
         // Don't change this file name format, in has_backup() we use string comparison to determine which backup is newer:
@@ -520,7 +514,7 @@ async fn get_next_backup_path(
         let mut destfile = folder.clone();
         destfile.push(format!("{}-{:02}.tar", stem, i));
 
-        if !tempdbfile.exists().await && !tempfile.exists().await && !destfile.exists().await {
+        if !tempdbfile.exists() && !tempfile.exists() && !destfile.exists() {
             return Ok((tempdbfile, tempfile, destfile));
         }
     }
@@ -530,7 +524,7 @@ async fn get_next_backup_path(
 async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now).await?;
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
 
@@ -584,7 +578,8 @@ impl Drop for DeleteOnDrop {
     fn drop(&mut self) {
         let file = self.0.clone();
         // Not using dc_delete_file() here because it would send a DeletedBlobFile event
-        async_std::task::block_on(fs::remove_file(file)).ok();
+        // Hack to avoid panic in nested runtime calls of tokio
+        std::fs::remove_file(file).ok();
     }
 }
 
@@ -595,19 +590,21 @@ async fn export_backup_inner(
 ) -> Result<()> {
     let file = File::create(temp_path).await?;
 
-    let mut builder = async_tar::Builder::new(file);
+    let mut builder = tokio_tar::Builder::new(file);
 
     builder
         .append_path_with_name(temp_db_path, DBFILE_BACKUP_NAME)
         .await?;
 
-    let read_dir: Vec<_> = fs::read_dir(context.get_blobdir()).await?.collect().await;
+    let read_dir: Vec<_> =
+        tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(context.get_blobdir()).await?)
+            .try_collect()
+            .await?;
     let count = read_dir.len();
     let mut written_files = 0;
 
     let mut last_progress = 0;
     for entry in read_dir.into_iter() {
-        let entry = entry?;
         let name = entry.file_name();
         if !entry.file_type().await?.is_file() {
             warn!(
@@ -648,9 +645,9 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
     let mut imported_cnt = 0;
 
     let dir_name = dir.to_string_lossy();
-    let mut dir_handle = async_std::fs::read_dir(&dir).await?;
-    while let Some(entry) = dir_handle.next().await {
-        let entry_fn = entry?.file_name();
+    let mut dir_handle = tokio::fs::read_dir(&dir).await?;
+    while let Ok(Some(entry)) = dir_handle.next_entry().await {
+        let entry_fn = entry.file_name();
         let name_f = entry_fn.to_string_lossy();
         let path_plus_name = dir.join(&entry_fn);
         match dc_get_filesuffix_lc(&name_f) {
@@ -800,7 +797,7 @@ mod tests {
 
     use ::pgp::armor::BlockType;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_render_setup_file() {
         let t = TestContext::new_alice().await;
         let msg = render_setup_file(&t, "hello").await.unwrap();
@@ -817,7 +814,7 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_render_setup_file_newline_replace() {
         let t = TestContext::new_alice().await;
         t.set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
@@ -828,7 +825,7 @@ mod tests {
         assert!(msg.contains("<p>hello<br>there</p>"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_setup_code() {
         let t = TestContext::new().await;
         let setupcode = create_setup_code(&t);
@@ -843,7 +840,7 @@ mod tests {
         assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_export_public_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().public;
@@ -853,12 +850,12 @@ mod tests {
             .is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/public-key-default.asc", blobdir);
-        let bytes = async_std::fs::read(&filename).await.unwrap();
+        let bytes = tokio::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_export_private_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().secret;
@@ -868,12 +865,12 @@ mod tests {
             .is_ok());
         let blobdir = context.ctx.get_blobdir().to_str().unwrap();
         let filename = format!("{}/private-key-default.asc", blobdir);
-        let bytes = async_std::fs::read(&filename).await.unwrap();
+        let bytes = tokio::fs::read(&filename).await.unwrap();
 
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_export_and_import_key() {
         let context = TestContext::new_alice().await;
         let blobdir = context.ctx.get_blobdir();
@@ -887,7 +884,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_export_and_import_backup() -> Result<()> {
         let backup_dir = tempfile::tempdir().unwrap();
 
@@ -896,26 +893,21 @@ mod tests {
 
         let context2 = TestContext::new().await;
         assert!(!context2.is_configured().await?);
-        assert!(has_backup(&context2, backup_dir.path().as_ref())
-            .await
-            .is_err());
+        assert!(has_backup(&context2, backup_dir.path()).await.is_err());
 
         // export from context1
-        assert!(imex(
-            &context1,
-            ImexMode::ExportBackup,
-            backup_dir.path().as_ref(),
-            None,
-        )
-        .await
-        .is_ok());
+        assert!(
+            imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None)
+                .await
+                .is_ok()
+        );
         let _event = context1
             .evtracker
             .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
             .await;
 
         // import to context2
-        let backup = has_backup(&context2, backup_dir.path().as_ref()).await?;
+        let backup = has_backup(&context2, backup_dir.path()).await?;
 
         // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
         assert!(imex(
@@ -961,7 +953,7 @@ mod tests {
     const S_EM_SETUPCODE: &str = "1742-0185-6197-1303-7016-8412-3581-4441-0597";
     const S_EM_SETUPFILE: &str = include_str!("../test-data/message/stress.txt");
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_split_and_decrypt() {
         let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();
         let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
@@ -984,20 +976,20 @@ mod tests {
         assert!(headers.get(HEADER_SETUPCODE).is_none());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_key_transfer() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
         let alice_clone = alice.clone();
-        let key_transfer_task = async_std::task::spawn(async move {
+        let key_transfer_task = tokio::task::spawn(async move {
             let ctx = alice_clone;
             initiate_key_transfer(&ctx).await
         });
 
         // Wait for the message to be added to the queue.
-        async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         let sent = alice.pop_sent_msg().await;
-        let setup_code = key_transfer_task.await?;
+        let setup_code = key_transfer_task.await??;
 
         // Alice sets up a second device.
         let alice2 = TestContext::new().await;

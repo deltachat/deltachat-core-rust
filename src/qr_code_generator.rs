@@ -266,7 +266,7 @@ fn inner_generate_secure_join_qr_code(
 mod tests {
     use super::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_svg_escaping() {
         let svg = inner_generate_secure_join_qr_code(
             "descr123 \" < > &",

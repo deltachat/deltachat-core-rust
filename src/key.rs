@@ -11,6 +11,7 @@ use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
+use tokio::runtime::Handle;
 
 use crate::config::Config;
 use crate::constants::KeyGenType;
@@ -219,9 +220,10 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
-            let keypair =
-                async_std::task::spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
-                    .await?;
+            let keypair = Handle::current()
+                .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
+                .await??;
+
             store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
             info!(
                 context,
@@ -397,8 +399,8 @@ mod tests {
     use super::*;
     use crate::test_utils::{alice_keypair, TestContext};
 
-    use async_std::sync::Arc;
     use once_cell::sync::Lazy;
+    use std::sync::Arc;
 
     static KEYPAIR: Lazy<KeyPair> = Lazy::new(alice_keypair);
 
@@ -520,7 +522,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(key, key2);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_self_existing() {
         let alice = alice_keypair();
         let t = TestContext::new_alice().await;
@@ -530,7 +532,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(alice.secret, seckey);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
@@ -540,7 +542,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert!(key.is_ok());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
@@ -550,7 +552,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert!(key.is_ok());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_load_self_generate_concurrent() {
         use std::thread;
 
@@ -560,11 +562,19 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             .unwrap();
         let thr0 = {
             let ctx = t.clone();
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+            thread::spawn(move || {
+                tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(SignedPublicKey::load_self(&ctx))
+            })
         };
         let thr1 = {
             let ctx = t.clone();
-            thread::spawn(move || async_std::task::block_on(SignedPublicKey::load_self(&ctx)))
+            thread::spawn(move || {
+                tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(SignedPublicKey::load_self(&ctx))
+            })
         };
         let res0 = thr0.join().unwrap();
         let res1 = thr1.join().unwrap();
@@ -577,7 +587,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(pubkey.primary_key, KEYPAIR.public.primary_key);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
         // the keypairs table.

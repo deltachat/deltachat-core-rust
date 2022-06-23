@@ -1,9 +1,8 @@
 use anyhow::{bail, Context as _, Result};
-use async_std::prelude::*;
-use async_std::{
-    channel::{self, Receiver, Sender},
-    future, task,
-};
+use async_channel::{self as channel, Receiver, Sender};
+use futures::{join, try_join};
+use futures_lite::FutureExt;
+use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -338,7 +337,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                             "smtp got rate limited, waiting for {} until can send again",
                             duration_to_str(duration_until_can_send)
                         );
-                        async_std::future::timeout(duration_until_can_send, async {
+                        tokio::time::timeout(duration_until_can_send, async {
                             idle_interrupt_receiver.recv().await.unwrap_or_default()
                         })
                         .await
@@ -367,7 +366,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                     "smtp has messages to retry, planning to retry {} seconds later", timeout
                 );
                 let duration = std::time::Duration::from_secs(timeout);
-                async_std::future::timeout(duration, async {
+                tokio::time::timeout(duration, async {
                     idle_interrupt_receiver.recv().await.unwrap_or_default()
                 })
                 .await
@@ -493,13 +492,12 @@ impl Scheduler {
         };
 
         // wait for all loops to be started
-        if let Err(err) = inbox_start_recv
-            .recv()
-            .try_join(mvbox_start_recv.recv())
-            .try_join(sentbox_start_recv.recv())
-            .try_join(smtp_start_recv.recv())
-            .await
-        {
+        if let Err(err) = try_join!(
+            inbox_start_recv.recv(),
+            mvbox_start_recv.recv(),
+            sentbox_start_recv.recv(),
+            smtp_start_recv.recv()
+        ) {
             bail!("failed to start scheduler: {}", err);
         }
 
@@ -508,19 +506,21 @@ impl Scheduler {
     }
 
     async fn maybe_network(&self) {
-        self.interrupt_inbox(InterruptInfo::new(true))
-            .join(self.interrupt_mvbox(InterruptInfo::new(true)))
-            .join(self.interrupt_sentbox(InterruptInfo::new(true)))
-            .join(self.interrupt_smtp(InterruptInfo::new(true)))
-            .await;
+        join!(
+            self.interrupt_inbox(InterruptInfo::new(true)),
+            self.interrupt_mvbox(InterruptInfo::new(true)),
+            self.interrupt_sentbox(InterruptInfo::new(true)),
+            self.interrupt_smtp(InterruptInfo::new(true))
+        );
     }
 
     async fn maybe_network_lost(&self) {
-        self.interrupt_inbox(InterruptInfo::new(false))
-            .join(self.interrupt_mvbox(InterruptInfo::new(false)))
-            .join(self.interrupt_sentbox(InterruptInfo::new(false)))
-            .join(self.interrupt_smtp(InterruptInfo::new(false)))
-            .await;
+        join!(
+            self.interrupt_inbox(InterruptInfo::new(false)),
+            self.interrupt_mvbox(InterruptInfo::new(false)),
+            self.interrupt_sentbox(InterruptInfo::new(false)),
+            self.interrupt_smtp(InterruptInfo::new(false))
+        );
     }
 
     async fn interrupt_inbox(&self, info: InterruptInfo) {
@@ -564,24 +564,24 @@ impl Scheduler {
 
         // Actually shutdown tasks.
         let timeout_duration = std::time::Duration::from_secs(30);
-        future::timeout(timeout_duration, self.inbox_handle)
+        tokio::time::timeout(timeout_duration, self.inbox_handle)
             .await
             .ok_or_log(context);
         if let Some(mvbox_handle) = self.mvbox_handle.take() {
-            future::timeout(timeout_duration, mvbox_handle)
+            tokio::time::timeout(timeout_duration, mvbox_handle)
                 .await
                 .ok_or_log(context);
         }
         if let Some(sentbox_handle) = self.sentbox_handle.take() {
-            future::timeout(timeout_duration, sentbox_handle)
+            tokio::time::timeout(timeout_duration, sentbox_handle)
                 .await
                 .ok_or_log(context);
         }
-        future::timeout(timeout_duration, self.smtp_handle)
+        tokio::time::timeout(timeout_duration, self.smtp_handle)
             .await
             .ok_or_log(context);
-        self.ephemeral_handle.cancel().await;
-        self.location_handle.cancel().await;
+        self.ephemeral_handle.abort();
+        self.location_handle.abort();
     }
 }
 

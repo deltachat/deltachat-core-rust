@@ -1,5 +1,18 @@
 //! # Handle webxdc messages.
 
+use std::convert::TryFrom;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::path::PathBuf;
+
+use anyhow::{bail, ensure, format_err, Result};
+use deltachat_derive::FromSql;
+use lettre_email::mime;
+use lettre_email::PartBuilder;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use zip::ZipArchive;
+
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
@@ -10,17 +23,6 @@ use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
 use crate::{chat, EventType};
-use anyhow::{bail, ensure, format_err, Result};
-use async_std::path::PathBuf;
-use deltachat_derive::FromSql;
-use lettre_email::mime;
-use lettre_email::PartBuilder;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::convert::TryFrom;
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
-use zip::ZipArchive;
 
 /// The current API version.
 /// If `min_api` in manifest.toml is set to a larger value,
@@ -710,8 +712,8 @@ impl Message {
 mod tests {
     use std::io::Cursor;
 
-    use async_std::fs::File;
-    use async_std::io::WriteExt;
+    use tokio::fs::File;
+    use tokio::io::AsyncWriteExt;
 
     use crate::chat::{
         add_contact_to_chat, create_group_chat, forward_msgs, resend_msgs, send_msg, send_text_msg,
@@ -726,7 +728,7 @@ mod tests {
     use super::*;
 
     #[allow(clippy::assertions_on_constants)]
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_file_limits() -> Result<()> {
         assert!(WEBXDC_SENDING_LIMIT >= 32768);
         assert!(WEBXDC_SENDING_LIMIT < 16777216);
@@ -735,7 +737,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_is_webxdc_file() -> Result<()> {
         let t = TestContext::new().await;
         assert!(
@@ -796,7 +798,7 @@ mod tests {
         Message::load_from_db(t, instance_msg_id).await
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_send_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -820,7 +822,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_send_invalid_webxdc() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -852,7 +854,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_forward_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -895,7 +897,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_resend_webxdc_instance_and_info() -> Result<()> {
         // Alice uses webxdc in a group
         let alice = TestContext::new_alice().await;
@@ -940,7 +942,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_receive_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         dc_receive_imf(
@@ -966,7 +968,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_contact_request() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -1010,7 +1012,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_delete_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1048,7 +1050,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_status_update_record() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1142,7 +1144,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_receive_status_update() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1238,7 +1240,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_send_webxdc_status_update() -> Result<()> {
         let alice = TestContext::new_alice().await;
         alice.set_config_bool(Config::BccSelf, true).await?;
@@ -1338,7 +1340,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_render_webxdc_status_update_object() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
@@ -1364,7 +1366,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_render_webxdc_status_update_object_range() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
@@ -1402,7 +1404,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_pop_status_update() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat").await?;
@@ -1462,7 +1464,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_draft_and_send_webxdc_status_update() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -1529,7 +1531,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_send_webxdc_status_update_to_non_webxdc() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1541,7 +1543,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_webxdc_blob() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1558,7 +1560,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_webxdc_blob_default_icon() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1570,7 +1572,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_webxdc_blob_with_absolute_paths() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1583,7 +1585,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_webxdc_blob_with_subdirs() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1624,7 +1626,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_webxdc_manifest() -> Result<()> {
         let result = parse_webxdc_manifest(r#"key = syntax error"#.as_bytes());
         assert!(result.is_err());
@@ -1655,7 +1657,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_webxdc_manifest_min_api() -> Result<()> {
         let manifest = parse_webxdc_manifest(r#"min_api = 3"#.as_bytes())?;
         assert_eq!(manifest.min_api, Some(3));
@@ -1669,7 +1671,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_webxdc_manifest_source_code_url() -> Result<()> {
         let result = parse_webxdc_manifest(r#"source_code_url = 3"#.as_bytes());
         assert!(result.is_err());
@@ -1683,7 +1685,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_min_api_too_large() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
@@ -1702,7 +1704,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_webxdc_info() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
@@ -1786,7 +1788,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_info_summary() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -1852,7 +1854,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_document_name() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -1894,7 +1896,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_info_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -1985,7 +1987,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_info_msg_cleanup_series() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -2023,7 +2025,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_info_msg_no_cleanup_on_interrupted_series() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "c").await?;
@@ -2041,7 +2043,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_opportunistic_encryption() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -2093,7 +2095,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_chatlist_summary() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
@@ -2113,7 +2115,7 @@ sth_for_the = "future""#
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_webxdc_and_text() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;

@@ -8,7 +8,7 @@ use anyhow::{Context as _, Result};
 use async_imap::Client as ImapClient;
 
 use async_smtp::ServerAddress;
-use async_std::net::{self, TcpStream};
+use tokio::net::{self, TcpStream};
 
 use super::session::Session;
 use crate::login_param::{dc_build_tls, Socks5Config};

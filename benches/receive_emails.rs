@@ -1,8 +1,6 @@
-use async_std::{path::PathBuf, task::block_on};
-use criterion::{
-    async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
-    Criterion,
-};
+use std::path::PathBuf;
+
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::{
     config::Config,
     context::Context,
@@ -43,15 +41,13 @@ async fn create_context() -> Context {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = 100;
-    let context = Context::new(dbfile.into(), id, Events::new())
-        .await
-        .unwrap();
+    let context = Context::new(dbfile, id, Events::new()).await.unwrap();
 
     let backup: PathBuf = std::env::current_dir()
         .unwrap()
-        .join("delta-chat-backup.tar")
-        .into();
-    if backup.exists().await {
+        .join("delta-chat-backup.tar");
+
+    if backup.exists() {
         println!("Importing backup");
         imex(&context, ImexMode::ImportBackup, &backup, None)
             .await
@@ -74,11 +70,15 @@ async fn create_context() -> Context {
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Receive messages");
     group.bench_function("Receive 100 simple text msgs", |b| {
-        b.to_async(AsyncStdExecutor).iter_batched(
-            || block_on(create_context()),
-            |context| recv_all_emails(black_box(context)),
-            BatchSize::LargeInput,
-        );
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let context = rt.block_on(create_context());
+
+        b.to_async(&rt).iter(|| {
+            let ctx = context.clone();
+            async move {
+                recv_all_emails(black_box(ctx)).await;
+            }
+        });
     });
     group.finish();
 }

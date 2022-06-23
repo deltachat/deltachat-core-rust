@@ -156,21 +156,21 @@ pub async fn dc_get_oauth2_access_token(
         }
 
         // ... and POST
-        let mut req = surf::post(post_url).build();
-        if let Err(err) = req.body_form(&post_param) {
-            warn!(context, "Error calling OAuth2 at {}: {:?}", token_url, err);
-            return Ok(None);
-        }
+        let client = reqwest::Client::new();
 
-        let client = surf::Client::new();
-        let parsed: Result<Response, _> = client.recv_json(req).await;
-        let response = match parsed {
-            Ok(response) => response,
+        let response: Response = match client.post(post_url).form(&post_param).send().await {
+            Ok(resp) => match resp.json().await {
+                Ok(response) => response,
+                Err(err) => {
+                    warn!(
+                        context,
+                        "Failed to parse OAuth2 JSON response from {}: error: {}", token_url, err
+                    );
+                    return Ok(None);
+                }
+            },
             Err(err) => {
-                warn!(
-                    context,
-                    "Failed to parse OAuth2 JSON response from {}: error: {}", token_url, err
-                );
+                warn!(context, "Error calling OAuth2 at {}: {:?}", token_url, err);
                 return Ok(None);
             }
         };
@@ -288,8 +288,14 @@ impl Oauth2 {
         //   "verified_email": true,
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
-        let response: Result<HashMap<String, serde_json::Value>, surf::Error> =
-            surf::get(userinfo_url).recv_json().await;
+        let response = match reqwest::get(userinfo_url).await {
+            Ok(response) => response,
+            Err(err) => {
+                warn!(context, "failed to get userinfo: {}", err);
+                return None;
+            }
+        };
+        let response: Result<HashMap<String, serde_json::Value>, _> = response.json().await;
         let parsed = match response {
             Ok(parsed) => parsed,
             Err(err) => {
@@ -360,7 +366,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_oauth_from_address() {
         let t = TestContext::new().await;
         assert_eq!(
@@ -382,7 +388,7 @@ mod tests {
         assert_eq!(Oauth2::from_address(&t, "hello@web.de", false).await, None);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_oauth_from_mx() {
         // youtube staff seems to use "google workspace with oauth2", figures this out by MX lookup
         let t = TestContext::new().await;
@@ -397,7 +403,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_dc_get_oauth2_addr() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
@@ -407,7 +413,7 @@ mod tests {
         assert_eq!(res, None);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_dc_get_oauth2_url() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
@@ -419,7 +425,7 @@ mod tests {
         assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_dc_get_oauth2_token() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";

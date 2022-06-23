@@ -1,16 +1,14 @@
 //! # SQLite wrapper.
 
-use async_std::path::Path;
-use async_std::sync::RwLock;
-
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
-use async_std::path::PathBuf;
-use async_std::prelude::*;
 use rusqlite::{config::DbConfig, Connection, OpenFlags};
+use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
@@ -717,7 +715,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
     info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
     let p = context.get_blobdir();
-    match async_std::fs::read_dir(p).await {
+    match tokio::fs::read_dir(p).await {
         Ok(mut dir_handle) => {
             /* avoid deletion of files that are just created to build a message object */
             let diff = std::time::Duration::from_secs(60 * 60);
@@ -725,11 +723,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                 .checked_sub(diff)
                 .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
-            while let Some(entry) = dir_handle.next().await {
-                let entry = match entry {
-                    Ok(entry) => entry,
-                    Err(_) => break,
-                };
+            while let Ok(Some(entry)) = dir_handle.next_entry().await {
                 let name_f = entry.file_name();
                 let name_s = name_f.to_string_lossy();
 
@@ -743,7 +737,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
 
                 unreferenced_count += 1;
 
-                if let Ok(stats) = async_std::fs::metadata(entry.path()).await {
+                if let Ok(stats) = tokio::fs::metadata(entry.path()).await {
                     let recently_created =
                         stats.created().map_or(false, |t| t > keep_files_newer_than);
                     let recently_modified = stats
@@ -860,8 +854,9 @@ pub fn repeat_vars(count: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use async_std::channel;
-    use async_std::fs::File;
+    use async_channel as channel;
+    use tokio::fs::File;
+    use tokio::io::AsyncWriteExt;
 
     use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
@@ -894,14 +889,14 @@ mod tests {
         assert!(is_file_in_use(&files, Some("-suffix"), "world.txt-suffix"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_table_exists() {
         let t = TestContext::new().await;
         assert!(t.ctx.sql.table_exists("msgs").await.unwrap());
         assert!(!t.ctx.sql.table_exists("foobar").await.unwrap());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_col_exists() {
         let t = TestContext::new().await;
         assert!(t.ctx.sql.col_exists("msgs", "mime_modified").await.unwrap());
@@ -910,7 +905,7 @@ mod tests {
     }
 
     /// Tests that auto_vacuum is enabled for new databases.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_auto_vacuum() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -925,7 +920,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_housekeeping_db_closed() {
         let t = TestContext::new().await;
 
@@ -945,14 +940,14 @@ mod tests {
         t.add_event_sender(event_sink).await;
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
-        assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
+        assert_eq!(avatar_bytes, &tokio::fs::read(&a).await.unwrap()[..]);
 
         t.sql.close().await;
         housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
         t.sql.open(&t, "".to_string()).await.unwrap();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
-        assert_eq!(avatar_bytes, &async_std::fs::read(&a).await.unwrap()[..]);
+        assert_eq!(avatar_bytes, &tokio::fs::read(&a).await.unwrap()[..]);
 
         while let Ok(event) = event_source.try_recv() {
             match event.typ {
@@ -969,7 +964,7 @@ mod tests {
 
     /// Regression test for a bug where housekeeping deleted drafts since their
     /// `hidden` flag is set.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_housekeeping_dont_delete_drafts() {
         let t = TestContext::new_alice().await;
 
@@ -996,7 +991,7 @@ mod tests {
     ///
     /// Statements were not finalized due to a bug in sqlx:
     /// <https://github.com/launchbadge/sqlx/issues/1147>
-    #[async_std::test]
+    #[tokio::test]
     async fn test_db_reopen() -> Result<()> {
         use tempfile::tempdir;
 
@@ -1006,7 +1001,7 @@ mod tests {
         // Create a separate empty database for testing.
         let dir = tempdir()?;
         let dbfile = dir.path().join("testdb.sqlite");
-        let sql = Sql::new(dbfile.into());
+        let sql = Sql::new(dbfile);
 
         // Create database with all the tables.
         sql.open(&t, "".to_string()).await.unwrap();
@@ -1028,7 +1023,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_migration_flags() -> Result<()> {
         let t = TestContext::new().await;
         t.evtracker.get_info_contains("Opened database").await;
@@ -1067,7 +1062,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_check_passphrase() -> Result<()> {
         use tempfile::tempdir;
 
@@ -1077,7 +1072,7 @@ mod tests {
         // Create a separate empty database for testing.
         let dir = tempdir()?;
         let dbfile = dir.path().join("testdb.sqlite");
-        let sql = Sql::new(dbfile.clone().into());
+        let sql = Sql::new(dbfile.clone());
 
         sql.check_passphrase("foo".to_string()).await?;
         sql.open(&t, "foo".to_string())
@@ -1086,7 +1081,7 @@ mod tests {
         sql.close().await;
 
         // Reopen the database
-        let sql = Sql::new(dbfile.into());
+        let sql = Sql::new(dbfile);
 
         // Test that we can't open encrypted database without a passphrase.
         assert!(sql.open(&t, "".to_string()).await.is_err());

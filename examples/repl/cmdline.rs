@@ -1,9 +1,9 @@
 extern crate dirs;
 
+use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{bail, ensure, Result};
-use async_std::path::Path;
 use deltachat::chat::{
     self, Chat, ChatId, ChatItem, ChatVisibility, MuteDuration, ProtectionStatus,
 };
@@ -492,7 +492,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let setup_code = create_setup_code(&context);
             let file_name = blobdir.join("autocrypt-setup-message.html");
             let file_content = render_setup_file(&context, &setup_code).await?;
-            async_std::fs::write(&file_name, file_content).await?;
+            tokio::fs::write(&file_name, file_content).await?;
             println!(
                 "Setup message written to: {}\nSetup code: {}",
                 file_name.display(),

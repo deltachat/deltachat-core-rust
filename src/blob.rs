@@ -4,14 +4,13 @@ use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
 use std::io::Cursor;
-
-use async_std::path::{Path, PathBuf};
-use async_std::prelude::*;
-use async_std::{fs, io};
+use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Error, Result};
 use image::{DynamicImage, ImageFormat};
 use num_traits::FromPrimitive;
+use tokio::io::AsyncWriteExt;
+use tokio::{fs, io};
 
 use crate::config::Config;
 use crate::constants::{
@@ -89,7 +88,7 @@ impl<'a> BlobObject<'a> {
                 Err(err) => {
                     if attempt >= MAX_ATTEMPT {
                         return Err(err).context("failed to create file");
-                    } else if attempt == 1 && !dir.exists().await {
+                    } else if attempt == 1 && !dir.exists() {
                         fs::create_dir_all(dir).await.ok_or_log(context);
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
@@ -513,7 +512,7 @@ mod tests {
 
     use super::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
@@ -524,28 +523,28 @@ mod tests {
         assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_file_name(), "foo.txt");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_suffix() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
@@ -554,16 +553,16 @@ mod tests {
         assert_eq!(blob.suffix(), None);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_dup() {
         let t = TestContext::new().await;
         BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         let foo_path = t.get_blobdir().join("foo.txt");
-        assert!(foo_path.exists().await);
+        assert!(foo_path.exists());
         BlobObject::create(&t, "foo.txt", b"world").await.unwrap();
         let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
-        while let Some(dirent) = dir.next().await {
-            let fname = dirent.unwrap().file_name();
+        while let Ok(Some(dirent)) = dir.next_entry().await {
+            let fname = dirent.file_name();
             if fname == foo_path.file_name().unwrap() {
                 assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
             } else {
@@ -574,20 +573,20 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_double_ext_preserved() {
         let t = TestContext::new().await;
         BlobObject::create(&t, "foo.tar.gz", b"hello")
             .await
             .unwrap();
         let foo_path = t.get_blobdir().join("foo.tar.gz");
-        assert!(foo_path.exists().await);
+        assert!(foo_path.exists());
         BlobObject::create(&t, "foo.tar.gz", b"world")
             .await
             .unwrap();
         let mut dir = fs::read_dir(t.get_blobdir()).await.unwrap();
-        while let Some(dirent) = dir.next().await {
-            let fname = dirent.unwrap().file_name();
+        while let Ok(Some(dirent)) = dir.next_entry().await {
+            let fname = dirent.file_name();
             if fname == foo_path.file_name().unwrap() {
                 assert_eq!(fs::read(&foo_path).await.unwrap(), b"hello");
             } else {
@@ -599,7 +598,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_long_names() {
         let t = TestContext::new().await;
         let s = "1".repeat(150);
@@ -608,7 +607,7 @@ mod tests {
         assert!(blobname.len() < 128);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_and_copy() {
         let t = TestContext::new().await;
         let src = t.dir.path().join("src");
@@ -623,10 +622,10 @@ mod tests {
             .await
             .is_err());
         let whoops = t.get_blobdir().join("whoops");
-        assert!(!whoops.exists().await);
+        assert!(!whoops.exists());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_from_path() {
         let t = TestContext::new().await;
 
@@ -646,7 +645,7 @@ mod tests {
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
     }
-    #[async_std::test]
+    #[tokio::test]
     async fn test_create_from_name_long() {
         let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
@@ -709,7 +708,7 @@ mod tests {
         assert!(!stem.contains('?'));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_selfavatar_outside_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
@@ -721,11 +720,11 @@ mod tests {
             .await
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.jpg");
-        assert!(!avatar_blob.exists().await);
+        assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        assert!(avatar_blob.exists().await);
+        assert!(avatar_blob.exists());
         assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
@@ -755,7 +754,7 @@ mod tests {
         assert_eq!(img.width(), img.height());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.get_blobdir().join("avatar.png");
@@ -784,7 +783,7 @@ mod tests {
         assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_selfavatar_copy_without_recode() {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.png");
@@ -796,11 +795,11 @@ mod tests {
             .await
             .unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.png");
-        assert!(!avatar_blob.exists().await);
+        assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
-        assert!(avatar_blob.exists().await);
+        assert!(avatar_blob.exists());
         assert_eq!(
             std::fs::metadata(&avatar_blob).unwrap().len(),
             avatar_bytes.len() as u64
@@ -809,7 +808,7 @@ mod tests {
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
@@ -829,7 +828,7 @@ mod tests {
         .unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_recode_image_2() {
         // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
@@ -855,7 +854,7 @@ mod tests {
         // Do this in parallel to speed up the test a bit
         // (it still takes very long though)
         let bytes2 = bytes.clone();
-        let join_handle = async_std::task::spawn(async move {
+        let join_handle = tokio::task::spawn(async move {
             let img_rotated = send_image_check_mediaquality(
                 Some("0"),
                 &bytes2,
@@ -883,10 +882,10 @@ mod tests {
         .unwrap();
         assert_correct_rotation(&img_rotated);
 
-        join_handle.await;
+        join_handle.await.unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_recode_image_3() {
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
@@ -967,7 +966,7 @@ mod tests {
         Ok(img)
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_increation_in_blobdir() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
@@ -986,7 +985,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_increation_not_blobdir() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;

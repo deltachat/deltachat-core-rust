@@ -2,8 +2,8 @@ use std::ops::{Deref, DerefMut};
 
 use async_imap::Session as ImapSession;
 use async_native_tls::TlsStream;
-use async_std::net::TcpStream;
 use fast_socks5::client::Socks5Stream;
+use tokio::net::TcpStream;
 
 #[derive(Debug)]
 pub(crate) struct Session {
@@ -11,7 +11,7 @@ pub(crate) struct Session {
 }
 
 pub(crate) trait SessionStream:
-    async_std::io::Read + async_std::io::Write + Unpin + Send + Sync + std::fmt::Debug
+    tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync + std::fmt::Debug
 {
 }
 

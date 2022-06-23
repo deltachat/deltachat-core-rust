@@ -1750,7 +1750,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mimeparser_fromheader() {
         let ctx = TestContext::new_alice().await;
 
@@ -1808,7 +1808,7 @@ mod tests {
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_dc_mimeparser_crash() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
@@ -1820,7 +1820,7 @@ mod tests {
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_rfc724_mid_exists() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
@@ -1834,7 +1834,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_rfc724_mid_not_exists() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
@@ -1876,7 +1876,7 @@ mod tests {
         mail
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1887,7 +1887,7 @@ mod tests {
         assert_eq!(filename, Some("test.html".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_encoded_words() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1898,7 +1898,7 @@ mod tests {
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_encoded_words_binary() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1909,7 +1909,7 @@ mod tests {
         assert_eq!(filename, Some(" § 165 Abs".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_encoded_words_windows1251() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1920,7 +1920,7 @@ mod tests {
         assert_eq!(filename, Some("file Что нового 2020.pdf".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_encoded_words_cont() {
         // test continued encoded-words and also test apostropes work that way
         let t = TestContext::new().await;
@@ -1932,7 +1932,7 @@ mod tests {
         assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_encoded_words_bad_delimiter() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1944,7 +1944,7 @@ mod tests {
         assert_eq!(filename, Some("=?utf-8?q?foo?=.bar".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_apostrophed() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1955,7 +1955,7 @@ mod tests {
         assert_eq!(filename, Some("Maßnahmen Okt. 2021.html".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_apostrophed_cont() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1966,7 +1966,7 @@ mod tests {
         assert_eq!(filename, Some("Maßnahmen März 2022.html".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_apostrophed_windows1251() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1977,7 +1977,7 @@ mod tests {
         assert_eq!(filename, Some("программирование.HTM".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_apostrophed_cp1252() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1988,7 +1988,7 @@ mod tests {
         assert_eq!(filename, Some("Auftragsbestätigung.pdf".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_apostrophed_invalid() {
         let t = TestContext::new().await;
         let mail = load_mail_with_attachment(
@@ -1999,7 +1999,7 @@ mod tests {
         assert_eq!(filename, Some("somedäüta.html.zip".to_string()))
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
         let t = TestContext::new().await;
@@ -2024,7 +2024,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_first_addr() {
         let context = TestContext::new().await;
         let raw = b"From: hello@one.org, world@two.org\n\
@@ -2045,7 +2045,7 @@ mod tests {
         assert!(mimeparser.chat_disposition_notification_to.is_none());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_parent_timestamp() {
         let context = TestContext::new().await;
         let raw = b"From: foo@example.org\n\
@@ -2078,7 +2078,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mimeparser_with_context() {
         let context = TestContext::new().await;
         let raw = b"From: hello\n\
@@ -2130,7 +2130,7 @@ mod tests {
             .is_none());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mimeparser_with_avatars() {
         let t = TestContext::new().await;
 
@@ -2171,7 +2171,7 @@ mod tests {
         assert!(mimeparser.group_avatar.unwrap().is_change());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mimeparser_with_videochat() {
         let t = TestContext::new().await;
 
@@ -2193,7 +2193,7 @@ mod tests {
         assert_eq!(mimeparser.group_avatar, None);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mimeparser_message_kml() {
         let context = TestContext::new().await;
         let raw = b"Chat-Version: 1.0\n\
@@ -2238,7 +2238,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
         assert_eq!(mimeparser.parts.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_mdn() {
         let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
@@ -2288,7 +2288,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
     ///
     /// RFC 6522 specifically allows MDNs to be nested inside
     /// multipart MIME messages.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_multiple_mdns() {
         let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
@@ -2364,7 +2364,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
         assert_eq!(message.mdn_reports.len(), 2);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_mdn_with_additional_message_ids() {
         let context = TestContext::new().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
@@ -2419,7 +2419,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_parse_inline_attachment() {
         let context = TestContext::new().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
@@ -2459,7 +2459,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
         assert_eq!(message.parts[0].msg, "Mail with inline attachment – Hello!");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_hide_html_without_content() {
         let t = TestContext::new().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
@@ -2503,12 +2503,12 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
             .await
             .unwrap()
             .unwrap();
-        let f = async_std::fs::File::open(blob.to_abs_path()).await.unwrap();
+        let f = tokio::fs::File::open(blob.to_abs_path()).await.unwrap();
         let size = f.metadata().await.unwrap().len();
         assert_eq!(size, 154);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_inline_image() {
         let context = TestContext::new().await;
         let raw = br#"Message-ID: <foobar@example.org>
@@ -2554,7 +2554,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
         assert_eq!(message.parts[0].msg, "example – Test");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_thunderbird_html_embedded_image() {
         let context = TestContext::new().await;
         let raw = br#"To: Alice <alice@example.org>
@@ -2627,7 +2627,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
     }
 
     // Outlook specifies filename in the "name" attribute of Content-Type
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_outlook_html_embedded_image() {
         let context = TestContext::new().await;
         let raw = br##"From: Anonymous <anonymous@example.org>
@@ -2766,7 +2766,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
         assert!(test.is_empty());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_format_flowed_quote() {
         let context = TestContext::new().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
@@ -2802,7 +2802,7 @@ Reply
         assert_eq!(message.parts[0].msg, "Reply");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_quote_without_reply() {
         let context = TestContext::new().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
@@ -2834,7 +2834,7 @@ From: alice <alice@example.org>
         assert_eq!(message.parts[0].msg, "");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn parse_quote_top_posting() {
         let context = TestContext::new().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
@@ -2865,7 +2865,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(message.parts[0].msg, "A reply.");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_attachment_quote() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/quote_attach.eml");
@@ -2883,7 +2883,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(mimeparser.parts[0].typ, Viewtype::File);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_quote_div() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/gmx-quote.eml");
@@ -2892,7 +2892,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "Now?");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_allinkl_blockquote() {
         // all-inkl.com puts quotes into `<blockquote> </blockquote>`.
         let t = TestContext::new().await;
@@ -2905,7 +2905,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_add_subj_to_multimedia_msg() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
@@ -2938,7 +2938,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(msg.get_filemime().unwrap(), "image/png");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_plain() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
@@ -2950,7 +2950,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_alt_plain_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
@@ -2962,7 +2962,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_alt_plain() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
@@ -2977,7 +2977,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_alt_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
@@ -2989,7 +2989,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_html() {
         let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
@@ -3001,7 +3001,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_mime_modified_large_plain() {
         let t = TestContext::new().await;
 
@@ -3022,7 +3022,7 @@ On 2020-10-25, Bob wrote:
         assert!(mimemsg.parts[0].msg.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_x_microsoft_original_message_id() {
         let t = TestContext::new().await;
         let message = MimeMessage::from_bytes(&t, b"Date: Wed, 17 Feb 2021 15:45:15 +0000\n\
@@ -3045,7 +3045,7 @@ On 2020-10-25, Bob wrote:
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_long_in_reply_to() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -3088,7 +3088,7 @@ Some reply
     }
 
     // Test that WantsMdn parameter is not set on outgoing messages.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_outgoing_wants_mdn() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -3119,7 +3119,7 @@ Message.
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ignore_read_receipt_to_self() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
@@ -3189,7 +3189,7 @@ Message.
     ///
     /// It does not have required Original-Message-ID field, so it is useless, but we want to
     /// recognize it as MDN nevertheless to avoid displaying it in the chat as normal message.
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ms_exchange_mdn() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await?;

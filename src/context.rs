@@ -3,14 +3,13 @@
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{ensure, Result};
-use async_std::{
-    channel::{self, Receiver, Sender},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, RwLock},
-};
+use async_channel::{self as channel, Receiver, Sender};
+use tokio::sync::{Mutex, RwLock};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -75,7 +74,7 @@ pub struct InnerContext {
     /// The text of the last error logged and emitted as an event.
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
-    pub(crate) last_error: RwLock<String>,
+    pub(crate) last_error: std::sync::RwLock<String>,
 }
 
 /// The state of ongoing process.
@@ -115,7 +114,7 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 
 impl Context {
     /// Creates new context and opens the database.
-    pub async fn new(dbfile: PathBuf, id: u32, events: Events) -> Result<Context> {
+    pub async fn new(dbfile: &Path, id: u32, events: Events) -> Result<Context> {
         let context = Self::new_closed(dbfile, id, events).await?;
 
         // Open the database if is not encrypted.
@@ -126,15 +125,15 @@ impl Context {
     }
 
     /// Creates new context without opening the database.
-    pub async fn new_closed(dbfile: PathBuf, id: u32, events: Events) -> Result<Context> {
+    pub async fn new_closed(dbfile: &Path, id: u32, events: Events) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
         let blobdir = dbfile.with_file_name(blob_fname);
-        if !blobdir.exists().await {
-            async_std::fs::create_dir_all(&blobdir).await?;
+        if !blobdir.exists() {
+            tokio::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile, blobdir, id, events).await?;
+        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events).await?;
         Ok(context)
     }
 
@@ -172,7 +171,7 @@ impl Context {
         events: Events,
     ) -> Result<Context> {
         ensure!(
-            blobdir.is_dir().await,
+            blobdir.is_dir(),
             "Blobdir does not exist: {}",
             blobdir.display()
         );
@@ -193,7 +192,7 @@ impl Context {
             quota: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
-            last_error: RwLock::new("".to_string()),
+            last_error: std::sync::RwLock::new("".to_string()),
         };
 
         let ctx = Context {
@@ -643,14 +642,14 @@ impl Context {
         Ok(mvbox.as_deref() == Some(folder_name))
     }
 
-    pub(crate) fn derive_blobdir(dbfile: &PathBuf) -> PathBuf {
+    pub(crate) fn derive_blobdir(dbfile: &Path) -> PathBuf {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
         dbfile.with_file_name(blob_fname)
     }
 
-    pub(crate) fn derive_walfile(dbfile: &PathBuf) -> PathBuf {
+    pub(crate) fn derive_walfile(dbfile: &Path) -> PathBuf {
         let mut wal_fname = OsString::new();
         wal_fname.push(dbfile.file_name().unwrap_or_default());
         wal_fname.push("-wal");
@@ -679,19 +678,19 @@ mod tests {
     use strum::IntoEnumIterator;
     use tempfile::tempdir;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_wrong_db() -> Result<()> {
         let tmp = tempfile::tempdir()?;
         let dbfile = tmp.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123")?;
-        let res = Context::new(dbfile.into(), 1, Events::new()).await?;
+        let res = Context::new(&dbfile, 1, Events::new()).await?;
 
         // Broken database is indistinguishable from encrypted one.
         assert_eq!(res.is_open().await, false);
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_fresh_msgs() {
         let t = TestContext::new().await;
         let fresh = t.get_fresh_msgs().await.unwrap();
@@ -718,7 +717,7 @@ mod tests {
         dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_fresh_msgs_and_muted_chats() {
         // receive various mails in 3 chats
         let t = TestContext::new_alice().await;
@@ -768,7 +767,7 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 9); // claire is counted again
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_fresh_msgs_and_muted_until() {
         let t = TestContext::new_alice().await;
         let bob = t.create_chat_with_contact("", "bob@g.it").await;
@@ -826,61 +825,61 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(dbfile.into(), 1, Events::new()).await.unwrap();
+        Context::new(&dbfile, 1, Events::new()).await.unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_wrong_blogdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         std::fs::write(&blobdir, b"123").unwrap();
-        let res = Context::new(dbfile.into(), 1, Events::new()).await;
+        let res = Context::new(&dbfile, 1, Events::new()).await;
         assert!(res.is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_sqlite_parent_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(dbfile.into(), 1, Events::new()).await.unwrap();
+        Context::new(&dbfile, 1, Events::new()).await.unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_with_empty_blobdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile.into(), blobdir, 1, Events::new()).await;
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new()).await;
         assert!(res.is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_with_blobdir_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile.into(), blobdir.into(), 1, Events::new()).await;
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new()).await;
         assert!(res.is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn no_crashes_on_context_deref() {
         let t = TestContext::new().await;
         std::mem::drop(t);
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_info() {
         let t = TestContext::new().await;
 
@@ -896,7 +895,7 @@ mod tests {
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_get_info_completeness() {
         // For easier debugging,
         // get_info() shall return all important information configurable by the Config-values.
@@ -944,7 +943,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_search_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let self_talk = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
@@ -1000,7 +999,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_limit_search_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat = alice
@@ -1033,13 +1032,13 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_check_passphrase() -> Result<()> {
         let dir = tempdir()?;
         let dbfile = dir.path().join("db.sqlite");
 
         let id = 1;
-        let context = Context::new_closed(dbfile.clone().into(), id, Events::new())
+        let context = Context::new_closed(&dbfile, id, Events::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.open("foo".to_string()).await?, true);
@@ -1047,7 +1046,7 @@ mod tests {
         drop(context);
 
         let id = 2;
-        let context = Context::new(dbfile.into(), id, Events::new())
+        let context = Context::new(&dbfile, id, Events::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.is_open().await, false);
@@ -1058,7 +1057,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_ongoing() -> Result<()> {
         let context = TestContext::new().await;
 

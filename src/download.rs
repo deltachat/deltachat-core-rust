@@ -280,7 +280,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_download_limit() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -303,7 +303,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_update_download_state() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat = t.create_chat_with_contact("Bob", "bob@example.org").await;
@@ -328,7 +328,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_partial_receive_imf() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -376,7 +376,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_partial_download_and_ephemeral() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = t

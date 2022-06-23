@@ -63,7 +63,7 @@ mod tests {
     use crate::dc_tools::time;
     use crate::test_utils::TestContext;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_params_update_timestamp() -> Result<()> {
         let mut params = Params::new();
         let ts = time();
@@ -85,7 +85,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_out_of_order_subject() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -126,7 +126,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_out_of_order_group_name() -> Result<()> {
         let t = TestContext::new_alice().await;
 
