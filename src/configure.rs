@@ -416,6 +416,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     let create_mvbox = ctx.should_watch_mvbox().await?;
 
+    // Send client ID as soon as possible before doing anything else.
+    imap.determine_capabilities(ctx).await?;
+
     imap.configure_folders(ctx, create_mvbox).await?;
 
     imap.select_with_uidvalidity(ctx, "INBOX")

@@ -451,7 +451,9 @@ impl Imap {
     }
 
     /// Determine server capabilities if not done yet.
-    async fn determine_capabilities(&mut self) -> Result<()> {
+    ///
+    /// If server supports ID capability, send our client ID.
+    pub(crate) async fn determine_capabilities(&mut self, context: &Context) -> Result<()> {
         if self.capabilities_determined {
             return Ok(());
         }
@@ -463,6 +465,12 @@ impl Imap {
             .capabilities()
             .await
             .context("CAPABILITY command error")?;
+        if caps.has_str("ID") {
+            let server_id = session.id([("name", Some("Delta Chat"))]).await?;
+            info!(context, "Server ID: {:?}", server_id);
+            let mut lock = context.server_id.write().await;
+            *lock = server_id;
+        }
         self.config.can_idle = caps.has_str("IDLE");
         self.config.can_move = caps.has_str("MOVE");
         self.config.can_check_quota = caps.has_str("QUOTA");
@@ -481,8 +489,8 @@ impl Imap {
             return Err(err);
         }
 
+        self.determine_capabilities(context).await?;
         self.ensure_configured_folders(context, true).await?;
-        self.determine_capabilities().await?;
         Ok(())
     }
 

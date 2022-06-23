@@ -61,6 +61,11 @@ pub struct InnerContext {
     /// Set to `None` if quota was never tried to load.
     pub(crate) quota: RwLock<Option<QuotaInfo>>,
 
+    /// Server ID response if ID capability is supported
+    /// and the server returned non-NIL on the inbox connection.
+    /// <https://datatracker.ietf.org/doc/html/rfc2971>
+    pub(crate) server_id: RwLock<Option<HashMap<String, String>>>,
+
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
     /// ID for this `Context` in the current process.
@@ -190,6 +195,7 @@ impl Context {
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
             quota: RwLock::new(None),
+            server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
@@ -429,6 +435,11 @@ impl Context {
         res.insert("socks5_enabled", socks5_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
+
+        let server_id = self.server_id.read().await;
+        res.insert("imap_server_id", format!("{:?}", server_id));
+        drop(server_id);
+
         res.insert("secondary_addrs", secondary_addrs);
         res.insert(
             "fetch_existing_msgs",
