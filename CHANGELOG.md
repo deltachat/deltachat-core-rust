@@ -11,7 +11,7 @@
 ### Fixes
 - set a default error if NDN does not provide an error
 - python: avoid exceptions when messages/contacts/chats are compared with `None`
-- node: wait for the event loop to stop before destroying contexts #3431
+- node: wait for the event loop to stop before destroying contexts #3431 #3451
 - emit configuration errors via event on failure #3433
 - report configure and imex success/failure after freeing ongoing process #3442
 

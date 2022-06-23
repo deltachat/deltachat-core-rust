@@ -371,8 +371,8 @@ NAPI_METHOD(dcn_context_unref) {
 
   TRACE("Unrefing dc_context");
   dcn_context->gc = 1;
-  dc_stop_io(dcn_context->dc_context);
   if (dcn_context->event_handler_thread != 0) {
+    dc_stop_io(dcn_context->dc_context);
     uv_thread_join(&dcn_context->event_handler_thread);
     dcn_context->event_handler_thread = 0;
   }
@@ -2927,8 +2927,8 @@ NAPI_METHOD(dcn_accounts_unref) {
 
   TRACE("Unrefing dc_accounts");
   dcn_accounts->gc = 1;
-  dc_accounts_stop_io(dcn_accounts->dc_accounts);
   if (dcn_accounts->event_handler_thread != 0) {
+    dc_accounts_stop_io(dcn_accounts->dc_accounts);
     uv_thread_join(&dcn_accounts->event_handler_thread);
     dcn_accounts->event_handler_thread = 0;
   }
