@@ -5,7 +5,9 @@ use std::path::Path;
 
 async fn search_benchmark(dbfile: impl AsRef<Path>) {
     let id = 100;
-    let context = Context::new(dbfile, id, Events::new()).await.unwrap();
+    let context = Context::new(dbfile.as_ref(), id, Events::new())
+        .await
+        .unwrap();
 
     for _ in 0..10u32 {
         context.search_msgs(None, "hello").await.unwrap();

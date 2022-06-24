@@ -1,22 +1,21 @@
 //! # Handle webxdc messages.
 
 use std::convert::TryFrom;
-use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
-use anyhow::{bail, ensure, format_err, Result};
+use anyhow::{anyhow, bail, ensure, format_err, Result};
 use deltachat_derive::FromSql;
 use lettre_email::mime;
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use zip::ZipArchive;
+use tokio::io::AsyncReadExt;
 
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{dc_create_smeared_timestamp, dc_open_file_std};
+use crate::dc_tools::dc_create_smeared_timestamp;
+use crate::dc_tools::dc_get_abs_path;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -141,16 +140,12 @@ pub(crate) struct StatusUpdateItemAndSerial {
 
 impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
-    pub(crate) async fn is_webxdc_file<R>(&self, filename: &str, mut reader: R) -> Result<bool>
-    where
-        R: Read + Seek,
-    {
+    pub(crate) async fn is_webxdc_file(&self, filename: &str, file: &[u8]) -> Result<bool> {
         if !filename.ends_with(WEBXDC_SUFFIX) {
             return Ok(false);
         }
 
-        let size = reader.seek(SeekFrom::End(0))?;
-        if size > WEBXDC_RECEIVING_LIMIT {
+        if file.len() as u64 > WEBXDC_RECEIVING_LIMIT {
             info!(
                 self,
                 "{} exceeds receiving limit of {} bytes", &filename, WEBXDC_RECEIVING_LIMIT
@@ -158,8 +153,7 @@ impl Context {
             return Ok(false);
         }
 
-        reader.seek(SeekFrom::Start(0))?;
-        let mut archive = match zip::ZipArchive::new(reader) {
+        let archive = match async_zip::read::mem::ZipFileReader::new(file).await {
             Ok(archive) => archive,
             Err(_) => {
                 info!(self, "{} cannot be opened as zip-file", &filename);
@@ -167,7 +161,7 @@ impl Context {
             }
         };
 
-        if archive.by_name("index.html").is_err() {
+        if archive.entry("index.html").is_none() {
             info!(self, "{} misses index.html", &filename);
             return Ok(false);
         }
@@ -178,18 +172,12 @@ impl Context {
     /// ensure that a file is an acceptable webxdc for sending
     /// (sending has more strict size limits).
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &PathBuf) -> Result<()> {
-        let mut file = std::fs::File::open(path)?;
-        if !self
-            .is_webxdc_file(path.to_str().unwrap_or_default(), &mut file)
-            .await?
-        {
-            bail!(
-                "{} is not a valid webxdc file",
-                path.to_str().unwrap_or_default()
-            );
+        let filename = path.to_str().unwrap_or_default();
+        if !filename.ends_with(WEBXDC_SUFFIX) {
+            bail!("{} is not a valid webxdc file", filename);
         }
 
-        let size = file.seek(SeekFrom::End(0))?;
+        let size = tokio::fs::metadata(path).await?.len();
         if size > WEBXDC_SENDING_LIMIT {
             bail!(
                 "webxdc {} exceeds acceptable size of {} bytes",
@@ -197,6 +185,26 @@ impl Context {
                 WEBXDC_SENDING_LIMIT
             );
         }
+
+        let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
+            Ok(archive) => {
+                if archive.entry("index.html").is_none() {
+                    info!(self, "{} misses index.html", filename);
+                    false
+                } else {
+                    true
+                }
+            }
+            Err(_) => {
+                info!(self, "{} cannot be opened as zip-file", filename);
+                false
+            }
+        };
+
+        if !valid {
+            bail!("{} is not a valid webxdc file", filename);
+        }
+
         Ok(())
     }
 
@@ -590,22 +598,28 @@ fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     Ok(manifest)
 }
 
-fn get_blob(archive: &mut ZipArchive<File>, name: &str) -> Result<Vec<u8>> {
-    let mut file = archive.by_name(name)?;
+async fn get_blob(archive: &mut async_zip::read::fs::ZipFileReader, name: &str) -> Result<Vec<u8>> {
+    let (i, _) = archive
+        .entry(name)
+        .ok_or_else(|| anyhow!("no entry found for {}", name))?;
+    let mut reader = archive.entry_reader(i).await?;
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
+    reader.read_to_end(&mut buf).await?;
     Ok(buf)
 }
 
 impl Message {
     /// Get handle to a webxdc ZIP-archive.
     /// To check for file existance use archive.by_name(), to read a file, use get_blob(archive).
-    async fn get_webxdc_archive(&self, context: &Context) -> Result<ZipArchive<File>> {
+    async fn get_webxdc_archive(
+        &self,
+        context: &Context,
+    ) -> Result<async_zip::read::fs::ZipFileReader> {
         let path = self
             .get_file(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
-        let file = dc_open_file_std(context, path)?;
-        let archive = zip::ZipArchive::new(file)?;
+        let path_abs = dc_get_abs_path(context, &path);
+        let archive = async_zip::read::fs::ZipFileReader::new(path_abs).await?;
         Ok(archive)
     }
 
@@ -629,7 +643,7 @@ impl Message {
         let mut archive = self.get_webxdc_archive(context).await?;
 
         if name == "index.html" {
-            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml") {
+            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
                 if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                     if let Some(min_api) = manifest.min_api {
                         if min_api > WEBXDC_API_VERSION {
@@ -642,7 +656,7 @@ impl Message {
             }
         }
 
-        get_blob(&mut archive, name)
+        get_blob(&mut archive, name).await
     }
 
     /// Return info from manifest.toml or from fallbacks.
@@ -650,7 +664,7 @@ impl Message {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
         let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml") {
+        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
             if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                 manifest
             } else {
@@ -682,9 +696,9 @@ impl Message {
             } else {
                 self.get_filename().unwrap_or_default()
             },
-            icon: if archive.by_name("icon.png").is_ok() {
+            icon: if archive.entry("icon.png").is_some() {
                 "icon.png".to_string()
-            } else if archive.by_name("icon.jpg").is_ok() {
+            } else if archive.entry("icon.jpg").is_some() {
                 "icon.jpg".to_string()
             } else {
                 WEBXDC_DEFAULT_ICON.to_string()
@@ -710,8 +724,6 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-
     use tokio::fs::File;
     use tokio::io::AsyncWriteExt;
 
@@ -743,35 +755,35 @@ mod tests {
         assert!(
             !t.is_webxdc_file(
                 "bad-ext-no-zip.txt",
-                Cursor::new(include_bytes!("../test-data/message/issue_523.txt"))
+                include_bytes!("../test-data/message/issue_523.txt")
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "bad-ext-good-zip.txt",
-                Cursor::new(include_bytes!("../test-data/webxdc/minimal.xdc"))
+                include_bytes!("../test-data/webxdc/minimal.xdc")
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "good-ext-no-zip.xdc",
-                Cursor::new(include_bytes!("../test-data/message/issue_523.txt"))
+                include_bytes!("../test-data/message/issue_523.txt")
             )
             .await?
         );
         assert!(
             !t.is_webxdc_file(
                 "good-ext-no-index-html.xdc",
-                Cursor::new(include_bytes!("../test-data/webxdc/no-index-html.xdc"))
+                include_bytes!("../test-data/webxdc/no-index-html.xdc")
             )
             .await?
         );
         assert!(
             t.is_webxdc_file(
                 "good-ext-good-zip.xdc",
-                Cursor::new(include_bytes!("../test-data/webxdc/minimal.xdc"))
+                include_bytes!("../test-data/webxdc/minimal.xdc")
             )
             .await?
         );

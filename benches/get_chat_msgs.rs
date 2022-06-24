@@ -23,7 +23,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         let chats: Vec<_> = rt.block_on(async {
-            let context = Context::new(&path, 100, Events::new()).await.unwrap();
+            let context = Context::new(Path::new(&path), 100, Events::new())
+                .await
+                .unwrap();
             let chatlist = Chatlist::try_load(&context, 0, None, None).await.unwrap();
             let len = chatlist.len();
             (0..len).map(|i| chatlist.get_chat_id(i).unwrap()).collect()

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use deltachat::chatlist::Chatlist;
@@ -13,7 +15,11 @@ fn criterion_benchmark(c: &mut Criterion) {
     // messages, such as your primary account.
     if let Ok(path) = std::env::var("DELTACHAT_BENCHMARK_DATABASE") {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let context = rt.block_on(async { Context::new(path, 100, Events::new()).await.unwrap() });
+        let context = rt.block_on(async {
+            Context::new(Path::new(&path), 100, Events::new())
+                .await
+                .unwrap()
+        });
         c.bench_function("chatlist:try_load (Get Chatlist)", |b| {
             b.to_async(&rt)
                 .iter(|| get_chat_list_benchmark(black_box(&context)))
