@@ -5042,6 +5042,32 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_forward_info_msg() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a").await?;
+        send_text_msg(&t, chat_id1, "msg one".to_string()).await?;
+        let bob_id = Contact::create(&t, "", "bob@example.net").await?;
+        add_contact_to_chat(&t, chat_id1, bob_id).await?;
+        let msg1 = t.get_last_msg_in(chat_id1).await;
+        assert!(msg1.is_info());
+        assert!(msg1.get_text().unwrap().contains("bob@example.net"));
+
+        let chat_id2 = ChatId::create_for_contact(&t, bob_id).await?;
+        assert_eq!(get_chat_msgs(&t, chat_id2, 0).await?.len(), 0);
+        forward_msgs(&t, &[msg1.id], chat_id2).await?;
+        let msg2 = t.get_last_msg_in(chat_id2).await;
+        assert!(!msg2.is_info()); // forwarded info-messages lose their info-state
+        assert_eq!(msg2.get_info_type(), SystemMessage::Unknown);
+        assert_ne!(msg2.from_id, ContactId::INFO);
+        assert_ne!(msg2.to_id, ContactId::INFO);
+        assert_eq!(msg2.get_text().unwrap(), msg1.get_text().unwrap());
+        assert!(msg2.is_forwarded());
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn test_forward_quote() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
