@@ -6,6 +6,7 @@
 - switch from `async-std` to `tokio` as the async runtime #3449
 
 ### Fixes
+- mailing list: remove square-brackets only for first name #3452
 
 
 ## 1.87.0

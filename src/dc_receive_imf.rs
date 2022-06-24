@@ -1739,13 +1739,14 @@ async fn create_or_lookup_mailinglist(
         }
     }
 
-    // if we have an additional name square brackets in the subject, we prefer that
+    // additional names in square brackets in the subject are preferred
     // (as that part is much more visible, we assume, that names is shorter and comes more to the point,
     // than the sometimes longer part from ListId)
     let subject = mime_parser.get_subject().unwrap_or_default();
-    static SUBJECT: Lazy<Regex> = Lazy::new(|| Regex::new(r"^.{0,5}\[(.*.)\]").unwrap());
+    static SUBJECT: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^.{0,5}\[(.+?)\](\s*\[.+\])?").unwrap()); // remove square brackets around first name
     if let Some(cap) = SUBJECT.captures(&subject) {
-        name = cap[1].to_string();
+        name = cap[1].to_string() + cap.get(2).map_or("", |m| m.as_str());
     }
 
     // if we do not have a name yet and `From` indicates, that this is a notification list,
@@ -3163,6 +3164,31 @@ Hello mailinglist!\r\n"
         assert_eq!(msgs.len(), 2);
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert!(chat.can_send(&t.ctx).await.unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mailing_list_multiple_names_in_subject() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        dc_receive_imf(
+            &t,
+            b"From: Foo Bar <foo@bar.org>\n\
+    To: deltachat/deltachat-core-rust <deltachat-core-rust@noreply.github.com>\n\
+    Subject: [ola list] [foo][bar]  just a subject\n\
+    Message-ID: <3333@example.org>\n\
+    List-ID: \"looong description of 'ola list', with foo, bar\" <delta.codespeak.net>\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello\n",
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        let chat_id = msg.get_chat_id();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.name, "ola list [foo][bar]");
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
