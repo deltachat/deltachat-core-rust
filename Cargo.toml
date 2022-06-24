@@ -9,6 +9,7 @@ rust-version = "1.56"
 [profile.dev]
 debug = 0
 panic = 'abort'
+opt-level = 1
 
 [profile.release]
 lto = true
@@ -23,7 +24,7 @@ async-imap = { git = "https://github.com/async-email/async-imap", branch = "runt
 async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
 async-smtp = { git = "https://github.com/async-email/async-smtp", branch="tokio", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
 trust-dns-resolver = "0.21"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 backtrace = "0.3"
 base64 = "0.13"

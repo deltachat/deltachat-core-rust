@@ -522,7 +522,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(key, key2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_existing() {
         let alice = alice_keypair();
         let t = TestContext::new_alice().await;
@@ -532,7 +532,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(alice.secret, seckey);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
@@ -542,7 +542,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert!(key.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
@@ -552,7 +552,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert!(key.is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_generate_concurrent() {
         use std::thread;
 
@@ -587,7 +587,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         assert_eq!(pubkey.primary_key, KEYPAIR.public.primary_key);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_self_key_twice() {
         // Saving the same key twice should result in only one row in
         // the keypairs table.

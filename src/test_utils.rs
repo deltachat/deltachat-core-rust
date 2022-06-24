@@ -1007,21 +1007,21 @@ mod tests {
     // The following three tests demonstrate, when made to fail, the log output being
     // directed to the correct test output.
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_alice() {
         let alice = TestContext::builder().configure_alice().build().await;
         alice.ctx.emit_event(EventType::Info("hello".into()));
         // panic!("Alice fails");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_bob() {
         let bob = TestContext::builder().configure_bob().build().await;
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Bob fails");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_both() {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;

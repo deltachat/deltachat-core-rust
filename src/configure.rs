@@ -633,10 +633,13 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
         return "no error".to_string();
     };
 
-    if errors
-        .iter()
-        .all(|e| e.msg.to_lowercase().contains("could not resolve"))
-    {
+    if errors.iter().all(|e| {
+        e.msg.to_lowercase().contains("could not resolve")
+            || e.msg
+                .to_lowercase()
+                .contains("temporary failure in name resolution")
+            || e.msg.to_lowercase().contains("name or service not known")
+    }) {
         return stock_str::error_no_network(context).await;
     }
 
@@ -677,7 +680,7 @@ mod tests {
     use crate::config::Config;
     use crate::test_utils::TestContext;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_no_panic_on_bad_credentials() {
         let t = TestContext::new().await;
         t.set_config(Config::Addr, Some("probably@unexistant.addr"))

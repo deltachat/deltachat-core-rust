@@ -2,6 +2,7 @@ extern crate dirs;
 
 use std::path::Path;
 use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, ensure, Result};
 use deltachat::chat::{
@@ -22,8 +23,7 @@ use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::{config, provider};
-use std::fs;
-use std::time::{Duration, SystemTime};
+use tokio::fs;
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
@@ -135,17 +135,13 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
     } else {
         /* import a directory */
         let dir_name = std::path::Path::new(&real_spec);
-        let dir = std::fs::read_dir(dir_name);
+        let dir = fs::read_dir(dir_name).await;
         if dir.is_err() {
             error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
             return false;
         } else {
-            let dir = dir.unwrap();
-            for entry in dir {
-                if entry.is_err() {
-                    break;
-                }
-                let entry = entry.unwrap();
+            let mut dir = dir.unwrap();
+            while let Ok(Some(entry)) = dir.next_entry().await {
                 let name_f = entry.file_name();
                 let name = name_f.to_string_lossy();
                 if name.ends_with(".eml") {
@@ -492,7 +488,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let setup_code = create_setup_code(&context);
             let file_name = blobdir.join("autocrypt-setup-message.html");
             let file_content = render_setup_file(&context, &setup_code).await?;
-            tokio::fs::write(&file_name, file_content).await?;
+            fs::write(&file_name, file_content).await?;
             println!(
                 "Setup message written to: {}\nSetup code: {}",
                 file_name.display(),
@@ -532,7 +528,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 .join("connectivity.html");
             match context.get_connectivity_html().await {
                 Ok(html) => {
-                    fs::write(&file, html)?;
+                    fs::write(&file, html).await?;
                     println!("Report written to: {:#?}", file);
                 }
                 Err(err) => {
@@ -892,7 +888,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No html-file given.");
             let path: &Path = arg1.as_ref();
-            let html = &*fs::read(&path)?;
+            let html = &*fs::read(&path).await?;
             let html = String::from_utf8_lossy(html);
 
             let mut msg = Message::new(Viewtype::Text);
@@ -1079,7 +1075,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 .unwrap_or_default()
                 .join(format!("msg-{}.html", id.to_u32()));
             let html = id.get_html(&context).await?.unwrap_or_default();
-            fs::write(&file, html)?;
+            fs::write(&file, html).await?;
             println!("HTML written to: {:#?}", file);
         }
         "listfresh" => {

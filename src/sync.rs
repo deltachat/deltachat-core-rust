@@ -267,7 +267,7 @@ mod tests {
     use crate::token::Namespace;
     use anyhow::bail;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_is_sync_sending_enabled() -> Result<()> {
         let t = TestContext::new_alice().await;
         assert!(!t.is_sync_sending_enabled().await?);
@@ -278,7 +278,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_sync_json() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config_bool(Config::SendSyncMsgs, true).await?;
@@ -323,7 +323,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_sync_json_sync_msgs_off() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config_bool(Config::SendSyncMsgs, false).await?;
@@ -337,7 +337,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_sync_items() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -422,7 +422,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_execute_sync_items() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -451,7 +451,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
         alice.set_config_bool(Config::SendSyncMsgs, true).await?;

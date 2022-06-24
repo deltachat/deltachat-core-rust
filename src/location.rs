@@ -731,7 +731,7 @@ mod tests {
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_kml_parse() {
         let context = TestContext::new().await;
 
@@ -763,7 +763,7 @@ mod tests {
         assert_eq!(locations_ref[1].timestamp, 1544739072);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_message_kml() {
         let context = TestContext::new().await;
         let timestamp = 1598490000;
@@ -791,7 +791,7 @@ mod tests {
     }
 
     /// Tests that location.kml is hidden.
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn receive_location_kml() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

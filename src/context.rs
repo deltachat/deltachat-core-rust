@@ -678,11 +678,11 @@ mod tests {
     use strum::IntoEnumIterator;
     use tempfile::tempdir;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_wrong_db() -> Result<()> {
         let tmp = tempfile::tempdir()?;
         let dbfile = tmp.path().join("db.sqlite");
-        std::fs::write(&dbfile, b"123")?;
+        tokio::fs::write(&dbfile, b"123").await?;
         let res = Context::new(&dbfile, 1, Events::new()).await?;
 
         // Broken database is indistinguishable from encrypted one.
@@ -690,7 +690,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_fresh_msgs() {
         let t = TestContext::new().await;
         let fresh = t.get_fresh_msgs().await.unwrap();
@@ -717,7 +717,7 @@ mod tests {
         dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_fresh_msgs_and_muted_chats() {
         // receive various mails in 3 chats
         let t = TestContext::new_alice().await;
@@ -767,7 +767,7 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 9); // claire is counted again
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_fresh_msgs_and_muted_until() {
         let t = TestContext::new_alice().await;
         let bob = t.create_chat_with_contact("", "bob@g.it").await;
@@ -825,7 +825,7 @@ mod tests {
         assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
@@ -834,17 +834,17 @@ mod tests {
         assert!(blobdir.is_dir());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_wrong_blogdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
-        std::fs::write(&blobdir, b"123").unwrap();
+        tokio::fs::write(&blobdir, b"123").await.unwrap();
         let res = Context::new(&dbfile, 1, Events::new()).await;
         assert!(res.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sqlite_parent_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let subdir = tmp.path().join("subdir");
@@ -855,7 +855,7 @@ mod tests {
         assert!(dbfile2.is_file());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_empty_blobdir() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
@@ -864,7 +864,7 @@ mod tests {
         assert!(res.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_blobdir_not_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
@@ -873,13 +873,13 @@ mod tests {
         assert!(res.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn no_crashes_on_context_deref() {
         let t = TestContext::new().await;
         std::mem::drop(t);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_info() {
         let t = TestContext::new().await;
 
@@ -895,7 +895,7 @@ mod tests {
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_info_completeness() {
         // For easier debugging,
         // get_info() shall return all important information configurable by the Config-values.
@@ -943,7 +943,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_search_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let self_talk = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
@@ -999,7 +999,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_limit_search_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat = alice
@@ -1032,7 +1032,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_check_passphrase() -> Result<()> {
         let dir = tempdir()?;
         let dbfile = dir.path().join("db.sqlite");
@@ -1057,7 +1057,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_ongoing() -> Result<()> {
         let context = TestContext::new().await;
 

@@ -10,7 +10,7 @@ on:
 
 env:
   RUSTFLAGS: -Dwarnings
-
+   
 jobs:
 
   fmt:

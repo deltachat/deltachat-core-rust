@@ -366,7 +366,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_oauth_from_address() {
         let t = TestContext::new().await;
         assert_eq!(
@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(Oauth2::from_address(&t, "hello@web.de", false).await, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_oauth_from_mx() {
         // youtube staff seems to use "google workspace with oauth2", figures this out by MX lookup
         let t = TestContext::new().await;
@@ -403,7 +403,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_dc_get_oauth2_addr() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(res, None);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_dc_get_oauth2_url() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_dc_get_oauth2_token() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";

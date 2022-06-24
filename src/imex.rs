@@ -797,7 +797,7 @@ mod tests {
 
     use ::pgp::armor::BlockType;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file() {
         let t = TestContext::new_alice().await;
         let msg = render_setup_file(&t, "hello").await.unwrap();
@@ -814,7 +814,7 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file_newline_replace() {
         let t = TestContext::new_alice().await;
         t.set_stock_translation(StockMessage::AcSetupMsgBody, "hello\r\nthere".to_string())
@@ -825,7 +825,7 @@ mod tests {
         assert!(msg.contains("<p>hello<br>there</p>"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_setup_code() {
         let t = TestContext::new().await;
         let setupcode = create_setup_code(&t);
@@ -840,7 +840,7 @@ mod tests {
         assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_public_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().public;
@@ -855,7 +855,7 @@ mod tests {
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_private_key_to_asc_file() {
         let context = TestContext::new().await;
         let key = alice_keypair().secret;
@@ -870,7 +870,7 @@ mod tests {
         assert_eq!(bytes, key.to_asc(None).into_bytes());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_key() {
         let context = TestContext::new_alice().await;
         let blobdir = context.ctx.get_blobdir();
@@ -884,7 +884,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_backup() -> Result<()> {
         let backup_dir = tempfile::tempdir().unwrap();
 
@@ -953,7 +953,7 @@ mod tests {
     const S_EM_SETUPCODE: &str = "1742-0185-6197-1303-7016-8412-3581-4441-0597";
     const S_EM_SETUPFILE: &str = include_str!("../test-data/message/stress.txt");
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_split_and_decrypt() {
         let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();
         let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
@@ -976,7 +976,7 @@ mod tests {
         assert!(headers.get(HEADER_SETUPCODE).is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_key_transfer() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

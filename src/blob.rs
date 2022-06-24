@@ -370,108 +370,81 @@ impl<'a> BlobObject<'a> {
         mut img_wh: u32,
         max_bytes: Option<usize>,
     ) -> Result<Option<String>> {
-        let mut img = image::open(&blob_abs).context("image recode failure")?;
-        let orientation = self.get_exif_orientation(context);
-        let mut encoded = Vec::new();
-        let mut changed_name = None;
+        tokio::task::block_in_place(move || {
+            let mut img = image::open(&blob_abs).context("image recode failure")?;
+            let orientation = self.get_exif_orientation(context);
+            let mut encoded = Vec::new();
+            let mut changed_name = None;
 
-        fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
-            encoded.clear();
-            let mut buf = Cursor::new(encoded);
-            img.write_to(&mut buf, image::ImageFormat::Jpeg)?;
-            Ok(())
-        }
-        fn encoded_img_exceeds_bytes(
-            context: &Context,
-            img: &DynamicImage,
-            max_bytes: Option<usize>,
-            encoded: &mut Vec<u8>,
-        ) -> anyhow::Result<bool> {
-            if let Some(max_bytes) = max_bytes {
-                encode_img(img, encoded)?;
-                if encoded.len() > max_bytes {
-                    info!(
-                        context,
-                        "image size {}B ({}x{}px) exceeds {}B, need to scale down",
-                        encoded.len(),
-                        img.width(),
-                        img.height(),
-                        max_bytes,
-                    );
-                    return Ok(true);
-                }
-            }
-            Ok(false)
-        }
-        let exceeds_width = img.width() > img_wh || img.height() > img_wh;
+            let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
-        let do_scale =
-            exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
-        let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
+            let do_scale =
+                exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
+            let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
-        if do_scale || do_rotate {
-            if do_rotate {
-                img = match orientation {
-                    Ok(90) => img.rotate90(),
-                    Ok(180) => img.rotate180(),
-                    Ok(270) => img.rotate270(),
-                    _ => img,
-                }
-            }
-
-            if do_scale {
-                if !exceeds_width {
-                    // The image is already smaller than img_wh, but exceeds max_bytes
-                    // We can directly start with trying to scale down to 2/3 of its current width
-                    img_wh = max(img.width(), img.height()) * 2 / 3
-                }
-
-                loop {
-                    let new_img = img.thumbnail(img_wh, img_wh);
-
-                    if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
-                        if img_wh < 20 {
-                            return Err(format_err!(
-                                "Failed to scale image to below {}B",
-                                max_bytes.unwrap_or_default()
-                            ));
-                        }
-
-                        img_wh = img_wh * 2 / 3;
-                    } else {
-                        if encoded.is_empty() {
-                            encode_img(&new_img, &mut encoded)?;
-                        }
-
-                        info!(
-                            context,
-                            "Final scaled-down image size: {}B ({}px)",
-                            encoded.len(),
-                            img_wh
-                        );
-                        break;
+            if do_scale || do_rotate {
+                if do_rotate {
+                    img = match orientation {
+                        Ok(90) => img.rotate90(),
+                        Ok(180) => img.rotate180(),
+                        Ok(270) => img.rotate270(),
+                        _ => img,
                     }
                 }
+
+                if do_scale {
+                    if !exceeds_width {
+                        // The image is already smaller than img_wh, but exceeds max_bytes
+                        // We can directly start with trying to scale down to 2/3 of its current width
+                        img_wh = max(img.width(), img.height()) * 2 / 3
+                    }
+
+                    loop {
+                        let new_img = img.thumbnail(img_wh, img_wh);
+
+                        if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                            if img_wh < 20 {
+                                return Err(format_err!(
+                                    "Failed to scale image to below {}B",
+                                    max_bytes.unwrap_or_default()
+                                ));
+                            }
+
+                            img_wh = img_wh * 2 / 3;
+                        } else {
+                            if encoded.is_empty() {
+                                encode_img(&new_img, &mut encoded)?;
+                            }
+
+                            info!(
+                                context,
+                                "Final scaled-down image size: {}B ({}px)",
+                                encoded.len(),
+                                img_wh
+                            );
+                            break;
+                        }
+                    }
+                }
+
+                // The file format is JPEG now, we may have to change the file extension
+                if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
+                    blob_abs = blob_abs.with_extension("jpg");
+                    let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
+                    let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
+                    changed_name = Some(format!("$BLOBDIR/{}", file_name));
+                }
+
+                if encoded.is_empty() {
+                    encode_img(&img, &mut encoded)?;
+                }
+
+                std::fs::write(&blob_abs, &encoded)
+                    .context("failed to write recoded blob to file")?;
             }
 
-            // The file format is JPEG now, we may have to change the file extension
-            if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
-                blob_abs = blob_abs.with_extension("jpg");
-                let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
-                let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
-                changed_name = Some(format!("$BLOBDIR/{}", file_name));
-            }
-
-            if encoded.is_empty() {
-                encode_img(&img, &mut encoded)?;
-            }
-
-            fs::write(&blob_abs, &encoded)
-                .await
-                .context("failed to write recoded blob to file")?;
-        }
-
-        Ok(changed_name)
+            Ok(changed_name)
+        })
     }
 
     pub fn get_exif_orientation(&self, context: &Context) -> Result<i32, Error> {
@@ -499,6 +472,35 @@ impl<'a> fmt::Display for BlobObject<'a> {
     }
 }
 
+fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
+    encoded.clear();
+    let mut buf = Cursor::new(encoded);
+    img.write_to(&mut buf, image::ImageFormat::Jpeg)?;
+    Ok(())
+}
+fn encoded_img_exceeds_bytes(
+    context: &Context,
+    img: &DynamicImage,
+    max_bytes: Option<usize>,
+    encoded: &mut Vec<u8>,
+) -> anyhow::Result<bool> {
+    if let Some(max_bytes) = max_bytes {
+        encode_img(img, encoded)?;
+        if encoded.len() > max_bytes {
+            info!(
+                context,
+                "image size {}B ({}x{}px) exceeds {}B, need to scale down",
+                encoded.len(),
+                img.width(),
+                img.height(),
+                max_bytes,
+            );
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use fs::File;
@@ -512,7 +514,7 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
@@ -523,28 +525,28 @@ mod tests {
         assert_eq!(blob.to_abs_path(), t.get_blobdir().join("foo"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
         assert_eq!(blob.as_name(), "$BLOBDIR/foo.txt");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_file_name() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_file_name(), "foo.txt");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert_eq!(blob.as_rel_path(), Path::new("foo.txt"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_suffix() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
@@ -553,7 +555,7 @@ mod tests {
         assert_eq!(blob.suffix(), None);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_dup() {
         let t = TestContext::new().await;
         BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
@@ -573,7 +575,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_double_ext_preserved() {
         let t = TestContext::new().await;
         BlobObject::create(&t, "foo.tar.gz", b"hello")
@@ -598,7 +600,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_long_names() {
         let t = TestContext::new().await;
         let s = "1".repeat(150);
@@ -607,7 +609,7 @@ mod tests {
         assert!(blobname.len() < 128);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_and_copy() {
         let t = TestContext::new().await;
         let src = t.dir.path().join("src");
@@ -625,7 +627,7 @@ mod tests {
         assert!(!whoops.exists());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_from_path() {
         let t = TestContext::new().await;
 
@@ -645,7 +647,7 @@ mod tests {
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
     }
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_from_name_long() {
         let t = TestContext::new().await;
         let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
@@ -708,7 +710,7 @@ mod tests {
         assert!(!stem.contains('?'));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_outside_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
@@ -725,7 +727,7 @@ mod tests {
             .await
             .unwrap();
         assert!(avatar_blob.exists());
-        assert!(std::fs::metadata(&avatar_blob).unwrap().len() < avatar_bytes.len() as u64);
+        assert!(tokio::fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
@@ -754,7 +756,7 @@ mod tests {
         assert_eq!(img.width(), img.height());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.get_blobdir().join("avatar.png");
@@ -783,7 +785,7 @@ mod tests {
         assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_copy_without_recode() {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.png");
@@ -801,14 +803,14 @@ mod tests {
             .unwrap();
         assert!(avatar_blob.exists());
         assert_eq!(
-            std::fs::metadata(&avatar_blob).unwrap().len(),
+            tokio::fs::metadata(&avatar_blob).await.unwrap().len(),
             avatar_bytes.len() as u64
         );
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
@@ -828,7 +830,7 @@ mod tests {
         .unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_2() {
         // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
@@ -885,7 +887,7 @@ mod tests {
         join_handle.await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_3() {
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
@@ -933,7 +935,9 @@ mod tests {
             .await?;
         let file = alice.get_blobdir().join("file.jpg");
 
-        File::create(&file).await?.write_all(bytes).await?;
+        fs::write(&file, &bytes)
+            .await
+            .context("failed to write file")?;
         let img = image::open(&file)?;
         assert_eq!(img.width(), original_width);
         assert_eq!(img.height(), original_height);
@@ -966,7 +970,7 @@ mod tests {
         Ok(img)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_increation_in_blobdir() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
@@ -985,7 +989,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_increation_not_blobdir() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;

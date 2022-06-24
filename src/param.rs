@@ -486,7 +486,7 @@ mod tests {
         assert_eq!(params.to_string().parse::<Params>().unwrap(), params);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_file_fs_path() {
         let t = TestContext::new().await;
         if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t, "/foo/bar/baz").unwrap() {
@@ -496,7 +496,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_file_blob() {
         let t = TestContext::new().await;
         if let ParamsFile::Blob(b) = ParamsFile::from_param(&t, "$BLOBDIR/foo").unwrap() {
@@ -507,7 +507,7 @@ mod tests {
     }
 
     // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_get_fileparam() {
         let t = TestContext::new().await;
         let fname = t.dir.path().join("foo");
@@ -539,7 +539,7 @@ mod tests {
         assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_unknown_key() -> Result<()> {
         // 'Z' is used as a key that is known to be unused; these keys should be ignored silently by definition.
         let p = Params::from_str("w=12\nZ=13\nh=14")?;

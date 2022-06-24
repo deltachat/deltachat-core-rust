@@ -99,7 +99,7 @@ impl PlainText {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html() {
         let html = PlainText {
             text: r##"line 1
@@ -127,7 +127,7 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_encapsulated() {
         let html = PlainText {
             text: r#"line with <http://encapsulated.link/?foo=_bar> here!"#.to_string(),
@@ -146,7 +146,7 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_nolink() {
         let html = PlainText {
             text: r#"line with nohttp://no.link here"#.to_string(),
@@ -165,7 +165,7 @@ line with nohttp://no.link here<br/>
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_mailto() {
         let html = PlainText {
             text: r#"just an address: foo@bar.org another@one.de"#.to_string(),
@@ -184,7 +184,7 @@ just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:an
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_flowed() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
@@ -206,7 +206,7 @@ line still line<br/>
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_flowed_delsp() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
@@ -228,7 +228,7 @@ linestill line<br/>
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_plain_to_html_fixed() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),

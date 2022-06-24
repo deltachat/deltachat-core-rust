@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(hop_info, expected)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_receive_headers_integration() {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let expected = r"State: Fresh
@@ -873,7 +873,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_file_handling() {
         let t = TestContext::new().await;
         let context = &t;
@@ -915,7 +915,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert!(!dc_file_exist!(context, &fn0));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_smeared_timestamp() {
         let t = TestContext::new().await;
         assert_ne!(
@@ -931,7 +931,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_smeared_timestamps() {
         let t = TestContext::new().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
@@ -1001,7 +1001,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_maybe_warn_on_bad_time() {
         let t = TestContext::new().await;
         let timestamp_now = time();
@@ -1064,7 +1064,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert_eq!(msgs.len(), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_maybe_warn_on_outdated() {
         let t = TestContext::new().await;
         let timestamp_now: i64 = time();

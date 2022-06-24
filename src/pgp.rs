@@ -489,7 +489,7 @@ mod tests {
         assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_singed() {
         // Check decrypting as Alice
         let mut decrypt_keyring: Keyring<SignedSecretKey> = Keyring::new();
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_no_sig_check() {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
@@ -535,7 +535,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_signed_no_key() {
         // The validation does not have the public key of the signer.
         let mut decrypt_keyring = Keyring::new();
@@ -553,7 +553,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_unsigned() {
         let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());

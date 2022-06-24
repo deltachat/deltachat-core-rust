@@ -85,7 +85,7 @@ pub struct Provider {
 
 /// Get resolver to query MX records.
 ///
-/// We first try reads the system's resolver from `/etc/resolv.conf`.
+/// We first try to read the system's resolver from `/etc/resolv.conf`.
 /// This does not work at least on some Androids, therefore we fallback
 /// to the default `ResolverConfig` which uses eg. to google's `8.8.8.8` or `8.8.4.4`.
 fn get_resolver() -> Result<TokioAsyncResolver> {
@@ -241,7 +241,7 @@ mod tests {
         assert!(provider.id == "gmail");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_provider_info() {
         let t = TestContext::new().await;
         assert!(get_provider_info(&t, "", false).await.is_none());

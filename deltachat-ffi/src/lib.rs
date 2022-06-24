@@ -24,6 +24,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::Context as _;
 use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use num_traits::{FromPrimitive, ToPrimitive};
+use once_cell::sync::Lazy;
 use rand::Rng;
 use tokio::runtime::Runtime;
 use tokio::sync::RwLock;
@@ -63,9 +64,7 @@ use deltachat::chatlist::Chatlist;
 /// Struct representing the deltachat context.
 pub type dc_context_t = Context;
 
-lazy_static::lazy_static! {
-    static ref RT: Runtime = Runtime::new().expect("unable to create tokio runtime");
-}
+static RT: Lazy<Runtime> = Lazy::new(|| Runtime::new().expect("unable to create tokio runtime"));
 
 fn block_on<T>(fut: T) -> T::Output
 where
@@ -4429,17 +4428,12 @@ pub unsafe extern "C" fn dc_accounts_event_emitter_unref(
 pub unsafe extern "C" fn dc_accounts_get_next_event(
     emitter: *mut dc_accounts_event_emitter_t,
 ) -> *mut dc_event_t {
-    let _guard = RT.enter();
     if emitter.is_null() {
         eprintln!("ignoring careless call to dc_accounts_get_next_event()");
         return ptr::null_mut();
     }
     let emitter = &mut *emitter;
-    block_on(async move {
-        emitter
-            .recv()
-            .await
-            .map(|ev| Box::into_raw(Box::new(ev)))
-            .unwrap_or_else(ptr::null_mut)
-    })
+    block_on(emitter.recv())
+        .map(|ev| Box::into_raw(Box::new(ev)))
+        .unwrap_or_else(ptr::null_mut)
 }

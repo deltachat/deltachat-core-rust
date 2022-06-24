@@ -447,7 +447,7 @@ impl AccountConfig {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_open() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts1");
@@ -465,7 +465,7 @@ mod tests {
         assert_eq!(accounts1.accounts.len(), accounts2.accounts.len());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_add_remove() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
@@ -492,7 +492,7 @@ mod tests {
         assert_eq!(accounts.accounts.len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_remove_last() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let p: PathBuf = dir.path().join("accounts");
@@ -513,7 +513,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_migrate_account() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
@@ -550,7 +550,7 @@ mod tests {
     }
 
     /// Tests that accounts are sorted by ID.
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_sorted() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
@@ -568,7 +568,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_ids_unique_increasing_and_persisted() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let p: PathBuf = dir.path().join("accounts");
@@ -650,7 +650,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_no_accounts_event_emitter() -> Result<()> {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
@@ -676,7 +676,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_encrypted_account() -> Result<()> {
         let dir = tempfile::tempdir().context("failed to create tempdir")?;
         let p: PathBuf = dir.path().join("accounts");

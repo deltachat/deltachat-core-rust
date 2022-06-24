@@ -565,7 +565,7 @@ mod tests {
     use crate::test_utils::{alice_keypair, TestContext};
     use anyhow::Result;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_http() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -580,7 +580,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_https() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -595,7 +595,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_text() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -610,7 +610,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_vcard() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -632,7 +632,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_matmsg() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -652,7 +652,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_mailto() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -682,7 +682,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_smtp() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -698,7 +698,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_openpgp_group() -> Result<()> {
         let ctx = TestContext::new().await;
         let qr = check_qr(
@@ -741,7 +741,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_openpgp_secure_join() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -788,7 +788,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_openpgp_fingerprint() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -850,7 +850,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_openpgp_without_addr() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -886,7 +886,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_withdraw_verifycontact() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let qr = dc_get_securejoin_qr(&alice, None).await?;
@@ -920,7 +920,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_withdraw_verifygroup() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
@@ -953,7 +953,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_account() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -985,7 +985,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_webrtc_instance() -> Result<()> {
         let ctx = TestContext::new().await;
 
@@ -1011,7 +1011,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_account_bad_scheme() {
         let ctx = TestContext::new().await;
         let res = check_qr(
@@ -1030,7 +1030,7 @@ mod tests {
         assert!(res.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_config_from_qr() -> Result<()> {
         let ctx = TestContext::new().await;
 

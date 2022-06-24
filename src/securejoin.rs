@@ -696,7 +696,7 @@ mod tests {
     use crate::peerstate::Peerstate;
     use crate::test_utils::{TestContext, TestContextManager};
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact() {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
@@ -903,14 +903,14 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_bad_qr() {
         let bob = TestContext::new_bob().await;
         let ret = dc_join_securejoin(&bob.ctx, "not a qr code").await;
         assert!(ret.is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_bob_knows_alice() -> Result<()> {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
@@ -1035,7 +1035,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_concurrent_calls() -> Result<()> {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
@@ -1066,7 +1066,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_secure_join() -> Result<()> {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
@@ -1290,7 +1290,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_adhoc_group_no_qr() -> Result<()> {
         let alice = TestContext::new_alice().await;
         alice.set_config(Config::ShowEmails, Some("2")).await?;

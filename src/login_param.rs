@@ -422,7 +422,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_load_login_param() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -458,7 +458,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_tls() -> Result<()> {
         // we are using some additional root certificates.
         // make sure, they do not break construction of TlsConnector

@@ -1556,7 +1556,7 @@ mod tests {
         assert_eq!(maybe_encode_words("äöü"), "=?utf-8?b?w6TDtsO8?=");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_from_mua() {
         // 1.: Receive a mail from an MUA
         assert_eq!(
@@ -1590,7 +1590,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_from_dc() {
         // 2. Receive a message from Delta Chat
         assert_eq!(
@@ -1610,7 +1610,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_outgoing() {
         // 3. Send the first message to a new contact
         let t = TestContext::new_alice().await;
@@ -1624,7 +1624,7 @@ mod tests {
         assert_eq!(first_subject_str(t).await, "Message from Alice");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_unicode() {
         // 4. Receive messages with unicode characters and make sure that we do not panic (we do not care about the result)
         msg_to_subject_str(
@@ -1656,7 +1656,7 @@ mod tests {
         .await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_mdn() {
         // 5. Receive an mdn (read receipt) and make sure the mdn's subject is not used
         let t = TestContext::new_alice().await;
@@ -1706,7 +1706,7 @@ mod tests {
         assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_in_group() -> Result<()> {
         async fn send_msg_get_subject(
             t: &TestContext,
@@ -1914,7 +1914,7 @@ mod tests {
         new_msg
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     // This test could still be extended
     async fn test_render_reply() {
         let t = TestContext::new_alice().await;
@@ -2008,7 +2008,7 @@ mod tests {
         assert!(!headers.lines().any(|l| l.trim().is_empty()));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_unencrypted() -> anyhow::Result<()> {
         // create chat with bob, set selfavatar
         let t = TestContext::new_alice().await;
@@ -2065,7 +2065,7 @@ mod tests {
     }
 
     /// Test that removed member address does not go into the `To:` field.
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_remove_member_bcc() -> Result<()> {
         // Alice creates a group with Bob and Claire and then removes Bob.
         let alice = TestContext::new_alice().await;
@@ -2096,7 +2096,7 @@ mod tests {
     }
 
     /// Tests that standard IMF header "From:" comes before non-standard "Autocrypt:" header.
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_from_before_autocrypt() -> Result<()> {
         // create chat with bob
         let t = TestContext::new_alice().await;

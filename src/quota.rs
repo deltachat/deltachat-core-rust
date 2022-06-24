@@ -180,7 +180,7 @@ mod tests {
         QUOTA_WARN_THRESHOLD_PERCENTAGE,
     };
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_needs_quota_warning() -> Result<()> {
         assert!(!needs_quota_warning(0, 0));
         assert!(!needs_quota_warning(10, 0));
@@ -199,7 +199,7 @@ mod tests {
     }
 
     #[allow(clippy::assertions_on_constants)]
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quota_thresholds() -> anyhow::Result<()> {
         assert!(QUOTA_ALLCLEAR_PERCENTAGE > 50);
         assert!(QUOTA_ALLCLEAR_PERCENTAGE < QUOTA_WARN_THRESHOLD_PERCENTAGE);

@@ -189,7 +189,7 @@ mod tests {
     use super::*;
     use crate::test_utils as test;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_summary_text() {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;

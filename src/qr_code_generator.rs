@@ -25,7 +25,7 @@ async fn generate_join_group_qr_code(context: &Context, chat_id: ChatId) -> Resu
     let avatar = match chat.get_profile_image(context).await? {
         Some(path) => {
             let avatar_blob = BlobObject::from_path(context, &path)?;
-            Some(std::fs::read(avatar_blob.to_abs_path())?)
+            Some(tokio::fs::read(avatar_blob.to_abs_path()).await?)
         }
         None => None,
     };
@@ -45,7 +45,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
     let avatar = match contact.get_profile_image(context).await? {
         Some(path) => {
             let avatar_blob = BlobObject::from_path(context, &path)?;
-            Some(std::fs::read(avatar_blob.to_abs_path())?)
+            Some(tokio::fs::read(avatar_blob.to_abs_path()).await?)
         }
         None => None,
     };
@@ -266,7 +266,7 @@ fn inner_generate_secure_join_qr_code(
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_svg_escaping() {
         let svg = inner_generate_secure_join_qr_code(
             "descr123 \" < > &",

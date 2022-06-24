@@ -2388,7 +2388,7 @@ mod tests {
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_uid_next_validity() {
         let t = TestContext::new_alice().await;
         assert_eq!(get_uid_next(&t.ctx, "Inbox").await.unwrap(), 0);
@@ -2570,7 +2570,7 @@ mod tests {
         ("Spam", true, true, "DeltaChat"),
     ];
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_incoming_accepted() -> Result<()> {
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
             check_target_folder_combination(
@@ -2587,7 +2587,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_incoming_request() -> Result<()> {
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_REQUEST {
             check_target_folder_combination(
@@ -2604,7 +2604,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_outgoing() -> Result<()> {
         // Test outgoing emails
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
@@ -2622,7 +2622,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_setupmsg() -> Result<()> {
         // Test setupmessages
         for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
@@ -2640,7 +2640,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_imap_search_command() -> Result<()> {
         let t = TestContext::new_alice().await;
         assert_eq!(

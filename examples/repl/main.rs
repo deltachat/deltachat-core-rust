@@ -18,6 +18,7 @@ use deltachat::chat::ChatId;
 use deltachat::config;
 use deltachat::context::*;
 use deltachat::oauth2::*;
+use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::securejoin::*;
 use deltachat::{EventType, Events};
 use log::{error, info, warn};
@@ -30,12 +31,11 @@ use rustyline::validate::Validator;
 use rustyline::{
     Cmd, CompletionType, Config, Context as RustyContext, EditMode, Editor, Helper, KeyEvent,
 };
+use tokio::fs;
 use tokio::runtime::Handle;
 
 mod cmdline;
 use self::cmdline::*;
-use deltachat::qr_code_generator::get_securejoin_qr_svg;
-use std::fs;
 
 /// Event Handler
 fn receive_event(event: EventType) {
@@ -446,7 +446,7 @@ async fn handle_cmd(
             let file = dirs::home_dir().unwrap_or_default().join("qr.svg");
             match get_securejoin_qr_svg(&ctx, group).await {
                 Ok(svg) => {
-                    fs::write(&file, svg)?;
+                    fs::write(&file, svg).await?;
                     println!("QR code svg written to: {:#?}", file);
                 }
                 Err(err) => {

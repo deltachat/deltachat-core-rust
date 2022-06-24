@@ -156,7 +156,7 @@ mod tests {
     use crate::test_utils::TestContext;
     use anyhow::Result;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_last_error() -> Result<()> {
         let t = TestContext::new().await;
 
