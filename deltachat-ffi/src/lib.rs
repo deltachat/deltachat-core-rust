@@ -4427,78 +4427,75 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
 }
 
 #[cfg(feature = "jsonrpc")]
-use deltachat_jsonrpc::api::CommandApi;
-#[cfg(feature = "jsonrpc")]
-use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
+mod jsonrpc {
+    use super::*;
+    use deltachat_jsonrpc::api::CommandApi;
+    use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
 
-#[cfg(feature = "jsonrpc")]
-pub struct dc_json_api_instance_t {
-    receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
-    handle: MessageHandle<CommandApi>,
-}
-
-#[cfg(feature = "jsonrpc")]
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_json_api(
-    account_manager: *mut dc_accounts_t,
-) -> *mut dc_json_api_instance_t {
-    if account_manager.is_null() {
-        eprintln!("ignoring careless call to dc_get_json_api()");
-        return ptr::null_mut();
+    pub struct dc_json_api_instance_t {
+        receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
+        handle: MessageHandle<CommandApi>,
     }
 
-    let cmd_api =
-        deltachat_jsonrpc::api::CommandApi::new_from_cffi((*account_manager).inner.clone());
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_get_json_api(
+        account_manager: *mut dc_accounts_t,
+    ) -> *mut dc_json_api_instance_t {
+        if account_manager.is_null() {
+            eprintln!("ignoring careless call to dc_get_json_api()");
+            return ptr::null_mut();
+        }
 
-    let (request_handle, receiver) = RpcHandle::new();
-    let handle = MessageHandle::new(request_handle, cmd_api);
+        let cmd_api =
+            deltachat_jsonrpc::api::CommandApi::new_from_cffi((*account_manager).inner.clone());
 
-    let instance = dc_json_api_instance_t { receiver, handle };
+        let (request_handle, receiver) = RpcHandle::new();
+        let handle = MessageHandle::new(request_handle, cmd_api);
 
-    Box::into_raw(Box::new(instance))
-}
+        let instance = dc_json_api_instance_t { receiver, handle };
 
-#[cfg(feature = "jsonrpc")]
-#[no_mangle]
-pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_instance_t) {
-    if json_api_instance.is_null() {
-        eprintln!("ignoring careless call to dc_json_api_unref()");
-        return;
+        Box::into_raw(Box::new(instance))
     }
 
-    Box::from_raw(json_api_instance);
-}
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_instance_t) {
+        if json_api_instance.is_null() {
+            eprintln!("ignoring careless call to dc_json_api_unref()");
+            return;
+        }
 
-#[cfg(feature = "jsonrpc")]
-#[no_mangle]
-pub unsafe extern "C" fn dc_json_request(
-    json_api_instance: *mut dc_json_api_instance_t,
-    request: *const libc::c_char,
-) {
-    if json_api_instance.is_null() || request.is_null() {
-        eprintln!("ignoring careless call to dc_json_request()");
-        return;
+        Box::from_raw(json_api_instance);
     }
 
-    let api = &*json_api_instance;
-    let handle = &api.handle;
-    let request = to_string_lossy(request);
-    async_std::task::spawn(async move {
-        handle.handle_message(&request).await;
-    });
-}
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_json_request(
+        json_api_instance: *mut dc_json_api_instance_t,
+        request: *const libc::c_char,
+    ) {
+        if json_api_instance.is_null() || request.is_null() {
+            eprintln!("ignoring careless call to dc_json_request()");
+            return;
+        }
 
-#[cfg(feature = "jsonrpc")]
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_next_json_response(
-    json_api_instance: *mut dc_json_api_instance_t,
-) -> *mut libc::c_char {
-    if json_api_instance.is_null() {
-        eprintln!("ignoring careless call to dc_get_next_json_response()");
-        return ptr::null_mut();
+        let api = &*json_api_instance;
+        let handle = &api.handle;
+        let request = to_string_lossy(request);
+        async_std::task::spawn(async move {
+            handle.handle_message(&request).await;
+        });
     }
-    let api = &*json_api_instance;
-    async_std::task::block_on(api.receiver.recv())
-        .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
-        .unwrap_or(ptr::null_mut())
+
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_get_next_json_response(
+        json_api_instance: *mut dc_json_api_instance_t,
+    ) -> *mut libc::c_char {
+        if json_api_instance.is_null() {
+            eprintln!("ignoring careless call to dc_get_next_json_response()");
+            return ptr::null_mut();
+        }
+        let api = &*json_api_instance;
+        async_std::task::block_on(api.receiver.recv())
+            .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
+            .unwrap_or(ptr::null_mut())
+    }
 }
