@@ -601,8 +601,8 @@ describe('Offline Tests with unconfigured account', function () {
     strictEqual(chatList.getCount(), 1, 'only one archived')
   })
 
-  it('Remove qoute from (draft) message', function () {
-    context.addDeviceMessage('test_qoute', 'test')
+  it('Remove quote from (draft) message', function () {
+    context.addDeviceMessage('test_quote', 'test')
     const msgId = context.getChatMessages(10, 0, 0)[0]
     const msg = context.messageNew()
 
