@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@deltachat/jsonrpc-client": "file:deltachat-jsonrpc/typescript",
     "debug": "^4.1.1",
     "napi-macros": "^2.0.0",
     "node-gyp-build": "^4.1.0"
