@@ -1,4 +1,5 @@
 FROM quay.io/pypa/manylinux2014_aarch64
+RUN pipx install tox
 
 # Install Rust
 ADD deps/build_rust.sh /builder/build_rust.sh
