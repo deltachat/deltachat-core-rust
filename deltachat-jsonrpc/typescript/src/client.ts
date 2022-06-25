@@ -39,11 +39,6 @@ export class BaseDeltachat<
     });
   }
 
-  async selectAccount(id: number) {
-    await this.rpc.selectAccount(id);
-    this.account = await this.rpc.getAccountInfo(id);
-  }
-
   async listAccounts(): Promise<T.Account[]> {
     return await this.rpc.getAllAccounts();
   }
