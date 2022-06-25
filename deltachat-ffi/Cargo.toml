@@ -28,7 +28,7 @@ rand = "0.7"
 once_cell = "1.12.0"
 
 [features]
-default = ["vendored", "jsonrpc"]
+default = ["vendored"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
 jsonrpc = ["deltachat-jsonrpc"]
