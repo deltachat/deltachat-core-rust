@@ -27,7 +27,7 @@ thiserror = "1"
 rand = "0.7"
 
 [features]
-default = ["vendored", "jsonrpc"]
+default = ["vendored"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
 jsonrpc = ["deltachat-jsonrpc"]
