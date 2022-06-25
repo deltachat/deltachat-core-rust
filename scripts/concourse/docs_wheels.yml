@@ -78,7 +78,7 @@ jobs:
         - name: deltachat-core-rust
       image_resource:
         source:
-          repository: vito/oci-build-task
+          repository: concourse/oci-build-task
         type: registry-image
       outputs:
         - name: coredeps-image
@@ -177,7 +177,7 @@ jobs:
         - name: deltachat-core-rust
       image_resource:
         source:
-          repository: vito/oci-build-task
+          repository: concourse/oci-build-task
         type: registry-image
       outputs:
         - name: coredeps-image
