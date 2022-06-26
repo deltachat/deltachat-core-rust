@@ -221,8 +221,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     assert_folders_configured(ac1)
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
-    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
-    ac1_clone.set_config("fetch_existing_msgs", "1")
+    ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1, fetch_existing_msgs=True)
     acfactory.wait_configured(ac1_clone)
     ac1_clone.start_io()
     assert_folders_configured(ac1_clone)
