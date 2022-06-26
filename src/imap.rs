@@ -2378,6 +2378,9 @@ async fn add_all_recipients_as_contacts(
     }
     if any_modified {
         context.emit_event(EventType::ContactsChanged(None));
+        info!(context, "Collected some contacts from folder {}", mailbox);
+    } else {
+        info!(context, "Collected no contacts from folder {}", mailbox);
     }
     Ok(())
 }
