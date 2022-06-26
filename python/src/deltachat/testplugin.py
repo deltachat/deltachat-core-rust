@@ -497,6 +497,8 @@ class ACFactory:
             configdict = dict(
                 addr=cloned_from.get_config("addr"),
                 mail_pw=cloned_from.get_config("mail_pw"),
+                imap_certificate_checks=cloned_from.get_config("imap_certificate_checks"),
+                smtp_certificate_checks=cloned_from.get_config("smtp_certificate_checks"),
             )
         configdict.update(kwargs)
         ac = self._get_cached_account(addr=configdict["addr"]) if cache else None
