@@ -228,14 +228,26 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     assert_folders_configured(ac1_clone)
 
     lp.sec("check that ac2 contact was fetchted during configure")
+    for ev in ac1_clone._evtracker.iter_events():
+        if ev.name == "DC_EVENT_INFO" and "Started fetching existing contacts." in ev.data2:
+            break
     ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
     ac2_addr = ac2.get_config("addr")
     assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())
+    for ev in ac1_clone._evtracker.iter_events():
+        if ev.name == "DC_EVENT_INFO" and "Done fetching existing contacts." in ev.data2:
+            break
     assert_folders_configured(ac1_clone)
 
     lp.sec("check that messages changed events arrive for the correct message")
+    for ev in ac1_clone._evtracker.iter_events():
+        if ev.name == "DC_EVENT_INFO" and "Started fetching existing messages." in ev.data2:
+            break
     msg = ac1_clone._evtracker.wait_next_messages_changed()
     assert msg.text == "message text"
+    for ev in ac1_clone._evtracker.iter_events():
+        if ev.name == "DC_EVENT_INFO" and "Done fetching existing messages." in ev.data2:
+            break
     assert_folders_configured(ac1)
     assert_folders_configured(ac1_clone)
 

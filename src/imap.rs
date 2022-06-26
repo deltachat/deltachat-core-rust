@@ -919,11 +919,14 @@ impl Imap {
         }
         self.prepare(context).await.context("could not connect")?;
 
+        info!(context, "Started fetching existing contacts.");
         add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder).await?;
         add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder).await?;
         add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder).await?;
+        info!(context, "Done fetching existing contacts.");
 
         if context.get_config_bool(Config::FetchExistingMsgs).await? {
+            info!(context, "Started fetching existing messages.");
             for config in &[
                 Config::ConfiguredMvboxFolder,
                 Config::ConfiguredInboxFolder,
@@ -935,9 +938,11 @@ impl Imap {
                         .context("could not fetch messages")?;
                 }
             }
+            info!(context, "Done fetching existing messages.");
+        } else {
+            info!(context, "Not fetching existing messages.");
         }
 
-        info!(context, "Done fetching existing messages.");
         context
             .set_config_bool(Config::FetchedExistingMsgs, true)
             .await?;
