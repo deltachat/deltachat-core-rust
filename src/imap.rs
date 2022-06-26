@@ -919,9 +919,9 @@ impl Imap {
         }
         self.prepare(context).await.context("could not connect")?;
 
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder).await;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder).await;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder).await;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder).await?;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder).await?;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder).await?;
 
         if context.get_config_bool(Config::FetchExistingMsgs).await? {
             for config in &[
@@ -2334,49 +2334,47 @@ impl std::fmt::Display for UidRange {
         }
     }
 }
-async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
-    let mailbox = if let Ok(Some(m)) = context.get_config(folder).await {
+
+async fn add_all_recipients_as_contacts(
+    context: &Context,
+    imap: &mut Imap,
+    folder: Config,
+) -> Result<()> {
+    let mailbox = if let Some(m) = context.get_config(folder).await? {
         m
     } else {
-        return;
+        return Ok(());
     };
-    if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
-        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-        warn!(context, "Could not select {}: {:#}", mailbox, e);
-        return;
-    }
-    match imap.get_all_recipients(context).await {
-        Ok(contacts) => {
-            let mut any_modified = false;
-            for contact in contacts {
-                let display_name_normalized = contact
-                    .display_name
-                    .as_ref()
-                    .map(|s| normalize_name(s))
-                    .unwrap_or_default();
+    imap.select_with_uidvalidity(context, &mailbox).await?;
+    let contacts = imap
+        .get_all_recipients(context)
+        .await
+        .context("could not get recipients")?;
 
-                match Contact::add_or_lookup(
-                    context,
-                    &display_name_normalized,
-                    &contact.addr,
-                    Origin::OutgoingTo,
-                )
-                .await
-                {
-                    Ok((_, modified)) => {
-                        if modified != Modifier::None {
-                            any_modified = true;
-                        }
-                    }
-                    Err(e) => warn!(context, "Could not add recipient: {}", e),
-                }
-            }
-            if any_modified {
-                context.emit_event(EventType::ContactsChanged(None));
-            }
+    let mut any_modified = false;
+    for contact in contacts {
+        let display_name_normalized = contact
+            .display_name
+            .as_ref()
+            .map(|s| normalize_name(s))
+            .unwrap_or_default();
+
+        let (_, modified) = Contact::add_or_lookup(
+            context,
+            &display_name_normalized,
+            &contact.addr,
+            Origin::OutgoingTo,
+        )
+        .await
+        .context("could not add recipient")?;
+        if modified != Modifier::None {
+            any_modified = true;
         }
-        Err(e) => warn!(context, "Could not add recipients: {}", e),
-    };
+    }
+    if any_modified {
+        context.emit_event(EventType::ContactsChanged(None));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
