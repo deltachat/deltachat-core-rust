@@ -5,6 +5,7 @@ import pytest
 
 
 class TestGroupStressTests:
+    @pytest.mark.flaky(reruns=2)
     def test_group_many_members_add_leave_remove(self, acfactory, lp):
         accounts = acfactory.get_online_accounts(5)
         acfactory.introduce_each_other(accounts)
