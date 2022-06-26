@@ -1,4 +1,5 @@
 import sys
+import time
 
 import pytest
 
@@ -219,6 +220,8 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
         lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
         assert idle1.wait_for_seen()
     assert_folders_configured(ac1)
+
+    time.sleep(30)  # Wait until the message is indexed.
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
     ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1, fetch_existing_msgs=True)
