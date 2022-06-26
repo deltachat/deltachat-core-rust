@@ -150,6 +150,18 @@ class TestProcess:
         self._addr2files = {}
         self._configlist = []
 
+    def request_liveconfig_via_url(self, url):
+        for retry in range(5):
+            res = requests.post(url)
+            if res.status_code == 200:
+                d = res.json()
+                config = dict(addr=d["email"], mail_pw=d["password"])
+                return config
+            else:
+                print("Error requesting new temporary account (code={}): {}".format(res.status_code, res.text))
+                time.sleep(5)
+        return None
+
     def get_liveconfig_producer(self):
         """provide live account configs, cached on a per-test-process scope
         so that test functions can re-use already known live configs.
@@ -176,11 +188,9 @@ class TestProcess:
                 try:
                     yield self._configlist[index]
                 except IndexError:
-                    res = requests.post(liveconfig_opt)
-                    if res.status_code != 200:
-                        pytest.fail("newtmpuser count={} code={}: '{}'".format(index, res.status_code, res.text))
-                    d = res.json()
-                    config = dict(addr=d["email"], mail_pw=d["password"])
+                    config = self.request_liveconfig_via_url(liveconfig_opt)
+                    if config is None:
+                        pytest.fail("Failed to request temporary account count={}".format(index))
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     self._configlist.append(config)
                     yield config
