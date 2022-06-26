@@ -496,14 +496,22 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
     }
 }
 
-/// Tries to send all messages currently in `smtp` and `smtp_mdns` tables.
+/// Tries to send all messages currently in `smtp`, `smtp_status_updates` and `smtp_mdns` tables.
 ///
 /// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
 /// does not block other messages in the queue from being sent.
 ///
 /// Returns true if sending was ratelimited, false otherwise. Errors are propagated to the caller.
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
-    context.send_sync_msg().await?; // Add sync message to the end of the queue if needed.
+    let mut ratelimited = if context.ratelimit.read().await.can_send() {
+        // add status updates and sync messages to end of sending queue
+        context.flush_status_updates().await?;
+        context.send_sync_msg().await?;
+        false
+    } else {
+        true
+    };
+
     let rowids = context
         .sql
         .query_map(
@@ -526,9 +534,15 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             .context("failed to send message")?;
     }
 
-    let ratelimited = send_mdns(context, connection)
-        .await
-        .context("failed to send MDNs")?;
+    // although by slow sending, ratelimit may have been expired meanwhile,
+    // do not attempt to send MDNs if ratelimited happend before on status-updates/sync:
+    // instead, let the caller recall this function so that more important status-updates/sync are sent out.
+    if !ratelimited {
+        ratelimited = send_mdns(context, connection)
+            .await
+            .context("failed to send MDNs")?;
+    }
+
     Ok(ratelimited)
 }
 
