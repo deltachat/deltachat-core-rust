@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Changes
+
+### Fixes
+
+
+## 1.87.0
+
+### Changes
 - limit the rate of MDN sending #3402
 - ignore ratelimits for bots #3439
 - remove `msgs_mdns` references to deleted messages during housekeeping #3387
@@ -24,6 +31,7 @@
 - python: added `Message.is_webxdc()`  #3416
 - python: added `Message.is_videochat_invitation()`  #3416
 - python: added support for "videochat" and "webxdc" view types to `Message.new_empty()`  #3416
+
 
 ## 1.86.0
 

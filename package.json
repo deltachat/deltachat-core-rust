@@ -60,5 +60,5 @@
     "test:mocha": "mocha -r esm node/test/test.js --growl --reporter=spec --bail"
   },
   "types": "node/dist/index.d.ts",
-  "version": "1.86.0"
+  "version": "1.87.0"
 }
