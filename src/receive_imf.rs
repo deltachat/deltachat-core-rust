@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact;
 use crate::contact::{
-    may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
+    may_be_valid_addr, normalize_name, Contact, ContactId, Modifier, Origin, VerifiedStatus,
 };
 use crate::context::Context;
 use crate::download::DownloadState;
@@ -2210,8 +2210,14 @@ async fn add_or_lookup_contact_by_addr(
     }
     let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
-    let (row_id, _modified) =
+    let (row_id, modified) =
         Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
+    match modified {
+        Modifier::None => {}
+        Modifier::Modified | Modifier::Created => {
+            context.emit_event(EventType::ContactsChanged(Some(row_id)))
+        }
+    }
     Ok(row_id)
 }
 
