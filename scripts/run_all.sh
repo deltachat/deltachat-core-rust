@@ -4,6 +4,10 @@
 
 set -e -x
 
+pipx install tox
+
+scripts/install-rust.sh
+
 # Perform clean build of core and install.
 
 # compile core lib

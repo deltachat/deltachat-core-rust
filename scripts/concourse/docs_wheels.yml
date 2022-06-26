@@ -86,6 +86,7 @@ jobs:
       params:
         CONTEXT: deltachat-core-rust/scripts/docker-coredeps
         UNPACK_ROOTFS: "true"
+        BUILD_ARG_BASEIMAGE: quay.io/pypa/manylinux2014_x86_64
       platform: linux
       caches:
       - path: cache
@@ -185,6 +186,7 @@ jobs:
       params:
         CONTEXT: deltachat-core-rust/scripts/docker-coredeps-arm64
         UNPACK_ROOTFS: "true"
+        BUILD_ARG_BASEIMAGE: quay.io/pypa/manylinux2014_aarch64
       platform: linux
       caches:
       - path: cache
