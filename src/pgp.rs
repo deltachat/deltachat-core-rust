@@ -15,6 +15,7 @@ use pgp::types::{
     CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
 };
 use rand::{thread_rng, CryptoRng, Rng};
+use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::dc_tools::EmailAddress;
@@ -224,32 +225,33 @@ pub async fn pk_encrypt(
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
-    async_std::task::spawn_blocking(move || {
-        let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
-            .keys()
-            .iter()
-            .filter_map(select_pk_for_encryption)
-            .collect();
-        let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
+    Handle::current()
+        .spawn_blocking(move || {
+            let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
+                .keys()
+                .iter()
+                .filter_map(select_pk_for_encryption)
+                .collect();
+            let pkeys_refs: Vec<&SignedPublicKeyOrSubkey> = pkeys.iter().collect();
 
-        let mut rng = thread_rng();
+            let mut rng = thread_rng();
 
-        // TODO: measure time
-        let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-            lit_msg
-                .sign(skey, || "".into(), Default::default())
-                .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-                .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
-        } else {
-            lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
-        };
+            // TODO: measure time
+            let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
+                lit_msg
+                    .sign(skey, || "".into(), Default::default())
+                    .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
+                    .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
+            } else {
+                lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
+            };
 
-        let msg = encrypted_msg?;
-        let encoded_msg = msg.to_armored_string(None)?;
+            let msg = encrypted_msg?;
+            let encoded_msg = msg.to_armored_string(None)?;
 
-        Ok(encoded_msg)
-    })
-    .await
+            Ok(encoded_msg)
+        })
+        .await?
 }
 
 /// Decrypts the message with keys from the private key keyring.
@@ -268,7 +270,7 @@ pub async fn pk_decrypt(
 ) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
     let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
 
-    let msgs = async_std::task::spawn_blocking(move || {
+    let msgs = tokio::task::spawn_blocking(move || {
         let cursor = Cursor::new(ctext);
         let (msg, _) = Message::from_armor_single(cursor)?;
 
@@ -277,7 +279,7 @@ pub async fn pk_decrypt(
         let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
         decryptor.collect::<pgp::errors::Result<Vec<_>>>()
     })
-    .await?;
+    .await??;
 
     if let Some(msg) = msgs.into_iter().next() {
         // get_content() will decompress the message if needed,
@@ -342,7 +344,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
-    async_std::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
@@ -352,7 +354,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
 
         Ok(encoded_msg)
     })
-    .await
+    .await?
 }
 
 /// Symmetric decryption.
@@ -363,7 +365,7 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
 
     let passphrase = passphrase.to_string();
-    async_std::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
 
         let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
@@ -376,7 +378,7 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
             bail!("No valid messages found")
         }
     })
-    .await
+    .await?
 }
 
 #[cfg(test)]
@@ -487,7 +489,7 @@ mod tests {
         assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_singed() {
         // Check decrypting as Alice
         let mut decrypt_keyring: Keyring<SignedSecretKey> = Keyring::new();
@@ -520,7 +522,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_no_sig_check() {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
@@ -533,7 +535,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_signed_no_key() {
         // The validation does not have the public key of the signer.
         let mut decrypt_keyring = Keyring::new();
@@ -551,7 +553,7 @@ mod tests {
         assert_eq!(valid_signatures.len(), 0);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_unsigned() {
         let mut decrypt_keyring = Keyring::new();
         decrypt_keyring.add(KEYS.bob_secret.clone());

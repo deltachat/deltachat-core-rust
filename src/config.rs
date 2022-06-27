@@ -454,7 +454,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_media_quality_config_option() {
         let t = TestContext::new().await;
         let media_quality = t.get_config_int(Config::MediaQuality).await.unwrap();
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(media_quality, constants::MediaQuality::Worse);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_ui_config() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -493,7 +493,7 @@ mod tests {
     }
 
     /// Regression test for https://github.com/deltachat/deltachat-core-rust/issues/3012
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_config_bool() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -505,7 +505,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_self_addrs() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
@@ -558,7 +558,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_change_primary_self_addr() -> Result<()> {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;

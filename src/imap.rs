@@ -11,11 +11,11 @@ use std::{
 };
 
 use anyhow::{bail, format_err, Context as _, Result};
+use async_channel::Receiver;
 use async_imap::types::{
     Fetch, Flag, Mailbox, Name, NameAttribute, Quota, QuotaRoot, UnsolicitedResponse,
 };
-use async_std::channel::Receiver;
-use async_std::prelude::*;
+use futures::StreamExt;
 use num_traits::FromPrimitive;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
@@ -1922,7 +1922,7 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     for attr in folder_name.attributes() {
-        if let NameAttribute::Custom(ref label) = attr {
+        if let NameAttribute::Extension(ref label) = attr {
             match label.as_ref() {
                 "\\Trash" => return FolderMeaning::Other,
                 "\\Sent" => return FolderMeaning::Sent,
@@ -2388,7 +2388,7 @@ mod tests {
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_uid_next_validity() {
         let t = TestContext::new_alice().await;
         assert_eq!(get_uid_next(&t.ctx, "Inbox").await.unwrap(), 0);
@@ -2570,7 +2570,7 @@ mod tests {
         ("Spam", true, true, "DeltaChat"),
     ];
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_incoming_accepted() -> Result<()> {
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
             check_target_folder_combination(
@@ -2587,7 +2587,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_incoming_request() -> Result<()> {
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_REQUEST {
             check_target_folder_combination(
@@ -2604,7 +2604,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_outgoing() -> Result<()> {
         // Test outgoing emails
         for (folder, mvbox_move, chat_msg, expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
@@ -2622,7 +2622,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_target_folder_setupmsg() -> Result<()> {
         // Test setupmessages
         for (folder, mvbox_move, chat_msg, _expected_destination) in COMBINATIONS_ACCEPTED_CHAT {
@@ -2640,7 +2640,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_imap_search_command() -> Result<()> {
         let t = TestContext::new_alice().await;
         assert_eq!(

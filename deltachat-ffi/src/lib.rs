@@ -15,17 +15,19 @@ extern crate human_panic;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Write;
+use std::future::Future;
 use std::ops::Deref;
 use std::ptr;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
-use async_std::sync::RwLock;
-use async_std::task::{block_on, spawn};
 use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use num_traits::{FromPrimitive, ToPrimitive};
+use once_cell::sync::Lazy;
 use rand::Rng;
+use tokio::runtime::Runtime;
+use tokio::sync::RwLock;
 
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
@@ -38,6 +40,7 @@ use deltachat::stock_str::StockMessage;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
+use tokio::task::JoinHandle;
 
 mod dc_array;
 mod lot;
@@ -61,6 +64,23 @@ use deltachat::chatlist::Chatlist;
 /// Struct representing the deltachat context.
 pub type dc_context_t = Context;
 
+static RT: Lazy<Runtime> = Lazy::new(|| Runtime::new().expect("unable to create tokio runtime"));
+
+fn block_on<T>(fut: T) -> T::Output
+where
+    T: Future,
+{
+    RT.block_on(fut)
+}
+
+fn spawn<T>(fut: T) -> JoinHandle<T::Output>
+where
+    T: Future + Send + 'static,
+    T::Output: Send + 'static,
+{
+    RT.spawn(fut)
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_new(
     _os_name: *const libc::c_char,
@@ -77,11 +97,7 @@ pub unsafe extern "C" fn dc_context_new(
     let ctx = if blobdir.is_null() || *blobdir == 0 {
         // generate random ID as this functionality is not yet available on the C-api.
         let id = rand::thread_rng().gen();
-        block_on(Context::new(
-            as_path(dbfile).to_path_buf().into(),
-            id,
-            Events::new(),
-        ))
+        block_on(Context::new(as_path(dbfile), id, Events::new()))
     } else {
         eprintln!("blobdir can not be defined explicitly anymore");
         return ptr::null_mut();
@@ -105,11 +121,7 @@ pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *
     }
 
     let id = rand::thread_rng().gen();
-    match block_on(Context::new_closed(
-        as_path(dbfile).to_path_buf().into(),
-        id,
-        Events::new(),
-    )) {
+    match block_on(Context::new_closed(as_path(dbfile), id, Events::new())) {
         Ok(context) => Box::into_raw(Box::new(context)),
         Err(err) => {
             eprintln!("failed to create context: {:#}", err);
@@ -681,10 +693,13 @@ pub unsafe extern "C" fn dc_get_next_event(events: *mut dc_event_emitter_t) -> *
     }
     let events = &*events;
 
-    events
-        .recv_sync()
-        .map(|ev| Box::into_raw(Box::new(ev)))
-        .unwrap_or_else(ptr::null_mut)
+    block_on(async move {
+        events
+            .recv()
+            .await
+            .map(|ev| Box::into_raw(Box::new(ev)))
+            .unwrap_or_else(ptr::null_mut)
+    })
 }
 
 #[no_mangle]
@@ -2393,7 +2408,7 @@ pub unsafe extern "C" fn dc_get_last_error(context: *mut dc_context_t) -> *mut l
         return "".strdup();
     }
     let ctx = &*context;
-    block_on(ctx.get_last_error()).strdup()
+    ctx.get_last_error().strdup()
 }
 
 // dc_array_t
@@ -4126,7 +4141,7 @@ pub unsafe extern "C" fn dc_accounts_new(
         return ptr::null_mut();
     }
 
-    let accs = block_on(Accounts::new(as_path(dbfile).to_path_buf().into()));
+    let accs = block_on(Accounts::new(as_path(dbfile).into()));
 
     match accs {
         Ok(accs) => Box::into_raw(Box::new(AccountsWrapper::new(accs))),
@@ -4298,7 +4313,7 @@ pub unsafe extern "C" fn dc_accounts_migrate_account(
     block_on(async move {
         let mut accounts = accounts.write().await;
         match accounts
-            .migrate_account(async_std::path::PathBuf::from(dbfile))
+            .migrate_account(std::path::PathBuf::from(dbfile))
             .await
         {
             Ok(id) => id,
@@ -4418,9 +4433,7 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
         return ptr::null_mut();
     }
     let emitter = &mut *emitter;
-
-    emitter
-        .recv_sync()
+    block_on(emitter.recv())
         .map(|ev| Box::into_raw(Box::new(ev)))
         .unwrap_or_else(ptr::null_mut)
 }

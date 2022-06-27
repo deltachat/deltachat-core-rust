@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::str;
 
 use anyhow::{bail, Error, Result};
-use async_std::path::PathBuf;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -434,12 +434,13 @@ impl<'a> ParamsFile<'a> {
 mod tests {
     use super::*;
 
+    use std::path::Path;
+    use std::str::FromStr;
+
     use anyhow::Result;
-    use async_std::fs;
-    use async_std::path::Path;
+    use tokio::fs;
 
     use crate::test_utils::TestContext;
-    use std::str::FromStr;
 
     #[test]
     fn test_dc_param() {
@@ -485,7 +486,7 @@ mod tests {
         assert_eq!(params.to_string().parse::<Params>().unwrap(), params);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_file_fs_path() {
         let t = TestContext::new().await;
         if let ParamsFile::FsPath(p) = ParamsFile::from_param(&t, "/foo/bar/baz").unwrap() {
@@ -495,7 +496,7 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_file_blob() {
         let t = TestContext::new().await;
         if let ParamsFile::Blob(b) = ParamsFile::from_param(&t, "$BLOBDIR/foo").unwrap() {
@@ -506,7 +507,7 @@ mod tests {
     }
 
     // Tests for Params::get_file(), Params::get_path() and Params::get_blob().
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_get_fileparam() {
         let t = TestContext::new().await;
         let fname = t.dir.path().join("foo");
@@ -514,10 +515,9 @@ mod tests {
         p.set(Param::File, fname.to_str().unwrap());
 
         let file = p.get_file(Param::File, &t).unwrap().unwrap();
-        assert_eq!(file, ParamsFile::FsPath(fname.clone().into()));
+        assert_eq!(file, ParamsFile::FsPath(fname.clone()));
 
         let path: PathBuf = p.get_path(Param::File, &t).unwrap().unwrap();
-        let fname: PathBuf = fname.into();
         assert_eq!(path, fname);
 
         // Blob does not exist yet, expect error.
@@ -539,7 +539,7 @@ mod tests {
         assert!(p.get_blob(Param::File, &t, false).await.unwrap().is_none());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_unknown_key() -> Result<()> {
         // 'Z' is used as a key that is known to be unused; these keys should be ignored silently by definition.
         let p = Params::from_str("w=12\nZ=13\nh=14")?;

@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
-use async_std::sync::{Mutex, RwLockReadGuard};
+use tokio::sync::{Mutex, RwLockReadGuard};
 
 use crate::dc_tools::time;
 use crate::events::EventType;
@@ -239,7 +239,7 @@ pub(crate) async fn maybe_network_lost(
 
 impl fmt::Debug for ConnectivityStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(guard) = self.0.try_lock() {
+        if let Ok(guard) = self.0.try_lock() {
             write!(f, "ConnectivityStore {:?}", &*guard)
         } else {
             write!(f, "ConnectivityStore [LOCKED]")

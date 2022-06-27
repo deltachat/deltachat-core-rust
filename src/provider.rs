@@ -6,8 +6,8 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
 use anyhow::Result;
-use async_std_resolver::{config, resolver, resolver_from_system_conf, AsyncStdResolver};
 use chrono::{NaiveDateTime, NaiveTime};
+use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -85,18 +85,17 @@ pub struct Provider {
 
 /// Get resolver to query MX records.
 ///
-/// We first try resolver_from_system_conf() which reads the system's resolver from `/etc/resolv.conf`.
-/// This does not work at least on some Androids, therefore we use use ResolverConfig::default()
-/// which default eg. to google's 8.8.8.8 or 8.8.4.4 as a fallback.
-async fn get_resolver() -> Result<AsyncStdResolver> {
-    if let Ok(resolver) = resolver_from_system_conf().await {
+/// We first try to read the system's resolver from `/etc/resolv.conf`.
+/// This does not work at least on some Androids, therefore we fallback
+/// to the default `ResolverConfig` which uses eg. to google's `8.8.8.8` or `8.8.4.4`.
+fn get_resolver() -> Result<TokioAsyncResolver> {
+    if let Ok(resolver) = AsyncResolver::tokio_from_system_conf() {
         return Ok(resolver);
     }
-    let resolver = resolver(
+    let resolver = AsyncResolver::tokio(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
-    )
-    .await?;
+    )?;
     Ok(resolver)
 }
 
@@ -141,7 +140,7 @@ pub fn get_provider_by_domain(domain: &str) -> Option<&'static Provider> {
 ///
 /// For security reasons, only Gmail can be configured this way.
 pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'static Provider> {
-    if let Ok(resolver) = get_resolver().await {
+    if let Ok(resolver) = get_resolver() {
         let mut fqdn: String = domain.to_string();
         if !fqdn.ends_with('.') {
             fqdn.push('.');
@@ -242,7 +241,7 @@ mod tests {
         assert!(provider.id == "gmail");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_provider_info() {
         let t = TestContext::new().await;
         assert!(get_provider_info(&t, "", false).await.is_none());
@@ -270,9 +269,9 @@ mod tests {
         assert!(get_provider_update_timestamp() > timestamp_past);
     }
 
-    #[async_std::test]
-    async fn test_get_resolver() -> Result<()> {
-        assert!(get_resolver().await.is_ok());
+    #[test]
+    fn test_get_resolver() -> Result<()> {
+        assert!(get_resolver().is_ok());
         Ok(())
     }
 }

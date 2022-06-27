@@ -422,7 +422,7 @@ mod tests {
     mod ensure_secret_key_exists {
         use super::*;
 
-        #[async_std::test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn test_prexisting() {
             let t = TestContext::new_alice().await;
             assert_eq!(
@@ -431,7 +431,7 @@ mod tests {
             );
         }
 
-        #[async_std::test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn test_not_configured() {
             let t = TestContext::new().await;
             assert!(ensure_secret_key_exists(&t).await.is_err());
@@ -480,7 +480,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert_eq!(has_decrypted_pgp_armor(data), false);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_encrypted_no_autocrypt() -> anyhow::Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -588,7 +588,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         vec![(Some(peerstate), addr)]
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_should_encrypt() {
         let t = TestContext::new_alice().await;
         let encrypt_helper = EncryptHelper::new(&t).await.unwrap();
@@ -615,7 +615,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mixed_up_mime() -> Result<()> {
         // "Mixed Up" mail as received when sending an encrypted
         // message using Delta Chat Desktop via ProtonMail IMAP/SMTP

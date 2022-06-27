@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(sec_ring.keys(), [alice.secret]);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_keyring_load_self() {
         // new_self() implies load_self()
         let t = TestContext::new_alice().await;

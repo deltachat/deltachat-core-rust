@@ -6,17 +6,17 @@
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ansi_term::Color;
-use async_std::channel::{self, Receiver, Sender};
-use async_std::prelude::*;
-use async_std::sync::{Arc, RwLock};
-use async_std::task;
+use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
+use tokio::sync::RwLock;
+use tokio::task;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
@@ -250,6 +250,17 @@ impl TestContext {
         Self::builder().configure_fiona().build().await
     }
 
+    /// Print current chat state.
+    pub async fn print_chats(&self) {
+        println!("\n========== Chats of {}: ==========", self.name());
+        if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
+            for (chat, _) in chats.iter() {
+                self.print_chat(*chat).await;
+            }
+        }
+        println!();
+    }
+
     /// Internal constructor.
     ///
     /// `name` is used to identify this context in e.g. log output.  This is useful mostly
@@ -266,7 +277,7 @@ impl TestContext {
             let mut context_names = CONTEXT_NAMES.write().unwrap();
             context_names.insert(id, name);
         }
-        let ctx = Context::new(dbfile.into(), id, Events::new())
+        let ctx = Context::new(&dbfile, id, Events::new())
             .await
             .expect("failed to create context");
 
@@ -382,7 +393,7 @@ impl TestContext {
                 break row;
             }
             if start.elapsed() < Duration::from_secs(3) {
-                async_std::task::sleep(Duration::from_millis(100)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
             } else {
                 panic!("no sent message found in jobs table");
             }
@@ -670,20 +681,6 @@ impl Deref for TestContext {
     }
 }
 
-impl Drop for TestContext {
-    fn drop(&mut self) {
-        async_std::task::block_on(async {
-            println!("\n========== Chats of {}: ==========", self.name());
-            if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
-                for (chat, _) in chats.iter() {
-                    self.print_chat(*chat).await;
-                }
-            }
-            println!();
-        });
-    }
-}
-
 pub enum LogEvent {
     /// Logged event.
     Event(Event),
@@ -828,15 +825,14 @@ impl EventTracker {
     /// If no matching events are ready this will wait for new events to arrive and time out
     /// after 10 seconds.
     pub async fn get_matching<F: Fn(&EventType) -> bool>(&self, event_matcher: F) -> EventType {
-        async move {
+        tokio::time::timeout(Duration::from_secs(10), async move {
             loop {
                 let event = self.0.recv().await.unwrap();
                 if event_matcher(&event.typ) {
                     return event.typ;
                 }
             }
-        }
-        .timeout(Duration::from_secs(10))
+        })
         .await
         .expect("timeout waiting for event match")
     }
@@ -1011,21 +1007,21 @@ mod tests {
     // The following three tests demonstrate, when made to fail, the log output being
     // directed to the correct test output.
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_alice() {
         let alice = TestContext::builder().configure_alice().build().await;
         alice.ctx.emit_event(EventType::Info("hello".into()));
         // panic!("Alice fails");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_bob() {
         let bob = TestContext::builder().configure_bob().build().await;
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Bob fails");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_both() {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;

@@ -4,18 +4,16 @@ use std::borrow::Cow;
 use std::fmt;
 use std::time::Duration;
 
-use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
-use crate::provider::{get_provider_by_id, Provider};
-use crate::{context::Context, provider::Socket};
 use anyhow::{ensure, Result};
-
-use async_std::io;
-use async_std::net::TcpStream;
-
 use async_native_tls::Certificate;
 pub use async_smtp::ServerAddress;
 use fast_socks5::client::Socks5Stream;
 use once_cell::sync::Lazy;
+use tokio::{io, net::TcpStream};
+
+use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
+use crate::provider::{get_provider_by_id, Provider};
+use crate::{context::Context, provider::Socket};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
 #[repr(u32)]
@@ -424,7 +422,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_save_load_login_param() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -460,7 +458,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_tls() -> Result<()> {
         // we are using some additional root certificates.
         // make sure, they do not break construction of TlsConnector

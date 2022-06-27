@@ -8,7 +8,7 @@ use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::smtp::client::net::ClientTlsParameters;
 use async_smtp::smtp::response::{Category, Code, Detail};
 use async_smtp::{smtp, EmailAddress, ServerAddress};
-use async_std::task;
+use tokio::task;
 
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};

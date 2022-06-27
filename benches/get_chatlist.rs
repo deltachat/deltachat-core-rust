@@ -1,4 +1,5 @@
-use criterion::async_executor::AsyncStdExecutor;
+use std::path::Path;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use deltachat::chatlist::Chatlist;
@@ -13,11 +14,14 @@ fn criterion_benchmark(c: &mut Criterion) {
     // To enable this benchmark, set `DELTACHAT_BENCHMARK_DATABASE` to some large database with many
     // messages, such as your primary account.
     if let Ok(path) = std::env::var("DELTACHAT_BENCHMARK_DATABASE") {
-        let context = async_std::task::block_on(async {
-            Context::new(path.into(), 100, Events::new()).await.unwrap()
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let context = rt.block_on(async {
+            Context::new(Path::new(&path), 100, Events::new())
+                .await
+                .unwrap()
         });
         c.bench_function("chatlist:try_load (Get Chatlist)", |b| {
-            b.to_async(AsyncStdExecutor)
+            b.to_async(&rt)
                 .iter(|| get_chat_list_benchmark(black_box(&context)))
         });
     } else {

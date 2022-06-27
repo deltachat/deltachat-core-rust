@@ -1,5 +1,6 @@
 //! # Delta Chat Core Library.
 
+#![recursion_limit = "256"]
 #![forbid(unsafe_code)]
 #![deny(
     unused,

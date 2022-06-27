@@ -6,9 +6,10 @@ mod read_url;
 mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use async_std::prelude::*;
-use async_std::task;
+use futures::FutureExt;
+use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -55,8 +56,6 @@ impl Context {
 
     /// Configures this account with the currently set parameters.
     pub async fn configure(&self) -> Result<()> {
-        use futures::future::FutureExt;
-
         ensure!(
             self.scheduler.read().await.is_none(),
             "cannot configure, already running"
@@ -404,7 +403,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 850);
 
     // Wait for SMTP configuration
-    match smtp_config_task.await {
+    match smtp_config_task.await.unwrap() {
         Ok(smtp_param) => {
             param.smtp = smtp_param;
         }
@@ -447,7 +446,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     ctx.interrupt_inbox(InterruptInfo::new(false)).await;
 
     progress!(ctx, 940);
-    update_device_chats_handle.await?;
+    update_device_chats_handle.await??;
 
     ctx.sql.set_raw_config_bool("configured", true).await?;
 
@@ -549,7 +548,7 @@ async fn try_imap_one_param(
     );
     info!(context, "Trying: {}", inf);
 
-    let (_s, r) = async_std::channel::bounded(1);
+    let (_s, r) = async_channel::bounded(1);
 
     let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r).await
     {
@@ -634,10 +633,13 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
         return "no error".to_string();
     };
 
-    if errors
-        .iter()
-        .all(|e| e.msg.to_lowercase().contains("could not resolve"))
-    {
+    if errors.iter().all(|e| {
+        e.msg.to_lowercase().contains("could not resolve")
+            || e.msg
+                .to_lowercase()
+                .contains("temporary failure in name resolution")
+            || e.msg.to_lowercase().contains("name or service not known")
+    }) {
         return stock_str::error_no_network(context).await;
     }
 
@@ -678,7 +680,7 @@ mod tests {
     use crate::config::Config;
     use crate::test_utils::TestContext;
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_no_panic_on_bad_credentials() {
         let t = TestContext::new().await;
         t.set_config(Config::Addr, Some("probably@unexistant.addr"))

@@ -17,6 +17,7 @@
 - node: remove `split2` dependency #3418
 - node: add git installation info to readme #3418
 - limit the rate of webxdc update sending #3417
+- switch from `async-std` to `tokio` as the async runtime #3449
 
 ### Fixes
 - set a default error if NDN does not provide an error

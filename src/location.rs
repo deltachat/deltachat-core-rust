@@ -1,12 +1,12 @@
 //! Location handling.
 use std::convert::TryFrom;
+use std::time::Duration;
 
 use anyhow::{ensure, Context as _, Result};
-use async_std::channel::Receiver;
-use async_std::future::timeout;
+use async_channel::Receiver;
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
-use std::time::Duration;
+use tokio::time::timeout;
 
 use crate::chat::{self, ChatId};
 use crate::contact::ContactId;
@@ -731,7 +731,7 @@ mod tests {
     use crate::dc_receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_kml_parse() {
         let context = TestContext::new().await;
 
@@ -763,7 +763,7 @@ mod tests {
         assert_eq!(locations_ref[1].timestamp, 1544739072);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_message_kml() {
         let context = TestContext::new().await;
         let timestamp = 1598490000;
@@ -791,7 +791,7 @@ mod tests {
     }
 
     /// Tests that location.kml is hidden.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn receive_location_kml() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

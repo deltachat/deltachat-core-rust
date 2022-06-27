@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(format_flowed_quote(quote), expected);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_quotes() -> anyhow::Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;

@@ -29,21 +29,21 @@ fn cb(event: EventType) {
 }
 
 /// Run with `RUST_LOG=simple=info cargo run --release --example simple --features repl -- email pw`.
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     pretty_env_logger::try_init_timed().ok();
 
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     log::info!("creating database {:?}", dbfile);
-    let ctx = Context::new(dbfile.into(), 0, Events::new())
+    let ctx = Context::new(&dbfile, 0, Events::new())
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;
     log::info!("info: {:#?}", info);
 
     let events = ctx.get_event_emitter();
-    let events_spawn = async_std::task::spawn(async move {
+    let events_spawn = tokio::task::spawn(async move {
         while let Some(event) = events.recv().await {
             cb(event.typ);
         }
@@ -80,7 +80,7 @@ async fn main() {
     }
 
     // wait for the message to be sent out
-    async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
     log::info!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
@@ -96,5 +96,5 @@ async fn main() {
     ctx.stop_io().await;
     log::info!("closing");
     drop(ctx);
-    events_spawn.await;
+    events_spawn.await.unwrap();
 }

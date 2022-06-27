@@ -2,9 +2,9 @@
 
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::path::PathBuf;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use async_std::path::PathBuf;
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -1438,8 +1438,8 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 
 #[cfg(test)]
 mod tests {
-    use async_std::fs::File;
-    use async_std::io::WriteExt;
+    use tokio::fs::File;
+    use tokio::io::AsyncWriteExt;
 
     use super::*;
 
@@ -1508,7 +1508,7 @@ mod tests {
         )
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_contacts() -> Result<()> {
         let context = TestContext::new().await;
 
@@ -1572,7 +1572,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_is_self_addr() -> Result<()> {
         let t = TestContext::new().await;
         assert_eq!(t.is_self_addr("me@me.org").await?, false);
@@ -1584,7 +1584,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_or_lookup() {
         // add some contacts, this also tests add_address_book()
         let t = TestContext::new().await;
@@ -1685,7 +1685,7 @@ mod tests {
         assert!(!contact.is_blocked());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_contact_name_changes() -> Result<()> {
         let t = TestContext::new_alice().await;
 
@@ -1797,7 +1797,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_delete() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
@@ -1825,7 +1825,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_remote_authnames() {
         let t = TestContext::new().await;
 
@@ -1876,7 +1876,7 @@ mod tests {
         assert_eq!(contact.get_display_name(), "bob3");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_remote_authnames_create_empty() {
         let t = TestContext::new().await;
 
@@ -1925,7 +1925,7 @@ mod tests {
     ///
     /// In the past, "Not Bob" name was stuck until "Bob" changed the name to "Not Bob" and back in
     /// the "From:" field or user set the name to empty string manually.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_remote_authnames_update_to() -> Result<()> {
         let t = TestContext::new().await;
 
@@ -1958,7 +1958,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_remote_authnames_edit_empty() {
         let t = TestContext::new().await;
 
@@ -1995,7 +1995,7 @@ mod tests {
         assert!(addr_cmp(" mailto:AA@AA.ORG", "Aa@Aa.orG"));
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_name_in_address() {
         let t = TestContext::new().await;
 
@@ -2034,7 +2034,7 @@ mod tests {
             .is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_lookup_id_by_addr() {
         let t = TestContext::new().await;
 
@@ -2059,7 +2059,7 @@ mod tests {
         assert_eq!(id, Some(ContactId::SELF));
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_contact_get_color() -> Result<()> {
         let t = TestContext::new().await;
         let contact_id = Contact::create(&t, "name", "name@example.net").await?;
@@ -2078,7 +2078,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_contact_get_encrinfo() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
@@ -2123,7 +2123,7 @@ CCCB 5AA9 F6E1 141C 9431
 
     /// Tests that status is synchronized when sending encrypted BCC-self messages and not
     /// synchronized when the message is not encrypted.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_synchronize_status() -> Result<()> {
         // Alice has two devices.
         let alice1 = TestContext::new_alice().await;
@@ -2188,7 +2188,7 @@ CCCB 5AA9 F6E1 141C 9431
     }
 
     /// Tests that DC_EVENT_SELFAVATAR_CHANGED is emitted on avatar changes.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_selfavatar_changed_event() -> Result<()> {
         // Alice has two devices.
         let alice1 = TestContext::new_alice().await;
@@ -2247,7 +2247,7 @@ CCCB 5AA9 F6E1 141C 9431
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_last_seen() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

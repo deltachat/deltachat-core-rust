@@ -5,20 +5,19 @@ use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Cursor;
+use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use async_std::path::{Path, PathBuf};
-use async_std::prelude::*;
-use async_std::{fs, io};
-
 use anyhow::{bail, Error, Result};
 use chrono::{Local, TimeZone};
+use futures::StreamExt;
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
 use rand::{thread_rng, Rng};
+use tokio::{fs, io};
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
 use crate::constants::{DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
@@ -278,7 +277,7 @@ pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub(crate) fn dc_get_abs_path<P: AsRef<Path>>(context: &Context, path: P) -> PathBuf {
+pub(crate) fn dc_get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf {
     let p: &Path = path.as_ref();
     if let Ok(p) = p.strip_prefix("$BLOBDIR") {
         context.get_blobdir().join(p)
@@ -297,10 +296,10 @@ pub(crate) async fn dc_get_filebytes(context: &Context, path: impl AsRef<Path>) 
 
 pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
     let path_abs = dc_get_abs_path(context, &path);
-    if !path_abs.exists().await {
+    if !path_abs.exists() {
         return false;
     }
-    if !path_abs.is_file().await {
+    if !path_abs.is_file() {
         warn!(
             context,
             "refusing to delete non-file \"{}\".",
@@ -323,8 +322,9 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
 }
 
 pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
-    match async_std::fs::read_dir(path).await {
-        Ok(mut read_dir) => {
+    match tokio::fs::read_dir(path).await {
+        Ok(read_dir) => {
+            let mut read_dir = tokio_stream::wrappers::ReadDirStream::new(read_dir);
             while let Some(entry) = read_dir.next().await {
                 match entry {
                     Ok(file) => {
@@ -344,7 +344,7 @@ pub(crate) async fn dc_create_folder(
     path: impl AsRef<Path>,
 ) -> Result<(), io::Error> {
     let path_abs = dc_get_abs_path(context, &path);
-    if !path_abs.exists().await {
+    if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
             Err(err) => {
@@ -655,7 +655,7 @@ mod tests {
         assert_eq!(hop_info, expected)
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_receive_headers_integration() {
         let raw = include_bytes!("../test-data/message/mail_with_cc.txt");
         let expected = r"State: Fresh
@@ -873,7 +873,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         }
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_file_handling() {
         let t = TestContext::new().await;
         let context = &t;
@@ -889,8 +889,8 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content")
             .await
             .is_ok());
-        assert!(dc_file_exist!(context, "$BLOBDIR/foobar").await);
-        assert!(!dc_file_exist!(context, "$BLOBDIR/foobarx").await);
+        assert!(dc_file_exist!(context, "$BLOBDIR/foobar"));
+        assert!(!dc_file_exist!(context, "$BLOBDIR/foobarx"));
         assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar").await, 7);
 
         let abs_path = context
@@ -899,23 +899,23 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             .to_string_lossy()
             .to_string();
 
-        assert!(dc_file_exist!(context, &abs_path).await);
+        assert!(dc_file_exist!(context, &abs_path));
 
         assert!(dc_delete_file(context, "$BLOBDIR/foobar").await);
         assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder")
             .await
             .is_ok());
-        assert!(dc_file_exist!(context, "$BLOBDIR/foobar-folder").await);
+        assert!(dc_file_exist!(context, "$BLOBDIR/foobar-folder"));
         assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder").await);
 
         let fn0 = "$BLOBDIR/data.data";
         assert!(dc_write_file(context, &fn0, b"content").await.is_ok());
 
         assert!(dc_delete_file(context, &fn0).await);
-        assert!(!dc_file_exist!(context, &fn0).await);
+        assert!(!dc_file_exist!(context, &fn0));
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_smeared_timestamp() {
         let t = TestContext::new().await;
         assert_ne!(
@@ -931,7 +931,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         );
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_smeared_timestamps() {
         let t = TestContext::new().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
@@ -1001,7 +1001,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert_eq!(improve_single_line_input("\r\nahte\n\r"), "ahte");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_maybe_warn_on_bad_time() {
         let t = TestContext::new().await;
         let timestamp_now = time();
@@ -1064,7 +1064,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         assert_eq!(msgs.len(), 2);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_maybe_warn_on_outdated() {
         let t = TestContext::new().await;
         let timestamp_now: i64 = time();

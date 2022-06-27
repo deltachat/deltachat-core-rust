@@ -1,7 +1,8 @@
 //! # Events specification.
 
-use async_std::channel::{self, Receiver, Sender, TrySendError};
-use async_std::path::PathBuf;
+use std::path::PathBuf;
+
+use async_channel::{self as channel, Receiver, Sender, TrySendError};
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -61,23 +62,18 @@ impl Events {
 ///
 /// [`Context`]: crate::context::Context
 /// [`Context::get_event_emitter`]: crate::context::Context::get_event_emitter
-/// [`Stream`]: async_std::stream::Stream
+/// [`Stream`]: futures::stream::Stream
 #[derive(Debug, Clone)]
 pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
-    /// Blocking recv of an event. Return `None` if the `Sender` has been droped.
-    pub fn recv_sync(&self) -> Option<Event> {
-        async_std::task::block_on(self.recv())
-    }
-
     /// Async recv of an event. Return `None` if the `Sender` has been droped.
     pub async fn recv(&self) -> Option<Event> {
         self.0.recv().await.ok()
     }
 }
 
-impl async_std::stream::Stream for EventEmitter {
+impl futures::stream::Stream for EventEmitter {
     type Item = Event;
 
     fn poll_next(

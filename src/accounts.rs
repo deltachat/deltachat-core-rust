@@ -1,13 +1,12 @@
 //! # Account manager module.
 
 use std::collections::BTreeMap;
-
-use async_std::fs;
-use async_std::path::PathBuf;
-use uuid::Uuid;
+use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
+use tokio::fs;
+use uuid::Uuid;
 
 use crate::context::Context;
 use crate::events::{Event, EventEmitter, EventType, Events};
@@ -26,7 +25,7 @@ pub struct Accounts {
 impl Accounts {
     /// Loads or creates an accounts folder at the given `dir`.
     pub async fn new(dir: PathBuf) -> Result<Self> {
-        if !dir.exists().await {
+        if !dir.exists() {
             Accounts::create(&dir).await?;
         }
 
@@ -47,14 +46,10 @@ impl Accounts {
     /// Opens an existing accounts structure. Will error if the folder doesn't exist,
     /// no account exists and no config exists.
     pub async fn open(dir: PathBuf) -> Result<Self> {
-        ensure!(dir.exists().await, "directory does not exist");
+        ensure!(dir.exists(), "directory does not exist");
 
         let config_file = dir.join(CONFIG_NAME);
-        ensure!(
-            config_file.exists().await,
-            "{:?} does not exist",
-            config_file
-        );
+        ensure!(config_file.exists(), "{:?} does not exist", config_file);
 
         let config = Config::from_file(config_file)
             .await
@@ -106,7 +101,7 @@ impl Accounts {
         let account_config = self.config.new_account(&self.dir).await?;
 
         let ctx = Context::new(
-            account_config.dbfile().into(),
+            &account_config.dbfile(),
             account_config.id,
             self.events.clone(),
         )
@@ -121,7 +116,7 @@ impl Accounts {
         let account_config = self.config.new_account(&self.dir).await?;
 
         let ctx = Context::new_closed(
-            account_config.dbfile().into(),
+            &account_config.dbfile(),
             account_config.id,
             self.events.clone(),
         )
@@ -148,7 +143,7 @@ impl Accounts {
             loop {
                 counter += 1;
 
-                if let Err(err) = fs::remove_dir_all(async_std::path::PathBuf::from(&cfg.dir))
+                if let Err(err) = fs::remove_dir_all(&cfg.dir)
                     .await
                     .context("failed to remove account data")
                 {
@@ -157,7 +152,7 @@ impl Accounts {
                     }
 
                     // Wait 1 second and try again.
-                    async_std::task::sleep(std::time::Duration::from_millis(1000)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                 } else {
                     break;
                 }
@@ -173,16 +168,8 @@ impl Accounts {
         let blobdir = Context::derive_blobdir(&dbfile);
         let walfile = Context::derive_walfile(&dbfile);
 
-        ensure!(
-            dbfile.exists().await,
-            "no database found: {}",
-            dbfile.display()
-        );
-        ensure!(
-            blobdir.exists().await,
-            "no blobdir found: {}",
-            blobdir.display()
-        );
+        ensure!(dbfile.exists(), "no database found: {}", dbfile.display());
+        ensure!(blobdir.exists(), "no blobdir found: {}", blobdir.display());
 
         let old_id = self.config.get_selected_account().await;
 
@@ -193,7 +180,7 @@ impl Accounts {
             .await
             .context("failed to create new account")?;
 
-        let new_dbfile = account_config.dbfile().into();
+        let new_dbfile = account_config.dbfile();
         let new_blobdir = Context::derive_blobdir(&new_dbfile);
         let new_walfile = Context::derive_walfile(&new_dbfile);
 
@@ -207,7 +194,7 @@ impl Accounts {
             fs::rename(&blobdir, &new_blobdir)
                 .await
                 .context("failed to rename blobdir")?;
-            if walfile.exists().await {
+            if walfile.exists() {
                 fs::rename(&walfile, &new_walfile)
                     .await
                     .context("failed to rename walfile")?;
@@ -217,13 +204,13 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx = Context::new(new_dbfile, account_config.id, self.events.clone()).await?;
+                let ctx = Context::new(&new_dbfile, account_config.id, self.events.clone()).await?;
                 self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
             Err(err) => {
                 // remove temp account
-                fs::remove_dir_all(async_std::path::PathBuf::from(&account_config.dir))
+                fs::remove_dir_all(std::path::PathBuf::from(&account_config.dir))
                     .await
                     .context("failed to remove account data")?;
 
@@ -321,7 +308,7 @@ struct InnerConfig {
 }
 
 impl Config {
-    pub async fn new(dir: &PathBuf) -> Result<Self> {
+    pub async fn new(dir: &Path) -> Result<Self> {
         let inner = InnerConfig {
             accounts: Vec::new(),
             selected_account: 0,
@@ -355,18 +342,14 @@ impl Config {
     pub async fn load_accounts(&self, events: &Events) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(
-                account_config.dbfile().into(),
-                account_config.id,
-                events.clone(),
-            )
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to create context from file {:?}",
-                    account_config.dbfile()
-                )
-            })?;
+            let ctx = Context::new(&account_config.dbfile(), account_config.id, events.clone())
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed to create context from file {:?}",
+                        account_config.dbfile()
+                    )
+                })?;
 
             accounts.insert(account_config.id, ctx);
         }
@@ -375,7 +358,7 @@ impl Config {
     }
 
     /// Create a new account in the given root directory.
-    async fn new_account(&mut self, dir: &PathBuf) -> Result<AccountConfig> {
+    async fn new_account(&mut self, dir: &Path) -> Result<AccountConfig> {
         let id = {
             let id = self.inner.next_id;
             let uuid = Uuid::new_v4();
@@ -383,7 +366,7 @@ impl Config {
 
             self.inner.accounts.push(AccountConfig {
                 id,
-                dir: target_dir.into(),
+                dir: target_dir,
                 uuid,
             });
             self.inner.next_id += 1;
@@ -464,10 +447,10 @@ impl AccountConfig {
 mod tests {
     use super::*;
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_open() {
         let dir = tempfile::tempdir().unwrap();
-        let p: PathBuf = dir.path().join("accounts1").into();
+        let p: PathBuf = dir.path().join("accounts1");
 
         let mut accounts1 = Accounts::new(p.clone()).await.unwrap();
         accounts1.add_account().await.unwrap();
@@ -482,10 +465,10 @@ mod tests {
         assert_eq!(accounts1.accounts.len(), accounts2.accounts.len());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_add_remove() {
         let dir = tempfile::tempdir().unwrap();
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let mut accounts = Accounts::new(p.clone()).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
@@ -509,10 +492,10 @@ mod tests {
         assert_eq!(accounts.accounts.len(), 1);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_remove_last() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let mut accounts = Accounts::new(p.clone()).await?;
         assert!(accounts.get_selected_account().await.is_none());
@@ -530,17 +513,17 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_migrate_account() {
         let dir = tempfile::tempdir().unwrap();
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let mut accounts = Accounts::new(p.clone()).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account().await, 0);
 
-        let extern_dbfile: PathBuf = dir.path().join("other").into();
-        let ctx = Context::new(extern_dbfile.clone(), 0, Events::new())
+        let extern_dbfile: PathBuf = dir.path().join("other");
+        let ctx = Context::new(&extern_dbfile, 0, Events::new())
             .await
             .unwrap();
         ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))
@@ -567,10 +550,10 @@ mod tests {
     }
 
     /// Tests that accounts are sorted by ID.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_sorted() {
         let dir = tempfile::tempdir().unwrap();
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let mut accounts = Accounts::new(p.clone()).await.unwrap();
 
@@ -585,10 +568,10 @@ mod tests {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accounts_ids_unique_increasing_and_persisted() -> Result<()> {
         let dir = tempfile::tempdir()?;
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
         let dummy_accounts = 10;
 
         let (id0, id1, id2) = {
@@ -667,10 +650,10 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_no_accounts_event_emitter() -> Result<()> {
         let dir = tempfile::tempdir().unwrap();
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let accounts = Accounts::new(p.clone()).await?;
 
@@ -682,7 +665,7 @@ mod tests {
 
         // Test that event emitter does not return `None` immediately.
         let duration = std::time::Duration::from_millis(1);
-        assert!(async_std::future::timeout(duration, event_emitter.recv())
+        assert!(tokio::time::timeout(duration, event_emitter.recv())
             .await
             .is_err());
 
@@ -693,10 +676,10 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_encrypted_account() -> Result<()> {
         let dir = tempfile::tempdir().context("failed to create tempdir")?;
-        let p: PathBuf = dir.path().join("accounts").into();
+        let p: PathBuf = dir.path().join("accounts");
 
         let mut accounts = Accounts::new(p.clone())
             .await

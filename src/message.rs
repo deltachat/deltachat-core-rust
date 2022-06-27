@@ -1,9 +1,9 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, format_err, Context as _, Result};
-use async_std::path::{Path, PathBuf};
 use deltachat_derive::{FromSql, ToSql};
 use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
@@ -1857,7 +1857,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prepare_message_and_send() {
         use crate::config::Config;
 
@@ -1879,7 +1879,7 @@ mod tests {
     }
 
     /// Tests that message cannot be prepared if account has no configured address.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prepare_not_configured() {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
@@ -1891,7 +1891,7 @@ mod tests {
         assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_webrtc_instance() {
         let (webrtc_type, url) = Message::parse_webrtc_instance("basicwebrtc:https://foo/bar");
         assert_eq!(webrtc_type, VideochatType::BasicWebrtc);
@@ -1910,7 +1910,7 @@ mod tests {
         assert_eq!(url, "https://j.si/foo");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_webrtc_instance() {
         // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
         let instance = Message::create_webrtc_instance("https://meet.jit.si/", "123");
@@ -1947,7 +1947,7 @@ mod tests {
         assert_eq!(instance, "basicwebrtc:https://basic.stuff/12345ab");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_webrtc_instance_noroom() {
         // webrtc_instance may come from an input field of the ui, be pretty tolerant on input
         let instance = Message::create_webrtc_instance("bla.foo$NOROOM", "123");
@@ -1967,7 +1967,7 @@ mod tests {
         assert_eq!(instance, "https://bla.foo/?$NOROOM=123");
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_width_height() {
         let t = test::TestContext::new().await;
 
@@ -1997,7 +1997,7 @@ mod tests {
         assert!(has_image);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote() {
         use crate::config::Config;
 
@@ -2033,7 +2033,7 @@ mod tests {
         assert!(quoted_msg.get_text() == msg2.quoted_text());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_chat_id() {
         // Alice receives a message that pops up as a contact request
         let alice = TestContext::new_alice().await;
@@ -2057,7 +2057,7 @@ mod tests {
         assert_eq!(msg.get_text().unwrap(), "hello".to_string());
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_set_override_sender_name() {
         // send message with overridden sender name
         let alice = TestContext::new_alice().await;
@@ -2105,7 +2105,7 @@ mod tests {
         assert_ne!(chat.typ, Chattype::Mailinglist);
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_markseen_msgs() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -2178,7 +2178,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_state() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
@@ -2234,7 +2234,7 @@ mod tests {
         Ok(())
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_is_bot() -> Result<()> {
         let alice = TestContext::new_alice().await;
 

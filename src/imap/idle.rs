@@ -2,7 +2,7 @@ use super::Imap;
 
 use anyhow::{bail, Context as _, Result};
 use async_imap::extensions::idle::IdleResponse;
-use async_std::prelude::*;
+use futures_lite::FutureExt;
 use std::time::{Duration, SystemTime};
 
 use crate::{context::Context, scheduler::InterruptInfo};
@@ -87,9 +87,7 @@ impl Imap {
                 }
             }
 
-            let session = handle
-                .done()
-                .timeout(Duration::from_secs(15))
+            let session = tokio::time::timeout(Duration::from_secs(15), handle.done())
                 .await?
                 .context("IMAP IDLE protocol timed out")?;
             self.session = Some(Session { inner: session });
@@ -121,7 +119,7 @@ impl Imap {
 
         // check every minute if there are new messages
         // TODO: grow sleep durations / make them more flexible
-        let mut interval = async_std::stream::interval(Duration::from_secs(60));
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
 
         enum Event {
             Tick,
@@ -131,7 +129,7 @@ impl Imap {
         let info = loop {
             use futures::future::FutureExt;
             match interval
-                .next()
+                .tick()
                 .map(|_| Event::Tick)
                 .race(
                     self.idle_interrupt
