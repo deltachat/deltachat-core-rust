@@ -20,9 +20,9 @@ deltachat_derive = { path = "./deltachat_derive" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1"
-async-imap = { git = "https://github.com/async-email/async-imap", branch = "runtimes", default-features = false, features = ["runtime-tokio"] }
+async-imap = { version = "0.6", default-features = false, features = ["runtime-tokio"] }
 async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
-async-smtp = { git = "https://github.com/async-email/async-smtp", branch="tokio", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
+async-smtp = { version = "0.5", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
 trust-dns-resolver = "0.21"
 tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
@@ -32,7 +32,7 @@ bitflags = "1.3"
 chrono = { version = "0.4", default-features=false, features = ["clock", "std"] }
 dirs = { version = "4", optional=true }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
-encoded-words = { git = "https://github.com/async-email/encoded-words", branch="master" }
+encoded-words = "0.2"
 escaper = "0.1"
 futures = "0.3"
 hex = "0.4.0"

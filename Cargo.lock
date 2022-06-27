@@ -133,8 +133,9 @@ dependencies = [
 
 [[package]]
 name = "async-imap"
-version = "0.5.0"
-source = "git+https://github.com/async-email/async-imap?branch=runtimes#3a7d108ded8276f44921d22ec28efc955d3fb2e3"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31dd46675b8c5a2ecadd4ef690c84966eacf21b1e2327373a0d167494d1a1d28"
 dependencies = [
  "async-channel",
  "async-native-tls",
@@ -167,8 +168,9 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.4.0"
-source = "git+https://github.com/async-email/async-smtp?branch=tokio#fd8e0093d7d2338aef28f901100be9a621583780"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6da21e1dd19fbad3e095ad519fb1558ab77fd82e5c4778dca8f9be0464589e1e"
 dependencies = [
  "async-native-tls",
  "async-trait",
@@ -789,7 +791,7 @@ dependencies = [
  "deltachat_derive",
  "dirs",
  "email",
- "encoded-words",
+ "encoded-words 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "escaper",
  "fast-socks5",
  "futures",
@@ -998,7 +1000,7 @@ source = "git+https://github.com/deltachat/rust-email?branch=master#25702df99254
 dependencies = [
  "base64 0.11.0",
  "chrono",
- "encoded-words",
+ "encoded-words 0.2.0 (git+https://github.com/async-email/encoded-words?branch=master)",
  "encoding",
  "lazy_static",
  "rand 0.7.3",
@@ -1008,8 +1010,23 @@ dependencies = [
 
 [[package]]
 name = "encoded-words"
-version = "0.1.0"
-source = "git+https://github.com/async-email/encoded-words?branch=master#e878b6929ef6aee2909c4c096a0e143a38b8ff8d"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c1693107e6084e2b9444d34a985697f56c8832d314924d5cfb1fb7793154bef"
+dependencies = [
+ "base64 0.12.3",
+ "charset",
+ "encoding_rs",
+ "hex",
+ "lazy_static",
+ "regex",
+ "thiserror",
+]
+
+[[package]]
+name = "encoded-words"
+version = "0.2.0"
+source = "git+https://github.com/async-email/encoded-words?branch=master#d55366b36f96e383f39c432aedce42ee8b43f796"
 dependencies = [
  "base64 0.12.3",
  "charset",
@@ -1421,9 +1438,9 @@ dependencies = [
 
 [[package]]
 name = "gif"
-version = "0.11.3"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a7187e78088aead22ceedeee99779455b23fc231fe13ec443f99bb71694e5b"
+checksum = "3edd93c6756b4dfaf2709eafcc345ba2636565295c198a9cfbf75fa5e3e00b06"
 dependencies = [
  "color_quant",
  "weezl",
@@ -1813,9 +1830,9 @@ dependencies = [
 
 [[package]]
 name = "linked-hash-map"
-version = "0.5.4"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "linux-raw-sys"
@@ -3068,9 +3085,9 @@ checksum = "eb703cfe953bccee95685111adeedb76fabe4e97549a58d16f03ea7b9367bb32"
 
 [[package]]
 name = "smallvec"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2dd574626839106c320a323308629dcb1acfc96e32a8cba364ddc61ac23ee83"
+checksum = "cc88c725d61fc6c3132893370cac4a0200e3fedf5da8331c570664b1987f5ca2"
 
 [[package]]
 name = "smawk"
@@ -3132,9 +3149,9 @@ checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 
 [[package]]
 name = "strum_macros"
-version = "0.24.0"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6878079b17446e4d3eba6192bb0a2950d5b14f0ed8424b852310e5a94345d0ef"
+checksum = "4faebde00e8ff94316c01800f9054fd2ba77d30d9e922541913051d1d978918b"
 dependencies = [
  "heck",
  "proc-macro2",
