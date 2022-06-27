@@ -1401,11 +1401,11 @@ impl MimeMessage {
         }
 
         if let Some(failure_report) = &self.failure_report {
-            let error = parts.iter().find(|p| p.typ == Viewtype::Text).map_or_else(
-                || "Non-Delivery-Notification without further details.".to_string(),
-                |p| p.msg.clone(),
-            );
-            if let Err(e) = message::handle_ndn(context, failure_report, &error).await {
+            let error = parts
+                .iter()
+                .find(|p| p.typ == Viewtype::Text)
+                .map(|p| p.msg.clone());
+            if let Err(e) = message::handle_ndn(context, failure_report, error).await {
                 warn!(context, "Could not handle ndn: {}", e);
             }
         }

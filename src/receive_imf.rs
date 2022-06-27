@@ -2647,7 +2647,7 @@ mod tests {
             "shenauithz@testrun.org",
             "Mr.un2NYERi1RM.lbQ5F9q-QyJ@tiscali.it",
             include_bytes!("../test-data/message/tiscali_ndn.eml"),
-            Some("Non-Delivery-Notification without further details."),
+            Some("Delivery to at least one recipient failed."),
         )
         .await;
     }

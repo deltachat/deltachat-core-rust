@@ -8,6 +8,7 @@
 - add IMAP ID extension support #3468
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
 - build PyPy wheels #6683
+- improve default error if NDN does not provide an error #3456
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
@@ -27,7 +28,7 @@
 - limit the rate of webxdc update sending #3417
 
 ### Fixes
-- set a default error if NDN does not provide an error
+- set a default error if NDN does not provide an error #3410
 - python: avoid exceptions when messages/contacts/chats are compared with `None`
 - node: wait for the event loop to stop before destroying contexts #3431 #3451
 - emit configuration errors via event on failure #3433
