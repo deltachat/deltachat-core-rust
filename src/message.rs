@@ -1533,7 +1533,7 @@ pub async fn handle_mdn(
 pub(crate) async fn handle_ndn(
     context: &Context,
     failed: &FailureReport,
-    error: &str,
+    error: Option<String>,
 ) -> Result<()> {
     if failed.rfc724_mid.is_empty() {
         return Ok(());
@@ -1564,10 +1564,18 @@ pub(crate) async fn handle_ndn(
         )
         .await?;
 
+    let error = if let Some(error) = error {
+        error
+    } else if let Some(failed_recipient) = &failed.failed_recipient {
+        format!("Delivery to {} failed.", failed_recipient).clone()
+    } else {
+        "Delivery to at least one recipient failed.".to_string()
+    };
+
     let mut first = true;
     for msg in msgs.into_iter() {
         let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, msg_id, error).await;
+        set_msg_failed(context, msg_id, &error).await;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
