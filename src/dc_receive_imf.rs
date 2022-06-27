@@ -280,7 +280,9 @@ pub(crate) async fn dc_receive_imf_inner(
     // Always update the status, even if there is no footer, to allow removing the status.
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
+    // Ignore footers from mailinglists as they are often created or modified by the mailinglist software.
     if mime_parser.mdn_reports.is_empty()
+        && !mime_parser.is_mailinglist_message()
         && is_partial_download.is_none()
         && from_id != ContactId::UNDEFINED
         && context
