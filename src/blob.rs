@@ -514,6 +514,15 @@ mod tests {
 
     use super::*;
 
+    fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
+        tokio::task::block_in_place(move || {
+            let img = image::open(path).expect("failed to open image");
+            assert_eq!(img.width(), width, "invalid width");
+            assert_eq!(img.height(), height, "invalid height");
+            img
+        })
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create() {
         let t = TestContext::new().await;
@@ -731,13 +740,8 @@ mod tests {
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
-        let img = image::open(avatar_src).unwrap();
-        assert_eq!(img.width(), 1000);
-        assert_eq!(img.height(), 1000);
-
-        let img = image::open(&avatar_blob).unwrap();
-        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
-        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+        check_image_size(avatar_src, 1000, 1000);
+        check_image_size(&avatar_blob, BALANCED_AVATAR_SIZE, BALANCED_AVATAR_SIZE);
 
         async fn file_size(path_buf: &PathBuf) -> u64 {
             let file = File::open(path_buf).await.unwrap();
@@ -751,9 +755,11 @@ mod tests {
             .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
-        let img = image::open(&avatar_blob).unwrap();
-        assert!(img.width() > 130);
-        assert_eq!(img.width(), img.height());
+        tokio::task::block_in_place(move || {
+            let img = image::open(&avatar_blob).unwrap();
+            assert!(img.width() > 130);
+            assert_eq!(img.width(), img.height());
+        });
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -767,9 +773,7 @@ mod tests {
             .await
             .unwrap();
 
-        let img = image::open(&avatar_src).unwrap();
-        assert_eq!(img.width(), 900);
-        assert_eq!(img.height(), 900);
+        check_image_size(&avatar_src, 900, 900);
 
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
@@ -780,9 +784,7 @@ mod tests {
             avatar_src.with_extension("jpg").to_str().unwrap()
         );
 
-        let img = image::open(avatar_cfg).unwrap();
-        assert_eq!(img.width(), BALANCED_AVATAR_SIZE);
-        assert_eq!(img.height(), BALANCED_AVATAR_SIZE);
+        check_image_size(avatar_cfg, BALANCED_AVATAR_SIZE, BALANCED_AVATAR_SIZE);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -938,9 +940,7 @@ mod tests {
         fs::write(&file, &bytes)
             .await
             .context("failed to write file")?;
-        let img = image::open(&file)?;
-        assert_eq!(img.width(), original_width);
-        assert_eq!(img.height(), original_height);
+        check_image_size(&file, original_width, original_height);
 
         let blob = BlobObject::new_from_path(&alice, &file).await?;
         assert_eq!(blob.get_exif_orientation(&alice).unwrap_or(0), orientation);
@@ -952,9 +952,11 @@ mod tests {
         let alice_msg = alice.get_last_msg().await;
         assert_eq!(alice_msg.get_width() as u32, compressed_width);
         assert_eq!(alice_msg.get_height() as u32, compressed_height);
-        let img = image::open(alice_msg.get_file(&alice).unwrap())?;
-        assert_eq!(img.width() as u32, compressed_width);
-        assert_eq!(img.height() as u32, compressed_height);
+        check_image_size(
+            alice_msg.get_file(&alice).unwrap(),
+            compressed_width,
+            compressed_height,
+        );
 
         let bob_msg = bob.recv_msg(&sent).await;
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
@@ -964,9 +966,7 @@ mod tests {
         let blob = BlobObject::new_from_path(&bob, &file).await?;
         assert_eq!(blob.get_exif_orientation(&bob).unwrap_or(0), 0);
 
-        let img = image::open(file)?;
-        assert_eq!(img.width() as u32, compressed_width);
-        assert_eq!(img.height() as u32, compressed_height);
+        let img = check_image_size(file, compressed_width, compressed_height);
         Ok(img)
     }
 
