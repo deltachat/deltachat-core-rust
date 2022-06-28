@@ -36,7 +36,7 @@ typedef struct dcn_accounts_t {
   uv_thread_t event_handler_thread;
   napi_threadsafe_function threadsafe_jsonrpc_handler;
   uv_thread_t jsonrpc_thread;
-  dc_json_api_instance_t* jsonrpc_instance;
+  dc_jsonrpc_instance_t* jsonrpc_instance;
   int gc;
 } dcn_accounts_t;
 
@@ -2936,7 +2936,7 @@ NAPI_METHOD(dcn_accounts_unref) {
     dcn_accounts->event_handler_thread = 0;
   }
   if (dcn_accounts->jsonrpc_instance) {
-    dc_json_request(dcn_accounts->jsonrpc_instance, "{}");
+    dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, "{}");
     uv_thread_join(&dcn_accounts->jsonrpc_thread);
     dcn_accounts->jsonrpc_instance = NULL;
   }
@@ -3256,7 +3256,7 @@ static void accounts_jsonrpc_thread_func(void* arg)
   TRACE("accounts_jsonrpc_thread_func starting");
   char* response;
   while (true) {
-    response = dc_get_next_json_response(dcn_accounts->jsonrpc_instance);
+    response = dc_jsonrpc_next_response(dcn_accounts->jsonrpc_instance);
     if (response == NULL) {
       // done or broken
       break;
@@ -3279,7 +3279,7 @@ static void accounts_jsonrpc_thread_func(void* arg)
       break;
     }
   }
-  dc_json_api_unref(dcn_accounts->jsonrpc_instance);
+  dc_jsonrpc_unref(dcn_accounts->jsonrpc_instance);
   dcn_accounts->jsonrpc_instance = NULL;
   TRACE("accounts_jsonrpc_thread_func ended");
   napi_release_threadsafe_function(dcn_accounts->threadsafe_jsonrpc_handler, napi_tsfn_release);
@@ -3347,7 +3347,7 @@ NAPI_METHOD(dcn_accounts_start_jsonrpc) {
   TRACE("done");
 
   dcn_accounts->gc = 0;
-  dcn_accounts->jsonrpc_instance = dc_get_json_api(dcn_accounts->dc_accounts);
+  dcn_accounts->jsonrpc_instance = dc_jsonrpc_init(dcn_accounts->dc_accounts);
 
   TRACE("creating uv thread..");
   uv_thread_create(&dcn_accounts->jsonrpc_thread, accounts_jsonrpc_thread_func, dcn_accounts);
@@ -3363,7 +3363,7 @@ NAPI_METHOD(dcn_json_rpc_request) {
     NAPI_STATUS_THROWS(napi_throw_type_error(env, NULL, msg));
   }
   NAPI_ARGV_UTF8_MALLOC(request, 1);
-  dc_json_request(dcn_accounts->jsonrpc_instance, request);
+  dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, request);
   free(request);
 }
 

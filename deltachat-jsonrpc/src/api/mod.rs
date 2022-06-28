@@ -39,7 +39,7 @@ impl CommandApi {
         }
     }
 
-    pub fn new_from_cffi(accounts: Arc<RwLock<Accounts>>) -> Self {
+    pub fn new_from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
         CommandApi { accounts }
     }
 

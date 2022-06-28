@@ -4432,52 +4432,52 @@ mod jsonrpc {
     use deltachat_jsonrpc::api::CommandApi;
     use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
 
-    pub struct dc_json_api_instance_t {
+    pub struct dc_jsonrpc_instance_t {
         receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
         handle: MessageHandle<CommandApi>,
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn dc_get_json_api(
+    pub unsafe extern "C" fn dc_jsonrpc_init(
         account_manager: *mut dc_accounts_t,
-    ) -> *mut dc_json_api_instance_t {
+    ) -> *mut dc_jsonrpc_instance_t {
         if account_manager.is_null() {
-            eprintln!("ignoring careless call to dc_get_json_api()");
+            eprintln!("ignoring careless call to dc_jsonrpc_init()");
             return ptr::null_mut();
         }
 
         let cmd_api =
-            deltachat_jsonrpc::api::CommandApi::new_from_cffi((*account_manager).inner.clone());
+            deltachat_jsonrpc::api::CommandApi::new_from_arc((*account_manager).inner.clone());
 
         let (request_handle, receiver) = RpcHandle::new();
         let handle = MessageHandle::new(request_handle, cmd_api);
 
-        let instance = dc_json_api_instance_t { receiver, handle };
+        let instance = dc_jsonrpc_instance_t { receiver, handle };
 
         Box::into_raw(Box::new(instance))
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn dc_json_api_unref(json_api_instance: *mut dc_json_api_instance_t) {
-        if json_api_instance.is_null() {
-            eprintln!("ignoring careless call to dc_json_api_unref()");
+    pub unsafe extern "C" fn dc_jsonrpc_unref(jsonrpc_instance: *mut dc_jsonrpc_instance_t) {
+        if jsonrpc_instance.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_unref()");
             return;
         }
 
-        Box::from_raw(json_api_instance);
+        Box::from_raw(jsonrpc_instance);
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn dc_json_request(
-        json_api_instance: *mut dc_json_api_instance_t,
+    pub unsafe extern "C" fn dc_jsonrpc_request(
+        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
         request: *const libc::c_char,
     ) {
-        if json_api_instance.is_null() || request.is_null() {
-            eprintln!("ignoring careless call to dc_json_request()");
+        if jsonrpc_instance.is_null() || request.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_request()");
             return;
         }
 
-        let api = &*json_api_instance;
+        let api = &*jsonrpc_instance;
         let handle = &api.handle;
         let request = to_string_lossy(request);
         async_std::task::spawn(async move {
@@ -4486,14 +4486,14 @@ mod jsonrpc {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn dc_get_next_json_response(
-        json_api_instance: *mut dc_json_api_instance_t,
+    pub unsafe extern "C" fn dc_jsonrpc_next_response(
+        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
     ) -> *mut libc::c_char {
-        if json_api_instance.is_null() {
-            eprintln!("ignoring careless call to dc_get_next_json_response()");
+        if jsonrpc_instance.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_next_response()");
             return ptr::null_mut();
         }
-        let api = &*json_api_instance;
+        let api = &*jsonrpc_instance;
         async_std::task::block_on(api.receiver.recv())
             .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
             .unwrap_or(ptr::null_mut())
