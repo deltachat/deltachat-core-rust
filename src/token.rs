@@ -9,7 +9,7 @@ use deltachat_derive::{FromSql, ToSql};
 
 use crate::chat::ChatId;
 use crate::context::Context;
-use crate::dc_tools::{dc_create_id, time};
+use crate::tools::{dc_create_id, time};
 
 /// Token namespace
 #[derive(

@@ -15,10 +15,6 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
-use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
-    dc_read_file, dc_timestamp_to_str, dc_truncate, time,
-};
 use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -30,6 +26,10 @@ use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
 use crate::summary::Summary;
+use crate::tools::{
+    dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
+    dc_read_file, dc_timestamp_to_str, dc_truncate, time,
+};
 
 /// Message ID, including reserved IDs.
 ///
@@ -1835,7 +1835,7 @@ mod tests {
 
     use crate::chat::{marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
 

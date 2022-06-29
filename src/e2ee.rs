@@ -411,7 +411,7 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use crate::chat;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
     use crate::peerstate::ToSave;

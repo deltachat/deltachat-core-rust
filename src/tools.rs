@@ -450,7 +450,7 @@ pub(crate) fn time() -> i64 {
 /// # Example
 ///
 /// ```
-/// use deltachat::dc_tools::EmailAddress;
+/// use deltachat::tools::EmailAddress;
 /// let email = match EmailAddress::new("someone@example.com") {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),
@@ -619,8 +619,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        config::Config, dc_receive_imf::dc_receive_imf, message::get_msg_info,
-        test_utils::TestContext,
+        config::Config, message::get_msg_info, receive_imf::dc_receive_imf, test_utils::TestContext,
     };
 
     #[test]

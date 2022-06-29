@@ -97,8 +97,8 @@ pub mod plaintext;
 mod ratelimit;
 pub mod summary;
 
-pub mod dc_receive_imf;
-pub mod dc_tools;
+pub mod receive_imf;
+pub mod tools;
 
 pub mod accounts;
 

@@ -8,7 +8,7 @@ use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
+use crate::tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
@@ -437,7 +437,7 @@ mod tests {
     use std::string::ToString;
 
     use crate::constants;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;

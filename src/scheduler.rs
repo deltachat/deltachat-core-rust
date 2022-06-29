@@ -6,8 +6,8 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::time;
-use crate::dc_tools::{duration_to_str, maybe_add_time_based_warnings};
+use crate::tools::time;
+use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job;

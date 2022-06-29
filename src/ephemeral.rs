@@ -70,7 +70,7 @@ use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{duration_to_str, time};
+use crate::tools::{duration_to_str, time};
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -572,13 +572,13 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::dc_receive_imf::dc_receive_imf;
-    use crate::dc_tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
+    use crate::receive_imf::dc_receive_imf;
+    use crate::tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::download::DownloadState;
     use crate::test_utils::TestContext;
     use crate::{
         chat::{self, Chat, ChatItem},
-        dc_tools::IsNoneOrEmpty,
+        tools::IsNoneOrEmpty,
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

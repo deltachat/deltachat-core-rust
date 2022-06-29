@@ -13,11 +13,6 @@ use crate::config::Config;
 use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
-use crate::dc_tools::IsNoneOrEmpty;
-use crate::dc_tools::{
-    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes,
-    remove_subject_prefix, time,
-};
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::format_flowed::{format_flowed, format_flowed_quote};
@@ -29,6 +24,11 @@ use crate::param::Param;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
+use crate::tools::IsNoneOrEmpty;
+use crate::tools::{
+    dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp, dc_get_filebytes,
+    remove_subject_prefix, time,
+};
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -1462,8 +1462,8 @@ mod tests {
     };
     use crate::chatlist::Chatlist;
     use crate::contact::Origin;
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::mimeparser::MimeMessage;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
 
     use super::*;

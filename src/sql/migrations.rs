@@ -5,10 +5,10 @@ use anyhow::{Context as _, Result};
 use crate::config::Config;
 use crate::constants::ShowEmails;
 use crate::context::Context;
-use crate::dc_tools::EmailAddress;
 use crate::imap;
 use crate::provider::get_provider_by_domain;
 use crate::sql::Sql;
+use crate::tools::EmailAddress;
 
 const DBVERSION: i32 = 68;
 const VERSION_CFG: &str = "dbversion";

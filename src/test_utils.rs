@@ -25,12 +25,12 @@ use crate::constants::Chattype;
 use crate::constants::{DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_receive_imf::dc_receive_imf;
-use crate::dc_tools::EmailAddress;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
+use crate::receive_imf::dc_receive_imf;
+use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -457,10 +457,7 @@ impl TestContext {
 
     /// Receive a message using the `dc_receive_imf()` pipeline. This is similar
     /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
-    pub async fn recv_msg_opt(
-        &self,
-        msg: &SentMessage,
-    ) -> Option<crate::dc_receive_imf::ReceivedMsg> {
+    pub async fn recv_msg_opt(&self, msg: &SentMessage) -> Option<crate::receive_imf::ReceivedMsg> {
         dc_receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()

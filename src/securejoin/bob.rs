@@ -9,7 +9,7 @@ use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
 use crate::constants::{Blocked, Chattype};
 use crate::contact::Contact;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::events::EventType;
 use crate::mimeparser::MimeMessage;
 use crate::{chat, stock_str};

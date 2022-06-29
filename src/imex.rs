@@ -17,7 +17,7 @@ use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{
+use crate::tools::{
     dc_create_folder, dc_delete_file, dc_get_filesuffix_lc, dc_open_file_std, dc_read_file,
     dc_write_file, time, EmailAddress,
 };

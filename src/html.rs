@@ -280,8 +280,8 @@ mod tests {
     use crate::chat::forward_msgs;
     use crate::config::Config;
     use crate::contact::ContactId;
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::{MessengerMessage, Viewtype};
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

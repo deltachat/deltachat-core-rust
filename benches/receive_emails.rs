@@ -4,8 +4,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::{
     config::Config,
     context::Context,
-    dc_receive_imf::dc_receive_imf,
     imex::{imex, ImexMode},
+    receive_imf::dc_receive_imf,
     Events,
 };
 use tempfile::tempdir;

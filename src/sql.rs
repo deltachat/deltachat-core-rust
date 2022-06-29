@@ -15,7 +15,7 @@ use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
-use crate::dc_tools::{dc_delete_file, time};
+use crate::tools::{dc_delete_file, time};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::log::LogExt;
 use crate::message::{Message, Viewtype};

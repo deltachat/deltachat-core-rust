@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;

@@ -13,7 +13,7 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::{time, EmailAddress};
+use crate::tools::{time, EmailAddress};
 use crate::imap::Imap;
 use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};

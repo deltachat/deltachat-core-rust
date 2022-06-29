@@ -12,7 +12,7 @@ use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
-use crate::dc_tools::dc_timestamp_to_str;
+use crate::tools::dc_timestamp_to_str;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
 use humansize::{file_size_opts, FileSize};

@@ -15,7 +15,6 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::{addr_normalize, ContactId};
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -29,6 +28,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
+use crate::tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 
 /// A parsed MIME message.
 ///
@@ -1733,8 +1733,8 @@ mod tests {
         chatlist::Chatlist,
         config::Config,
         constants::Blocked,
-        dc_receive_imf::dc_receive_imf,
         message::{Message, MessageState, MessengerMessage},
+        receive_imf::dc_receive_imf,
         test_utils::TestContext,
     };
     use mailparse::ParsedMail;

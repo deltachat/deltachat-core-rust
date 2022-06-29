@@ -20,12 +20,6 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_receive_imf::ReceivedMsg;
-use crate::dc_tools::{
-    dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
-    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
-    time, IsNoneOrEmpty,
-};
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
@@ -34,9 +28,15 @@ use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::receive_imf::ReceivedMsg;
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
+use crate::tools::{
+    dc_create_id, dc_create_outgoing_rfc724_mid, dc_create_smeared_timestamp,
+    dc_create_smeared_timestamps, dc_get_abs_path, dc_gm2local_offset, improve_single_line_input,
+    time, IsNoneOrEmpty,
+};
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
 
@@ -3462,7 +3462,7 @@ mod tests {
     use crate::chatlist::{dc_get_archived_cnt, Chatlist};
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::Contact;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
     use tokio::fs::File;
     use tokio::io::AsyncWriteExt;

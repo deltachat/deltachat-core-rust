@@ -59,8 +59,8 @@ impl Params {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dc_receive_imf::dc_receive_imf;
-    use crate::dc_tools::time;
+    use crate::receive_imf::dc_receive_imf;
+    use crate::tools::time;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

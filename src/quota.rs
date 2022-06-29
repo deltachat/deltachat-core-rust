@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::Imap;
 use crate::job::{Action, Status};

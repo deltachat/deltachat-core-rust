@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
@@ -257,7 +257,7 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use crate::chat::send_msg;
-    use crate::dc_receive_imf::dc_receive_imf_inner;
+    use crate::receive_imf::dc_receive_imf_inner;
     use crate::ephemeral::Timer;
     use crate::message::Viewtype;
     use crate::test_utils::TestContext;

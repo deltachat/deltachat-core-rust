@@ -14,13 +14,12 @@ use tokio::io::AsyncReadExt;
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::dc_create_smeared_timestamp;
-use crate::dc_tools::dc_get_abs_path;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::tools::{dc_create_smeared_timestamp, dc_get_abs_path};
 use crate::{chat, EventType};
 
 /// The current API version.
@@ -734,7 +733,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
     use super::*;

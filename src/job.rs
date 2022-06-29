@@ -9,7 +9,7 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::imap::Imap;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;

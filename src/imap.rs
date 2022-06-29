@@ -25,10 +25,6 @@ use crate::constants::{
 };
 use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_receive_imf::{
-    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
-};
-use crate::dc_tools::dc_create_id;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job;
@@ -39,10 +35,14 @@ use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewt
 use crate::mimeparser;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::receive_imf::{
+    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
+};
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
+use crate::tools::dc_create_id;
 
 mod client;
 mod idle;

@@ -3,13 +3,13 @@ use std::{ops::Deref, sync::Arc};
 
 use tokio::sync::{Mutex, RwLockReadGuard};
 
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::events::EventType;
 use crate::imap::scan_folders::get_watched_folder_configs;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, dc_tools, scheduler::Scheduler, stock_str};
+use crate::{config::Config, tools, scheduler::Scheduler, stock_str};
 use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};
@@ -449,7 +449,7 @@ impl Context {
         //                                [======67%=====       ]
         // =============================================================================================
 
-        let domain = dc_tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
+        let domain = tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         ret += &format!(
             "<h3>{}</h3><ul>",
             stock_str::storage_on_domain(self, domain).await

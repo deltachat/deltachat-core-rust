@@ -11,7 +11,6 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
-use crate::dc_tools::time;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
@@ -23,6 +22,7 @@ use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToS
 use crate::qr::check_qr;
 use crate::stock_str;
 use crate::token;
+use crate::tools::time;
 
 mod bob;
 mod bobstate;
@@ -241,7 +241,7 @@ async fn fingerprint_equals_sender(
 /// This status is returned to [`dc_receive_imf`] which will use it to decide what to do
 /// next with this incoming setup-contact/secure-join handshake message.
 ///
-/// [`dc_receive_imf`]: crate::dc_receive_imf::dc_receive_imf
+/// [`dc_receive_imf`]: crate::receive_imf::dc_receive_imf
 pub(crate) enum HandshakeMessage {
     /// The message has been fully handled and should be removed/delete.
     ///
@@ -692,8 +692,8 @@ mod tests {
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::{Chattype, DC_GCM_ADDDAYMARKER};
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::peerstate::Peerstate;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

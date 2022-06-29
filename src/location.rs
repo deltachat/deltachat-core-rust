@@ -11,11 +11,11 @@ use tokio::time::timeout;
 use crate::chat::{self, ChatId};
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::{duration_to_str, time};
 use crate::events::EventType;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
+use crate::tools::{duration_to_str, time};
 
 /// Location record
 #[derive(Debug, Clone, Default)]
@@ -728,7 +728,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::dc_receive_imf;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

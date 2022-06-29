@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::time;
+use crate::tools::time;
 use crate::provider;
 use crate::provider::Oauth2Authorizer;
 
