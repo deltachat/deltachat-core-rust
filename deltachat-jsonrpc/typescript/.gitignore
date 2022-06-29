@@ -4,3 +4,5 @@ test_dist
 coverage
 yarn.lock
 package-lock.json
+docs
+accounts

@@ -12,11 +12,12 @@
     "build": "npm run generate-bindings && tsc",
     "bundle": "npm run build && esbuild --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
     "generate-bindings": "cargo test",
-    "example:build": "tsc && esbuild --bundle dist/example.js --outfile=dist/example.bundle.js && cp example/index.html dist",
-    "example:start": "http-server dist/",
+    "example:build": "tsc && esbuild --bundle dist/example/example.js --outfile=dist/example.bundle.js",
+    "example:start": "http-server .",
     "example:dev": "esbuild example/example.ts --bundle --outfile=dist/example.bundle.js --servedir=.",
     "coverage": "tsc -b test && COVERAGE=1 NODE_OPTIONS=--enable-source-maps c8 --include \"dist/*\" -r text -r html -r json mocha test_dist && node report_api_coverage.mjs",
-    "test": "rm -rf dist && npm run build && npm run coverage && npm run prettier:check"
+    "test": "rm -rf dist && npm run build && npm run coverage && npm run prettier:check",
+    "docs": "typedoc --out docs deltachat.ts"
   },
   "dependencies": {
     "isomorphic-ws": "^4.0.1",
@@ -24,8 +25,6 @@
     "yerpc": "^0.3.3"
   },
   "devDependencies": {
-    "prettier": "^2.6.2",
-    "chai-as-promised": "^7.1.1",
     "@types/chai": "^4.2.21",
     "@types/chai-as-promised": "^7.1.5",
     "@types/mocha": "^9.0.0",
@@ -33,9 +32,12 @@
     "@types/ws": "^7.2.4",
     "c8": "^7.10.0",
     "chai": "^4.3.4",
+    "chai-as-promised": "^7.1.1",
     "esbuild": "^0.14.11",
     "mocha": "^9.1.1",
     "node-fetch": "^2.6.1",
+    "prettier": "^2.6.2",
+    "typedoc": "^0.23.2",
     "typescript": "^4.5.5",
     "ws": "^8.5.0"
   }
