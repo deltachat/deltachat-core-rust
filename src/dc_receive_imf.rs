@@ -280,7 +280,9 @@ pub(crate) async fn dc_receive_imf_inner(
     // Always update the status, even if there is no footer, to allow removing the status.
     //
     // Ignore MDNs though, as they never contain the signature even if user has set it.
+    // Ignore footers from mailinglists as they are often created or modified by the mailinglist software.
     if mime_parser.mdn_reports.is_empty()
+        && !mime_parser.is_mailinglist_message()
         && is_partial_download.is_none()
         && from_id != ContactId::UNDEFINED
         && context
@@ -4155,6 +4157,79 @@ Second signature";
         assert_eq!(contact.get_status(), "Second signature");
         assert_eq!(contact.get_display_name(), "Bob2");
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+        let bob_id = Contact::add_or_lookup(&t, "", "bob@example.net", Origin::IncomingUnknownCc)
+            .await?
+            .0;
+        let bob = Contact::load_from_db(&t, bob_id).await?;
+        assert_eq!(bob.get_status(), "");
+        assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 0);
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob <bob@example.net>
+To: Alice <alice@example.org>
+Message-ID: <1@example.org>
+Subject: first message
+
+body 1
+
+--
+Original signature",
+            false,
+        )
+        .await?;
+        let one2one_chat_id = t.get_last_msg().await.chat_id;
+        let bob = Contact::load_from_db(&t, bob_id).await?;
+        assert_eq!(bob.get_status(), "Original signature");
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob <bob@example.net>
+Sender: ml@example.net
+To: Alice <alice@example.org>
+Message-ID: <2@example.net>
+Precedence: list
+Subject: second message
+
+body 2
+
+--
+The modified signature
+--
+Tap here to unsubscribe ...",
+            false,
+        )
+        .await?;
+        let ml_chat_id = t.get_last_msg().await.chat_id;
+        let bob = Contact::load_from_db(&t, bob_id).await?;
+        assert_eq!(bob.get_status(), "Original signature");
+
+        dc_receive_imf(
+            &t,
+            b"From: Bob <bob@example.net>
+To: Alice <alice@example.org>
+Message-ID: <3@example.org>
+Subject: third message
+
+body 3
+
+--
+Original signature updated",
+            false,
+        )
+        .await?;
+        let bob = Contact::load_from_db(&t, bob_id).await?;
+        assert_eq!(bob.get_status(), "Original signature updated");
+        assert_eq!(get_chat_msgs(&t, one2one_chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&t, ml_chat_id, 0).await?.len(), 1);
+        assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 2);
         Ok(())
     }
 
