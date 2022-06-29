@@ -59,9 +59,9 @@ impl Params {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::receive_imf::dc_receive_imf;
-    use crate::tools::time;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use crate::tools::time;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_params_update_timestamp() -> Result<()> {
@@ -89,7 +89,7 @@ mod tests {
     async fn test_out_of_order_subject() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\
@@ -102,7 +102,7 @@ mod tests {
             false,
         )
         .await?;
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\
@@ -130,7 +130,7 @@ mod tests {
     async fn test_out_of_order_group_name() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\
@@ -148,7 +148,7 @@ mod tests {
         let chat = Chat::load_from_db(&t, msg.chat_id).await?;
         assert_eq!(chat.name, "initial name");
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\
@@ -163,7 +163,7 @@ mod tests {
             false,
         )
         .await?;
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\

@@ -9,9 +9,9 @@ use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
 use crate::constants::{Blocked, Chattype};
 use crate::contact::Contact;
 use crate::context::Context;
-use crate::tools::time;
 use crate::events::EventType;
 use crate::mimeparser::MimeMessage;
+use crate::tools::time;
 use crate::{chat, stock_str};
 
 use super::bobstate::{BobHandshakeStage, BobState};
@@ -33,7 +33,7 @@ use super::HandshakeMessage;
 pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Result<ChatId> {
     // A 1:1 chat is needed to send messages to Alice.  When joining a group this chat is
     // hidden, if a user starts sending messages in it it will be unhidden in
-    // dc_receive_imf.
+    // receive_imf.
     let hidden = match invite {
         QrInvite::Contact { .. } => Blocked::Not,
         QrInvite::Group { .. } => Blocked::Yes,

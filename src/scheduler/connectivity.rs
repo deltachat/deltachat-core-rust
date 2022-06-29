@@ -3,13 +3,13 @@ use std::{ops::Deref, sync::Arc};
 
 use tokio::sync::{Mutex, RwLockReadGuard};
 
-use crate::tools::time;
 use crate::events::EventType;
 use crate::imap::scan_folders::get_watched_folder_configs;
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
-use crate::{config::Config, tools, scheduler::Scheduler, stock_str};
+use crate::tools::time;
+use crate::{config::Config, scheduler::Scheduler, stock_str, tools};
 use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
 use humansize::{file_size_opts, FileSize};

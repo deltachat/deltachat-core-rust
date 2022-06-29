@@ -14,12 +14,12 @@ use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::events::EventType;
 use crate::login_param::{
-    dc_build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
+    build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
 };
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
-use crate::oauth2::dc_get_oauth2_access_token;
+use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::sql;
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
@@ -140,13 +140,13 @@ impl Smtp {
             CertificateChecks::AcceptInvalidCertificates
             | CertificateChecks::AcceptInvalidCertificates2 => false,
         };
-        let tls_config = dc_build_tls(strict_tls);
+        let tls_config = build_tls(strict_tls);
         let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls_config);
 
         let (creds, mechanism) = if lp.oauth2 {
             // oauth2
             let send_pw = &lp.password;
-            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false).await?;
+            let access_token = get_oauth2_access_token(context, addr, send_pw, false).await?;
             if access_token.is_none() {
                 bail!("SMTP OAuth 2 error {}", addr);
             }
@@ -434,7 +434,7 @@ pub(crate) async fn send_msg_to_smtp(
         .collect::<Vec<_>>();
 
     // If there is a msg-id and it does not exist in the db, cancel sending. this happens if
-    // dc_delete_msgs() was called before the generated mime was sent out.
+    // delete_msgs() was called before the generated mime was sent out.
     if !message::exists(context, msg_id)
         .await
         .with_context(|| format!("failed to check message {} existence", msg_id))?

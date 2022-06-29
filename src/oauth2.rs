@@ -8,9 +8,9 @@ use serde::Deserialize;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::tools::time;
 use crate::provider;
 use crate::provider::Oauth2Authorizer;
+use crate::tools::time;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     // see <https://developers.google.com/identity/protocols/OAuth2InstalledApp>
@@ -53,7 +53,7 @@ struct Response {
     scope: Option<String>,
 }
 
-pub async fn dc_get_oauth2_url(
+pub async fn get_oauth2_url(
     context: &Context,
     addr: &str,
     redirect_uri: &str,
@@ -73,7 +73,7 @@ pub async fn dc_get_oauth2_url(
     }
 }
 
-pub async fn dc_get_oauth2_access_token(
+pub async fn get_oauth2_access_token(
     context: &Context,
     addr: &str,
     code: &str,
@@ -224,11 +224,7 @@ pub async fn dc_get_oauth2_access_token(
     }
 }
 
-pub async fn dc_get_oauth2_addr(
-    context: &Context,
-    addr: &str,
-    code: &str,
-) -> Result<Option<String>> {
+pub async fn get_oauth2_addr(context: &Context, addr: &str, code: &str) -> Result<Option<String>> {
     let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
     let oauth2 = match Oauth2::from_address(context, addr, socks5_enabled).await {
         Some(o) => o,
@@ -238,13 +234,11 @@ pub async fn dc_get_oauth2_addr(
         return Ok(None);
     }
 
-    if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, false).await? {
+    if let Some(access_token) = get_oauth2_access_token(context, addr, code, false).await? {
         let addr_out = oauth2.get_addr(context, &access_token).await;
         if addr_out.is_none() {
             // regenerate
-            if let Some(access_token) =
-                dc_get_oauth2_access_token(context, addr, code, true).await?
-            {
+            if let Some(access_token) = get_oauth2_access_token(context, addr, code, true).await? {
                 Ok(oauth2.get_addr(context, &access_token).await)
             } else {
                 Ok(None)
@@ -404,33 +398,31 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dc_get_oauth2_addr() {
+    async fn test_get_oauth2_addr() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
-        let res = dc_get_oauth2_addr(&ctx.ctx, addr, code).await.unwrap();
+        let res = get_oauth2_addr(&ctx.ctx, addr, code).await.unwrap();
         // this should fail as it is an invalid password
         assert_eq!(res, None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dc_get_oauth2_url() {
+    async fn test_get_oauth2_url() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let redirect_uri = "chat.delta:/com.b44t.messenger";
-        let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri)
-            .await
-            .unwrap();
+        let res = get_oauth2_url(&ctx.ctx, addr, redirect_uri).await.unwrap();
 
         assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878%2D4mvtgf6feshskf7695nfln6002mom908%2Eapps%2Egoogleusercontent%2Ecom&redirect_uri=chat%2Edelta%3A%2Fcom%2Eb44t%2Emessenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dc_get_oauth2_token() {
+    async fn test_get_oauth2_token() {
         let ctx = TestContext::new().await;
         let addr = "dignifiedquire@gmail.com";
         let code = "fail";
-        let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false)
+        let res = get_oauth2_access_token(&ctx.ctx, addr, code, false)
             .await
             .unwrap();
         // this should fail as it is an invalid password

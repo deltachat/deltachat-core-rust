@@ -17,10 +17,6 @@ use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::tools::{
-    dc_create_folder, dc_delete_file, dc_get_filesuffix_lc, dc_open_file_std, dc_read_file,
-    dc_write_file, time, EmailAddress,
-};
 use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
@@ -31,6 +27,10 @@ use crate::param::Param;
 use crate::pgp;
 use crate::sql;
 use crate::stock_str;
+use crate::tools::{
+    create_folder, delete_file, get_filesuffix_lc, open_file_std, read_file, time, write_file,
+    EmailAddress,
+};
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
@@ -58,7 +58,7 @@ pub enum ImexMode {
     ExportBackup = 11,
 
     /// `path` is the file (not: directory) to import. The file is normally
-    /// created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
+    /// created by DC_IMEX_EXPORT_BACKUP and detected by imex_has_backup(). Importing a backup
     /// is only possible as long as the context is not configured or used in another way.
     ImportBackup = 12,
 }
@@ -290,7 +290,7 @@ pub async fn continue_key_transfer(
     );
 
     if let Some(filename) = msg.get_file(context) {
-        let file = dc_open_file_std(context, filename)?;
+        let file = open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
         set_self_key(context, &armored_key, true, true).await?;
@@ -393,7 +393,7 @@ async fn imex_inner(
         if e2ee::ensure_secret_key_exists(context).await.is_err() {
             bail!("Cannot create private key or private key not available.");
         } else {
-            dc_create_folder(context, &path).await?;
+            create_folder(context, &path).await?;
         }
     }
 
@@ -577,7 +577,7 @@ struct DeleteOnDrop(PathBuf);
 impl Drop for DeleteOnDrop {
     fn drop(&mut self) {
         let file = self.0.clone();
-        // Not using dc_delete_file() here because it would send a DeletedBlobFile event
+        // Not using delete_file() here because it would send a DeletedBlobFile event
         // Hack to avoid panic in nested runtime calls of tokio
         std::fs::remove_file(file).ok();
     }
@@ -650,7 +650,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
         let entry_fn = entry.file_name();
         let name_f = entry_fn.to_string_lossy();
         let path_plus_name = dir.join(&entry_fn);
-        match dc_get_filesuffix_lc(&name_f) {
+        match get_filesuffix_lc(&name_f) {
             Some(suffix) => {
                 if suffix != "asc" {
                     continue;
@@ -672,7 +672,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
             path_plus_name.display()
         );
 
-        match dc_read_file(context, &path_plus_name).await {
+        match read_file(context, &path_plus_name).await {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
@@ -775,10 +775,10 @@ where
         key.key_id(),
         file_name.display()
     );
-    dc_delete_file(context, &file_name).await;
+    delete_file(context, &file_name).await;
 
     let content = key.to_asc(None).into_bytes();
-    let res = dc_write_file(context, &file_name, &content).await;
+    let res = write_file(context, &file_name, &content).await;
     if res.is_err() {
         error!(context, "Cannot write key to {}", file_name.display());
     } else {

@@ -5,7 +5,7 @@ use deltachat::{
     config::Config,
     context::Context,
     imex::{imex, ImexMode},
-    receive_imf::dc_receive_imf,
+    receive_imf::receive_imf,
     Events,
 };
 use tempfile::tempdir;
@@ -30,7 +30,7 @@ Hello {i}",
             i = i,
             i_dec = i - 1,
         );
-        dc_receive_imf(&context, black_box(imf_raw.as_bytes()), false)
+        receive_imf(&context, black_box(imf_raw.as_bytes()), false)
             .await
             .unwrap();
     }

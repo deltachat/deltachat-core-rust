@@ -15,13 +15,13 @@ use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
-use crate::tools::{dc_delete_file, time};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::log::LogExt;
 use crate::message::{Message, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
+use crate::tools::{delete_file, time};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -788,7 +788,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     entry.file_name()
                 );
                 let path = entry.path();
-                dc_delete_file(context, path).await;
+                delete_file(context, path).await;
             }
         }
         Err(err) => {

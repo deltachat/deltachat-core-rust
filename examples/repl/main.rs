@@ -409,7 +409,7 @@ async fn handle_cmd(
         "oauth2" => {
             if let Some(addr) = ctx.get_config(config::Config::Addr).await? {
                 let oauth2_url =
-                    dc_get_oauth2_url(&ctx, &addr, "chat.delta:/com.b44t.messenger").await?;
+                    get_oauth2_url(&ctx, &addr, "chat.delta:/com.b44t.messenger").await?;
                 if oauth2_url.is_none() {
                     println!("OAuth2 not available for {}.", &addr);
                 } else {
@@ -426,7 +426,7 @@ async fn handle_cmd(
         "getqr" | "getbadqr" => {
             ctx.start_io().await;
             let group = arg1.parse::<u32>().ok().map(ChatId::new);
-            let mut qr = dc_get_securejoin_qr(&ctx, group).await?;
+            let mut qr = get_securejoin_qr(&ctx, group).await?;
             if !qr.is_empty() {
                 if arg0 == "getbadqr" && qr.len() > 40 {
                     qr.replace_range(12..22, "0000000000")
@@ -457,7 +457,7 @@ async fn handle_cmd(
         "joinqr" => {
             ctx.start_io().await;
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx, arg1).await?;
+                join_securejoin(&ctx, arg1).await?;
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),

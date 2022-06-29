@@ -7,12 +7,12 @@ use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::tools::time;
 use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::param::Params;
+use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
 
@@ -257,9 +257,9 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use crate::chat::send_msg;
-    use crate::receive_imf::dc_receive_imf_inner;
     use crate::ephemeral::Timer;
     use crate::message::Viewtype;
+    use crate::receive_imf::receive_imf_inner;
     use crate::test_utils::TestContext;
 
     use super::*;
@@ -342,7 +342,7 @@ mod tests {
              Date: Sun, 22 Mar 2020 22:37:57 +0000\
              Content-Type: text/plain";
 
-        dc_receive_imf_inner(
+        receive_imf_inner(
             &t,
             "Mr.12345678901@example.com",
             header.as_bytes(),
@@ -359,7 +359,7 @@ mod tests {
             .unwrap()
             .contains(&stock_str::partial_download_msg_body(&t, 100000).await));
 
-        dc_receive_imf_inner(
+        receive_imf_inner(
             &t,
             "Mr.12345678901@example.com",
             format!("{}\n\n100k text...", header).as_bytes(),
@@ -388,7 +388,7 @@ mod tests {
             .await?;
 
         // download message from bob partially, this must not change the ephemeral timer
-        dc_receive_imf_inner(
+        receive_imf_inner(
             &t,
             "first@example.org",
             b"From: Bob <bob@example.org>\n\

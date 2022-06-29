@@ -18,9 +18,9 @@ use rand::{thread_rng, CryptoRng, Rng};
 use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
-use crate::tools::EmailAddress;
 use crate::key::{DcKey, Fingerprint};
 use crate::keyring::Keyring;
+use crate::tools::EmailAddress;
 
 pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";

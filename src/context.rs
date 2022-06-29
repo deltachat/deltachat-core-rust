@@ -670,9 +670,9 @@ mod tests {
     };
     use crate::contact::ContactId;
     use crate::message::{Message, Viewtype};
-    use crate::receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-    use crate::tools::dc_create_outgoing_rfc724_mid;
+    use crate::tools::create_outgoing_rfc724_mid;
     use anyhow::Context as _;
     use std::time::Duration;
     use strum::IntoEnumIterator;
@@ -711,10 +711,10 @@ mod tests {
              \n\
              hello\n",
             contact.get_addr(),
-            dc_create_outgoing_rfc724_mid(None, contact.get_addr())
+            create_outgoing_rfc724_mid(None, contact.get_addr())
         );
         println!("{}", msg);
-        dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
+        receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

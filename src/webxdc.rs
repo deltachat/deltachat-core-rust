@@ -19,7 +19,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
-use crate::tools::{dc_create_smeared_timestamp, dc_get_abs_path};
+use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
 /// The current API version.
@@ -366,7 +366,7 @@ impl Context {
             .create_status_update_record(
                 &mut instance,
                 update_str,
-                dc_create_smeared_timestamp(self).await,
+                create_smeared_timestamp(self).await,
                 send_now,
                 ContactId::SELF,
             )
@@ -617,7 +617,7 @@ impl Message {
         let path = self
             .get_file(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
-        let path_abs = dc_get_abs_path(context, &path);
+        let path_abs = get_abs_path(context, &path);
         let archive = async_zip::read::fs::ZipFileReader::new(path_abs).await?;
         Ok(archive)
     }
@@ -733,7 +733,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
 
     use super::*;
@@ -956,7 +956,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_receive_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_good_extension.eml"),
             false,
@@ -966,7 +966,7 @@ mod tests {
         assert_eq!(instance.viewtype, Viewtype::Webxdc);
         assert_eq!(instance.get_filename(), Some("minimal.xdc".to_string()));
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_bad_extension.eml"),
             false,

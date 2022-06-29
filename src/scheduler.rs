@@ -6,8 +6,6 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::tools::time;
-use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
 use crate::job;
@@ -15,6 +13,8 @@ use crate::location;
 use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
+use crate::tools::time;
+use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
 
 use self::connectivity::ConnectivityStore;
 

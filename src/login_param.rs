@@ -393,7 +393,7 @@ static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
     .unwrap()
 });
 
-pub fn dc_build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
+pub fn build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
     let tls_builder =
         async_native_tls::TlsConnector::new().add_root_certificate(LETSENCRYPT_ROOT.clone());
 
@@ -462,8 +462,8 @@ mod tests {
     async fn test_build_tls() -> Result<()> {
         // we are using some additional root certificates.
         // make sure, they do not break construction of TlsConnector
-        let _ = dc_build_tls(true);
-        let _ = dc_build_tls(false);
+        let _ = build_tls(true);
+        let _ = build_tls(false);
         Ok(())
     }
 }

@@ -16,7 +16,6 @@ use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
 use crate::context::Context;
-use crate::tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -25,6 +24,7 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
+use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
 use crate::{chat, stock_str};
 
 /// Contact ID, including reserved IDs.
@@ -38,7 +38,7 @@ impl ContactId {
     pub const UNDEFINED: ContactId = ContactId::new(0);
     /// The owner of the account.
     ///
-    /// The email-address is set by `dc_set_config` using "addr".
+    /// The email-address is set by `set_config` using "addr".
     pub const SELF: ContactId = ContactId::new(1);
     pub const INFO: ContactId = ContactId::new(2);
     pub const DEVICE: ContactId = ContactId::new(5);
@@ -142,7 +142,7 @@ pub struct Contact {
     /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr` to access this field.
     addr: String,
 
-    /// Blocked state. Use dc_contact_is_blocked to access this field.
+    /// Blocked state. Use contact_is_blocked to access this field.
     pub blocked: bool,
 
     /// Time when the contact was seen last time, Unix time in seconds.
@@ -212,13 +212,13 @@ pub enum Origin {
     /// address is in our address book
     AddressBook = 0x80000,
 
-    /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
+    /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling contact_is_verified() !
     SecurejoinInvited = 0x0100_0000,
 
-    /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
+    /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling contact_is_verified() !
     SecurejoinJoined = 0x0200_0000,
 
-    /// contact added mannually by dc_create_contact(), this should be the largest origin as otherwise the user cannot modify the names
+    /// contact added mannually by create_contact(), this should be the largest origin as otherwise the user cannot modify the names
     ManuallyCreated = 0x0400_0000,
 }
 
@@ -344,7 +344,7 @@ impl Contact {
     /// We assume, the contact name, if any, is entered by the user and is used "as is" therefore,
     /// normalize() is *not* called for the name. If the contact is blocked, it is unblocked.
     ///
-    /// To add a number of contacts, see `dc_add_address_book()` which is much faster for adding
+    /// To add a number of contacts, see `add_address_book()` which is much faster for adding
     /// a bunch of addresses.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
@@ -384,10 +384,10 @@ impl Contact {
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
     ///
-    /// Known and unblocked contacts will be returned by `dc_get_contacts()`.
+    /// Known and unblocked contacts will be returned by `get_contacts()`.
     ///
     /// To validate an e-mail address independently of the contact database
-    /// use `dc_may_be_valid_addr()`.
+    /// use `may_be_valid_addr()`.
     pub async fn lookup_id_by_addr(
         context: &Context,
         addr: &str,
@@ -676,7 +676,7 @@ impl Contact {
 
     /// Returns known and unblocked contacts.
     ///
-    /// To get information about a single contact, see dc_get_contact().
+    /// To get information about a single contact, see get_contact().
     ///
     /// `listflags` is a combination of flags:
     /// - if the flag DC_GCL_ADD_SELF is set, SELF is added to the list unless filtered by other parameters
@@ -970,11 +970,11 @@ impl Contact {
         bail!("Could not delete contact with ongoing chats");
     }
 
-    /// Get a single contact object.  For a list, see eg. dc_get_contacts().
+    /// Get a single contact object.  For a list, see eg. get_contacts().
     ///
     /// For contact ContactId::SELF (1), the function returns sth.
     /// like "Me" in the selected language and the email address
-    /// defined by dc_set_config().
+    /// defined by set_config().
     pub async fn get_by_id(context: &Context, contact_id: ContactId) -> Result<Contact> {
         let contact = Contact::load_from_db(context, contact_id).await?;
 
@@ -1063,7 +1063,7 @@ impl Contact {
 
     /// Get the contact's profile image.
     /// This is the image set by each remote user on their own
-    /// using dc_set_config(context, "selfavatar", image).
+    /// using set_config(context, "selfavatar", image).
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if self.id == ContactId::SELF {
             if let Some(p) = context.get_config(Config::Selfavatar).await? {
@@ -1071,7 +1071,7 @@ impl Contact {
             }
         } else if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Ok(Some(dc_get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, image_rel)));
             }
         }
         Ok(None)
@@ -1445,8 +1445,8 @@ mod tests {
 
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
-    use crate::receive_imf::dc_receive_imf;
     use crate::message::Message;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::{self, TestContext};
 
     #[test]
@@ -1690,7 +1690,7 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         // first message creates contact and one-to-one-chat without name set
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: f@example.org\n\
                  To: alice@example.org\n\
@@ -1719,7 +1719,7 @@ mod tests {
         assert_eq!(contacts.len(), 1);
 
         // second message inits the name
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Flobbyfoo <f@example.org>\n\
                  To: alice@example.org\n\
@@ -1747,7 +1747,7 @@ mod tests {
         assert_eq!(contacts.len(), 1);
 
         // third message changes the name
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Foo Flobby <f@example.org>\n\
                  To: alice@example.org\n\
@@ -2266,7 +2266,7 @@ Chat-Version: 1.0
 Date: Sun, 22 Mar 2020 22:37:55 +0000
 
 Hi."#;
-        dc_receive_imf(&alice, mime, false).await?;
+        receive_imf(&alice, mime, false).await?;
         let msg = alice.get_last_msg().await;
 
         let timestamp = msg.get_timestamp();

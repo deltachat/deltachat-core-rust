@@ -70,7 +70,6 @@ use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::tools::{duration_to_str, time};
 use crate::download::MIN_DELETE_SERVER_AFTER;
 use crate::events::EventType;
 use crate::log::LogExt;
@@ -78,6 +77,7 @@ use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql::{self, params_iter};
 use crate::stock_str;
+use crate::tools::{duration_to_str, time};
 use std::cmp::max;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
@@ -339,7 +339,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
         .sql
         .execute(
             // If you change which information is removed here, also change MsgId::trash() and
-            // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+            // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
             r#"
 UPDATE msgs
 SET 
@@ -572,10 +572,10 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
 mod tests {
     use super::*;
     use crate::config::Config;
-    use crate::receive_imf::dc_receive_imf;
-    use crate::tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::download::DownloadState;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use crate::tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::{
         chat::{self, Chat, ChatItem},
         tools::IsNoneOrEmpty,
@@ -1101,7 +1101,7 @@ mod tests {
         let alice = TestContext::new_alice().await;
 
         // Message with Message-ID <first@example.com> and no timer is received.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: Alice <alice@example.org>\n\
@@ -1120,7 +1120,7 @@ mod tests {
         assert_eq!(chat_id.get_ephemeral_timer(&alice).await?, Timer::Disabled);
 
         // Message with Message-ID <second@example.com> is received.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: Alice <alice@example.org>\n\
@@ -1155,7 +1155,7 @@ mod tests {
         //
         // The message also contains a quote of the first message to test that only References:
         // header and not In-Reply-To: is consulted by the rollback protection.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: Alice <alice@example.org>\n\

@@ -728,7 +728,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -795,7 +795,7 @@ mod tests {
     async fn receive_location_kml() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
-        dc_receive_imf(
+        receive_imf(
             &alice,
             br#"Subject: Hello
 Message-ID: hello@example.net
@@ -812,7 +812,7 @@ Text message."#,
         let received_msg = alice.get_last_msg().await;
         assert_eq!(received_msg.text.unwrap(), "Text message.");
 
-        dc_receive_imf(
+        receive_imf(
             &alice,
             br#"Subject: locations
 MIME-Version: 1.0

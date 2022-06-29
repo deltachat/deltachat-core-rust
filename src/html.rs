@@ -281,7 +281,7 @@ mod tests {
     use crate::config::Config;
     use crate::contact::ContactId;
     use crate::message::{MessengerMessage, Viewtype};
-    use crate::receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -440,7 +440,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        dc_receive_imf(&alice, raw, false).await.unwrap();
+        receive_imf(&alice, raw, false).await.unwrap();
         let msg = alice.get_last_msg_in(chat.get_id()).await;
         assert_ne!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
@@ -489,7 +489,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        dc_receive_imf(&alice, raw, false).await.unwrap();
+        receive_imf(&alice, raw, false).await.unwrap();
         let msg = alice.get_last_msg_in(chat.get_id()).await;
 
         // forward the message to saved-messages,
@@ -551,7 +551,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     async fn test_cp1252_html() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await?;
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/cp1252-html.eml"),
             false,

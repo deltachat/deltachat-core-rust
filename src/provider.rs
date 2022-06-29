@@ -192,8 +192,8 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::tools::time;
     use crate::test_utils::TestContext;
+    use crate::tools::time;
     use chrono::NaiveDate;
 
     #[test]
