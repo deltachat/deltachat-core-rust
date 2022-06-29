@@ -4443,11 +4443,11 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
 mod jsonrpc {
     use super::*;
     use deltachat_jsonrpc::api::CommandApi;
-    use deltachat_jsonrpc::yerpc::{MessageHandle, RpcHandle};
+    use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
 
     pub struct dc_jsonrpc_instance_t {
-        receiver: async_std::channel::Receiver<deltachat_jsonrpc::yerpc::Message>,
-        handle: MessageHandle<CommandApi>,
+        receiver: OutReceiver,
+        handle: RpcSession<CommandApi>,
     }
 
     #[no_mangle]
@@ -4462,8 +4462,8 @@ mod jsonrpc {
         let cmd_api =
             deltachat_jsonrpc::api::CommandApi::new_from_arc((*account_manager).inner.clone());
 
-        let (request_handle, receiver) = RpcHandle::new();
-        let handle = MessageHandle::new(request_handle, cmd_api);
+        let (request_handle, receiver) = RpcClient::new();
+        let handle = RpcSession::new(request_handle, cmd_api);
 
         let instance = dc_jsonrpc_instance_t { receiver, handle };
 
@@ -4493,8 +4493,8 @@ mod jsonrpc {
         let api = &*jsonrpc_instance;
         let handle = &api.handle;
         let request = to_string_lossy(request);
-        async_std::task::spawn(async move {
-            handle.handle_message(&request).await;
+        spawn(async move {
+            handle.handle_incoming(&request).await;
         });
     }
 
@@ -4507,7 +4507,7 @@ mod jsonrpc {
             return ptr::null_mut();
         }
         let api = &*jsonrpc_instance;
-        async_std::task::block_on(api.receiver.recv())
+        block_on(api.receiver.recv())
             .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
             .unwrap_or(ptr::null_mut())
     }
