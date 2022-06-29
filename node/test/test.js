@@ -91,8 +91,8 @@ describe('JSON RPC', function () {
     const promise = new Promise((res, _rej) => {
       promise_resolve = res
     })
-    dc.startJSONRPCHandler(promise_resolve)
-    dc.jsonRPCRequest(
+    dc.startJsonRpcHandler(promise_resolve)
+    dc.jsonRpcRequest(
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'get_all_account_ids',
@@ -115,13 +115,13 @@ describe('JSON RPC', function () {
     const { dc } = DeltaChat.newTemporary()
 
     const promises = {}
-    dc.startJSONRPCHandler((msg) => {
+    dc.startJsonRpcHandler((msg) => {
       const response = JSON.parse(msg)
       promises[response.id](response)
       delete promises[response.id]
     })
     const call = (request) => {
-      dc.jsonRPCRequest(JSON.stringify(request))
+      dc.jsonRpcRequest(JSON.stringify(request))
       return new Promise((res, _rej) => {
         promises[request.id] = res
       })

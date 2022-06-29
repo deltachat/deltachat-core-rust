@@ -10,20 +10,20 @@
  - `void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, char* request);`
  - `char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);`
 - node: json rpc methods #3463:
- - `AccountManager.prototype.startJSONRPCHandler(callback: ((response: string) => void)): void`
- - `AccountManager.prototype.jsonRPCRequest(message: string): void`
+ - `AccountManager.prototype.startJsonRpcHandler(callback: ((response: string) => void)): void`
+ - `AccountManager.prototype.jsonRpcRequest(message: string): void`
 
 ### Changes
 - Implemented "Automatic e-mail address Porting" (AEAP). You can
   configure a new address in DC now, and when receivers get messages
   they will automatically recognize your moving to a new address. #3385
+- added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 - switch from `async-std` to `tokio` as the async runtime #3449
 - upgrade to `pgp@0.8.0` #3467
 - add IMAP ID extension support #3468
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
 - build PyPy wheels #6683
 - improve default error if NDN does not provide an error #3456
-- integrate [deltachat-jsonrpc](https://github.com/deltachat/deltachat-jsonrpc) into this repo and into cffi and node-bindings #3463
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
