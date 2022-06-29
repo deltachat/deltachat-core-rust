@@ -477,14 +477,14 @@ mod tests {
         futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
     });
 
-    #[test]
-    fn test_encrypt_signed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_encrypt_signed() {
         assert!(!CTEXT_SIGNED.is_empty());
         assert!(CTEXT_SIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
     }
 
-    #[test]
-    fn test_encrypt_unsigned() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_encrypt_unsigned() {
         assert!(!CTEXT_UNSIGNED.is_empty());
         assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
     }
