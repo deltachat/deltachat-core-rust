@@ -69,13 +69,11 @@ npm run docs
 ```
 Then open the [`typescript/docs`](typescript/docs) folder in a web browser.
 
-##### Usage in JavaScript projects
-
-It is not yet straightforward to use the client this way in a JavaScript project. If you have a need please open an issue. For now, clone this repo, run `npm run build` in the typescript folder and copy `dist/deltachat.bundle.js` into your project. This will be obsolete once we publish the client to NPM (likely soon).
+## Development
 
 #### Running the example app
 
-We include a small demo web application that talks to the WebSocket server.
+We include a small demo web application that talks to the WebSocket server. It can be used for testing. Feel invited to expand this.
 
 ```sh
 cd typescript
@@ -83,13 +81,13 @@ npm run build
 npm run example:build
 npm run example:start
 ```
-Then, open [`http://localhost:8080`](http://localhost:8080) in a web browser.
+Then, open [`http://localhost:8080/example.html`](http://localhost:8080/example.html) in a web browser.
 
-## Development
+Run `npm run example:dev` to live-rebuild the example app when files changes.
 
 ### Testing
 
-The crate includes both (basic) Rust tests and integration tests that use the TypeScript client.
+The crate includes both a basic Rust smoke test and more featureful integration tests that use the TypeScript client.
 
 #### Rust tests
 
