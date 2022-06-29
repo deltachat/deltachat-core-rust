@@ -59,7 +59,7 @@ jobs:
           cd deltachat-jsonrpc/typescript
           npm run build
           cargo build --features webserver
-          npm run test:integration
+          npm run test
       - name: run prettier
         run: |
           cd deltachat-jsonrpc/typescript
