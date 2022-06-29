@@ -40,6 +40,7 @@ impl CommandApi {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
         CommandApi { accounts }
     }
