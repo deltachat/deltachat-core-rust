@@ -12,15 +12,16 @@
     "build": "npm run generate-bindings && tsc",
     "bundle": "npm run build && esbuild --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
     "generate-bindings": "cargo test",
-    "example:build": "tsc && esbuild --bundle dist/example.js --outfile=dist/example.bundle.js",
-    "example:dev": "esbuild example.ts --bundle --outdir=dist --servedir=.",
+    "example:build": "tsc && esbuild --bundle dist/example.js --outfile=dist/example.bundle.js && cp example/index.html dist",
+    "example:start": "http-server dist/",
+    "example:dev": "esbuild example/example.ts --bundle --outfile=dist/example.bundle.js --servedir=.",
     "coverage": "tsc -b test && COVERAGE=1 NODE_OPTIONS=--enable-source-maps c8 --include \"dist/*\" -r text -r html -r json mocha test_dist && node report_api_coverage.mjs",
     "test": "rm -rf dist && npm run build && npm run coverage && npm run prettier:check"
   },
   "dependencies": {
     "isomorphic-ws": "^4.0.1",
     "tiny-emitter": "git+https://github.com/Simon-Laux/tiny-emitter.git",
-    "yerpc": "^0.3"
+    "yerpc": "^0.3.3"
   },
   "devDependencies": {
     "prettier": "^2.6.2",

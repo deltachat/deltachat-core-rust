@@ -15,6 +15,6 @@
     "noImplicitAny": true,
     "isolatedModules": true
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "example/*.ts"],
   "compileOnSave": false
 }

@@ -1,11 +1,12 @@
-import { RawClient, RPC } from "./src/lib";
+import { RawClient } from "../src/lib";
 import { WebsocketTransport, Request } from "yerpc";
 
 type DeltaEvent = { id: string; contextId: number; field1: any; field2: any };
-var selectedAccount = 0;
+var SELECTED_ACCOUNT = 0;
+
 window.addEventListener("DOMContentLoaded", (_event) => {
   (window as any).selectDeltaAccount = (id: string) => {
-    selectedAccount = Number(id);
+    SELECTED_ACCOUNT = Number(id);
     window.dispatchEvent(new Event("account-changed"));
   };
   run().catch((err) => console.error("run failed", err));
@@ -18,8 +19,11 @@ async function run() {
 
   const transport = new WebsocketTransport("ws://localhost:20808/ws");
   const client = new RawClient(transport);
+  transport.on("error", (err) => {
+    console.error("WebSocket transport error", err)
+  });
 
-  (window as any).client = client;
+  ;(window as any).client = client;
 
   transport.on("request", (request: Request) => {
     const method = request.method;
@@ -30,7 +34,7 @@ async function run() {
   });
 
   window.addEventListener("account-changed", async (_event: Event) => {
-    await client.selectAccount(selectedAccount);
+    await client.selectAccount(SELECTED_ACCOUNT);
     listChatsForSelectedAccount();
   });
 
@@ -43,9 +47,16 @@ async function run() {
         write(
           $head,
           `<a href="#" onclick="selectDeltaAccount(${account.id})">
-          ${account.addr!}
+          ${account.id}: ${account.addr!}
           </a>&nbsp;`
         );
+      } else {
+        write(
+          $head,
+          `<a href="#">
+          ${account.id}: (unconfigured)
+          </a>&nbsp;`
+        )
       }
     }
   }

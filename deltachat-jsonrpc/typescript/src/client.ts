@@ -17,11 +17,12 @@ export type Events = Record<
 >;
 
 export class BaseDeltachat<
-  Transport extends BaseTransport
+  Transport extends BaseTransport<any>
 > extends TinyEmitter<Events> {
   rpc: RawClient;
   account?: T.Account;
-  constructor(protected transport: Transport) {
+  private contextEmitters: TinyEmitter<Events>[] = [];
+  constructor(public transport: Transport) {
     super();
     this.rpc = new RawClient(this.transport);
     this.transport.on("request", (request: Request) => {
@@ -43,8 +44,6 @@ export class BaseDeltachat<
     return await this.rpc.getAllAccounts();
   }
 
-  private contextEmitters: TinyEmitter<Events>[] = [];
-
   getContextEvents(account_id: number) {
     if (this.contextEmitters[account_id]) {
       return this.contextEmitters[account_id];
@@ -65,13 +64,14 @@ export const DEFAULT_OPTS: Opts = {
 export class Deltachat extends BaseDeltachat<WebsocketTransport> {
   opts: Opts;
   close() {
-    this.transport._socket.close();
+    this.transport.close();
   }
-  constructor(opts: Opts | string | undefined) {
+  constructor(opts?: Opts | string) {
     if (typeof opts === "string") opts = { url: opts };
     if (opts) opts = { ...DEFAULT_OPTS, ...opts };
     else opts = { ...DEFAULT_OPTS };
-    super(new WebsocketTransport(opts.url));
+    const transport = new WebsocketTransport(opts.url)
+    super(transport);
     this.opts = opts;
   }
 }
