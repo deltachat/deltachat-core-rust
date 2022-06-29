@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### API-Changes
+- jsonrpc api over werbsocket server (basically a new api next to the cffi) #3463
+- jsonrpc methods in cffi #3463: 
+ - `dc_jsonrpc_instance_t* dc_jsonrpc_init(dc_accounts_t* account_manager);`
+ - `void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);`
+ - `void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, char* request);`
+ - `char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);`
+- node: json rpc methods #3463:
+ - `AccountManager.prototype.startJSONRPCHandler(callback: ((response: string) => void)): void`
+ - `AccountManager.prototype.jsonRPCRequest(message: string): void`
+
 ### Changes
 - Implemented "Automatic e-mail address Porting" (AEAP). You can
   configure a new address in DC now, and when receivers get messages
@@ -12,6 +23,7 @@
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
 - build PyPy wheels #6683
 - improve default error if NDN does not provide an error #3456
+- integrate [deltachat-jsonrpc](https://github.com/deltachat/deltachat-jsonrpc) into this repo and into cffi and node-bindings #3463
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
