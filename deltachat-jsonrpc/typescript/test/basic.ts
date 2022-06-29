@@ -2,7 +2,7 @@ import { strictEqual } from "assert";
 import chai, { assert, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
-import { Deltachat } from "../deltachat.js";
+import { DeltaChat } from "../deltachat.js";
 
 import {
   RpcServerHandle,
@@ -11,13 +11,13 @@ import {
 
 describe("basic tests", () => {
   let serverHandle: RpcServerHandle;
-  let dc: Deltachat;
+  let dc: DeltaChat;
 
   before(async () => {
     serverHandle = await startServer();
     // make sure server is up by the time we continue
     await new Promise((res) => setTimeout(res, 100));
-    dc = new Deltachat(serverHandle.url)
+    dc = new DeltaChat(serverHandle.url)
     // dc.on("ALL", (event) => {
       //console.log("event", event);
     // });

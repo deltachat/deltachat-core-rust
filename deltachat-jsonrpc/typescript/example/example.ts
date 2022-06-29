@@ -1,4 +1,4 @@
-import { Deltachat, DeltachatEvent } from "../deltachat.js";
+import { DeltaChat, DeltaChatEvent } from "../deltachat.js";
 
 var SELECTED_ACCOUNT = 0;
 
@@ -16,7 +16,7 @@ async function run() {
   const $side = document.getElementById("side")!;
   const $head = document.getElementById("header")!;
 
-  const client = new Deltachat('ws://localhost:20808/ws')
+  const client = new DeltaChat('ws://localhost:20808/ws')
 
   ;(window as any).client = client.rpc;
 
@@ -88,7 +88,7 @@ async function run() {
     }
   }
 
-  function onIncomingEvent(event: DeltachatEvent) {
+  function onIncomingEvent(event: DeltaChatEvent) {
     write(
       $side,
       `

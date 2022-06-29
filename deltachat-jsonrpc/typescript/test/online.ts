@@ -1,5 +1,5 @@
 import { assert, expect } from "chai";
-import { Deltachat, DeltachatEvent, EventTypeName } from "../deltachat.js";
+import { DeltaChat, DeltaChatEvent, EventTypeName } from "../deltachat.js";
 import {
   RpcServerHandle,
   createTempUser,
@@ -10,7 +10,7 @@ const EVENT_TIMEOUT = 10000
 
 describe("online tests", function () {
   let serverHandle: RpcServerHandle;
-  let dc: Deltachat;
+  let dc: DeltaChat;
   let account1: { email: string; password: string };
   let account2: { email: string; password: string };
   let accountId1: number, accountId2: number;
@@ -31,7 +31,7 @@ describe("online tests", function () {
       this.skip();
     }
     serverHandle = await startServer();
-    dc = new Deltachat(serverHandle.url)
+    dc = new DeltaChat(serverHandle.url)
 
     dc.on("ALL", ({ id, contextId }) => {
       if (id !== "Info") console.log(contextId, id);
@@ -182,17 +182,17 @@ describe("online tests", function () {
 });
 
 async function waitForEvent(
-  dc: Deltachat,
+  dc: DeltaChat,
   eventType: EventTypeName,
   accountId: number,
   timeout: number = EVENT_TIMEOUT
-): Promise<DeltachatEvent> {
+): Promise<DeltaChatEvent> {
   return new Promise((resolve, reject) => {
     const rejectTimeout = setTimeout(
       () => reject(new Error('Timeout reached before event came in')),
       timeout
     )
-    const callback = (event: DeltachatEvent) => {
+    const callback = (event: DeltaChatEvent) => {
       if (event.contextId == accountId) {
         dc.off(eventType, callback);
         clearTimeout(rejectTimeout)

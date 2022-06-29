@@ -1,5 +1,5 @@
 {
-  "name": "@deltachat/jsonrpc-client",
+  "name": "deltachat-jsonrpc-client",
   "version": "0.1.0",
   "main": "dist/deltachat.js",
   "types": "dist/deltachat.d.ts",
@@ -12,7 +12,7 @@
     "generate-bindings": "cargo test",
     "build": "run-s generate-bindings build:tsc build:bundle",
     "build:tsc": "tsc",
-    "build:bundle": "esbuild --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
+    "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
     "example": "run-s build example:build example:start",
     "example:build": "esbuild --bundle dist/example/example.js --outfile=dist/example.bundle.js",
     "example:start": "http-server .",

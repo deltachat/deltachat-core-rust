@@ -5,7 +5,7 @@ import { EventTypeName } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "tiny-emitter";
 
-export type DeltachatEvent = {
+export type DeltaChatEvent = {
   id: EventTypeName;
   contextId: number;
   field1: any;
@@ -13,10 +13,10 @@ export type DeltachatEvent = {
 };
 export type Events = Record<
   EventTypeName | "ALL",
-  (event: DeltachatEvent) => void
+  (event: DeltaChatEvent) => void
 >;
 
-export class BaseDeltachat<
+export class BaseDeltaChat<
   Transport extends BaseTransport<any>
 > extends TinyEmitter<Events> {
   rpc: RawClient;
@@ -28,7 +28,7 @@ export class BaseDeltachat<
     this.transport.on("request", (request: Request) => {
       const method = request.method;
       if (method === "event") {
-        const event = request.params! as DeltachatEvent;
+        const event = request.params! as DeltaChatEvent;
         this.emit(event.id, event);
         this.emit("ALL", event);
 
@@ -61,7 +61,7 @@ export type Opts = {
 export const DEFAULT_OPTS: Opts = {
   url: "ws://localhost:20808/ws",
 };
-export class Deltachat extends BaseDeltachat<WebsocketTransport> {
+export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
   opts: Opts;
   close() {
     this.transport.close();

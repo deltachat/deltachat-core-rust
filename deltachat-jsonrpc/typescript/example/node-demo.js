@@ -1,9 +1,9 @@
-import { Deltachat } from "../dist/deltachat.js";
+import { DeltaChat } from "../dist/deltachat.js";
 
 run().catch(console.error);
 
 async function run() {
-  const delta = new Deltachat();
+  const delta = new DeltaChat();
   delta.on("event", (event) => {
     console.log("event", event.data);
   });
