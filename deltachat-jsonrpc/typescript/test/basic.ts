@@ -61,7 +61,6 @@ describe("basic tests", () => {
   describe("account managment", () => {
     it("should create account", async () => {
       const res = await dc.rpc.addAccount();
-      console.log('res', res)
       assert((await dc.rpc.getAllAccountIds()).length === 1);
     });
 

@@ -46,7 +46,6 @@ describe("online tests", function () {
     }
 
     account2 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
-    console.log({ account: account1, account2 })
     if (!account2 || !account2.email || !account2.password) {
       console.log(
         "We didn't got back an account2 from the api, skip intergration tests"
