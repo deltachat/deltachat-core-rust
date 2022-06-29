@@ -1,28 +1,90 @@
 import { tmpdir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 import { mkdtemp, rm } from "fs/promises";
 import { existsSync } from "fs";
 import { spawn, exec } from "child_process";
-import { unwrapPromise } from "./ts_helpers.js";
 import fetch from "node-fetch";
-/* port is not configurable yet */
 
+export const RPC_SERVER_PORT = 20808;
+
+export type RpcServerHandle = {
+  url: string,
+  close: () => Promise<void>
+}
+
+export async function startServer(port: number = RPC_SERVER_PORT): Promise<RpcServerHandle> {
+  const tmpDir = await mkdtemp(join(tmpdir(), "deltachat-jsonrpc-test"));
+
+  const pathToServerBinary = resolve(join(await getTargetDir(), "debug/deltachat-jsonrpc-server"));
+  console.log('using server binary: ' + pathToServerBinary);
+
+  if (!existsSync(pathToServerBinary)) {
+    throw new Error(
+      "server executable does not exist, you need to build it first" +
+        "\nserver executable not found at " +
+        pathToServerBinary
+    );
+  }
+
+  const server = spawn(pathToServerBinary, {
+    cwd: tmpDir,
+    env: {
+      RUST_LOG: process.env.RUST_LOG || "info",
+      DC_PORT: '' + port
+    },
+  });
+  let shouldClose = false;
+
+  server.on("exit", () => {
+    if (shouldClose) {
+      return;
+    }
+    throw new Error("Server quit");
+  });
+
+  server.stderr.pipe(process.stderr);
+  server.stdout.pipe(process.stdout)
+
+  const url = `ws://localhost:${port}/ws`
+
+  return {
+    url,
+    close: async () => {
+      shouldClose = true;
+      if (!server.kill()) {
+        console.log("server termination failed");
+      }
+      await rm(tmpDir, { recursive: true });
+    },
+  };
+}
+
+export async function createTempUser(url: string) {
+  const response = await fetch(url, {
+    method: "POST", 
+    headers: {
+      "cache-control": "no-cache",
+    },
+  });
+  if (!response.ok) throw new Error('Received invalid response')
+  return response.json(); 
+}
 
 function getTargetDir(): Promise<string> {
-  return new Promise((res, rej) => {
+  return new Promise((resolve, reject) => {
     exec(
       "cargo metadata --no-deps --format-version 1",
-      (error, stdout, stderr) => {
+      (error, stdout, _stderr) => {
         if (error) {
           console.log("error", error);
-          rej(error);
+          reject(error);
         } else {
           try {
             const json = JSON.parse(stdout);
-            res(json.target_directory);
+            resolve(json.target_directory);
           } catch (error) {
             console.log("json error", error);
-            rej(error);
+            reject(error);
           }
         }
       }
@@ -30,66 +92,3 @@ function getTargetDir(): Promise<string> {
   });
 }
 
-export const CMD_API_SERVER_PORT = 20808;
-export async function startCMD_API_Server(port: typeof CMD_API_SERVER_PORT) {
-  const tmp_dir = await mkdtemp(join(tmpdir(), "test_prefix"));
-
-  const path_of_server = join(await getTargetDir(), "debug/webserver");
-  console.log(path_of_server);
-
-  if (!existsSync(path_of_server)) {
-    throw new Error(
-      "server executable does not exist, you need to build it first" +
-        "\nserver executable not found at " +
-        path_of_server
-    );
-  }
-
-  const server = spawn(path_of_server, {
-    cwd: tmp_dir,
-    env: {
-      RUST_LOG: "info",
-    },
-  });
-  let should_close = false;
-
-  server.on("exit", () => {
-    if (should_close) {
-      return;
-    }
-    throw new Error("Server quit");
-  });
-
-  server.stderr.pipe(process.stderr);
-
-  //server.stdout.pipe(process.stdout)
-
-  return {
-    close: async () => {
-      should_close = true;
-      if (!server.kill(9)) {
-        console.log("server termination failed");
-      }
-      await rm(tmp_dir, { recursive: true });
-    },
-  };
-}
-
-export type CMD_API_Server_Handle = unwrapPromise<
-  ReturnType<typeof startCMD_API_Server>
->;
-
-export async function createTempUser(url: string) {
-  async function postData(url = "") {
-    // Default options are marked with *
-    const response = await fetch(url, {
-      method: "POST", // *GET, POST, PUT, DELETE, etc.
-      headers: {
-        "cache-control": "no-cache",
-      },
-    });
-    return response.json(); // parses JSON response into native JavaScript objects
-  }
-
-  return await postData(url);
-}

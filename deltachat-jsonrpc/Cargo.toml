@@ -3,11 +3,11 @@ name = "deltachat-jsonrpc"
 version = "1.86.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
-default-run = "webserver"
+default-run = "deltachat-jsonrpc-server"
 license = "MPL-2.0"
 
 [[bin]]
-name = "webserver"
+name = "deltachat-jsonrpc-server"
 path = "src/webserver.rs"
 required-features = ["webserver"]
 
@@ -36,6 +36,3 @@ tokio = { version = "1.19.2", features = ["full", "rt-multi-thread"] }
 [features]
 default = []
 webserver = ["env_logger", "axum", "tokio/full", "yerpc/support-axum"]
-
-[profile.release]
-lto = true

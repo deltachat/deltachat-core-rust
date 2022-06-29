@@ -2,59 +2,55 @@ import { strictEqual } from "assert";
 import chai, { assert, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
-import { Deltachat } from "../dist/deltachat.js";
+import { Deltachat } from "../deltachat.js";
 
 import {
-  CMD_API_Server_Handle,
-  CMD_API_SERVER_PORT,
-  startCMD_API_Server,
+  RpcServerHandle,
+  startServer,
 } from "./test_base.js";
 
 describe("basic tests", () => {
-  let server_handle: CMD_API_Server_Handle;
+  let serverHandle: RpcServerHandle;
   let dc: Deltachat;
 
   before(async () => {
-    server_handle = await startCMD_API_Server(CMD_API_SERVER_PORT);
+    serverHandle = await startServer();
     // make sure server is up by the time we continue
     await new Promise((res) => setTimeout(res, 100));
-
-    dc = new Deltachat({
-      url: "ws://localhost:" + CMD_API_SERVER_PORT + "/ws",
-    });
-    dc.on("ALL", (event) => {
+    dc = new Deltachat(serverHandle.url)
+    // dc.on("ALL", (event) => {
       //console.log("event", event);
-    });
+    // });
   });
 
   after(async () => {
     dc && dc.close();
-    await server_handle.close();
+    await serverHandle.close();
   });
 
-  it("check email", async () => {
-    const positive_test_cases = [
+  it("check email address validity", async () => {
+    const validAddresses = [
       "email@example.com",
       "36aa165ae3406424e0c61af17700f397cad3fe8ab83d682d0bddf3338a5dd52e@yggmail@yggmail",
     ];
-    const negative_test_cases = ["email@", "example.com", "emai221"];
+    const invalidAddresses = ["email@", "example.com", "emai221"];
 
     expect(
       await Promise.all(
-        positive_test_cases.map((email) => dc.rpc.checkEmailValidity(email))
+        validAddresses.map((email) => dc.rpc.checkEmailValidity(email))
       )
     ).to.not.contain(false);
 
     expect(
       await Promise.all(
-        negative_test_cases.map((email) => dc.rpc.checkEmailValidity(email))
+        invalidAddresses.map((email) => dc.rpc.checkEmailValidity(email))
       )
     ).to.not.contain(true);
   });
 
   it("system info", async () => {
-    const system_info = await dc.rpc.getSystemInfo();
-    expect(system_info).to.contain.keys([
+    const systemInfo = await dc.rpc.getSystemInfo();
+    expect(systemInfo).to.contain.keys([
       "arch",
       "num_cpus",
       "deltachat_core_version",
@@ -64,7 +60,8 @@ describe("basic tests", () => {
 
   describe("account managment", () => {
     it("should create account", async () => {
-      await dc.rpc.addAccount();
+      const res = await dc.rpc.addAccount();
+      console.log('res', res)
       assert((await dc.rpc.getAllAccountIds()).length === 1);
     });
 
@@ -83,55 +80,55 @@ describe("basic tests", () => {
   });
 
   describe("contact managment", function () {
-    let acc: number;
+    let accountId: number;
     before(async () => {
-      acc = await dc.rpc.addAccount();
+      accountId = await dc.rpc.addAccount();
     });
-    it("block and unblock contact", async function () {
+    it("should block and unblock contact", async function () {
       const contactId = await dc.rpc.contactsCreateContact(
-        acc,
+        accountId,
         "example@delta.chat",
         null
       );
-      expect((await dc.rpc.contactsGetContact(acc, contactId)).is_blocked).to.be
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
         .false;
-      await dc.rpc.contactsBlock(acc, contactId);
-      expect((await dc.rpc.contactsGetContact(acc, contactId)).is_blocked).to.be
+      await dc.rpc.contactsBlock(accountId, contactId);
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
         .true;
-      expect(await dc.rpc.contactsGetBlocked(acc)).to.have.length(1);
-      await dc.rpc.contactsUnblock(acc, contactId);
-      expect((await dc.rpc.contactsGetContact(acc, contactId)).is_blocked).to.be
+      expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(1);
+      await dc.rpc.contactsUnblock(accountId, contactId);
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
         .false;
-      expect(await dc.rpc.contactsGetBlocked(acc)).to.have.length(0);
+      expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(0);
     });
   });
 
   describe("configuration", function () {
-    let acc: number;
+    let accountId: number;
     before(async () => {
-      acc = await dc.rpc.addAccount();
+      accountId = await dc.rpc.addAccount();
     });
 
     it("set and retrive", async function () {
-      await dc.rpc.setConfig(acc, "addr", "valid@email");
-      assert((await dc.rpc.getConfig(acc, "addr")) == "valid@email");
+      await dc.rpc.setConfig(accountId, "addr", "valid@email");
+      assert((await dc.rpc.getConfig(accountId, "addr")) == "valid@email");
     });
     it("set invalid key should throw", async function () {
-      await expect(dc.rpc.setConfig(acc, "invalid_key", "some value")).to.be
+      await expect(dc.rpc.setConfig(accountId, "invalid_key", "some value")).to.be
         .eventually.rejected;
     });
     it("get invalid key should throw", async function () {
-      await expect(dc.rpc.getConfig(acc, "invalid_key")).to.be.eventually
+      await expect(dc.rpc.getConfig(accountId, "invalid_key")).to.be.eventually
         .rejected;
     });
     it("set and retrive ui.*", async function () {
-      await dc.rpc.setConfig(acc, "ui.chat_bg", "color:red");
-      assert((await dc.rpc.getConfig(acc, "ui.chat_bg")) == "color:red");
+      await dc.rpc.setConfig(accountId, "ui.chat_bg", "color:red");
+      assert((await dc.rpc.getConfig(accountId, "ui.chat_bg")) == "color:red");
     });
     it("set and retrive (batch)", async function () {
       const config = { addr: "valid@email", mail_pw: "1234" };
-      await dc.rpc.batchSetConfig(acc, config);
-      const retrieved = await dc.rpc.batchGetConfig(acc, Object.keys(config));
+      await dc.rpc.batchSetConfig(accountId, config);
+      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
       expect(retrieved).to.deep.equal(config);
     });
     it("set and retrive ui.* (batch)", async function () {
@@ -139,8 +136,8 @@ describe("basic tests", () => {
         "ui.chat_bg": "color:green",
         "ui.enter_key_sends": "true",
       };
-      await dc.rpc.batchSetConfig(acc, config);
-      const retrieved = await dc.rpc.batchGetConfig(acc, Object.keys(config));
+      await dc.rpc.batchSetConfig(accountId, config);
+      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
       expect(retrieved).to.deep.equal(config);
     });
     it("set and retrive mixed(ui and core) (batch)", async function () {
@@ -150,8 +147,8 @@ describe("basic tests", () => {
         addr: "valid2@email",
         mail_pw: "123456",
       };
-      await dc.rpc.batchSetConfig(acc, config);
-      const retrieved = await dc.rpc.batchGetConfig(acc, Object.keys(config));
+      await dc.rpc.batchSetConfig(accountId, config);
+      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
       expect(retrieved).to.deep.equal(config);
     });
   });

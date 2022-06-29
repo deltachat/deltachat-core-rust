@@ -1,18 +1,19 @@
 import { assert, expect } from "chai";
-import { Deltachat, DeltachatEvent, EventTypeName } from "../dist/deltachat.js";
+import { Deltachat, DeltachatEvent, EventTypeName } from "../deltachat.js";
 import {
-  CMD_API_Server_Handle,
-  CMD_API_SERVER_PORT,
+  RpcServerHandle,
   createTempUser,
-  startCMD_API_Server,
+  startServer,
 } from "./test_base.js";
 
+const EVENT_TIMEOUT = 10000
+
 describe("online tests", function () {
-  let server_handle: CMD_API_Server_Handle;
+  let serverHandle: RpcServerHandle;
   let dc: Deltachat;
-  let account: { email: string; password: string };
+  let account1: { email: string; password: string };
   let account2: { email: string; password: string };
-  let acc1: number, acc2: number;
+  let accountId1: number, accountId2: number;
 
   before(async function () {
     this.timeout(12000)
@@ -29,17 +30,15 @@ describe("online tests", function () {
       );
       this.skip();
     }
-    server_handle = await startCMD_API_Server(CMD_API_SERVER_PORT);
-    dc = new Deltachat({
-      url: "ws://localhost:" + CMD_API_SERVER_PORT + "/ws",
-    });
+    serverHandle = await startServer();
+    dc = new Deltachat(serverHandle.url)
 
     dc.on("ALL", ({ id, contextId }) => {
       if (id !== "Info") console.log(contextId, id);
     });
 
-    account = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
-    if (!account || !account.email || !account.password) {
+    account1 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
+    if (!account1 || !account1.email || !account1.password) {
       console.log(
         "We didn't got back an account from the api, skip intergration tests"
       );
@@ -47,6 +46,7 @@ describe("online tests", function () {
     }
 
     account2 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
+    console.log({ account: account1, account2 })
     if (!account2 || !account2.email || !account2.password) {
       console.log(
         "We didn't got back an account2 from the api, skip intergration tests"
@@ -57,108 +57,109 @@ describe("online tests", function () {
 
   after(async () => {
     dc && dc.close();
-    server_handle && (await server_handle.close());
+    serverHandle && (await serverHandle.close());
   });
 
-  let are_configured = false;
+  let accountsConfigured = false;
 
   it("configure test accounts", async function () {
     this.timeout(20000);
 
-    acc1 = await dc.rpc.addAccount();
-    await dc.rpc.setConfig(acc1, "addr", account.email);
-    await dc.rpc.setConfig(acc1, "mail_pw", account.password);
-    let configure_promise = dc.rpc.configure(acc1);
+    accountId1 = await dc.rpc.addAccount();
+    await dc.rpc.setConfig(accountId1, "addr", account1.email);
+    await dc.rpc.setConfig(accountId1, "mail_pw", account1.password);
+    console.log('config set')
+    await dc.rpc.configure(accountId1);
+    console.log('account configured')
 
-    acc2 = await dc.rpc.addAccount();
-    await dc.rpc.batchSetConfig(acc2, {
+    accountId2 = await dc.rpc.addAccount();
+    await dc.rpc.batchSetConfig(accountId2, {
       addr: account2.email,
       mail_pw: account2.password,
     });
-
-    await Promise.all([configure_promise, dc.rpc.configure(acc2)]);
-    are_configured = true;
+    await dc.rpc.configure(accountId2)
+    accountsConfigured = true;
   });
 
   it("send and recieve text message", async function () {
-    if (!are_configured) {
+    if (!accountsConfigured) {
       this.skip();
     }
     this.timeout(15000);
 
     const contactId = await dc.rpc.contactsCreateContact(
-      acc1,
+      accountId1,
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
+    const chatId = await dc.rpc.contactsCreateChatByContactId(accountId1, contactId);
     const eventPromise = Promise.race([
-      waitForEvent(dc, "MsgsChanged", acc2),
-      waitForEvent(dc, "IncomingMsg", acc2),
+      waitForEvent(dc, "MsgsChanged", accountId2),
+      waitForEvent(dc, "IncomingMsg", accountId2),
     ]);
 
-    dc.rpc.miscSendTextMessage(acc1, "Hello", chatId);
+    await dc.rpc.miscSendTextMessage(accountId1, "Hello", chatId);
     const { field1: chatIdOnAccountB } = await eventPromise;
-    await dc.rpc.acceptChat(acc2, chatIdOnAccountB);
+    await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.messageListGetMessageIds(
-      acc2,
+      accountId2,
       chatIdOnAccountB,
       0
     );
 
     expect(messageList).have.length(1);
-    const message = await dc.rpc.messageGetMessage(acc2, messageList[0]);
+    const message = await dc.rpc.messageGetMessage(accountId2, messageList[0]);
     expect(message.text).equal("Hello");
   });
 
   it("send and recieve text message roundtrip, encrypted on answer onwards", async function () {
-    if (!are_configured) {
+    if (!accountsConfigured) {
       this.skip();
     }
     this.timeout(10000);
 
     // send message from A to B
     const contactId = await dc.rpc.contactsCreateContact(
-      acc1,
+      accountId1,
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(acc1, contactId);
+    const chatId = await dc.rpc.contactsCreateChatByContactId(accountId1, contactId);
     const eventPromise = Promise.race([
-      waitForEvent(dc, "MsgsChanged", acc2),
-      waitForEvent(dc, "IncomingMsg", acc2),
+      waitForEvent(dc, "MsgsChanged", accountId2),
+      waitForEvent(dc, "IncomingMsg", accountId2),
     ]);
-    dc.rpc.miscSendTextMessage(acc1, "Hello2", chatId);
+    dc.rpc.miscSendTextMessage(accountId1, "Hello2", chatId);
     // wait for message from A
     console.log("wait for message from A");
 
     const event = await eventPromise;
     const { field1: chatIdOnAccountB } = event;
 
-    await dc.rpc.acceptChat(acc2, chatIdOnAccountB);
+    await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.messageListGetMessageIds(
-      acc2,
+      accountId2,
       chatIdOnAccountB,
       0
     );
     const message = await dc.rpc.messageGetMessage(
-      acc2,
+      accountId2,
       messageList.reverse()[0]
     );
     expect(message.text).equal("Hello2");
     // Send message back from B to A
     const eventPromise2 = Promise.race([
-      waitForEvent(dc, "MsgsChanged", acc1),
-      waitForEvent(dc, "IncomingMsg", acc1),
+      waitForEvent(dc, "MsgsChanged", accountId1),
+      waitForEvent(dc, "IncomingMsg", accountId1),
     ]);
-    dc.rpc.miscSendTextMessage(acc2, "super secret message", chatId);
+    dc.rpc.miscSendTextMessage(accountId2, "super secret message", chatId);
     // Check if answer arives at A and if it is encrypted
     await eventPromise2;
 
     const messageId = (
-      await dc.rpc.messageListGetMessageIds(acc1, chatId, 0)
+      await dc.rpc.messageListGetMessageIds(accountId1, chatId, 0)
     ).reverse()[0];
-    const message2 = await dc.rpc.messageGetMessage(acc1, messageId);
+    const message2 = await dc.rpc.messageGetMessage(accountId1, messageId);
     expect(message2.text).equal("super secret message");
     expect(message2.show_padlock).equal(true);
   });
@@ -181,23 +182,24 @@ describe("online tests", function () {
   });
 });
 
-type event_data = {
-  contextId: number;
-  id: EventTypeName;
-  [key: string]: any;
-};
 async function waitForEvent(
   dc: Deltachat,
-  event: EventTypeName,
-  accountId: number
-): Promise<event_data> {
-  return new Promise((res, rej) => {
-    const callback = (ev: DeltachatEvent) => {
-      if (ev.contextId == accountId) {
-        dc.off(event, callback);
-        res(ev);
+  eventType: EventTypeName,
+  accountId: number,
+  timeout: number = EVENT_TIMEOUT
+): Promise<DeltachatEvent> {
+  return new Promise((resolve, reject) => {
+    const rejectTimeout = setTimeout(
+      () => reject(new Error('Timeout reached before event came in')),
+      timeout
+    )
+    const callback = (event: DeltachatEvent) => {
+      if (event.contextId == accountId) {
+        dc.off(eventType, callback);
+        clearTimeout(rejectTimeout)
+        resolve(event);
       }
     };
-    dc.on(event, callback);
+    dc.on(eventType, callback);
   });
 }
