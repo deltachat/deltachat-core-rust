@@ -1,44 +1,43 @@
-use async_std::path::PathBuf;
-use async_std::task;
-use tide::Request;
-use yerpc::RpcHandle;
-use yerpc_tide::yerpc_handler;
+use axum::{extract::ws::WebSocketUpgrade, response::Response, routing::get, Extension, Router};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use yerpc::axum::handle_ws_rpc;
+use yerpc::{RpcClient, RpcSession};
 
 mod api;
 use api::events::event_to_json_rpc_notification;
 use api::{Accounts, CommandApi};
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
-    env_logger::init();
-    log::info!("Starting");
-
-    let accounts = Accounts::new(PathBuf::from("./accounts")).await.unwrap();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "./accounts".to_string());
+    log::info!("Starting with accounts directory `{path}`.");
+    let accounts = Accounts::new(PathBuf::from(&path)).await.unwrap();
     let state = CommandApi::new(accounts);
-
-    let mut app = tide::with_state(state.clone());
-    app.at("/ws").get(yerpc_handler(request_handler));
-
+    let app = Router::new()
+        .route("/ws", get(handler))
+        .layer(Extension(state.clone()));
+    let addr = SocketAddr::from(([127, 0, 0, 1], 20808));
     state.accounts.read().await.start_io().await;
-    app.listen("127.0.0.1:20808").await?;
+    log::info!("JSON-RPC WebSocket server listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 
     Ok(())
 }
-async fn request_handler(
-    request: Request<CommandApi>,
-    rpc: RpcHandle,
-) -> anyhow::Result<CommandApi> {
-    let state = request.state().clone();
-    task::spawn(event_loop(state.clone(), rpc));
-    Ok(state)
-}
 
-async fn event_loop(state: CommandApi, rpc: RpcHandle) -> anyhow::Result<()> {
-    let events = state.accounts.read().await.get_event_emitter().await;
-    while let Some(event) = events.recv().await {
-        // log::debug!("event {:?}", event);
-        let event = event_to_json_rpc_notification(event);
-        rpc.notify("event", Some(event)).await?;
-    }
-    Ok(())
+async fn handler(ws: WebSocketUpgrade, Extension(api): Extension<CommandApi>) -> Response {
+    let (client, out_receiver) = RpcClient::new();
+    let session = RpcSession::new(client.clone(), api.clone());
+    tokio::spawn(async move {
+        let events = api.accounts.read().await.get_event_emitter().await;
+        while let Some(event) = events.recv().await {
+            let event = event_to_json_rpc_notification(event);
+            client.send_notification("event", Some(event)).await.ok();
+        }
+    });
+    handle_ws_rpc(ws, out_receiver, session).await
 }

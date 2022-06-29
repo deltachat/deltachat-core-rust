@@ -20,7 +20,7 @@
   "dependencies": {
     "isomorphic-ws": "^4.0.1",
     "tiny-emitter": "git+https://github.com/Simon-Laux/tiny-emitter.git",
-    "yerpc": "^0.2.3"
+    "yerpc": "^0.3"
   },
   "devDependencies": {
     "prettier": "^2.6.2",

@@ -1,18 +1,16 @@
 pub mod api;
 pub use api::events;
-
 pub use yerpc;
 
 #[cfg(test)]
 mod tests {
     use super::api::{Accounts, CommandApi};
     use async_channel::unbounded;
-    use async_std::task;
     use futures::StreamExt;
     use tempfile::TempDir;
-    use yerpc::{MessageHandle, RpcHandle};
+    use yerpc::{RpcClient, RpcSession};
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn basic_json_rpc_functionality() -> anyhow::Result<()> {
         // println!("{}", "");
         let tmp_dir = TempDir::new().unwrap().path().into();
@@ -23,10 +21,10 @@ mod tests {
 
         let (sender, mut receiver) = unbounded::<String>();
 
-        let (request_handle, mut rx) = RpcHandle::new();
+        let (client, mut rx) = RpcClient::new();
         let session = cmd_api;
-        let handle = MessageHandle::new(request_handle, session);
-        task::spawn({
+        let handle = RpcSession::new(client, session);
+        tokio::spawn({
             async move {
                 while let Some(message) = rx.next().await {
                     let message = serde_json::to_string(&message)?;
@@ -41,7 +39,7 @@ mod tests {
         {
             let request = r#"{"jsonrpc":"2.0","method":"add_account","params":[],"id":1}"#;
             let response = r#"{"jsonrpc":"2.0","id":1,"result":1}"#;
-            handle.handle_message(request).await;
+            handle.handle_incoming(request).await;
             let result = receiver.next().await;
             println!("{:?}", result);
             assert_eq!(result, Some(response.to_owned()));
@@ -49,7 +47,7 @@ mod tests {
         {
             let request = r#"{"jsonrpc":"2.0","method":"get_all_account_ids","params":[],"id":2}"#;
             let response = r#"{"jsonrpc":"2.0","id":2,"result":[1]}"#;
-            handle.handle_message(request).await;
+            handle.handle_incoming(request).await;
             let result = receiver.next().await;
             println!("{:?}", result);
             assert_eq!(result, Some(response.to_owned()));

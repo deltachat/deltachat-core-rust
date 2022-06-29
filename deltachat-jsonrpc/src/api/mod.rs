@@ -1,5 +1,4 @@
 use anyhow::{anyhow, bail, Context, Result};
-use async_std::sync::{Arc, RwLock};
 use deltachat::{
     chat::{get_chat_msgs, ChatId},
     chatlist::Chatlist,
@@ -10,7 +9,9 @@ use deltachat::{
     provider::get_provider_info,
 };
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
+use tokio::sync::RwLock;
 use yerpc::rpc;
 
 pub use deltachat::accounts::Accounts;
