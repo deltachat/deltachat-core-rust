@@ -18,7 +18,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.56.0
+          toolchain: stable
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0
@@ -38,7 +38,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.56.0
+          toolchain: stable
           override: true
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1.3.0
