@@ -60,6 +60,8 @@ jobs:
           npm run build
           cargo build --features webserver
           npm run test
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       - name: run prettier
         run: |
           cd deltachat-jsonrpc/typescript
