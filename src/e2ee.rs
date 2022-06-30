@@ -193,7 +193,6 @@ pub(crate) async fn get_autocrypt_peerstate(
 ///
 /// If the message is wrongly signed, this will still return the decrypted
 /// message but the HashSet will be empty.
-// TODO refactoring: make this nicer, similarly to https://github.com/deltachat/deltachat-core-rust/pull/3390
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -202,8 +201,28 @@ pub async fn try_decrypt(
     // Possibly perform decryption
     let public_keyring_for_validate = keyring_from_peerstate(&decryption_info.peerstate);
 
-    // TODO refactoring: this could be inlined since this fn here got very short
-    decrypt_if_autocrypt_message(context, mail, public_keyring_for_validate).await
+    let context = context;
+    let encrypted_data_part = match get_autocrypt_mime(mail)
+        .or_else(|| get_mixed_up_mime(mail))
+        .or_else(|| get_attachment_mime(mail))
+    {
+        None => {
+            // not an autocrypt mime message, abort and ignore
+            return Ok(None);
+        }
+        Some(res) => res,
+    };
+    info!(context, "Detected Autocrypt-mime message");
+    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
+        .await
+        .context("failed to get own keyring")?;
+
+    decrypt_part(
+        encrypted_data_part,
+        private_keyring,
+        public_keyring_for_validate,
+    )
+    .await
 }
 
 pub async fn create_decryption_info(
@@ -338,34 +357,6 @@ fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublic
         }
     }
     public_keyring_for_validate
-}
-
-async fn decrypt_if_autocrypt_message(
-    context: &Context,
-    mail: &ParsedMail<'_>,
-    public_keyring_for_validate: Keyring<SignedPublicKey>,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
-    let encrypted_data_part = match get_autocrypt_mime(mail)
-        .or_else(|| get_mixed_up_mime(mail))
-        .or_else(|| get_attachment_mime(mail))
-    {
-        None => {
-            // not an autocrypt mime message, abort and ignore
-            return Ok(None);
-        }
-        Some(res) => res,
-    };
-    info!(context, "Detected Autocrypt-mime message");
-    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
-        .await
-        .context("failed to get own keyring")?;
-
-    decrypt_part(
-        encrypted_data_part,
-        private_keyring,
-        public_keyring_for_validate,
-    )
-    .await
 }
 
 /// Validates signatures of Multipart/Signed message part, as defined in RFC 1847.
