@@ -45,7 +45,7 @@ impl FullChat {
 
         for contact_id in &contact_ids {
             contacts.push(
-                ContactObject::from_dc_contact(
+                ContactObject::try_from_dc_contact(
                     context,
                     Contact::load_from_db(context, *contact_id).await?,
                 )

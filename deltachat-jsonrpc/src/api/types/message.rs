@@ -64,7 +64,7 @@ impl MessageObject {
             .map(|m| m.get_id().to_u32());
 
         let sender_contact = Contact::load_from_db(context, message.get_from_id()).await?;
-        let sender = ContactObject::from_dc_contact(context, sender_contact).await?;
+        let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
         let file_bytes = message.get_filebytes(context).await;
         let override_sender_name = message.get_override_sender_name();
 

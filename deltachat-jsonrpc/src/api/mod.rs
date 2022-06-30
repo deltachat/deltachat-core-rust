@@ -370,7 +370,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
-        ContactObject::from_dc_contact(
+        ContactObject::try_from_dc_contact(
             &ctx,
             deltachat::contact::Contact::get_by_id(&ctx, contact_id).await?,
         )
@@ -425,7 +425,7 @@ impl CommandApi {
         let mut contacts: Vec<ContactObject> = Vec::with_capacity(blocked_ids.len());
         for id in blocked_ids {
             contacts.push(
-                ContactObject::from_dc_contact(
+                ContactObject::try_from_dc_contact(
                     &ctx,
                     deltachat::contact::Contact::get_by_id(&ctx, id).await?,
                 )
@@ -459,7 +459,7 @@ impl CommandApi {
         let mut contacts: Vec<ContactObject> = Vec::with_capacity(contact_ids.len());
         for id in contact_ids {
             contacts.push(
-                ContactObject::from_dc_contact(
+                ContactObject::try_from_dc_contact(
                     &ctx,
                     deltachat::contact::Contact::get_by_id(&ctx, id).await?,
                 )
@@ -480,7 +480,7 @@ impl CommandApi {
         for id in ids {
             contacts.insert(
                 id,
-                ContactObject::from_dc_contact(
+                ContactObject::try_from_dc_contact(
                     &ctx,
                     deltachat::contact::Contact::get_by_id(&ctx, ContactId::new(id)).await?,
                 )

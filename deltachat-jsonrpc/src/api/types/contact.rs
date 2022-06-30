@@ -23,7 +23,7 @@ pub struct ContactObject {
 }
 
 impl ContactObject {
-    pub async fn from_dc_contact(
+    pub async fn try_from_dc_contact(
         context: &Context,
         contact: deltachat::contact::Contact,
     ) -> Result<Self> {
