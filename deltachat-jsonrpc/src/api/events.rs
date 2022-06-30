@@ -62,8 +62,9 @@ pub fn event_to_json_rpc_notification(event: Event) -> Value {
         } => (json!(msg_id), json!(status_update_serial)),
     };
 
+    let id: EventTypeName = event.typ.into();
     json!({
-        "id": event_type_to_string(event.typ),
+        "id": id,
         "contextId": event.id,
         "field1": field1,
         "field2": field2
@@ -103,38 +104,40 @@ pub enum EventTypeName {
     WebxdcStatusUpdate,
 }
 
-fn event_type_to_string(event: EventType) -> EventTypeName {
-    use EventTypeName::*;
-    match event {
-        EventType::Info(_) => Info,
-        EventType::SmtpConnected(_) => SmtpConnected,
-        EventType::ImapConnected(_) => ImapConnected,
-        EventType::SmtpMessageSent(_) => SmtpMessageSent,
-        EventType::ImapMessageDeleted(_) => ImapMessageDeleted,
-        EventType::ImapMessageMoved(_) => ImapMessageMoved,
-        EventType::NewBlobFile(_) => NewBlobFile,
-        EventType::DeletedBlobFile(_) => DeletedBlobFile,
-        EventType::Warning(_) => Warning,
-        EventType::Error(_) => Error,
-        EventType::ErrorSelfNotInGroup(_) => ErrorSelfNotInGroup,
-        EventType::MsgsChanged { .. } => MsgsChanged,
-        EventType::IncomingMsg { .. } => IncomingMsg,
-        EventType::MsgsNoticed(_) => MsgsNoticed,
-        EventType::MsgDelivered { .. } => MsgDelivered,
-        EventType::MsgFailed { .. } => MsgFailed,
-        EventType::MsgRead { .. } => MsgRead,
-        EventType::ChatModified(_) => ChatModified,
-        EventType::ChatEphemeralTimerModified { .. } => ChatEphemeralTimerModified,
-        EventType::ContactsChanged(_) => ContactsChanged,
-        EventType::LocationChanged(_) => LocationChanged,
-        EventType::ConfigureProgress { .. } => ConfigureProgress,
-        EventType::ImexProgress(_) => ImexProgress,
-        EventType::ImexFileWritten(_) => ImexFileWritten,
-        EventType::SecurejoinInviterProgress { .. } => SecurejoinInviterProgress,
-        EventType::SecurejoinJoinerProgress { .. } => SecurejoinJoinerProgress,
-        EventType::ConnectivityChanged => ConnectivityChanged,
-        EventType::SelfavatarChanged => SelfavatarChanged,
-        EventType::WebxdcStatusUpdate { .. } => WebxdcStatusUpdate,
+impl From<EventType> for EventTypeName {
+    fn from(event: EventType) -> Self {
+        use EventTypeName::*;
+        match event {
+            EventType::Info(_) => Info,
+            EventType::SmtpConnected(_) => SmtpConnected,
+            EventType::ImapConnected(_) => ImapConnected,
+            EventType::SmtpMessageSent(_) => SmtpMessageSent,
+            EventType::ImapMessageDeleted(_) => ImapMessageDeleted,
+            EventType::ImapMessageMoved(_) => ImapMessageMoved,
+            EventType::NewBlobFile(_) => NewBlobFile,
+            EventType::DeletedBlobFile(_) => DeletedBlobFile,
+            EventType::Warning(_) => Warning,
+            EventType::Error(_) => Error,
+            EventType::ErrorSelfNotInGroup(_) => ErrorSelfNotInGroup,
+            EventType::MsgsChanged { .. } => MsgsChanged,
+            EventType::IncomingMsg { .. } => IncomingMsg,
+            EventType::MsgsNoticed(_) => MsgsNoticed,
+            EventType::MsgDelivered { .. } => MsgDelivered,
+            EventType::MsgFailed { .. } => MsgFailed,
+            EventType::MsgRead { .. } => MsgRead,
+            EventType::ChatModified(_) => ChatModified,
+            EventType::ChatEphemeralTimerModified { .. } => ChatEphemeralTimerModified,
+            EventType::ContactsChanged(_) => ContactsChanged,
+            EventType::LocationChanged(_) => LocationChanged,
+            EventType::ConfigureProgress { .. } => ConfigureProgress,
+            EventType::ImexProgress(_) => ImexProgress,
+            EventType::ImexFileWritten(_) => ImexFileWritten,
+            EventType::SecurejoinInviterProgress { .. } => SecurejoinInviterProgress,
+            EventType::SecurejoinJoinerProgress { .. } => SecurejoinJoinerProgress,
+            EventType::ConnectivityChanged => ConnectivityChanged,
+            EventType::SelfavatarChanged => SelfavatarChanged,
+            EventType::WebxdcStatusUpdate { .. } => WebxdcStatusUpdate,
+        }
     }
 }
 

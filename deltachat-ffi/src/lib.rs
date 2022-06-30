@@ -4460,7 +4460,7 @@ mod jsonrpc {
         }
 
         let cmd_api =
-            deltachat_jsonrpc::api::CommandApi::new_from_arc((*account_manager).inner.clone());
+            deltachat_jsonrpc::api::CommandApi::from_arc((*account_manager).inner.clone());
 
         let (request_handle, receiver) = RpcClient::new();
         let handle = RpcSession::new(request_handle, cmd_api);

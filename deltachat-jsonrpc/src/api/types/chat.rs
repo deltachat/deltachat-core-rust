@@ -35,13 +35,13 @@ pub struct FullChat {
 }
 
 impl FullChat {
-    pub async fn from_dc_chat_id(context: &Context, chat_id: u32) -> Result<Self> {
+    pub async fn try_from_dc_chat_id(context: &Context, chat_id: u32) -> Result<Self> {
         let rust_chat_id = ChatId::new(chat_id);
         let chat = Chat::load_from_db(context, rust_chat_id).await?;
 
         let contact_ids = get_chat_contacts(context, rust_chat_id).await?;
 
-        let mut contacts = Vec::new();
+        let mut contacts = Vec::with_capacity(contact_ids.len());
 
         for contact_id in &contact_ids {
             contacts.push(

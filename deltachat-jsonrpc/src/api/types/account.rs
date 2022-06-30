@@ -9,7 +9,6 @@ use super::color_int_to_hex_string;
 #[derive(Serialize, TypeDef)]
 #[serde(tag = "type")]
 pub enum Account {
-    //#[serde(rename_all = "camelCase")]
     Configured {
         id: u32,
         display_name: Option<String>,

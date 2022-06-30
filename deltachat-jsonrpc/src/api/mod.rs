@@ -41,7 +41,7 @@ impl CommandApi {
     }
 
     #[allow(dead_code)]
-    pub fn new_from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
+    pub fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
         CommandApi { accounts }
     }
 
@@ -258,7 +258,7 @@ impl CommandApi {
             query_contact_id.map(ContactId::new),
         )
         .await?;
-        let mut l: Vec<ChatListEntry> = Vec::new();
+        let mut l: Vec<ChatListEntry> = Vec::with_capacity(list.len());
         for i in 0..list.len() {
             l.push(ChatListEntry(
                 list.get_chat_id(i)?.to_u32(),
@@ -275,8 +275,9 @@ impl CommandApi {
     ) -> Result<HashMap<u32, ChatListItemFetchResult>> {
         // todo custom json deserializer for ChatListEntry?
         let ctx = self.get_context(account_id).await?;
-        let mut result: HashMap<u32, ChatListItemFetchResult> = HashMap::new();
-        for (_i, entry) in entries.iter().enumerate() {
+        let mut result: HashMap<u32, ChatListItemFetchResult> =
+            HashMap::with_capacity(entries.len());
+        for entry in entries.iter() {
             result.insert(
                 entry.0,
                 match get_chat_list_item_by_id(&ctx, entry).await {
@@ -301,7 +302,7 @@ impl CommandApi {
         chat_id: u32,
     ) -> Result<FullChat> {
         let ctx = self.get_context(account_id).await?;
-        FullChat::from_dc_chat_id(&ctx, chat_id).await
+        FullChat::try_from_dc_chat_id(&ctx, chat_id).await
     }
 
     async fn accept_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {

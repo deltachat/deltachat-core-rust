@@ -1,6 +1,7 @@
 [package]
 name = "deltachat-jsonrpc"
 version = "1.86.0"
+description = "DeltaChat JSON-RPC API"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
 default-run = "deltachat-jsonrpc-server"
