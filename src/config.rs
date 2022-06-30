@@ -622,44 +622,44 @@ Message w/out In-Reply-To
     }
 
     // TODO refactoring: Should this really be placed here? But I wouldn't know a better place, either
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0() {
         check_aeap_transition(0, false, false).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1() {
         check_aeap_transition(1, false, false).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_verified() {
         check_aeap_transition(0, true, false).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_verified() {
         check_aeap_transition(1, true, false).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_2_verified() {
         check_aeap_transition(2, true, false).await;
     }
 
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_bob_knew_new_addr() {
         check_aeap_transition(0, false, true).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_bob_knew_new_addr() {
         check_aeap_transition(1, false, true).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_verified_bob_knew_new_addr() {
         check_aeap_transition(0, true, true).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_verified_bob_knew_new_addr() {
         check_aeap_transition(1, true, true).await;
     }
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_2_verified_bob_knew_new_addr() {
         check_aeap_transition(2, true, true).await;
     }
@@ -861,7 +861,7 @@ Message w/out In-Reply-To
 
     /// Test that an attacker - here Fiona - can't replay a message sent by Alice
     /// to make Bob think that there was a transition to Fiona's address.
-    #[async_std::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_replay_attack() -> Result<()> {
         let mut tcm = TestContextManager::new().await;
         let alice = tcm.alice().await;
