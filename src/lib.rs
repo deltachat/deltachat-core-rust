@@ -17,7 +17,8 @@
     clippy::match_bool,
     clippy::eval_order_dependence,
     clippy::bool_assert_comparison,
-    clippy::manual_split_once
+    clippy::manual_split_once,
+    clippy::format_push_string
 )]
 
 #[macro_use]
