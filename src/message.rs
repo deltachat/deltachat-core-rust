@@ -1070,7 +1070,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         }
     }
 
-    ret += &format!("State: {}", msg.state);
+    write!(ret, "State: {}", msg.state);
 
     if msg.has_location() {
         ret += ", Location sent";

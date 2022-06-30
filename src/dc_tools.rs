@@ -580,11 +580,11 @@ pub(crate) fn parse_receive_header(header: &str) -> String {
     let mut hop_info = String::from("Hop: ");
 
     if let Some(from) = extract_address_from_receive_header(&header, "from ") {
-        hop_info += &format!("From: {}; ", from.trim());
+        write!(hop_info, "From: {}; ", from.trim());
     }
 
     if let Some(by) = extract_address_from_receive_header(&header, "by ") {
-        hop_info += &format!("By: {}; ", by.trim());
+        write!(hop_info, "By: {}; ", by.trim());
     }
 
     if let Ok(date) = dateparse(&header) {
@@ -594,7 +594,7 @@ pub(crate) fn parse_receive_header(header: &str) -> String {
         #[cfg(not(test))]
         let date_obj = Local.timestamp(date, 0);
 
-        hop_info += &format!("Date: {}", date_obj.to_rfc2822());
+        write!(hop_info, "Date: {}", date_obj.to_rfc2822());
     };
 
     hop_info
