@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
 use std::collections::BTreeSet;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, format_err, Context as _, Result};
@@ -1000,22 +1001,21 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let mut ret = String::new();
 
     if rawtxt.is_none() {
-        ret += &format!("Cannot load message {}.", msg_id);
+        write!(ret, "Cannot load message {}.", msg_id);
         return Ok(ret);
     }
     let rawtxt = rawtxt.unwrap_or_default();
     let rawtxt = dc_truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
 
     let fts = dc_timestamp_to_str(msg.get_timestamp());
-    ret += &format!("Sent: {}", fts);
+    write!(ret, "Sent: {}", fts);
 
     let name = Contact::load_from_db(context, msg.from_id)
         .await
         .map(|contact| contact.get_name_n_addr())
         .unwrap_or_default();
 
-    ret += &format!(" by {}", name);
-    ret += "\n";
+    writeln!(ret, " by {}", name);
 
     if msg.from_id != ContactId::SELF {
         let s = dc_timestamp_to_str(if 0 != msg.timestamp_rcvd {
@@ -1023,17 +1023,17 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         } else {
             msg.timestamp_sort
         });
-        ret += &format!("Received: {}", &s);
-        ret += "\n";
+        writeln!(ret, "Received: {}", &s);
     }
 
     if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
-        ret += &format!("Ephemeral timer: {}\n", duration);
+        writeln!(ret, "Ephemeral timer: {}", duration);
     }
 
     if msg.ephemeral_timestamp != 0 {
-        ret += &format!(
-            "Expires: {}\n",
+        writeln!(
+            ret,
+            "Expires: {}",
             dc_timestamp_to_str(msg.ephemeral_timestamp)
         );
     }
@@ -1059,15 +1059,14 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     {
         for (contact_id, ts) in rows {
             let fts = dc_timestamp_to_str(ts);
-            ret += &format!("Read: {}", fts);
+            write!(ret, "Read: {}", fts);
 
             let name = Contact::load_from_db(context, contact_id)
                 .await
                 .map(|contact| contact.get_name_n_addr())
                 .unwrap_or_default();
 
-            ret += &format!(" by {}", name);
-            ret += "\n";
+            writeln!(ret, " by {}", name);
         }
     }
 
@@ -1090,41 +1089,39 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     ret += "\n";
 
     if let Some(error) = msg.error.as_ref() {
-        ret += &format!("Error: {}", error);
+        write!(ret, "Error: {}", error);
     }
 
     if let Some(path) = msg.get_file(context) {
         let bytes = dc_get_filebytes(context, &path).await;
-        ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
+        writeln!(ret, "\nFile: {}, {}, bytes", path.display(), bytes);
     }
 
     if msg.viewtype != Viewtype::Text {
-        ret += "Type: ";
-        ret += &format!("{}", msg.viewtype);
-        ret += "\n";
-        ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
+        writeln!(ret, "Type: {}", msg.viewtype);
+        writeln!(ret, "Mimetype: {}", &msg.get_filemime().unwrap_or_default());
     }
     let w = msg.param.get_int(Param::Width).unwrap_or_default();
     let h = msg.param.get_int(Param::Height).unwrap_or_default();
     if w != 0 || h != 0 {
-        ret += &format!("Dimension: {} x {}\n", w, h,);
+        writeln!(ret, "Dimension: {} x {}", w, h);
     }
     let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
     if duration != 0 {
-        ret += &format!("Duration: {} ms\n", duration,);
+        writeln!(ret, "Duration: {} ms", duration);
     }
     if !rawtxt.is_empty() {
-        ret += &format!("\n{}\n", rawtxt);
+        writeln!(ret, "\n{}", rawtxt);
     }
     if !msg.rfc724_mid.is_empty() {
-        ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
+        write!(ret, "\nMessage-ID: {}", msg.rfc724_mid);
     }
     let hop_info: Option<String> = context
         .sql
         .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", paramsv![msg_id])
         .await?;
 
-    ret += "\n\n";
+    writeln!(ret, "\n");
     ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
 
     Ok(ret)

@@ -40,7 +40,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// Create a key from a base64 string.
     fn from_base64(data: &str) -> Result<Self::KeyType> {
         // strip newlines and other whitespace
-        let cleaned: String = data.trim().split_whitespace().collect();
+        let cleaned: String = data.split_whitespace().collect();
         let bytes = base64::decode(cleaned.as_bytes())?;
         Self::from_slice(&bytes)
     }

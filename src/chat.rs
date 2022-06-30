@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -864,9 +865,9 @@ impl ChatId {
                 })
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
-                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{}\n", addr),
-                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{}\n", addr),
-                Some(EncryptPreference::Reset) | None => ret_reset += &format!("{}\n", addr),
+                Some(EncryptPreference::Mutual) => writeln!(ret_mutual, "{}", addr),
+                Some(EncryptPreference::NoPreference) => writeln!(ret_nopreference, "{}", addr),
+                Some(EncryptPreference::Reset) | None => writeln!(ret_reset, "{}", addr),
             };
         }
 
@@ -2782,7 +2783,7 @@ pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) 
     Ok(needs_attach)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MuteDuration {
     NotMuted,
     Forever,

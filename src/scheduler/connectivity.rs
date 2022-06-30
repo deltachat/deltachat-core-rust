@@ -1,4 +1,5 @@
 use core::fmt;
+use std::fmt::Write;
 use std::{ops::Deref, sync::Arc};
 
 use tokio::sync::{Mutex, RwLockReadGuard};
@@ -390,7 +391,11 @@ impl Context {
         // =============================================================================================
 
         let watched_folders = get_watched_folder_configs(self).await?;
-        ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
+        write!(
+            ret,
+            "<h3>{}</h3><ul>",
+            stock_str::incoming_messages(self).await
+        );
         for (folder, state) in &folders_states {
             let mut folder_added = false;
 
@@ -432,7 +437,8 @@ impl Context {
         //                                Your last message was sent successfully
         // =============================================================================================
 
-        ret += &format!(
+        write!(
+            ret,
             "<h3>{}</h3><ul><li>",
             stock_str::outgoing_messages(self).await
         );
@@ -450,7 +456,8 @@ impl Context {
         // =============================================================================================
 
         let domain = dc_tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
-        ret += &format!(
+        write!(
+            ret,
             "<h3>{}</h3><ul>",
             stock_str::storage_on_domain(self, domain).await
         );
@@ -467,15 +474,15 @@ impl Context {
                             // root name is empty eg. for gmail and redundant eg. for riseup.
                             // therefore, use it only if there are really several roots.
                             if roots_cnt > 1 && !root_name.is_empty() {
-                                ret +=
-                                    &format!("<b>{}:</b> ", &*escaper::encode_minimal(root_name));
+                                write!(ret, "<b>{}:</b> ", &*escaper::encode_minimal(root_name));
                             } else {
                                 info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
-                            ret += &match &resource.name {
+                            match &resource.name {
                                 Atom(resource_name) => {
-                                    format!(
+                                    write!(
+                                        ret,
                                         "<b>{}:</b> {}",
                                         &*escaper::encode_minimal(resource_name),
                                         stock_str::part_of_total_used(
@@ -484,10 +491,11 @@ impl Context {
                                             resource.limit.to_string()
                                         )
                                         .await,
-                                    )
+                                    );
                                 }
                                 Message => {
-                                    format!(
+                                    write!(
+                                        ret,
                                         "<b>{}:</b> {}",
                                         stock_str::messages(self).await,
                                         stock_str::part_of_total_used(
@@ -496,7 +504,7 @@ impl Context {
                                             resource.limit.to_string()
                                         )
                                         .await,
-                                    )
+                                    );
                                 }
                                 Storage => {
                                     // do not use a special title needed for "Storage":
@@ -511,7 +519,7 @@ impl Context {
                                     let limit = (resource.limit * 1024)
                                         .file_size(file_size_opts::BINARY)
                                         .unwrap_or_default();
-                                    stock_str::part_of_total_used(self, usage, limit).await
+                                    ret += &stock_str::part_of_total_used(self, usage, limit).await;
                                 }
                             };
 
@@ -523,14 +531,14 @@ impl Context {
                             } else {
                                 "green"
                             };
-                            ret += &format!("<div class=\"bar\"><div class=\"progress {}\" style=\"width: {}%\">{}%</div></div>", color, percent, percent);
+                            write!(ret, "<div class=\"bar\"><div class=\"progress {}\" style=\"width: {}%\">{}%</div></div>", color, percent, percent);
 
                             ret += "</li>";
                         }
                     }
                 }
                 Err(e) => {
-                    ret += format!("<li>{}</li>", e).as_str();
+                    write!(ret, "<li>{}</li>", e);
                 }
             }
 
@@ -538,7 +546,7 @@ impl Context {
                 self.schedule_quota_update().await?;
             }
         } else {
-            ret += &format!("<li>{}</li>", stock_str::not_connected(self).await);
+            write!(ret, "<li>{}</li>", stock_str::not_connected(self).await);
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";

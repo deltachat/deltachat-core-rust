@@ -49,7 +49,7 @@ impl Dehtml {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum AddText {
     No,
     YesRemoveLineEnds,

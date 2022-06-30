@@ -2,6 +2,7 @@
 
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::fmt::Write;
 use std::path::PathBuf;
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -888,7 +889,8 @@ impl Contact {
                     EncryptPreference::Reset => stock_str::encr_none(context).await,
                 };
 
-                ret += &format!(
+                write!(
+                    ret,
                     "{}.\n{}:",
                     stock_message,
                     stock_str::finger_prints(context).await
@@ -1399,7 +1401,8 @@ fn cat_fingerprint(
     fingerprint_verified: &str,
     fingerprint_unverified: &str,
 ) {
-    *ret += &format!(
+    write!(
+        *ret,
         "\n\n{}:\n{}",
         addr,
         if !fingerprint_verified.is_empty() {
@@ -1412,7 +1415,11 @@ fn cat_fingerprint(
         && !fingerprint_unverified.is_empty()
         && fingerprint_verified != fingerprint_unverified
     {
-        *ret += &format!("\n\n{} (alternative):\n{}", addr, fingerprint_unverified);
+        write!(
+            *ret,
+            "\n\n{} (alternative):\n{}",
+            addr, fingerprint_unverified
+        );
     }
 }
 
