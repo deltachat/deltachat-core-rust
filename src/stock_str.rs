@@ -333,7 +333,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Not connected"))]
     NotConnected = 121,
 
-    #[strum(props(fallback = "%1$s changed their address from %2$s to %3$s"))]
+    #[strum(props(fallback = "%1$s changed his/her address from %2$s to %3$s"))]
     AeapAddrChanged = 122,
 }
 
@@ -1090,7 +1090,7 @@ pub(crate) async fn broadcast_list(context: &Context) -> String {
     translated(context, StockMessage::BroadcastList).await
 }
 
-/// Stock string: `%1$s changed their address from %2$s to %3$s`.
+/// Stock string: `%1$s changed his/her address from %2$s to %3$s`.
 pub(crate) async fn aeap_addr_changed(
     context: &Context,
     contact_name: impl AsRef<str>,

@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changes
+- Do an AEAP transition when we notice that a contact changed
+  his/her address #3385
 - switch from `async-std` to `tokio` as the async runtime #3449
 
 ### Fixes
