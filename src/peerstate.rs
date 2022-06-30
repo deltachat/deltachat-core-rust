@@ -515,7 +515,7 @@ impl Peerstate {
                     ChatsChange::FingerprintChange => {
                         stock_str::contact_setup_changed(context, self.addr.clone()).await
                     }
-                    ChatsChange::AEAP(new_addr) => {
+                    ChatsChange::Aeap(new_addr) => {
                         let old_contact = Contact::load_from_db(context, contact_id).await?;
                         stock_str::aeap_addr_changed(
                             context,
@@ -551,14 +551,14 @@ impl Peerstate {
                 )
                 .await?;
 
-                if let ChatsChange::AEAP(new_addr) = &change {
+                if let ChatsChange::Aeap(new_addr) = &change {
                     let chat = Chat::load_from_db(context, *chat_id).await?;
                     if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
                         chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
                             .await?;
 
                         let (new_contact_id, _) =
-                            Contact::add_or_lookup(context, "", &new_addr, Origin::IncomingReplyTo)
+                            Contact::add_or_lookup(context, "", new_addr, Origin::IncomingReplyTo)
                                 .await?;
                         if !is_contact_in_chat(context, *chat_id, new_contact_id).await? {
                             chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id)
@@ -625,7 +625,7 @@ pub async fn maybe_do_aeap_transition(
                     .handle_change(
                         context,
                         info.message_time,
-                        ChatsChange::AEAP(info.from.clone()),
+                        ChatsChange::Aeap(info.from.clone()),
                     )
                     .await?;
 
@@ -653,7 +653,7 @@ enum ChatsChange {
     /// The contact's public key fingerprint changed.
     FingerprintChange,
     /// The contact changed his/her address to the given new address.
-    AEAP(String),
+    Aeap(String),
 }
 
 /// Removes duplicate peerstates from `acpeerstates` database table.
