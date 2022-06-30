@@ -2930,6 +2930,7 @@ NAPI_METHOD(dcn_accounts_unref) {
   if (dcn_accounts->jsonrpc_instance) {
     dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, "{}");
     uv_thread_join(&dcn_accounts->jsonrpc_thread);
+    dc_jsonrpc_unref(dcn_accounts->jsonrpc_instance);
     dcn_accounts->jsonrpc_instance = NULL;
   }
   dc_accounts_unref(dcn_accounts->dc_accounts);
@@ -3271,8 +3272,6 @@ static void accounts_jsonrpc_thread_func(void* arg)
       break;
     }
   }
-  dc_jsonrpc_unref(dcn_accounts->jsonrpc_instance);
-  dcn_accounts->jsonrpc_instance = NULL;
   TRACE("accounts_jsonrpc_thread_func ended");
   napi_release_threadsafe_function(dcn_accounts->threadsafe_jsonrpc_handler, napi_tsfn_release);
 }
@@ -3329,7 +3328,7 @@ NAPI_METHOD(dcn_accounts_start_jsonrpc) {
     callback,
     0,
     async_resource_name,
-    1,
+    1000, // max_queue_size
     1,
     NULL,
     NULL,
