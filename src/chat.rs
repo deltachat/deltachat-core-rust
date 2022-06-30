@@ -3463,8 +3463,6 @@ mod tests {
     use crate::contact::Contact;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
@@ -4935,7 +4933,7 @@ mod tests {
         let bob_chat = bob.create_chat(&alice).await;
 
         let file = alice.get_blobdir().join(filename);
-        File::create(&file).await?.write_all(bytes).await?;
+        tokio::fs::write(&file, bytes).await?;
 
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(file.to_str().unwrap(), None);
@@ -5000,7 +4998,7 @@ mod tests {
         let file_name = "sticker.jpg";
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         let file = alice.get_blobdir().join(file_name);
-        File::create(&file).await?.write_all(bytes).await?;
+        tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(file.to_str().unwrap(), None);
 

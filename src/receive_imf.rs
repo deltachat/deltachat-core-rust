@@ -2205,9 +2205,7 @@ async fn add_or_lookup_contact_by_addr(
 
 #[cfg(test)]
 mod tests {
-
-    use tokio::fs::{self, File};
-    use tokio::io::AsyncWriteExt;
+    use tokio::fs;
 
     use super::*;
 
@@ -4851,10 +4849,7 @@ Reply from different address
         ] {
             let attachment = alice.blobdir.join(filename_sent);
             let content = format!("File content of {}", filename_sent);
-            File::create(&attachment)
-                .await?
-                .write_all(content.as_bytes())
-                .await?;
+            tokio::fs::write(&attachment, content.as_bytes()).await?;
 
             let mut msg_alice = Message::new(Viewtype::File);
             msg_alice.set_file(attachment.to_str().unwrap(), None);

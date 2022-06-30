@@ -1452,8 +1452,6 @@ fn maybe_encode_words(words: &str) -> String {
 #[cfg(test)]
 mod tests {
     use mailparse::{addrparse_header, MailHeaderMap};
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
 
     use crate::chat::ChatId;
     use crate::chat::{
@@ -2016,7 +2014,7 @@ mod tests {
 
         let file = t.dir.path().join("avatar.png");
         let bytes = include_bytes!("../test-data/image/avatar64x64.png");
-        File::create(&file).await?.write_all(bytes).await?;
+        tokio::fs::write(&file, bytes).await?;
         t.set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
             .await?;
 

@@ -879,8 +879,6 @@ pub fn repeat_vars(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use async_channel as channel;
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
 
     use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
@@ -950,12 +948,7 @@ mod tests {
 
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
-        File::create(&avatar_src)
-            .await
-            .unwrap()
-            .write_all(avatar_bytes)
-            .await
-            .unwrap();
+        tokio::fs::write(&avatar_src, avatar_bytes).await.unwrap();
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();

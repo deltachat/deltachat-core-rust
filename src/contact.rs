@@ -1438,9 +1438,6 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
-
     use super::*;
 
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
@@ -2200,10 +2197,7 @@ CCCB 5AA9 F6E1 141C 9431
         assert_eq!(alice1.get_config(Config::Selfavatar).await?, None);
 
         let avatar_src = alice1.get_blobdir().join("avatar.png");
-        File::create(&avatar_src)
-            .await?
-            .write_all(test_utils::AVATAR_900x900_BYTES)
-            .await?;
+        tokio::fs::write(&avatar_src, test_utils::AVATAR_900x900_BYTES).await?;
 
         alice1
             .set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))

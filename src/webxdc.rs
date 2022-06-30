@@ -723,9 +723,6 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
-
     use crate::chat::{
         add_contact_to_chat, create_group_chat, forward_msgs, resend_msgs, send_msg, send_text_msg,
         ChatId, ProtectionStatus,
@@ -791,7 +788,7 @@ mod tests {
 
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let file = t.get_blobdir().join(name);
-        File::create(&file).await?.write_all(bytes).await?;
+        tokio::fs::write(&file, bytes).await?;
         let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
@@ -822,10 +819,7 @@ mod tests {
 
         // sending using bad extension is not working, even when setting Viewtype to webxdc
         let file = t.get_blobdir().join("index.html");
-        File::create(&file)
-            .await?
-            .write_all("<html>ola!</html>".as_ref())
-            .await?;
+        tokio::fs::write(&file, b"<html>ola!</html>").await?;
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
@@ -852,12 +846,11 @@ mod tests {
 
         // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
         let file = t.get_blobdir().join("invalid2.xdc");
-        File::create(&file)
-            .await?
-            .write_all(include_bytes!(
-                "../test-data/webxdc/invalid-no-zip-but-7z.xdc"
-            ))
-            .await?;
+        tokio::fs::write(
+            &file,
+            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+        )
+        .await?;
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());

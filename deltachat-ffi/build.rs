@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::path::PathBuf;
 use std::{env, fs};
 
@@ -28,8 +27,9 @@ fn main() {
     );
 
     fs::create_dir_all(target_path.join("pkgconfig")).unwrap();
-    fs::File::create(target_path.join("pkgconfig").join("deltachat.pc"))
-        .unwrap()
-        .write_all(pkg_config.as_bytes())
-        .unwrap();
+    fs::write(
+        target_path.join("pkgconfig").join("deltachat.pc"),
+        pkg_config.as_bytes(),
+    )
+    .unwrap();
 }
