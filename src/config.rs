@@ -719,6 +719,15 @@ Message w/out In-Reply-To
                 .unwrap();
         }
 
+        // Already add the new contact to one of the groups.
+        // We can then later check that the contact isn't in the group twice.
+        let already_new_contact = Contact::create(&bob, "Alice", "fiona@example.net")
+            .await
+            .unwrap();
+        chat::add_contact_to_chat(&bob, groups[0], already_new_contact)
+            .await
+            .unwrap();
+
         // groups 0 and 2 stay unpromoted (i.e. local
         // on Bob's device, Alice doesn't know about them)
         tcm.section("Promoting group 1");
@@ -798,22 +807,18 @@ Message w/out In-Reply-To
         name: &str,
         bob: &TestContext,
     ) {
-        let old_contact = Contact::lookup_id_by_addr(bob, old_alice_addr, contact::Origin::Unknown)
-            .await
-            .unwrap()
-            .unwrap();
         let new_contact = Contact::lookup_id_by_addr(bob, new_alice_addr, contact::Origin::Unknown)
             .await
             .unwrap()
             .unwrap();
 
         for group in groups {
-            assert!(!chat::is_contact_in_chat(bob, *group, old_contact)
-                .await
-                .unwrap());
-            assert!(chat::is_contact_in_chat(bob, *group, new_contact)
-                .await
-                .unwrap());
+            let members = chat::get_chat_contacts(bob, *group).await.unwrap();
+            // In all the groups, exactly Bob and Alice's new number are members.
+            // (and Alice's new number isn't in there twice)
+            assert_eq!(members.len(), 2);
+            assert!(members.contains(&new_contact));
+            assert!(members.contains(&ContactId::SELF));
 
             let info_msg = get_last_info_msg(bob, *group).await;
             let expected_text =

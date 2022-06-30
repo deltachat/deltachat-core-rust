@@ -4,8 +4,9 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self};
+use crate::chat::{self, is_contact_in_chat, Chat};
 use crate::chatlist::Chatlist;
+use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -513,7 +514,7 @@ impl Peerstate {
                     ChatsChange::FingerprintChange => {
                         stock_str::contact_setup_changed(context, self.addr.clone()).await
                     }
-                    ChatsChange::AddressChange(new_addr) => {
+                    ChatsChange::AEAP(new_addr) => {
                         let old_contact = Contact::load_from_db(context, contact_id).await?;
                         stock_str::aeap_addr_changed(
                             context,
@@ -549,16 +550,22 @@ impl Peerstate {
                 )
                 .await?;
 
-                if let ChatsChange::AddressChange(new_addr) = &change {
-                    // TODO only do this if it's a group chat?
-                    chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
-
-                    let (new_contact_id, _) =
-                        Contact::add_or_lookup(context, "", &new_addr, Origin::IncomingReplyTo)
+                if let ChatsChange::AEAP(new_addr) = &change {
+                    let chat = Chat::load_from_db(context, *chat_id).await?;
+                    if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
+                        chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
                             .await?;
-                    chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
 
-                    context.emit_event(EventType::ChatModified(*chat_id));
+                        let (new_contact_id, _) =
+                            Contact::add_or_lookup(context, "", &new_addr, Origin::IncomingReplyTo)
+                                .await?;
+                        if !is_contact_in_chat(context, *chat_id, new_contact_id).await? {
+                            chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id)
+                                .await?;
+                        }
+
+                        context.emit_event(EventType::ChatModified(*chat_id));
+                    }
                 }
             }
 
@@ -617,7 +624,7 @@ pub async fn maybe_do_aeap_transition(
                     .handle_change(
                         context,
                         info.message_time,
-                        ChatsChange::AddressChange(info.from.clone()),
+                        ChatsChange::AEAP(info.from.clone()),
                     )
                     .await?;
 
@@ -642,8 +649,10 @@ pub async fn maybe_do_aeap_transition(
 }
 
 enum ChatsChange {
+    /// The contact's public key fingerprint changed.
     FingerprintChange,
-    AddressChange(String),
+    /// The contact changed his/her address to the given new address.
+    AEAP(String),
 }
 
 /// Removes duplicate peerstates from `acpeerstates` database table.
