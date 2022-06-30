@@ -281,128 +281,6 @@ impl Peerstate {
         self.to_save = Some(ToSave::All);
     }
 
-    /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
-    pub(crate) async fn handle_fingerprint_change(
-        &self,
-        context: &Context,
-        timestamp: i64,
-    ) -> Result<()> {
-        if context.is_self_addr(&self.addr).await? {
-            // Do not try to search all the chats with self.
-            return Ok(());
-        }
-
-        if self.fingerprint_changed {
-            if let Some(contact_id) = context
-                .sql
-                .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr]) // TODO COLLATE NOCASE is missing
-                .await?
-            {
-                let chats = Chatlist::try_load(context, 0, None, contact_id).await?;
-                let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
-                for (chat_id, msg_id) in chats.iter() {
-                    let timestamp_sort = if let Some(msg_id) = msg_id {
-                        let lastmsg = Message::load_from_db(context, *msg_id).await?;
-                        lastmsg.timestamp_sort
-                    } else {
-                        context
-                            .sql
-                            .query_get_value(
-                                "SELECT created_timestamp FROM chats WHERE id=?;",
-                                paramsv![chat_id],
-                            )
-                            .await?
-                            .unwrap_or(0)
-                    };
-                    chat::add_info_msg_with_cmd(
-                        context,
-                        *chat_id,
-                        &msg,
-                        SystemMessage::Unknown,
-                        timestamp_sort,
-                        Some(timestamp),
-                        None,
-                        None,
-                    )
-                    .await?;
-                    context.emit_event(EventType::ChatModified(*chat_id));
-                }
-            } else {
-                bail!("contact with peerstate.addr {:?} not found", &self.addr);
-            }
-        }
-        Ok(())
-    }
-
-    // TODO docs
-    // TODO dedup with handle_fingerprint_change()?
-    pub(crate) async fn handle_address_change(
-        &self,
-        context: &Context,
-        timestamp: i64,
-        new_addr: &str,
-    ) -> Result<()> {
-        if context.is_self_addr(new_addr).await? {
-            // Do not try to search all the chats with self.
-            return Ok(());
-        }
-
-        if let Some(old_contact_id) = context
-            .sql
-            .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr]) // TODO: COLLATE NOCASE is missing
-            .await?
-        {
-            let chats = Chatlist::try_load(context, 0, None, Some(old_contact_id)).await?;
-            let old_contact = Contact::load_from_db(context, old_contact_id).await?;
-            let msg = stock_str::aeap_addr_changed(
-                context,
-                old_contact.get_display_name(),
-                &self.addr,
-                new_addr,
-            )
-            .await;
-
-            for (chat_id, msg_id) in chats.iter() {
-                let timestamp_sort = if let Some(msg_id) = msg_id {
-                    let lastmsg = Message::load_from_db(context, *msg_id).await?;
-                    lastmsg.timestamp_sort
-                } else {
-                    context
-                        .sql
-                        .query_get_value(
-                            "SELECT created_timestamp FROM chats WHERE id=?;",
-                            paramsv![chat_id],
-                        )
-                        .await?
-                        .unwrap_or(0)
-                };
-                chat::add_info_msg_with_cmd(
-                    context,
-                    *chat_id,
-                    &msg,
-                    SystemMessage::Unknown,
-                    timestamp_sort,
-                    Some(timestamp),
-                    None,
-                    None,
-                )
-                .await?;
-
-                chat::remove_from_chat_contacts_table(context, *chat_id, old_contact_id).await?;
-
-                let (new_contact_id, _) =
-                    Contact::add_or_lookup(context, "", new_addr, Origin::IncomingReplyTo).await?;
-                chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
-
-                context.emit_event(EventType::ChatModified(*chat_id));
-            }
-        } else {
-            bail!("contact with peerstate.addr {:?} not found", &self.addr);
-        }
-
-        Ok(())
-    }
-
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
         if !addr_cmp(&self.addr, &header.addr) {
             return;
@@ -610,12 +488,103 @@ impl Peerstate {
             false
         }
     }
+
+    async fn handle_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+        change: ChatsChange,
+    ) -> Result<(), anyhow::Error> {
+        if context.is_self_addr(&self.addr).await? {
+            // Do not try to search all the chats with self.
+            return Ok(());
+        }
+        if let Some(contact_id) = context
+            .sql
+            .query_get_value(
+                "SELECT id FROM contacts WHERE addr=? COLLATE NOCASE;",
+                paramsv![self.addr],
+            )
+            .await?
+        {
+            let chats = Chatlist::try_load(context, 0, None, Some(contact_id)).await?;
+            for (chat_id, msg_id) in chats.iter() {
+                let msg = match &change {
+                    ChatsChange::FingerprintChange => {
+                        stock_str::contact_setup_changed(context, self.addr.clone()).await
+                    }
+                    ChatsChange::AddressChange(new_addr) => {
+                        let old_contact = Contact::load_from_db(context, contact_id).await?;
+                        stock_str::aeap_addr_changed(
+                            context,
+                            old_contact.get_display_name(),
+                            &self.addr,
+                            new_addr,
+                        )
+                        .await
+                    }
+                };
+                let timestamp_sort = if let Some(msg_id) = msg_id {
+                    let lastmsg = Message::load_from_db(context, *msg_id).await?;
+                    lastmsg.timestamp_sort
+                } else {
+                    context
+                        .sql
+                        .query_get_value(
+                            "SELECT created_timestamp FROM chats WHERE id=?;",
+                            paramsv![chat_id],
+                        )
+                        .await?
+                        .unwrap_or(0)
+                };
+                chat::add_info_msg_with_cmd(
+                    context,
+                    *chat_id,
+                    &msg,
+                    SystemMessage::Unknown,
+                    timestamp_sort,
+                    Some(timestamp),
+                    None,
+                    None,
+                )
+                .await?;
+
+                if let ChatsChange::AddressChange(new_addr) = &change {
+                    // TODO only do this if it's a group chat?
+                    chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
+
+                    let (new_contact_id, _) =
+                        Contact::add_or_lookup(context, "", &new_addr, Origin::IncomingReplyTo)
+                            .await?;
+                    chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
+
+                    context.emit_event(EventType::ChatModified(*chat_id));
+                }
+            }
+
+            Ok(())
+        } else {
+            bail!("contact with peerstate.addr {:?} not found", &self.addr);
+        }
+    }
+
+    /// Adds a warning to all the chats corresponding to peerstate if fingerprint has changed.
+    pub(crate) async fn handle_fingerprint_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<()> {
+        if self.fingerprint_changed {
+            self.handle_change(context, timestamp, ChatsChange::FingerprintChange)
+                .await?;
+        }
+        Ok(())
+    }
 }
 
 /// Do an AEAP transition, if necessary.
 ///
 /// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
-// TODO could be moved somewhere else
 pub async fn maybe_do_aeap_transition(
     context: &Context,
     info: &mut crate::e2ee::DecryptionInfo,
@@ -642,8 +611,14 @@ pub async fn maybe_do_aeap_transition(
                 && mime_parser.from_is_signed
                 && info.message_time > peerstate.last_seen
             {
+                // Add an info messages to all chats with this contact
+                //
                 peerstate
-                    .handle_address_change(context, info.message_time, &info.from)
+                    .handle_change(
+                        context,
+                        info.message_time,
+                        ChatsChange::AddressChange(info.from.clone()),
+                    )
                     .await?;
 
                 peerstate.addr = info.from.clone();
@@ -664,6 +639,11 @@ pub async fn maybe_do_aeap_transition(
     }
 
     Ok(())
+}
+
+enum ChatsChange {
+    FingerprintChange,
+    AddressChange(String),
 }
 
 /// Removes duplicate peerstates from `acpeerstates` database table.
