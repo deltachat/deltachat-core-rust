@@ -5214,7 +5214,7 @@ void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
  * @param request JSON-RPC request as string
  */
-void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, char* request);
+void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, const char* request);
 
 /**
  * Get the next json_rpc response, blocks until there is a new event, so call this in a loop from a thread.
