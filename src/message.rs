@@ -232,10 +232,6 @@ impl Default for MessengerMessage {
 /// An object representing a single message in memory.
 /// The message object is not updated.
 /// If you want an update, you have to recreate the object.
-///
-/// to check if a mail was sent, use msg_is_sent()
-/// approx. max. length returned by msg_get_text()
-/// approx. max. length returned by get_msg_info()
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub(crate) id: MsgId,
@@ -557,9 +553,9 @@ impl Message {
         Ok(Summary::new(context, self, chat, contact.as_ref()).await)
     }
 
-    // It's a little unfortunate that the UI has to first call msg_get_override_sender_name() and then if it was NULL, call
-    // contact_get_display_name() but this was the best solution:
-    // - We could load a Contact struct from the db here to call get_display_name() instead of returning None, but then we had a db
+    // It's a little unfortunate that the UI has to first call `dc_msg_get_override_sender_name` and then if it was `NULL`, call
+    // `dc_contact_get_display_name` but this was the best solution:
+    // - We could load a Contact struct from the db here to call `dc_get_display_name` instead of returning `None`, but then we had a db
     //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
     // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
     //   C-data in the Java code (i.e. a `long` storing a C pointer)
@@ -1750,19 +1746,18 @@ pub enum Viewtype {
     Unknown = 0,
 
     /// Text message.
-    /// The text of the message is set using msg_set_text()
-    /// and retrieved with msg_get_text().
+    /// The text of the message is set using dc_msg_set_text() and retrieved with dc_msg_get_text().
     Text = 10,
 
     /// Image message.
     /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
-    /// File, width and height are set via msg_set_file(), msg_set_dimension
-    /// and retrieved via msg_set_file(), msg_set_dimension().
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
+    /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
     Image = 20,
 
     /// Animated GIF message.
-    /// File, width and height are set via msg_set_file(), msg_set_dimension()
-    /// and retrieved via msg_get_file(), msg_get_width(), msg_get_height().
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
     Gif = 21,
 
     /// Message containing a sticker, similar to image.
@@ -1771,27 +1766,27 @@ pub enum Viewtype {
     Sticker = 23,
 
     /// Message containing an Audio file.
-    /// File and duration are set via msg_set_file(), msg_set_duration()
-    /// and retrieved via msg_get_file(), msg_get_duration().
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
     Audio = 40,
 
     /// A voice message that was directly recorded by the user.
     /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
-    /// File and duration are set via msg_set_file(), msg_set_duration()
-    /// and retrieved via msg_get_file(), msg_get_duration()
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
     Voice = 41,
 
     /// Video messages.
     /// File, width, height and durarion
-    /// are set via msg_set_file(), msg_set_dimension(), msg_set_duration()
+    /// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
     /// and retrieved via
-    /// msg_get_file(), msg_get_width(),
-    /// msg_get_height(), msg_get_duration().
+    /// dc_msg_get_file(), dc_msg_get_width(),
+    /// dc_msg_get_height(), dc_msg_get_duration().
     Video = 50,
 
     /// Message containing any file, eg. a PDF.
-    /// The file is set via msg_set_file()
-    /// and retrieved via msg_get_file().
+    /// The file is set via dc_msg_set_file()
+    /// and retrieved via dc_msg_get_file().
     File = 60,
 
     /// Message is an invitation to a videochat.

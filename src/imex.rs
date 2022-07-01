@@ -499,7 +499,7 @@ async fn import_backup(
 fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp(backup_time, 0)
-        // Don't change this file name format, in has_backup() we use string comparison to determine which backup is newer:
+        // Don't change this file name format, in `dc_imex_has_backup` we use string comparison to determine which backup is newer:
         .format("delta-chat-backup-%Y-%m-%d")
         .to_string();
 
@@ -577,7 +577,7 @@ struct DeleteOnDrop(PathBuf);
 impl Drop for DeleteOnDrop {
     fn drop(&mut self) {
         let file = self.0.clone();
-        // Not using delete_file() here because it would send a DeletedBlobFile event
+        // Not using `tools::delete_file` here because it would send a DeletedBlobFile event
         // Hack to avoid panic in nested runtime calls of tokio
         std::fs::remove_file(file).ok();
     }
