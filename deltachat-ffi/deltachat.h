@@ -5221,7 +5221,7 @@ void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, const char* req
  *
  * @memberof dc_jsonrpc_instance_t
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
- * @return JSON-RPC response as string
+ * @return JSON-RPC response as string, must be freed using dc_str_unref() after usage.
  *     If NULL is returned, the accounts_t belonging to the jsonrpc instance is unref'd and no more events will come;
  *     in this case, free the jsonrpc instance using dc_jsonrpc_unref().
  */
