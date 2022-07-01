@@ -18,9 +18,9 @@ use rand::{thread_rng, CryptoRng, Rng};
 use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
-use crate::dc_tools::EmailAddress;
 use crate::key::{DcKey, Fingerprint};
 use crate::keyring::Keyring;
+use crate::tools::EmailAddress;
 
 pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
@@ -386,6 +386,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{alice_keypair, bob_keypair};
     use once_cell::sync::Lazy;
+    use tokio::sync::OnceCell;
 
     #[test]
     fn test_split_armored_data_1() {
@@ -456,37 +457,50 @@ mod tests {
     /// Initialised [TestKeys] for tests.
     static KEYS: Lazy<TestKeys> = Lazy::new(TestKeys::new);
 
+    static CTEXT_SIGNED: OnceCell<String> = OnceCell::const_new();
+    static CTEXT_UNSIGNED: OnceCell<String> = OnceCell::const_new();
+
     /// A cyphertext encrypted to Alice & Bob, signed by Alice.
-    static CTEXT_SIGNED: Lazy<String> = Lazy::new(|| {
-        let mut keyring = Keyring::new();
-        keyring.add(KEYS.alice_public.clone());
-        keyring.add(KEYS.bob_public.clone());
-        futures_lite::future::block_on(pk_encrypt(
-            CLEARTEXT,
-            keyring,
-            Some(KEYS.alice_secret.clone()),
-        ))
-        .unwrap()
-    });
+    async fn ctext_signed() -> &'static String {
+        CTEXT_SIGNED
+            .get_or_init(|| async {
+                let mut keyring = Keyring::new();
+                keyring.add(KEYS.alice_public.clone());
+                keyring.add(KEYS.bob_public.clone());
 
-    /// A cyphertext encrypted to Alice & Bob, not signed.
-    static CTEXT_UNSIGNED: Lazy<String> = Lazy::new(|| {
-        let mut keyring = Keyring::new();
-        keyring.add(KEYS.alice_public.clone());
-        keyring.add(KEYS.bob_public.clone());
-        futures_lite::future::block_on(pk_encrypt(CLEARTEXT, keyring, None)).unwrap()
-    });
-
-    #[test]
-    fn test_encrypt_signed() {
-        assert!(!CTEXT_SIGNED.is_empty());
-        assert!(CTEXT_SIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
+                pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))
+                    .await
+                    .unwrap()
+            })
+            .await
     }
 
-    #[test]
-    fn test_encrypt_unsigned() {
-        assert!(!CTEXT_UNSIGNED.is_empty());
-        assert!(CTEXT_UNSIGNED.starts_with("-----BEGIN PGP MESSAGE-----"));
+    /// A cyphertext encrypted to Alice & Bob, not signed.
+    async fn ctext_unsigned() -> &'static String {
+        CTEXT_UNSIGNED
+            .get_or_init(|| async {
+                let mut keyring = Keyring::new();
+                keyring.add(KEYS.alice_public.clone());
+                keyring.add(KEYS.bob_public.clone());
+                pk_encrypt(CLEARTEXT, keyring, None).await.unwrap()
+            })
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_encrypt_signed() {
+        assert!(!ctext_signed().await.is_empty());
+        assert!(ctext_signed()
+            .await
+            .starts_with("-----BEGIN PGP MESSAGE-----"));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_encrypt_unsigned() {
+        assert!(!ctext_unsigned().await.is_empty());
+        assert!(ctext_unsigned()
+            .await
+            .starts_with("-----BEGIN PGP MESSAGE-----"));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -497,7 +511,7 @@ mod tests {
         let mut sig_check_keyring: Keyring<SignedPublicKey> = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
-            CTEXT_SIGNED.as_bytes().to_vec(),
+            ctext_signed().await.as_bytes().to_vec(),
             decrypt_keyring,
             &sig_check_keyring,
         )
@@ -512,7 +526,7 @@ mod tests {
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
-            CTEXT_SIGNED.as_bytes().to_vec(),
+            ctext_signed().await.as_bytes().to_vec(),
             decrypt_keyring,
             &sig_check_keyring,
         )
@@ -527,10 +541,13 @@ mod tests {
         let mut keyring = Keyring::new();
         keyring.add(KEYS.alice_secret.clone());
         let empty_keyring = Keyring::new();
-        let (plain, valid_signatures) =
-            pk_decrypt(CTEXT_SIGNED.as_bytes().to_vec(), keyring, &empty_keyring)
-                .await
-                .unwrap();
+        let (plain, valid_signatures) = pk_decrypt(
+            ctext_signed().await.as_bytes().to_vec(),
+            keyring,
+            &empty_keyring,
+        )
+        .await
+        .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
@@ -543,7 +560,7 @@ mod tests {
         let mut sig_check_keyring = Keyring::new();
         sig_check_keyring.add(KEYS.bob_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
-            CTEXT_SIGNED.as_bytes().to_vec(),
+            ctext_signed().await.as_bytes().to_vec(),
             decrypt_keyring,
             &sig_check_keyring,
         )
@@ -559,7 +576,7 @@ mod tests {
         decrypt_keyring.add(KEYS.bob_secret.clone());
         let sig_check_keyring = Keyring::new();
         let (plain, valid_signatures) = pk_decrypt(
-            CTEXT_UNSIGNED.as_bytes().to_vec(),
+            ctext_unsigned().await.as_bytes().to_vec(),
             decrypt_keyring,
             &sig_check_keyring,
         )

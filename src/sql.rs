@@ -15,13 +15,13 @@ use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
-use crate::dc_tools::{dc_delete_file, time};
 use crate::ephemeral::start_ephemeral_timers;
 use crate::log::LogExt;
 use crate::message::{Message, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
+use crate::tools::{delete_file, time};
 
 #[macro_export]
 macro_rules! paramsv {
@@ -788,7 +788,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     entry.file_name()
                 );
                 let path = entry.path();
-                dc_delete_file(context, path).await;
+                delete_file(context, path).await;
             }
         }
         Err(err) => {
@@ -879,8 +879,6 @@ pub fn repeat_vars(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use async_channel as channel;
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
 
     use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
@@ -950,12 +948,7 @@ mod tests {
 
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
-        File::create(&avatar_src)
-            .await
-            .unwrap()
-            .write_all(avatar_bytes)
-            .await
-            .unwrap();
+        tokio::fs::write(&avatar_src, avatar_bytes).await.unwrap();
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();

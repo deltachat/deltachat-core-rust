@@ -25,10 +25,6 @@ use crate::constants::{
 };
 use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_receive_imf::{
-    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
-};
-use crate::dc_tools::dc_create_id;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job;
@@ -37,12 +33,16 @@ use crate::login_param::{
 };
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
-use crate::oauth2::dc_get_oauth2_access_token;
+use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::receive_imf::{
+    from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
+};
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
+use crate::tools::create_id;
 
 mod client;
 mod idle;
@@ -390,7 +390,7 @@ impl Imap {
         let login_res = if oauth2 {
             let addr: &str = config.addr.as_ref();
 
-            let token = dc_get_oauth2_access_token(context, addr, imap_pw, true)
+            let token = get_oauth2_access_token(context, addr, imap_pw, true)
                 .await?
                 .context("IMAP could not get OAUTH token")?;
             let auth = OAuth2 {
@@ -787,7 +787,7 @@ impl Imap {
             };
 
             // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(dc_create_id);
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(create_id);
 
             let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
@@ -875,8 +875,8 @@ impl Imap {
         received_msgs.extend(received_msgs_2);
 
         // determine which uid_next to use to update to
-        // dc_receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
-        // `largest_uid_processed` is the largest uid where dc_receive_imf() did NOT return an error.
+        // receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
+        // `largest_uid_processed` is the largest uid where receive_imf() did NOT return an error.
 
         // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
         // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
@@ -1431,7 +1431,7 @@ impl Imap {
                     continue;
                 }
 
-                // XXX put flags into a set and pass them to dc_receive_imf
+                // XXX put flags into a set and pass them to receive_imf
                 let context = context.clone();
 
                 // safe, as we checked above that there is a body.
@@ -1449,7 +1449,7 @@ impl Imap {
                     );
                     ""
                 };
-                match dc_receive_imf_inner(
+                match receive_imf_inner(
                     &context,
                     rfc724_mid,
                     body,
@@ -1466,7 +1466,7 @@ impl Imap {
                         last_uid = Some(server_uid)
                     }
                     Err(err) => {
-                        warn!(context, "dc_receive_imf error: {:#}", err);
+                        warn!(context, "receive_imf error: {:#}", err);
                     }
                 };
             }
@@ -1717,11 +1717,11 @@ async fn should_move_out_of_spam(
         // the SecureJoin header. So, we always move chat messages out of Spam.
         // Two possibilities to change this would be:
         // 1. Remove the `&& !context.is_spam_folder(folder).await?` check from
-        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
+        // `fetch_new_messages()`, and then let `receive_imf()` check
         // if it's a spam message and should be hidden.
         // 2. Or add a flag to the ChatVersion header that this is a securejoin
         // request, and return `true` here only if the message has this flag.
-        // `dc_receive_imf()` can then check if the securejoin request is valid.
+        // `receive_imf()` can then check if the securejoin request is valid.
         return Ok(true);
     }
 

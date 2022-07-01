@@ -11,7 +11,7 @@ use async_smtp::ServerAddress;
 use tokio::net::{self, TcpStream};
 
 use super::session::Session;
-use crate::login_param::{dc_build_tls, Socks5Config};
+use crate::login_param::{build_tls, Socks5Config};
 
 use super::session::SessionStream;
 
@@ -67,7 +67,7 @@ impl Client {
         strict_tls: bool,
     ) -> Result<Self> {
         let stream = TcpStream::connect(addr).await?;
-        let tls = dc_build_tls(strict_tls);
+        let tls = build_tls(strict_tls);
         let tls_stream: Box<dyn SessionStream> = Box::new(tls.connect(domain, stream).await?);
         let mut client = ImapClient::new(tls_stream);
 
@@ -108,7 +108,7 @@ impl Client {
                 .await?,
         );
 
-        let tls = dc_build_tls(strict_tls);
+        let tls = build_tls(strict_tls);
         let tls_stream: Box<dyn SessionStream> =
             Box::new(tls.connect(target_addr.host.clone(), socks5_stream).await?);
         let mut client = ImapClient::new(tls_stream);
@@ -151,7 +151,7 @@ impl Client {
             Ok(self)
         } else {
             let Client { mut inner, .. } = self;
-            let tls = dc_build_tls(strict_tls);
+            let tls = build_tls(strict_tls);
             inner.run_command_and_check_ok("STARTTLS", None).await?;
 
             let stream = inner.into_inner();

@@ -12,8 +12,6 @@ use deltachat::chatlist::*;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_receive_imf::*;
-use deltachat::dc_tools::*;
 use deltachat::download::DownloadState;
 use deltachat::imex::*;
 use deltachat::location;
@@ -21,7 +19,9 @@ use deltachat::log::LogExt;
 use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
+use deltachat::receive_imf::*;
 use deltachat::sql;
+use deltachat::tools::*;
 use deltachat::{config, provider};
 use tokio::fs;
 
@@ -96,10 +96,10 @@ async fn reset_tables(context: &Context, bits: i32) {
 }
 
 async fn poke_eml_file(context: &Context, filename: impl AsRef<Path>) -> Result<()> {
-    let data = dc_read_file(context, filename).await?;
+    let data = read_file(context, filename).await?;
 
-    if let Err(err) = dc_receive_imf(context, &data, false).await {
-        println!("dc_receive_imf errored: {:?}", err);
+    if let Err(err) = receive_imf(context, &data, false).await {
+        println!("receive_imf errored: {:?}", err);
     }
     Ok(())
 }
@@ -128,7 +128,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
         }
         real_spec = rs.unwrap();
     }
-    if let Some(suffix) = dc_get_filesuffix_lc(&real_spec) {
+    if let Some(suffix) = get_filesuffix_lc(&real_spec) {
         if suffix == "eml" && poke_eml_file(context, &real_spec).await.is_ok() {
             read_cnt += 1
         }
@@ -187,7 +187,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         DownloadState::Failure => " [⬇ Download failed]",
     };
 
-    let temp2 = dc_timestamp_to_str(msg.get_timestamp());
+    let temp2 = timestamp_to_str(msg.get_timestamp());
     let msgtext = msg.get_text();
     println!(
         "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}{}{} [{}]",
@@ -593,7 +593,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                             _ => "",
                         }
                     };
-                    let timestr = dc_timestamp_to_str(summary.timestamp);
+                    let timestr = timestamp_to_str(summary.timestamp);
                     println!(
                         "{}{}{} [{}]{}",
                         summary
@@ -806,7 +806,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 println!(
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} {} {}",
                     location.location_id,
-                    dc_timestamp_to_str(location.timestamp),
+                    timestamp_to_str(location.timestamp),
                     location.latitude,
                     location.longitude,
                     location.accuracy,
@@ -1229,8 +1229,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
 
-            if let Ok(buf) = dc_read_file(&context, &arg1).await {
-                let (width, height) = dc_get_filemeta(&buf)?;
+            if let Ok(buf) = read_file(&context, &arg1).await {
+                let (width, height) = get_filemeta(&buf)?;
                 println!("width={}, height={}", width, height);
             } else {
                 bail!("Command failed.");

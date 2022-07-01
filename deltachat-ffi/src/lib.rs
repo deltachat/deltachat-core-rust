@@ -395,7 +395,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let redirect = to_string_lossy(redirect);
 
     block_on(async move {
-        match oauth2::dc_get_oauth2_url(ctx, &addr, &redirect)
+        match oauth2::get_oauth2_url(ctx, &addr, &redirect)
             .await
             .log_err(ctx, "dc_get_oauth2_url failed")
         {
@@ -739,7 +739,7 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
     }
     let ctx = &*context;
     block_on(async move {
-        let addr = dc_tools::EmailAddress::new(&to_string_lossy(addr))?;
+        let addr = tools::EmailAddress::new(&to_string_lossy(addr))?;
         let public = key::SignedPublicKey::from_asc(&to_string_lossy(public_data))?.0;
         let secret = key::SignedSecretKey::from_asc(&to_string_lossy(secret_data))?.0;
         let keypair = key::KeyPair {
@@ -2244,7 +2244,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
         Some(ChatId::new(chat_id))
     };
 
-    block_on(securejoin::dc_get_securejoin_qr(ctx, chat_id))
+    block_on(securejoin::get_securejoin_qr(ctx, chat_id))
         .unwrap_or_else(|_| "".to_string())
         .strdup()
 }
@@ -2282,7 +2282,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
     let ctx = &*context;
 
     block_on(async move {
-        securejoin::dc_join_securejoin(ctx, &to_string_lossy(qr))
+        securejoin::join_securejoin(ctx, &to_string_lossy(qr))
             .await
             .map(|chatid| chatid.to_u32())
             .log_err(ctx, "failed dc_join_securejoin() call")

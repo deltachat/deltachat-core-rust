@@ -15,7 +15,6 @@ use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::dc_tools::{duration_to_str, time};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -24,6 +23,7 @@ use crate::quota::QuotaInfo;
 use crate::ratelimit::Ratelimit;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
+use crate::tools::{duration_to_str, time};
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -669,10 +669,10 @@ mod tests {
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
     use crate::contact::ContactId;
-    use crate::dc_receive_imf::dc_receive_imf;
-    use crate::dc_tools::dc_create_outgoing_rfc724_mid;
     use crate::message::{Message, Viewtype};
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use crate::tools::create_outgoing_rfc724_mid;
     use anyhow::Context as _;
     use std::time::Duration;
     use strum::IntoEnumIterator;
@@ -711,10 +711,10 @@ mod tests {
              \n\
              hello\n",
             contact.get_addr(),
-            dc_create_outgoing_rfc724_mid(None, contact.get_addr())
+            create_outgoing_rfc724_mid(None, contact.get_addr())
         );
         println!("{}", msg);
-        dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
+        receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

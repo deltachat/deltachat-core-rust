@@ -55,7 +55,7 @@ pub(crate) enum CStringError {
 /// # Example
 ///
 /// ```
-/// use deltachat::dc_tools::{dc_strdup, OsStrExt};
+/// use deltachat::tools::{dc_strdup, OsStrExt};
 /// let path = std::path::Path::new("/some/path");
 /// let path_c = path.to_c_string().unwrap();
 /// unsafe {

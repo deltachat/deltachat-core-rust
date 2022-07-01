@@ -4,11 +4,11 @@ use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
-use crate::dc_tools::dc_truncate;
 use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::stock_str;
+use crate::tools::truncate;
 use std::borrow::Cow;
 use std::fmt;
 
@@ -97,7 +97,7 @@ impl Summary {
 
     /// Returns the [`Summary::text`] attribute truncated to an approximate length.
     pub fn truncated_text(&self, approx_chars: usize) -> Cow<str> {
-        dc_truncate(&self.text, approx_chars)
+        truncate(&self.text, approx_chars)
     }
 }
 

@@ -411,10 +411,10 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use crate::chat;
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
     use crate::peerstate::ToSave;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::{bob_keypair, TestContext};
 
     use super::*;
@@ -646,7 +646,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(get_attachment_mime(&mail).is_some());
 
         let bob = TestContext::new_bob().await;
-        dc_receive_imf(&bob, attachment_mime, false).await?;
+        receive_imf(&bob, attachment_mime, false).await?;
         let msg = bob.get_last_msg().await;
         assert_eq!(msg.text.as_deref(), Some("Hello from Thunderbird!"));
 

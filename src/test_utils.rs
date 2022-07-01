@@ -25,12 +25,12 @@ use crate::constants::Chattype;
 use crate::constants::{DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_receive_imf::dc_receive_imf;
-use crate::dc_tools::EmailAddress;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
+use crate::receive_imf::receive_imf;
+use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -426,13 +426,13 @@ impl TestContext {
             .unwrap()
     }
 
-    /// Receive a message using the `dc_receive_imf()` pipeline. Panics if it's not shown
+    /// Receive a message using the `receive_imf()` pipeline. Panics if it's not shown
     /// in the chat as exactly one message.
     pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
         let received = self
             .recv_msg_opt(msg)
             .await
-            .expect("dc_receive_imf() seems not to have added a new message to the db");
+            .expect("receive_imf() seems not to have added a new message to the db");
 
         assert_eq!(
             received.msg_ids.len(),
@@ -455,13 +455,10 @@ impl TestContext {
         msg
     }
 
-    /// Receive a message using the `dc_receive_imf()` pipeline. This is similar
+    /// Receive a message using the `receive_imf()` pipeline. This is similar
     /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
-    pub async fn recv_msg_opt(
-        &self,
-        msg: &SentMessage,
-    ) -> Option<crate::dc_receive_imf::ReceivedMsg> {
-        dc_receive_imf(self, msg.payload().as_bytes(), false)
+    pub async fn recv_msg_opt(&self, msg: &SentMessage) -> Option<crate::receive_imf::ReceivedMsg> {
+        receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()
     }

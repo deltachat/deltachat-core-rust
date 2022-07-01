@@ -9,7 +9,7 @@ use deltachat_derive::{FromSql, ToSql};
 
 use crate::chat::ChatId;
 use crate::context::Context;
-use crate::dc_tools::{dc_create_id, time};
+use crate::tools::{create_id, time};
 
 /// Token namespace
 #[derive(
@@ -103,7 +103,7 @@ pub async fn lookup_or_new(
         return token;
     }
 
-    let token = dc_create_id();
+    let token = create_id();
     save(context, namespace, foreign_id, &token).await.ok();
     token
 }
