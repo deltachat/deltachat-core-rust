@@ -3332,7 +3332,7 @@ NAPI_METHOD(dcn_accounts_start_jsonrpc) {
     1,
     NULL,
     NULL,
-    dcn_accounts,
+    NULL,
     call_accounts_js_jsonrpc_handler,
     &dcn_accounts->threadsafe_jsonrpc_handler));
   TRACE("done");
