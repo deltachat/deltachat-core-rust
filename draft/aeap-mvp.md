@@ -121,7 +121,7 @@ Other
 
 - The user is responsible that messages to the old address arrive at the new address, for example by configuring the old provider to forward all emails to the new one.
 
-Notes during impementing
+Notes during implementing
 ========================
 
 - As far as I understand the code, unencrypted messages are unsigned. So, the transition only works if both sides have the other side's key.

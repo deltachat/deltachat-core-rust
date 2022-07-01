@@ -17,7 +17,7 @@ use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
 use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
-use crate::e2ee::{self};
+use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};

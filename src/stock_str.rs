@@ -380,8 +380,8 @@ trait StockStringMods: AsRef<str> + Sized {
 
     /// Substitutes the third replacement value if one is present.
     ///
-    /// Be aware you probably should have also called [`StockStringMods::replace1`] if
-    /// you are calling this.
+    /// Be aware you probably should have also called [`StockStringMods::replace1`] and
+    /// [`StockStringMods::replace2`] if you are calling this.
     fn replace3(&self, replacement: impl AsRef<str>) -> String {
         self.as_ref()
             .replacen("%3$s", replacement.as_ref(), 1)

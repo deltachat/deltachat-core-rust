@@ -621,51 +621,65 @@ Message w/out In-Reply-To
         Ok(())
     }
 
+    enum ChatForTransition {
+        OneToOne,
+        GroupChat,
+        VerifiedGroup,
+    }
+    use ChatForTransition::*;
+
     // TODO refactoring: Should this really be placed here? But I wouldn't know a better place, either
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0() {
-        check_aeap_transition(0, false, false).await;
+        check_aeap_transition(OneToOne, false, false).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1() {
-        check_aeap_transition(1, false, false).await;
+        check_aeap_transition(GroupChat, false, false).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_verified() {
-        check_aeap_transition(0, true, false).await;
+        check_aeap_transition(OneToOne, true, false).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_verified() {
-        check_aeap_transition(1, true, false).await;
+        check_aeap_transition(GroupChat, true, false).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_2_verified() {
-        check_aeap_transition(2, true, false).await;
+        check_aeap_transition(VerifiedGroup, true, false).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_bob_knew_new_addr() {
-        check_aeap_transition(0, false, true).await;
+        check_aeap_transition(OneToOne, false, true).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_bob_knew_new_addr() {
-        check_aeap_transition(1, false, true).await;
+        check_aeap_transition(GroupChat, false, true).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_0_verified_bob_knew_new_addr() {
-        check_aeap_transition(0, true, true).await;
+        check_aeap_transition(OneToOne, true, true).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_1_verified_bob_knew_new_addr() {
-        check_aeap_transition(1, true, true).await;
+        check_aeap_transition(GroupChat, true, true).await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_aeap_transition_2_verified_bob_knew_new_addr() {
-        check_aeap_transition(2, true, true).await;
+        check_aeap_transition(VerifiedGroup, true, true).await;
     }
 
     /// Happy path test for AEAP in various configurations.
-    async fn check_aeap_transition(round: u32, verified: bool, bob_knew_new_addr: bool) {
+    /// - `chat_for_transition`: Which chat the transition message should be sent in
+    /// - `verified`: Whether Alice and Bob verified each other
+    /// - `bob_knew_new_addr`: Whether Bob already had a chat with Alice's new address
+    async fn check_aeap_transition(
+        chat_for_transition: ChatForTransition,
+        verified: bool,
+        bob_knew_new_addr: bool,
+    ) {
         // Alice's new address is "fiona@example.net" so that we can test
         // the case where Bob already had contact with Alice's new address
         const ALICE_NEW_ADDR: &str = "fiona@example.net";
@@ -745,11 +759,10 @@ Message w/out In-Reply-To
 
         tcm.section("Alice sends another message to Bob, this time from her new addr");
         // No matter to which chat Alice send, the transition should be done in all groups
-        let chat_to_send = match round {
-            0 => alice.create_chat(&bob).await.id,
-            1 => group1_alice,
-            2 => group3_alice.expect("There is no round 2 for verified=false"),
-            _ => panic!("There is no round {}", round),
+        let chat_to_send = match chat_for_transition {
+            OneToOne => alice.create_chat(&bob).await.id,
+            GroupChat => group1_alice,
+            VerifiedGroup => group3_alice.expect("No verified group"),
         };
         let sent = alice
             .send_text(chat_to_send, "Hello from my new addr!")
