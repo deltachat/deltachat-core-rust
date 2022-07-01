@@ -4,6 +4,7 @@
 
 ### Changes
 - switch from `async-std` to `tokio` as the async runtime #3449
+- upgrade to `pgp@0.8.0` #3467
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
