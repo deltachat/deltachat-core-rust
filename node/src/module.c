@@ -3180,7 +3180,7 @@ static void call_accounts_js_event_handler(napi_env env, napi_value js_callback,
     if (status != napi_ok) {
       napi_throw_error(env, NULL, "Unable to create argv[3] for event_handler arguments");
     }
-    free(data2_string);
+    dc_str_unref(data2_string);
   } else {
     status = napi_create_int32(env, dc_event_get_data2_int(dc_event), &argv[3]);
     if (status != napi_ok) {
@@ -3294,7 +3294,7 @@ static void call_accounts_js_jsonrpc_handler(napi_env env, napi_value js_callbac
   if (status != napi_ok) {
     napi_throw_error(env, NULL, "Unable to create argv for js jsonrpc_handler arguments");
   } 
-  free(response);
+  dc_str_unref(response);
 
   TRACE("calling back into js");
   napi_value result;
