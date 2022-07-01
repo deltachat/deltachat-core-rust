@@ -6,7 +6,7 @@ import {
   startServer,
 } from "./test_base.js";
 
-const EVENT_TIMEOUT = 10000
+const EVENT_TIMEOUT = 20000
 
 describe("online tests", function () {
   let serverHandle: RpcServerHandle;
@@ -62,14 +62,12 @@ describe("online tests", function () {
   let accountsConfigured = false;
 
   it("configure test accounts", async function () {
-    this.timeout(20000);
+    this.timeout(40000);
 
     accountId1 = await dc.rpc.addAccount();
     await dc.rpc.setConfig(accountId1, "addr", account1.email);
     await dc.rpc.setConfig(accountId1, "mail_pw", account1.password);
-    console.log('config set')
     await dc.rpc.configure(accountId1);
-    console.log('account configured')
 
     accountId2 = await dc.rpc.addAccount();
     await dc.rpc.batchSetConfig(accountId2, {
