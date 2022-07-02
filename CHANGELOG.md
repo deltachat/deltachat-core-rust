@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### API-Changes
-- jsonrpc api over werbsocket server (basically a new api next to the cffi) #3463
+- jsonrpc api over websocket server (basically a new api next to the cffi) #3463
 - jsonrpc methods in cffi #3463: 
  - `dc_jsonrpc_instance_t* dc_jsonrpc_init(dc_accounts_t* account_manager);`
  - `void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);`

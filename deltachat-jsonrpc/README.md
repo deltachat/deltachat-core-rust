@@ -28,7 +28,7 @@ You will then find the `deltachat-jsonrpc-server` executable in your `target/rel
 
 The executable currently does not support any command-line arguments. By default, once started it will accept WebSocket connections on `ws://localhost:20808/ws`. It will store the persistent configuration and databases in a `./accounts` folder relative to the directory from where it is started.
 
-The server can be configured with environement variables:
+The server can be configured with environment variables:
 
 |variable|default|description|
 |-|-|-|
@@ -106,9 +106,9 @@ npm run test
 
 This will build the `deltachat-jsonrpc-server` binary and then run a test suite against the WebSocket server.
 
-The test suite includes some tests that need online connectivity and a way to create test email accounts. To run these tests, talk to DeltaChat developers to get a token for the `testrun.org` service, or use a local instannce of [`mailadm`](https://github.com/deltachat/docker-mailadm).
+The test suite includes some tests that need online connectivity and a way to create test email accounts. To run these tests, talk to DeltaChat developers to get a token for the `testrun.org` service, or use a local instance of [`mailadm`](https://github.com/deltachat/docker-mailadm).
 
-Then, set the `DCC_NEW_TMP_EMAIL` environemnt variable to your mailadm token before running the tests.
+Then, set the `DCC_NEW_TMP_EMAIL` environment variable to your mailadm token before running the tests.
 
 ```
 DCC_NEW_TMP_EMAIL=https://testrun.org/new_email?t=yourtoken npm run test
