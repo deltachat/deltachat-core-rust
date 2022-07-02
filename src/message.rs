@@ -779,11 +779,11 @@ impl Message {
     /// it may even be deleted from the database by the time the message is prepared.
     pub async fn set_quote(&mut self, context: &Context, quote: Option<&Message>) -> Result<()> {
         if let Some(quote) = quote {
-            ensure!(
-                !quote.rfc724_mid.is_empty(),
-                "Message without Message-Id cannot be quoted"
-            );
-            self.in_reply_to = Some(quote.rfc724_mid.clone());
+            self.in_reply_to = if quote.rfc724_mid.is_empty() {
+                None
+            } else {
+                Some(quote.rfc724_mid.clone())
+            };
 
             if quote
                 .param

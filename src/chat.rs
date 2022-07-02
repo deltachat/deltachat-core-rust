@@ -3666,6 +3666,50 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_quote_without_rfc_message_id() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+
+        // Alice sends two messages: the second one has a quote without RFC Message-ID set,
+        // but is still be a child of the first one
+        let mut msg1 = Message::new(Viewtype::Text);
+        msg1.set_text(Some("message text 1".to_string()));
+        send_msg(&alice, chat.id, &mut msg1).await?;
+        let sent1 = alice.pop_sent_msg().await;
+        let msg1 = Message::load_from_db(&alice, sent1.sender_msg_id).await?;
+        assert!(msg1.quoted_message(&alice).await?.is_none());
+        assert!(msg1.quoted_text().is_none());
+        assert!(msg1.parent(&alice).await?.is_none());
+
+        let mut quote = Message::new(Viewtype::Text);
+        quote.set_text(Some("quoted text".to_string()));
+        let mut msg2 = Message::new(Viewtype::Text);
+        msg2.set_quote(&alice, Some(&quote)).await?;
+        msg2.set_text(Some("message text 2".to_string()));
+        send_msg(&alice, chat.id, &mut msg2).await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let msg2 = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
+        assert!(msg2.quoted_message(&alice).await?.is_none());
+        assert_eq!(msg2.quoted_text(), Some("quoted text".to_string()));
+        assert_eq!(msg2.parent(&alice).await?.unwrap().rfc724_mid, msg1.rfc724_mid);
+
+        // check that the messages are received correctly by Bob and Alice's second device
+        let msg2 = bob.recv_msg(&sent2).await;
+        assert!(msg2.quoted_message(&bob).await?.is_none());
+        assert_eq!(msg2.quoted_text(), Some("quoted text".to_string()));
+        assert_eq!(msg2.parent(&alice).await?.unwrap().rfc724_mid, msg1.rfc724_mid);
+
+        let alice2 = TestContext::new_alice().await;
+        let msg2 = alice2.recv_msg(&sent2).await;
+        assert!(msg2.quoted_message(&alice2).await?.is_none());
+        assert_eq!(msg2.quoted_text(), Some("quoted text".to_string()));
+        assert_eq!(msg2.parent(&alice).await?.unwrap().rfc724_mid, msg1.rfc724_mid);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_contact_to_chat_ex_add_self() {
         // Adding self to a contact should succeed, even though it's pointless.
         let t = TestContext::new_alice().await;
