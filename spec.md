@@ -476,12 +476,18 @@ or the time of first receipt if that date is in the future or unavailable.
 
 # Transitioning to a new e-mail address (AEAP)
 
-When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
-  AND there is a `Chat-Version` header\
-  AND the message is signed correctly
-  AND the From address is (also) in the encrypted (and therefore signed) headers <sup>[[1]](#myfootnote1)</sup>\
-  AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order) (this condition is not that important since we will have eventual consistency even without it):
+When receiving a message:
+- If the key exists, but belongs to another address
+- AND there is a `Chat-Version` header
+- AND the message is signed correctly
+- AND the From address is (also) in the encrypted (and therefore signed) headers 
+- AND the message timestamp is newer than the contact's `lastseen`
+  (to prevent changing the address back when messages arrive out of order)
+  (this condition is not that important
+  since we will have eventual consistency even without it):
 
-  Replace the contact in _all_ groups, possibly deduplicate the members list, and add a system message to all of these chats.
+  Replace the contact in _all_ groups,
+  possibly deduplicate the members list,
+  and add a system message to all of these chats.
 
 Copyright © 2017-2021 Delta Chat contributors.
