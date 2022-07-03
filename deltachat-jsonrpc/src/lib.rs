@@ -77,7 +77,6 @@ mod tests {
             let response = r#"{"jsonrpc":"2.0","id":1,"result":1}"#;
             session.handle_incoming(request).await;
             let result = receiver.next().await;
-            println!("{:?}", result);
             assert_eq!(result, Some(response.to_owned()));
         }
         {
@@ -85,7 +84,6 @@ mod tests {
             let response = r#"{"jsonrpc":"2.0","id":2,"result":null}"#;
             session.handle_incoming(request).await;
             let result = receiver.next().await;
-            println!("{:?}", result);
             assert_eq!(result, Some(response.to_owned()));
         }
 
