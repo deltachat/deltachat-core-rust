@@ -491,11 +491,16 @@ impl Peerstate {
         }
     }
 
-    async fn handle_change(
+    /// Add an info message to all the chats with this contact, informing about
+    /// a [`PeerstateChange`].
+    ///
+    /// Also, in the case of an address change (AEAP), replace the old address
+    /// with the new address in all chats.
+    async fn handle_setup_change(
         &self,
         context: &Context,
         timestamp: i64,
-        change: ChatsChange,
+        change: PeerstateChange,
     ) -> Result<(), anyhow::Error> {
         if context.is_self_addr(&self.addr).await? {
             // Do not try to search all the chats with self.
@@ -512,10 +517,10 @@ impl Peerstate {
             let chats = Chatlist::try_load(context, 0, None, Some(contact_id)).await?;
             for (chat_id, msg_id) in chats.iter() {
                 let msg = match &change {
-                    ChatsChange::FingerprintChange => {
+                    PeerstateChange::FingerprintChange => {
                         stock_str::contact_setup_changed(context, self.addr.clone()).await
                     }
-                    ChatsChange::Aeap(new_addr) => {
+                    PeerstateChange::Aeap(new_addr) => {
                         let old_contact = Contact::load_from_db(context, contact_id).await?;
                         stock_str::aeap_addr_changed(
                             context,
@@ -551,7 +556,7 @@ impl Peerstate {
                 )
                 .await?;
 
-                if let ChatsChange::Aeap(new_addr) = &change {
+                if let PeerstateChange::Aeap(new_addr) = &change {
                     let chat = Chat::load_from_db(context, *chat_id).await?;
                     if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
                         chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
@@ -583,7 +588,7 @@ impl Peerstate {
         timestamp: i64,
     ) -> Result<()> {
         if self.fingerprint_changed {
-            self.handle_change(context, timestamp, ChatsChange::FingerprintChange)
+            self.handle_setup_change(context, timestamp, PeerstateChange::FingerprintChange)
                 .await?;
         }
         Ok(())
@@ -591,6 +596,7 @@ impl Peerstate {
 }
 
 /// Do an AEAP transition, if necessary.
+/// AEAP stands for "Automatic Email Address Porting."
 ///
 /// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
 pub async fn maybe_do_aeap_transition(
@@ -622,10 +628,10 @@ pub async fn maybe_do_aeap_transition(
                 // Add an info messages to all chats with this contact
                 //
                 peerstate
-                    .handle_change(
+                    .handle_setup_change(
                         context,
                         info.message_time,
-                        ChatsChange::Aeap(info.from.clone()),
+                        PeerstateChange::Aeap(info.from.clone()),
                     )
                     .await?;
 
@@ -649,10 +655,12 @@ pub async fn maybe_do_aeap_transition(
     Ok(())
 }
 
-enum ChatsChange {
-    /// The contact's public key fingerprint changed.
+enum PeerstateChange {
+    /// The contact's public key fingerprint changed, likely because
+    /// the contact uses a new device and didn't transfer their key.
     FingerprintChange,
-    /// The contact changed his/her address to the given new address.
+    /// The contact changed his/her address to the given new address
+    /// (Automatic Email Address Porting).
     Aeap(String),
 }
 
