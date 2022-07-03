@@ -208,7 +208,13 @@ impl CommandApi {
     async fn configure(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
-        ctx.configure().await?;
+        let result = ctx.configure().await;
+        if result.is_err() {
+            if let Ok(true) = ctx.is_configured().await {
+                ctx.start_io().await;
+            }
+            return result;
+        }
         ctx.start_io().await;
         Ok(())
     }
