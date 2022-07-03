@@ -1038,7 +1038,7 @@ impl MimeMessage {
             // XXX what if somebody sends eg an "location-highlights.kml"
             // attachment unrelated to location streaming?
             if filename.starts_with("location") || filename.starts_with("message") {
-                let parsed = location::Kml::parse(context, decoded_data)
+                let parsed = location::Kml::parse(decoded_data)
                     .map_err(|err| {
                         warn!(context, "failed to parse kml part: {}", err);
                     })
