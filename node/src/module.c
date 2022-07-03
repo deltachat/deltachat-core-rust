@@ -3356,6 +3356,7 @@ NAPI_METHOD(dcn_json_rpc_request) {
   NAPI_ARGV_UTF8_MALLOC(request, 1);
   dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, request);
   free(request);
+  NAPI_RETURN_UNDEFINED();
 }
 
 
