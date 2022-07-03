@@ -101,7 +101,7 @@ impl TestContextManager {
 
         let received_msg = to.recv_msg(&sent).await;
         received_msg.chat_id.accept(to).await.unwrap();
-        assert_eq!(received_msg.text.as_deref().unwrap(), msg);
+        assert_eq!(received_msg.text.unwrap(), msg);
     }
 
     pub async fn change_addr(&self, test_context: &TestContext, new_addr: &str) {
