@@ -72,7 +72,7 @@
 - mailing list: remove square-brackets only for first name #3452
 - do not use footers from mailinglists as the contact status #3460
 - don't ignore KML parsing errors #3473
-- improved error handling for account setup from qrcode (issue #3192)
+- improved error handling for account setup from qrcode #3474
 
 
 ## 1.87.0
