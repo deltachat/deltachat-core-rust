@@ -334,6 +334,21 @@ impl CommandApi {
         ChatId::new(chat_id).block(&ctx).await
     }
 
+    // for now only text messages, because we only used text messages in desktop thusfar
+    async fn add_device_message(
+        &self,
+        account_id: u32,
+        label: String,
+        text: String,
+    ) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some(text));
+        let message_id =
+            deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg)).await?;
+        Ok(message_id.to_u32())
+    }
+
     // ---------------------------------------------
     // message list
     // ---------------------------------------------

@@ -183,6 +183,11 @@ export class RawClient {
   }
 
 
+  public addDeviceMessage(accountId: T.U32, label: string, text: string): Promise<T.U32> {
+    return (this._transport.request('add_device_message', [accountId, label, text] as RPC.Params)) as Promise<T.U32>;
+  }
+
+
   public messageListGetMessageIds(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.U32)[]> {
     return (this._transport.request('message_list_get_message_ids', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.U32)[]>;
   }
