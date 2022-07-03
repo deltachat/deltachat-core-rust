@@ -447,8 +447,8 @@ mod tests {
     use crate::message::Message;
     use crate::peerstate;
     use crate::peerstate::Peerstate;
-    use crate::stock_str;
     use crate::receive_imf::receive_imf;
+    use crate::stock_str;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
@@ -758,7 +758,7 @@ Message w/out In-Reply-To
         tcm.change_addr(&alice, ALICE_NEW_ADDR).await;
 
         tcm.section("Alice sends another message to Bob, this time from her new addr");
-        // No matter to which chat Alice send, the transition should be done in all groups
+        // No matter which chat Alice sends to, the transition should be done in all groups
         let chat_to_send = match chat_for_transition {
             OneToOne => alice.create_chat(&bob).await.id,
             GroupChat => group1_alice,
@@ -805,8 +805,7 @@ Message w/out In-Reply-To
             // Note that "alice@example.org" and ALICE_NEW_ADDR are switched now:
             ALICE_NEW_ADDR,
             "alice@example.org",
-            // Alice's display name will be her address at this point, since Bob didn't set anything:
-            ALICE_NEW_ADDR,
+            "Alice",
             &bob,
         )
         .await;
@@ -904,7 +903,7 @@ Message w/out In-Reply-To
         sent.find("addr=fiona@example.net;").unwrap(); // Assert that it worked
 
         tcm.section("Fiona replaced the From addr and forwards the message to Bob");
-        dc_receive_imf(&bob, sent.as_bytes(), false).await?.unwrap();
+        receive_imf(&bob, sent.as_bytes(), false).await?.unwrap();
 
         // Check that no transition was done
         assert!(chat::is_contact_in_chat(&bob, group, bob_alice_contact).await?);
