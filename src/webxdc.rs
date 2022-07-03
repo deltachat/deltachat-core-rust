@@ -14,13 +14,12 @@ use tokio::io::AsyncReadExt;
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::dc_tools::dc_create_smeared_timestamp;
-use crate::dc_tools::dc_get_abs_path;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
 /// The current API version.
@@ -367,7 +366,7 @@ impl Context {
             .create_status_update_record(
                 &mut instance,
                 update_str,
-                dc_create_smeared_timestamp(self).await,
+                create_smeared_timestamp(self).await,
                 send_now,
                 ContactId::SELF,
             )
@@ -618,7 +617,7 @@ impl Message {
         let path = self
             .get_file(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
-        let path_abs = dc_get_abs_path(context, &path);
+        let path_abs = get_abs_path(context, &path);
         let archive = async_zip::read::fs::ZipFileReader::new(path_abs).await?;
         Ok(archive)
     }
@@ -724,9 +723,6 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::File;
-    use tokio::io::AsyncWriteExt;
-
     use crate::chat::{
         add_contact_to_chat, create_group_chat, forward_msgs, resend_msgs, send_msg, send_text_msg,
         ChatId, ProtectionStatus,
@@ -734,7 +730,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
 
     use super::*;
@@ -792,7 +788,7 @@ mod tests {
 
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let file = t.get_blobdir().join(name);
-        File::create(&file).await?.write_all(bytes).await?;
+        tokio::fs::write(&file, bytes).await?;
         let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
@@ -823,10 +819,7 @@ mod tests {
 
         // sending using bad extension is not working, even when setting Viewtype to webxdc
         let file = t.get_blobdir().join("index.html");
-        File::create(&file)
-            .await?
-            .write_all("<html>ola!</html>".as_ref())
-            .await?;
+        tokio::fs::write(&file, b"<html>ola!</html>").await?;
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
@@ -853,12 +846,11 @@ mod tests {
 
         // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
         let file = t.get_blobdir().join("invalid2.xdc");
-        File::create(&file)
-            .await?
-            .write_all(include_bytes!(
-                "../test-data/webxdc/invalid-no-zip-but-7z.xdc"
-            ))
-            .await?;
+        tokio::fs::write(
+            &file,
+            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+        )
+        .await?;
         let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
@@ -957,7 +949,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_receive_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_good_extension.eml"),
             false,
@@ -967,7 +959,7 @@ mod tests {
         assert_eq!(instance.viewtype, Viewtype::Webxdc);
         assert_eq!(instance.get_filename(), Some("minimal.xdc".to_string()));
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/webxdc_bad_extension.eml"),
             false,

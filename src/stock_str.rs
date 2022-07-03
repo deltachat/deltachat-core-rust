@@ -12,9 +12,9 @@ use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
-use crate::dc_tools::dc_timestamp_to_str;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
+use crate::tools::timestamp_to_str;
 use humansize::{file_size_opts, FileSize};
 
 /// Stock strings
@@ -1002,7 +1002,7 @@ pub(crate) async fn partial_download_msg_body(context: &Context, org_bytes: u32)
 pub(crate) async fn download_availability(context: &Context, timestamp: i64) -> String {
     translated(context, StockMessage::DownloadAvailability)
         .await
-        .replace1(dc_timestamp_to_str(timestamp))
+        .replace1(timestamp_to_str(timestamp))
 }
 
 /// Stock string: `Incoming Messages`.

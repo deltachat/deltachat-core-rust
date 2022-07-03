@@ -32,7 +32,7 @@ async fn generate_join_group_qr_code(context: &Context, chat_id: ChatId) -> Resu
 
     inner_generate_secure_join_qr_code(
         &stock_str::secure_join_group_qr_description(context, &chat).await,
-        &securejoin::dc_get_securejoin_qr(context, Some(chat_id)).await?,
+        &securejoin::get_securejoin_qr(context, Some(chat_id)).await?,
         &color_int_to_hex_string(chat.get_color(context).await?),
         avatar,
         chat.get_name().chars().next().unwrap_or('#'),
@@ -57,7 +57,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 
     inner_generate_secure_join_qr_code(
         &stock_str::setup_contact_qr_description(context, &displayname, contact.get_addr()).await,
-        &securejoin::dc_get_securejoin_qr(context, None).await?,
+        &securejoin::get_securejoin_qr(context, None).await?,
         &color_int_to_hex_string(contact.get_color()),
         avatar,
         displayname.chars().next().unwrap_or('#'),

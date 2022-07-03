@@ -30,7 +30,7 @@ use crate::stock_str;
 /// Shortens a string to a specified length and adds "[...]" to the
 /// end of the shortened string.
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
+pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     let count = buf.chars().count();
     if count > approx_chars + DC_ELLIPSIS.len() {
         let end_pos = buf
@@ -53,7 +53,7 @@ pub(crate) fn dc_truncate(buf: &str, approx_chars: usize) -> Cow<str> {
  * date/time tools
  ******************************************************************************/
 
-pub fn dc_timestamp_to_str(wanted: i64) -> String {
+pub fn timestamp_to_str(wanted: i64) -> String {
     let ts = Local.timestamp(wanted, 0);
     ts.format("%Y.%m.%d %H:%M:%S").to_string()
 }
@@ -66,7 +66,7 @@ pub fn duration_to_str(duration: Duration) -> String {
     format!("{}h {}m {}s", h, m, s)
 }
 
-pub(crate) fn dc_gm2local_offset() -> i64 {
+pub(crate) fn gm2local_offset() -> i64 {
     /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
     the function may return negative values. */
     let lt = Local::now();
@@ -90,7 +90,7 @@ pub(crate) const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
 /// Returns the current smeared timestamp,
 ///
 /// The returned timestamp MUST NOT be sent out.
-pub(crate) async fn dc_smeared_time(context: &Context) -> i64 {
+pub(crate) async fn smeared_time(context: &Context) -> i64 {
     let mut now = time();
     let ts = *context.last_smeared_timestamp.read().await;
     if ts >= now {
@@ -101,7 +101,7 @@ pub(crate) async fn dc_smeared_time(context: &Context) -> i64 {
 }
 
 /// Returns a timestamp that is guaranteed to be unique.
-pub(crate) async fn dc_create_smeared_timestamp(context: &Context) -> i64 {
+pub(crate) async fn create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
 
@@ -120,7 +120,7 @@ pub(crate) async fn dc_create_smeared_timestamp(context: &Context) -> i64 {
 // creates `count` timestamps that are guaranteed to be unique.
 // the frist created timestamps is returned directly,
 // get the other timestamps just by adding 1..count-1
-pub(crate) async fn dc_create_smeared_timestamps(context: &Context, count: usize) -> i64 {
+pub(crate) async fn create_smeared_timestamps(context: &Context, count: usize) -> i64 {
     let now = time();
     let count = count as i64;
     let mut start = now + min(count, MAX_SECONDS_TO_LEND_FROM_FUTURE) - count;
@@ -204,7 +204,7 @@ async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time
 /// - for OUTGOING messages this ID is written to the header as `Chat-Group-ID:` and is added to the message ID as Gr.<grpid>.<random>@<random>
 /// - for INCOMING messages, the ID is taken from the Chat-Group-ID-header or from the Message-ID in the In-Reply-To: or References:-Header
 /// - the group-id should be a string with the characters [a-zA-Z0-9\-_]
-pub(crate) fn dc_create_id() -> String {
+pub(crate) fn create_id() -> String {
     // ThreadRng implements CryptoRng trait and is supposed to be cryptographically secure.
     let mut rng = thread_rng();
 
@@ -223,14 +223,14 @@ pub(crate) fn dc_create_id() -> String {
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
 /// - do not add a counter or any private data as this leaks information unncessarily
-pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
+pub(crate) fn create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
         .and_then(|k| from_addr.get(k..))
         .unwrap_or("@nohost");
     match grpid {
-        Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),
-        None => format!("Mr.{}.{}{}", dc_create_id(), dc_create_id(), hostname),
+        Some(grpid) => format!("Gr.{}.{}{}", grpid, create_id(), hostname),
+        None => format!("Mr.{}.{}{}", create_id(), create_id(), hostname),
     }
 }
 
@@ -240,7 +240,7 @@ pub(crate) fn dc_create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str
 ///
 /// * `mid` - A string that holds the message id.  Leading/Trailing <>
 /// characters are automatically stripped.
-pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
+pub(crate) fn extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     let mid = mid.trim_start_matches('<').trim_end_matches('>');
 
     if mid.len() < 9 || !mid.starts_with("Gr.") {
@@ -260,14 +260,14 @@ pub(crate) fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
 }
 
 // the returned suffix is lower-case
-pub fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
+pub fn get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
     Path::new(path_filename.as_ref())
         .extension()
         .map(|p| p.to_string_lossy().to_lowercase())
 }
 
 /// Returns the `(width, height)` of the given image buffer.
-pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
+pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
     let image = image::io::Reader::new(Cursor::new(buf)).with_guessed_format()?;
     let dimensions = image.into_dimensions()?;
     Ok(dimensions)
@@ -277,7 +277,7 @@ pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub(crate) fn dc_get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf {
+pub(crate) fn get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf {
     let p: &Path = path.as_ref();
     if let Ok(p) = p.strip_prefix("$BLOBDIR") {
         context.get_blobdir().join(p)
@@ -286,16 +286,16 @@ pub(crate) fn dc_get_abs_path(context: &Context, path: impl AsRef<Path>) -> Path
     }
 }
 
-pub(crate) async fn dc_get_filebytes(context: &Context, path: impl AsRef<Path>) -> u64 {
-    let path_abs = dc_get_abs_path(context, &path);
+pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> u64 {
+    let path_abs = get_abs_path(context, &path);
     match fs::metadata(&path_abs).await {
         Ok(meta) => meta.len() as u64,
         Err(_err) => 0,
     }
 }
 
-pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
-    let path_abs = dc_get_abs_path(context, &path);
+pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
+    let path_abs = get_abs_path(context, &path);
     if !path_abs.exists() {
         return false;
     }
@@ -321,14 +321,14 @@ pub(crate) async fn dc_delete_file(context: &Context, path: impl AsRef<Path>) ->
     }
 }
 
-pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
+pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
     match tokio::fs::read_dir(path).await {
         Ok(read_dir) => {
             let mut read_dir = tokio_stream::wrappers::ReadDirStream::new(read_dir);
             while let Some(entry) = read_dir.next().await {
                 match entry {
                     Ok(file) => {
-                        dc_delete_file(context, file.file_name()).await;
+                        delete_file(context, file.file_name()).await;
                     }
                     Err(e) => warn!(context, "Could not read file to delete: {}", e),
                 }
@@ -339,11 +339,11 @@ pub async fn dc_delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
     }
 }
 
-pub(crate) async fn dc_create_folder(
+pub(crate) async fn create_folder(
     context: &Context,
     path: impl AsRef<Path>,
 ) -> Result<(), io::Error> {
-    let path_abs = dc_get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, &path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
@@ -363,12 +363,12 @@ pub(crate) async fn dc_create_folder(
 }
 
 /// Write a the given content to provied file path.
-pub(crate) async fn dc_write_file(
+pub(crate) async fn write_file(
     context: &Context,
     path: impl AsRef<Path>,
     buf: &[u8],
 ) -> Result<(), io::Error> {
-    let path_abs = dc_get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, &path);
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
@@ -381,8 +381,8 @@ pub(crate) async fn dc_write_file(
     })
 }
 
-pub async fn dc_read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<Vec<u8>, Error> {
-    let path_abs = dc_get_abs_path(context, &path);
+pub async fn read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<Vec<u8>, Error> {
+    let path_abs = get_abs_path(context, &path);
 
     match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -398,8 +398,8 @@ pub async fn dc_read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<
     }
 }
 
-pub async fn dc_open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<fs::File, Error> {
-    let path_abs = dc_get_abs_path(context, &path);
+pub async fn open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<fs::File, Error> {
+    let path_abs = get_abs_path(context, &path);
 
     match fs::File::open(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -415,12 +415,12 @@ pub async fn dc_open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<
     }
 }
 
-pub fn dc_open_file_std<P: AsRef<std::path::Path>>(
+pub fn open_file_std<P: AsRef<std::path::Path>>(
     context: &Context,
     path: P,
 ) -> Result<std::fs::File, Error> {
     let p: PathBuf = path.as_ref().into();
-    let path_abs = dc_get_abs_path(context, p);
+    let path_abs = get_abs_path(context, p);
 
     match std::fs::File::open(&path_abs) {
         Ok(bytes) => Ok(bytes),
@@ -450,7 +450,7 @@ pub(crate) fn time() -> i64 {
 /// # Example
 ///
 /// ```
-/// use deltachat::dc_tools::EmailAddress;
+/// use deltachat::tools::EmailAddress;
 /// let email = match EmailAddress::new("someone@example.com") {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),
@@ -619,8 +619,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        config::Config, dc_receive_imf::dc_receive_imf, message::get_msg_info,
-        test_utils::TestContext,
+        config::Config, message::get_msg_info, receive_imf::receive_imf, test_utils::TestContext,
     };
 
     #[test]
@@ -689,7 +688,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     async fn check_parse_receive_headers_integration(raw: &[u8], expected: &str) {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        dc_receive_imf(&t, raw, false).await.unwrap();
+        receive_imf(&t, raw, false).await.unwrap();
         let msg = t.get_last_msg().await;
         let msg_info = get_msg_info(&t, msg.id).await.unwrap();
 
@@ -706,108 +705,108 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     }
 
     #[test]
-    fn test_dc_truncate_1() {
+    fn test_truncate_1() {
         let s = "this is a little test string";
-        assert_eq!(dc_truncate(s, 16), "this is a [...]");
+        assert_eq!(truncate(s, 16), "this is a [...]");
     }
 
     #[test]
-    fn test_dc_truncate_2() {
-        assert_eq!(dc_truncate("1234", 2), "1234");
+    fn test_truncate_2() {
+        assert_eq!(truncate("1234", 2), "1234");
     }
 
     #[test]
-    fn test_dc_truncate_3() {
-        assert_eq!(dc_truncate("1234567", 1), "1[...]");
+    fn test_truncate_3() {
+        assert_eq!(truncate("1234567", 1), "1[...]");
     }
 
     #[test]
-    fn test_dc_truncate_4() {
-        assert_eq!(dc_truncate("123456", 4), "123456");
+    fn test_truncate_4() {
+        assert_eq!(truncate("123456", 4), "123456");
     }
 
     #[test]
-    fn test_dc_truncate_edge() {
-        assert_eq!(dc_truncate("", 4), "");
+    fn test_truncate_edge() {
+        assert_eq!(truncate("", 4), "");
 
-        assert_eq!(dc_truncate("\n  hello \n world", 4), "\n  [...]");
+        assert_eq!(truncate("\n  hello \n world", 4), "\n  [...]");
 
-        assert_eq!(dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1), "𐠈[...]");
-        assert_eq!(dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0), "[...]");
+        assert_eq!(truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1), "𐠈[...]");
+        assert_eq!(truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0), "[...]");
 
         // 9 characters, so no truncation
-        assert_eq!(dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6), "𑒀ὐ￠🜀\u{1e01b}A a🟠",);
+        assert_eq!(truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6), "𑒀ὐ￠🜀\u{1e01b}A a🟠",);
 
         // 12 characters, truncation
         assert_eq!(
-            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6),
+            truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6),
             "𑒀ὐ￠🜀\u{1e01b}A[...]",
         );
     }
 
     #[test]
-    fn test_dc_create_id() {
-        let buf = dc_create_id();
+    fn test_create_id() {
+        let buf = create_id();
         assert_eq!(buf.len(), 11);
     }
 
     #[test]
-    fn test_dc_create_id_invalid_chars() {
+    fn test_create_id_invalid_chars() {
         for _ in 1..1000 {
-            let buf = dc_create_id();
+            let buf = create_id();
             assert!(!buf.contains('/')); // `/` must not be used to be URL-safe
             assert!(!buf.contains('.')); // `.` is used as a delimiter when extracting grpid from Message-ID
         }
     }
 
     #[test]
-    fn test_dc_extract_grpid_from_rfc724_mid() {
+    fn test_extract_grpid_from_rfc724_mid() {
         // Should return None if we pass invalid mid
         let mid = "foobar";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, None);
 
         // Should return None if grpid has a length which is not 11 or 16
         let mid = "Gr.12345678.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, None);
 
         // Should return extracted grpid for grpid with length of 11
         let mid = "Gr.12345678901.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
         let mid = "Gr.1234567890123456.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
 
         // Should return extracted grpid for grpid with length of 11
         let mid = "<Gr.12345678901.morerandom@domain.de>";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
         let mid = "<Gr.1234567890123456.morerandom@domain.de>";
-        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
+        let grpid = extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
     }
 
     #[test]
-    fn test_dc_create_outgoing_rfc724_mid() {
+    fn test_create_outgoing_rfc724_mid() {
         // create a normal message-id
-        let mid = dc_create_outgoing_rfc724_mid(None, "foo@bar.de");
+        let mid = create_outgoing_rfc724_mid(None, "foo@bar.de");
         assert!(mid.starts_with("Mr."));
         assert!(mid.ends_with("bar.de"));
-        assert!(dc_extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
+        assert!(extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
 
         // create a message-id containing a group-id
-        let grpid = dc_create_id();
-        let mid = dc_create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
+        let grpid = create_id();
+        let mid = create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
         assert!(mid.starts_with("Gr."));
         assert!(mid.ends_with("bar.de"));
         assert_eq!(
-            dc_extract_grpid_from_rfc724_mid(mid.as_str()),
+            extract_grpid_from_rfc724_mid(mid.as_str()),
             Some(grpid.as_str())
         );
     }
@@ -853,11 +852,11 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
 
     proptest! {
         #[test]
-        fn test_dc_truncate(
+        fn test_truncate(
             buf: String,
             approx_chars in 0..100usize
         ) {
-            let res = dc_truncate(&buf, approx_chars);
+            let res = truncate(&buf, approx_chars);
             let el_len = 5;
             let l = res.chars().count();
             assert!(
@@ -877,7 +876,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     async fn test_file_handling() {
         let t = TestContext::new().await;
         let context = &t;
-        macro_rules! dc_file_exist {
+        macro_rules! file_exist {
             ($ctx:expr, $fname:expr) => {
                 $ctx.get_blobdir()
                     .join(Path::new($fname).file_name().unwrap())
@@ -885,13 +884,13 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             };
         }
 
-        assert!(!dc_delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
-        assert!(dc_write_file(context, "$BLOBDIR/foobar", b"content")
+        assert!(!delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
+        assert!(write_file(context, "$BLOBDIR/foobar", b"content")
             .await
             .is_ok());
-        assert!(dc_file_exist!(context, "$BLOBDIR/foobar"));
-        assert!(!dc_file_exist!(context, "$BLOBDIR/foobarx"));
-        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/foobar").await, 7);
+        assert!(file_exist!(context, "$BLOBDIR/foobar"));
+        assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
+        assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await, 7);
 
         let abs_path = context
             .get_blobdir()
@@ -899,31 +898,31 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             .to_string_lossy()
             .to_string();
 
-        assert!(dc_file_exist!(context, &abs_path));
+        assert!(file_exist!(context, &abs_path));
 
-        assert!(dc_delete_file(context, "$BLOBDIR/foobar").await);
-        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder")
+        assert!(delete_file(context, "$BLOBDIR/foobar").await);
+        assert!(create_folder(context, "$BLOBDIR/foobar-folder")
             .await
             .is_ok());
-        assert!(dc_file_exist!(context, "$BLOBDIR/foobar-folder"));
-        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder").await);
+        assert!(file_exist!(context, "$BLOBDIR/foobar-folder"));
+        assert!(!delete_file(context, "$BLOBDIR/foobar-folder").await);
 
         let fn0 = "$BLOBDIR/data.data";
-        assert!(dc_write_file(context, &fn0, b"content").await.is_ok());
+        assert!(write_file(context, &fn0, b"content").await.is_ok());
 
-        assert!(dc_delete_file(context, &fn0).await);
-        assert!(!dc_file_exist!(context, &fn0));
+        assert!(delete_file(context, &fn0).await);
+        assert!(!file_exist!(context, &fn0));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_smeared_timestamp() {
         let t = TestContext::new().await;
         assert_ne!(
-            dc_create_smeared_timestamp(&t).await,
-            dc_create_smeared_timestamp(&t).await
+            create_smeared_timestamp(&t).await,
+            create_smeared_timestamp(&t).await
         );
         assert!(
-            dc_create_smeared_timestamp(&t).await
+            create_smeared_timestamp(&t).await
                 >= SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
@@ -935,13 +934,13 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
     async fn test_create_smeared_timestamps() {
         let t = TestContext::new().await;
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
-        let start = dc_create_smeared_timestamps(&t, count as usize).await;
-        let next = dc_smeared_time(&t).await;
+        let start = create_smeared_timestamps(&t, count as usize).await;
+        let next = smeared_time(&t).await;
         assert!((start + count - 1) < next);
 
         let count = MAX_SECONDS_TO_LEND_FROM_FUTURE + 30;
-        let start = dc_create_smeared_timestamps(&t, count as usize).await;
-        let next = dc_smeared_time(&t).await;
+        let start = create_smeared_timestamps(&t, count as usize).await;
+        let next = smeared_time(&t).await;
         assert!((start + count - 1) < next);
     }
 
@@ -980,17 +979,17 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
 
     #[test]
     fn test_get_filemeta() {
-        let (w, h) = dc_get_filemeta(test_utils::AVATAR_900x900_BYTES).unwrap();
+        let (w, h) = get_filemeta(test_utils::AVATAR_900x900_BYTES).unwrap();
         assert_eq!(w, 900);
         assert_eq!(h, 900);
 
         let data = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        let (w, h) = dc_get_filemeta(data).unwrap();
+        let (w, h) = get_filemeta(data).unwrap();
         assert_eq!(w, 1000);
         assert_eq!(h, 1000);
 
         let data = include_bytes!("../test-data/image/image100x50.gif");
-        let (w, h) = dc_get_filemeta(data).unwrap();
+        let (w, h) = get_filemeta(data).unwrap();
         assert_eq!(w, 100);
         assert_eq!(h, 50);
     }

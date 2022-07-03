@@ -17,7 +17,8 @@
     clippy::match_bool,
     clippy::eval_order_dependence,
     clippy::bool_assert_comparison,
-    clippy::manual_split_once
+    clippy::manual_split_once,
+    clippy::format_push_string
 )]
 
 #[macro_use]
@@ -97,8 +98,8 @@ pub mod plaintext;
 mod ratelimit;
 pub mod summary;
 
-pub mod dc_receive_imf;
-pub mod dc_tools;
+pub mod receive_imf;
+pub mod tools;
 
 pub mod accounts;
 

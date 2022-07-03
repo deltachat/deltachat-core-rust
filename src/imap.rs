@@ -25,10 +25,6 @@ use crate::constants::{
 };
 use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
-use crate::dc_receive_imf::{
-    dc_receive_imf_inner, from_field_to_contact_id, get_prefetch_parent_message, ReceivedMsg,
-};
-use crate::dc_tools::dc_create_id;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job;
@@ -37,12 +33,16 @@ use crate::login_param::{
 };
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
-use crate::oauth2::dc_get_oauth2_access_token;
+use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::receive_imf::{
+    from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
+};
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
+use crate::tools::create_id;
 
 mod client;
 mod idle;
@@ -390,7 +390,7 @@ impl Imap {
         let login_res = if oauth2 {
             let addr: &str = config.addr.as_ref();
 
-            let token = dc_get_oauth2_access_token(context, addr, imap_pw, true)
+            let token = get_oauth2_access_token(context, addr, imap_pw, true)
                 .await?
                 .context("IMAP could not get OAUTH token")?;
             let auth = OAuth2 {
@@ -451,7 +451,9 @@ impl Imap {
     }
 
     /// Determine server capabilities if not done yet.
-    async fn determine_capabilities(&mut self) -> Result<()> {
+    ///
+    /// If server supports ID capability, send our client ID.
+    pub(crate) async fn determine_capabilities(&mut self, context: &Context) -> Result<()> {
         if self.capabilities_determined {
             return Ok(());
         }
@@ -463,6 +465,12 @@ impl Imap {
             .capabilities()
             .await
             .context("CAPABILITY command error")?;
+        if caps.has_str("ID") {
+            let server_id = session.id([("name", Some("Delta Chat"))]).await?;
+            info!(context, "Server ID: {:?}", server_id);
+            let mut lock = context.server_id.write().await;
+            *lock = server_id;
+        }
         self.config.can_idle = caps.has_str("IDLE");
         self.config.can_move = caps.has_str("MOVE");
         self.config.can_check_quota = caps.has_str("QUOTA");
@@ -481,8 +489,8 @@ impl Imap {
             return Err(err);
         }
 
+        self.determine_capabilities(context).await?;
         self.ensure_configured_folders(context, true).await?;
-        self.determine_capabilities().await?;
         Ok(())
     }
 
@@ -787,7 +795,7 @@ impl Imap {
             };
 
             // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(dc_create_id);
+            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(create_id);
 
             let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
@@ -875,8 +883,8 @@ impl Imap {
         received_msgs.extend(received_msgs_2);
 
         // determine which uid_next to use to update to
-        // dc_receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
-        // `largest_uid_processed` is the largest uid where dc_receive_imf() did NOT return an error.
+        // receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
+        // `largest_uid_processed` is the largest uid where receive_imf() did NOT return an error.
 
         // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
         // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
@@ -1431,7 +1439,7 @@ impl Imap {
                     continue;
                 }
 
-                // XXX put flags into a set and pass them to dc_receive_imf
+                // XXX put flags into a set and pass them to receive_imf
                 let context = context.clone();
 
                 // safe, as we checked above that there is a body.
@@ -1449,7 +1457,7 @@ impl Imap {
                     );
                     ""
                 };
-                match dc_receive_imf_inner(
+                match receive_imf_inner(
                     &context,
                     rfc724_mid,
                     body,
@@ -1466,7 +1474,7 @@ impl Imap {
                         last_uid = Some(server_uid)
                     }
                     Err(err) => {
-                        warn!(context, "dc_receive_imf error: {:#}", err);
+                        warn!(context, "receive_imf error: {:#}", err);
                     }
                 };
             }
@@ -1561,6 +1569,59 @@ impl Imap {
         self.configure_folders(context, create_mvbox).await
     }
 
+    /// Attempts to configure mvbox.
+    ///
+    /// Tries to find any folder in the given list of `folders`. If none is found, tries to create
+    /// any of them in the same order. This method does not use LIST command to ensure that
+    /// configuration works even if mailbox lookup is forbidden via Access Control List (see
+    /// <https://datatracker.ietf.org/doc/html/rfc4314>).
+    ///
+    /// Returns first found or created folder name.
+    async fn configure_mvbox<'a>(
+        &mut self,
+        context: &Context,
+        folders: &[&'a str],
+        create_mvbox: bool,
+    ) -> Result<Option<&'a str>> {
+        // Close currently selected folder if needed.
+        // We are going to select folders using low-level EXAMINE operations below.
+        self.select_folder(context, None).await?;
+
+        let session = self
+            .session
+            .as_mut()
+            .context("no IMAP connection established")?;
+
+        for folder in folders {
+            info!(context, "Looking for MVBOX-folder \"{}\"...", &folder);
+            let res = session.examine(&folder).await;
+            if res.is_ok() {
+                info!(
+                    context,
+                    "MVBOX-folder {:?} successfully selected, using it.", &folder
+                );
+                session.close().await?;
+                return Ok(Some(folder));
+            }
+        }
+
+        if create_mvbox {
+            for folder in folders {
+                match session.create(&folder).await {
+                    Ok(_) => {
+                        info!(context, "MVBOX-folder {} created.", &folder);
+                        return Ok(Some(folder));
+                    }
+                    Err(err) => {
+                        warn!(context, "Cannot create MVBOX-folder {:?}: {}", &folder, err);
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
     pub async fn configure_folders(&mut self, context: &Context, create_mvbox: bool) -> Result<()> {
         let session = self
             .session
@@ -1573,9 +1634,7 @@ impl Imap {
             .context("list_folders failed")?;
         let mut delimiter = ".".to_string();
         let mut delimiter_is_default = true;
-        let mut mvbox_folder = None;
         let mut folder_configs = BTreeMap::new();
-        let mut fallback_folder = get_fallback_folder(&delimiter);
 
         while let Some(folder) = folders.next().await {
             let folder = folder?;
@@ -1585,22 +1644,13 @@ impl Imap {
             if let Some(d) = folder.delimiter() {
                 if delimiter_is_default && !d.is_empty() && delimiter != d {
                     delimiter = d.to_string();
-                    fallback_folder = get_fallback_folder(&delimiter);
                     delimiter_is_default = false;
                 }
             }
 
             let folder_meaning = get_folder_meaning(&folder);
             let folder_name_meaning = get_folder_meaning_by_name(folder.name());
-            if folder.name() == "DeltaChat" {
-                // Always takes precedence
-                mvbox_folder = Some(folder.name().to_string());
-            } else if folder.name() == fallback_folder {
-                // only set if none has been already set
-                if mvbox_folder.is_none() {
-                    mvbox_folder = Some(folder.name().to_string());
-                }
-            } else if let Some(config) = folder_meaning.to_config() {
+            if let Some(config) = folder_meaning.to_config() {
                 // Always takes precedence
                 folder_configs.insert(config, folder.name().to_string());
             } else if let Some(config) = folder_name_meaning.to_config() {
@@ -1614,47 +1664,17 @@ impl Imap {
 
         info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
 
-        if mvbox_folder.is_none() && create_mvbox {
-            info!(context, "Creating MVBOX-folder \"DeltaChat\"...",);
+        let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+        let mvbox_folder = self
+            .configure_mvbox(context, &["DeltaChat", &fallback_folder], create_mvbox)
+            .await
+            .context("failed to configure mvbox")?;
 
-            match session.create("DeltaChat").await {
-                Ok(_) => {
-                    mvbox_folder = Some("DeltaChat".into());
-                    info!(context, "MVBOX-folder created.",);
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "Cannot create MVBOX-folder, trying to create INBOX subfolder. ({})", err
-                    );
-
-                    match session.create(&fallback_folder).await {
-                        Ok(_) => {
-                            mvbox_folder = Some(fallback_folder);
-                            info!(
-                                context,
-                                "MVBOX-folder created as INBOX subfolder. ({})", err
-                            );
-                        }
-                        Err(err) => {
-                            warn!(context, "Cannot create MVBOX-folder. ({})", err);
-                        }
-                    }
-                }
-            }
-            // SUBSCRIBE is needed to make the folder visible to the LSUB command
-            // that may be used by other MUAs to list folders.
-            // for the LIST command, the folder is always visible.
-            if let Some(ref mvbox) = mvbox_folder {
-                if let Err(err) = session.subscribe(mvbox).await {
-                    warn!(context, "could not subscribe to {:?}: {:?}", mvbox, err);
-                }
-            }
-        }
         context
             .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
             .await?;
-        if let Some(ref mvbox_folder) = mvbox_folder {
+        if let Some(mvbox_folder) = mvbox_folder {
+            info!(context, "Setting MVBOX FOLDER TO {}", &mvbox_folder);
             context
                 .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                 .await?;
@@ -1717,11 +1737,11 @@ async fn should_move_out_of_spam(
         // the SecureJoin header. So, we always move chat messages out of Spam.
         // Two possibilities to change this would be:
         // 1. Remove the `&& !context.is_spam_folder(folder).await?` check from
-        // `fetch_new_messages()`, and then let `dc_receive_imf()` check
+        // `fetch_new_messages()`, and then let `receive_imf()` check
         // if it's a spam message and should be hidden.
         // 2. Or add a flag to the ChatVersion header that this is a securejoin
         // request, and return `true` here only if the message has this flag.
-        // `dc_receive_imf()` can then check if the securejoin request is valid.
+        // `receive_imf()` can then check if the securejoin request is valid.
         return Ok(true);
     }
 
@@ -2042,10 +2062,6 @@ pub(crate) async fn prefetch_should_download(
 
     let should_download = (show && !blocked_contact) || maybe_ndn;
     Ok(should_download)
-}
-
-fn get_fallback_folder(delimiter: &str) -> String {
-    format!("INBOX{}DeltaChat", delimiter)
 }
 
 /// Marks messages in `msgs` table as seen, searching for them by UID.

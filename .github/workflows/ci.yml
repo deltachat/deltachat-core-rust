@@ -118,7 +118,7 @@ jobs:
 
     - name: install python
       if: ${{ matrix.python }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
 
@@ -141,3 +141,18 @@ jobs:
         DCC_RS_DEV: ${{ github.workspace }}
       working-directory: python
       run: tox -e lint,mypy,doc,py3
+
+    - name: install pypy
+      if: ${{ matrix.python }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: 'pypy${{ matrix.python }}'
+
+    - name: run pypy tests
+      if: ${{ matrix.python }}
+      env:
+        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+        DCC_RS_TARGET: debug
+        DCC_RS_DEV: ${{ github.workspace }}
+      working-directory: python
+      run: tox -e pypy3

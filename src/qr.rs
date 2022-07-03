@@ -11,11 +11,11 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{addr_normalize, may_be_valid_addr, Contact, ContactId, Origin};
 use crate::context::Context;
-use crate::dc_tools::time;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::token;
+use crate::tools::time;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -561,7 +561,7 @@ mod tests {
     use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::key::DcKey;
     use crate::peerstate::ToSave;
-    use crate::securejoin::dc_get_securejoin_qr;
+    use crate::securejoin::get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
     use anyhow::Result;
 
@@ -889,7 +889,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_withdraw_verifycontact() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        let qr = dc_get_securejoin_qr(&alice, None).await?;
+        let qr = get_securejoin_qr(&alice, None).await?;
 
         // scanning own verify-contact code offers withdrawing
         assert!(matches!(
@@ -924,7 +924,7 @@ mod tests {
     async fn test_withdraw_verifygroup() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
-        let qr = dc_get_securejoin_qr(&alice, Some(chat_id)).await?;
+        let qr = get_securejoin_qr(&alice, Some(chat_id)).await?;
 
         // scanning own verify-group code offers withdrawing
         if let Qr::WithdrawVerifyGroup { grpname, .. } = check_qr(&alice, &qr).await? {

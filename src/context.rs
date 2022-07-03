@@ -15,7 +15,6 @@ use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::dc_tools::{duration_to_str, time};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -24,6 +23,7 @@ use crate::quota::QuotaInfo;
 use crate::ratelimit::Ratelimit;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
+use crate::tools::{duration_to_str, time};
 
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -60,6 +60,11 @@ pub struct InnerContext {
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.
     pub(crate) quota: RwLock<Option<QuotaInfo>>,
+
+    /// Server ID response if ID capability is supported
+    /// and the server returned non-NIL on the inbox connection.
+    /// <https://datatracker.ietf.org/doc/html/rfc2971>
+    pub(crate) server_id: RwLock<Option<HashMap<String, String>>>,
 
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
@@ -190,6 +195,7 @@ impl Context {
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
             quota: RwLock::new(None),
+            server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
@@ -429,6 +435,11 @@ impl Context {
         res.insert("socks5_enabled", socks5_enabled.to_string());
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
+
+        let server_id = self.server_id.read().await;
+        res.insert("imap_server_id", format!("{:?}", server_id));
+        drop(server_id);
+
         res.insert("secondary_addrs", secondary_addrs);
         res.insert(
             "fetch_existing_msgs",
@@ -669,10 +680,10 @@ mod tests {
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
     use crate::contact::ContactId;
-    use crate::dc_receive_imf::dc_receive_imf;
-    use crate::dc_tools::dc_create_outgoing_rfc724_mid;
     use crate::message::{Message, Viewtype};
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use crate::tools::create_outgoing_rfc724_mid;
     use anyhow::Context as _;
     use std::time::Duration;
     use strum::IntoEnumIterator;
@@ -711,10 +722,10 @@ mod tests {
              \n\
              hello\n",
             contact.get_addr(),
-            dc_create_outgoing_rfc724_mid(None, contact.get_addr())
+            create_outgoing_rfc724_mid(None, contact.get_addr())
         );
         println!("{}", msg);
-        dc_receive_imf(t, msg.as_bytes(), false).await.unwrap();
+        receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

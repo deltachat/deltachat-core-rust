@@ -8,10 +8,10 @@ use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::dc_tools::{dc_get_abs_path, improve_single_line_input, EmailAddress};
 use crate::events::EventType;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
+use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
 
 /// The available configuration keys.
 #[derive(
@@ -196,7 +196,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_raw_config(key).await?;
-                rel_path.map(|p| dc_get_abs_path(self, &p).to_string_lossy().into_owned())
+                rel_path.map(|p| get_abs_path(self, &p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
@@ -444,11 +444,11 @@ mod tests {
     use crate::contact;
     use crate::contact::Contact;
     use crate::contact::ContactId;
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::Message;
     use crate::peerstate;
     use crate::peerstate::Peerstate;
     use crate::stock_str;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use num_traits::FromPrimitive;
@@ -596,7 +596,7 @@ mod tests {
         // it's still assigned to the 1:1 chat with Bob and not to
         // a group (without secondary addresses, an ad-hoc group
         // would be created)
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: bob@example.net
 To: alice@example.org

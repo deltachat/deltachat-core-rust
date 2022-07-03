@@ -724,19 +724,14 @@ mod tests {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.jpg");
         let avatar_bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        File::create(&avatar_src)
-            .await
-            .unwrap()
-            .write_all(avatar_bytes)
-            .await
-            .unwrap();
+        fs::write(&avatar_src, avatar_bytes).await.unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.jpg");
         assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
             .await
             .unwrap();
         assert!(avatar_blob.exists());
-        assert!(tokio::fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
+        assert!(fs::metadata(&avatar_blob).await.unwrap().len() < avatar_bytes.len() as u64);
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
@@ -766,10 +761,7 @@ mod tests {
     async fn test_selfavatar_in_blobdir() {
         let t = TestContext::new().await;
         let avatar_src = t.get_blobdir().join("avatar.png");
-        File::create(&avatar_src)
-            .await
-            .unwrap()
-            .write_all(test_utils::AVATAR_900x900_BYTES)
+        fs::write(&avatar_src, test_utils::AVATAR_900x900_BYTES)
             .await
             .unwrap();
 
@@ -792,12 +784,7 @@ mod tests {
         let t = TestContext::new().await;
         let avatar_src = t.dir.path().join("avatar.png");
         let avatar_bytes = include_bytes!("../test-data/image/avatar64x64.png");
-        File::create(&avatar_src)
-            .await
-            .unwrap()
-            .write_all(avatar_bytes)
-            .await
-            .unwrap();
+        fs::write(&avatar_src, avatar_bytes).await.unwrap();
         let avatar_blob = t.get_blobdir().join("avatar.png");
         assert!(!avatar_blob.exists());
         t.set_config(Config::Selfavatar, Some(avatar_src.to_str().unwrap()))
@@ -805,7 +792,7 @@ mod tests {
             .unwrap();
         assert!(avatar_blob.exists());
         assert_eq!(
-            tokio::fs::metadata(&avatar_blob).await.unwrap().len(),
+            fs::metadata(&avatar_blob).await.unwrap().len(),
             avatar_bytes.len() as u64
         );
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap();
@@ -976,7 +963,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
 
         let file = t.get_blobdir().join("anyfile.dat");
-        File::create(&file).await?.write_all("bla".as_ref()).await?;
+        fs::write(&file, b"bla").await?;
         let mut msg = Message::new(Viewtype::File);
         msg.set_file(file.to_str().unwrap(), None);
         let prepared_id = chat::prepare_msg(&t, chat_id, &mut msg).await?;
@@ -996,7 +983,7 @@ mod tests {
         assert_ne!(t.get_blobdir().to_str(), t.dir.path().to_str());
 
         let file = t.dir.path().join("anyfile.dat");
-        File::create(&file).await?.write_all("bla".as_ref()).await?;
+        fs::write(&file, b"bla").await?;
         let mut msg = Message::new(Viewtype::File);
         msg.set_file(file.to_str().unwrap(), None);
         assert!(chat::prepare_msg(&t, chat_id, &mut msg).await.is_err());

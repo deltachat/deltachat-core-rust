@@ -9,10 +9,10 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::dc_tools::time;
 use crate::imap::Imap;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::tools::time;
 
 // results in ~3 weeks for the last backoff timespan
 const JOB_RETRIES: u32 = 17;

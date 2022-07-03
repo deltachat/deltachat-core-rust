@@ -15,10 +15,6 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
-use crate::dc_tools::{
-    dc_create_smeared_timestamp, dc_get_filebytes, dc_get_filemeta, dc_gm2local_offset,
-    dc_read_file, dc_timestamp_to_str, dc_truncate, time,
-};
 use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -30,6 +26,10 @@ use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
 use crate::summary::Summary;
+use crate::tools::{
+    create_smeared_timestamp, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
+    timestamp_to_str, truncate,
+};
 
 /// Message ID, including reserved IDs.
 ///
@@ -94,7 +94,7 @@ impl MsgId {
             .sql
             .execute(
                 // If you change which information is removed here, also change delete_expired_messages() and
-                // which information dc_receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+                // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
                 r#"
 UPDATE msgs 
 SET 
@@ -232,10 +232,6 @@ impl Default for MessengerMessage {
 /// An object representing a single message in memory.
 /// The message object is not updated.
 /// If you want an update, you have to recreate the object.
-///
-/// to check if a mail was sent, use dc_msg_is_sent()
-/// approx. max. length returned by dc_msg_get_text()
-/// approx. max. length returned by dc_get_msg_info()
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
     pub(crate) id: MsgId,
@@ -395,8 +391,8 @@ impl Message {
                     self.param.set_int(Param::Width, 0);
                     self.param.set_int(Param::Height, 0);
 
-                    if let Ok(buf) = dc_read_file(context, path_and_filename).await {
-                        if let Ok((width, height)) = dc_get_filemeta(&buf) {
+                    if let Ok(buf) = read_file(context, path_and_filename).await {
+                        if let Ok((width, height)) = get_filemeta(&buf) {
                             self.param.set_int(Param::Width, width as i32);
                             self.param.set_int(Param::Height, height as i32);
                         }
@@ -412,7 +408,7 @@ impl Message {
     }
 
     /// Check if a message has a location bound to it.
-    /// These messages are also returned by dc_get_locations()
+    /// These messages are also returned by get_locations()
     /// and the UI may decide to display a special icon beside such messages,
     ///
     /// @memberof Message
@@ -427,7 +423,7 @@ impl Message {
     /// at a position different from the self-location.
     /// You should not call this function
     /// if you want to bind the current self-location to a message;
-    /// this is done by dc_set_location() and dc_send_locations_to_chat().
+    /// this is done by set_location() and send_locations_to_chat().
     ///
     /// Typically results in the event #DC_EVENT_LOCATION_CHANGED with
     /// contact_id set to ContactId::SELF.
@@ -497,7 +493,7 @@ impl Message {
 
     pub async fn get_filebytes(&self, context: &Context) -> u64 {
         match self.param.get_path(Param::File, context) {
-            Ok(Some(path)) => dc_get_filebytes(context, &path).await,
+            Ok(Some(path)) => get_filebytes(context, &path).await,
             Ok(None) => 0,
             Err(_) => 0,
         }
@@ -557,9 +553,9 @@ impl Message {
         Ok(Summary::new(context, self, chat, contact.as_ref()).await)
     }
 
-    // It's a little unfortunate that the UI has to first call dc_msg_get_override_sender_name() and then if it was NULL, call
-    // dc_contact_get_display_name() but this was the best solution:
-    // - We could load a Contact struct from the db here to call get_display_name() instead of returning None, but then we had a db
+    // It's a little unfortunate that the UI has to first call `dc_msg_get_override_sender_name` and then if it was `NULL`, call
+    // `dc_contact_get_display_name` but this was the best solution:
+    // - We could load a Contact struct from the db here to call `dc_get_display_name` instead of returning `None`, but then we had a db
     //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
     // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
     //   C-data in the Java code (i.e. a `long` storing a C pointer)
@@ -572,14 +568,14 @@ impl Message {
     }
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
-    // to handle raw C-data (as it is done for dc_msg_get_summary())
+    // to handle raw C-data (as it is done for msg_get_summary())
     pub fn get_sender_name(&self, contact: &Contact) -> String {
         self.get_override_sender_name()
             .unwrap_or_else(|| contact.get_display_name().to_string())
     }
 
     pub fn has_deviating_timestamp(&self) -> bool {
-        let cnv_to_local = dc_gm2local_offset();
+        let cnv_to_local = gm2local_offset();
         let sort_timestamp = self.get_sort_timestamp() as i64 + cnv_to_local;
         let send_timestamp = self.get_timestamp() as i64 + cnv_to_local;
 
@@ -636,7 +632,7 @@ impl Message {
         }
 
         if let Some(filename) = self.get_file(context) {
-            if let Ok(ref buf) = dc_read_file(context, filename).await {
+            if let Ok(ref buf) = read_file(context, filename).await {
                 if let Ok((typ, headers, _)) = split_armored_data(buf) {
                     if typ == pgp::armor::BlockType::Message {
                         return headers.get(crate::pgp::HEADER_SETUPCODE).cloned();
@@ -1004,9 +1000,9 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         return Ok(ret);
     }
     let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = dc_truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
+    let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
 
-    let fts = dc_timestamp_to_str(msg.get_timestamp());
+    let fts = timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {}", fts);
 
     let name = Contact::load_from_db(context, msg.from_id)
@@ -1018,7 +1014,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     ret += "\n";
 
     if msg.from_id != ContactId::SELF {
-        let s = dc_timestamp_to_str(if 0 != msg.timestamp_rcvd {
+        let s = timestamp_to_str(if 0 != msg.timestamp_rcvd {
             msg.timestamp_rcvd
         } else {
             msg.timestamp_sort
@@ -1032,10 +1028,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
 
     if msg.ephemeral_timestamp != 0 {
-        ret += &format!(
-            "Expires: {}\n",
-            dc_timestamp_to_str(msg.ephemeral_timestamp)
-        );
+        ret += &format!("Expires: {}\n", timestamp_to_str(msg.ephemeral_timestamp));
     }
 
     if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
@@ -1058,7 +1051,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         .await
     {
         for (contact_id, ts) in rows {
-            let fts = dc_timestamp_to_str(ts);
+            let fts = timestamp_to_str(ts);
             ret += &format!("Read: {}", fts);
 
             let name = Contact::load_from_db(context, contact_id)
@@ -1094,7 +1087,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
 
     if let Some(path) = msg.get_file(context) {
-        let bytes = dc_get_filebytes(context, &path).await;
+        let bytes = get_filebytes(context, &path).await;
         ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
 
@@ -1208,7 +1201,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
 
 /// Get the raw mime-headers of the given message.
 /// Raw headers are saved for incoming messages
-/// only if `dc_set_config(context, "save_mime_headers", "1")`
+/// only if `set_config(context, "save_mime_headers", "1")`
 /// was called before.
 ///
 /// Returns an empty vector if there are no headers saved for the given message,
@@ -1606,7 +1599,7 @@ async fn ndn_maybe_add_info_msg(
                     context,
                     chat_id,
                     &text,
-                    dc_create_smeared_timestamp(context).await,
+                    create_smeared_timestamp(context).await,
                 )
                 .await?;
                 context.emit_event(EventType::ChatModified(chat_id));
@@ -1636,7 +1629,7 @@ pub async fn get_unblocked_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "dc_get_unblocked_msg_cnt() failed. {}", err);
+            error!(context, "get_unblocked_msg_cnt() failed. {}", err);
             0
         }
     }
@@ -1656,7 +1649,7 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "dc_get_request_msg_cnt() failed. {}", err);
+            error!(context, "get_request_msg_cnt() failed. {}", err);
             0
         }
     }
@@ -1753,8 +1746,7 @@ pub enum Viewtype {
     Unknown = 0,
 
     /// Text message.
-    /// The text of the message is set using dc_msg_set_text()
-    /// and retrieved with dc_msg_get_text().
+    /// The text of the message is set using dc_msg_set_text() and retrieved with dc_msg_get_text().
     Text = 10,
 
     /// Image message.
@@ -1835,7 +1827,7 @@ mod tests {
 
     use crate::chat::{marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
-    use crate::dc_receive_imf::dc_receive_imf;
+    use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::TestContext;
 
@@ -2037,7 +2029,7 @@ mod tests {
     async fn test_get_chat_id() {
         // Alice receives a message that pops up as a contact request
         let alice = TestContext::new_alice().await;
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: alice@example.org\n\
@@ -2239,7 +2231,7 @@ mod tests {
         let alice = TestContext::new_alice().await;
 
         // Alice receives a message from Bob the bot.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: alice@example.org\n\
@@ -2257,7 +2249,7 @@ mod tests {
         assert!(msg.is_bot());
 
         // Alice receives a message from Bob who is not the bot anymore.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             b"From: Bob <bob@example.com>\n\
                     To: alice@example.org\n\

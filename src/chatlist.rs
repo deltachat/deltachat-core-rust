@@ -240,7 +240,7 @@ impl Chatlist {
             ids
         };
 
-        if add_archived_link_item && dc_get_archived_cnt(context).await? > 0 {
+        if add_archived_link_item && get_archived_cnt(context).await? > 0 {
             if ids.is_empty() && flag_add_alldone_hint {
                 ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
             }
@@ -355,7 +355,7 @@ impl Chatlist {
 }
 
 /// Returns the number of archived chats
-pub async fn dc_get_archived_cnt(context: &Context) -> Result<usize> {
+pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
     let count = context
         .sql
         .count(
@@ -371,8 +371,8 @@ mod tests {
     use super::*;
 
     use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
-    use crate::dc_receive_imf::dc_receive_imf;
     use crate::message::Viewtype;
+    use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
     use crate::test_utils::TestContext;
 
@@ -493,7 +493,7 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         // receive a one-to-one-message
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: Bob Authname <bob@example.org>\n\
                  To: alice@example.org\n\
@@ -553,7 +553,7 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         // receive a one-to-one-message without authname set
-        dc_receive_imf(
+        receive_imf(
             &t,
             b"From: bob@example.org\n\
                  To: alice@example.org\n\

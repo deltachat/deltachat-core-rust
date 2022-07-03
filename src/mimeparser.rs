@@ -15,7 +15,6 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::dc_tools::{dc_get_filemeta, dc_truncate, parse_receive_headers};
 use crate::dehtml::dehtml;
 use crate::e2ee;
 use crate::events::EventType;
@@ -29,6 +28,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
+use crate::tools::{get_filemeta, parse_receive_headers, truncate};
 
 /// A parsed MIME message.
 ///
@@ -1023,7 +1023,7 @@ impl MimeMessage {
                             > DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len()
                         {
                             self.is_mime_modified = true;
-                            dc_truncate(&*simplified_txt, DC_DESIRED_TEXT_LEN).to_string()
+                            truncate(&*simplified_txt, DC_DESIRED_TEXT_LEN).to_string()
                         } else {
                             simplified_txt
                         };
@@ -1134,7 +1134,7 @@ impl MimeMessage {
         /* create and register Mime part referencing the new Blob object */
         let mut part = Part::default();
         if mime_type.type_() == mime::IMAGE {
-            if let Ok((width, height)) = dc_get_filemeta(decoded_data) {
+            if let Ok((width, height)) = get_filemeta(decoded_data) {
                 part.param.set_int(Param::Width, width as i32);
                 part.param.set_int(Param::Height, height as i32);
             }
@@ -1381,7 +1381,7 @@ impl MimeMessage {
 
     /// Some providers like GMX and Yahoo do not send standard NDNs (Non Delivery notifications).
     /// If you improve heuristics here you might also have to change prefetch_should_download() in imap/mod.rs.
-    /// Also you should add a test in dc_receive_imf.rs (there already are lots of test_parse_ndn_* tests).
+    /// Also you should add a test in receive_imf.rs (there already are lots of test_parse_ndn_* tests).
     #[allow(clippy::indexing_slicing)]
     async fn heuristically_parse_ndn(&mut self, context: &Context) {
         let maybe_ndn = if let Some(from) = self.get_header(HeaderDef::From_) {
@@ -1777,8 +1777,8 @@ mod tests {
         chatlist::Chatlist,
         config::Config,
         constants::Blocked,
-        dc_receive_imf::dc_receive_imf,
         message::{Message, MessageState, MessengerMessage},
+        receive_imf::receive_imf,
         test_utils::TestContext,
     };
     use mailparse::ParsedMail;
@@ -1851,7 +1851,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dc_mimeparser_crash() {
+    async fn test_mimeparser_crash() {
         let context = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
@@ -2951,7 +2951,7 @@ On 2020-10-25, Bob wrote:
     async fn test_add_subj_to_multimedia_msg() {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
-        dc_receive_imf(
+        receive_imf(
             &t.ctx,
             include_bytes!("../test-data/message/subj_with_multimedia_msg.eml"),
             false,
@@ -3102,7 +3102,7 @@ Subject: ...
 
 Some quote.
 "###;
-        dc_receive_imf(&t, raw, false).await?;
+        receive_imf(&t, raw, false).await?;
 
         // Delta Chat generates In-Reply-To with a starting tab when Message-ID is too long.
         let raw = br###"In-Reply-To:
@@ -3119,7 +3119,7 @@ Subject: ...
 Some reply
 "###;
 
-        dc_receive_imf(&t, raw, false).await?;
+        receive_imf(&t, raw, false).await?;
 
         let msg = t.get_last_msg().await;
         assert_eq!(msg.get_text().unwrap(), "Some reply");
@@ -3147,13 +3147,13 @@ Message.
 "###;
 
         // Bob receives message.
-        dc_receive_imf(&bob, raw, false).await?;
+        receive_imf(&bob, raw, false).await?;
         let msg = bob.get_last_msg().await;
         // Message is incoming.
         assert!(msg.param.get_bool(Param::WantsMdn).unwrap());
 
         // Alice receives copy-to-self.
-        dc_receive_imf(&alice, raw, false).await?;
+        receive_imf(&alice, raw, false).await?;
         let msg = alice.get_last_msg().await;
         // Message is outgoing, don't send read receipt to self.
         assert!(msg.param.get_bool(Param::WantsMdn).is_none());
@@ -3166,7 +3166,7 @@ Message.
         let alice = TestContext::new_alice().await;
 
         // Alice receives BCC-self copy of a message sent to Bob.
-        dc_receive_imf(
+        receive_imf(
             &alice,
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: alice@example.org\n\
@@ -3187,7 +3187,7 @@ Message.
 
         // Due to a bug in the old version running on the other device, Alice receives a read
         // receipt from self.
-        dc_receive_imf(
+        receive_imf(
             &alice,
                 "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  From: alice@example.org\n\
@@ -3238,7 +3238,7 @@ Message.
 
         let original =
             include_bytes!("../test-data/message/ms_exchange_report_original_message.eml");
-        dc_receive_imf(&t, original, false).await?;
+        receive_imf(&t, original, false).await?;
         let original_msg_id = t.get_last_msg().await.id;
 
         // 1. Test mimeparser directly
@@ -3253,7 +3253,7 @@ Message.
         assert!(mimeparser.mdn_reports[0].additional_message_ids.is_empty());
 
         // 2. Test that marking the original msg as read works
-        dc_receive_imf(&t, mdn, false).await?;
+        receive_imf(&t, mdn, false).await?;
 
         assert_eq!(
             original_msg_id.get_state(&t).await?,

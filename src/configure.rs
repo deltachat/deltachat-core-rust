@@ -13,16 +13,16 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::dc_tools::{time, EmailAddress};
 use crate::imap::Imap;
 use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};
 use crate::message::{Message, Viewtype};
-use crate::oauth2::dc_get_oauth2_addr;
+use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
 use crate::stock_str;
+use crate::tools::{time, EmailAddress};
 use crate::{chat, e2ee, provider};
 
 use auto_mozilla::moz_autoconfigure;
@@ -154,9 +154,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     // IMAP and SMTP or not at all.
     if param.imap.oauth2 && !socks5_enabled {
         // the used oauth2 addr may differ, check this.
-        // if dc_get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
+        // if get_oauth2_addr() is not available in the oauth2 implementation, just use the given one.
         progress!(ctx, 10);
-        if let Some(oauth2_addr) = dc_get_oauth2_addr(ctx, &param.addr, &param.imap.password)
+        if let Some(oauth2_addr) = get_oauth2_addr(ctx, &param.addr, &param.imap.password)
             .await?
             .and_then(|e| e.parse().ok())
         {
@@ -415,6 +415,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 900);
 
     let create_mvbox = ctx.should_watch_mvbox().await?;
+
+    // Send client ID as soon as possible before doing anything else.
+    imap.determine_capabilities(ctx).await?;
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
