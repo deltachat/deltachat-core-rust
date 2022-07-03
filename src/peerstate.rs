@@ -510,8 +510,6 @@ impl Peerstate {
             )
             .await?;
         }
-        let a = vec!['a'];
-        let _b = a[0]; // Should trigger indexing_slicing warning
 
         Ok(())
     }
