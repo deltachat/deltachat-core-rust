@@ -98,14 +98,6 @@ static void finalize_provider(napi_env env, void* data, void* hint) {
   }
 }
 
-static void finalize_account(napi_env env, void* data, void* hint) {
-  if (data) {
-    dc_accounts_t* dcn_accounts = (dc_accounts_t*)data;
-    //TRACE("cleaning up provider");
-    dc_accounts_unref(dcn_accounts);
-  }
-}
-
 /**
  * Helpers.
  */
