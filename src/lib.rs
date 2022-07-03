@@ -2,7 +2,7 @@
 
 #![recursion_limit = "256"]
 #![forbid(unsafe_code)]
-#![deny(
+#![warn(
     unused,
     clippy::correctness,
     missing_debug_implementations,
