@@ -260,10 +260,6 @@ impl MimeMessage {
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
                     headers.remove("subject");
 
-                    // TODO question: Why don't we check if `signatures` is empty here?
-                    // If they are empty (and the mail was incorrectly signed), then do we really
-                    // want to allow "secure-join-fingerprint" and "chat-verified" headers?
-                    // (which we didn't allow in the unencrypted headers above)
                     MimeMessage::merge_headers(
                         context,
                         &mut headers,
@@ -278,16 +274,13 @@ impl MimeMessage {
                             if addr_cmp(&signed_from.addr, &from.addr) {
                                 from_is_signed = true;
                             } else {
-                                // TODO question: there is a From: header in the encrypted &
+                                // There is a From: header in the encrypted &
                                 // signed part, but it doesn't match the outer one.
                                 // This _might_ be because the sender's mail server
                                 // replaced the sending address, e.g. in a mailing list.
                                 // Or it's because someone is doing some replay attack
-                                // - OTOH, I can't come up with an attack where
-                                // someone would send someone else's email from their
-                                // own email address (except for the mentioned AEAP
-                                // attack, which we guard against by checking
-                                // from_is_signed)
+                                // - OTOH, I can't come up with an attack scenario
+                                // where this would be useful.
                             }
                         }
                     }

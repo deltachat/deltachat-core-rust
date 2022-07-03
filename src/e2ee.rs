@@ -139,7 +139,6 @@ impl EncryptHelper {
 /// peerstate in order to make AEAP work, but don't save it into the db yet.
 ///
 /// Returns updated peerstate.
-// TODO refactoring: may be better in peerstate.rs?
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
     from: &str,
@@ -150,7 +149,6 @@ pub(crate) async fn get_autocrypt_peerstate(
 
     // Apply Autocrypt header
     if let Some(header) = autocrypt_header {
-        // TODO performance...
         // The "from_nongossiped_fingerprint" part is for AEAP:
         // If we know this fingerprint from another addr,
         // we may want to do a transition from this other addr
