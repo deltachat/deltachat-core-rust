@@ -7,6 +7,7 @@ use deltachat::{
     context::get_info,
     message::{Message, MsgId, Viewtype},
     provider::get_provider_info,
+    qr,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -183,6 +184,18 @@ impl CommandApi {
                 .with_context(|| format!("Can't set {} to {:?}", key, value))?;
         }
         Ok(())
+    }
+
+    /// Set configuration values from a QR code. (technically from the URI that is stored in the qrcode)
+    /// Before this function is called, dc_check_qr() should confirm the type of the
+    /// QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
+    ///
+    /// Internally, the function will call dc_set_config() with the appropriate keys,
+    /// e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT
+    /// or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
+    async fn set_config_from_qr(&self, account_id: u32, qr_content: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        qr::set_config_from_qr(&ctx, &qr_content).await
     }
 
     async fn get_config(&self, account_id: u32, key: String) -> Result<Option<String>> {

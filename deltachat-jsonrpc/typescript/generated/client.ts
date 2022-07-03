@@ -109,6 +109,19 @@ export class RawClient {
     return (this._transport.request('batch_set_config', [accountId, config] as RPC.Params)) as Promise<null>;
   }
 
+  /**
+   * Set configuration values from a QR code. (technically from the URI that is stored in the qrcode)
+   * Before this function is called, dc_check_qr() should confirm the type of the
+   * QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
+   *
+   * Internally, the function will call dc_set_config() with the appropriate keys,
+   * e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT
+   * or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
+   */
+  public setConfigFromQr(accountId: T.U32, qrContent: string): Promise<null> {
+    return (this._transport.request('set_config_from_qr', [accountId, qrContent] as RPC.Params)) as Promise<null>;
+  }
+
 
   public getConfig(accountId: T.U32, key: string): Promise<(string|null)> {
     return (this._transport.request('get_config', [accountId, key] as RPC.Params)) as Promise<(string|null)>;
