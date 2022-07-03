@@ -239,6 +239,38 @@ impl CommandApi {
         Ok(())
     }
 
+    /// Returns the message IDs of all _fresh_ messages of any chat.
+    /// Typically used for implementing notification summaries
+    /// or badge counters e.g. on the app icon.
+    /// The list is already sorted and starts with the most recent fresh message.
+    ///
+    /// Messages belonging to muted chats or to the contact requests are not returned;
+    /// these messages should not be notified
+    /// and also badge counters should not include these messages.
+    ///
+    /// To get the number of fresh messages for a single chat, muted or not,
+    /// use `get_fresh_msg_cnt()`.
+    async fn get_fresh_msgs(&self, account_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ctx
+            .get_fresh_msgs()
+            .await?
+            .iter()
+            .map(|msg_id| msg_id.to_u32())
+            .collect())
+    }
+
+    /// Get the number of _fresh_ messages in a chat.
+    /// Typically used to implement a badge with a number in the chatlist.
+    ///
+    /// If the specified chat is muted,
+    /// the UI should show the badge counter "less obtrusive",
+    /// e.g. using "gray" instead of "red" color.
+    async fn get_fresh_msg_cnt(&self, account_id: u32, chat_id: u32) -> Result<usize> {
+        let ctx = self.get_context(account_id).await?;
+        ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await
+    }
+
     // ---------------------------------------------
     //  autocrypt
     // ---------------------------------------------

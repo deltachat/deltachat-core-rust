@@ -147,6 +147,35 @@ export class RawClient {
     return (this._transport.request('stop_ongoing_process', [accountId] as RPC.Params)) as Promise<null>;
   }
 
+  /**
+   * Returns the message IDs of all _fresh_ messages of any chat.
+   * Typically used for implementing notification summaries
+   * or badge counters e.g. on the app icon.
+   * The list is already sorted and starts with the most recent fresh message.
+   *
+   * Messages belonging to muted chats or to the contact requests are not returned;
+   * these messages should not be notified
+   * and also badge counters should not include these messages.
+   *
+   * To get the number of fresh messages for a single chat, muted or not,
+   * use `get_fresh_msg_cnt()`.
+   */
+  public getFreshMsgs(accountId: T.U32): Promise<(T.U32)[]> {
+    return (this._transport.request('get_fresh_msgs', [accountId] as RPC.Params)) as Promise<(T.U32)[]>;
+  }
+
+  /**
+   * Get the number of _fresh_ messages in a chat.
+   * Typically used to implement a badge with a number in the chatlist.
+   *
+   * If the specified chat is muted,
+   * the UI should show the badge counter "less obtrusive",
+   * e.g. using "gray" instead of "red" color.
+   */
+  public getFreshMsgCnt(accountId: T.U32, chatId: T.U32): Promise<T.Usize> {
+    return (this._transport.request('get_fresh_msg_cnt', [accountId, chatId] as RPC.Params)) as Promise<T.Usize>;
+  }
+
 
   public autocryptInitiateKeyTransfer(accountId: T.U32): Promise<string> {
     return (this._transport.request('autocrypt_initiate_key_transfer', [accountId] as RPC.Params)) as Promise<string>;
