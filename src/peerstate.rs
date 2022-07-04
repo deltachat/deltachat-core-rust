@@ -177,7 +177,6 @@ impl Peerstate {
                      WHERE public_key_fingerprint=? COLLATE NOCASE \
                      OR addr=? COLLATE NOCASE \
                      ORDER BY public_key_fingerprint=? DESC, last_seen DESC;";
-        // TODO question: Could SQL queries like this one be sped up with "LIMIT 1"?
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }

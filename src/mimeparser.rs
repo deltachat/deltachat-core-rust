@@ -382,9 +382,6 @@ impl MimeMessage {
 
         crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
         if let Some(peerstate) = decryption_info.peerstate {
-            // TODO this is done pretty late here, far after saving the changed peerstate to the db.
-            // This may be bad, since we may have crashed since then, and changed the peerstate
-            // but not added the warning.
             peerstate
                 .handle_fingerprint_change(context, message_time)
                 .await?;
