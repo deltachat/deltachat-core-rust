@@ -42,6 +42,8 @@ pub enum ChatListItemFetchResult {
         is_pinned: bool,
         is_muted: bool,
         is_contact_request: bool,
+        /// contact id if this is a dm chat (for view profile entry in context menu)
+        dm_chat_contact: Option<u32>,
     },
     ArchiveLink,
     #[serde(rename_all = "camelCase")]
@@ -86,9 +88,15 @@ pub(crate) async fn get_chat_list_item_by_id(
         None => None,
     };
 
-    let self_in_group = get_chat_contacts(ctx, chat_id)
-        .await?
-        .contains(&ContactId::SELF);
+    let chat_contacts = get_chat_contacts(ctx, chat_id).await?;
+
+    let self_in_group = chat_contacts.contains(&ContactId::SELF);
+
+    let dm_chat_contact = if chat.get_type() == Chattype::Single {
+        chat_contacts.get(0).map(|contact_id| contact_id.to_u32())
+    } else {
+        None
+    };
 
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
     let color = color_int_to_hex_string(chat.get_color(ctx).await?);
@@ -113,5 +121,6 @@ pub(crate) async fn get_chat_list_item_by_id(
         is_pinned: visibility == ChatVisibility::Pinned,
         is_muted: chat.is_muted(),
         is_contact_request: chat.is_contact_request(),
+        dm_chat_contact,
     })
 }

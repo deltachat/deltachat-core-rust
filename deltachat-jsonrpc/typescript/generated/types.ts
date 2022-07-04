@@ -6,7 +6,11 @@ export type ProviderInfo={"before_login_hint":string;"overview_page":string;"sta
 export type Usize=number;
 export type ChatListEntry=[U32,U32];
 export type I64=number;
-export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":string;"avatarPath":(string|null);"color":string;"lastUpdated":(I64|null);"summaryText1":string;"summaryText2":string;"summaryStatus":U32;"isProtected":boolean;"isGroup":boolean;"freshMessageCounter":Usize;"isSelfTalk":boolean;"isDeviceTalk":boolean;"isSendingLocation":boolean;"isSelfInGroup":boolean;"isArchived":boolean;"isPinned":boolean;"isMuted":boolean;"isContactRequest":boolean;})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
+export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":string;"avatarPath":(string|null);"color":string;"lastUpdated":(I64|null);"summaryText1":string;"summaryText2":string;"summaryStatus":U32;"isProtected":boolean;"isGroup":boolean;"freshMessageCounter":Usize;"isSelfTalk":boolean;"isDeviceTalk":boolean;"isSendingLocation":boolean;"isSelfInGroup":boolean;"isArchived":boolean;"isPinned":boolean;"isMuted":boolean;"isContactRequest":boolean;
+/**
+ * contact id if this is a dm chat (for view profile entry in context menu)
+ */
+"dmChatContact":(U32|null);})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
 export type Contact={"address":string;"color":string;"auth_name":string;"status":string;"display_name":string;"id":U32;"name":string;"profile_image":(string|null);"name_and_addr":string;"is_blocked":boolean;"is_verified":boolean;};
 export type FullChat={"id":U32;"name":string;"is_protected":boolean;"profile_image":(string|null);"archived":boolean;"chat_type":U32;"is_unpromoted":boolean;"is_self_talk":boolean;"contacts":(Contact)[];"contact_ids":(U32)[];"color":string;"fresh_message_counter":Usize;"is_contact_request":boolean;"is_device_chat":boolean;"self_in_group":boolean;"is_muted":boolean;"ephemeral_timer":U32;"can_send":boolean;};
 export type I32=number;
