@@ -146,7 +146,7 @@ impl Peerstate {
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates \
-                     WHERE addr=? COLLATE NOCASE;";
+                     WHERE addr=? COLLATE NOCASE LIMIT 1;";
         Self::from_stmt(context, query, paramsv![addr]).await
     }
 
@@ -158,9 +158,9 @@ impl Peerstate {
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? COLLATE NOCASE \
-                     OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? COLLATE NOCASE DESC;";
+                     WHERE public_key_fingerprint=? \
+                     OR gossip_key_fingerprint=? \
+                     ORDER BY public_key_fingerprint=? DESC LIMIT 1;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
     }
@@ -174,9 +174,9 @@ impl Peerstate {
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? COLLATE NOCASE \
+                     WHERE public_key_fingerprint=? \
                      OR addr=? COLLATE NOCASE \
-                     ORDER BY public_key_fingerprint=? COLLATE NOCASE DESC, last_seen DESC;";
+                     ORDER BY public_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }
