@@ -160,7 +160,7 @@ impl Peerstate {
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? COLLATE NOCASE \
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? DESC;";
+                     ORDER BY public_key_fingerprint=? COLLATE NOCASE DESC;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
     }
@@ -176,7 +176,7 @@ impl Peerstate {
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? COLLATE NOCASE \
                      OR addr=? COLLATE NOCASE \
-                     ORDER BY public_key_fingerprint=? DESC, last_seen DESC;";
+                     ORDER BY public_key_fingerprint=? COLLATE NOCASE DESC, last_seen DESC;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }
