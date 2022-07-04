@@ -188,8 +188,8 @@ dependencies = [
 
 [[package]]
 name = "async_zip"
-version = "0.0.7"
-source = "git+https://github.com/dignifiedquire/rs-async-zip?branch=main#74df61452b481a12cbe3505baf5e9ef1c058a468"
+version = "0.0.8"
+source = "git+https://github.com/dignifiedquire/rs-async-zip?branch=main#5556c5ac5e0bbc89e2d440291a9a6b77c74070aa"
 dependencies = [
  "async-compression",
  "async_io_utilities",
