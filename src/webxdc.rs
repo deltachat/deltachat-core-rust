@@ -859,6 +859,28 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_special_webxdc_format() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+
+        // chess.xdc is failing for some zip-versions, see #3476, if we know more details about why, we can have a nicer name for the test :)
+        let mut instance = create_webxdc_instance(
+            &t,
+            "chess.xdc",
+            include_bytes!("../test-data/webxdc/chess.xdc"),
+        )
+        .await?;
+        let instance_id = send_msg(&t, chat_id, &mut instance).await?;
+        let instance = Message::load_from_db(&t, instance_id).await?;
+        assert_eq!(instance.viewtype, Viewtype::Webxdc);
+
+        let info = instance.get_webxdc_info(&t).await?;
+        assert_eq!(info.name, "Chess Board");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_forward_webxdc_instance() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
