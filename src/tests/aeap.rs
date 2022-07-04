@@ -75,7 +75,6 @@ enum ChatForTransition {
 }
 use ChatForTransition::*;
 
-// TODO refactoring: Should this really be placed here? But I wouldn't know a better place, either
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_transition_0() {
     check_aeap_transition(OneToOne, false, false).await;

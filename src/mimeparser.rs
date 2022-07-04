@@ -281,6 +281,10 @@ impl MimeMessage {
                                 // Or it's because someone is doing some replay attack
                                 // - OTOH, I can't come up with an attack scenario
                                 // where this would be useful.
+                                warn!(
+                                    context,
+                                    "From header in signed part does't match the outer one"
+                                );
                             }
                         }
                     }
