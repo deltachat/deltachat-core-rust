@@ -215,6 +215,14 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
                 msg.get_videochat_url().unwrap_or_default(),
                 msg.get_videochat_type().unwrap_or_default()
             )
+        } else if msg.get_viewtype() == Viewtype::Webxdc {
+            match msg.get_webxdc_info(context).await {
+                Ok(info) => format!(
+                    "[WEBXDC: {}, icon={}, document={}, summary={}, source_code_url={}]",
+                    info.name, info.icon, info.document, info.summary, info.source_code_url
+                ),
+                Err(err) => format!("[get_webxdc_info() failed: {}]", err),
+            }
         } else {
             "".to_string()
         },
