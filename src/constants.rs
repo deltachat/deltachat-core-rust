@@ -168,6 +168,13 @@ pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 /// String that indicates that something is left out or truncated.
 pub const DC_ELLIPSIS: &str = "[...]";
 
+/// If text is under this limit it skips the check
+pub const DC_DESIRED_TEXT_LINES_THRESHOLD: usize = 400;
+// how many lines desktop displays when fullscreen
+pub const DC_DESIRED_TEXT_LINES: usize = 38;
+// how many chars desktop displays per line
+pub const DC_DESIRED_TEXT_LINE_LEN: usize = 100;
+
 /// Message length limit.
 ///
 /// To keep bubbles and chat flow usable and to avoid problems with controls using very long texts,
@@ -176,7 +183,7 @@ pub const DC_ELLIPSIS: &str = "[...]";
 ///
 /// Note that for simplicity maximum length is defined as the number of Unicode Scalar Values (Rust
 /// `char`s), not Unicode Grapheme Clusters.
-pub const DC_DESIRED_TEXT_LEN: usize = 5000;
+pub const DC_DESIRED_TEXT_LEN: usize = DC_DESIRED_TEXT_LINE_LEN * DC_DESIRED_TEXT_LINES; // was 5000 now is 3800
 
 // Flags for empty server job
 
