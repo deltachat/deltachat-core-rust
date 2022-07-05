@@ -9,20 +9,32 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 
 // 163.md: 163.com
-static P_163: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_163: Lazy<Provider> = Lazy::new(|| Provider {
     id: "163",
-    status: Status::Broken,
-    before_login_hint: "163 Mail does not work since it forces the email clients to connect with an IMAP ID, which is currently not the case of Delta Chat.",
+    status: Status::Ok,
+    before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/163",
     server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.163.com",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.163.com",
+            port: 465,
+            username_pattern: Email,
+        },
     ],
     config_defaults: None,
     strict_tls: true,
     max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
-}
 });
 
 // aktivix.org.md: aktivix.org
@@ -1879,4 +1891,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 6, 4));
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2022, 7, 5));
