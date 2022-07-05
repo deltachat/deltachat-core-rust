@@ -193,7 +193,7 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             events,
             scheduler: RwLock::new(None),
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
