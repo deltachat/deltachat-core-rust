@@ -12,6 +12,7 @@
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
 - build PyPy wheels #6683
 - improve default error if NDN does not provide an error #3456
+- increase ratelimit from 3 to 6 messages per 60 seconds #3481
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452
