@@ -12,7 +12,9 @@ use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
-use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINES_THRESHOLD, DC_DESIRED_TEXT_LINE_LEN,};
+use crate::constants::{
+    DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINES_THRESHOLD, DC_DESIRED_TEXT_LINE_LEN,
+};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
 use crate::decrypt::{create_decryption_info, try_decrypt};

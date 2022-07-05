@@ -817,10 +817,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
         fn test_edge() {
             assert_eq!(truncate_by_lines("", 2, 4), "");
 
-            assert_eq!(
-                truncate_by_lines("\n  hello \n world", 2, 4),
-                "\n  [...]"
-            );
+            assert_eq!(truncate_by_lines("\n  hello \n world", 2, 4), "\n  [...]");
             assert_eq!(
                 truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1, 2),
                 "𐠈[...]"
