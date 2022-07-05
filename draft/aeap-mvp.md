@@ -11,25 +11,48 @@ Changes to the UIs
 Changes in the core
 -------------------
 
-- DONE: We have one primary self address and any number of secondary self addresses. `is_self_addr()` checks all of them.
+- [x] We have one primary self address and any number of secondary self addresses. `is_self_addr()` checks all of them.
 
-- DONE: If the user does a reconfigure and changes the email address, the previous address is added as a secondary self address.
+- [x] If the user does a reconfigure and changes the email address, the previous address is added as a secondary self address.
 
   - don't forget to deduplicate secondary self addresses in case the user switches back and forth between addresses).
 
   - The key stays the same.
 
-- No changes for 1:1 chats, there simply is a new one. (This works since, contrary to group messages, messages sent to a 1:1 chat are not assigned to the group chat but always to the 1:1 chat with the sender. So it's not a problem that the new messages might be put into the old chat if they are a reply to a message there.)
+- [x] No changes for 1:1 chats, there simply is a new one. (This works since, contrary to group messages, messages sent to a 1:1 chat are not assigned to the group chat but always to the 1:1 chat with the sender. So it's not a problem that the new messages might be put into the old chat if they are a reply to a message there.)
 
-- When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
+- [ ] When sending a message: If any of the secondary self addrs is in the chat's member list, remove it locally (because we just transitioned away from it). We add a log message for this (alternatively, a system message in the chat would be more visible).
 
-- When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
+- [x] ([#3385](https://github.com/deltachat/deltachat-core-rust/pull/3385)) When receiving a message: If the key exists, but belongs to another address (we may want to benchmark this)
   AND there is a `Chat-Version` header\
+  AND the message is signed correctly
+  AND the From address is (also) in the encrypted (and therefore signed) headers <sup>[[1]](#myfootnote1)</sup>\
   AND the message timestamp is newer than the contact's `lastseen` (to prevent changing the address back when messages arrive out of order) (this condition is not that important since we will have eventual consistency even without it):
 
   Replace the contact in _all_ groups, possibly deduplicate the members list, and add a system message to all of these chats.
   
   - Note that we can't simply compare the keys byte-by-byte, since the UID may have changed, or the sender may have rotated the key and signed the new key with the old one.
+
+<a name="myfootnote1">[1]</a>: Without this check, an attacker could replay a message from Alice to Bob. Then Bob's device would do an AEAP transition from Alice's to the attacker's address, allowing for easier phishing.
+
+<details>
+<summary>More details about this</summary>
+Suppose Alice sends a message to Evil (or to a group with both Evil and Bob). Evil then forwards the message to Bob, changing the From and To headers (and if necessary Message-Id) and replacing `addr=alice@example.org;` in the autocrypt header with `addr=evil@example.org;`.
+
+Then Bob's device sees that there is a message which is signed by Alice's key and comes from Evil's address and would do the AEAP transition, i.e. replace Alice with Evil in all groups and show a message "Alice changed their address from alice@example.org to evil@example.org". Disadvantages for Evil are that Bob's message will be shown on Alice's device, possibly creating confusion/suspicion, and that the usual "Setup changed for..." message will be shown the next time Evil sends a message (because Evil doesn't know Alice's private key).
+
+Possible mitigations:
+- if we make the AEAP device message sth. like "Automatically removed alice@example.org and added evil@example.org", then this will create more suspicion, making the phishing harder (we didn't talk about what what the wording should be at all yet).
+- Add something similar to replay protection to our Autocrypt implementation. This could be done e.g. by adding a second `From` header to the protected headers. If it's present, the receiver then requires it to be the same as the outer `From`, and if it's not present, we don't do AEAP --> **That's what we implemented**
+
+Note that usually a mail is signed by a key that has a UID matching the from address.
+
+  That's not mandatory for Autocrypt (and in fact, we just keep the old UID when changing the self address, so with AEAP the UID will actually be different than the from address sometimes)
+
+  https://autocrypt.org/level1.html#openpgp-based-key-data says:
+  > The content of the user id packet is only decorative
+
+</details>
 
 ### Notes:
   
@@ -97,3 +120,8 @@ Other
 -----
 
 - The user is responsible that messages to the old address arrive at the new address, for example by configuring the old provider to forward all emails to the new one.
+
+Notes during implementing
+========================
+
+- As far as I understand the code, unencrypted messages are unsigned. So, the transition only works if both sides have the other side's key.

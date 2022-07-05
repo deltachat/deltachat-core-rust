@@ -4,8 +4,10 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self};
+use crate::chat::{self, is_contact_in_chat, Chat};
 use crate::chatlist::Chatlist;
+use crate::constants::Chattype;
+use crate::contact::{addr_cmp, Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -13,7 +15,7 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use anyhow::{bail, Result};
+use anyhow::{Context as _, Result};
 use num_traits::FromPrimitive;
 
 #[derive(Debug)]
@@ -144,24 +146,39 @@ impl Peerstate {
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates \
-                     WHERE addr=? COLLATE NOCASE;";
+                     WHERE addr=? COLLATE NOCASE LIMIT 1;";
         Self::from_stmt(context, query, paramsv![addr]).await
     }
 
     pub async fn from_fingerprint(
         context: &Context,
-        _sql: &Sql,
         fingerprint: &Fingerprint,
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? COLLATE NOCASE \
-                     OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? DESC;";
+                     WHERE public_key_fingerprint=? \
+                     OR gossip_key_fingerprint=? \
+                     ORDER BY public_key_fingerprint=? DESC LIMIT 1;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+    }
+
+    pub async fn from_nongossiped_fingerprint_or_addr(
+        context: &Context,
+        fingerprint: &Fingerprint,
+        addr: &str,
+    ) -> Result<Option<Peerstate>> {
+        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
+                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
+                     verified_key, verified_key_fingerprint \
+                     FROM acpeerstates  \
+                     WHERE public_key_fingerprint=? \
+                     OR addr=? COLLATE NOCASE \
+                     ORDER BY public_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
+        let fp = fingerprint.hex();
+        Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }
 
     async fn from_stmt(
@@ -220,6 +237,10 @@ impl Peerstate {
         Ok(peerstate)
     }
 
+    /// Re-calculate `self.public_key_fingerprint` and `self.gossip_key_fingerprint`.
+    /// If one of them was changed, `self.fingerprint_changed` is set to `true`.
+    ///
+    /// Call this after you changed `self.public_key` or `self.gossip_key`.
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
@@ -261,61 +282,8 @@ impl Peerstate {
         self.to_save = Some(ToSave::All);
     }
 
-    /// Adds a warning to the chat corresponding to peerstate if fingerprint has changed.
-    pub(crate) async fn handle_fingerprint_change(
-        &self,
-        context: &Context,
-        timestamp: i64,
-    ) -> Result<()> {
-        if context.is_self_addr(&self.addr).await? {
-            // Do not try to search all the chats with self.
-            return Ok(());
-        }
-
-        if self.fingerprint_changed {
-            if let Some(contact_id) = context
-                .sql
-                .query_get_value("SELECT id FROM contacts WHERE addr=?;", paramsv![self.addr])
-                .await?
-            {
-                let chats = Chatlist::try_load(context, 0, None, contact_id).await?;
-                let msg = stock_str::contact_setup_changed(context, self.addr.clone()).await;
-                for (chat_id, msg_id) in chats.iter() {
-                    let timestamp_sort = if let Some(msg_id) = msg_id {
-                        let lastmsg = Message::load_from_db(context, *msg_id).await?;
-                        lastmsg.timestamp_sort
-                    } else {
-                        context
-                            .sql
-                            .query_get_value(
-                                "SELECT created_timestamp FROM chats WHERE id=?;",
-                                paramsv![chat_id],
-                            )
-                            .await?
-                            .unwrap_or(0)
-                    };
-                    chat::add_info_msg_with_cmd(
-                        context,
-                        *chat_id,
-                        &msg,
-                        SystemMessage::Unknown,
-                        timestamp_sort,
-                        Some(timestamp),
-                        None,
-                        None,
-                    )
-                    .await?;
-                    context.emit_event(EventType::ChatModified(*chat_id));
-                }
-            } else {
-                bail!("contact with peerstate.addr {:?} not found", &self.addr);
-            }
-        }
-        Ok(())
-    }
-
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
-        if self.addr.to_lowercase() != header.addr.to_lowercase() {
+        if !addr_cmp(&self.addr, &header.addr) {
             return;
         }
 
@@ -521,6 +489,175 @@ impl Peerstate {
             false
         }
     }
+
+    /// Add an info message to all the chats with this contact, informing about
+    /// a [`PeerstateChange`].
+    ///
+    /// Also, in the case of an address change (AEAP), replace the old address
+    /// with the new address in all chats.
+    async fn handle_setup_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+        change: PeerstateChange,
+    ) -> Result<()> {
+        if context.is_self_addr(&self.addr).await? {
+            // Do not try to search all the chats with self.
+            return Ok(());
+        }
+
+        let contact_id = context
+            .sql
+            .query_get_value(
+                "SELECT id FROM contacts WHERE addr=? COLLATE NOCASE;",
+                paramsv![self.addr],
+            )
+            .await?
+            .with_context(|| format!("contact with peerstate.addr {:?} not found", &self.addr))?;
+
+        let chats = Chatlist::try_load(context, 0, None, Some(contact_id)).await?;
+        for (chat_id, msg_id) in chats.iter() {
+            let msg = match &change {
+                PeerstateChange::FingerprintChange => {
+                    stock_str::contact_setup_changed(context, self.addr.clone()).await
+                }
+                PeerstateChange::Aeap(new_addr) => {
+                    let old_contact = Contact::load_from_db(context, contact_id).await?;
+                    stock_str::aeap_addr_changed(
+                        context,
+                        old_contact.get_display_name(),
+                        &self.addr,
+                        new_addr,
+                    )
+                    .await
+                }
+            };
+            let timestamp_sort = if let Some(msg_id) = msg_id {
+                let lastmsg = Message::load_from_db(context, *msg_id).await?;
+                lastmsg.timestamp_sort
+            } else {
+                context
+                    .sql
+                    .query_get_value(
+                        "SELECT created_timestamp FROM chats WHERE id=?;",
+                        paramsv![chat_id],
+                    )
+                    .await?
+                    .unwrap_or(0)
+            };
+            chat::add_info_msg_with_cmd(
+                context,
+                *chat_id,
+                &msg,
+                SystemMessage::Unknown,
+                timestamp_sort,
+                Some(timestamp),
+                None,
+                None,
+            )
+            .await?;
+
+            if let PeerstateChange::Aeap(new_addr) = &change {
+                let chat = Chat::load_from_db(context, *chat_id).await?;
+                if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
+                    chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
+
+                    let (new_contact_id, _) =
+                        Contact::add_or_lookup(context, "", new_addr, Origin::IncomingUnknownFrom)
+                            .await?;
+                    if !is_contact_in_chat(context, *chat_id, new_contact_id).await? {
+                        chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
+                    }
+
+                    context.emit_event(EventType::ChatModified(*chat_id));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Adds a warning to all the chats corresponding to peerstate if fingerprint has changed.
+    pub(crate) async fn handle_fingerprint_change(
+        &self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<()> {
+        if self.fingerprint_changed {
+            self.handle_setup_change(context, timestamp, PeerstateChange::FingerprintChange)
+                .await?;
+        }
+        Ok(())
+    }
+}
+
+/// Do an AEAP transition, if necessary.
+/// AEAP stands for "Automatic Email Address Porting."
+///
+/// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
+pub async fn maybe_do_aeap_transition(
+    context: &Context,
+    info: &mut crate::e2ee::DecryptionInfo,
+    mime_parser: &crate::mimeparser::MimeMessage,
+) -> Result<()> {
+    if let Some(peerstate) = &mut info.peerstate {
+        if let Some(from) = mime_parser.from.first() {
+            // If the from addr is different from the peerstate address we know,
+            // we may want to do an AEAP transition.
+            if !addr_cmp(&peerstate.addr, &from.addr)
+                // Check if it's a chat message; we do this to avoid
+                // some accidental transitions if someone writes from multiple
+                // addresses with an MUA.
+                && mime_parser.has_chat_version()
+                // Check if the message is signed correctly.
+                // If it's not signed correctly, the whole autocrypt header will be mostly
+                // ignored anyway and the message shown as not encrypted, so we don't
+                // have to handle this case.
+                && !mime_parser.signatures.is_empty()
+                // Check if the From: address was also in the signed part of the email.
+                // Without this check, an attacker could replay a message from Alice 
+                // to Bob. Then Bob's device would do an AEAP transition from Alice's
+                // to the attacker's address, allowing for easier phishing.
+                && mime_parser.from_is_signed
+                && info.message_time > peerstate.last_seen
+            {
+                // Add an info messages to all chats with this contact
+                //
+                peerstate
+                    .handle_setup_change(
+                        context,
+                        info.message_time,
+                        PeerstateChange::Aeap(info.from.clone()),
+                    )
+                    .await?;
+
+                peerstate.addr = info.from.clone();
+                let header = info.autocrypt_header.as_ref().context(
+                    "Internal error: Tried to do an AEAP transition without an autocrypt header??",
+                )?;
+                peerstate.apply_header(header, info.message_time);
+                peerstate.to_save = Some(ToSave::All);
+
+                // We don't know whether a peerstate with this address already existed, or a
+                // new one should be created, so just try both create=false and create=true,
+                // and if this fails, create=true, one will succeed (this is a very cold path,
+                // so performance doesn't really matter).
+                peerstate.save_to_db(&context.sql, true).await?;
+                peerstate.save_to_db(&context.sql, false).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+enum PeerstateChange {
+    /// The contact's public key fingerprint changed, likely because
+    /// the contact uses a new device and didn't transfer their key.
+    FingerprintChange,
+    /// The contact changed their address to the given new address
+    /// (Automatic Email Address Porting).
+    Aeap(String),
 }
 
 /// Removes duplicate peerstates from `acpeerstates` database table.
@@ -588,11 +725,10 @@ mod tests {
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
-        let peerstate_new2 =
-            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
-                .await
-                .expect("failed to load peerstate from db")
-                .expect("no peerstate found in the database");
+        let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
+            .await
+            .expect("failed to load peerstate from db")
+            .expect("no peerstate found in the database");
         assert_eq!(peerstate, peerstate_new2);
     }
 

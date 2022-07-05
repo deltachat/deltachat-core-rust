@@ -2,7 +2,6 @@
 //!
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
-#![allow(dead_code)] // Can be removed once PR #3385 is merged
 use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::panic;
@@ -250,6 +249,7 @@ impl TestContext {
         Self::builder().configure_fiona().build().await
     }
 
+    #[allow(dead_code)]
     /// Print current chat state.
     pub async fn print_chats(&self) {
         println!("\n========== Chats of {}: ==========", self.name());
