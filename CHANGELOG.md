@@ -5,6 +5,7 @@
 ### Changes
 
 ### Fixes
+- replace musl libc name resolution errors with a better message #3485
 
 
 ## 1.88.0

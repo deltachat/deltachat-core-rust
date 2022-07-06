@@ -642,6 +642,9 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
                 .to_lowercase()
                 .contains("temporary failure in name resolution")
             || e.msg.to_lowercase().contains("name or service not known")
+            || e.msg
+                .to_lowercase()
+                .contains("failed to lookup address information")
     }) {
         return stock_str::error_no_network(context).await;
     }

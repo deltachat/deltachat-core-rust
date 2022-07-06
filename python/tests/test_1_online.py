@@ -1854,7 +1854,7 @@ def test_configure_error_msgs_invalid_server(acfactory):
     # Can't connect so it probably should say something about "internet"
     # again, should not repeat itself
     # If this fails then probably `e.msg.to_lowercase().contains("could not resolve")`
-    # in configure/mod.rs returned false because the error message was changed
+    # in configure.rs returned false because the error message was changed
     # (i.e. did not contain "could not resolve" anymore)
     assert (ev.data2.count("internet") + ev.data2.count("network")) == 1
     # Should mention that it can't connect:
