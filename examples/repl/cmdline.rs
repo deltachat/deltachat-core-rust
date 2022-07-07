@@ -336,6 +336,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  has-backup\n\
                  export-backup\n\
                  send-backup\n\
+                 receive-backup <ticket>\n\
                  import-backup <backup-file>\n\
                  export-keys\n\
                  import-keys\n\
@@ -490,6 +491,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             );
             tokio::time::sleep(std::time::Duration::from_secs(100)).await;
             sender.close().await?;
+        }
+        "receive-backup" => {
+            ensure!(!arg1.is_empty(), "Argument <ticket> is missing.");
+            let (_, ticket) = multibase::decode(&arg1.to_string())?;
+            receive_backup(&context, ticket, Some(arg2.to_string())).await?;
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
