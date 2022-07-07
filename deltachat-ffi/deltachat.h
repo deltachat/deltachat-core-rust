@@ -23,6 +23,7 @@ typedef struct _dc_provider dc_provider_t;
 typedef struct _dc_event    dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_accounts_event_emitter dc_accounts_event_emitter_t;
+typedef struct _dc_backup_sender dc_backup_sender_t;
 
 
 /**
@@ -2104,6 +2105,11 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  * @param param2 Meaning depends on the DC_IMEX_* constants. Set to NULL if not used.
  */
 void            dc_imex                      (dc_context_t* context, int what, const char* param1, const char* param2);
+
+
+dc_backup_sender_t*  dc_send_backup(dc_context_t* context, const char* folder, const char* passphrase);
+char*  dc_backup_sender_qr(dc_context_t* context, const dc_backup_sender_t* bs);
+void  dc_backup_sender_unref(dc_backup_sender_t* bs);
 
 
 /**
