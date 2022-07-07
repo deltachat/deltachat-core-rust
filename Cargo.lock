@@ -359,9 +359,9 @@ dependencies = [
 
 [[package]]
 name = "async-task"
-version = "4.2.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30696a84d817107fc028e049980e09d5e140e8da8f1caeb17e8e950658a3cea9"
+checksum = "7a40729d2133846d9ed0ea60a8b9541bccddab49cd30f0715a1da672fe9a2524"
 
 [[package]]
 name = "async-trait"
@@ -485,9 +485,9 @@ dependencies = [
 
 [[package]]
 name = "backtrace"
-version = "0.3.65"
+version = "0.3.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11a17d453482a265fd5f8479f2a3f405566e6ca627837aaddb85af8b1ab8ef61"
+checksum = "cab84319d616cfb654d03394f38ab7e6f0919e181b1b57e1fd15e7fb4077d9a7"
 dependencies = [
  "addr2line",
  "cc",
@@ -898,6 +898,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "chacha20"
 version = "0.8.1"
+source = "git+https://github.com/dignifiedquire/stream-ciphers?branch=chacha20-fix#75cd1171cec061282e6b71d6333455987074de3a"
 dependencies = [
  "cfg-if",
  "cipher",
@@ -908,6 +909,7 @@ dependencies = [
 [[package]]
 name = "chacha20poly1305"
 version = "0.9.0"
+source = "git+https://github.com/dignifiedquire/AEADs?branch=chacha20-fix#5cbb79511f0aea26595204d0986d9189c399f47b"
 dependencies = [
  "aead",
  "chacha20",
@@ -2697,6 +2699,7 @@ checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
 [[package]]
 name = "iroh-bitswap"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "ahash",
  "bytes 1.1.0",
@@ -2720,6 +2723,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "config",
  "iroh-util",
@@ -2744,6 +2748,7 @@ dependencies = [
 [[package]]
 name = "iroh-p2p"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2786,6 +2791,7 @@ dependencies = [
 [[package]]
 name = "iroh-resolver"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2809,6 +2815,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-client"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2832,6 +2839,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-types"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "prost 0.10.4",
  "prost-build 0.10.4",
@@ -2843,6 +2851,7 @@ dependencies = [
 [[package]]
 name = "iroh-share"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -2872,6 +2881,7 @@ dependencies = [
 [[package]]
 name = "iroh-store"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "anyhow",
  "bytecheck",
@@ -2903,6 +2913,7 @@ dependencies = [
 [[package]]
 name = "iroh-util"
 version = "0.1.0"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#d4705c857283fa9893947f2f259ea8b553bbb865"
 dependencies = [
  "anyhow",
  "config",
@@ -4333,9 +4344,9 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.28.4"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e42c982f2d955fac81dd7e1d0e1426a7d702acd9c98d19ab01083a6a0328c424"
+checksum = "21158b2c33aa6d4561f1c0a6ea283ca92bc54802a93b263e910746d679a7eb53"
 dependencies = [
  "memchr",
 ]
@@ -4695,6 +4706,8 @@ dependencies = [
 [[package]]
 name = "pgp"
 version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0c63db779c3f090b540dfa0484f8adc2d380e3aa60cdb0f3a7a97454e22edc5"
 dependencies = [
  "aes",
  "base64 0.13.0",
