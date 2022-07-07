@@ -7,7 +7,7 @@ license = "MPL-2.0"
 rust-version = "1.56"
 
 [profile.dev]
-debug = 0
+#debug = 0
 panic = 'abort'
 opt-level = 1
 
@@ -83,6 +83,7 @@ async_zip = { git = "https://github.com/dignifiedquire/rs-async-zip", branch = "
 iroh-share = { path = "../../iroh/iroh-share" }
 iroh-resolver = { path = "../../iroh/iroh-resolver" }
 tempfile = "3"
+multibase = "0.9.1"
 
 [dev-dependencies]
 ansi_term = "0.12.0"
