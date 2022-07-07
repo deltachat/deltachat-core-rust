@@ -733,7 +733,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::receive_imf::receive_imf;
+    use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
 
     use super::*;
@@ -1036,6 +1036,64 @@ mod tests {
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
             r#"[{"payload":42,"serial":1,"max_serial":1}]"#
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_update_for_not_downloaded_instance() -> Result<()> {
+        // Alice sends a larger instance and an update
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+        bob.set_config(Config::DownloadLimit, Some("40000")).await?;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "chess.xdc",
+            include_bytes!("../test-data/webxdc/chess.xdc"),
+        )
+        .await?;
+        let sent1 = alice.send_msg(chat.id, &mut alice_instance).await;
+        let alice_instance = Message::load_from_db(&alice, sent1.sender_msg_id).await?;
+        alice
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload": 7}"#, "bla")
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+
+        // Bob does not download instance but already receives update
+        receive_imf_inner(
+            &bob,
+            &alice_instance.rfc724_mid,
+            sent1.payload().as_bytes(),
+            false,
+            Some(70790),
+            false,
+        )
+        .await?;
+        let bob_instance = bob.get_last_msg().await;
+        bob_instance.chat_id.accept(&bob).await?;
+        bob.recv_msg(&sent2).await;
+        assert_eq!(bob_instance.download_state, DownloadState::Available);
+
+        // Bob downloads instance, updates should be assigned correctly
+        receive_imf_inner(
+            &bob,
+            &alice_instance.rfc724_mid,
+            sent1.payload().as_bytes(),
+            false,
+            None,
+            false,
+        )
+        .await?;
+        let bob_instance = bob.get_last_msg().await;
+        assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
+        assert_eq!(bob_instance.download_state, DownloadState::Done);
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":7,"serial":1,"max_serial":1}]"#
         );
 
         Ok(())
