@@ -481,12 +481,17 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let dir = dirs::home_dir().unwrap_or_default();
             let (sender, transfer) =
                 send_backup(&context, dir.as_ref(), Some(arg2.to_string())).await?;
-            let ticket_bytes = transfer.ticket().as_bytes();
+            let ticket = transfer.ticket();
+            let ticket_bytes = ticket.as_bytes();
 
             println!(
                 "Ticket: {}",
                 multibase::encode(multibase::Base::Base64, &ticket_bytes)
             );
+            let qr_code = deltachat::qr_code_generator::generate_backup_qr_code(&ticket)?;
+            let file = dir.join("qr.svg");
+            tokio::fs::write(file, qr_code.as_bytes()).await?;
+
             tokio::time::sleep(std::time::Duration::from_secs(100)).await;
             sender.close().await?;
         }

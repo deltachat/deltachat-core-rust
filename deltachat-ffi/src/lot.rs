@@ -50,6 +50,7 @@ impl Lot {
                 Qr::FprMismatch { .. } => None,
                 Qr::FprWithoutAddr { fingerprint, .. } => Some(fingerprint),
                 Qr::Account { domain } => Some(domain),
+                Qr::Backup { .. } => None,
                 Qr::WebrtcInstance { domain, .. } => Some(domain),
                 Qr::Addr { draft, .. } => draft.as_deref(),
                 Qr::Url { url } => Some(url),
@@ -100,6 +101,7 @@ impl Lot {
                 Qr::FprMismatch { .. } => LotState::QrFprMismatch,
                 Qr::FprWithoutAddr { .. } => LotState::QrFprWithoutAddr,
                 Qr::Account { .. } => LotState::QrAccount,
+                Qr::Backup { .. } => LotState::QrBackup,
                 Qr::WebrtcInstance { .. } => LotState::QrWebrtcInstance,
                 Qr::Addr { .. } => LotState::QrAddr,
                 Qr::Url { .. } => LotState::QrUrl,
@@ -123,6 +125,7 @@ impl Lot {
                 Qr::FprMismatch { contact_id } => contact_id.unwrap_or_default().to_u32(),
                 Qr::FprWithoutAddr { .. } => Default::default(),
                 Qr::Account { .. } => Default::default(),
+                Qr::Backup { .. } => Default::default(),
                 Qr::WebrtcInstance { .. } => Default::default(),
                 Qr::Addr { contact_id, .. } => contact_id.to_u32(),
                 Qr::Url { .. } => Default::default(),
@@ -169,6 +172,9 @@ pub enum LotState {
 
     /// text1=domain
     QrAccount = 250,
+
+    /// TODO
+    QrBackup = 251,
 
     /// text1=domain, text2=instance pattern
     QrWebrtcInstance = 260,

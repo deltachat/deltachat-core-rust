@@ -2130,6 +2130,67 @@ pub unsafe extern "C" fn dc_imex(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_send_backup(
+    context: *mut dc_context_t,
+    folder: *const libc::c_char,
+    passphrase: *const libc::c_char,
+) -> *mut dc_backup_sender {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_backup()");
+        return ptr::null_mut();
+    }
+
+    let passphrase = to_opt_string_lossy(passphrase);
+    let ctx = &*context;
+
+    if let Some(folder) = to_opt_string_lossy(folder) {
+        block_on(async move {
+            imex::send_backup(ctx, folder.as_ref(), passphrase)
+                .await
+                .map(|(sender, transfer)| {
+                    Box::into_raw(Box::new(dc_backup_sender { sender, transfer }))
+                })
+                .log_err(ctx, "send_backup failed")
+                .unwrap_or_else(|_| ptr::null_mut())
+        })
+    } else {
+        eprintln!("dc_imex called without a valid directory");
+        ptr::null_mut()
+    }
+}
+
+pub struct dc_backup_sender {
+    sender: iroh_share::Sender,
+    transfer: iroh_share::SenderTransfer,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_sender_qr(
+    ctx: *mut dc_context_t,
+    bs: *const dc_backup_sender,
+) -> *mut libc::c_char {
+    if ctx.is_null() || bs.is_null() {
+        eprintln!("ignoring careless call to dc_backup_sender_qr");
+        return ptr::null_mut();
+    }
+    let ctx = &*ctx;
+    let bs = &*bs;
+    let ticket = bs.transfer.ticket();
+
+    qr_code_generator::generate_backup_qr_code(&ticket)
+        .map(|s| s.strdup())
+        .log_err(ctx, "generate_backup_qr_code failed")
+        .unwrap_or_else(|_| ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_sender_unref(bs: *mut dc_backup_sender) {
+    if !bs.is_null() {
+        let _ = Box::from_raw(bs);
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_imex_has_backup(
     context: *mut dc_context_t,
     dir: *const libc::c_char,
