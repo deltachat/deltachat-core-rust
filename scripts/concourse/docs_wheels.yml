@@ -41,7 +41,7 @@ jobs:
           cd deltachat-core-rust
           scripts/run-doxygen.sh
           cd ..
-          cp -av deltachat-core-rust/deltachat-ffi/{html,xml} c-docs/
+          cp -av deltachat-core-rust/deltachat-ffi/html deltachat-core-rust/deltachat-ffi/xml c-docs/
 
   - task: upload-c-docs
     config:
