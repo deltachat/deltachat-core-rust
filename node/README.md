@@ -234,7 +234,7 @@ We have the following scripts for building, testing and coverage:
 The following steps are needed to make a release:
 
 1. Wait until `pack-module` github action is completed
-2. Run `npm publish https://download.delta.chat/node/deltachat-node-v1.x.x.tar.gz` to publish it to npm. You probably need write rights to npm.
+2. Run `npm publish https://download.delta.chat/node/deltachat-node-1.x.x.tar.gz` to publish it to npm. You probably need write rights to npm.
 
 ## License
 
