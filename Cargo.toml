@@ -80,6 +80,9 @@ futures-lite = "1.12.0"
 tokio-stream = { version = "0.1.9", features = ["fs"] }
 reqwest = { version = "0.11.11", features = ["json"] }
 async_zip = { git = "https://github.com/dignifiedquire/rs-async-zip", branch = "main", default-features = false, features = ["deflate"] }
+iroh-share = { path = "../../iroh/iroh-share" }
+iroh-resolver = { path = "../../iroh/iroh-resolver" }
+tempfile = "3"
 
 [dev-dependencies]
 ansi_term = "0.12.0"
@@ -144,3 +147,9 @@ vendored = [
   "reqwest/native-tls-vendored"
 ]
 nightly = ["pgp/nightly"]
+
+[patch.crates-io]
+chacha20poly1305 = { path = "../../rustcrypto/AEADs/chacha20poly1305" }
+chacha20 = { path = "../../rustcrypto/stream-ciphers/chacha20" }
+pgp = { path = "../../rpgp/rpgp" }
+libp2p = { git = "https://github.com/dignifiedquire/rust-libp2p", branch = "feat-kad-count" }
