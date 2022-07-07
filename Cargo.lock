@@ -2700,7 +2700,7 @@ checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
 [[package]]
 name = "iroh-bitswap"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "ahash",
  "bytes 1.1.0",
@@ -2724,7 +2724,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "config",
  "iroh-util",
@@ -2749,7 +2749,7 @@ dependencies = [
 [[package]]
 name = "iroh-p2p"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2792,7 +2792,7 @@ dependencies = [
 [[package]]
 name = "iroh-resolver"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2816,7 +2816,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-client"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2840,7 +2840,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-types"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "prost 0.10.4",
  "prost-build 0.10.4",
@@ -2852,7 +2852,7 @@ dependencies = [
 [[package]]
 name = "iroh-share"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -2882,7 +2882,7 @@ dependencies = [
 [[package]]
 name = "iroh-store"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "anyhow",
  "bytecheck",
@@ -2914,7 +2914,7 @@ dependencies = [
 [[package]]
 name = "iroh-util"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#2ae07a205c776221b98d0476f213b60c916a6d6b"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#a9f61870b59d381a49fc358eda12bc3ab4130a3b"
 dependencies = [
  "anyhow",
  "config",
