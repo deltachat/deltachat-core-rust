@@ -14,11 +14,7 @@ and an own build machine.
 - `remote_tests_rust.sh` rsyncs to the build machine and runs
   `run-rust-test.sh` remotely on the build machine. 
 
-- `doxygen/Dockerfile` specifies an image that contains
-  the doxygen tool which is used by `run-doxygen.sh` 
-  to generate C-docs which are then uploaded 
-  via `ci_upload.sh` to `https://c.delta.chat/_unofficial_unreleased_docs/<BRANCH>`
-  (and the master branch is linked to https://c.delta.chat proper). 
+- `run-doxygen.sh` generates C-docs which are then uploaded to https://c.delta.chat/
 
 
 ## Triggering runs on the build machine locally (fast!)

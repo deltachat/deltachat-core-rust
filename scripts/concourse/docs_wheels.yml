@@ -29,16 +29,17 @@ jobs:
         - name: c-docs
       image_resource:
         source:
-          repository: hrektts/doxygen
+          repository: alpine
         type: registry-image
       platform: linux
       run:
-        path: bash
+        path: sh
         args:
-        - -exc
+        - -ec
         - |
+          apk add --no-cache doxygen git
           cd deltachat-core-rust
-          bash scripts/run-doxygen.sh
+          scripts/run-doxygen.sh
           cd ..
           cp -av deltachat-core-rust/deltachat-ffi/{html,xml} c-docs/
 
