@@ -302,6 +302,4 @@ pub enum EventType {
         msg_id: MsgId,
         status_update_serial: StatusUpdateSerial,
     },
-
-    ImexBackupReady(Vec<u8>),
 }
