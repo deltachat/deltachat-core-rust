@@ -83,7 +83,7 @@ impl PlainText {
             } else {
                 // normal, fixed text
                 if is_quote {
-                    line = "<em>".to_owned() + &line + "</em>";
+                    line = format!("<em>{}</em>", &line);
                 }
                 line += "<br/>\n";
             }

@@ -222,7 +222,7 @@ impl<'a> BlobObject<'a> {
     /// to be lowercase.
     pub fn suffix(&self) -> Option<&str> {
         let ext = self.name.rsplit('.').next();
-        if ext == Some(&self.name) {
+        if ext == Some(self.name.as_str()) {
             None
         } else {
             ext
