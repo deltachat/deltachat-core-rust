@@ -67,7 +67,7 @@ impl PlainText {
                 // and is only there to allow > at the beginning of a line that is no quote.
                 line = line.strip_prefix(' ').unwrap_or(&line).to_string();
                 if is_quote {
-                    line = "<em>".to_owned() + &line + "</em>";
+                    line = format!("<em>{}</em>", line);
                 }
 
                 // a trailing space indicates that the line can be merged with the next one;

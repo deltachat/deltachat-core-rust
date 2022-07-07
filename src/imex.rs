@@ -61,6 +61,7 @@ pub enum ImexMode {
     /// created by DC_IMEX_EXPORT_BACKUP and detected by imex_has_backup(). Importing a backup
     /// is only possible as long as the context is not configured or used in another way.
     ImportBackup = 12,
+    ExportBackupIroh = 13,
 }
 
 /// Import/export things.
@@ -404,6 +405,9 @@ async fn imex_inner(
         ImexMode::ExportBackup => {
             export_backup(context, path, passphrase.unwrap_or_default()).await
         }
+        ImexMode::ExportBackupIroh => {
+            export_backup_iroh(context, path, passphrase.unwrap_or_default()).await
+        }
         ImexMode::ImportBackup => {
             import_backup(context, path, passphrase.unwrap_or_default()).await?;
             context.sql.run_migrations(context).await
@@ -629,6 +633,129 @@ async fn export_backup_inner(
 
     builder.finish().await?;
     Ok(())
+}
+
+async fn export_backup_iroh(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
+    // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
+    let now = time();
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
+    let _d1 = DeleteOnDrop(temp_db_path.clone());
+    let _d2 = DeleteOnDrop(temp_path.clone());
+
+    context
+        .sql
+        .set_raw_config_int("backup_time", now as i32)
+        .await?;
+    sql::housekeeping(context).await.ok_or_log(context);
+
+    context
+        .sql
+        .execute("VACUUM;", paramsv![])
+        .await
+        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e))
+        .ok();
+
+    ensure!(
+        context.scheduler.read().await.is_none(),
+        "cannot export backup, IO is running"
+    );
+
+    info!(
+        context,
+        "Backup '{}' to '{}'.",
+        context.get_dbfile().display(),
+        dest_path.display(),
+    );
+
+    context
+        .sql
+        .export(&temp_db_path, passphrase)
+        .await
+        .with_context(|| format!("failed to backup plaintext database to {:?}", temp_db_path))?;
+
+    let res = export_backup_iroh_inner(context, &temp_db_path, &temp_path).await;
+
+    match &res {
+        Ok(dir_builder) => {
+            let port = 9990;
+            let rpc_p2p_port = 5550;
+            let rpc_store_port = 5560;
+            // TODO: not tempfile
+            let sender_dir = tempfile::tempdir().unwrap();
+            let sender_db = sender_dir.path().join("db");
+
+            let sender =
+                iroh_share::Sender::new(port, rpc_p2p_port, rpc_store_port, &sender_db).await?;
+            let transfer = sender.transfer_from_dir_builder(dir_builder).await?;
+            let ticket = transfer.ticket().await?;
+            let ticket_bytes = ticket.as_bytes();
+            context.emit_event(EventType::ImexBackupReady(ticket_bytes));
+        }
+        Err(e) => {
+            error!(context, "backup failed: {}", e);
+        }
+    }
+
+    res
+}
+
+async fn export_backup_iroh_inner(
+    context: &Context,
+    temp_db_path: &Path,
+    temp_path: &Path,
+) -> Result<()> {
+    use iroh_resolver::unixfs_builder::*;
+
+    let mut dir_builder = DirectoryBuilder::new();
+    dir_builder.name(
+        temp_path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_owned())
+            .unwrap_or_default(),
+    );
+
+    let mut file = FileBuilder::new();
+    let db_content = tokio::fs::File::open(temp_db_path).await?;
+    file.name(DBFILE_BACKUP_NAME).content_reader(db_content);
+
+    dir_builder.add_file(file.build());
+
+    let read_dir: Vec<_> =
+        tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(context.get_blobdir()).await?)
+            .try_collect()
+            .await?;
+    let count = read_dir.len();
+    let mut written_files = 0;
+
+    let mut last_progress = 0;
+    for entry in read_dir.into_iter() {
+        let name = entry.file_name();
+        if !entry.file_type().await?.is_file() {
+            warn!(
+                context,
+                "Export: Found dir entry {} that is not a file, ignoring",
+                name.to_string_lossy()
+            );
+            continue;
+        }
+        let mut file = File::open(entry.path()).await?;
+        let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(name);
+
+        let mut file = FileBuilder::new();
+        file.name(name.to_string_lossy().to_owned());
+        file.content_reader(file);
+        dir_builder.add_file(file.build());
+
+        written_files += 1;
+        let progress = 1000 * written_files / count;
+        if progress != last_progress && progress > 10 && progress < 1000 {
+            // We already emitted ImexProgress(10) above
+            context.emit_event(EventType::ImexProgress(progress));
+            last_progress = progress;
+        }
+    }
+
+    Ok(dir_builder)
 }
 
 /*******************************************************************************
