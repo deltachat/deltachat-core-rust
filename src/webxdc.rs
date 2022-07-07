@@ -14,6 +14,7 @@ use tokio::io::AsyncReadExt;
 use crate::chat::Chat;
 use crate::contact::ContactId;
 use crate::context::Context;
+use crate::download::DownloadState;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -475,6 +476,8 @@ impl Context {
         } else if let Some(parent) = msg.parent(self).await? {
             if parent.viewtype == Viewtype::Webxdc {
                 (msg.timestamp_sort, parent, true)
+            } else if parent.download_state() != DownloadState::Done {
+                (msg.timestamp_sort, parent, false)
             } else {
                 bail!("receive_status_update: message is not the child of a webxdc message.")
             }
