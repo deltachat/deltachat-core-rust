@@ -8,6 +8,7 @@ use crate::{
     config::Config,
     contact::{Contact, ContactId},
     context::Context,
+    qr::DCBACKUP_SCHEME,
     securejoin, stock_str,
 };
 
@@ -253,6 +254,93 @@ fn inner_generate_secure_join_qr_code(
                     "translate({},{})",
                     (width - FOOTER_WIDTH) / 2.0,
                     height - logo_offset - FOOTER_HEIGHT - text_y_shift
+                ),
+            )
+        })?
+        .build(|w| w.put_raw(include_str!("../assets/qrcode_logo_footer.svg")))
+    })?;
+
+    Ok(svg)
+}
+
+pub fn generate_backup_qr_code(ticket: &iroh_share::Ticket) -> Result<String> {
+    let ticket_bytes = ticket.as_bytes();
+    let ticket_str = multibase::encode(multibase::Base::Base64, &ticket_bytes);
+    let ticket_str = format!("{}{}", DCBACKUP_SCHEME, ticket_str);
+    // config
+    let width = 515.0;
+    let height = 630.0;
+    let qr_code_size = 400.0;
+    let qr_translate_up = 40.0;
+    let card_roundness = 40.0;
+    let card_border_size = 2.0;
+
+    let qr = QrCode::encode_text(&ticket_str, QrCodeEcc::Medium)?;
+    let mut svg = String::with_capacity(28000);
+    let mut w = tagger::new(&mut svg);
+
+    w.elem("svg", |d| {
+        d.attr("xmlns", "http://www.w3.org/2000/svg")?;
+        d.attr("viewBox", format_args!("0 0 {} {}", width, height))?;
+        Ok(())
+    })?
+    .build(|w| {
+        // White Background apears like a card
+        w.single("rect", |d| {
+            d.attr("x", card_border_size)?;
+            d.attr("y", card_border_size)?;
+            d.attr("rx", card_roundness)?;
+            d.attr("stroke", "#c6c6c6")?;
+            d.attr("stroke-width", card_border_size)?;
+            d.attr("width", width - (card_border_size * 2.0))?;
+            d.attr("height", height - (card_border_size * 2.0))?;
+            d.attr("style", "fill:#f2f2f2")?;
+            Ok(())
+        })?;
+        // Qrcode
+        w.elem("g", |d| {
+            d.attr(
+                "transform",
+                format!(
+                    "translate({},{})",
+                    (width - qr_code_size) / 2.0,
+                    ((height - qr_code_size) / 2.0) - qr_translate_up
+                ),
+            )
+            // If the qr code should be in the wrong place,
+            // we could also translate and scale the points in the path already,
+            // but that would make the resulting svg way bigger in size and might bring up rounding issues,
+            // so better avoid doing it manually if possible
+        })?
+        .build(|w| {
+            w.single("path", |d| {
+                let mut path_data = String::with_capacity(0);
+                let scale = qr_code_size / qr.size() as f32;
+
+                for y in 0..qr.size() {
+                    for x in 0..qr.size() {
+                        if qr.get_module(x, y) {
+                            path_data += &format!("M{},{}h1v1h-1z", x, y);
+                        }
+                    }
+                }
+
+                d.attr("style", "fill:#000000")?;
+                d.attr("d", path_data)?;
+                d.attr("transform", format!("scale({})", scale))
+            })
+        })?;
+
+        // Footer logo
+        const FOOTER_HEIGHT: f32 = 35.0;
+        const FOOTER_WIDTH: f32 = 198.0;
+        w.elem("g", |d| {
+            d.attr(
+                "transform",
+                format!(
+                    "translate({},{})",
+                    (width - FOOTER_WIDTH) / 2.0,
+                    height - FOOTER_HEIGHT
                 ),
             )
         })?

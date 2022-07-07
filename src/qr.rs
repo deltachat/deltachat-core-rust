@@ -26,6 +26,7 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
+pub const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Qr {
@@ -54,6 +55,9 @@ pub enum Qr {
     },
     Account {
         domain: String,
+    },
+    Backup {
+        ticket: iroh_share::Ticket,
     },
     WebrtcInstance {
         domain: String,
@@ -115,6 +119,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
             .context("failed to decode OPENPGP4FPR QR code")?
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(qr)?
+    } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
+        decode_backup(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -318,6 +324,18 @@ fn decode_account(qr: &str) -> Result<Qr> {
     } else {
         bail!("Bad scheme for account URL: {:?}.", payload);
     }
+}
+
+/// scheme: `DCBACKUP:<multibase + bincode encode ticket>`
+fn decode_backup(qr: &str) -> Result<Qr> {
+    let payload = qr
+        .get(DCBACKUP_SCHEME.len()..)
+        .context("invalid DCBACKUP payload")?;
+
+    let (_, ticket_bytes) = multibase::decode(payload)?;
+    let ticket = iroh_share::Ticket::from_bytes(&ticket_bytes)?;
+
+    Ok(Qr::Backup { ticket })
 }
 
 /// scheme: `DCWEBRTC:https://meet.jit.si/$ROOM`
