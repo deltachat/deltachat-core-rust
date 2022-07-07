@@ -61,7 +61,6 @@ pub enum ImexMode {
     /// created by DC_IMEX_EXPORT_BACKUP and detected by imex_has_backup(). Importing a backup
     /// is only possible as long as the context is not configured or used in another way.
     ImportBackup = 12,
-    ExportBackupIroh = 13,
 }
 
 /// Import/export things.
@@ -105,6 +104,53 @@ pub async fn imex(
     }
 
     res
+}
+
+pub async fn send_backup(
+    context: &Context,
+    path: &Path,
+    passphrase: Option<String>,
+) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
+    let cancel = context.alloc_ongoing().await?;
+
+    let res = send_backup_inner(context, path, passphrase)
+        .race(async {
+            cancel.recv().await.ok();
+            Err(format_err!("canceled"))
+        })
+        .await;
+
+    context.free_ongoing().await;
+
+    if let Err(err) = res.as_ref() {
+        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
+        error!(context, "IMEX failed to complete: {:#}", err);
+        context.emit_event(EventType::ImexProgress(0));
+    } else {
+        info!(context, "IMEX successfully completed");
+        context.emit_event(EventType::ImexProgress(1000));
+    }
+
+    res
+}
+
+async fn send_backup_inner(
+    context: &Context,
+    path: &Path,
+    passphrase: Option<String>,
+) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
+    info!(context, "Import/export dir: {}", path.display());
+    ensure!(context.sql.is_open().await, "Database not opened.");
+    context.emit_event(EventType::ImexProgress(10));
+
+    // before we export anything, make sure the private key exists
+    if e2ee::ensure_secret_key_exists(context).await.is_err() {
+        bail!("Cannot create private key or private key not available.");
+    } else {
+        create_folder(context, &path).await?;
+    }
+
+    export_backup_iroh(context, path, passphrase.unwrap_or_default()).await
 }
 
 /// Returns the filename of the backup found (otherwise an error)
@@ -385,9 +431,6 @@ async fn imex_inner(
         ImexMode::ExportBackup => {
             export_backup(context, path, passphrase.unwrap_or_default()).await
         }
-        ImexMode::ExportBackupIroh => {
-            export_backup_iroh(context, path, passphrase.unwrap_or_default()).await
-        }
         ImexMode::ImportBackup => {
             import_backup(context, path, passphrase.unwrap_or_default()).await?;
             context.sql.run_migrations(context).await
@@ -612,7 +655,11 @@ async fn export_backup_inner(
     Ok(())
 }
 
-async fn export_backup_iroh(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
+async fn export_backup_iroh(
+    context: &Context,
+    dir: &Path,
+    passphrase: String,
+) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
     let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
@@ -652,36 +699,34 @@ async fn export_backup_iroh(context: &Context, dir: &Path, passphrase: String) -
 
     let res = export_backup_iroh_inner(context, &temp_db_path, &temp_path).await;
 
-    match &res {
+    match res {
         Ok(dir_builder) => {
             let port = 9990;
             let rpc_p2p_port = 5550;
             let rpc_store_port = 5560;
             // TODO: not tempfile
             let sender_dir = tempfile::tempdir().unwrap();
-            let sender_db = sender_dir.path().join("db");
+            // TODO: cleanup
+            let sender_db = sender_dir.into_path().join("db");
 
             let sender =
                 iroh_share::Sender::new(port, rpc_p2p_port, rpc_store_port, &sender_db).await?;
             let transfer = sender.transfer_from_dir_builder(dir_builder).await?;
-            let ticket = transfer.ticket().await?;
-            let ticket_bytes = ticket.as_bytes();
-            context.emit_event(EventType::ImexBackupReady(ticket_bytes));
+            Ok((sender, transfer))
         }
         Err(e) => {
             error!(context, "backup failed: {}", e);
+            Err(e)
         }
     }
-
-    res
 }
 
 async fn export_backup_iroh_inner(
     context: &Context,
     temp_db_path: &Path,
     temp_path: &Path,
-) -> Result<()> {
-    use iroh_resolver::unixfs_builder::*;
+) -> Result<iroh_resolver::unixfs_builder::DirectoryBuilder> {
+    use iroh_resolver::unixfs_builder::{DirectoryBuilder, FileBuilder};
 
     let mut dir_builder = DirectoryBuilder::new();
     dir_builder.name(
@@ -691,11 +736,13 @@ async fn export_backup_iroh_inner(
             .unwrap_or_default(),
     );
 
-    let mut file = FileBuilder::new();
-    let db_content = tokio::fs::File::open(temp_db_path).await?;
-    file.name(DBFILE_BACKUP_NAME).content_reader(db_content);
+    {
+        let mut file = FileBuilder::new();
+        let db_content = tokio::fs::File::open(temp_db_path).await?;
+        file.name(DBFILE_BACKUP_NAME).content_reader(db_content);
 
-    dir_builder.add_file(file.build());
+        dir_builder.add_file(file.build().await?);
+    }
 
     let read_dir: Vec<_> =
         tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(context.get_blobdir()).await?)
@@ -715,13 +762,14 @@ async fn export_backup_iroh_inner(
             );
             continue;
         }
-        let mut file = File::open(entry.path()).await?;
-        let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(name);
+        let file_content = File::open(entry.path()).await?;
 
-        let mut file = FileBuilder::new();
-        file.name(name.to_string_lossy().to_owned());
-        file.content_reader(file);
-        dir_builder.add_file(file.build());
+        {
+            let mut file = FileBuilder::new();
+            file.name(name.to_string_lossy().to_owned());
+            file.content_reader(file_content);
+            dir_builder.add_file(file.build().await?);
+        }
 
         written_files += 1;
         let progress = 1000 * written_files / count;

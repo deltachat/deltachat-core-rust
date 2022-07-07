@@ -1285,19 +1285,20 @@ impl<'a> MimeFactory<'a> {
         let extension_fields = if additional_msg_ids.is_empty() {
             "".to_string()
         } else {
-            "Additional-Message-IDs: ".to_string()
-                + &additional_msg_ids
+            format!(
+                "Additional-Message-IDs: {}\r\n",
+                additional_msg_ids
                     .iter()
                     .map(|mid| render_rfc724_mid(mid))
                     .collect::<Vec<String>>()
                     .join(" ")
-                + "\r\n"
+            )
         };
 
         message = message.child(
             PartBuilder::new()
                 .content_type(&"message/disposition-notification".parse().unwrap())
-                .body(message_text2 + &extension_fields)
+                .body(message_text2 + extension_fields.as_str())
                 .build(),
         );
 

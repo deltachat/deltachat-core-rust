@@ -48,7 +48,7 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
             after_space = false;
         }
     }
-    result + &buffer
+    result + buffer.as_str()
 }
 
 /// Returns text formatted according to RFC 3767 (format=flowed).

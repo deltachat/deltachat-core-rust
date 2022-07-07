@@ -154,7 +154,7 @@ pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'sta
                 }
 
                 let provider_fqdn = provider_domain.to_string() + ".";
-                let provider_fqdn_dot = ".".to_string() + &provider_fqdn;
+                let provider_fqdn_dot = format!(".{}", provider_fqdn);
 
                 for mx_domain in mx_domains.iter() {
                     let mx_domain = mx_domain.exchange().to_lowercase().to_utf8();

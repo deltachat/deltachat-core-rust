@@ -10,7 +10,7 @@
 // (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
 pub fn escape_message_footer_marks(text: &str) -> String {
     if let Some(text) = text.strip_prefix("--") {
-        "-\u{200B}-".to_string() + &text.replace("\n--", "\n-\u{200B}-")
+        format!("-\u{200B}-{}", text.replace("\n--", "\n-\u{200B}-"))
     } else {
         text.replace("\n--", "\n-\u{200B}-")
     }
