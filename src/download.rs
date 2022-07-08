@@ -70,16 +70,21 @@ impl Context {
         }
     }
 
-    // Sets msg_id of message `full` to `placeholder`.
-    // Message `full` does not longer exist afterwards.
-    pub(crate) async fn merge_msg_id(&self, full: MsgId, placeholder: MsgId) -> Result<()> {
+    // Merges the two messages to `placeholder_msg_id`;
+    // `full_msg_id` is no longer used afterwards.
+    pub(crate) async fn merge_msg_id(
+        &self,
+        full_msg_id: MsgId,
+        placeholder_msg_id: MsgId,
+    ) -> Result<()> {
         // TODO: use webxdc summary and document from placeholder
         self.sql
             .transaction(move |transaction| {
-                transaction.execute("DELETE FROM msgs WHERE id=?;", paramsv![placeholder])?;
+                transaction
+                    .execute("DELETE FROM msgs WHERE id=?;", paramsv![placeholder_msg_id])?;
                 transaction.execute(
                     "UPDATE msgs SET id=? WHERE id=?",
-                    paramsv![placeholder, full],
+                    paramsv![placeholder_msg_id, full_msg_id],
                 )?;
                 Ok(())
             })
