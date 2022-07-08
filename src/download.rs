@@ -69,6 +69,23 @@ impl Context {
             Ok(Some(max(MIN_DOWNLOAD_LIMIT, download_limit as u32)))
         }
     }
+
+    // Sets msg_id of message `full` to `placeholder`.
+    // Message `full` does not longer exist afterwards.
+    pub(crate) async fn merge_msg_id(&self, full: MsgId, placeholder: MsgId) -> Result<()> {
+        // TODO: use webxdc summary and document from placeholder
+        self.sql
+            .transaction(move |transaction| {
+                transaction.execute("DELETE FROM msgs WHERE id=?;", paramsv![placeholder])?;
+                transaction.execute(
+                    "UPDATE msgs SET id=? WHERE id=?",
+                    paramsv![placeholder, full],
+                )?;
+                Ok(())
+            })
+            .await?;
+        Ok(())
+    }
 }
 
 impl MsgId {
