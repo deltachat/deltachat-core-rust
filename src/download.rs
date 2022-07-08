@@ -502,4 +502,63 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mdn_expands_to_nothing() -> Result<()> {
+        let bob = TestContext::new_bob().await;
+        let raw = b"Subject: Message opened\n\
+            Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
+            Chat-Version: 1.0\n\
+            Message-ID: <bar@example.org>\n\
+            To: Alice <alice@example.org>\n\
+            From: Bob <bob@example.org>\n\
+            Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+            boundary=\"kJBbU58X1xeWNHgBtTbMk80M5qnV4N\"\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+            Content-Type: text/plain; charset=utf-8\n\
+            \n\
+            bla\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+            Content-Type: message/disposition-notification\n\
+            \n\
+            Reporting-UA: Delta Chat 1.88.0\n\
+            Original-Recipient: rfc822;bob@example.org\n\
+            Final-Recipient: rfc822;bob@example.org\n\
+            Original-Message-ID: <foo@example.org>\n\
+            Disposition: manual-action/MDN-sent-automatically; displayed\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
+            ";
+
+        // not downloading the mdn results in an placeholder
+        receive_imf_inner(
+            &bob,
+            "bar@example.org",
+            raw,
+            false,
+            Some(raw.len() as u32),
+            false,
+        )
+        .await?;
+        let msg = bob.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(msg.download_state(), DownloadState::Available);
+
+        // downloading the mdn afterwards expands to nothing and deletes the placeholder directly
+        // (usually mdn are too small for not being downloaded directly)
+        receive_imf_inner(&bob, "bar@example.org", raw, false, None, false).await?;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert!(Message::load_from_db(&bob, msg.id)
+            .await?
+            .chat_id
+            .is_trash());
+
+        Ok(())
+    }
 }
