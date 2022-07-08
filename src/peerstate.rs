@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self, is_contact_in_chat, Chat};
+use crate::chat::{self, is_contact_in_chat, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
@@ -631,35 +631,28 @@ pub async fn maybe_do_aeap_transition(
                     return Ok(());
                 }
 
-                chat::add_info_msg_with_cmd(
-                    context,
-                    chat_id,
-                    &msg,
-                    SystemMessage::Unknown,
-                    info.message_time,
-                    None,
-                    None,
-                    None,
-                )
-                .await?;
+                chat::add_info_msg(context, chat_id, &msg, info.message_time).await?;
+
+                let (new_contact_id, _) =
+                    Contact::add_or_lookup(context, "", &from.addr, Origin::IncomingUnknownFrom)
+                        .await?;
 
                 let chat = Chat::load_from_db(context, chat_id).await?;
                 if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
                     chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
 
-                    let (new_contact_id, _) = Contact::add_or_lookup(
-                        context,
-                        "",
-                        &from.addr,
-                        Origin::IncomingUnknownFrom,
-                    )
-                    .await?;
                     if !is_contact_in_chat(context, chat_id, new_contact_id).await? {
                         chat::add_to_chat_contacts_table(context, chat_id, new_contact_id).await?;
                     }
 
                     context.emit_event(EventType::ChatModified(chat_id));
                 }
+
+                // Create a chat with the new address with the same blocked-level as the old chat
+                let new_chat_id =
+                    ChatId::create_for_contact_with_blocked(context, new_contact_id, chat.blocked)
+                        .await?;
+                chat::add_info_msg(context, new_chat_id, &msg, info.message_time).await?;
 
                 peerstate.addr = info.from.clone();
                 let header = info.autocrypt_header.as_ref().context(
