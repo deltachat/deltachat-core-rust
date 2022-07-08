@@ -11,7 +11,7 @@ use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::param::Params;
+use crate::param::{Param, Params};
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
@@ -77,7 +77,7 @@ impl Context {
         full_msg_id: MsgId,
         placeholder_msg_id: MsgId,
     ) -> Result<()> {
-        // TODO: use webxdc summary and document from placeholder
+        let placeholder = Message::load_from_db(self, placeholder_msg_id).await?;
         self.sql
             .transaction(move |transaction| {
                 transaction
@@ -89,6 +89,20 @@ impl Context {
                 Ok(())
             })
             .await?;
+        let mut full = Message::load_from_db(self, placeholder_msg_id).await?;
+
+        for key in [
+            Param::WebxdcSummary,
+            Param::WebxdcSummaryTimestamp,
+            Param::WebxdcDocument,
+            Param::WebxdcDocumentTimestamp,
+        ] {
+            if let Some(value) = placeholder.param.get(key) {
+                full.param.set(key, value);
+            }
+        }
+        full.update_param(self).await?;
+
         Ok(())
     }
 }

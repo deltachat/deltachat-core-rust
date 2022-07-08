@@ -1059,7 +1059,11 @@ mod tests {
         let sent1 = alice.send_msg(chat.id, &mut alice_instance).await;
         let alice_instance = Message::load_from_db(&alice, sent1.sender_msg_id).await?;
         alice
-            .send_webxdc_status_update(alice_instance.id, r#"{"payload": 7}"#, "bla")
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload": 7, "summary":"sum", "document":"doc"}"#,
+                "bla",
+            )
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = alice.pop_sent_msg().await;
@@ -1095,8 +1099,11 @@ mod tests {
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":7,"serial":1,"max_serial":1}]"#
+            r#"[{"payload":7,"document":"doc","summary":"sum","serial":1,"max_serial":1}]"#
         );
+        let info = bob_instance.get_webxdc_info(&bob).await?;
+        assert_eq!(info.document, "doc");
+        assert_eq!(info.summary, "sum");
 
         Ok(())
     }
