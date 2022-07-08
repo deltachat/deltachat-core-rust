@@ -331,10 +331,12 @@ impl Context {
 
         let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
 
-        self.emit_event(EventType::WebxdcStatusUpdate {
-            msg_id: instance.id,
-            status_update_serial,
-        });
+        if instance.viewtype == Viewtype::Webxdc {
+            self.emit_event(EventType::WebxdcStatusUpdate {
+                msg_id: instance.id,
+                status_update_serial,
+            });
+        }
 
         Ok(status_update_serial)
     }
