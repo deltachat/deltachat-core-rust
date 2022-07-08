@@ -292,7 +292,7 @@ impl MimeMessage {
 mod tests {
     use num_traits::FromPrimitive;
 
-    use crate::chat::send_msg;
+    use crate::chat::{get_chat_msgs, send_msg};
     use crate::ephemeral::Timer;
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf_inner;
@@ -443,6 +443,62 @@ mod tests {
             chat_id.get_ephemeral_timer(&t).await?,
             Timer::Enabled { duration: 60 }
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_status_update_expands_to_nothing() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = alice.create_chat(&bob).await.id;
+
+        let file = alice.get_blobdir().join("minimal.xdc");
+        tokio::fs::write(&file, include_bytes!("../test-data/webxdc/minimal.xdc")).await?;
+        let mut instance = Message::new(Viewtype::File);
+        instance.set_file(file.to_str().unwrap(), None);
+        let _sent1 = alice.send_msg(chat_id, &mut instance).await;
+
+        alice
+            .send_webxdc_status_update(instance.id, r#"{"payload":7}"#, "d")
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let sent2_rfc742_mid = Message::load_from_db(&alice, sent2.sender_msg_id)
+            .await?
+            .rfc724_mid;
+
+        // not downloading the status update results in an placeholder
+        receive_imf_inner(
+            &bob,
+            &sent2_rfc742_mid,
+            sent2.payload().as_bytes(),
+            false,
+            Some(sent2.payload().len() as u32),
+            false,
+        )
+        .await?;
+        let msg = bob.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(msg.download_state(), DownloadState::Available);
+
+        // downloading the status update afterwards expands to nothing and moves the placeholder to trash-chat
+        // (usually status updates are too small for not being downloaded directly)
+        receive_imf_inner(
+            &bob,
+            &sent2_rfc742_mid,
+            sent2.payload().as_bytes(),
+            false,
+            None,
+            false,
+        )
+        .await?;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert!(Message::load_from_db(&bob, msg.id)
+            .await?
+            .chat_id
+            .is_trash());
 
         Ok(())
     }
