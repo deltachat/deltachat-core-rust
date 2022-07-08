@@ -72,7 +72,7 @@ impl Context {
 
     // Merges the two messages to `placeholder_msg_id`;
     // `full_msg_id` is no longer used afterwards.
-    pub(crate) async fn merge_msg_id(
+    pub(crate) async fn merge_messages(
         &self,
         full_msg_id: MsgId,
         placeholder_msg_id: MsgId,

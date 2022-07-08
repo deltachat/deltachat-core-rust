@@ -1148,7 +1148,9 @@ INSERT INTO msgs
 
     if let Some(replace_msg_id) = replace_msg_id {
         if let Some(created_msg_id) = created_db_entries.pop() {
-            context.merge_msg_id(created_msg_id, replace_msg_id).await?;
+            context
+                .merge_messages(created_msg_id, replace_msg_id)
+                .await?;
             created_db_entries.push(replace_msg_id);
         } else {
             replace_msg_id.delete_from_db(context).await?;
