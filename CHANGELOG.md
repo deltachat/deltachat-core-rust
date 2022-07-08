@@ -6,6 +6,7 @@
 
 ### Fixes
 - replace musl libc name resolution errors with a better message #3485
+- handle updates for not yet downloaded webxdc instances #3487
 
 
 ## 1.88.0
