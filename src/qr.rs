@@ -387,7 +387,7 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
                     parse_error, response_text
                 )));
                 bail!(
-                    "Cannot create account, unexpected server response:\n {:?}",
+                    "Cannot create account, unexpected server response:\n{:?}",
                     response_text
                 )
             }
