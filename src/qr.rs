@@ -701,20 +701,22 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            "mailto:stress@test.local?subject=hello&body=world",
+            "mailto:stress@test.local?subject=hello&body=beautiful+world",
         )
         .await?;
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert_eq!(draft.unwrap(), "hello\nbeautiful world");
         } else {
             bail!("Wrong QR code type");
         }
 
         let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org").await?;
-        if let Qr::Addr { contact_id } = res {
+        if let Qr::Addr { contact_id, draft } = res {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "no-questionmark@example.org");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
