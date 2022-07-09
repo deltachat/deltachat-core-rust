@@ -2292,7 +2292,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID:
  *   scanned fingerprint does not match last seen fingerprint.
  *
- * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
+ * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::text1=Formatted fingerprint
  *   the scanned QR code contains a fingerprint but no e-mail address;
  *   suggest the user to establish an encrypted connection first.
  *
@@ -2305,7 +2305,8 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   if so, call dc_set_config_from_qr().
  *
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
- *   e-mail address scanned,
+ *   e-mail address scanned, optionally, a draft message could be set in
+ *   dc_lot_t::text1 in which case dc_lot_t::text1_meaning will be DC_TEXT1_DRAFT;
  *   ask the user if they want to start chatting;
  *   if so, call dc_create_chat_by_contact_id().
  *
