@@ -360,13 +360,20 @@ struct CreateAccountErrorResponse {
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
     let response = reqwest::Client::new().post(url_str).send().await?;
+    let response_status = response.status();
+    let response_text = response.text().await.with_context(|| {
+        format!(
+            "Cannot create account, request to {:?} failed: empty response",
+            url_str
+        )
+    })?;
 
-    if response.status().is_success() {
-        let CreateAccountSuccessResponse { password, email } =
-            response.json().await.with_context(|| {
+    if response_status.is_success() {
+        let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
+            .with_context(|| {
                 format!(
-                    "Cannot create account, response from {:?} is malformed",
-                    url_str
+                    "Cannot create account, response from {:?} is malformed:\n{:?}",
+                    url_str, response_text
                 )
             })?;
         context.set_config(Config::Addr, Some(&email)).await?;
@@ -374,11 +381,6 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
 
         Ok(())
     } else {
-        let response_text = response
-            .text()
-            .await
-            .with_context(|| format!("Cannot create account, request to {:?} failed", url_str))?;
-
         match serde_json::from_str::<CreateAccountErrorResponse>(&response_text) {
             Ok(error) => Err(anyhow!(error.reason)),
             Err(parse_error) => {
