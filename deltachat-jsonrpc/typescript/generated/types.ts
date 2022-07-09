@@ -13,9 +13,54 @@ export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":
 "dmChatContact":(U32|null);})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
 export type Contact={"address":string;"color":string;"auth_name":string;"status":string;"display_name":string;"id":U32;"name":string;"profile_image":(string|null);"name_and_addr":string;"is_blocked":boolean;"is_verified":boolean;};
 export type FullChat={"id":U32;"name":string;"is_protected":boolean;"profile_image":(string|null);"archived":boolean;"chat_type":U32;"is_unpromoted":boolean;"is_self_talk":boolean;"contacts":(Contact)[];"contact_ids":(U32)[];"color":string;"fresh_message_counter":Usize;"is_contact_request":boolean;"is_device_chat":boolean;"self_in_group":boolean;"is_muted":boolean;"ephemeral_timer":U32;"can_send":boolean;};
+export type Viewtype=("Unknown"|
+/**
+ * Text message.
+ */
+"Text"|
+/**
+ * Image message.
+ * If the image is an animated GIF, the type `Viewtype.Gif` should be used.
+ */
+"Image"|
+/**
+ * Animated GIF message.
+ */
+"Gif"|
+/**
+ * Message containing a sticker, similar to image.
+ * If possible, the ui should display the image without borders in a transparent way.
+ * A click on a sticker will offer to install the sticker set in some future.
+ */
+"Sticker"|
+/**
+ * Message containing an Audio file.
+ */
+"Audio"|
+/**
+ * A voice message that was directly recorded by the user.
+ * For all other audio messages, the type `Viewtype.Audio` should be used.
+ */
+"Voice"|
+/**
+ * Video messages.
+ */
+"Video"|
+/**
+ * Message containing any file, eg. a PDF.
+ */
+"File"|
+/**
+ * Message is an invitation to a videochat.
+ */
+"VideochatInvitation"|
+/**
+ * Message is an webxdc instance.
+ */
+"Webxdc");
 export type I32=number;
 export type U64=number;
-export type Message={"id":U32;"chat_id":U32;"from_id":U32;"quoted_text":(string|null);"quoted_message_id":(U32|null);"text":(string|null);"has_location":boolean;"has_html":boolean;"view_type":U32;"state":U32;"timestamp":I64;"sort_timestamp":I64;"received_timestamp":I64;"has_deviating_timestamp":boolean;"subject":string;"show_padlock":boolean;"is_setupmessage":boolean;"is_info":boolean;"is_forwarded":boolean;"duration":I32;"dimensions_height":I32;"dimensions_width":I32;"videochat_type":(U32|null);"videochat_url":(string|null);"override_sender_name":(string|null);"sender":Contact;"setup_code_begin":(string|null);"file":(string|null);"file_mime":(string|null);"file_bytes":U64;"file_name":(string|null);};
+export type Message={"id":U32;"chat_id":U32;"from_id":U32;"quoted_text":(string|null);"quoted_message_id":(U32|null);"text":(string|null);"has_location":boolean;"has_html":boolean;"view_type":Viewtype;"state":U32;"timestamp":I64;"sort_timestamp":I64;"received_timestamp":I64;"has_deviating_timestamp":boolean;"subject":string;"show_padlock":boolean;"is_setupmessage":boolean;"is_info":boolean;"is_forwarded":boolean;"duration":I32;"dimensions_height":I32;"dimensions_width":I32;"videochat_type":(U32|null);"videochat_url":(string|null);"override_sender_name":(string|null);"sender":Contact;"setup_code_begin":(string|null);"file":(string|null);"file_mime":(string|null);"file_bytes":U64;"file_name":(string|null);};
 export type WebxdcMessageInfo={
 /**
  * The name of the app.
@@ -49,4 +94,4 @@ export type WebxdcMessageInfo={
  * Implementations may offer an menu or a button to open this URL.
  */
 "source_code_url":(string|null);};
-export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,null,U32,U32,null,U32,string,string,U32,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,string,U32,U32];
+export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,null,U32,U32,null,U32,string,string,U32,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,U32,Viewtype,(Viewtype|null),(Viewtype|null),(U32)[],U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,string,U32,U32];

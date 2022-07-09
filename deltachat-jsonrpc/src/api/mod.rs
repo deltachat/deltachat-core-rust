@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use deltachat::{
-    chat::{get_chat_msgs, ChatId},
+    chat::{get_chat_media, get_chat_msgs, ChatId},
     chatlist::Chatlist,
     config::Config,
     contact::{may_be_valid_addr, Contact, ContactId},
@@ -30,6 +30,8 @@ use types::contact::ContactObject;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
+
+use self::types::message::MessageViewtype;
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {
@@ -556,6 +558,40 @@ impl CommandApi {
             );
         }
         Ok(contacts)
+    }
+    // ---------------------------------------------
+    //                   chat
+    // ---------------------------------------------
+
+    /// Returns all message IDs of the given types in a chat.
+    /// Typically used to show a gallery.
+    ///
+    /// The list is already sorted and starts with the oldest message.
+    /// Clients should not try to re-sort the list as this would be an expensive action
+    /// and would result in inconsistencies between clients.
+    async fn chat_get_media(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        message_type: MessageViewtype,
+        or_message_type2: Option<MessageViewtype>,
+        or_message_type3: Option<MessageViewtype>,
+    ) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+
+        let msg_type = message_type.into();
+        let or_msg_type2 = or_message_type2.map_or(Viewtype::Unknown, |v| v.into());
+        let or_msg_type3 = or_message_type3.map_or(Viewtype::Unknown, |v| v.into());
+
+        let media = get_chat_media(
+            &ctx,
+            ChatId::new(chat_id),
+            msg_type,
+            or_msg_type2,
+            or_msg_type3,
+        )
+        .await?;
+        Ok(media.iter().map(|msg_id| msg_id.to_u32()).collect())
     }
 
     // ---------------------------------------------

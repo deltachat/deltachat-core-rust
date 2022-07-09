@@ -3,7 +3,9 @@ use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::message::Message;
 use deltachat::message::MsgId;
+use deltachat::message::Viewtype;
 use num_traits::cast::ToPrimitive;
+use serde::Deserialize;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
@@ -20,7 +22,7 @@ pub struct MessageObject {
     text: Option<String>,
     has_location: bool,
     has_html: bool,
-    view_type: u32,
+    view_type: MessageViewtype,
     state: u32,
 
     timestamp: i64,
@@ -77,10 +79,7 @@ impl MessageObject {
             text: message.get_text(),
             has_location: message.has_location(),
             has_html: message.has_html(),
-            view_type: message
-                .get_viewtype()
-                .to_u32()
-                .ok_or_else(|| anyhow!("viewtype conversion to number failed"))?,
+            view_type: message.get_viewtype().into(),
             state: message
                 .get_state()
                 .to_u32()
@@ -123,5 +122,81 @@ impl MessageObject {
             file_bytes,
             file_name: message.get_filename(),
         })
+    }
+}
+
+#[derive(Serialize, Deserialize, TypeDef)]
+#[serde(rename = "Viewtype")]
+pub enum MessageViewtype {
+    Unknown,
+
+    /// Text message.
+    Text,
+
+    /// Image message.
+    /// If the image is an animated GIF, the type `Viewtype.Gif` should be used.
+    Image,
+
+    /// Animated GIF message.
+    Gif,
+
+    /// Message containing a sticker, similar to image.
+    /// If possible, the ui should display the image without borders in a transparent way.
+    /// A click on a sticker will offer to install the sticker set in some future.
+    Sticker,
+
+    /// Message containing an Audio file.
+    Audio,
+
+    /// A voice message that was directly recorded by the user.
+    /// For all other audio messages, the type `Viewtype.Audio` should be used.
+    Voice,
+
+    /// Video messages.
+    Video,
+
+    /// Message containing any file, eg. a PDF.
+    File,
+
+    /// Message is an invitation to a videochat.
+    VideochatInvitation,
+
+    /// Message is an webxdc instance.
+    Webxdc,
+}
+
+impl From<Viewtype> for MessageViewtype {
+    fn from(viewtype: Viewtype) -> Self {
+        match viewtype {
+            Viewtype::Unknown => MessageViewtype::Unknown,
+            Viewtype::Text => MessageViewtype::Text,
+            Viewtype::Image => MessageViewtype::Image,
+            Viewtype::Gif => MessageViewtype::Gif,
+            Viewtype::Sticker => MessageViewtype::Sticker,
+            Viewtype::Audio => MessageViewtype::Audio,
+            Viewtype::Voice => MessageViewtype::Voice,
+            Viewtype::Video => MessageViewtype::Video,
+            Viewtype::File => MessageViewtype::File,
+            Viewtype::VideochatInvitation => MessageViewtype::VideochatInvitation,
+            Viewtype::Webxdc => MessageViewtype::Webxdc,
+        }
+    }
+}
+
+impl From<MessageViewtype> for Viewtype {
+    fn from(viewtype: MessageViewtype) -> Self {
+        match viewtype {
+            MessageViewtype::Unknown => Viewtype::Unknown,
+            MessageViewtype::Text => Viewtype::Text,
+            MessageViewtype::Image => Viewtype::Image,
+            MessageViewtype::Gif => Viewtype::Gif,
+            MessageViewtype::Sticker => Viewtype::Sticker,
+            MessageViewtype::Audio => Viewtype::Audio,
+            MessageViewtype::Voice => Viewtype::Voice,
+            MessageViewtype::Video => Viewtype::Video,
+            MessageViewtype::File => Viewtype::File,
+            MessageViewtype::VideochatInvitation => Viewtype::VideochatInvitation,
+            MessageViewtype::Webxdc => Viewtype::Webxdc,
+        }
     }
 }

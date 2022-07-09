@@ -287,6 +287,18 @@ export class RawClient {
     return (this._transport.request('contacts_get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
   }
 
+  /**
+   * Returns all message IDs of the given types in a chat.
+   * Typically used to show a gallery.
+   *
+   * The list is already sorted and starts with the oldest message.
+   * Clients should not try to re-sort the list as this would be an expensive action
+   * and would result in inconsistencies between clients.
+   */
+  public chatGetMedia(accountId: T.U32, chatId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
+    return (this._transport.request('chat_get_media', [accountId, chatId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<(T.U32)[]>;
+  }
+
 
   public webxdcSendStatusUpdate(accountId: T.U32, instanceMsgId: T.U32, updateStr: string, description: string): Promise<null> {
     return (this._transport.request('webxdc_send_status_update', [accountId, instanceMsgId, updateStr, description] as RPC.Params)) as Promise<null>;
