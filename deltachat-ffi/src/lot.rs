@@ -80,10 +80,9 @@ impl Lot {
                 Some(SummaryPrefix::Me(_text)) => Meaning::Text1Self,
             },
             Self::Qr(qr) => match qr {
-                Qr::Addr { draft, .. } => match draft {
-                    None => Meaning::None,
-                    _ => Meaning::Text1Draft,
-                },
+                Qr::Addr {
+                    draft: Some(_draft), ..
+                } => Meaning::Text1Draft,
                 _ => Meaning::None,
             },
             Self::Error(_err) => Meaning::None,
