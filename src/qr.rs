@@ -483,6 +483,11 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     } else {
         subject
     };
+    let draft = draft.replace('+', "%20"); // sometimes spaces are encoded as `+`
+    let draft = match percent_decode_str(&draft).decode_utf8() {
+        Ok(decoded_draft) => decoded_draft.to_string(),
+        Err(_err) => draft,
+    };
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
