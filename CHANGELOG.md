@@ -4,6 +4,10 @@
 
 ### Changes
 
+- (AEAP) When one of your contacts changed their address, they are
+  only replaced in the chat where you got a message from them
+  for now #3491
+
 ### Fixes
 - replace musl libc name resolution errors with a better message #3485
 - handle updates for not yet downloaded webxdc instances #3487
