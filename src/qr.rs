@@ -453,7 +453,7 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
     let (addr, query) = if let Some(query_index) = payload.find('?') {
-        (&payload[..query_index], &payload[query_index+1..])
+        (&payload[..query_index], &payload[query_index + 1..])
     } else {
         (payload, "")
     };
@@ -478,7 +478,7 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
         if subject.is_empty() {
             body.to_string()
         } else {
-            subject  + "\n" + body
+            subject + "\n" + body
         }
     } else {
         subject
@@ -491,7 +491,13 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr, if draft.is_empty() { None } else { Some(draft) }).await
+    Qr::from_address(
+        context,
+        name,
+        addr,
+        if draft.is_empty() { None } else { Some(draft) },
+    )
+    .await
 }
 
 /// Extract address for the smtp scheme.
@@ -567,7 +573,12 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
 }
 
 impl Qr {
-    pub async fn from_address(context: &Context, name: String, addr: String, draft: Option<String>) -> Result<Self> {
+    pub async fn from_address(
+        context: &Context,
+        name: String,
+        addr: String,
+        draft: Option<String>,
+    ) -> Result<Self> {
         let (contact_id, _) =
             Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await?;
         Ok(Qr::Addr { contact_id, draft })
