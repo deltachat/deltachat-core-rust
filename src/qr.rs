@@ -662,12 +662,13 @@ mod tests {
             "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
         ).await?;
 
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
             assert_eq!(contact.get_name(), "First Last");
             assert_eq!(contact.get_authname(), "");
             assert_eq!(contact.get_display_name(), "First Last");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
@@ -685,9 +686,10 @@ mod tests {
         )
         .await?;
 
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
@@ -731,11 +733,12 @@ mod tests {
     async fn test_decode_smtp() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        if let Qr::Addr { contact_id } =
+        if let Qr::Addr { contact_id, draft } =
             check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await?
         {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
