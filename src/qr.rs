@@ -61,6 +61,7 @@ pub enum Qr {
     },
     Addr {
         contact_id: ContactId,
+        draft: Option<String>,
     },
     Url {
         url: String,
@@ -451,15 +452,41 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
 async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
-    let addr = if let Some(query_index) = payload.find('?') {
-        &payload[..query_index]
+    let (addr, query) = if let Some(query_index) = payload.find('?') {
+        (&payload[..query_index], &payload[query_index+1..])
     } else {
-        payload
+        (payload, "")
+    };
+
+    let param: BTreeMap<&str, &str> = query
+        .split('&')
+        .filter_map(|s| {
+            if let [key, value] = s.splitn(2, '=').collect::<Vec<_>>()[..] {
+                Some((key, value))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let subject = if let Some(subject) = param.get("subject") {
+        subject.to_string()
+    } else {
+        "".to_string()
+    };
+    let draft = if let Some(body) = param.get("body") {
+        if subject.is_empty() {
+            body.to_string()
+        } else {
+            subject  + "\n" + body
+        }
+    } else {
+        subject
     };
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, if draft.is_empty() { None } else { Some(draft) }).await
 }
 
 /// Extract address for the smtp scheme.
@@ -477,7 +504,7 @@ async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 /// Extract address for the matmsg scheme.
@@ -502,7 +529,7 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 static VCARD_NAME_RE: Lazy<regex::Regex> =
@@ -531,14 +558,14 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
         bail!("Bad e-mail address");
     };
 
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 impl Qr {
-    pub async fn from_address(context: &Context, name: String, addr: String) -> Result<Self> {
+    pub async fn from_address(context: &Context, name: String, addr: String, draft: Option<String>) -> Result<Self> {
         let (contact_id, _) =
             Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await?;
-        Ok(Qr::Addr { contact_id })
+        Ok(Qr::Addr { contact_id, draft })
     }
 }
 
