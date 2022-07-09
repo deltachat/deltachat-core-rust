@@ -81,7 +81,8 @@ impl Lot {
             },
             Self::Qr(qr) => match qr {
                 Qr::Addr {
-                    draft: Some(_draft), ..
+                    draft: Some(_draft),
+                    ..
                 } => Meaning::Text1Draft,
                 _ => Meaning::None,
             },
