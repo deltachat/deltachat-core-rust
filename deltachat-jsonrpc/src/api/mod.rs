@@ -8,6 +8,7 @@ use deltachat::{
     message::{Message, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
+    webxdc::StatusUpdateSerial,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -28,6 +29,7 @@ use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
+use types::webxdc::WebxdcMessageInfo;
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {
@@ -554,6 +556,46 @@ impl CommandApi {
             );
         }
         Ok(contacts)
+    }
+
+    // ---------------------------------------------
+    //                   webxdc
+    // ---------------------------------------------
+
+    async fn webxdc_send_status_update(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        update_str: String,
+        description: String,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.send_webxdc_status_update(MsgId::new(instance_msg_id), &update_str, &description)
+            .await
+    }
+
+    async fn webxdc_get_status_updates(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        last_known_serial: u32,
+    ) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.get_webxdc_status_updates(
+            MsgId::new(instance_msg_id),
+            StatusUpdateSerial::new(last_known_serial),
+        )
+        .await
+    }
+
+    /// Get info from a webxdc message
+    async fn message_get_webxdc_info(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+    ) -> Result<WebxdcMessageInfo> {
+        let ctx = self.get_context(account_id).await?;
+        WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
     }
 
     // ---------------------------------------------

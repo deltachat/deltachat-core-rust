@@ -16,4 +16,37 @@ export type FullChat={"id":U32;"name":string;"is_protected":boolean;"profile_ima
 export type I32=number;
 export type U64=number;
 export type Message={"id":U32;"chat_id":U32;"from_id":U32;"quoted_text":(string|null);"quoted_message_id":(U32|null);"text":(string|null);"has_location":boolean;"has_html":boolean;"view_type":U32;"state":U32;"timestamp":I64;"sort_timestamp":I64;"received_timestamp":I64;"has_deviating_timestamp":boolean;"subject":string;"show_padlock":boolean;"is_setupmessage":boolean;"is_info":boolean;"is_forwarded":boolean;"duration":I32;"dimensions_height":I32;"dimensions_width":I32;"videochat_type":(U32|null);"videochat_url":(string|null);"override_sender_name":(string|null);"sender":Contact;"setup_code_begin":(string|null);"file":(string|null);"file_mime":(string|null);"file_bytes":U64;"file_name":(string|null);};
-export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,null,U32,U32,null,U32,string,string,U32,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,string,U32,U32];
+export type WebxdcMessageInfo={
+/**
+ * The name of the app.
+ * 
+ * Defaults to the filename if not set in the manifest.
+ */
+"name":string;
+/**
+ * App icon file name.
+ * Defaults to an standard icon if nothing is set in the manifest.
+ * 
+ * To get the file, use dc_msg_get_webxdc_blob(). (not yet in jsonrpc, use rust api or cffi for it)
+ * 
+ * App icons should should be square,
+ * the implementations will add round corners etc. as needed.
+ */
+"icon":string;
+/**
+ * if the Webxdc represents a document, then this is the name of the document
+ */
+"document":(string|null);
+/**
+ * short string describing the state of the app,
+ * sth. as "2 votes", "Highscore: 123",
+ * can be changed by the apps
+ */
+"summary":(string|null);
+/**
+ * URL where the source code of the Webxdc and other information can be found;
+ * defaults to an empty string.
+ * Implementations may offer an menu or a button to open this URL.
+ */
+"source_code_url":(string|null);};
+export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,null,U32,U32,null,U32,string,string,U32,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,string,U32,U32];

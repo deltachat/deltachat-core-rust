@@ -287,6 +287,23 @@ export class RawClient {
     return (this._transport.request('contacts_get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
   }
 
+
+  public webxdcSendStatusUpdate(accountId: T.U32, instanceMsgId: T.U32, updateStr: string, description: string): Promise<null> {
+    return (this._transport.request('webxdc_send_status_update', [accountId, instanceMsgId, updateStr, description] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public webxdcGetStatusUpdates(accountId: T.U32, instanceMsgId: T.U32, lastKnownSerial: T.U32): Promise<string> {
+    return (this._transport.request('webxdc_get_status_updates', [accountId, instanceMsgId, lastKnownSerial] as RPC.Params)) as Promise<string>;
+  }
+
+  /**
+   * Get info from a webxdc message
+   */
+  public messageGetWebxdcInfo(accountId: T.U32, instanceMsgId: T.U32): Promise<T.WebxdcMessageInfo> {
+    return (this._transport.request('message_get_webxdc_info', [accountId, instanceMsgId] as RPC.Params)) as Promise<T.WebxdcMessageInfo>;
+  }
+
   /**
    * Returns the messageid of the sent message
    */
