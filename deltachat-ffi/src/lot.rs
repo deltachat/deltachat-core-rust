@@ -51,13 +51,7 @@ impl Lot {
                 Qr::FprWithoutAddr { fingerprint, .. } => Some(fingerprint),
                 Qr::Account { domain } => Some(domain),
                 Qr::WebrtcInstance { domain, .. } => Some(domain),
-                Qr::Addr { draft, .. } => {
-                    if let Some(draft) = draft {
-                        Some(draft)
-                    } else {
-                        None
-                    }
-                }
+                Qr::Addr { draft, .. } => draft.as_deref(),
                 Qr::Url { url } => Some(url),
                 Qr::Text { text } => Some(text),
                 Qr::WithdrawVerifyContact { .. } => None,
