@@ -594,7 +594,7 @@ impl Context {
 
         let list = if let Some(chat_id) = chat_id {
             do_query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                "SELECT m.id AS id
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
