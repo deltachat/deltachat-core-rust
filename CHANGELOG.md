@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- handle drafts from mailto links in scanned QR
 
 ### Fixes
 - replace musl libc name resolution errors with a better message #3485
