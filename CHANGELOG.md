@@ -4,6 +4,13 @@
 
 ### Changes
 
+### Fixes
+
+
+## 1.89.0
+
+### Changes
+
 - (AEAP) When one of your contacts changed their address, they are
   only replaced in the chat where you got a message from them
   for now #3491
