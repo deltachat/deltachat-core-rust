@@ -130,15 +130,14 @@ pub(crate) async fn receive_imf_inner(
                     context,
                     "Message already partly in DB, replacing by full message."
                 );
-                old_msg_id.delete_from_db(context).await?;
-                true
+                Some(old_msg_id)
             } else {
                 // the message was probably moved around.
                 info!(context, "Message already in DB, doing nothing.");
                 return Ok(None);
             }
         } else {
-            false
+            None
         };
 
     // the function returns the number of created messages in the database
@@ -189,8 +188,9 @@ pub(crate) async fn receive_imf_inner(
         sent_timestamp,
         rcvd_timestamp,
         from_id,
-        seen || replace_partial_download,
+        seen || replace_partial_download.is_some(),
         is_partial_download,
+        replace_partial_download,
         fetching_existing_messages,
         prevent_rename,
     )
@@ -322,7 +322,7 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    if replace_partial_download {
+    if replace_partial_download.is_some() {
         context.emit_msgs_changed(chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
@@ -401,6 +401,7 @@ async fn add_parts(
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
+    replace_msg_id: Option<MsgId>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
 ) -> Result<ReceivedMsg> {
@@ -1144,6 +1145,17 @@ INSERT INTO msgs
         created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);
+
+    if let Some(replace_msg_id) = replace_msg_id {
+        if let Some(created_msg_id) = created_db_entries.pop() {
+            context
+                .merge_messages(created_msg_id, replace_msg_id)
+                .await?;
+            created_db_entries.push(replace_msg_id);
+        } else {
+            replace_msg_id.delete_from_db(context).await?;
+        }
+    }
 
     chat_id.unarchive_if_not_muted(context).await?;
 
