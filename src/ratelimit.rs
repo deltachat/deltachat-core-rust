@@ -51,7 +51,7 @@ impl Ratelimit {
 
     /// Returns true if it is allowed to send a message.
     fn can_send_at(&self, now: SystemTime) -> bool {
-        self.current_value_at(now) <= self.quota
+        self.current_value_at(now) + 1.0 <= self.quota
     }
 
     /// Returns true if can send another message now.
@@ -62,7 +62,7 @@ impl Ratelimit {
     }
 
     fn send_at(&mut self, now: SystemTime) {
-        self.current_value = self.current_value_at(now) + 1.0;
+        self.current_value = f64::min(self.quota, self.current_value_at(now) + 1.0);
         self.last_update = now;
     }
 
@@ -77,10 +77,10 @@ impl Ratelimit {
 
     fn until_can_send_at(&self, now: SystemTime) -> Duration {
         let current_value = self.current_value_at(now);
-        if current_value <= self.quota {
+        if current_value + 1.0 <= self.quota {
             Duration::ZERO
         } else {
-            let requirement = current_value - self.quota;
+            let requirement = current_value + 1.0 - self.quota;
             let rate = self.quota / self.window.as_secs_f64();
             Duration::from_secs_f64(requirement / rate)
         }
@@ -109,8 +109,6 @@ mod tests {
         ratelimit.send_at(now);
         assert!(ratelimit.can_send_at(now));
         ratelimit.send_at(now);
-        assert!(ratelimit.can_send_at(now));
-        ratelimit.send_at(now);
 
         // Can't send more messages now.
         assert!(!ratelimit.can_send_at(now));
@@ -125,11 +123,8 @@ mod tests {
         // Send one more message anyway, over quota.
         ratelimit.send_at(now);
 
-        // Waiting 20 seconds is not enough.
-        let now = now + Duration::from_secs(20);
-        assert!(!ratelimit.can_send_at(now));
-
-        // Can send another message after 40 seconds.
+        // Always can send another message after 20 seconds,
+        // leaky bucket never overflows.
         let now = now + Duration::from_secs(20);
         assert!(ratelimit.can_send_at(now));
 
