@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- handle drafts from mailto links in scanned QR
 
 ### Fixes
 
