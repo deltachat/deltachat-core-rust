@@ -2659,7 +2659,7 @@ mod tests {
             "shenauithz@testrun.org",
             "Mr.un2NYERi1RM.lbQ5F9q-QyJ@tiscali.it",
             include_bytes!("../test-data/message/tiscali_ndn.eml"),
-            Some("Delivery to at least one recipient failed."),
+            Some("Delivery status notification –       This is an automatically generated Delivery Status Notification.      \n\nDelivery to the following recipients was aborted after 2 second(s):\n\n  * shenauithz@testrun.org"),
         )
         .await;
     }
@@ -2732,6 +2732,19 @@ mod tests {
             "Mr.5xqflwt0YFv.IXDFfHauvWx@testrun.org",
             include_bytes!("../test-data/message/testrun_ndn_2.eml"),
             Some("Undelivered Mail Returned to Sender – This is the mail system at host hq5.merlinux.eu.\n\nI'm sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It's attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<bob@example.org>: Host or domain name not found. Name service error for\n    name=echedelyr.tk type=AAAA: Host not found"),
+        )
+        .await;
+    }
+
+    /// Tests that text part is not squashed into OpenPGP attachment.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_ndn_with_attachment() {
+        test_parse_ndn(
+            "alice@example.org",
+            "bob@example.net",
+            "Mr.I6Da6dXcTel.TroC5J3uSDH@example.org",
+            include_bytes!("../test-data/message/ndn_with_attachment.eml"),
+            Some("Undelivered Mail Returned to Sender – This is the mail system at host relay01.example.org.\n\nI'm sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It's attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<bob@example.net>: host mx2.example.net[80.241.60.215] said: 552 5.2.2\n    <bob@example.net>: Recipient address rejected: Mailbox quota exceeded (in\n    reply to RCPT TO command)\n\n<bob2@example.net>: host mx1.example.net[80.241.60.212] said: 552 5.2.2\n    <bob2@example.net>: Recipient address rejected: Mailbox quota\n    exceeded (in reply to RCPT TO command)")
         )
         .await;
     }

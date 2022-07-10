@@ -6,6 +6,7 @@
 - handle drafts from mailto links in scanned QR #3492
 
 ### Fixes
+- don't squash text parts of NDN into attachments #3497
 
 
 ## 1.89.0

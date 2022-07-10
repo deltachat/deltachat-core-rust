@@ -535,7 +535,9 @@ impl MimeMessage {
         self.parse_system_message_headers(context);
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
-        self.squash_attachment_parts();
+        if self.failure_report.is_none() {
+            self.squash_attachment_parts();
+        }
 
         if let Some(ref subject) = self.get_subject() {
             let mut prepend_subject = true;
