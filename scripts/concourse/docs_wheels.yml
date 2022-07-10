@@ -280,8 +280,8 @@ jobs:
         args:
         - -exc
         - |
-          sed -i s/pypy37,pypy38,pypy39,// scripts/run_all.sh
-          scripts/run_all.sh
+          sed s/pypy37,pypy38,pypy39,// scripts/run_all.sh >/tmp/run_all.sh
+          bash /tmp/run_all.sh
 
   # Upload musl x86_64 wheels
   - task: upload-wheels
