@@ -33,7 +33,10 @@ mkdir -p $TOXWORKDIR
 # Note that the independent remote_tests_python step does all kinds of
 # live-testing already. 
 unset DCC_NEW_TMP_EMAIL
-tox --workdir "$TOXWORKDIR" -e py37,py38,py39,py310,pypy37,pypy38,pypy39,auditwheels
+
+# Try to build wheels for a range of interpreters, but don't fail if they are not available.
+# E.g. musllinux_1_1 does not have PyPy interpreters as of 2022-07-10
+tox --workdir "$TOXWORKDIR" -e py37,py38,py39,py310,pypy37,pypy38,pypy39,auditwheels --skip-missing-interpreters true
 popd
 
 
