@@ -335,8 +335,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  continue-key-transfer <msg-id> <setup-code>\n\
                  has-backup\n\
                  export-backup\n\
-                 send-backup\n\
-                 receive-backup <ticket>\n\
+                 send-backup [<passphrase>]\n\
+                 receive-backup <ticket> [<passphrase>]\n\
                  import-backup <backup-file>\n\
                  export-keys\n\
                  import-keys\n\
