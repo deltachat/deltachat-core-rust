@@ -496,7 +496,7 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
         if subject.is_empty() {
             body.to_string()
         } else {
-            subject + "\n" + body
+            subject + "\n" + *body
         }
     } else {
         subject

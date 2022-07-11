@@ -333,8 +333,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  continue-key-transfer <msg-id> <setup-code>\n\
                  has-backup\n\
                  export-backup\n\
-                 send-backup\n\
-                 receive-backup <ticket>\n\
+                 send-backup [<passphrase>]\n\
+                 receive-backup <ticket> [<passphrase>]\n\
                  import-backup <backup-file>\n\
                  export-keys\n\
                  import-keys\n\
@@ -479,7 +479,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "send-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
             let (sender, transfer) =
-                send_backup(&context, dir.as_ref(), Some(arg2.to_string())).await?;
+                send_backup(&context, dir.as_ref(), Some(arg1.to_string())).await?;
             let ticket = transfer.ticket();
             let ticket_bytes = ticket.as_bytes();
 
