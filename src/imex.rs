@@ -160,11 +160,33 @@ pub async fn receive_backup_inner(
     let receiver = Receiver::new(port, rpc_p2p_port, rpc_store_port, &sender_db)
         .await
         .context("failed to create sender")?;
-    let receiver_transfer = receiver
+    let mut receiver_transfer = receiver
         .transfer_from_ticket(&ticket)
         .await
         .context("failed to read transfer")?;
     let data = receiver_transfer.recv().await?;
+    let progress = receiver_transfer.progress()?;
+
+    // progress report
+    let ctx = context.clone();
+    let progress_task = tokio::spawn(async move {
+        let mut last_progress = 0;
+        while let Ok(ev) = progress.recv().await {
+            match ev {
+                Ok(iroh_share::ProgressEvent::Piece { index, total }) => {
+                    let progress = 1000 * index / total;
+                    if progress != last_progress && progress < 1000 {
+                        ctx.emit_event(EventType::ImexProgress(progress));
+                        last_progress = progress;
+                    }
+                }
+                Err(err) => {
+                    error!(ctx, "IMEX receive backup failed to complete: {}", err);
+                    ctx.emit_event(EventType::ImexProgress(0));
+                }
+            }
+        }
+    });
 
     let out = context.get_blobdir();
 
@@ -199,6 +221,9 @@ pub async fn receive_backup_inner(
     }
 
     println!("Received all data, written to: {}", out.display());
+    receiver.close().await?;
+    progress_task.await?;
+
     Ok(())
 }
 
@@ -759,8 +784,10 @@ async fn export_backup_iroh(
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
     let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
+    let sender_db_path = dir.join("iroh_db");
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
+    let _d3 = DeleteOnDrop(sender_db_path.clone());
 
     context
         .sql
@@ -800,14 +827,12 @@ async fn export_backup_iroh(
             let port = 9990;
             let rpc_p2p_port = 5550;
             let rpc_store_port = 5560;
-            // TODO: not tempfile
-            let sender_dir = tempfile::tempdir().unwrap();
-            // TODO: cleanup
-            let sender_db = sender_dir.into_path().join("db");
 
             let sender =
-                iroh_share::Sender::new(port, rpc_p2p_port, rpc_store_port, &sender_db).await?;
+                iroh_share::Sender::new(port, rpc_p2p_port, rpc_store_port, &sender_db_path)
+                    .await?;
             let transfer = sender.transfer_from_dir_builder(dir_builder).await?;
+
             Ok((sender, transfer))
         }
         Err(e) => {
