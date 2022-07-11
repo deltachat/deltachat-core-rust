@@ -492,7 +492,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let file = dir.join("qr.svg");
             tokio::fs::write(file, qr_code.as_bytes()).await?;
 
-            tokio::time::sleep(std::time::Duration::from_secs(100)).await;
+            transfer.done().await?;
             sender.close().await?;
         }
         "receive-backup" => {
