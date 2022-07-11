@@ -149,6 +149,4 @@ vendored = [
 nightly = ["pgp/nightly"]
 
 [patch.crates-io]
-chacha20poly1305 = { git = "https://github.com/dignifiedquire/AEADs", branch = "chacha20-fix" }
-chacha20 = { git = "https://github.com/dignifiedquire/stream-ciphers", branch = "chacha20-fix" }
 libp2p = { git = "https://github.com/dignifiedquire/rust-libp2p", branch = "feat-kad-count" }

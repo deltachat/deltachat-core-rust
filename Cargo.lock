@@ -383,9 +383,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "axum"
-version = "0.5.11"
+version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2cc6e8e8c993cb61a005fab8c1e5093a29199b7253b05a6883999312935c1ff"
+checksum = "d16705af05732b7d3258ec0f7b73c03a658a28925e050d8852d5b568ee8bcf4e"
 dependencies = [
  "async-trait",
  "axum-core",
@@ -412,9 +412,9 @@ dependencies = [
 
 [[package]]
 name = "axum-core"
-version = "0.2.6"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf4d047478b986f14a13edad31a009e2e05cb241f9805d0d75e4cba4e129ad4d"
+checksum = "e4f44a0e6200e9d11a1cdc989e4b358f6e3d354fbf48478f345a17f4e43f8635"
 dependencies = [
  "async-trait",
  "bytes",
@@ -826,8 +826,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chacha20"
-version = "0.8.1"
-source = "git+https://github.com/dignifiedquire/stream-ciphers?branch=chacha20-fix#75cd1171cec061282e6b71d6333455987074de3a"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c80e5460aa66fe3b91d40bcbdab953a597b60053e34d684ac6903f863b680a6"
 dependencies = [
  "cfg-if",
  "cipher",
@@ -837,8 +838,9 @@ dependencies = [
 
 [[package]]
 name = "chacha20poly1305"
-version = "0.9.0"
-source = "git+https://github.com/dignifiedquire/AEADs?branch=chacha20-fix#5cbb79511f0aea26595204d0986d9189c399f47b"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a18446b09be63d457bbec447509e85f662f32952b035ce892290396bc0b0cff5"
 dependencies = [
  "aead",
  "chacha20",
@@ -880,6 +882,7 @@ dependencies = [
  "multibase",
  "multihash",
  "serde",
+ "serde_bytes",
  "unsigned-varint",
 ]
 
@@ -1196,9 +1199,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-common"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5999502d32b9c48d492abe66392408144895020ec4709e549e840799f3bb74c0"
+checksum = "2ccfd8c0ee4cce11e45b3fd6f9d5e69e0cc62912aa6a0cb1bf4617b0eba5a12f"
 dependencies = [
  "generic-array 0.14.5",
  "typenum",
@@ -2253,9 +2256,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db0d4cf898abf0081f964436dc980e96670a0f36863e4b83aaacdb65c9d7ccc3"
+checksum = "607c8a29735385251a339424dd462993c0fed8fa09d378f259377df08c126022"
 dependencies = [
  "ahash",
 ]
@@ -2557,7 +2560,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
 dependencies = [
  "autocfg",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.2",
 ]
 
 [[package]]
@@ -2596,7 +2599,7 @@ checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
 [[package]]
 name = "iroh-bitswap"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "ahash",
  "bytes",
@@ -2620,7 +2623,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "config",
  "iroh-util",
@@ -2644,7 +2647,7 @@ dependencies = [
 [[package]]
 name = "iroh-p2p"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2687,7 +2690,7 @@ dependencies = [
 [[package]]
 name = "iroh-resolver"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2711,7 +2714,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-client"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2735,7 +2738,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-types"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "prost 0.10.4",
  "prost-build 0.10.4",
@@ -2747,7 +2750,7 @@ dependencies = [
 [[package]]
 name = "iroh-share"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -2777,7 +2780,7 @@ dependencies = [
 [[package]]
 name = "iroh-store"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "anyhow",
  "bytecheck",
@@ -2809,7 +2812,7 @@ dependencies = [
 [[package]]
 name = "iroh-util"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#4c01636e6f7a28064838da7cebec5fc1d73b9813"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
 dependencies = [
  "anyhow",
  "config",
@@ -4134,9 +4137,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssl"
-version = "0.10.40"
+version = "0.10.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb81a6430ac911acb25fe5ac8f1d2af1b4ea8a4fdfda0f1ee4292af2e2d8eb0e"
+checksum = "618febf65336490dfcf20b73f885f5651a0c89c64c2d4a8c3662585a70bf5bd0"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -4175,9 +4178,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.74"
+version = "0.9.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "835363342df5fba8354c5b453325b110ffd54044e588c539cf2f20a8014e4cb1"
+checksum = "e5f9bd0c2710541a3cda73d6f9ac4f1b240de4ae261065d309dbe73d9dceb42f"
 dependencies = [
  "autocfg",
  "cc",
@@ -4242,7 +4245,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccd746e37177e1711c20dd619a1620f34f5c8b569c53590a72dedd5344d8924a"
 dependencies = [
  "dlv-list",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.2",
 ]
 
 [[package]]
@@ -5273,7 +5276,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cec2b3485b07d96ddfd3134767b8a447b45ea4eb91448d0a35180ec0ffd5ed15"
 dependencies = [
  "bytecheck",
- "hashbrown 0.12.1",
+ "hashbrown 0.12.2",
  "ptr_meta",
  "rend",
  "rkyv_derive",
@@ -5588,9 +5591,9 @@ checksum = "a2333e6df6d6598f2b1974829f853c2b4c5f4a6e503c10af918081aa6f8564e1"
 
 [[package]]
 name = "serde"
-version = "1.0.138"
+version = "1.0.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1578c6245786b9d168c5447eeacfb96856573ca56c9d68fdcf394be134882a47"
+checksum = "0171ebb889e45aa68b44aee0859b3eede84c6f5f5c228e6f140c0b2a0a46cad6"
 dependencies = [
  "serde_derive",
 ]
@@ -5600,6 +5603,15 @@ name = "serde-big-array"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd31f59f6fe2b0c055371bb2f16d7f0aa7d8881676c04a55b1596d1a17cd10a4"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "212e73464ebcde48d723aa02eb270ba62eff38a9b732df31f33f1b4e145f3a54"
 dependencies = [
  "serde",
 ]
@@ -5616,9 +5628,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.138"
+version = "1.0.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "023e9b1467aef8a10fb88f25611870ada9800ef7e22afce356bb0d2387b6f27c"
+checksum = "dc1d3230c1de7932af58ad8ffbe1d784bd55efd5a9d84ac24f69c72d83543dfb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6844,18 +6856,18 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.22.3"
+version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d8de8415c823c8abd270ad483c6feeac771fad964890779f9a8cb24fbbc1bf"
+checksum = "f1c760f0d366a6c24a02ed7816e23e691f5d92291f94d15e836006fd11b04daf"
 dependencies = [
  "webpki",
 ]
 
 [[package]]
 name = "weezl"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c97e489d8f836838d497091de568cf16b117486d529ec5579233521065bd5e4"
+checksum = "9193164d4de03a926d909d3bc7c30543cecb35400c02114792c2cae20d5e2dbb"
 
 [[package]]
 name = "wepoll-ffi"
