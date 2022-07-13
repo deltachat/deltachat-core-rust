@@ -2148,7 +2148,10 @@ pub unsafe extern "C" fn dc_send_backup(
             imex::send_backup(ctx, folder.as_ref(), passphrase)
                 .await
                 .map(|(sender, transfer)| {
-                    Box::into_raw(Box::new(dc_backup_sender { sender, transfer }))
+                    Box::into_raw(Box::new(dc_backup_sender {
+                        _sender: sender,
+                        transfer,
+                    }))
                 })
                 .log_err(ctx, "send_backup failed")
                 .unwrap_or_else(|_| ptr::null_mut())
@@ -2160,7 +2163,7 @@ pub unsafe extern "C" fn dc_send_backup(
 }
 
 pub struct dc_backup_sender {
-    sender: iroh_share::Sender,
+    _sender: iroh_share::Sender,
     transfer: iroh_share::SenderTransfer,
 }
 
