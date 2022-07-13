@@ -2191,6 +2191,28 @@ pub unsafe extern "C" fn dc_backup_sender_unref(bs: *mut dc_backup_sender) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_receive_backup(
+    ctx: *mut dc_context_t,
+    ticket: *const libc::c_char,
+    passphrase: *const libc::c_char,
+) {
+    if ctx.is_null() || ticket.is_null() {
+        eprintln!("ignoring careless call to dc_receive_backup");
+        return;
+    }
+    let ctx = &*ctx;
+    let (_, ticket) = multibase::decode(to_string_lossy(ticket))
+        .unwrap_or_else(|_| (multibase::Base::Base64, vec![]));
+    let passphrase = to_opt_string_lossy(passphrase);
+
+    spawn(async move {
+        imex::receive_backup(ctx, ticket, passphrase)
+            .await
+            .log_err(ctx, "IMEX failed")
+    });
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_imex_has_backup(
     context: *mut dc_context_t,
     dir: *const libc::c_char,

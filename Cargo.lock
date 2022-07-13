@@ -1456,6 +1456,7 @@ dependencies = [
  "human-panic",
  "iroh-share",
  "libc",
+ "multibase",
  "num-traits",
  "once_cell",
  "rand 0.7.3",
