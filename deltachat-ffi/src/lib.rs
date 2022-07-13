@@ -2201,8 +2201,10 @@ pub unsafe extern "C" fn dc_receive_backup(
         return;
     }
     let ctx = &*ctx;
-    let (_, ticket) = multibase::decode(to_string_lossy(ticket))
-        .unwrap_or_else(|_| (multibase::Base::Base64, vec![]));
+    let ticket = multibase::decode(to_string_lossy(ticket))
+        .map(|(_, ticket)| ticket)
+        .unwrap_or_default();
+
     let passphrase = to_opt_string_lossy(passphrase);
 
     spawn(async move {

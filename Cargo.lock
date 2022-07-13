@@ -925,9 +925,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.8"
+version = "3.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "190814073e85d238f31ff738fcb0bf6910cedeb73376c87cd69291028966fd83"
+checksum = "69c5a7f9997be616e47f0577ee38c91decb33392c5be4866494f34cdf329a9aa"
 dependencies = [
  "atty",
  "bitflags",
@@ -2600,7 +2600,7 @@ checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
 [[package]]
 name = "iroh-bitswap"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "ahash",
  "bytes",
@@ -2624,7 +2624,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "config",
  "iroh-util",
@@ -2648,7 +2648,7 @@ dependencies = [
 [[package]]
 name = "iroh-p2p"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "ahash",
  "anyhow",
@@ -2658,7 +2658,7 @@ dependencies = [
  "asynchronous-codec",
  "bytes",
  "cid",
- "clap 3.2.8",
+ "clap 3.2.10",
  "config",
  "dirs",
  "futures",
@@ -2691,7 +2691,7 @@ dependencies = [
 [[package]]
 name = "iroh-resolver"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2715,7 +2715,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-client"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2739,7 +2739,7 @@ dependencies = [
 [[package]]
 name = "iroh-rpc-types"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "prost 0.10.4",
  "prost-build 0.10.4",
@@ -2751,7 +2751,7 @@ dependencies = [
 [[package]]
 name = "iroh-share"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -2759,7 +2759,7 @@ dependencies = [
  "bincode",
  "bytes",
  "cid",
- "clap 3.2.8",
+ "clap 3.2.10",
  "futures",
  "iroh-metrics",
  "iroh-p2p",
@@ -2781,13 +2781,13 @@ dependencies = [
 [[package]]
 name = "iroh-store"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "anyhow",
  "bytecheck",
  "bytes",
  "cid",
- "clap 3.2.8",
+ "clap 3.2.10",
  "config",
  "ctrlc",
  "futures",
@@ -2813,7 +2813,7 @@ dependencies = [
 [[package]]
 name = "iroh-util"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#59663a2b25f1bc8071b18298630cbfc514d5fceb"
+source = "git+https://github.com/n0-computer/iroh?branch=iroh-share#5476f8e807467666b4f34a7263e46f000992fa5f"
 dependencies = [
  "anyhow",
  "config",
@@ -3052,8 +3052,8 @@ checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
 
 [[package]]
 name = "libp2p"
-version = "0.46.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.47.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "bytes",
  "futures",
@@ -3089,8 +3089,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-autonat"
-version = "0.5.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.6.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "async-trait",
  "futures",
@@ -3108,7 +3108,7 @@ dependencies = [
 [[package]]
 name = "libp2p-core"
 version = "0.34.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asn1_der",
  "bs58",
@@ -3143,8 +3143,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-dcutr"
-version = "0.4.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.5.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -3165,7 +3165,7 @@ dependencies = [
 [[package]]
 name = "libp2p-dns"
 version = "0.34.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -3177,8 +3177,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-gossipsub"
-version = "0.39.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.40.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "base64 0.13.0",
@@ -3205,8 +3205,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.37.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.38.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "futures",
@@ -3225,8 +3225,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.38.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.39.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "arrayvec",
  "asynchronous-codec",
@@ -3253,8 +3253,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.38.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.39.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "async-io",
  "data-encoding",
@@ -3273,8 +3273,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-metrics"
-version = "0.7.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.8.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "libp2p-core",
  "libp2p-dcutr",
@@ -3290,7 +3290,7 @@ dependencies = [
 [[package]]
 name = "libp2p-mplex"
 version = "0.34.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -3307,7 +3307,7 @@ dependencies = [
 [[package]]
 name = "libp2p-noise"
 version = "0.37.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "bytes",
  "curve25519-dalek 3.2.0",
@@ -3327,8 +3327,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.37.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.38.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "futures",
  "futures-timer",
@@ -3342,8 +3342,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-relay"
-version = "0.10.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.11.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -3367,8 +3367,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-request-response"
-version = "0.19.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.20.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3384,8 +3384,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm"
-version = "0.37.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.38.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "either",
  "fnv",
@@ -3403,8 +3403,8 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm-derive"
-version = "0.27.2"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+version = "0.28.0"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "quote",
  "syn",
@@ -3413,7 +3413,7 @@ dependencies = [
 [[package]]
 name = "libp2p-tcp"
 version = "0.34.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "futures",
  "futures-timer",
@@ -3429,7 +3429,7 @@ dependencies = [
 [[package]]
 name = "libp2p-websocket"
 version = "0.36.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "either",
  "futures",
@@ -3447,7 +3447,7 @@ dependencies = [
 [[package]]
 name = "libp2p-yamux"
 version = "0.38.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -3459,7 +3459,7 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "0.7.1+7.3.1"
-source = "git+https://github.com/rust-rocksdb/rust-rocksdb?branch=master#39dc822dde743b2a26eb160b660e8fbdab079d49"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb?branch=master#908049d9e7d130cfeee31d144591e77b69b461d3"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -3833,7 +3833,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 [[package]]
 name = "multistream-select"
 version = "0.11.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "bytes",
  "futures",
@@ -4667,9 +4667,9 @@ dependencies = [
 
 [[package]]
 name = "prettyplease"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1516508b396cefe095485fdce673007422f5e48e82934b7b423dc26aa5e6a4"
+checksum = "da6ffbe862780245013cb1c0a48c4e44b7d665548088f91f6b90876d0625e4c2"
 dependencies = [
  "proc-macro2",
  "syn",
@@ -4829,7 +4829,7 @@ dependencies = [
 [[package]]
 name = "prost-codec"
 version = "0.1.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "asynchronous-codec",
  "bytes",
@@ -5298,7 +5298,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.18.0"
-source = "git+https://github.com/rust-rocksdb/rust-rocksdb?branch=master#39dc822dde743b2a26eb160b660e8fbdab079d49"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb?branch=master#908049d9e7d130cfeee31d144591e77b69b461d3"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -5470,7 +5470,7 @@ dependencies = [
 [[package]]
 name = "rw-stream-sink"
 version = "0.3.0"
-source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#1fc7b8b994bf4e7ffdbd81e0633dd5ccc8650c83"
+source = "git+https://github.com/dignifiedquire/rust-libp2p?branch=feat-kad-count#2b89ae9c4282e01727a12d8f91ce373f30d2c9db"
 dependencies = [
  "futures",
  "pin-project",
