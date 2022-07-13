@@ -2148,7 +2148,10 @@ pub unsafe extern "C" fn dc_send_backup(
             imex::send_backup(ctx, folder.as_ref(), passphrase)
                 .await
                 .map(|(sender, transfer)| {
-                    Box::into_raw(Box::new(dc_backup_sender { sender, transfer }))
+                    Box::into_raw(Box::new(dc_backup_sender {
+                        _sender: sender,
+                        transfer,
+                    }))
                 })
                 .log_err(ctx, "send_backup failed")
                 .unwrap_or_else(|_| ptr::null_mut())
@@ -2160,7 +2163,7 @@ pub unsafe extern "C" fn dc_send_backup(
 }
 
 pub struct dc_backup_sender {
-    sender: iroh_share::Sender,
+    _sender: iroh_share::Sender,
     transfer: iroh_share::SenderTransfer,
 }
 
@@ -2188,6 +2191,30 @@ pub unsafe extern "C" fn dc_backup_sender_unref(bs: *mut dc_backup_sender) {
     if !bs.is_null() {
         let _ = Box::from_raw(bs);
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_receive_backup(
+    ctx: *mut dc_context_t,
+    ticket: *const libc::c_char,
+    passphrase: *const libc::c_char,
+) {
+    if ctx.is_null() || ticket.is_null() {
+        eprintln!("ignoring careless call to dc_receive_backup");
+        return;
+    }
+    let ctx = &*ctx;
+    let ticket = multibase::decode(to_string_lossy(ticket))
+        .map(|(_, ticket)| ticket)
+        .unwrap_or_default();
+
+    let passphrase = to_opt_string_lossy(passphrase);
+
+    spawn(async move {
+        imex::receive_backup(ctx, ticket, passphrase)
+            .await
+            .log_err(ctx, "IMEX failed")
+    });
 }
 
 #[no_mangle]
