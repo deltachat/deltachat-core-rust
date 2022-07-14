@@ -73,7 +73,7 @@ pub struct MimeMessage {
     pub(crate) user_avatar: Option<AvatarAction>,
     pub(crate) group_avatar: Option<AvatarAction>,
     pub(crate) mdn_reports: Vec<Report>,
-    pub(crate) failure_report: Option<FailureReport>,
+    pub(crate) delivery_report: Option<DeliveryReport>,
 
     /// Standard USENET signature, if any.
     pub(crate) footer: Option<String>,
@@ -332,7 +332,7 @@ impl MimeMessage {
             webxdc_status_update: None,
             user_avatar: None,
             group_avatar: None,
-            failure_report: None,
+            delivery_report: None,
             footer: None,
             is_mime_modified: false,
             decoded_data: Vec::new(),
@@ -535,7 +535,7 @@ impl MimeMessage {
         self.parse_system_message_headers(context);
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
-        if self.failure_report.is_none() {
+        if self.delivery_report.is_none() {
             self.squash_attachment_parts();
         }
 
@@ -869,7 +869,7 @@ impl MimeMessage {
                         // Some providers, e.g. Tiscali, forget to set the report-type. So, if it's None, assume that it might be delivery-status
                         Some("delivery-status") | None => {
                             if let Some(report) = self.process_delivery_status(context, mail)? {
-                                self.failure_report = Some(report);
+                                self.delivery_report = Some(report);
                             }
 
                             // Add all parts (we need another part, preferably text/plain, to show as an error message)
@@ -1280,9 +1280,46 @@ impl MimeMessage {
         &self,
         context: &Context,
         report: &mailparse::ParsedMail<'_>,
-    ) -> Result<Option<FailureReport>> {
+    ) -> Result<Option<DeliveryReport>> {
+        // Assume failure.
+        let mut failure = true;
+
+        if let Some(status_part) = report.subparts.get(1) {
+            // RFC 3464 defines `message/delivery-status`
+            // RFC 6533 defines `message/global-delivery-status`
+            if status_part.ctype.mimetype != "message/delivery-status"
+                && status_part.ctype.mimetype != "message/global-delivery-status"
+            {
+                warn!(context, "Second part of Delivery Status Notification is not message/delivery-status or message/global-delivery-status, ignoring");
+                return Ok(None);
+            }
+
+            let status_body = status_part.get_body_raw()?;
+
+            // Skip per-message fields.
+            let (_, sz) = mailparse::parse_headers(&status_body)?;
+
+            // Parse first set of per-recipient fields
+            if let Some(status_body) = status_body.get(sz..) {
+                let (status_fields, _) = mailparse::parse_headers(status_body)?;
+                if let Some(action) = status_fields.get_first_value("action") {
+                    if action != "failed" {
+                        info!(context, "DSN with {:?} action", action);
+                        failure = false;
+                    }
+                } else {
+                    warn!(context, "DSN without action");
+                }
+            } else {
+                warn!(context, "DSN without per-recipient fields");
+            }
+        } else {
+            // No message/delivery-status part.
+            return Ok(None);
+        }
+
         // parse as mailheaders
-        if let Some(original_msg) = report.subparts.iter().find(|p| {
+        if let Some(original_msg) = report.subparts.get(2).filter(|p| {
             p.ctype.mimetype.contains("rfc822")
                 || p.ctype.mimetype == "message/global"
                 || p.ctype.mimetype == "message/global-headers"
@@ -1303,9 +1340,10 @@ impl MimeMessage {
                     None // We do not know which recipient failed
                 };
 
-                return Ok(Some(FailureReport {
+                return Ok(Some(DeliveryReport {
                     rfc724_mid: original_message_id,
                     failed_recipient: to.map(|s| s.addr),
+                    failure,
                 }));
             }
 
@@ -1386,7 +1424,7 @@ impl MimeMessage {
         } else {
             false
         };
-        if maybe_ndn && self.failure_report.is_none() {
+        if maybe_ndn && self.delivery_report.is_none() {
             static RE: Lazy<regex::Regex> =
                 Lazy::new(|| regex::Regex::new(r"Message-ID:(.*)").unwrap());
             for captures in self
@@ -1400,9 +1438,10 @@ impl MimeMessage {
                     if let Ok(Some(_)) =
                         message::rfc724_mid_exists(context, &original_message_id).await
                     {
-                        self.failure_report = Some(FailureReport {
+                        self.delivery_report = Some(DeliveryReport {
                             rfc724_mid: original_message_id,
                             failed_recipient: None,
+                            failure: true,
                         })
                     }
                 }
@@ -1440,13 +1479,15 @@ impl MimeMessage {
             }
         }
 
-        if let Some(failure_report) = &self.failure_report {
-            let error = parts
-                .iter()
-                .find(|p| p.typ == Viewtype::Text)
-                .map(|p| p.msg.clone());
-            if let Err(e) = message::handle_ndn(context, failure_report, error).await {
-                warn!(context, "Could not handle ndn: {}", e);
+        if let Some(delivery_report) = &self.delivery_report {
+            if delivery_report.failure {
+                let error = parts
+                    .iter()
+                    .find(|p| p.typ == Viewtype::Text)
+                    .map(|p| p.msg.clone());
+                if let Err(e) = message::handle_ndn(context, delivery_report, error).await {
+                    warn!(context, "Could not handle ndn: {}", e);
+                }
             }
         }
     }
@@ -1526,6 +1567,7 @@ async fn update_gossip_peerstates(
     Ok(gossiped_addr)
 }
 
+/// Message Disposition Notification (RFC 8098)
 #[derive(Debug)]
 pub(crate) struct Report {
     /// Original-Message-ID header
@@ -1537,10 +1579,12 @@ pub(crate) struct Report {
     additional_message_ids: Vec<String>,
 }
 
+/// Delivery Status Notification (RFC 3464, RFC 6533)
 #[derive(Debug)]
-pub(crate) struct FailureReport {
+pub(crate) struct DeliveryReport {
     pub rfc724_mid: String,
     pub failed_recipient: Option<String>,
+    pub failure: bool,
 }
 
 #[allow(clippy::indexing_slicing)]

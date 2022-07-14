@@ -7,6 +7,7 @@
 
 ### Fixes
 - don't squash text parts of NDN into attachments #3497
+- do not treat non-failed DSNs as NDNs #3506
 
 
 ## 1.89.0

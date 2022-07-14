@@ -497,9 +497,9 @@ async fn add_parts(
             ChatIdBlocked::lookup_by_contact(context, from_id).await?
         };
 
-        if chat_id.is_none() && mime_parser.failure_report.is_some() {
+        if chat_id.is_none() && mime_parser.delivery_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message belongs to an NDN (TRASH)",);
+            info!(context, "Message is a DSN (TRASH)",);
         }
 
         if chat_id.is_none() {
@@ -2749,6 +2749,19 @@ mod tests {
         .await;
     }
 
+    /// Test that DSN is not treated as NDN if Action: is not "failed"
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_dsn_relayed() {
+        test_parse_ndn(
+            "anon_1@posteo.de",
+            "anon_2@gmx.at",
+            "8b7b1a9d0c8cc588c7bcac47f5687634@posteo.de",
+            include_bytes!("../test-data/message/dsn_relayed.eml"),
+            None,
+        )
+        .await;
+    }
+
     // ndn = Non Delivery Notification
     async fn test_parse_ndn(
         self_addr: &str,
@@ -2798,7 +2811,14 @@ mod tests {
         receive_imf(&t, raw_ndn, false).await.unwrap();
         let msg = Message::load_from_db(&t, msg_id).await.unwrap();
 
-        assert_eq!(msg.state, MessageState::OutFailed);
+        assert_eq!(
+            msg.state,
+            if error_msg.is_some() {
+                MessageState::OutFailed
+            } else {
+                MessageState::OutDelivered
+            }
+        );
 
         assert_eq!(msg.error(), error_msg.map(|error| error.to_string()));
     }
