@@ -6365,6 +6365,23 @@ void dc_event_unref(dc_event_t* event);
 /// Used as status in the connectivity view.
 #define DC_STR_NOT_CONNECTED              121
 
+/// %1$s changed their address from %2$s to %3$s"
+///
+/// Used as an info message to chats with contacts that changed their address.
+#define DC_STR_AEAP_ADDR_CHANGED          122
+
+/// "You changed your email address from %1$s to %2$s.
+/// If you now send a message to a group, contacts there will automatically
+/// replace the old with your new address.\n\nIt's highly advised to set up 
+/// your old email provider to forward all emails to your new email address. 
+/// Otherwise you might miss messages of contacts who did not get your new 
+/// address yet." + the link to the AEAP blog post
+/// 
+/// The UIs have to add the link:
+/// set_stock_translation(123, getString(aeap_explanation) + "\n\n" + AEAP_BLOG_LINK)
+/// Used in a device message that explains AEAP.
+#define DC_STR_AEAP_EXPLANATION_AND_LINK  123
+
 /**
  * @}
  */

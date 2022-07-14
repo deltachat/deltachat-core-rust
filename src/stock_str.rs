@@ -337,7 +337,7 @@ pub enum StockMessage {
     AeapAddrChanged = 122,
 
     #[strum(props(
-        fallback = "You changed your email address.\n\nContacts using Delta Chat will automatically replace you in the groups you send a message to.\n\nIf possible, set up your old email provider to forward all emails to your new email address."
+        fallback = "You changed your email address from %1$s to %2$s.\n\nIf you now send a message to a group, contacts there will automatically replace the old with your new address.\n\nIt's highly advised to set up your old email provider to forward all emails to your new email address. Otherwise you might miss messages of contacts who did not get your new address yet."
     ))]
     AeapExplanationAndLink = 123,
 }
@@ -1109,8 +1109,15 @@ pub(crate) async fn aeap_addr_changed(
         .replace3(new_addr)
 }
 
-pub(crate) async fn aeap_explanation_and_link(context: &Context) -> String {
-    translated(context, StockMessage::AeapExplanationAndLink).await
+pub(crate) async fn aeap_explanation_and_link(
+    context: &Context,
+    old_addr: impl AsRef<str>,
+    new_addr: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::AeapExplanationAndLink)
+        .await
+        .replace1(old_addr)
+        .replace2(new_addr)
 }
 
 impl Context {

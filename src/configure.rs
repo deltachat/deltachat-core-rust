@@ -152,7 +152,8 @@ async fn on_configure_completed(
         if let Some(old_addr) = old_addr {
             if !addr_cmp(&new_addr, &old_addr) {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::aeap_explanation_and_link(context).await);
+                msg.text =
+                    Some(stock_str::aeap_explanation_and_link(context, old_addr, new_addr).await);
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .ok_or_log_msg(context, "Cannot add AEAP explanation");
