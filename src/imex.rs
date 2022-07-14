@@ -167,6 +167,8 @@ pub async fn receive_backup_inner(
     let data = receiver_transfer.recv().await?;
     let progress = receiver_transfer.progress()?;
 
+    context.sql.config_cache.write().await.clear();
+
     // progress report
     let ctx = context.clone();
     let progress_task = tokio::spawn(async move {
