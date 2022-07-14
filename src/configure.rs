@@ -31,8 +31,6 @@ use auto_mozilla::moz_autoconfigure;
 use auto_outlook::outlk_autodiscover;
 use server_params::{expand_param_vector, ServerParams};
 
-const AEAP_BLOG_LINK: &str = "https://delta.chat/550/en/2022-07-10-aeap";
-
 macro_rules! progress {
     ($context:tt, $progress:expr, $comment:expr) => {
         assert!(
@@ -154,8 +152,7 @@ async fn on_configure_completed(
         if let Some(old_addr) = old_addr {
             if !addr_cmp(&new_addr, &old_addr) {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text =
-                    Some(stock_str::aeap_explanation(context).await + "\n\n" + AEAP_BLOG_LINK);
+                msg.text = Some(stock_str::aeap_explanation_and_link(context).await);
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .ok_or_log_msg(context, "Cannot add AEAP explanation");
