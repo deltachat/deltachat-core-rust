@@ -2292,7 +2292,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_MISMATCH           220 // id=contact
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
 #define         DC_QR_ACCOUNT                250 // text1=domain
-#define         DC_QR_BACKUP                 251 // text1=ticket
+#define         DC_QR_BACKUP                 251
 #define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
@@ -2338,9 +2338,9 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   ask the user if they want to create an account on the given domain,
  *   if so, call dc_set_config_from_qr() and then dc_configure().
  *
- * - DC_QR_BACKUP with dc_lot_t::text1=ticket
+ * - DC_QR_BACKUP:
  *   ask the user if they want to set up a new device.
- *   If so, get pass the ticket to dc_receive_backup().
+ *   If so, pass the qr-code to dc_receive_backup().
  *
  * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
  *   ask the user if they want to use the given service for video chats;
@@ -2701,13 +2701,13 @@ void dc_backup_sender_unref (dc_backup_sender_t* backup_sender);
  *
  * @memberof dc_backup_sender_t
  * @param context The context.
- * @param ticket The ticket of the backup from the QR code:
- *     If dc_check_qr() returns DC_QR_BACKUP, you can get the ticket from the QR code using dc_lot_get_text1().
+ * @param qr The qr code containing all data needed to transfer the backup;
+ *     usually, this is the case if dc_check_qr() returns DC_QR_BACKUP.
  * @param passphrase Passphrase for the additional at-rest-encryption
  *     as defined at dc_send_backup() on the other device.
  *     If no passphrase is used, pass NULL or empty string.
  */
-void dc_receive_backup (dc_context_t* context, const char* ticket, const char* passphrase);
+void dc_receive_backup (dc_context_t* context, const char* qr, const char* passphrase);
 
 
 /**

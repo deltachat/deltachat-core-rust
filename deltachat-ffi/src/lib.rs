@@ -51,6 +51,7 @@ mod lot;
 mod string;
 use self::string::*;
 use deltachat::chatlist::Chatlist;
+use deltachat::qr::Qr;
 
 // as C lacks a good and portable error handling,
 // in general, the C Interface is forgiving wrt to bad parameters.
@@ -2271,18 +2272,18 @@ pub unsafe extern "C" fn dc_backup_sender_unref(bs: *mut dc_backup_sender) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_receive_backup(
     ctx: *mut dc_context_t,
-    ticket: *const libc::c_char,
+    qr: *const libc::c_char,
     passphrase: *const libc::c_char,
 ) {
-    if ctx.is_null() || ticket.is_null() {
+    if ctx.is_null() {
         eprintln!("ignoring careless call to dc_receive_backup");
         return;
     }
     let ctx = &*ctx;
-    let ticket = multibase::decode(to_string_lossy(ticket))
-        .map(|(_, ticket)| ticket)
-        .unwrap_or_default();
-
+    let ticket = match block_on(qr::check_qr(ctx, &to_string_lossy(qr))) {
+        Ok(Qr::Backup { ticket }) => ticket.as_bytes(),
+        _ => vec![],
+    };
     let passphrase = to_opt_string_lossy(passphrase);
 
     spawn(async move {
