@@ -69,24 +69,24 @@ Message w/out In-Reply-To
 }
 
 enum ChatForTransition {
-    // OneToOne,
+    OneToOne,
     GroupChat,
     VerifiedGroup,
 }
 use ChatForTransition::*;
 
-// #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// async fn test_aeap_transition_0() {
-//     check_aeap_transition(OneToOne, false, false).await;
-// }
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_aeap_transition_0() {
+    check_aeap_transition(OneToOne, false, false).await;
+}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_transition_1() {
     check_aeap_transition(GroupChat, false, false).await;
 }
-// #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// async fn test_aeap_transition_0_verified() {
-//     check_aeap_transition(OneToOne, true, false).await;
-// }
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_aeap_transition_0_verified() {
+    check_aeap_transition(OneToOne, true, false).await;
+}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_transition_1_verified() {
     check_aeap_transition(GroupChat, true, false).await;
@@ -96,18 +96,18 @@ async fn test_aeap_transition_2_verified() {
     check_aeap_transition(VerifiedGroup, true, false).await;
 }
 
-// #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// async fn test_aeap_transition_0_bob_knew_new_addr() {
-//     check_aeap_transition(OneToOne, false, true).await;
-// }
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_aeap_transition_0_bob_knew_new_addr() {
+    check_aeap_transition(OneToOne, false, true).await;
+}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_transition_1_bob_knew_new_addr() {
     check_aeap_transition(GroupChat, false, true).await;
 }
-// #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-// async fn test_aeap_transition_0_verified_bob_knew_new_addr() {
-//     check_aeap_transition(OneToOne, true, true).await;
-// }
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_aeap_transition_0_verified_bob_knew_new_addr() {
+    check_aeap_transition(OneToOne, true, true).await;
+}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_transition_1_verified_bob_knew_new_addr() {
     check_aeap_transition(GroupChat, true, true).await;
@@ -206,7 +206,7 @@ async fn check_aeap_transition(
     tcm.section("Alice sends another message to Bob, this time from her new addr");
     // No matter which chat Alice sends to, the transition should be done in all groups
     let chat_to_send = match chat_for_transition {
-        // OneToOne => alice.create_chat(&bob).await.id,
+        OneToOne => alice.create_chat(&bob).await.id,
         GroupChat => group1_alice,
         VerifiedGroup => group3_alice.expect("No verified group"),
     };
@@ -219,8 +219,7 @@ async fn check_aeap_transition(
 
     tcm.section("Check that the AEAP transition worked");
     check_that_transition_worked(
-        // The transition is only done in the chat where the message was sent for now:
-        &[recvd.chat_id],
+        &groups,
         &alice,
         "alice@example.org",
         ALICE_NEW_ADDR,
@@ -247,8 +246,7 @@ async fn check_aeap_transition(
     assert_eq!(recvd.text.unwrap(), "Hello from my old addr!");
 
     check_that_transition_worked(
-        // The transition is only done in the chat where the message was sent for now:
-        &[recvd.chat_id],
+        &groups,
         &alice,
         // Note that "alice@example.org" and ALICE_NEW_ADDR are switched now:
         ALICE_NEW_ADDR,
