@@ -165,7 +165,7 @@ impl Peerstate {
         Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
     }
 
-    pub async fn from_nongossiped_fingerprint_or_addr(
+    pub async fn from_verified_fingerprint_or_addr(
         context: &Context,
         fingerprint: &Fingerprint,
         addr: &str,
@@ -174,9 +174,9 @@ impl Peerstate {
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
                      FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? \
+                     WHERE verified_key_fingerprint=? \
                      OR addr=? COLLATE NOCASE \
-                     ORDER BY public_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
+                     ORDER BY verified_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
     }
@@ -545,21 +545,23 @@ impl Peerstate {
                     .await?
                     .unwrap_or(0)
             };
-            chat::add_info_msg_with_cmd(
-                context,
-                *chat_id,
-                &msg,
-                SystemMessage::Unknown,
-                timestamp_sort,
-                Some(timestamp),
-                None,
-                None,
-            )
-            .await?;
 
             if let PeerstateChange::Aeap(new_addr) = &change {
                 let chat = Chat::load_from_db(context, *chat_id).await?;
-                if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
+
+                if chat.typ == Chattype::Group && !chat.is_protected() {
+                    // Don't add an info_msg to the group, in order not to make the user think
+                    // that the address was automatically replaced in the group.
+                    continue;
+                }
+
+                // For security reasons, for now, we only do the AEAP transition if the fingerprint
+                // is verified (that's what from_verified_fingerprint_or_addr() does).
+                // In order to not have inconsistent group membership state, we then only do the
+                // transition in verified groups and in broadcast lists.
+                if (chat.typ == Chattype::Group && chat.is_protected())
+                    || chat.typ == Chattype::Broadcast
+                {
                     chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
 
                     let (new_contact_id, _) =
@@ -572,6 +574,18 @@ impl Peerstate {
                     context.emit_event(EventType::ChatModified(*chat_id));
                 }
             }
+
+            chat::add_info_msg_with_cmd(
+                context,
+                *chat_id,
+                &msg,
+                SystemMessage::Unknown,
+                timestamp_sort,
+                Some(timestamp),
+                None,
+                None,
+            )
+            .await?;
         }
 
         Ok(())

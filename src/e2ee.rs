@@ -149,11 +149,13 @@ pub(crate) async fn get_autocrypt_peerstate(
 
     // Apply Autocrypt header
     if let Some(header) = autocrypt_header {
-        // The "from_nongossiped_fingerprint" part is for AEAP:
+        // The "from_verified_fingerprint" part is for AEAP:
         // If we know this fingerprint from another addr,
         // we may want to do a transition from this other addr
         // (and keep its peerstate)
-        peerstate = Peerstate::from_nongossiped_fingerprint_or_addr(
+        // For security reasons, for now, we only do a transition
+        // if the fingerprint is verified.
+        peerstate = Peerstate::from_verified_fingerprint_or_addr(
             context,
             &header.public_key.fingerprint(),
             from,

@@ -184,9 +184,11 @@ async fn check_aeap_transition(
     let already_new_contact = Contact::create(&bob, "Alice", "fiona@example.net")
         .await
         .unwrap();
-    chat::add_contact_to_chat(&bob, groups[0], already_new_contact)
-        .await
-        .unwrap();
+    if verified {
+        chat::add_contact_to_chat(&bob, groups[2], already_new_contact)
+            .await
+            .unwrap();
+    }
 
     // groups 0 and 2 stay unpromoted (i.e. local
     // on Bob's device, Alice doesn't know about them)
@@ -219,7 +221,7 @@ async fn check_aeap_transition(
 
     tcm.section("Check that the AEAP transition worked");
     check_that_transition_worked(
-        &groups,
+        &groups[2..],
         &alice,
         "alice@example.org",
         ALICE_NEW_ADDR,
@@ -227,6 +229,7 @@ async fn check_aeap_transition(
         &bob,
     )
     .await;
+    check_no_transition_done(&groups[0..2], "alice@example.org", &bob).await;
 
     // Assert that the autocrypt header is also applied to the peerstate
     // if the address changed
@@ -246,7 +249,7 @@ async fn check_aeap_transition(
     assert_eq!(recvd.text.unwrap(), "Hello from my old addr!");
 
     check_that_transition_worked(
-        &groups,
+        &groups[2..],
         &alice,
         // Note that "alice@example.org" and ALICE_NEW_ADDR are switched now:
         ALICE_NEW_ADDR,
@@ -274,11 +277,19 @@ async fn check_that_transition_worked(
         let members = chat::get_chat_contacts(bob, *group).await.unwrap();
         // In all the groups, exactly Bob and Alice's new number are members.
         // (and Alice's new number isn't in there twice)
-        assert_eq!(members.len(), 2);
+        assert_eq!(
+            members.len(),
+            2,
+            "Group {} has members {:?}, but should have members {:?} and {:?}",
+            group,
+            &members,
+            new_contact,
+            ContactId::SELF
+        );
         assert!(members.contains(&new_contact));
         assert!(members.contains(&ContactId::SELF));
 
-        let info_msg = get_last_info_msg(bob, *group).await;
+        let info_msg = get_last_info_msg(bob, *group).await.unwrap();
         let expected_text =
             stock_str::aeap_addr_changed(bob, name, old_alice_addr, new_alice_addr).await;
         assert_eq!(info_msg.text.unwrap(), expected_text);
@@ -288,6 +299,36 @@ async fn check_that_transition_worked(
         let sent = bob.send_text(*group, &msg).await;
         let recvd = alice.recv_msg(&sent).await;
         assert_eq!(recvd.text.unwrap(), msg);
+    }
+}
+
+async fn check_no_transition_done(groups: &[ChatId], old_alice_addr: &str, bob: &TestContext) {
+    let old_contact = Contact::lookup_id_by_addr(bob, old_alice_addr, contact::Origin::Unknown)
+        .await
+        .unwrap()
+        .unwrap();
+
+    for group in groups {
+        let members = chat::get_chat_contacts(bob, *group).await.unwrap();
+        // In all the groups, exactly Bob and Alice's _old_ number are members.
+        assert_eq!(
+            members.len(),
+            2,
+            "Group {} has members {:?}, but should have members {:?} and {:?}",
+            group,
+            &members,
+            old_contact,
+            ContactId::SELF
+        );
+        assert!(members.contains(&old_contact));
+        assert!(members.contains(&ContactId::SELF));
+
+        let last_info_msg = get_last_info_msg(bob, *group).await;
+        assert!(
+            last_info_msg.is_none(),
+            "{:?} shouldn't be there (or it's an unrelated info msg)",
+            last_info_msg
+        );
     }
 }
 
@@ -305,16 +346,16 @@ async fn mark_as_verified(this: &TestContext, other: &TestContext) {
     peerstate.save_to_db(&this.sql, false).await.unwrap();
 }
 
-async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Message {
+async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Option<Message> {
     let msgs = chat::get_chat_msgs(&t.ctx, chat_id, constants::DC_GCM_INFO_ONLY)
         .await
         .unwrap();
-    let msg_id = if let chat::ChatItem::Message { msg_id } = msgs.last().unwrap() {
+    let msg_id = if let chat::ChatItem::Message { msg_id } = msgs.last()? {
         msg_id
     } else {
-        panic!("Wrong item type");
+        return None;
     };
-    Message::load_from_db(&t.ctx, *msg_id).await.unwrap()
+    Some(Message::load_from_db(&t.ctx, *msg_id).await.unwrap())
 }
 
 /// Test that an attacker - here Fiona - can't replay a message sent by Alice
