@@ -516,22 +516,22 @@ impl Peerstate {
             .with_context(|| format!("contact with peerstate.addr {:?} not found", &self.addr))?;
 
         let chats = Chatlist::try_load(context, 0, None, Some(contact_id)).await?;
+        let msg = match &change {
+            PeerstateChange::FingerprintChange => {
+                stock_str::contact_setup_changed(context, self.addr.clone()).await
+            }
+            PeerstateChange::Aeap(new_addr) => {
+                let old_contact = Contact::load_from_db(context, contact_id).await?;
+                stock_str::aeap_addr_changed(
+                    context,
+                    old_contact.get_display_name(),
+                    &self.addr,
+                    new_addr,
+                )
+                .await
+            }
+        };
         for (chat_id, msg_id) in chats.iter() {
-            let msg = match &change {
-                PeerstateChange::FingerprintChange => {
-                    stock_str::contact_setup_changed(context, self.addr.clone()).await
-                }
-                PeerstateChange::Aeap(new_addr) => {
-                    let old_contact = Contact::load_from_db(context, contact_id).await?;
-                    stock_str::aeap_addr_changed(
-                        context,
-                        old_contact.get_display_name(),
-                        &self.addr,
-                        new_addr,
-                    )
-                    .await
-                }
-            };
             let timestamp_sort = if let Some(msg_id) = msg_id {
                 let lastmsg = Message::load_from_db(context, *msg_id).await?;
                 lastmsg.timestamp_sort
