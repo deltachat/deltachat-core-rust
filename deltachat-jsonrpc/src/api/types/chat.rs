@@ -11,6 +11,7 @@ use super::color_int_to_hex_string;
 use super::contact::ContactObject;
 
 #[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
 pub struct FullChat {
     id: u32,
     name: String,

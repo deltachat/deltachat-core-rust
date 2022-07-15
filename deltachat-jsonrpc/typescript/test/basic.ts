@@ -89,14 +89,14 @@ describe("basic tests", () => {
         "example@delta.chat",
         null
       );
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
         .false;
       await dc.rpc.contactsBlock(accountId, contactId);
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
         .true;
       expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(1);
       await dc.rpc.contactsUnblock(accountId, contactId);
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).is_blocked).to.be
+      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
         .false;
       expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(0);
     });

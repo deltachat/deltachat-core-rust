@@ -4,6 +4,7 @@ use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 #[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderInfo {
     pub before_login_hint: String,
     pub overview_page: String,

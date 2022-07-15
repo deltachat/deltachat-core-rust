@@ -9,6 +9,7 @@ use super::color_int_to_hex_string;
 #[derive(Serialize, TypeDef)]
 #[serde(tag = "type")]
 pub enum Account {
+    #[serde(rename_all = "camelCase")]
     Configured {
         id: u32,
         display_name: Option<String>,
@@ -17,6 +18,7 @@ pub enum Account {
         profile_image: Option<String>, // TODO: This needs to be converted to work with blob http server.
         color: String,
     },
+    #[serde(rename_all = "camelCase")]
     Unconfigured {
         id: u32,
     },

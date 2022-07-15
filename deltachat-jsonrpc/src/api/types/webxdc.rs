@@ -9,7 +9,7 @@ use typescript_type_def::TypeDef;
 use super::maybe_empty_string_to_option;
 
 #[derive(Serialize, TypeDef)]
-#[serde(rename = "WebxdcMessageInfo")]
+#[serde(rename = "WebxdcMessageInfo", rename_all = "camelCase")]
 pub struct WebxdcMessageInfo {
     /// The name of the app.
     ///

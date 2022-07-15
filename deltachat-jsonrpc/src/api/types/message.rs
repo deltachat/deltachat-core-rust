@@ -12,7 +12,7 @@ use typescript_type_def::TypeDef;
 use super::contact::ContactObject;
 
 #[derive(Serialize, TypeDef)]
-#[serde(rename = "Message")]
+#[serde(rename = "Message", rename_all = "camelCase")]
 pub struct MessageObject {
     id: u32,
     chat_id: u32,

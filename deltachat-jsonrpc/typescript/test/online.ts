@@ -158,14 +158,14 @@ describe("online tests", function () {
     ).reverse()[0];
     const message2 = await dc.rpc.messageGetMessage(accountId1, messageId);
     expect(message2.text).equal("super secret message");
-    expect(message2.show_padlock).equal(true);
+    expect(message2.showPadlock).equal(true);
   });
 
   it("get provider info for example.com", async () => {
     const acc = await dc.rpc.addAccount();
     const info = await dc.rpc.getProviderInfo(acc, "example.com");
     expect(info).to.be.not.null;
-    expect(info?.overview_page).to.equal(
+    expect(info?.overviewPage).to.equal(
       "https://providers.delta.chat/example-com"
     );
     expect(info?.status).to.equal(3);
