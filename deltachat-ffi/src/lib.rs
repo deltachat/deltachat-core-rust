@@ -4442,12 +4442,12 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
 #[cfg(feature = "jsonrpc")]
 mod jsonrpc {
     use super::*;
-    use deltachat_jsonrpc::api::CommandApi;
+    use deltachat_jsonrpc::api::DeltaChatApiV0;
     use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
 
     pub struct dc_jsonrpc_instance_t {
         receiver: OutReceiver,
-        handle: RpcSession<CommandApi>,
+        handle: RpcSession<DeltaChatApiV0>,
     }
 
     #[no_mangle]

@@ -40,7 +40,7 @@ async fn main() -> Result<(), std::io::Error> {
     Ok(())
 }
 
-async fn handler(ws: WebSocketUpgrade, Extension(api): Extension<CommandApi>) -> Response {
+async fn handler(ws: WebSocketUpgrade, Extension(api): Extension<DeltaChatApiV0>) -> Response {
     let (client, out_receiver) = RpcClient::new();
     let session = RpcSession::new(client.clone(), api.clone());
     tokio::spawn(async move {
