@@ -4461,14 +4461,14 @@ mod jsonrpc {
         }
         let api_version = to_string_lossy(api_version);
 
-        let rpc_api = match &api_version {
+        let rpc_api = match api_version.as_str() {
             "v0" => {
                 deltachat_jsonrpc::api::DeltaChatApiV0::from_arc((*account_manager).inner.clone())
             }
-            _ => {
-                error!(
-                    ctx,
-                    "The requested JSON-RPC API version is not supported.", err
+            version => {
+                eprintln!(
+                    "Error initializing JSON-RPC API: API version {} is not supported.",
+                    version
                 );
                 return ptr::null_mut();
             }
