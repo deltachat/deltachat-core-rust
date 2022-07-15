@@ -79,6 +79,10 @@ export class Chat {
     return this.getType() === C.DC_CHAT_TYPE_GROUP
   }
 
+  isBroadcast(): boolean {
+    return this.getType() === C.DC_CHAT_TYPE_BROADCAST
+  }
+
   isMuted(): boolean {
     return Boolean(binding.dcn_chat_is_muted(this.dc_chat))
   }

@@ -5,6 +5,7 @@ export type ChatTypes =
   | C.DC_CHAT_TYPE_MAILINGLIST
   | C.DC_CHAT_TYPE_SINGLE
   | C.DC_CHAT_TYPE_UNDEFINED
+  | C.DC_CHAT_TYPE_BROADCAST
 
 export interface ChatJSON {
   archived: boolean
