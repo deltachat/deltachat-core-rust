@@ -3313,9 +3313,10 @@ static void call_accounts_js_jsonrpc_handler(napi_env env, napi_value js_callbac
 }
 
 NAPI_METHOD(dcn_accounts_start_jsonrpc) {
-  NAPI_ARGV(2);
+  NAPI_ARGV(3);
   NAPI_DCN_ACCOUNTS();
-  napi_value callback = argv[1];
+  NAPI_ARGV_UTF8_MALLOC(api_version, 1);
+  napi_value callback = argv[2];
 
   TRACE("calling..");
   napi_value async_resource_name;
@@ -3338,7 +3339,7 @@ NAPI_METHOD(dcn_accounts_start_jsonrpc) {
   TRACE("done");
 
   dcn_accounts->gc = 0;
-  dcn_accounts->jsonrpc_instance = dc_jsonrpc_init(dcn_accounts->dc_accounts);
+  dcn_accounts->jsonrpc_instance = dc_jsonrpc_init(dcn_accounts->dc_accounts, api_version);
 
   TRACE("creating uv thread..");
   uv_thread_create(&dcn_accounts->jsonrpc_thread, accounts_jsonrpc_thread_func, dcn_accounts);

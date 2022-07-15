@@ -4453,17 +4453,29 @@ mod jsonrpc {
     #[no_mangle]
     pub unsafe extern "C" fn dc_jsonrpc_init(
         account_manager: *mut dc_accounts_t,
+        api_version: *const libc::c_char,
     ) -> *mut dc_jsonrpc_instance_t {
         if account_manager.is_null() {
             eprintln!("ignoring careless call to dc_jsonrpc_init()");
             return ptr::null_mut();
         }
+        let api_version = to_string_lossy(api_version);
 
-        let cmd_api =
-            deltachat_jsonrpc::api::CommandApi::from_arc((*account_manager).inner.clone());
+        let rpc_api = match &api_version {
+            "v0" => {
+                deltachat_jsonrpc::api::DeltaChatApiV0::from_arc((*account_manager).inner.clone())
+            }
+            _ => {
+                error!(
+                    ctx,
+                    "The requested JSON-RPC API version is not supported.", err
+                );
+                return ptr::null_mut();
+            }
+        };
 
         let (request_handle, receiver) = RpcClient::new();
-        let handle = RpcSession::new(request_handle, cmd_api);
+        let handle = RpcSession::new(request_handle, rpc_api);
 
         let instance = dc_jsonrpc_instance_t { receiver, handle };
 

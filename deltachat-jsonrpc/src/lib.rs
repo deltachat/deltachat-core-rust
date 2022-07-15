@@ -1,10 +1,11 @@
 pub mod api;
 pub use api::events;
+pub use api::{Accounts, DeltaChatApiV0};
 pub use yerpc;
 
 #[cfg(test)]
 mod tests {
-    use super::api::{Accounts, CommandApi};
+    use super::api::{Accounts, DeltaChatApiV0};
     use async_channel::unbounded;
     use futures::StreamExt;
     use tempfile::TempDir;

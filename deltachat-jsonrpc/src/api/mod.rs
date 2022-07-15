@@ -34,20 +34,20 @@ use types::webxdc::WebxdcMessageInfo;
 use self::types::message::MessageViewtype;
 
 #[derive(Clone, Debug)]
-pub struct CommandApi {
+pub struct DeltaChatApiV0 {
     pub(crate) accounts: Arc<RwLock<Accounts>>,
 }
 
-impl CommandApi {
+impl DeltaChatApiV0 {
     pub fn new(accounts: Accounts) -> Self {
-        CommandApi {
+        DeltaChatApiV0 {
             accounts: Arc::new(RwLock::new(accounts)),
         }
     }
 
     #[allow(dead_code)]
     pub fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
-        CommandApi { accounts }
+        DeltaChatApiV0 { accounts }
     }
 
     async fn get_context(&self, id: u32) -> Result<deltachat::context::Context> {
@@ -63,7 +63,7 @@ impl CommandApi {
 }
 
 #[rpc(all_positional, ts_outdir = "typescript/generated")]
-impl CommandApi {
+impl DeltaChatApiV0 {
     // ---------------------------------------------
     //  Misc top level functions
     // ---------------------------------------------

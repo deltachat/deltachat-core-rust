@@ -6,7 +6,7 @@ use yerpc::{RpcClient, RpcSession};
 
 mod api;
 use api::events::event_to_json_rpc_notification;
-use api::{Accounts, CommandApi};
+use api::{Accounts, DeltaChatApiV0};
 
 const DEFAULT_PORT: u16 = 20808;
 
@@ -20,10 +20,10 @@ async fn main() -> Result<(), std::io::Error> {
         .unwrap_or(DEFAULT_PORT);
     log::info!("Starting with accounts directory `{path}`.");
     let accounts = Accounts::new(PathBuf::from(&path)).await.unwrap();
-    let state = CommandApi::new(accounts);
+    let state = DeltaChatApiV0::new(accounts);
 
     let app = Router::new()
-        .route("/ws", get(handler))
+        .route("/rpc/v0", get(handler))
         .layer(Extension(state.clone()));
 
     tokio::spawn(async move {

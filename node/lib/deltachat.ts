@@ -115,7 +115,7 @@ export class AccountManager extends EventEmitter {
     debug('Started event handler')
   }
 
-  startJsonRpcHandler(callback: ((response: string) => void) | null) {
+  startJsonRpcHandler(callback: ((response: string) => void) | null, apiVersion: string = "v0") {
     if (this.dcn_accounts === null) {
       throw new Error('dcn_account is null')
     }
@@ -126,7 +126,7 @@ export class AccountManager extends EventEmitter {
       throw new Error('jsonrpc was started already')
     }
 
-    binding.dcn_accounts_start_jsonrpc(this.dcn_accounts, callback.bind(this))
+    binding.dcn_accounts_start_jsonrpc(this.dcn_accounts, apiVersion, callback.bind(this))
     debug('Started JSON-RPC handler')
     this.jsonRpcStarted = true
   }
