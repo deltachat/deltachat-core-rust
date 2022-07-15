@@ -5,6 +5,7 @@
 ### Changes
 - handle drafts from mailto links in scanned QR #3492
 - do not overflow ratelimiter leaky bucket #3496
+- (AEAP) Add device message after you changed your address #3505
 
 ### Fixes
 - don't squash text parts of NDN into attachments #3497
