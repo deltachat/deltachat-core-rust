@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self, is_contact_in_chat, Chat, ChatId};
+use crate::chat::{self, is_contact_in_chat, Chat};
 use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
@@ -644,12 +644,6 @@ pub async fn maybe_do_aeap_transition(
                         PeerstateChange::Aeap(info.from.clone()),
                     )
                     .await?;
-
-                // Create a chat with the new address with the same blocked-level as the old chat
-                let new_chat_id =
-                    ChatId::create_for_contact_with_blocked(context, new_contact_id, chat.blocked)
-                        .await?;
-                chat::add_info_msg(context, new_chat_id, &msg, info.message_time).await?;
 
                 peerstate.addr = info.from.clone();
                 let header = info.autocrypt_header.as_ref().context(
