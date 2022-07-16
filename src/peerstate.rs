@@ -635,7 +635,7 @@ pub async fn maybe_do_aeap_transition(
                 && mime_parser.from_is_signed
                 && info.message_time > peerstate.last_seen
             {
-                // Add an info messages to all chats with this contact
+                // Add info messages to chats with this (verified) contact
                 //
                 peerstate
                     .handle_setup_change(
