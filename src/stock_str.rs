@@ -337,7 +337,7 @@ pub enum StockMessage {
     AeapAddrChanged = 122,
 
     #[strum(props(
-        fallback = "You changed your email address from %1$s to %2$s.\n\nIf you now send a message to a group, contacts there will automatically replace the old with your new address.\n\nIt's highly advised to set up your old email provider to forward all emails to your new email address. Otherwise you might miss messages of contacts who did not get your new address yet."
+        fallback = "You changed your email address from %1$s to %2$s.\n\nIf you now send a message to a verified group, contacts there will automatically replace the old with your new address.\n\nIt's highly advised to set up your old email provider to forward all emails to your new email address. Otherwise you might miss messages of contacts who did not get your new address yet."
     ))]
     AeapExplanationAndLink = 123,
 }

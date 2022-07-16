@@ -6377,8 +6377,9 @@ void dc_event_unref(dc_event_t* event);
 /// Otherwise you might miss messages of contacts who did not get your new 
 /// address yet." + the link to the AEAP blog post
 /// 
-/// The UIs have to add the link:
+/// As soon as there is a post about AEAP, the UIs should add it:
 /// set_stock_translation(123, getString(aeap_explanation) + "\n\n" + AEAP_BLOG_LINK)
+///
 /// Used in a device message that explains AEAP.
 #define DC_STR_AEAP_EXPLANATION_AND_LINK  123
 
