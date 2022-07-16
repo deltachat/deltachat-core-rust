@@ -3,10 +3,18 @@
 ## Unreleased
 
 ### Changes
+
+### Fixes
+
+
+## 1.90.0
+
+### Changes
 - handle drafts from mailto links in scanned QR #3492
 - do not overflow ratelimiter leaky bucket #3496
 - (AEAP) Add device message after you changed your address #3505
 - (AEAP) Revert #3491, instead only replace contacts in verified groups #3510
+- improve python bindings and tests #3502 #3503
 
 ### Fixes
 - don't squash text parts of NDN into attachments #3497
