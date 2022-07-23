@@ -56,6 +56,7 @@ struct WebxdcManifest {
     name: Option<String>,
     min_api: Option<u32>,
     source_code_url: Option<String>,
+    request_internet_access: Option<bool>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -66,6 +67,7 @@ pub struct WebxdcInfo {
     pub document: String,
     pub summary: String,
     pub source_code_url: String,
+    pub internet_access: bool,
 }
 
 /// Status Update ID.
@@ -676,6 +678,7 @@ impl Message {
                     name: None,
                     min_api: None,
                     source_code_url: None,
+                    request_internet_access: None,
                 }
             }
         } else {
@@ -683,6 +686,7 @@ impl Message {
                 name: None,
                 min_api: None,
                 source_code_url: None,
+                request_internet_access: None,
             }
         };
 
@@ -722,6 +726,9 @@ impl Message {
             } else {
                 "".to_string()
             },
+            internet_access: manifest.request_internet_access.unwrap_or_default()
+                && self.chat_id.is_self_talk(context).await.unwrap_or_default()
+                && self.get_showpadlock(),
         })
     }
 }
