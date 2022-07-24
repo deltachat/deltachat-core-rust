@@ -1581,8 +1581,9 @@ def test_set_get_group_image(acfactory, data, lp):
 
     lp.sec("ac2: wait for receiving message from ac1")
     msg1 = ac2._evtracker.wait_next_incoming_message()
+    assert msg1.is_system_message()  # Member added
     msg2 = ac2._evtracker.wait_next_incoming_message()
-    assert msg1.text == "hi" or msg2.text == "hi"
+    assert msg2.text == "hi"
     assert msg1.chat.id == msg2.chat.id
 
     lp.sec("ac2: see if chat now has got the profile image")
@@ -1596,6 +1597,8 @@ def test_set_get_group_image(acfactory, data, lp):
     lp.sec("ac2: delete profile image from chat")
     msg1.chat.remove_profile_image()
     msg_back = ac1._evtracker.wait_next_incoming_message()
+    assert msg_back.text == "Group image deleted by {}.".format(ac2.get_config("addr"))
+    assert msg_back.is_system_message()
     assert msg_back.chat == chat
     assert chat.get_profile_image() is None
 

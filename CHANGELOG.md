@@ -6,6 +6,7 @@
 - refactorings #3437
 
 ### Fixes
+- mark "group image changed" as system message on receiver side #3517
 
 
 ## 1.90.0
