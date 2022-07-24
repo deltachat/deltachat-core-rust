@@ -1,8 +1,5 @@
 //! Module to work with translatable stock strings.
 
-use std::future::Future;
-use std::pin::Pin;
-
 use anyhow::{bail, Error};
 use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
@@ -52,21 +49,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "File"))]
     File = 12,
 
-    #[strum(props(fallback = "Group name changed from \"%1$s\" to \"%2$s\"."))]
-    MsgGrpName = 15,
-
-    #[strum(props(fallback = "Group image changed."))]
-    MsgGrpImgChanged = 16,
-
-    #[strum(props(fallback = "Member %1$s added."))]
-    MsgAddMember = 17,
-
-    #[strum(props(fallback = "Member %1$s removed."))]
-    MsgDelMember = 18,
-
-    #[strum(props(fallback = "Group left."))]
-    MsgGroupLeft = 19,
-
     #[strum(props(fallback = "GIF"))]
     Gif = 23,
 
@@ -90,9 +72,6 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "This is a return receipt for the message \"%1$s\"."))]
     ReadRcptMailBody = 32,
-
-    #[strum(props(fallback = "Group image deleted."))]
-    MsgGrpImgDeleted = 33,
 
     #[strum(props(fallback = "End-to-end encryption preferred"))]
     E2ePreferred = 34,
@@ -121,12 +100,6 @@ pub enum StockMessage {
         fallback = "Cannot login as \"%1$s\". Please check if the email address and the password are correct."
     ))]
     CannotLogin = 60,
-
-    #[strum(props(fallback = "%1$s by %2$s."))]
-    MsgActionByUser = 62,
-
-    #[strum(props(fallback = "%1$s by me."))]
-    MsgActionByMe = 63,
 
     #[strum(props(fallback = "Location streaming enabled."))]
     MsgLocationEnabled = 64,
@@ -172,26 +145,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Failed to send message to %1$s."))]
     FailedSendingTo = 74,
 
-    #[strum(props(fallback = "Message deletion timer is disabled."))]
-    MsgEphemeralTimerDisabled = 75,
-
-    // A fallback message for unknown timer values.
-    // "s" stands for "second" SI unit here.
-    #[strum(props(fallback = "Message deletion timer is set to %1$s s."))]
-    MsgEphemeralTimerEnabled = 76,
-
-    #[strum(props(fallback = "Message deletion timer is set to 1 minute."))]
-    MsgEphemeralTimerMinute = 77,
-
-    #[strum(props(fallback = "Message deletion timer is set to 1 hour."))]
-    MsgEphemeralTimerHour = 78,
-
-    #[strum(props(fallback = "Message deletion timer is set to 1 day."))]
-    MsgEphemeralTimerDay = 79,
-
-    #[strum(props(fallback = "Message deletion timer is set to 1 week."))]
-    MsgEphemeralTimerWeek = 80,
-
     #[strum(props(fallback = "Video chat invitation"))]
     VideochatInvitation = 82,
 
@@ -218,12 +171,6 @@ pub enum StockMessage {
     ))]
     ErrorNoNetwork = 87,
 
-    #[strum(props(fallback = "Chat protection enabled."))]
-    ProtectionEnabled = 88,
-
-    #[strum(props(fallback = "Chat protection disabled."))]
-    ProtectionDisabled = 89,
-
     // used in summaries, a noun, not a verb (not: "to reply")
     #[strum(props(fallback = "Reply"))]
     ReplyNoun = 90,
@@ -238,18 +185,6 @@ pub enum StockMessage {
                     Settings → \"Chats and Media\" → \"Delete messages from server\" to continue using it."
     ))]
     DeleteServerTurnedOff = 92,
-
-    #[strum(props(fallback = "Message deletion timer is set to %1$s minutes."))]
-    MsgEphemeralTimerMinutes = 93,
-
-    #[strum(props(fallback = "Message deletion timer is set to %1$s hours."))]
-    MsgEphemeralTimerHours = 94,
-
-    #[strum(props(fallback = "Message deletion timer is set to %1$s days."))]
-    MsgEphemeralTimerDays = 95,
-
-    #[strum(props(fallback = "Message deletion timer is set to %1$s weeks."))]
-    MsgEphemeralTimerWeeks = 96,
 
     #[strum(props(fallback = "Forwarded"))]
     Forwarded = 97,
@@ -340,6 +275,122 @@ pub enum StockMessage {
         fallback = "You changed your email address from %1$s to %2$s.\n\nIf you now send a message to a verified group, contacts there will automatically replace the old with your new address.\n\nIt's highly advised to set up your old email provider to forward all emails to your new email address. Otherwise you might miss messages of contacts who did not get your new address yet."
     ))]
     AeapExplanationAndLink = 123,
+
+    #[strum(props(fallback = "You changed group name from \"%1$s\" to \"%2$s\"."))]
+    MsgYouChangedGrpName = 124,
+
+    #[strum(props(fallback = "Group name changed from \"%1$s\" to \"%2$s\" by %3$s."))]
+    MsgGrpNameChangedBy = 125,
+
+    #[strum(props(fallback = "You changed the group image."))]
+    MsgYouChangedGrpImg = 126,
+
+    #[strum(props(fallback = "Group image changed by %1$s."))]
+    MsgGrpImgChangedBy = 127,
+
+    #[strum(props(fallback = "You added member %1$s."))]
+    MsgYouAddMember = 128,
+
+    #[strum(props(fallback = "Member %1$s added by %2$s."))]
+    MsgAddMemberBy = 129,
+
+    #[strum(props(fallback = "You removed member %1$s."))]
+    MsgYouDelMember = 130,
+
+    #[strum(props(fallback = "Member %1$s removed by %2$s."))]
+    MsgDelMemberBy = 131,
+
+    #[strum(props(fallback = "You left the group."))]
+    MsgYouLeftGroup = 132,
+
+    #[strum(props(fallback = "Group left by %1$s."))]
+    MsgGroupLeftBy = 133,
+
+    #[strum(props(fallback = "You deleted the group image."))]
+    MsgYouDeletedGrpImg = 134,
+
+    #[strum(props(fallback = "Group image deleted by %1$s."))]
+    MsgGrpImgDeletedBy = 135,
+
+    #[strum(props(fallback = "You enabled location streaming."))]
+    MsgYouEnabledLocation = 136,
+
+    #[strum(props(fallback = "Location streaming enabled by %1$s."))]
+    MsgLocationEnabledBy = 137,
+
+    #[strum(props(fallback = "You disabled message deletion timer."))]
+    MsgYouDisabledEphemeralTimer = 138,
+
+    #[strum(props(fallback = "Message deletion timer is disabled by %1$s."))]
+    MsgEphemeralTimerDisabledBy = 139,
+
+    // A fallback message for unknown timer values.
+    // "s" stands for "second" SI unit here.
+    #[strum(props(fallback = "You set message deletion timer to %1$s s."))]
+    MsgYouEnabledEphemeralTimer = 140,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s s by %2$s."))]
+    MsgEphemeralTimerEnabledBy = 141,
+
+    #[strum(props(fallback = "You set message deletion timer to 1 minute."))]
+    MsgYouEphemeralTimerMinute = 142,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 minute by %1$s."))]
+    MsgEphemeralTimerMinuteBy = 143,
+
+    #[strum(props(fallback = "You set message deletion timer to 1 hour."))]
+    MsgYouEphemeralTimerHour = 144,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 hour by %1$s."))]
+    MsgEphemeralTimerHourBy = 145,
+
+    #[strum(props(fallback = "You set message deletion timer to 1 day."))]
+    MsgYouEphemeralTimerDay = 146,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 day by %1$s."))]
+    MsgEphemeralTimerDayBy = 147,
+
+    #[strum(props(fallback = "You set message deletion timer to 1 week."))]
+    MsgYouEphemeralTimerWeek = 148,
+
+    #[strum(props(fallback = "Message deletion timer is set to 1 week by %1$s."))]
+    MsgEphemeralTimerWeekBy = 149,
+
+    #[strum(props(fallback = "You set message deletion timer to %1$s minutes."))]
+    MsgYouEphemeralTimerMinutes = 150,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s minutes by %2$s."))]
+    MsgEphemeralTimerMinutesBy = 151,
+
+    #[strum(props(fallback = "You set message deletion timer to %1$s hours."))]
+    MsgYouEphemeralTimerHours = 152,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s hours by %2$s."))]
+    MsgEphemeralTimerHoursBy = 153,
+
+    #[strum(props(fallback = "You set message deletion timer to %1$s days."))]
+    MsgYouEphemeralTimerDays = 154,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s days by %2$s."))]
+    MsgEphemeralTimerDaysBy = 155,
+
+    #[strum(props(fallback = "You set message deletion timer to %1$s weeks."))]
+    MsgYouEphemeralTimerWeeks = 156,
+
+    #[strum(props(fallback = "Message deletion timer is set to %1$s weeks by %2$s."))]
+    MsgEphemeralTimerWeeksBy = 157,
+
+    #[strum(props(fallback = "You enabled chat protection."))]
+    YouEnabledProtection = 158,
+
+    #[strum(props(fallback = "Chat protection enabled by %1$s."))]
+    ProtectionEnabledBy = 159,
+
+    #[strum(props(fallback = "You disabled chat protection."))]
+    YouDisabledProtection = 160,
+
+    #[strum(props(fallback = "Chat protection disabled by %1$s."))]
+    ProtectionDisabledBy = 161,
 }
 
 impl StockMessage {
@@ -393,38 +444,15 @@ trait StockStringMods: AsRef<str> + Sized {
             .replacen("%3$d", replacement.as_ref(), 1)
             .replacen("%3$@", replacement.as_ref(), 1)
     }
+}
 
-    /// Augments the message by saying it was performed by a user.
-    ///
-    /// This looks up the display name of `contact` and uses the [`msg_action_by_me`] and
-    /// [`msg_action_by_user`] stock strings to turn the stock string in one that says the
-    /// action was performed by this user.
-    ///
-    /// E.g. this turns `Group image changed.` into `Group image changed by me.` or `Group
-    /// image changed by Alice.`.
-    ///
-    /// Note that the original message should end in a `.`.
-    fn action_by_contact<'a>(
-        self,
-        context: &'a Context,
-        contact_id: ContactId,
-    ) -> Pin<Box<dyn Future<Output = String> + Send + 'a>>
-    where
-        Self: Send + 'a,
-    {
-        Box::pin(async move {
-            let message = self.as_ref().trim_end_matches('.');
-            match contact_id {
-                ContactId::SELF => msg_action_by_me(context, message).await,
-                _ => {
-                    let displayname = Contact::get_by_id(context, contact_id)
-                        .await
-                        .map(|contact| contact.get_name_n_addr())
-                        .unwrap_or_else(|_| contact_id.to_string());
-                    msg_action_by_user(context, message, displayname).await
-                }
-            }
-        })
+impl ContactId {
+    /// Get contact name for stock string.
+    async fn get_stock_name(self, context: &Context) -> String {
+        Contact::get_by_id(context, self)
+            .await
+            .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_else(|_| self.to_string())
     }
 }
 
@@ -477,20 +505,28 @@ pub(crate) async fn msg_grp_name(
     to_group: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgGrpName)
-        .await
-        .replace1(from_group)
-        .replace2(to_group)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouChangedGrpName)
+            .await
+            .replace1(from_group)
+            .replace2(to_group)
+    } else {
+        translated(context, StockMessage::MsgGrpNameChangedBy)
+            .await
+            .replace1(from_group)
+            .replace2(to_group)
+            .replace3(by_contact.get_stock_name(context).await)
+    }
 }
 
-/// Stock string: `Group image changed.`.
 pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgGrpImgChanged)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouChangedGrpImg).await
+    } else {
+        translated(context, StockMessage::MsgGrpImgChangedBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Member %1$s added.`.
@@ -510,11 +546,16 @@ pub(crate) async fn msg_add_member(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    translated(context, StockMessage::MsgAddMember)
-        .await
-        .replace1(who)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouAddMember)
+            .await
+            .replace1(who)
+    } else {
+        translated(context, StockMessage::MsgAddMemberBy)
+            .await
+            .replace1(who)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Member %1$s removed.`.
@@ -534,19 +575,27 @@ pub(crate) async fn msg_del_member(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    translated(context, StockMessage::MsgDelMember)
-        .await
-        .replace1(who)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouDelMember)
+            .await
+            .replace1(who)
+    } else {
+        translated(context, StockMessage::MsgDelMemberBy)
+            .await
+            .replace1(who)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Group left.`.
 pub(crate) async fn msg_group_left(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgGroupLeft)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouLeftGroup).await
+    } else {
+        translated(context, StockMessage::MsgGroupLeftBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `GIF`.
@@ -593,10 +642,13 @@ pub(crate) async fn read_rcpt_mail_body(context: &Context, message: impl AsRef<s
 
 /// Stock string: `Group image deleted.`.
 pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgGrpImgDeleted)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouDeletedGrpImg).await
+    } else {
+        translated(context, StockMessage::MsgGrpImgDeletedBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `End-to-end encryption preferred.`.
@@ -714,25 +766,6 @@ pub(crate) async fn cannot_login(context: &Context, user: impl AsRef<str>) -> St
         .replace1(user)
 }
 
-/// Stock string: `%1$s by %2$s.`.
-pub(crate) async fn msg_action_by_user(
-    context: &Context,
-    action: impl AsRef<str>,
-    user: impl AsRef<str>,
-) -> String {
-    translated(context, StockMessage::MsgActionByUser)
-        .await
-        .replace1(action)
-        .replace2(user)
-}
-
-/// Stock string: `%1$s by me.`.
-pub(crate) async fn msg_action_by_me(context: &Context, action: impl AsRef<str>) -> String {
-    translated(context, StockMessage::MsgActionByMe)
-        .await
-        .replace1(action)
-}
-
 /// Stock string: `Location streaming enabled.`.
 pub(crate) async fn msg_location_enabled(context: &Context) -> String {
     translated(context, StockMessage::MsgLocationEnabled).await
@@ -740,10 +773,13 @@ pub(crate) async fn msg_location_enabled(context: &Context) -> String {
 
 /// Stock string: `Location streaming enabled by ...`.
 pub(crate) async fn msg_location_enabled_by(context: &Context, contact: ContactId) -> String {
-    translated(context, StockMessage::MsgLocationEnabled)
-        .await
-        .action_by_contact(context, contact)
-        .await
+    if contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEnabledLocation).await
+    } else {
+        translated(context, StockMessage::MsgLocationEnabledBy)
+            .await
+            .replace1(contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Location streaming disabled.`.
@@ -809,10 +845,13 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
     context: &Context,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerDisabled)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouDisabledEphemeralTimer).await
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s s.`.
@@ -821,43 +860,60 @@ pub(crate) async fn msg_ephemeral_timer_enabled(
     timer: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerEnabled)
-        .await
-        .replace1(timer)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEnabledEphemeralTimer)
+            .await
+            .replace1(timer)
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
+            .await
+            .replace1(timer)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to 1 minute.`.
 pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerMinute)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerMinute).await
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to 1 hour.`.
 pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerHour)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerHour).await
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerHourBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to 1 day.`.
 pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerDay)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerDay).await
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerDayBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to 1 week.`.
 pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerWeek)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerWeek).await
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerWeekBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Video chat invitation`.
@@ -899,18 +955,24 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
 
 /// Stock string: `Chat protection enabled.`.
 pub(crate) async fn protection_enabled(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::ProtectionEnabled)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::YouEnabledProtection).await
+    } else {
+        translated(context, StockMessage::ProtectionEnabledBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Chat protection disabled.`.
 pub(crate) async fn protection_disabled(context: &Context, by_contact: ContactId) -> String {
-    translated(context, StockMessage::ProtectionDisabled)
-        .await
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::YouDisabledProtection).await
+    } else {
+        translated(context, StockMessage::ProtectionDisabledBy)
+            .await
+            .replace1(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Reply`.
@@ -934,11 +996,16 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
     minutes: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerMinutes)
-        .await
-        .replace1(minutes)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerMinutes)
+            .await
+            .replace1(minutes)
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
+            .await
+            .replace1(minutes)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s hours.`.
@@ -947,11 +1014,16 @@ pub(crate) async fn msg_ephemeral_timer_hours(
     hours: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerHours)
-        .await
-        .replace1(hours)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerHours)
+            .await
+            .replace1(hours)
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerHoursBy)
+            .await
+            .replace1(hours)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s days.`.
@@ -960,11 +1032,16 @@ pub(crate) async fn msg_ephemeral_timer_days(
     days: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerDays)
-        .await
-        .replace1(days)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerDays)
+            .await
+            .replace1(days)
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerDaysBy)
+            .await
+            .replace1(days)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s weeks.`.
@@ -973,11 +1050,16 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
     weeks: impl AsRef<str>,
     by_contact: ContactId,
 ) -> String {
-    translated(context, StockMessage::MsgEphemeralTimerWeeks)
-        .await
-        .replace1(weeks)
-        .action_by_contact(context, by_contact)
-        .await
+    if by_contact == ContactId::SELF {
+        translated(context, StockMessage::MsgYouEphemeralTimerWeeks)
+            .await
+            .replace1(weeks)
+    } else {
+        translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
+            .await
+            .replace1(weeks)
+            .replace2(by_contact.get_stock_name(context).await)
+    }
 }
 
 /// Stock string: `Forwarded`.
@@ -1257,12 +1339,6 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_stock_string_repl_str2() {
-        let t = TestContext::new().await;
-        assert_eq!(msg_action_by_user(&t, "foo", "bar").await, "foo by bar.");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_stock_system_msg_simple() {
         let t = TestContext::new().await;
         assert_eq!(
@@ -1276,7 +1352,7 @@ mod tests {
         let t = TestContext::new().await;
         assert_eq!(
             msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
-            "Member alice@example.org added by me."
+            "You added member alice@example.org."
         )
     }
 
@@ -1288,7 +1364,7 @@ mod tests {
             .expect("failed to create contact");
         assert_eq!(
             msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
-            "Member Alice (alice@example.org) added by me."
+            "You added member Alice (alice@example.org)."
         );
     }
 

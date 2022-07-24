@@ -587,7 +587,7 @@ mod tests {
 
         assert_eq!(
             stock_ephemeral_timer_changed(&context, Timer::Disabled, ContactId::SELF).await,
-            "Message deletion timer is disabled by me."
+            "You disabled message deletion timer."
         );
 
         assert_eq!(
@@ -597,7 +597,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1 s by me."
+            "You set message deletion timer to 1 s."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -606,7 +606,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 30 s by me."
+            "You set message deletion timer to 30 s."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -615,7 +615,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1 minute by me."
+            "You set message deletion timer to 1 minute."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -624,7 +624,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1.5 minutes by me."
+            "You set message deletion timer to 1.5 minutes."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -633,7 +633,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 30 minutes by me."
+            "You set message deletion timer to 30 minutes."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -642,7 +642,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1 hour by me."
+            "You set message deletion timer to 1 hour."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -651,7 +651,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1.5 hours by me."
+            "You set message deletion timer to 1.5 hours."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -662,7 +662,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 2 hours by me."
+            "You set message deletion timer to 2 hours."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -673,7 +673,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1 day by me."
+            "You set message deletion timer to 1 day."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -684,7 +684,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 2 days by me."
+            "You set message deletion timer to 2 days."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -695,7 +695,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 1 week by me."
+            "You set message deletion timer to 1 week."
         );
         assert_eq!(
             stock_ephemeral_timer_changed(
@@ -706,7 +706,7 @@ mod tests {
                 ContactId::SELF
             )
             .await,
-            "Message deletion timer is set to 4 weeks by me."
+            "You set message deletion timer to 4 weeks."
         );
     }
 

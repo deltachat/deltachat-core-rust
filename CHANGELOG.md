@@ -42,6 +42,7 @@
 - jsonrpc: add `BasicChat` object as a leaner alternative to `FullChat` #3590
 - jsonrpc: add `last_seen` property to `Contact` #3590
 - breaking! jsonrpc: replace `Message.quoted_text` and `Message.quoted_message_id` with `Message.quote` #3590
+- add separate stock strings for actions done by contacts to make them easier to translate #3518
 
 ### Changes
 - order contact lists by "last seen";
