@@ -60,29 +60,10 @@ def run_cmdline(argv=None, account_plugins=None):
 
     ac = Account(args.db)
 
-    if args.show_ffi:
-        ac.set_config("displayname", "bot")
-        log = events.FFIEventLogger(ac)
-        ac.add_account_plugin(log)
-
-    for plugin in account_plugins or []:
-        print("adding plugin", plugin)
-        ac.add_account_plugin(plugin)
-
-    if not ac.is_configured():
-        assert (
-            args.email and args.password
-        ), "you must specify --email and --password once to configure this database/account"
-        ac.set_config("addr", args.email)
-        ac.set_config("mail_pw", args.password)
-        ac.set_config("mvbox_move", "0")
-        ac.set_config("sentbox_watch", "0")
-        ac.set_config("bot", "1")
-        configtracker = ac.configure()
-        configtracker.wait_finish()
-
-    # start IO threads and configure if neccessary
-    ac.start_io()
+    ac.run_account(addr=args.email,
+                   password=args.password,
+                   account_plugins=account_plugins,
+                   show_ffi=args.show_ffi)
 
     print("{}: waiting for message".format(ac.get_config("addr")))
 
