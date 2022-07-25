@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Adds
+- python bindings: extra method to get an account running
+
 ### Changes
 - refactorings #3437
 
