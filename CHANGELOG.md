@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-### Adds
+### Added
+
+### Changes
+
+### Fixes
+
+
+## 1.91.0
+
+### Added
 - python bindings: extra method to get an account running
 
 ### Changes
