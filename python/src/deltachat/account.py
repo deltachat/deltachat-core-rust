@@ -616,9 +616,7 @@ class Account(object):
             self.add_account_plugin(plugin)
 
         if not self.is_configured():
-            assert (
-                    addr and password
-            ), "you must specify email and password once to configure this database/account"
+            assert addr and password, "you must specify email and password once to configure this database/account"
             self.set_config("addr", addr)
             self.set_config("mail_pw", password)
             self.set_config("mvbox_move", "0")
