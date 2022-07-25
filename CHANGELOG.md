@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### API-Changes
+- add `dc_chat_get_mailinglist_addr()` #3520
+
 ### Added
 
 ### Changes
