@@ -171,12 +171,6 @@ class Chat(object):
         """
         return lib.dc_chat_get_color(self._dc_chat)
 
-    def get_summary(self):
-        """return dictionary with summary information."""
-        dc_res = lib.dc_chat_get_info_json(self.account._dc_context, self.id)
-        s = from_dc_charpointer(dc_res)
-        return json.loads(s)
-
     def mute(self, duration: Optional[int] = None) -> None:
         """mutes the chat
 

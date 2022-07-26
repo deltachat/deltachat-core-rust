@@ -3166,24 +3166,6 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t* chatlist);
 
 
 /**
- * Get info summary for a chat, in JSON format.
- *
- * The returned JSON string has the following key/values:
- *
- * id: chat id
- * name: chat/group name
- * color: color of this chat
- * last-message-from: who sent the last message
- * last-message-text: message (truncated)
- * last-message-state: @ref DC_STATE constant
- * last-message-date:
- * avatar-path: path-to-blobfile
- * is_verified: yes/no
- * @return a UTF8-encoded JSON string containing all requested info. Must be freed using dc_str_unref(). NULL is never returned.
- */
-char*            dc_chat_get_info_json       (dc_context_t* context, size_t chat_id);
-
-/**
  * @class dc_chat_t
  *
  * An object representing a single chat in memory.

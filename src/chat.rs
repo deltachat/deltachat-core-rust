@@ -1172,35 +1172,6 @@ impl Chat {
         Ok(color)
     }
 
-    /// Returns a struct describing the current state of the chat.
-    ///
-    /// This is somewhat experimental, even more so than the rest of
-    /// deltachat, and the data returned is still subject to change.
-    pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
-        let draft = match self.id.get_draft(context).await? {
-            Some(message) => message.text.unwrap_or_default(),
-            _ => String::new(),
-        };
-        Ok(ChatInfo {
-            id: self.id,
-            type_: self.typ as u32,
-            name: self.name.clone(),
-            archived: self.visibility == ChatVisibility::Archived,
-            param: self.param.to_string(),
-            gossiped_timestamp: self.id.get_gossiped_timestamp(context).await?,
-            is_sending_locations: self.is_sending_locations,
-            color: self.get_color(context).await?,
-            profile_image: self
-                .get_profile_image(context)
-                .await?
-                .map(Into::into)
-                .unwrap_or_else(std::path::PathBuf::new),
-            draft,
-            is_muted: self.is_muted(),
-            ephemeral_timer: self.id.get_ephemeral_timer(context).await?,
-        })
-    }
-
     pub fn get_visibility(&self) -> ChatVisibility {
         self.visibility
     }
@@ -3468,37 +3439,6 @@ mod tests {
     use crate::contact::Contact;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_chat_info() {
-        let t = TestContext::new().await;
-        let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
-        let info = chat.get_info(&t).await.unwrap();
-
-        // Ensure we can serialize this.
-        println!("{}", serde_json::to_string_pretty(&info).unwrap());
-
-        let expected = r#"
-            {
-                "id": 10,
-                "type": 100,
-                "name": "bob",
-                "archived": false,
-                "param": "",
-                "gossiped_timestamp": 0,
-                "is_sending_locations": false,
-                "color": 35391,
-                "profile_image": "",
-                "draft": "",
-                "is_muted": false,
-                "ephemeral_timer": "Disabled"
-            }
-        "#;
-
-        // Ensure we can deserialize this.
-        let loaded: ChatInfo = serde_json::from_str(expected).unwrap();
-        assert_eq!(info, loaded);
-    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_draft_no_draft() {

@@ -2943,41 +2943,6 @@ pub unsafe extern "C" fn dc_chat_get_remaining_mute_duration(chat: *mut dc_chat_
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_info_json(
-    context: *mut dc_context_t,
-    chat_id: u32,
-) -> *mut libc::c_char {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_chat_get_info_json()");
-        return "".strdup();
-    }
-    let ctx = &*context;
-
-    block_on(async move {
-        let chat = match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)).await {
-            Ok(chat) => chat,
-            Err(err) => {
-                error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
-                return "".strdup();
-            }
-        };
-        let info = match chat.get_info(ctx).await {
-            Ok(info) => info,
-            Err(err) => {
-                error!(
-                    ctx,
-                    "dc_get_chat_info_json() failed to get chat info: {}", err
-                );
-                return "".strdup();
-            }
-        };
-        serde_json::to_string(&info)
-            .unwrap_or_log_default(ctx, "dc_get_chat_info_json() failed to serialise to json")
-            .strdup()
-    })
-}
-
 // dc_msg_t
 
 /// FFI struct for [dc_msg_t]
