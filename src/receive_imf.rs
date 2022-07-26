@@ -2932,6 +2932,10 @@ mod tests {
 
         assert!(chat.is_mailing_list());
         assert!(chat.can_send(&t.ctx).await?);
+        assert_eq!(
+            chat.get_mailinglist_addr(),
+            "reply+elernshsetushoyseshetihseusaferuhsedtisneu@reply.github.com"
+        );
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
@@ -2939,6 +2943,7 @@ mod tests {
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(!chat.can_send(&t.ctx).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -2997,6 +3002,7 @@ mod tests {
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
         assert!(chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "delta@codespeak.net");
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
@@ -3225,7 +3231,7 @@ Hello mailinglist!\r\n"
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_majordomo_mailing_list() {
+    async fn test_majordomo_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3252,6 +3258,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.grpid, "mylist@bar.org");
         assert_eq!(chat.name, "ola");
         assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         // receive another message with no sender name but the same address,
         // make sure this lands in the same chat
@@ -3271,10 +3279,12 @@ Hello mailinglist!\r\n"
         .await
         .unwrap();
         assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 2);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_mailchimp_mailing_list() {
+    async fn test_mailchimp_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3301,10 +3311,14 @@ Hello mailinglist!\r\n"
             "399fc0402f1b154b67965632e.100761.list-id.mcsv.net"
         );
         assert_eq!(chat.name, "Atlas Obscura");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dhl_mailing_list() {
+    async fn test_dhl_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3326,10 +3340,14 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "1234ABCD-123LMNO.mailing.dhl.de");
         assert_eq!(chat.name, "DHL Paket");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dpd_mailing_list() {
+    async fn test_dpd_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3351,6 +3369,10 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
         assert_eq!(chat.name, "DPD");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3368,6 +3390,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "96540.xt.local");
         assert_eq!(chat.name, "Microsoft Store");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         receive_imf(
             &t,
@@ -3379,6 +3403,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "121231234.xt.local");
         assert_eq!(chat.name, "DER SPIEGEL Kundenservice");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         Ok(())
     }
@@ -3400,6 +3426,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "51231231231231231231231232869f58.xing.com");
         assert_eq!(chat.name, "xing.com");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         Ok(())
     }
