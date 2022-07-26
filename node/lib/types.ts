@@ -12,6 +12,7 @@ export interface ChatJSON {
   color: string
   id: number
   name: string
+  mailinglistAddr: string,
   profileImage: string
   type: number
   isSelfTalk: boolean
