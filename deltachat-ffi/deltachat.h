@@ -3259,7 +3259,7 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 
 /**
  * Returns the address where messages are sent to if the chat is a mailing list.
- * If you just want to know if a mailing list can be written,
+ * If you just want to know if a mailing list can be written to,
  * use dc_chat_can_send() instead.
  *
  * @memberof dc_chat_t
