@@ -92,7 +92,6 @@ export class Chat {
       color: this.color,
       id: this.getId(),
       name: this.getName(),
-      mailinglistAddr: this.getMailinglistAddr(),
       profileImage: this.getProfileImage(),
       type: this.getType(),
       isSelfTalk: this.isSelfTalk(),
