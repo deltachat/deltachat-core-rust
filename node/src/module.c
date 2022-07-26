@@ -1625,6 +1625,18 @@ NAPI_METHOD(dcn_chat_get_name) {
   NAPI_RETURN_AND_UNREF_STRING(name);
 }
 
+NAPI_METHOD(dcn_chat_get_mailinglist_addr) {
+  NAPI_ARGV(1);
+  NAPI_DC_CHAT();
+
+  //TRACE("calling..");
+  char* addr = dc_chat_get_mailinglist_addr(dc_chat);
+  //TRACE("result %s", name);
+
+  NAPI_RETURN_AND_UNREF_STRING(addr);
+}
+
+
 NAPI_METHOD(dcn_chat_get_profile_image) {
   NAPI_ARGV(1);
   NAPI_DC_CHAT();
@@ -3370,6 +3382,7 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_chat_get_visibility);
   NAPI_EXPORT_FUNCTION(dcn_chat_get_id);
   NAPI_EXPORT_FUNCTION(dcn_chat_get_name);
+  NAPI_EXPORT_FUNCTION(dcn_chat_get_mailinglist_addr);
   NAPI_EXPORT_FUNCTION(dcn_chat_get_profile_image);
   NAPI_EXPORT_FUNCTION(dcn_chat_get_type);
   NAPI_EXPORT_FUNCTION(dcn_chat_is_self_talk);

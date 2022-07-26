@@ -39,6 +39,10 @@ export class Chat {
     return binding.dcn_chat_get_name(this.dc_chat)
   }
 
+  getMailinglistAddr(): string {
+    return binding.dcn_chat_get_mailinglist_addr(this.dc_chat)
+  }
+
   getProfileImage(): string {
     return binding.dcn_chat_get_profile_image(this.dc_chat)
   }
