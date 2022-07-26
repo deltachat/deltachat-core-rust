@@ -12,6 +12,7 @@
 - node: json rpc methods #3463:
  - `AccountManager.prototype.startJsonRpcHandler(callback: ((response: string) => void)): void`
  - `AccountManager.prototype.jsonRpcRequest(message: string): void`
+- remove `dc_chat_get_info_json()` #3523
 
 ### Added
 - added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
