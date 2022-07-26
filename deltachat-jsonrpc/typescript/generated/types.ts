@@ -60,7 +60,8 @@ export type Viewtype=("Unknown"|
 "Webxdc");
 export type I32=number;
 export type U64=number;
-export type Message={"id":U32;"chatId":U32;"fromId":U32;"quotedText":(string|null);"quotedMessageId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);};
+export type DownloadState=("Done"|"Available"|"Failure"|"InProgress");
+export type Message={"id":U32;"chatId":U32;"fromId":U32;"quotedText":(string|null);"quotedMessageId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);"downloadState":DownloadState;};
 export type WebxdcMessageInfo={
 /**
  * The name of the app.

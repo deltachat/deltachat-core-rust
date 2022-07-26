@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
+use deltachat::download::DownloadState;
 use deltachat::message::Message;
 use deltachat::message::MsgId;
 use deltachat::message::Viewtype;
@@ -53,6 +54,8 @@ pub struct MessageObject {
     file_mime: Option<String>,
     file_bytes: u64,
     file_name: Option<String>,
+
+    download_state: MessageDownloadState
 }
 
 impl MessageObject {
@@ -121,6 +124,8 @@ impl MessageObject {
             file_mime: message.get_filemime(),
             file_bytes,
             file_name: message.get_filename(),
+
+            download_state: message.download_state().try_into().unwrap()
         })
     }
 }
@@ -165,6 +170,7 @@ pub enum MessageViewtype {
     Webxdc,
 }
 
+
 impl From<Viewtype> for MessageViewtype {
     fn from(viewtype: Viewtype) -> Self {
         match viewtype {
@@ -197,6 +203,39 @@ impl From<MessageViewtype> for Viewtype {
             MessageViewtype::File => Viewtype::File,
             MessageViewtype::VideochatInvitation => Viewtype::VideochatInvitation,
             MessageViewtype::Webxdc => Viewtype::Webxdc,
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, TypeDef)]
+#[serde(rename = "DownloadState")]
+pub enum MessageDownloadState {
+    Done,
+    Available,
+    Failure,
+    InProgress
+}
+
+
+impl From<DownloadState> for MessageDownloadState{
+    fn from(download_state: DownloadState) -> Self {
+        match download_state {
+            DownloadState::Done => MessageDownloadState::Done,
+            DownloadState::Available => MessageDownloadState::Available,
+            DownloadState::Failure => MessageDownloadState::Failure,
+            DownloadState::InProgress => MessageDownloadState::InProgress
+        }
+    }
+}
+
+impl From<MessageDownloadState> for DownloadState {
+    fn from(message_download_state: MessageDownloadState) -> Self {
+        match message_download_state {
+            MessageDownloadState::Done => DownloadState::Done,
+            MessageDownloadState::Available => DownloadState::Available,
+            MessageDownloadState::Failure => DownloadState::Failure,
+            MessageDownloadState::InProgress => DownloadState::InProgress
         }
     }
 }
