@@ -3258,6 +3258,19 @@ int             dc_chat_get_type             (const dc_chat_t* chat);
 
 
 /**
+ * Returns the address where messages are sent to if the chat is a mailing list.
+ * If you just want to know if a mailing list can be written to,
+ * use dc_chat_can_send() instead.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return The mailing list address. Must be released using dc_str_unref() after usage.
+ *     If there is no such address, an empty string is returned, NULL is never returned.
+ */
+char*           dc_chat_get_mailinglist_addr (const dc_chat_t* chat);
+
+
+/**
  * Get name of a chat. For one-to-one chats, this is the name of the contact.
  * For group chats, this is the name given e.g. to dc_create_group_chat() or
  * received by a group-creation message.
