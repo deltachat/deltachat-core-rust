@@ -5488,4 +5488,158 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_chat_media() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let chat_id2 = create_group_chat(&t, ProtectionStatus::Unprotected, "bar").await?;
+
+        assert_eq!(
+            get_chat_media(
+                &t,
+                chat_id1,
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Unknown
+            )
+            .await?
+            .len(),
+            0
+        );
+
+        async fn send_media(
+            t: &TestContext,
+            chat_id: ChatId,
+            msg_type: Viewtype,
+            name: &str,
+            bytes: &[u8],
+        ) -> Result<MsgId> {
+            let file = t.get_blobdir().join(name);
+            tokio::fs::write(&file, bytes).await?;
+            let mut msg = Message::new(msg_type);
+            msg.set_file(file.to_str().unwrap(), None);
+            send_msg(t, chat_id, &mut msg).await
+        }
+
+        send_media(
+            &t,
+            chat_id1,
+            Viewtype::Image,
+            "a.jpg",
+            include_bytes!("../test-data/image/rectangle200x180-rotated.jpg"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id1,
+            Viewtype::Sticker,
+            "b.png",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id2,
+            Viewtype::Image,
+            "c.jpg",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id2,
+            Viewtype::Webxdc,
+            "d.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+
+        assert_eq!(
+            get_chat_media(
+                &t,
+                chat_id1,
+                Viewtype::Image,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                chat_id1,
+                Viewtype::Sticker,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                chat_id1,
+                Viewtype::Sticker,
+                Viewtype::Image,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            2
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                chat_id2,
+                Viewtype::Webxdc,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                ChatId::new(0),
+                Viewtype::Image,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            2
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                ChatId::new(0),
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            3
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                ChatId::new(0),
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Webxdc,
+            )
+            .await?
+            .len(),
+            4
+        );
+
+        Ok(())
+    }
 }
