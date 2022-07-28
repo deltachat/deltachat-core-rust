@@ -2434,10 +2434,11 @@ pub async fn get_chat_media(
         .query_map(
             "SELECT id
                FROM msgs
-              WHERE chat_id=?
+              WHERE (1=? OR chat_id=?)
                 AND (type=? OR type=? OR type=?)
               ORDER BY timestamp, id;",
             paramsv![
+                if chat_id.is_unset() { 1i32 } else { 0i32 },
                 chat_id,
                 msg_type,
                 if msg_type2 != Viewtype::Unknown {

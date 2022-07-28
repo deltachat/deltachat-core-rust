@@ -1263,7 +1263,7 @@ void            dc_marknoticed_chat          (dc_context_t* context, uint32_t ch
 
 
 /**
- * Returns all message IDs of the given types in a chat.
+ * Returns all message IDs of the given types in a given chat or any chat.
  * Typically used to show a gallery.
  * The result must be dc_array_unref()'d
  *
@@ -1273,7 +1273,8 @@ void            dc_marknoticed_chat          (dc_context_t* context, uint32_t ch
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
- * @param chat_id The chat ID to get all messages with media from.
+ * @param chat_id >0: get messages with media from this chat ID.
+ *    0: get messages with media from any chat.
  * @param msg_type Specify a message type to query here, one of the @ref DC_MSG constants.
  * @param msg_type2 Alternative message type to search for. 0 to skip.
  * @param msg_type3 Alternative message type to search for. 0 to skip.
@@ -1284,7 +1285,6 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
 
 /**
  * Search next/previous message based on a given message and a list of types.
- * The
  * Typically used to implement the "next" and "previous" buttons
  * in a gallery or in a media player.
  *
