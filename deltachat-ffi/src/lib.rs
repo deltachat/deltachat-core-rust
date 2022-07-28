@@ -2148,12 +2148,7 @@ pub unsafe extern "C" fn dc_send_backup(
         block_on(async move {
             imex::send_backup(ctx, folder.as_ref(), passphrase)
                 .await
-                .map(|(sender, transfer)| {
-                    Box::into_raw(Box::new(dc_backup_sender {
-                        _sender: sender,
-                        transfer,
-                    }))
-                })
+                .map(|transfer| Box::into_raw(Box::new(dc_backup_sender { transfer })))
                 .log_err(ctx, "send_backup failed")
                 .unwrap_or_else(|_| ptr::null_mut())
         })
@@ -2164,7 +2159,6 @@ pub unsafe extern "C" fn dc_send_backup(
 }
 
 pub struct dc_backup_sender {
-    _sender: iroh_share::Sender,
     transfer: iroh_share::SenderTransfer,
 }
 
@@ -2188,10 +2182,19 @@ pub unsafe extern "C" fn dc_backup_sender_qr(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_backup_sender_unref(bs: *mut dc_backup_sender) {
-    if !bs.is_null() {
-        let _ = Box::from_raw(bs);
+pub unsafe extern "C" fn dc_backup_sender_done(ctx: *mut dc_context_t, bs: *mut dc_backup_sender) {
+    if ctx.is_null() || bs.is_null() {
+        eprintln!("ignoring careless call to dc_backup_sender_wait");
+        return;
     }
+    let ctx = &*ctx;
+    let bs = Box::from_raw(bs);
+
+    block_on(async move {
+        if let Err(e) = bs.transfer.done().await {
+            error!(ctx, "sending backup failed: {:?}", e);
+        }
+    });
 }
 
 #[no_mangle]

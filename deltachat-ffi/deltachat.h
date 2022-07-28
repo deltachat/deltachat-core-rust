@@ -2642,13 +2642,14 @@ char* dc_backup_sender_qr (dc_context_t* context, const dc_backup_sender_t* back
 
 
 /**
- * Free a backup sender object.
+ * Waits for the sending to finish and frees the backup sender object.
  *
  * @memberof dc_backup_sender_t
+ * @param context The context.
  * @param backup_sender The backup sender object as created by dc_send_backup(),
  *     If NULL is given, nothing is done.
  */
-void dc_backup_sender_unref (dc_backup_sender_t* backup_sender);
+void dc_backup_sender_done (dc_context_t* context, dc_backup_sender_t* backup_sender);
 
 
 /**

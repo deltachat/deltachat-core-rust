@@ -26,7 +26,7 @@ anyhow = "1"
 thiserror = "1"
 rand = "0.7"
 once_cell = "1.13.0"
-iroh-share = { git = "https://github.com/n0-computer/iroh", branch = "iroh-share" }
+iroh-share = { git = "https://github.com/n0-computer/iroh", branch = "main" }
 multibase = "0.9"
 
 [features]
