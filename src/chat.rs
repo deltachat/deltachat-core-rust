@@ -2423,7 +2423,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
 
 pub async fn get_chat_media(
     context: &Context,
-    chat_id: ChatId,
+    chat_id: Option<ChatId>,
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
@@ -2439,8 +2439,8 @@ pub async fn get_chat_media(
                 AND hidden=0
               ORDER BY timestamp, id;",
             paramsv![
-                if chat_id.is_unset() { 1i32 } else { 0i32 },
-                chat_id,
+                if chat_id.is_none() { 1i32 } else { 0i32 },
+                chat_id.unwrap_or_else(|| ChatId::new(0)),
                 msg_type,
                 if msg_type2 != Viewtype::Unknown {
                     msg_type2
@@ -2481,7 +2481,7 @@ pub async fn get_next_media(
     if let Ok(msg) = Message::load_from_db(context, curr_msg_id).await {
         let list: Vec<MsgId> = get_chat_media(
             context,
-            msg.chat_id,
+            Some(msg.chat_id),
             if msg_type != Viewtype::Unknown {
                 msg_type
             } else {
@@ -5498,7 +5498,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                chat_id1,
+                Some(chat_id1),
                 Viewtype::Image,
                 Viewtype::Sticker,
                 Viewtype::Unknown
@@ -5558,7 +5558,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                chat_id1,
+                Some(chat_id1),
                 Viewtype::Image,
                 Viewtype::Unknown,
                 Viewtype::Unknown,
@@ -5570,7 +5570,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                chat_id1,
+                Some(chat_id1),
                 Viewtype::Sticker,
                 Viewtype::Unknown,
                 Viewtype::Unknown,
@@ -5582,7 +5582,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                chat_id1,
+                Some(chat_id1),
                 Viewtype::Sticker,
                 Viewtype::Image,
                 Viewtype::Unknown,
@@ -5594,7 +5594,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                chat_id2,
+                Some(chat_id2),
                 Viewtype::Webxdc,
                 Viewtype::Unknown,
                 Viewtype::Unknown,
@@ -5606,7 +5606,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                ChatId::new(0),
+                None,
                 Viewtype::Image,
                 Viewtype::Unknown,
                 Viewtype::Unknown,
@@ -5618,7 +5618,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                ChatId::new(0),
+                None,
                 Viewtype::Image,
                 Viewtype::Sticker,
                 Viewtype::Unknown,
@@ -5630,7 +5630,7 @@ mod tests {
         assert_eq!(
             get_chat_media(
                 &t,
-                ChatId::new(0),
+                None,
                 Viewtype::Image,
                 Viewtype::Sticker,
                 Viewtype::Webxdc,

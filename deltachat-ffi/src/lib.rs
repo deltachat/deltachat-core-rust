@@ -1208,6 +1208,11 @@ pub unsafe extern "C" fn dc_get_chat_media(
         return ptr::null_mut();
     }
     let ctx = &*context;
+    let chat_id = if chat_id == 0 {
+        None
+    } else {
+        Some(ChatId::new(chat_id))
+    };
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
         from_prim(or_msg_type2).expect(&format!("incorrect or_msg_type2 = {}", or_msg_type2));
@@ -1216,16 +1221,10 @@ pub unsafe extern "C" fn dc_get_chat_media(
 
     block_on(async move {
         Box::into_raw(Box::new(
-            chat::get_chat_media(
-                ctx,
-                ChatId::new(chat_id),
-                msg_type,
-                or_msg_type2,
-                or_msg_type3,
-            )
-            .await
-            .unwrap_or_log_default(ctx, "Failed get_chat_media")
-            .into(),
+            chat::get_chat_media(ctx, chat_id, msg_type, or_msg_type2, or_msg_type3)
+                .await
+                .unwrap_or_log_default(ctx, "Failed get_chat_media")
+                .into(),
         ))
     })
 }
