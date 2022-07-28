@@ -123,6 +123,11 @@ export class RawClient {
   }
 
 
+  public checkQr(accountId: T.U32, qrContent: string): Promise<T.Qr> {
+    return (this._transport.request('check_qr', [accountId, qrContent] as RPC.Params)) as Promise<T.Qr>;
+  }
+
+
   public getConfig(accountId: T.U32, key: string): Promise<(string|null)> {
     return (this._transport.request('get_config', [accountId, key] as RPC.Params)) as Promise<(string|null)>;
   }
