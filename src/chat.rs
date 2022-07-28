@@ -2436,6 +2436,7 @@ pub async fn get_chat_media(
                FROM msgs
               WHERE (1=? OR chat_id=?)
                 AND (type=? OR type=? OR type=?)
+                AND hidden=0
               ORDER BY timestamp, id;",
             paramsv![
                 if chat_id.is_unset() { 1i32 } else { 0i32 },
