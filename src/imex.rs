@@ -155,9 +155,7 @@ pub async fn receive_backup_inner(
     let sender_db = sender_dir.path().join("db");
 
     let port = 9991;
-    let rpc_p2p_port = 5551;
-    let rpc_store_port = 5561;
-    let receiver = Receiver::new(port, rpc_p2p_port, rpc_store_port, &sender_db)
+    let receiver = Receiver::new(port, &sender_db)
         .await
         .context("failed to create sender")?;
     let mut receiver_transfer = receiver
@@ -165,7 +163,7 @@ pub async fn receive_backup_inner(
         .await
         .context("failed to read transfer")?;
     let data = receiver_transfer.recv().await?;
-    let progress = receiver_transfer.progress()?;
+    let mut progress = receiver_transfer.progress()?;
 
     context.sql.config_cache.write().await.clear();
 
@@ -173,7 +171,7 @@ pub async fn receive_backup_inner(
     let ctx = context.clone();
     let progress_task = tokio::spawn(async move {
         let mut last_progress = 0;
-        while let Ok(ev) = progress.recv().await {
+        while let Some(ev) = progress.next().await {
             match ev {
                 Ok(iroh_share::ProgressEvent::Piece { index, total }) => {
                     let progress = 1000 * index / total;
@@ -222,9 +220,10 @@ pub async fn receive_backup_inner(
         }
     }
 
-    println!("Received all data, written to: {}", out.display());
-    receiver.close().await?;
     progress_task.await?;
+    receiver_transfer.finish().await?;
+
+    println!("Received all data, written to: {}", out.display());
 
     Ok(())
 }
@@ -233,7 +232,7 @@ pub async fn send_backup(
     context: &Context,
     path: &Path,
     passphrase: Option<String>,
-) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
+) -> Result<iroh_share::SenderTransfer> {
     let cancel = context.alloc_ongoing().await?;
 
     let res = send_backup_inner(context, path, passphrase)
@@ -261,7 +260,7 @@ async fn send_backup_inner(
     context: &Context,
     path: &Path,
     passphrase: Option<String>,
-) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
+) -> Result<iroh_share::SenderTransfer> {
     info!(context, "Import/export dir: {}", path.display());
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
@@ -782,7 +781,7 @@ async fn export_backup_iroh(
     context: &Context,
     dir: &Path,
     passphrase: String,
-) -> Result<(iroh_share::Sender, iroh_share::SenderTransfer)> {
+) -> Result<iroh_share::SenderTransfer> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
     let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
@@ -827,15 +826,10 @@ async fn export_backup_iroh(
     match res {
         Ok(dir_builder) => {
             let port = 9990;
-            let rpc_p2p_port = 5550;
-            let rpc_store_port = 5560;
-
-            let sender =
-                iroh_share::Sender::new(port, rpc_p2p_port, rpc_store_port, &sender_db_path)
-                    .await?;
+            let sender = iroh_share::Sender::new(port, &sender_db_path).await?;
             let transfer = sender.transfer_from_dir_builder(dir_builder).await?;
 
-            Ok((sender, transfer))
+            Ok(transfer)
         }
         Err(e) => {
             error!(context, "backup failed: {}", e);

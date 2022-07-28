@@ -481,8 +481,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "send-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
-            let (sender, transfer) =
-                send_backup(&context, dir.as_ref(), Some(arg1.to_string())).await?;
+            let transfer = send_backup(&context, dir.as_ref(), Some(arg1.to_string())).await?;
             let ticket = transfer.ticket();
             let ticket_bytes = ticket.as_bytes();
 
@@ -495,7 +494,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             tokio::fs::write(file, qr_code.as_bytes()).await?;
 
             transfer.done().await?;
-            sender.close().await?;
         }
         "receive-backup" => {
             ensure!(!arg1.is_empty(), "Argument <ticket> is missing.");
