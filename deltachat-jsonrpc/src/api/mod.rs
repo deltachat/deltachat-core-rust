@@ -204,7 +204,6 @@ impl CommandApi {
     }
 
     async fn check_qr(&self, account_id: u32, qr_content: String) -> Result<QrObject> {
-        println!("HELLO FROM CHECK_QR");
         let ctx = self.get_context(account_id).await?;
         let qr = qr::check_qr(&ctx, &qr_content).await?;
         let qr_object = QrObject::from(qr);

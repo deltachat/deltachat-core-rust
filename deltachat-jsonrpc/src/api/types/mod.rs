@@ -137,16 +137,10 @@ impl From<Qr> for QrObject {
                 QrObject::FprOk { contact_id }
             }
             Qr::FprMismatch { contact_id } => {
-                let contact_id = match contact_id {
-                    Some(contact_id) => Some(contact_id.to_u32()),
-                    None => None,
-                };
+                let contact_id = contact_id.map(|contact_id| contact_id.to_u32());
                 QrObject::FprMismatch { contact_id }
             }
-            Qr::FprWithoutAddr { fingerprint } => {
-                let fingerprint = fingerprint.to_string();
-                QrObject::FprWithoutAddr { fingerprint }
-            }
+            Qr::FprWithoutAddr { fingerprint } => QrObject::FprWithoutAddr { fingerprint },
             Qr::Account { domain } => QrObject::Account { domain },
             Qr::WebrtcInstance {
                 domain,
