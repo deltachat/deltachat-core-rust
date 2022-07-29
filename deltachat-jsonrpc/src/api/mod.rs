@@ -22,6 +22,7 @@ pub mod events;
 pub mod types;
 
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
+use crate::api::types::QrObject;
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -200,6 +201,13 @@ impl CommandApi {
     async fn set_config_from_qr(&self, account_id: u32, qr_content: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         qr::set_config_from_qr(&ctx, &qr_content).await
+    }
+
+    async fn check_qr(&self, account_id: u32, qr_content: String) -> Result<QrObject> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = qr::check_qr(&ctx, &qr_content).await?;
+        let qr_object = QrObject::from(qr);
+        Ok(qr_object)
     }
 
     async fn get_config(&self, account_id: u32, key: String) -> Result<Option<String>> {

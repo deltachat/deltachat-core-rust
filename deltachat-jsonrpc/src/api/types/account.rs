@@ -19,9 +19,7 @@ pub enum Account {
         color: String,
     },
     #[serde(rename_all = "camelCase")]
-    Unconfigured {
-        id: u32,
-    },
+    Unconfigured { id: u32 },
 }
 
 impl Account {
