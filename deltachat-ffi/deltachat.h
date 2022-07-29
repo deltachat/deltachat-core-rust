@@ -1274,7 +1274,7 @@ void            dc_marknoticed_chat          (dc_context_t* context, uint32_t ch
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param chat_id >0: get messages with media from this chat ID.
- *    0: get messages with media from any chat.
+ *    0: get messages with media from any chat of the currently used account.
  * @param msg_type Specify a message type to query here, one of the @ref DC_MSG constants.
  * @param msg_type2 Alternative message type to search for. 0 to skip.
  * @param msg_type3 Alternative message type to search for. 0 to skip.
