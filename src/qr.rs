@@ -1,6 +1,6 @@
 //! # QR code module.
 
-use anyhow::{bail, ensure, Context as _, Error, Result};
+use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -14,8 +14,8 @@ use crate::context::Context;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
-use crate::token;
 use crate::tools::time;
+use crate::{token, EventType};
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -344,9 +344,13 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateAccountResponse {
+struct CreateAccountSuccessResponse {
     email: String,
     password: String,
+}
+#[derive(Debug, Deserialize)]
+struct CreateAccountErrorResponse {
+    reason: String,
 }
 
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
@@ -355,23 +359,42 @@ struct CreateAccountResponse {
 #[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
+    let response = reqwest::Client::new().post(url_str).send().await?;
+    let response_status = response.status();
+    let response_text = response.text().await.with_context(|| {
+        format!(
+            "Cannot create account, request to {:?} failed: empty response",
+            url_str
+        )
+    })?;
 
-    let parsed: CreateAccountResponse = reqwest::Client::new()
-        .post(url_str)
-        .send()
-        .await?
-        .json()
-        .await
-        .with_context(|| format!("Cannot create account, request to {:?} failed", url_str))?;
+    if response_status.is_success() {
+        let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
+            .with_context(|| {
+                format!(
+                    "Cannot create account, response from {:?} is malformed:\n{:?}",
+                    url_str, response_text
+                )
+            })?;
+        context.set_config(Config::Addr, Some(&email)).await?;
+        context.set_config(Config::MailPw, Some(&password)).await?;
 
-    context
-        .set_config(Config::Addr, Some(&parsed.email))
-        .await?;
-    context
-        .set_config(Config::MailPw, Some(&parsed.password))
-        .await?;
-
-    Ok(())
+        Ok(())
+    } else {
+        match serde_json::from_str::<CreateAccountErrorResponse>(&response_text) {
+            Ok(error) => Err(anyhow!(error.reason)),
+            Err(parse_error) => {
+                context.emit_event(EventType::Error(format!(
+                    "Cannot create account, server response could not be parsed:\n{:#}\nraw response:\n{}",
+                    parse_error, response_text
+                )));
+                bail!(
+                    "Cannot create account, unexpected server response:\n{:?}",
+                    response_text
+                )
+            }
+        }
+    }
 }
 
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {

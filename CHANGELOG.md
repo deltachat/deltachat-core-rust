@@ -7,7 +7,7 @@
 ### Changes
 
 ### Fixes
-
+- improved error handling for account setup from qrcode #3474
 
 ## 1.92.0
 
