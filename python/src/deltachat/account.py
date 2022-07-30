@@ -169,8 +169,6 @@ class Account(object):
         """
         self._check_config_key(name)
         namebytes = name.encode("utf8")
-        if namebytes == b"addr" and self.is_configured():
-            raise ValueError("can not change 'addr' after account is configured.")
         if isinstance(value, (int, bool)):
             value = str(int(value))
         if value is not None:
