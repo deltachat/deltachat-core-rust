@@ -58,6 +58,7 @@ pub enum QrObject {
     },
     Addr {
         contact_id: u32,
+        draft: Option<String>
     },
     Url {
         url: String,
@@ -149,9 +150,9 @@ impl From<Qr> for QrObject {
                 domain,
                 instance_pattern,
             },
-            Qr::Addr { contact_id } => {
+            Qr::Addr { contact_id, draft } => {
                 let contact_id = contact_id.to_u32();
-                QrObject::Addr { contact_id }
+                QrObject::Addr { contact_id, draft }
             }
             Qr::Url { url } => QrObject::Url { url },
             Qr::Text { text } => QrObject::Text { text },
