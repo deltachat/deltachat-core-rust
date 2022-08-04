@@ -17,6 +17,7 @@
 - added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 
 ### Changes
+- jsonrpc: auto restart io on setConfig for the following keys `sentbox_watch`, `mvbox_move` and `only_fetch_mvbox`
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474

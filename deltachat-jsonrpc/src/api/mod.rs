@@ -671,11 +671,19 @@ async fn set_config(
     value: Option<&str>,
 ) -> Result<(), anyhow::Error> {
     if key.starts_with("ui.") {
-        ctx.set_ui_config(key, value).await
+        ctx.set_ui_config(key, value).await?;
     } else {
         ctx.set_config(Config::from_str(key).context("unknown key")?, value)
-            .await
+            .await?;
+
+        match key {
+            "sentbox_watch" | "mvbox_move" | "only_fetch_mvbox" => {
+                ctx.restart_io_if_running().await;
+            }
+            _ => {}
+        }
     }
+    Ok(())
 }
 
 async fn get_config(

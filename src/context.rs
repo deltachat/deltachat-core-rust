@@ -239,6 +239,17 @@ impl Context {
         }
     }
 
+    /// Restarts the IO scheduler if it was running before
+    /// when it is not running this is an no-op
+    pub async fn restart_io_if_running(&self) {
+        info!(self, "restarting IO");
+        let is_running = { self.inner.scheduler.read().await.is_some() };
+        if is_running {
+            self.stop_io().await;
+            self.start_io().await;
+        }
+    }
+
     /// Returns a reference to the underlying SQL instance.
     ///
     /// Warning: this is only here for testing, not part of the public API.
