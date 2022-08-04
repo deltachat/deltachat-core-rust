@@ -2292,7 +2292,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_FPR_MISMATCH with dc_lot_t::id=Contact ID:
  *   scanned fingerprint does not match last seen fingerprint.
  *
- * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::test1=Formatted fingerprint
+ * - DC_QR_FPR_WITHOUT_ADDR with dc_lot_t::text1=Formatted fingerprint
  *   the scanned QR code contains a fingerprint but no e-mail address;
  *   suggest the user to establish an encrypted connection first.
  *
@@ -2305,7 +2305,8 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   if so, call dc_set_config_from_qr().
  *
  * - DC_QR_ADDR with dc_lot_t::id=Contact ID:
- *   e-mail address scanned,
+ *   e-mail address scanned, optionally, a draft message could be set in
+ *   dc_lot_t::text1 in which case dc_lot_t::text1_meaning will be DC_TEXT1_DRAFT;
  *   ask the user if they want to start chatting;
  *   if so, call dc_create_chat_by_contact_id().
  *
@@ -3254,6 +3255,19 @@ uint32_t        dc_chat_get_id               (const dc_chat_t* chat);
  * @return The chat type.
  */
 int             dc_chat_get_type             (const dc_chat_t* chat);
+
+
+/**
+ * Returns the address where messages are sent to if the chat is a mailing list.
+ * If you just want to know if a mailing list can be written to,
+ * use dc_chat_can_send() instead.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return The mailing list address. Must be released using dc_str_unref() after usage.
+ *     If there is no such address, an empty string is returned, NULL is never returned.
+ */
+char*           dc_chat_get_mailinglist_addr (const dc_chat_t* chat);
 
 
 /**
@@ -6412,6 +6426,24 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as status in the connectivity view.
 #define DC_STR_NOT_CONNECTED              121
+
+/// %1$s changed their address from %2$s to %3$s"
+///
+/// Used as an info message to chats with contacts that changed their address.
+#define DC_STR_AEAP_ADDR_CHANGED          122
+
+/// "You changed your email address from %1$s to %2$s.
+/// If you now send a message to a group, contacts there will automatically
+/// replace the old with your new address.\n\nIt's highly advised to set up 
+/// your old email provider to forward all emails to your new email address. 
+/// Otherwise you might miss messages of contacts who did not get your new 
+/// address yet." + the link to the AEAP blog post
+/// 
+/// As soon as there is a post about AEAP, the UIs should add it:
+/// set_stock_translation(123, getString(aeap_explanation) + "\n\n" + AEAP_BLOG_LINK)
+///
+/// Used in a device message that explains AEAP.
+#define DC_STR_AEAP_EXPLANATION_AND_LINK  123
 
 /**
  * @}

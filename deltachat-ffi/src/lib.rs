@@ -2783,6 +2783,16 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_mailinglist_addr(chat: *mut dc_chat_t) -> *mut libc::c_char {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_get_mailinglist_addr()");
+        return "".strdup();
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_mailinglist_addr().strdup()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() {
         eprintln!("ignoring careless call to dc_chat_get_profile_image()");

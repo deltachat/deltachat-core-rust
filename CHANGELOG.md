@@ -13,6 +13,60 @@
  - `AccountManager.prototype.startJsonRpcHandler(callback: ((response: string) => void)): void`
  - `AccountManager.prototype.jsonRpcRequest(message: string): void`
 
+### Added
+
+### Changes
+
+### Fixes
+- improved error handling for account setup from qrcode #3474
+
+## 1.92.0
+
+### API-Changes
+- add `dc_chat_get_mailinglist_addr()` #3520
+
+
+## 1.91.0
+
+### Added
+- python bindings: extra method to get an account running
+
+### Changes
+- refactorings #3437
+
+### Fixes
+- mark "group image changed" as system message on receiver side #3517
+
+
+## 1.90.0
+
+### Changes
+- handle drafts from mailto links in scanned QR #3492
+- do not overflow ratelimiter leaky bucket #3496
+- (AEAP) Add device message after you changed your address #3505
+- (AEAP) Revert #3491, instead only replace contacts in verified groups #3510
+- improve python bindings and tests #3502 #3503
+
+### Fixes
+- don't squash text parts of NDN into attachments #3497
+- do not treat non-failed DSNs as NDNs #3506
+
+
+## 1.89.0
+
+### Changes
+
+- (AEAP) When one of your contacts changed their address, they are
+  only replaced in the chat where you got a message from them
+  for now #3491
+
+### Fixes
+- replace musl libc name resolution errors with a better message #3485
+- handle updates for not yet downloaded webxdc instances #3487
+
+
+## 1.88.0
+
 ### Changes
 - Implemented "Automatic e-mail address Porting" (AEAP). You can
   configure a new address in DC now, and when receivers get messages
@@ -24,6 +78,7 @@
 - configure DeltaChat folder by selecting it, so it is configured even if not LISTed #3371
 - build PyPy wheels #6683
 - improve default error if NDN does not provide an error #3456
+- increase ratelimit from 3 to 6 messages per 60 seconds #3481
 
 ### Fixes
 - mailing list: remove square-brackets only for first name #3452

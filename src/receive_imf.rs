@@ -130,15 +130,14 @@ pub(crate) async fn receive_imf_inner(
                     context,
                     "Message already partly in DB, replacing by full message."
                 );
-                old_msg_id.delete_from_db(context).await?;
-                true
+                Some(old_msg_id)
             } else {
                 // the message was probably moved around.
                 info!(context, "Message already in DB, doing nothing.");
                 return Ok(None);
             }
         } else {
-            false
+            None
         };
 
     // the function returns the number of created messages in the database
@@ -189,8 +188,9 @@ pub(crate) async fn receive_imf_inner(
         sent_timestamp,
         rcvd_timestamp,
         from_id,
-        seen || replace_partial_download,
+        seen || replace_partial_download.is_some(),
         is_partial_download,
+        replace_partial_download,
         fetching_existing_messages,
         prevent_rename,
     )
@@ -322,7 +322,7 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    if replace_partial_download {
+    if replace_partial_download.is_some() {
         context.emit_msgs_changed(chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
@@ -401,6 +401,7 @@ async fn add_parts(
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
+    replace_msg_id: Option<MsgId>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
 ) -> Result<ReceivedMsg> {
@@ -496,9 +497,9 @@ async fn add_parts(
             ChatIdBlocked::lookup_by_contact(context, from_id).await?
         };
 
-        if chat_id.is_none() && mime_parser.failure_report.is_some() {
+        if chat_id.is_none() && mime_parser.delivery_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message belongs to an NDN (TRASH)",);
+            info!(context, "Message is a DSN (TRASH)",);
         }
 
         if chat_id.is_none() {
@@ -1144,6 +1145,17 @@ INSERT INTO msgs
         created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);
+
+    if let Some(replace_msg_id) = replace_msg_id {
+        if let Some(created_msg_id) = created_db_entries.pop() {
+            context
+                .merge_messages(created_msg_id, replace_msg_id)
+                .await?;
+            created_db_entries.push(replace_msg_id);
+        } else {
+            replace_msg_id.delete_from_db(context).await?;
+        }
+    }
 
     chat_id.unarchive_if_not_muted(context).await?;
 
@@ -2647,7 +2659,7 @@ mod tests {
             "shenauithz@testrun.org",
             "Mr.un2NYERi1RM.lbQ5F9q-QyJ@tiscali.it",
             include_bytes!("../test-data/message/tiscali_ndn.eml"),
-            Some("Delivery to at least one recipient failed."),
+            Some("Delivery status notification –       This is an automatically generated Delivery Status Notification.      \n\nDelivery to the following recipients was aborted after 2 second(s):\n\n  * shenauithz@testrun.org"),
         )
         .await;
     }
@@ -2724,6 +2736,32 @@ mod tests {
         .await;
     }
 
+    /// Tests that text part is not squashed into OpenPGP attachment.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_ndn_with_attachment() {
+        test_parse_ndn(
+            "alice@example.org",
+            "bob@example.net",
+            "Mr.I6Da6dXcTel.TroC5J3uSDH@example.org",
+            include_bytes!("../test-data/message/ndn_with_attachment.eml"),
+            Some("Undelivered Mail Returned to Sender – This is the mail system at host relay01.example.org.\n\nI'm sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It's attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<bob@example.net>: host mx2.example.net[80.241.60.215] said: 552 5.2.2\n    <bob@example.net>: Recipient address rejected: Mailbox quota exceeded (in\n    reply to RCPT TO command)\n\n<bob2@example.net>: host mx1.example.net[80.241.60.212] said: 552 5.2.2\n    <bob2@example.net>: Recipient address rejected: Mailbox quota\n    exceeded (in reply to RCPT TO command)")
+        )
+        .await;
+    }
+
+    /// Test that DSN is not treated as NDN if Action: is not "failed"
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_dsn_relayed() {
+        test_parse_ndn(
+            "anon_1@posteo.de",
+            "anon_2@gmx.at",
+            "8b7b1a9d0c8cc588c7bcac47f5687634@posteo.de",
+            include_bytes!("../test-data/message/dsn_relayed.eml"),
+            None,
+        )
+        .await;
+    }
+
     // ndn = Non Delivery Notification
     async fn test_parse_ndn(
         self_addr: &str,
@@ -2773,7 +2811,14 @@ mod tests {
         receive_imf(&t, raw_ndn, false).await.unwrap();
         let msg = Message::load_from_db(&t, msg_id).await.unwrap();
 
-        assert_eq!(msg.state, MessageState::OutFailed);
+        assert_eq!(
+            msg.state,
+            if error_msg.is_some() {
+                MessageState::OutFailed
+            } else {
+                MessageState::OutDelivered
+            }
+        );
 
         assert_eq!(msg.error(), error_msg.map(|error| error.to_string()));
     }
@@ -2887,6 +2932,10 @@ mod tests {
 
         assert!(chat.is_mailing_list());
         assert!(chat.can_send(&t.ctx).await?);
+        assert_eq!(
+            chat.get_mailinglist_addr(),
+            "reply+elernshsetushoyseshetihseusaferuhsedtisneu@reply.github.com"
+        );
         assert_eq!(chat.name, "deltachat/deltachat-core-rust");
         assert_eq!(chat::get_chat_contacts(&t.ctx, chat_id).await?.len(), 1);
 
@@ -2894,6 +2943,7 @@ mod tests {
 
         let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
         assert!(!chat.can_send(&t.ctx).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
@@ -2952,6 +3002,7 @@ mod tests {
         let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
         assert_eq!(chat.name, "delta-dev");
         assert!(chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "delta@codespeak.net");
 
         let msg = get_chat_msg(&t, chat_id, 0, 1).await;
         let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
@@ -3180,7 +3231,7 @@ Hello mailinglist!\r\n"
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_majordomo_mailing_list() {
+    async fn test_majordomo_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3207,6 +3258,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.grpid, "mylist@bar.org");
         assert_eq!(chat.name, "ola");
         assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         // receive another message with no sender name but the same address,
         // make sure this lands in the same chat
@@ -3226,10 +3279,12 @@ Hello mailinglist!\r\n"
         .await
         .unwrap();
         assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 2);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_mailchimp_mailing_list() {
+    async fn test_mailchimp_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3256,10 +3311,14 @@ Hello mailinglist!\r\n"
             "399fc0402f1b154b67965632e.100761.list-id.mcsv.net"
         );
         assert_eq!(chat.name, "Atlas Obscura");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dhl_mailing_list() {
+    async fn test_dhl_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3281,10 +3340,14 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "1234ABCD-123LMNO.mailing.dhl.de");
         assert_eq!(chat.name, "DHL Paket");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_dpd_mailing_list() {
+    async fn test_dpd_mailing_list() -> Result<()> {
         let t = TestContext::new_alice().await;
         t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
@@ -3306,6 +3369,10 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
         assert_eq!(chat.name, "DPD");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3323,6 +3390,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "96540.xt.local");
         assert_eq!(chat.name, "Microsoft Store");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         receive_imf(
             &t,
@@ -3334,6 +3403,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "121231234.xt.local");
         assert_eq!(chat.name, "DER SPIEGEL Kundenservice");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         Ok(())
     }
@@ -3355,6 +3426,8 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.grpid, "51231231231231231231231232869f58.xing.com");
         assert_eq!(chat.name, "xing.com");
+        assert!(!chat.can_send(&t).await?);
+        assert_eq!(chat.get_mailinglist_addr(), "");
 
         Ok(())
     }

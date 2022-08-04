@@ -335,6 +335,11 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "%1$s changed their address from %2$s to %3$s"))]
     AeapAddrChanged = 122,
+
+    #[strum(props(
+        fallback = "You changed your email address from %1$s to %2$s.\n\nIf you now send a message to a verified group, contacts there will automatically replace the old with your new address.\n\nIt's highly advised to set up your old email provider to forward all emails to your new email address. Otherwise you might miss messages of contacts who did not get your new address yet."
+    ))]
+    AeapExplanationAndLink = 123,
 }
 
 impl StockMessage {
@@ -1102,6 +1107,17 @@ pub(crate) async fn aeap_addr_changed(
         .replace1(contact_name)
         .replace2(old_addr)
         .replace3(new_addr)
+}
+
+pub(crate) async fn aeap_explanation_and_link(
+    context: &Context,
+    old_addr: impl AsRef<str>,
+    new_addr: impl AsRef<str>,
+) -> String {
+    translated(context, StockMessage::AeapExplanationAndLink)
+        .await
+        .replace1(old_addr)
+        .replace2(new_addr)
 }
 
 impl Context {

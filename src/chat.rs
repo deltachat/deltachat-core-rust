@@ -1129,6 +1129,11 @@ impl Chat {
         &self.name
     }
 
+    /// Returns mailing list address where messages are sent to.
+    pub fn get_mailinglist_addr(&self) -> &str {
+        self.param.get(Param::ListPost).unwrap_or_default()
+    }
+
     /// Returns profile image path for the chat.
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {

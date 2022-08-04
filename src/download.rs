@@ -11,7 +11,7 @@ use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::param::Params;
+use crate::param::{Param, Params};
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
@@ -68,6 +68,42 @@ impl Context {
         } else {
             Ok(Some(max(MIN_DOWNLOAD_LIMIT, download_limit as u32)))
         }
+    }
+
+    // Merges the two messages to `placeholder_msg_id`;
+    // `full_msg_id` is no longer used afterwards.
+    pub(crate) async fn merge_messages(
+        &self,
+        full_msg_id: MsgId,
+        placeholder_msg_id: MsgId,
+    ) -> Result<()> {
+        let placeholder = Message::load_from_db(self, placeholder_msg_id).await?;
+        self.sql
+            .transaction(move |transaction| {
+                transaction
+                    .execute("DELETE FROM msgs WHERE id=?;", paramsv![placeholder_msg_id])?;
+                transaction.execute(
+                    "UPDATE msgs SET id=? WHERE id=?",
+                    paramsv![placeholder_msg_id, full_msg_id],
+                )?;
+                Ok(())
+            })
+            .await?;
+        let mut full = Message::load_from_db(self, placeholder_msg_id).await?;
+
+        for key in [
+            Param::WebxdcSummary,
+            Param::WebxdcSummaryTimestamp,
+            Param::WebxdcDocument,
+            Param::WebxdcDocumentTimestamp,
+        ] {
+            if let Some(value) = placeholder.param.get(key) {
+                full.param.set(key, value);
+            }
+        }
+        full.update_param(self).await?;
+
+        Ok(())
     }
 }
 
@@ -256,7 +292,7 @@ impl MimeMessage {
 mod tests {
     use num_traits::FromPrimitive;
 
-    use crate::chat::send_msg;
+    use crate::chat::{get_chat_msgs, send_msg};
     use crate::ephemeral::Timer;
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf_inner;
@@ -407,6 +443,121 @@ mod tests {
             chat_id.get_ephemeral_timer(&t).await?,
             Timer::Enabled { duration: 60 }
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_status_update_expands_to_nothing() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = alice.create_chat(&bob).await.id;
+
+        let file = alice.get_blobdir().join("minimal.xdc");
+        tokio::fs::write(&file, include_bytes!("../test-data/webxdc/minimal.xdc")).await?;
+        let mut instance = Message::new(Viewtype::File);
+        instance.set_file(file.to_str().unwrap(), None);
+        let _sent1 = alice.send_msg(chat_id, &mut instance).await;
+
+        alice
+            .send_webxdc_status_update(instance.id, r#"{"payload":7}"#, "d")
+            .await?;
+        alice.flush_status_updates().await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let sent2_rfc742_mid = Message::load_from_db(&alice, sent2.sender_msg_id)
+            .await?
+            .rfc724_mid;
+
+        // not downloading the status update results in an placeholder
+        receive_imf_inner(
+            &bob,
+            &sent2_rfc742_mid,
+            sent2.payload().as_bytes(),
+            false,
+            Some(sent2.payload().len() as u32),
+            false,
+        )
+        .await?;
+        let msg = bob.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(msg.download_state(), DownloadState::Available);
+
+        // downloading the status update afterwards expands to nothing and moves the placeholder to trash-chat
+        // (usually status updates are too small for not being downloaded directly)
+        receive_imf_inner(
+            &bob,
+            &sent2_rfc742_mid,
+            sent2.payload().as_bytes(),
+            false,
+            None,
+            false,
+        )
+        .await?;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert!(Message::load_from_db(&bob, msg.id)
+            .await?
+            .chat_id
+            .is_trash());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mdn_expands_to_nothing() -> Result<()> {
+        let bob = TestContext::new_bob().await;
+        let raw = b"Subject: Message opened\n\
+            Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
+            Chat-Version: 1.0\n\
+            Message-ID: <bar@example.org>\n\
+            To: Alice <alice@example.org>\n\
+            From: Bob <bob@example.org>\n\
+            Content-Type: multipart/report; report-type=disposition-notification;\n\t\
+            boundary=\"kJBbU58X1xeWNHgBtTbMk80M5qnV4N\"\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+            Content-Type: text/plain; charset=utf-8\n\
+            \n\
+            bla\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N\n\
+            Content-Type: message/disposition-notification\n\
+            \n\
+            Reporting-UA: Delta Chat 1.88.0\n\
+            Original-Recipient: rfc822;bob@example.org\n\
+            Final-Recipient: rfc822;bob@example.org\n\
+            Original-Message-ID: <foo@example.org>\n\
+            Disposition: manual-action/MDN-sent-automatically; displayed\n\
+            \n\
+            \n\
+            --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
+            ";
+
+        // not downloading the mdn results in an placeholder
+        receive_imf_inner(
+            &bob,
+            "bar@example.org",
+            raw,
+            false,
+            Some(raw.len() as u32),
+            false,
+        )
+        .await?;
+        let msg = bob.get_last_msg().await;
+        let chat_id = msg.chat_id;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(msg.download_state(), DownloadState::Available);
+
+        // downloading the mdn afterwards expands to nothing and deletes the placeholder directly
+        // (usually mdn are too small for not being downloaded directly)
+        receive_imf_inner(&bob, "bar@example.org", raw, false, None, false).await?;
+        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert!(Message::load_from_db(&bob, msg.id)
+            .await?
+            .chat_id
+            .is_trash());
 
         Ok(())
     }

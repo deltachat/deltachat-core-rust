@@ -51,7 +51,7 @@ impl Lot {
                 Qr::FprWithoutAddr { fingerprint, .. } => Some(fingerprint),
                 Qr::Account { domain } => Some(domain),
                 Qr::WebrtcInstance { domain, .. } => Some(domain),
-                Qr::Addr { .. } => None,
+                Qr::Addr { draft, .. } => draft.as_deref(),
                 Qr::Url { url } => Some(url),
                 Qr::Text { text } => Some(text),
                 Qr::WithdrawVerifyContact { .. } => None,
@@ -79,7 +79,13 @@ impl Lot {
                 Some(SummaryPrefix::Username(_username)) => Meaning::Text1Username,
                 Some(SummaryPrefix::Me(_text)) => Meaning::Text1Self,
             },
-            Self::Qr(_qr) => Meaning::None,
+            Self::Qr(qr) => match qr {
+                Qr::Addr {
+                    draft: Some(_draft),
+                    ..
+                } => Meaning::Text1Draft,
+                _ => Meaning::None,
+            },
             Self::Error(_err) => Meaning::None,
         }
     }
@@ -118,7 +124,7 @@ impl Lot {
                 Qr::FprWithoutAddr { .. } => Default::default(),
                 Qr::Account { .. } => Default::default(),
                 Qr::WebrtcInstance { .. } => Default::default(),
-                Qr::Addr { contact_id } => contact_id.to_u32(),
+                Qr::Addr { contact_id, .. } => contact_id.to_u32(),
                 Qr::Url { .. } => Default::default(),
                 Qr::Text { .. } => Default::default(),
                 Qr::WithdrawVerifyContact { contact_id, .. } => contact_id.to_u32(),

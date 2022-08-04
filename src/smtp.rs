@@ -477,21 +477,17 @@ pub(crate) async fn send_msg_to_smtp(
 }
 
 /// Attempts to send queued MDNs.
-///
-/// Returns true if there are more MDNs to send, but rate limiter does not
-/// allow to send them. Returns false if there are no more MDNs to send.
-/// If sending an MDN fails, returns an error.
-async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
+async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<()> {
     loop {
         if !context.ratelimit.read().await.can_send() {
             info!(context, "Ratelimiter does not allow sending MDNs now");
-            return Ok(true);
+            return Ok(());
         }
 
         let more_mdns = send_mdn(context, connection).await?;
         if !more_mdns {
             // No more MDNs to send.
-            return Ok(false);
+            return Ok(());
         }
     }
 }
@@ -500,10 +496,8 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<bool> {
 ///
 /// Logs and ignores SMTP errors to ensure that a single SMTP message constantly failing to be sent
 /// does not block other messages in the queue from being sent.
-///
-/// Returns true if sending was ratelimited, false otherwise. Errors are propagated to the caller.
-pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<bool> {
-    let mut ratelimited = if context.ratelimit.read().await.can_send() {
+pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<()> {
+    let ratelimited = if context.ratelimit.read().await.can_send() {
         // add status updates and sync messages to end of sending queue
         context.flush_status_updates().await?;
         context.send_sync_msg().await?;
@@ -538,12 +532,11 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     // do not attempt to send MDNs if ratelimited happend before on status-updates/sync:
     // instead, let the caller recall this function so that more important status-updates/sync are sent out.
     if !ratelimited {
-        ratelimited = send_mdns(context, connection)
+        send_mdns(context, connection)
             .await
             .context("failed to send MDNs")?;
     }
-
-    Ok(ratelimited)
+    Ok(())
 }
 
 /// Tries to send MDN for message `msg_id` to `contact_id`.

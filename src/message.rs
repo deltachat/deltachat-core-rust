@@ -19,7 +19,7 @@ use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
-use crate::mimeparser::{parse_message_id, FailureReport, SystemMessage};
+use crate::mimeparser::{parse_message_id, DeliveryReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::scheduler::InterruptInfo;
@@ -1532,7 +1532,7 @@ pub async fn handle_mdn(
 /// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
 pub(crate) async fn handle_ndn(
     context: &Context,
-    failed: &FailureReport,
+    failed: &DeliveryReport,
     error: Option<String>,
 ) -> Result<()> {
     if failed.rfc724_mid.is_empty() {
@@ -1588,7 +1588,7 @@ pub(crate) async fn handle_ndn(
 
 async fn ndn_maybe_add_info_msg(
     context: &Context,
-    failed: &FailureReport,
+    failed: &DeliveryReport,
     chat_id: ChatId,
     chat_type: Chattype,
 ) -> Result<()> {

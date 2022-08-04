@@ -12,9 +12,11 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use tokio::task;
 
 use crate::config::Config;
+use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::Imap;
 use crate::job;
+use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam, Socks5Config};
 use crate::message::{Message, Viewtype};
 use crate::oauth2::get_oauth2_addr;
@@ -101,41 +103,65 @@ impl Context {
         info!(self, "Configure ...");
 
         let mut param = LoginParam::load_candidate_params(self).await?;
+        let old_addr = self.get_config(Config::ConfiguredAddr).await?;
         let success = configure(self, &mut param).await;
         self.set_config(Config::NotifyAboutWrongPw, None).await?;
 
-        if let Some(provider) = param.provider {
-            if let Some(config_defaults) = &provider.config_defaults {
-                for def in config_defaults.iter() {
-                    if !self.config_exists(def.key).await? {
-                        info!(self, "apply config_defaults {}={}", def.key, def.value);
-                        self.set_config(def.key, Some(def.value)).await?;
-                    } else {
-                        info!(
-                            self,
-                            "skip already set config_defaults {}={}", def.key, def.value
-                        );
-                    }
-                }
-            }
-
-            if !provider.after_login_hint.is_empty() {
-                let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(provider.after_login_hint.to_string());
-                if chat::add_device_msg(self, Some("core-provider-info"), Some(&mut msg))
-                    .await
-                    .is_err()
-                {
-                    warn!(self, "cannot add after_login_hint as core-provider-info");
-                }
-            }
-        }
+        on_configure_completed(self, param, old_addr).await?;
 
         success?;
         self.set_config(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
         Ok(())
     }
+}
+
+async fn on_configure_completed(
+    context: &Context,
+    param: LoginParam,
+    old_addr: Option<String>,
+) -> Result<()> {
+    if let Some(provider) = param.provider {
+        if let Some(config_defaults) = &provider.config_defaults {
+            for def in config_defaults.iter() {
+                if !context.config_exists(def.key).await? {
+                    info!(context, "apply config_defaults {}={}", def.key, def.value);
+                    context.set_config(def.key, Some(def.value)).await?;
+                } else {
+                    info!(
+                        context,
+                        "skip already set config_defaults {}={}", def.key, def.value
+                    );
+                }
+            }
+        }
+
+        if !provider.after_login_hint.is_empty() {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(provider.after_login_hint.to_string());
+            if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg))
+                .await
+                .is_err()
+            {
+                warn!(context, "cannot add after_login_hint as core-provider-info");
+            }
+        }
+    }
+
+    if let Some(new_addr) = context.get_config(Config::ConfiguredAddr).await? {
+        if let Some(old_addr) = old_addr {
+            if !addr_cmp(&new_addr, &old_addr) {
+                let mut msg = Message::new(Viewtype::Text);
+                msg.text =
+                    Some(stock_str::aeap_explanation_and_link(context, old_addr, new_addr).await);
+                chat::add_device_msg(context, None, Some(&mut msg))
+                    .await
+                    .ok_or_log_msg(context, "Cannot add AEAP explanation");
+            }
+        }
+    }
+
+    Ok(())
 }
 
 async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
@@ -642,6 +668,9 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
                 .to_lowercase()
                 .contains("temporary failure in name resolution")
             || e.msg.to_lowercase().contains("name or service not known")
+            || e.msg
+                .to_lowercase()
+                .contains("failed to lookup address information")
     }) {
         return stock_str::error_no_network(context).await;
     }

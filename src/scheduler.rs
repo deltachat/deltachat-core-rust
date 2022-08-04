@@ -324,29 +324,25 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 
         let mut timeout = None;
         loop {
-            match send_smtp_messages(&ctx, &mut connection).await {
-                Err(err) => {
-                    warn!(ctx, "send_smtp_messages failed: {:#}", err);
-                    timeout = Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
+            if let Err(err) = send_smtp_messages(&ctx, &mut connection).await {
+                warn!(ctx, "send_smtp_messages failed: {:#}", err);
+                timeout = Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
+            } else {
+                let duration_until_can_send = ctx.ratelimit.read().await.until_can_send();
+                if !duration_until_can_send.is_zero() {
+                    info!(
+                        ctx,
+                        "smtp got rate limited, waiting for {} until can send again",
+                        duration_to_str(duration_until_can_send)
+                    );
+                    tokio::time::timeout(duration_until_can_send, async {
+                        idle_interrupt_receiver.recv().await.unwrap_or_default()
+                    })
+                    .await
+                    .unwrap_or_default();
+                    continue;
                 }
-                Ok(ratelimited) => {
-                    if ratelimited {
-                        let duration_until_can_send = ctx.ratelimit.read().await.until_can_send();
-                        info!(
-                            ctx,
-                            "smtp got rate limited, waiting for {} until can send again",
-                            duration_to_str(duration_until_can_send)
-                        );
-                        tokio::time::timeout(duration_until_can_send, async {
-                            idle_interrupt_receiver.recv().await.unwrap_or_default()
-                        })
-                        .await
-                        .unwrap_or_default();
-                        continue;
-                    } else {
-                        timeout = None;
-                    }
-                }
+                timeout = None;
             }
 
             // Fake Idle

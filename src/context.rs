@@ -193,7 +193,7 @@ impl Context {
             translated_stockstrings: RwLock::new(HashMap::new()),
             events,
             scheduler: RwLock::new(None),
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 3.0)), // Allow to send 3 messages immediately, no more than once every 20 seconds.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
@@ -594,7 +594,7 @@ impl Context {
 
         let list = if let Some(chat_id) = chat_id {
             do_query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                "SELECT m.id AS id
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -618,7 +618,7 @@ impl Context {
             // According to some tests, this limit speeds up eg. 2 character searches by factor 10.
             // The limit is documented and UI may add a hint when getting 1000 results.
             do_query(
-                "SELECT m.id AS id, m.timestamp AS timestamp
+                "SELECT m.id AS id
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id

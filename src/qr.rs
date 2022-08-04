@@ -1,6 +1,6 @@
 //! # QR code module.
 
-use anyhow::{bail, ensure, Context as _, Error, Result};
+use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -14,8 +14,8 @@ use crate::context::Context;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
-use crate::token;
 use crate::tools::time;
+use crate::{token, EventType};
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -61,6 +61,7 @@ pub enum Qr {
     },
     Addr {
         contact_id: ContactId,
+        draft: Option<String>,
     },
     Url {
         url: String,
@@ -343,9 +344,13 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateAccountResponse {
+struct CreateAccountSuccessResponse {
     email: String,
     password: String,
+}
+#[derive(Debug, Deserialize)]
+struct CreateAccountErrorResponse {
+    reason: String,
 }
 
 /// take a qr of the type DC_QR_ACCOUNT, parse it's parameters,
@@ -354,23 +359,42 @@ struct CreateAccountResponse {
 #[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
+    let response = reqwest::Client::new().post(url_str).send().await?;
+    let response_status = response.status();
+    let response_text = response.text().await.with_context(|| {
+        format!(
+            "Cannot create account, request to {:?} failed: empty response",
+            url_str
+        )
+    })?;
 
-    let parsed: CreateAccountResponse = reqwest::Client::new()
-        .post(url_str)
-        .send()
-        .await?
-        .json()
-        .await
-        .with_context(|| format!("Cannot create account, request to {:?} failed", url_str))?;
+    if response_status.is_success() {
+        let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
+            .with_context(|| {
+                format!(
+                    "Cannot create account, response from {:?} is malformed:\n{:?}",
+                    url_str, response_text
+                )
+            })?;
+        context.set_config(Config::Addr, Some(&email)).await?;
+        context.set_config(Config::MailPw, Some(&password)).await?;
 
-    context
-        .set_config(Config::Addr, Some(&parsed.email))
-        .await?;
-    context
-        .set_config(Config::MailPw, Some(&parsed.password))
-        .await?;
-
-    Ok(())
+        Ok(())
+    } else {
+        match serde_json::from_str::<CreateAccountErrorResponse>(&response_text) {
+            Ok(error) => Err(anyhow!(error.reason)),
+            Err(parse_error) => {
+                context.emit_event(EventType::Error(format!(
+                    "Cannot create account, server response could not be parsed:\n{:#}\nraw response:\n{}",
+                    parse_error, response_text
+                )));
+                bail!(
+                    "Cannot create account, unexpected server response:\n{:?}",
+                    response_text
+                )
+            }
+        }
+    }
 }
 
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
@@ -451,15 +475,52 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
 async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[MAILTO_SCHEME.len()..];
 
-    let addr = if let Some(query_index) = payload.find('?') {
-        &payload[..query_index]
+    let (addr, query) = if let Some(query_index) = payload.find('?') {
+        (&payload[..query_index], &payload[query_index + 1..])
     } else {
-        payload
+        (payload, "")
+    };
+
+    let param: BTreeMap<&str, &str> = query
+        .split('&')
+        .filter_map(|s| {
+            if let [key, value] = s.splitn(2, '=').collect::<Vec<_>>()[..] {
+                Some((key, value))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let subject = if let Some(subject) = param.get("subject") {
+        subject.to_string()
+    } else {
+        "".to_string()
+    };
+    let draft = if let Some(body) = param.get("body") {
+        if subject.is_empty() {
+            body.to_string()
+        } else {
+            subject + "\n" + body
+        }
+    } else {
+        subject
+    };
+    let draft = draft.replace('+', "%20"); // sometimes spaces are encoded as `+`
+    let draft = match percent_decode_str(&draft).decode_utf8() {
+        Ok(decoded_draft) => decoded_draft.to_string(),
+        Err(_err) => draft,
     };
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(
+        context,
+        name,
+        addr,
+        if draft.is_empty() { None } else { Some(draft) },
+    )
+    .await
 }
 
 /// Extract address for the smtp scheme.
@@ -477,7 +538,7 @@ async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 /// Extract address for the matmsg scheme.
@@ -502,7 +563,7 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
 
     let addr = normalize_address(addr)?;
     let name = "".to_string();
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 static VCARD_NAME_RE: Lazy<regex::Regex> =
@@ -531,14 +592,19 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
         bail!("Bad e-mail address");
     };
 
-    Qr::from_address(context, name, addr).await
+    Qr::from_address(context, name, addr, None).await
 }
 
 impl Qr {
-    pub async fn from_address(context: &Context, name: String, addr: String) -> Result<Self> {
+    pub async fn from_address(
+        context: &Context,
+        name: String,
+        addr: String,
+        draft: Option<String>,
+    ) -> Result<Self> {
         let (contact_id, _) =
             Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await?;
-        Ok(Qr::Addr { contact_id })
+        Ok(Qr::Addr { contact_id, draft })
     }
 }
 
@@ -619,12 +685,13 @@ mod tests {
             "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
         ).await?;
 
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
             assert_eq!(contact.get_name(), "First Last");
             assert_eq!(contact.get_authname(), "");
             assert_eq!(contact.get_display_name(), "First Last");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
@@ -642,9 +709,10 @@ mod tests {
         )
         .await?;
 
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
@@ -658,20 +726,22 @@ mod tests {
 
         let qr = check_qr(
             &ctx.ctx,
-            "mailto:stress@test.local?subject=hello&body=world",
+            "mailto:stress@test.local?subject=hello&body=beautiful+world",
         )
         .await?;
-        if let Qr::Addr { contact_id } = qr {
+        if let Qr::Addr { contact_id, draft } = qr {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert_eq!(draft.unwrap(), "hello\nbeautiful world");
         } else {
             bail!("Wrong QR code type");
         }
 
         let res = check_qr(&ctx.ctx, "mailto:no-questionmark@example.org").await?;
-        if let Qr::Addr { contact_id } = res {
+        if let Qr::Addr { contact_id, draft } = res {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "no-questionmark@example.org");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
@@ -686,11 +756,12 @@ mod tests {
     async fn test_decode_smtp() -> Result<()> {
         let ctx = TestContext::new().await;
 
-        if let Qr::Addr { contact_id } =
+        if let Qr::Addr { contact_id, draft } =
             check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld").await?
         {
             let contact = Contact::get_by_id(&ctx.ctx, contact_id).await?;
             assert_eq!(contact.get_addr(), "stress@test.local");
+            assert!(draft.is_none());
         } else {
             bail!("Wrong QR code type");
         }
