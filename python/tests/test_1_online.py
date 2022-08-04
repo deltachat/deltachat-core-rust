@@ -2055,6 +2055,36 @@ def test_delete_deltachat_folder(acfactory):
     assert "DeltaChat" in ac1.direct_imap.list_folders()
 
 
+def test_aeap_flow_unverified(acfactory, lp):
+    """Test that a new address is added to a contact when it changes its address."""
+    ac1, ac2, ac1new = acfactory.get_online_accounts(3)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("sending first message")
+    msg_out = chat.send_text("old address")
+
+    lp.sec("receiving first message")
+    msg_in_1 = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in_1.text == msg_out.text
+
+    lp.sec("changing email account")
+    ac1.set_config("addr", ac1new.get_config("addr"))
+    ac1.set_config("mail_pw", ac1new.get_config("mail_pw"))
+    ac1.stop_io()
+    configtracker = ac1.configure()
+    configtracker.wait_finish()
+    ac1.start_io()
+
+    lp.sec("sending second message")
+    msg_out = chat.send_text("changed address")
+
+    lp.sec("receiving second message")
+    msg_in_2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in_2.text == msg_out.text
+    #assert msg_in_2.chat.id == msg_in_1.chat.id
+    assert msg_in_2.get_sender_contact() == msg_in_1.get_sender_contact()
+
+
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
