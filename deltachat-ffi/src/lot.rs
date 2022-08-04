@@ -58,6 +58,7 @@ impl Lot {
                 Qr::WithdrawVerifyGroup { grpname, .. } => Some(grpname),
                 Qr::ReviveVerifyContact { .. } => None,
                 Qr::ReviveVerifyGroup { grpname, .. } => Some(grpname),
+                Qr::Login { address, ..} => Some(address)
             },
             Self::Error(err) => Some(err),
         }
@@ -108,6 +109,7 @@ impl Lot {
                 Qr::WithdrawVerifyGroup { .. } => LotState::QrWithdrawVerifyGroup,
                 Qr::ReviveVerifyContact { .. } => LotState::QrReviveVerifyContact,
                 Qr::ReviveVerifyGroup { .. } => LotState::QrReviveVerifyGroup,
+                Qr::Login { .. } => LotState::QrLogin,
             },
             Self::Error(_err) => LotState::QrError,
         }
@@ -131,6 +133,7 @@ impl Lot {
                 Qr::WithdrawVerifyGroup { .. } => Default::default(),
                 Qr::ReviveVerifyContact { contact_id, .. } => contact_id.to_u32(),
                 Qr::ReviveVerifyGroup { .. } => Default::default(),
+                Qr::Login { .. } => Default::default(),
             },
             Self::Error(_) => Default::default(),
         }
@@ -194,6 +197,9 @@ pub enum LotState {
 
     /// text1=groupname
     QrReviveVerifyGroup = 512,
+
+    /// text1=email_address
+    QrLogin = 520,
 
     // Message States
     MsgInFresh = 10,

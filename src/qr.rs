@@ -1,6 +1,7 @@
 //! # QR code module.
 
 use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
+mod dclogin_scheme;
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -17,8 +18,11 @@ use crate::peerstate::Peerstate;
 use crate::tools::time;
 use crate::{token, EventType};
 
+use self::dclogin_scheme::{LoginOptions, apply_from_login_qr};
+
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
+pub(super) const DCLOGIN_SCHEME: &str = "DCLOGIN:";
 const DCWEBRTC_SCHEME: &str = "DCWEBRTC:";
 const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
@@ -97,6 +101,10 @@ pub enum Qr {
         invitenumber: String,
         authcode: String,
     },
+    Login {
+        address: String,
+        options: LoginOptions,
+    },
 }
 
 fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
@@ -115,6 +123,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
             .context("failed to decode OPENPGP4FPR QR code")?
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(qr)?
+    } else if starts_with_ignore_case(qr, DCLOGIN_SCHEME) {
+        dclogin_scheme::decode_login(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -462,6 +472,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             context.sync_qr_code_tokens(chat_id).await?;
             context.send_sync_msg().await?;
         }
+        Qr::Login {address, options} => apply_from_login_qr(context, &address, options).await?, 
         _ => bail!("qr code {:?} does not contain config", qr),
     }
 

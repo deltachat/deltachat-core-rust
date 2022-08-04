@@ -15,7 +15,7 @@ use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::provider::{get_provider_by_id, Provider};
 use crate::{context::Context, provider::Socket};
 
-#[derive(Copy, Clone, Debug, Display, FromPrimitive, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
