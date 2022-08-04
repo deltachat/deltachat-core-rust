@@ -23,7 +23,7 @@
   dcn_accounts_t* dcn_accounts; \
   NAPI_STATUS_THROWS(napi_get_value_external(env, argv[0], (void**)&dcn_accounts)); \
   if (!dcn_accounts) { \
-    const char* msg = "Provided dnc_acounts is null"; \
+    const char* msg = "Provided dcn_acounts is null"; \
     NAPI_STATUS_THROWS(napi_throw_type_error(env, NULL, msg)); \
   } \
   if (!dcn_accounts->dc_accounts) { \

@@ -2,7 +2,19 @@
 
 ## Unreleased
 
+### API-Changes
+- jsonrpc api over websocket server (basically a new api next to the cffi) #3463
+- jsonrpc methods in cffi #3463: 
+ - `dc_jsonrpc_instance_t* dc_jsonrpc_init(dc_accounts_t* account_manager);`
+ - `void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);`
+ - `void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, char* request);`
+ - `char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);`
+- node: json rpc methods #3463:
+ - `AccountManager.prototype.startJsonRpcHandler(callback: ((response: string) => void)): void`
+ - `AccountManager.prototype.jsonRpcRequest(message: string): void`
+
 ### Added
+- added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 
 ### Changes
 

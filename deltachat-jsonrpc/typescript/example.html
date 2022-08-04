@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>DeltaChat JSON-RPC example</title>
+    <style>
+      body {
+        font-family: monospace;
+        background: black;
+        color: grey;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 3fr 1fr;
+        grid-template-areas: "a a" "b c";
+      }
+      .message {
+        color: red;
+      }
+      #header {
+        grid-area: a;
+        color: white;
+        font-size: 1.2rem;
+      }
+      #header a {
+        color: white;
+        font-weight: bold;
+      }
+      #main {
+        grid-area: b;
+        color: green;
+      }
+      #main h2,
+      #main h3 {
+        color: blue;
+      }
+      #side {
+        grid-area: c;
+        color: #777;
+        overflow-y: auto;
+      }
+    </style>
+    <script type="module" src="dist/example.bundle.js"></script>
+  </head>
+  <body>
+    <h1>DeltaChat JSON-RPC example</h1>
+    <div class="grid">
+      <div id="header"></div>
+      <div id="main"></div>
+      <div id="side"><h2>log</h2></div>
+    </div>
+    <p>
+      Tip: open the dev console and use the client with
+      <code>window.client</code>
+    </p>
+  </body>
+</html>

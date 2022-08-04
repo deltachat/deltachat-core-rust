@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "alwaysStrict": true,
+    "strict": true,
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "lib": ["ES2017", "dom"],
+    "target": "ES2017",
+    "module": "es2020",
+    "declaration": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "noImplicitAny": true,
+    "isolatedModules": true
+  },
+  "include": ["*.ts", "example/*.ts", "test/*.ts"],
+  "compileOnSave": false
+}

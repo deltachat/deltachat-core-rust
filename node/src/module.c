@@ -34,6 +34,9 @@ typedef struct dcn_accounts_t {
   dc_accounts_t* dc_accounts;
   napi_threadsafe_function threadsafe_event_handler;
   uv_thread_t event_handler_thread;
+  napi_threadsafe_function threadsafe_jsonrpc_handler;
+  uv_thread_t jsonrpc_thread;
+  dc_jsonrpc_instance_t* jsonrpc_instance;
   int gc;
 } dcn_accounts_t;
 
@@ -2936,6 +2939,12 @@ NAPI_METHOD(dcn_accounts_unref) {
     uv_thread_join(&dcn_accounts->event_handler_thread);
     dcn_accounts->event_handler_thread = 0;
   }
+  if (dcn_accounts->jsonrpc_instance) {
+    dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, "{}");
+    uv_thread_join(&dcn_accounts->jsonrpc_thread);
+    dc_jsonrpc_unref(dcn_accounts->jsonrpc_instance);
+    dcn_accounts->jsonrpc_instance = NULL;
+  }
   dc_accounts_unref(dcn_accounts->dc_accounts);
   dcn_accounts->dc_accounts = NULL;
 
@@ -3094,8 +3103,6 @@ static void accounts_event_handler_thread_func(void* arg)
 {
   dcn_accounts_t* dcn_accounts = (dcn_accounts_t*)arg;
 
-
-
   TRACE("event_handler_thread_func starting");
 
   dc_accounts_event_emitter_t * dc_accounts_event_emitter = dc_accounts_get_event_emitter(dcn_accounts->dc_accounts);
@@ -3185,7 +3192,7 @@ static void call_accounts_js_event_handler(napi_env env, napi_value js_callback,
     if (status != napi_ok) {
       napi_throw_error(env, NULL, "Unable to create argv[3] for event_handler arguments");
     }
-    free(data2_string);
+    dc_str_unref(data2_string);
   } else {
     status = napi_create_int32(env, dc_event_get_data2_int(dc_event), &argv[3]);
     if (status != napi_ok) {
@@ -3243,6 +3250,124 @@ NAPI_METHOD(dcn_accounts_start_event_handler) {
   TRACE("creating uv thread..");
   uv_thread_create(&dcn_accounts->event_handler_thread, accounts_event_handler_thread_func, dcn_accounts);
 
+  NAPI_RETURN_UNDEFINED();
+}
+
+// JSON RPC
+
+static void accounts_jsonrpc_thread_func(void* arg)
+{
+  dcn_accounts_t* dcn_accounts = (dcn_accounts_t*)arg;
+  TRACE("accounts_jsonrpc_thread_func starting");
+  char* response;
+  while (true) {
+    response = dc_jsonrpc_next_response(dcn_accounts->jsonrpc_instance);
+    if (response == NULL) {
+      // done or broken
+      break;
+    }
+
+    if (!dcn_accounts->threadsafe_jsonrpc_handler) {
+      TRACE("threadsafe_jsonrpc_handler not set, bailing");
+      break;
+    }
+    // Don't process events if we're being garbage collected!
+    if (dcn_accounts->gc == 1) {
+      TRACE("dc_accounts has been destroyed, bailing");
+      break;
+    }
+
+    napi_status status = napi_call_threadsafe_function(dcn_accounts->threadsafe_jsonrpc_handler, response, napi_tsfn_blocking);
+
+    if (status == napi_closing) {
+      TRACE("JS function got released, bailing");
+      break;
+    }
+  }
+  TRACE("accounts_jsonrpc_thread_func ended");
+  napi_release_threadsafe_function(dcn_accounts->threadsafe_jsonrpc_handler, napi_tsfn_release);
+}
+
+static void call_accounts_js_jsonrpc_handler(napi_env env, napi_value js_callback, void* _context, void* data)
+{
+  char* response = (char*)data;
+  napi_value global;
+  napi_status status = napi_get_global(env, &global);
+  if (status != napi_ok) {
+    napi_throw_error(env, NULL, "Unable to get global");
+  }
+
+  napi_value argv[1];
+  if (response != 0) {
+    status = napi_create_string_utf8(env, response, NAPI_AUTO_LENGTH, &argv[0]);
+  } else {
+    status = napi_create_string_utf8(env, "", NAPI_AUTO_LENGTH, &argv[0]);
+  }
+  if (status != napi_ok) {
+    napi_throw_error(env, NULL, "Unable to create argv for js jsonrpc_handler arguments");
+  } 
+  dc_str_unref(response);
+
+  TRACE("calling back into js");
+  napi_value result;
+  status = napi_call_function(
+    env,
+    global,
+    js_callback,
+    1,
+    argv,
+    &result);
+  if (status != napi_ok) {
+    TRACE("Unable to call jsonrpc_handler callback2");
+    const napi_extended_error_info* error_result;
+    NAPI_STATUS_THROWS(napi_get_last_error_info(env, &error_result));
+  }
+}
+
+NAPI_METHOD(dcn_accounts_start_jsonrpc) {
+  NAPI_ARGV(2);
+  NAPI_DCN_ACCOUNTS();
+  napi_value callback = argv[1];
+
+  TRACE("calling..");
+  napi_value async_resource_name;
+  NAPI_STATUS_THROWS(napi_create_string_utf8(env, "dc_accounts_jsonrpc_callback", NAPI_AUTO_LENGTH, &async_resource_name));
+
+  TRACE("creating threadsafe function..");
+
+  NAPI_STATUS_THROWS(napi_create_threadsafe_function(
+    env,
+    callback,
+    0,
+    async_resource_name,
+    1000, // max_queue_size
+    1,
+    NULL,
+    NULL,
+    NULL,
+    call_accounts_js_jsonrpc_handler,
+    &dcn_accounts->threadsafe_jsonrpc_handler));
+  TRACE("done");
+
+  dcn_accounts->gc = 0;
+  dcn_accounts->jsonrpc_instance = dc_jsonrpc_init(dcn_accounts->dc_accounts);
+
+  TRACE("creating uv thread..");
+  uv_thread_create(&dcn_accounts->jsonrpc_thread, accounts_jsonrpc_thread_func, dcn_accounts);
+
+  NAPI_RETURN_UNDEFINED();
+}
+
+NAPI_METHOD(dcn_json_rpc_request) {
+  NAPI_ARGV(2);
+  NAPI_DCN_ACCOUNTS();
+  if (!dcn_accounts->jsonrpc_instance) {
+    const char* msg = "dcn_accounts->jsonrpc_instance is null, have you called dcn_accounts_start_jsonrpc()?";
+    NAPI_STATUS_THROWS(napi_throw_type_error(env, NULL, msg));
+  }
+  NAPI_ARGV_UTF8_MALLOC(request, 1);
+  dc_jsonrpc_request(dcn_accounts->jsonrpc_instance, request);
+  free(request);
   NAPI_RETURN_UNDEFINED();
 }
 
@@ -3517,4 +3642,9 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_send_webxdc_status_update);
   NAPI_EXPORT_FUNCTION(dcn_get_webxdc_status_updates);
   NAPI_EXPORT_FUNCTION(dcn_msg_get_webxdc_blob);
+
+
+  /** jsonrpc **/
+  NAPI_EXPORT_FUNCTION(dcn_accounts_start_jsonrpc);
+  NAPI_EXPORT_FUNCTION(dcn_json_rpc_request);
 }

@@ -2,7 +2,7 @@
 import DeltaChat, { Message } from '../dist'
 import binding from '../binding'
 
-import { strictEqual } from 'assert'
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert'
 import chai, { expect } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
 import { EventId2EventName, C } from '../dist/constants'
@@ -81,6 +81,95 @@ describe('static tests', function () {
       overview_page: 'https://providers.delta.chat/example-com',
       status: 3,
     })
+  })
+})
+
+describe('JSON RPC', function () {
+  it('smoketest', async function () {
+    const { dc } = DeltaChat.newTemporary()
+    let promise_resolve
+    const promise = new Promise((res, _rej) => {
+      promise_resolve = res
+    })
+    dc.startJsonRpcHandler(promise_resolve)
+    dc.jsonRpcRequest(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'get_all_account_ids',
+        params: [],
+        id: 2,
+      })
+    )
+    deepStrictEqual(
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [1],
+      },
+      JSON.parse(await promise)
+    )
+    dc.close()
+  })
+
+  it('basic test', async function () {
+    const { dc } = DeltaChat.newTemporary()
+
+    const promises = {}
+    dc.startJsonRpcHandler((msg) => {
+      const response = JSON.parse(msg)
+      promises[response.id](response)
+      delete promises[response.id]
+    })
+    const call = (request) => {
+      dc.jsonRpcRequest(JSON.stringify(request))
+      return new Promise((res, _rej) => {
+        promises[request.id] = res
+      })
+    }
+
+    deepStrictEqual(
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [1],
+      },
+      await call({
+        jsonrpc: '2.0',
+        method: 'get_all_account_ids',
+        params: [],
+        id: 2,
+      })
+    )
+
+    deepStrictEqual(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        result: 2,
+      },
+      await call({
+        jsonrpc: '2.0',
+        method: 'add_account',
+        params: [],
+        id: 3,
+      })
+    )
+
+    deepStrictEqual(
+      {
+        jsonrpc: '2.0',
+        id: 4,
+        result: [1, 2],
+      },
+      await call({
+        jsonrpc: '2.0',
+        method: 'get_all_account_ids',
+        params: [],
+        id: 4,
+      })
+    )
+
+    dc.close()
   })
 })
 

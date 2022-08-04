@@ -21,7 +21,7 @@ add_custom_command(
         PREFIX=${CMAKE_INSTALL_PREFIX}
         LIBDIR=${CMAKE_INSTALL_FULL_LIBDIR}
         INCLUDEDIR=${CMAKE_INSTALL_FULL_INCLUDEDIR}
-        ${CARGO} build --release --no-default-features
+        ${CARGO} build --release --no-default-features --features jsonrpc
 
 	# Build in `deltachat-ffi` directory instead of using
 	# `--package deltachat_ffi` to avoid feature resolver version

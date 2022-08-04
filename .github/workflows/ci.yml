@@ -131,7 +131,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
-        args: -p deltachat_ffi
+        args: -p deltachat_ffi --features jsonrpc
 
     - name: run python tests
       if: ${{ matrix.python }}

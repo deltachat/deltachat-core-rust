@@ -19,6 +19,7 @@ use std::future::Future;
 use std::ops::Deref;
 use std::ptr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
@@ -4118,11 +4119,11 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
 /// Reader-writer lock wrapper for accounts manager to guarantee thread safety when using
 /// `dc_accounts_t` in multiple threads at once.
 pub struct AccountsWrapper {
-    inner: RwLock<Accounts>,
+    inner: Arc<RwLock<Accounts>>,
 }
 
 impl Deref for AccountsWrapper {
-    type Target = RwLock<Accounts>;
+    type Target = Arc<RwLock<Accounts>>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -4131,7 +4132,7 @@ impl Deref for AccountsWrapper {
 
 impl AccountsWrapper {
     fn new(accounts: Accounts) -> Self {
-        let inner = RwLock::new(accounts);
+        let inner = Arc::new(RwLock::new(accounts));
         Self { inner }
     }
 }
@@ -4446,4 +4447,78 @@ pub unsafe extern "C" fn dc_accounts_get_next_event(
     block_on(emitter.recv())
         .map(|ev| Box::into_raw(Box::new(ev)))
         .unwrap_or_else(ptr::null_mut)
+}
+
+#[cfg(feature = "jsonrpc")]
+mod jsonrpc {
+    use super::*;
+    use deltachat_jsonrpc::api::CommandApi;
+    use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
+
+    pub struct dc_jsonrpc_instance_t {
+        receiver: OutReceiver,
+        handle: RpcSession<CommandApi>,
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_jsonrpc_init(
+        account_manager: *mut dc_accounts_t,
+    ) -> *mut dc_jsonrpc_instance_t {
+        if account_manager.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_init()");
+            return ptr::null_mut();
+        }
+
+        let cmd_api =
+            deltachat_jsonrpc::api::CommandApi::from_arc((*account_manager).inner.clone());
+
+        let (request_handle, receiver) = RpcClient::new();
+        let handle = RpcSession::new(request_handle, cmd_api);
+
+        let instance = dc_jsonrpc_instance_t { receiver, handle };
+
+        Box::into_raw(Box::new(instance))
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_jsonrpc_unref(jsonrpc_instance: *mut dc_jsonrpc_instance_t) {
+        if jsonrpc_instance.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_unref()");
+            return;
+        }
+
+        Box::from_raw(jsonrpc_instance);
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_jsonrpc_request(
+        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
+        request: *const libc::c_char,
+    ) {
+        if jsonrpc_instance.is_null() || request.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_request()");
+            return;
+        }
+
+        let api = &*jsonrpc_instance;
+        let handle = &api.handle;
+        let request = to_string_lossy(request);
+        spawn(async move {
+            handle.handle_incoming(&request).await;
+        });
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn dc_jsonrpc_next_response(
+        jsonrpc_instance: *mut dc_jsonrpc_instance_t,
+    ) -> *mut libc::c_char {
+        if jsonrpc_instance.is_null() {
+            eprintln!("ignoring careless call to dc_jsonrpc_next_response()");
+            return ptr::null_mut();
+        }
+        let api = &*jsonrpc_instance;
+        block_on(api.receiver.recv())
+            .map(|result| serde_json::to_string(&result).unwrap_or_default().strdup())
+            .unwrap_or(ptr::null_mut())
+    }
 }
