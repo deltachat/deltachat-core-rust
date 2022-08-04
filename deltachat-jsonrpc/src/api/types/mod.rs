@@ -58,7 +58,7 @@ pub enum QrObject {
     },
     Addr {
         contact_id: u32,
-        draft: Option<String>
+        draft: Option<String>,
     },
     Url {
         url: String,
