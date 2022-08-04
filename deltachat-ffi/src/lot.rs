@@ -58,7 +58,7 @@ impl Lot {
                 Qr::WithdrawVerifyGroup { grpname, .. } => Some(grpname),
                 Qr::ReviveVerifyContact { .. } => None,
                 Qr::ReviveVerifyGroup { grpname, .. } => Some(grpname),
-                Qr::Login { address, ..} => Some(address)
+                Qr::Login { address, .. } => Some(address),
             },
             Self::Error(err) => Some(err),
         }
