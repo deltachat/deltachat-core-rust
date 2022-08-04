@@ -15,6 +15,7 @@ pub struct ContactObject {
     status: String,
     display_name: String,
     id: u32,
+    last_seen: i64,
     name: String,
     profile_image: Option<String>, // BLOBS
     name_and_addr: String,
@@ -40,6 +41,7 @@ impl ContactObject {
             status: contact.get_status().to_owned(),
             display_name: contact.get_display_name().to_owned(),
             id: contact.id.to_u32(),
+            last_seen: contact.last_seen(),
             name: contact.get_name().to_owned(),
             profile_image, //BLOBS
             name_and_addr: contact.get_name_n_addr(),

@@ -104,6 +104,7 @@ export type Contact = {
   status: string;
   displayName: string;
   id: U32;
+  lastSeen: I64;
   name: string;
   profileImage: string | null;
   nameAndAddr: string;
