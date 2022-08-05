@@ -2075,6 +2075,7 @@ def test_aeap_flow_verified(acfactory, lp):
     ac2._evtracker.wait_next_incoming_message()  # member added message
     msg_in_1 = ac2._evtracker.wait_next_incoming_message()
     assert msg_in_1.text == msg_out.text
+    contact_of_1 = msg_in_1.get_sender_contact()
 
     lp.sec("changing email account")
     ac1.set_config("addr", ac1new.get_config("addr"))
@@ -2092,6 +2093,7 @@ def test_aeap_flow_verified(acfactory, lp):
     assert msg_in_2.text == msg_out.text
     assert msg_in_2.chat.id == msg_in_1.chat.id
     assert msg_in_2.get_sender_contact().addr == ac1new.get_config("addr")
+    assert msg_in_2.get_sender_contact().id is contact_of_1.id
     assert len(msg_in_2.chat.get_contacts()) == 2
     assert ac1new.get_config("addr") in [contact.addr for contact in msg_in_2.chat.get_contacts()]
 
