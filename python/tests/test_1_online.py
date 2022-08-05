@@ -2055,15 +2055,24 @@ def test_delete_deltachat_folder(acfactory):
     assert "DeltaChat" in ac1.direct_imap.list_folders()
 
 
-def test_aeap_flow_unverified(acfactory, lp):
+def test_aeap_flow_verified(acfactory, lp):
     """Test that a new address is added to a contact when it changes its address."""
     ac1, ac2, ac1new = acfactory.get_online_accounts(3)
-    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+    chat = ac1.create_group_chat("hello", verified=True)
+    assert chat.is_protected()
+    qr = chat.get_join_qr()
+    lp.sec("ac2: start QR-code based join-group protocol")
+    chat2 = ac2.qr_join_chat(qr)
+    assert chat2.id >= 10
+    ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     lp.sec("sending first message")
     msg_out = chat.send_text("old address")
 
     lp.sec("receiving first message")
+    ac2._evtracker.wait_next_incoming_message()  # member added message
     msg_in_1 = ac2._evtracker.wait_next_incoming_message()
     assert msg_in_1.text == msg_out.text
 
@@ -2081,8 +2090,10 @@ def test_aeap_flow_unverified(acfactory, lp):
     lp.sec("receiving second message")
     msg_in_2 = ac2._evtracker.wait_next_incoming_message()
     assert msg_in_2.text == msg_out.text
-    #assert msg_in_2.chat.id == msg_in_1.chat.id
-    assert msg_in_2.get_sender_contact() == msg_in_1.get_sender_contact()
+    assert msg_in_2.chat.id == msg_in_1.chat.id
+    assert msg_in_2.get_sender_contact().addr == ac1new.get_config("addr")
+    assert len(msg_in_2.chat.get_contacts()) == 2
+    assert ac1new.get_config("addr") in [contact.addr for contact in msg_in_2.chat.get_contacts()]
 
 
 class TestOnlineConfigureFails:
