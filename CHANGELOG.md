@@ -17,6 +17,7 @@
 - added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 
 ### Changes
+- refactorings #3545
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474

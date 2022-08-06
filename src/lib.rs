@@ -58,6 +58,7 @@ mod configure;
 pub mod constants;
 pub mod contact;
 pub mod context;
+mod decrypt;
 pub mod download;
 mod e2ee;
 pub mod ephemeral;

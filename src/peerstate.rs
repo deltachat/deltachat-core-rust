@@ -9,6 +9,7 @@ use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
 use crate::context::Context;
+use crate::decrypt::DecryptionInfo;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
@@ -611,7 +612,7 @@ impl Peerstate {
 /// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
 pub async fn maybe_do_aeap_transition(
     context: &Context,
-    info: &mut crate::e2ee::DecryptionInfo,
+    info: &mut DecryptionInfo,
     mime_parser: &crate::mimeparser::MimeMessage,
 ) -> Result<()> {
     if let Some(peerstate) = &mut info.peerstate {

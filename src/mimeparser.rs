@@ -15,8 +15,8 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
+use crate::decrypt::{create_decryption_info, try_decrypt};
 use crate::dehtml::dehtml;
-use crate::e2ee;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -220,12 +220,11 @@ impl MimeMessage {
         let mut mail_raw = Vec::new();
         let mut gossiped_addr = Default::default();
         let mut from_is_signed = false;
-        let mut decryption_info =
-            e2ee::create_decryption_info(context, &mail, message_time).await?;
+        let mut decryption_info = create_decryption_info(context, &mail, message_time).await?;
 
         // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
         let (mail, signatures, warn_empty_signature) =
-            match e2ee::try_decrypt(context, &mail, &decryption_info).await {
+            match try_decrypt(context, &mail, &decryption_info).await {
                 Ok(Some((raw, signatures))) => {
                     // Encrypted, but maybe unsigned message. Only if
                     // `signatures` set is non-empty, it is a valid
