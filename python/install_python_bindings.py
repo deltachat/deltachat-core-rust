@@ -16,7 +16,7 @@ if __name__ == "__main__":
         dn = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         os.environ["DCC_RS_DEV"] = dn
 
-    cmd = ["cargo", "build", "-p", "deltachat_ffi"]
+    cmd = ["cargo", "build", "-p", "deltachat_ffi", "--features", "jsonrpc"]
 
     if target == "release":
         os.environ["CARGO_PROFILE_RELEASE_LTO"] = "on"
