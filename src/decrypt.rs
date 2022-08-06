@@ -32,7 +32,6 @@ pub async fn try_decrypt(
     // Possibly perform decryption
     let public_keyring_for_validate = keyring_from_peerstate(&decryption_info.peerstate);
 
-    let context = context;
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
         .or_else(|| get_attachment_mime(mail))
