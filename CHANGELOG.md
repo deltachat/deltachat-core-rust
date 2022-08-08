@@ -18,6 +18,7 @@
 
 ### Changes
 - jsonrpc: auto restart io on setConfig for the following keys `sentbox_watch`, `mvbox_move` and `only_fetch_mvbox`
+- refactorings #3545
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474

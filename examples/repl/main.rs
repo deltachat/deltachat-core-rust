@@ -23,7 +23,6 @@ use deltachat::securejoin::*;
 use deltachat::{EventType, Events};
 use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
-use rustyline::config::OutputStreamType;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
@@ -314,7 +313,6 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         .history_ignore_space(true)
         .completion_type(CompletionType::List)
         .edit_mode(EditMode::Emacs)
-        .output_stream(OutputStreamType::Stdout)
         .build();
     let mut selected_chat = ChatId::default();
 
@@ -325,7 +323,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
             highlighter: MatchingBracketHighlighter::new(),
             hinter: HistoryHinter {},
         };
-        let mut rl = Editor::with_config(config);
+        let mut rl = Editor::with_config(config)?;
         rl.set_helper(Some(h));
         rl.bind_sequence(KeyEvent::alt('N'), Cmd::HistorySearchForward);
         rl.bind_sequence(KeyEvent::alt('P'), Cmd::HistorySearchBackward);
