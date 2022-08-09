@@ -1,7 +1,7 @@
 //! # Key-value configuration management.
 
 use anyhow::{ensure, Context as _, Result};
-use strum::{EnumProperty, IntoEnumIterator};
+use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;

@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{bail, Error};
-use strum::EnumProperty;
+use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
 
 use crate::blob::BlobObject;
