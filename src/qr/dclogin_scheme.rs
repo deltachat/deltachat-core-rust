@@ -386,5 +386,17 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn email_with_plus_extension() -> anyhow::Result<()> {
+        let result = decode_login("dclogin:usename+extension@host?p=1234&v=1")?;
+        if let Qr::Login { address, options } = result {
+            assert_eq!(address, "usename+extension@host".to_owned());
+            assert_eq!(options, login_options_just_pw!("1234".to_owned()));
+        } else {
+            bail!("wrong type")
+        }
+        Ok(())
+    }
+
     // idea: should invalid uri encoding result in error?
 }
