@@ -738,7 +738,7 @@ mod tests {
         check_image_size(avatar_src, 1000, 1000);
         check_image_size(&avatar_blob, BALANCED_AVATAR_SIZE, BALANCED_AVATAR_SIZE);
 
-        async fn file_size(path_buf: &PathBuf) -> u64 {
+        async fn file_size(path_buf: &Path) -> u64 {
             let file = File::open(path_buf).await.unwrap();
             file.metadata().await.unwrap().len()
         }

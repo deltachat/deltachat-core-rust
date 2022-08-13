@@ -45,7 +45,7 @@ jobs:
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --workspace --tests --examples --benches
+          args: --workspace --tests --examples --benches --features repl -- -D warnings
 
   docs:
     name: Rust doc comments

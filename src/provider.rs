@@ -9,7 +9,7 @@ use anyhow::Result;
 use chrono::{NaiveDateTime, NaiveTime};
 use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
-#[derive(Debug, Display, Copy, Clone, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Status {
     Ok = 1,
@@ -17,14 +17,14 @@ pub enum Status {
     Broken = 3,
 }
 
-#[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, PartialEq, Eq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Protocol {
     Smtp = 1,
     Imap = 2,
 }
 
-#[derive(Debug, Display, PartialEq, Copy, Clone, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, PartialEq, Eq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Socket {
     Automatic = 0,
@@ -39,21 +39,21 @@ impl Default for Socket {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[repr(u8)]
 pub enum UsernamePattern {
     Email = 1,
     Emaillocalpart = 2,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Oauth2Authorizer {
     Yandex = 1,
     Gmail = 2,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Server {
     pub protocol: Protocol,
     pub socket: Socket,
@@ -62,13 +62,13 @@ pub struct Server {
     pub username_pattern: UsernamePattern,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ConfigDefault {
     pub key: Config,
     pub value: &'static str,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Provider {
     /// Unique ID, corresponding to provider database filename.
     pub id: &'static str,

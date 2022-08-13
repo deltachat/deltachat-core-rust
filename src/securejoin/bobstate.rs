@@ -342,20 +342,19 @@ impl BobState {
                 true
             }
             QrInvite::Group { ref grpid, .. } => {
-                // This is buggy, is_verified_group will always be
+                // This is buggy, result will always be
                 // false since the group is created by receive_imf for
                 // the very handshake message we're handling now.  But
                 // only after we have returned.  It does not impact
                 // the security invariants of secure-join however.
 
-                let is_verified_group = chat::get_chat_id_by_grpid(context, grpid)
+                chat::get_chat_id_by_grpid(context, grpid)
                     .await?
-                    .map_or(false, |(_chat_id, is_protected, _blocked)| is_protected);
+                    .map_or(false, |(_chat_id, is_protected, _blocked)| is_protected)
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.
                 // So only expect encryption if this is a verified group
-                is_verified_group
             }
         };
         if vg_expect_encrypted
@@ -501,7 +500,7 @@ impl BobHandshakeMsg {
 }
 
 /// The next message expected by [`BobState`] in the setup-contact/secure-join protocol.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecureJoinStep {
     /// Expecting the auth-required message.
     ///

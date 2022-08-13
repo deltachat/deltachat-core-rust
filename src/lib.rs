@@ -15,7 +15,7 @@
 )]
 #![allow(
     clippy::match_bool,
-    clippy::eval_order_dependence,
+    clippy::mixed_read_write_in_expression,
     clippy::bool_assert_comparison,
     clippy::manual_split_once,
     clippy::format_push_string

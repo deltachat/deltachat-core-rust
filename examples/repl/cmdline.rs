@@ -1,3 +1,4 @@
+#![allow(clippy::format_push_string)]
 extern crate dirs;
 
 use std::path::Path;

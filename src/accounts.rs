@@ -33,7 +33,7 @@ impl Accounts {
     }
 
     /// Creates a new default structure.
-    pub async fn create(dir: &PathBuf) -> Result<()> {
+    pub async fn create(dir: &Path) -> Result<()> {
         fs::create_dir_all(dir)
             .await
             .context("failed to create folder")?;
@@ -580,7 +580,7 @@ mod tests {
             let ids = accounts.get_all().await;
             assert_eq!(ids.len(), 1);
 
-            let id0 = *ids.get(0).unwrap();
+            let id0 = *ids.first().unwrap();
             let ctx = accounts.get_account(id0).await.unwrap();
             ctx.set_config(crate::config::Config::Addr, Some("one@example.org"))
                 .await?;
@@ -620,7 +620,7 @@ mod tests {
             let ids = accounts.get_all().await;
             assert_eq!(ids.len(), 3);
 
-            let id0 = *ids.get(0).unwrap();
+            let id0 = *ids.first().unwrap();
             let ctx = accounts.get_account(id0).await.unwrap();
             assert_eq!(
                 ctx.get_config(crate::config::Config::Addr).await?,
