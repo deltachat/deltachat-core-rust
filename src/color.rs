@@ -11,7 +11,7 @@ use sha1::{Digest, Sha1};
 fn str_to_angle(s: &str) -> f64 {
     let bytes = s.as_bytes();
     let result = Sha1::digest(bytes);
-    let checksum: u16 = result.get(0).map_or(0, |&x| u16::from(x))
+    let checksum: u16 = result.first().map_or(0, |&x| u16::from(x))
         + 256 * result.get(1).map_or(0, |&x| u16::from(x));
     f64::from(checksum) / 65536.0 * 360.0
 }

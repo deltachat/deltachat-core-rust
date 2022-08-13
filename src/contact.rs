@@ -1429,7 +1429,7 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
         .chunks(2)
         .into_iter()
         .filter_map(|chunk| {
-            let name = chunk.get(0)?;
+            let name = chunk.first()?;
             let addr = chunk.get(1)?;
             Some((*name, *addr))
         })

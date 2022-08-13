@@ -40,7 +40,7 @@ use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
 
 /// An chat item, such as a message or a marker.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChatItem {
     Message {
         msg_id: MsgId,
@@ -2786,7 +2786,7 @@ pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) 
     Ok(needs_attach)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MuteDuration {
     NotMuted,
     Forever,

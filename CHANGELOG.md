@@ -17,7 +17,7 @@
 - added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 
 ### Changes
-- refactorings #3545
+- refactorings #3545 #3551
 - use [pathlib](https://docs.python.org/3/library/pathlib.html) in provider update script #3543
 
 ### Fixes
