@@ -614,6 +614,11 @@ async fn export_backup_inner(
             );
             continue;
         }
+
+        if context.shall_stop_ongoing().await {
+            bail!("Backup export cancelled");
+        }
+
         let mut file = File::open(entry.path()).await?;
         let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(name);
         builder.append_file(path_in_archive, &mut file).await?;
