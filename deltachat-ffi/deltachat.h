@@ -2174,11 +2174,10 @@ char*           dc_imex_has_backup           (dc_context_t* context, const char*
  * ~~~
  *
  * After that, this function should be called to send the Autocrypt Setup Message.
- * The function creates the setup message and waits until it is really sent.
- * As this may take a while, it is recommended to start the function in a separate thread;
- * to interrupt it, you can use dc_stop_ongoing_process().
+ * The function creates the setup message and adds it to outgoing message queue.
+ * The message is sent asynchronously.
  *
- * After everything succeeded, the required setup code is returned in the following format:
+ * The required setup code is returned in the following format:
  *
  * ~~~
  * 1234-1234-1234-1234-1234-1234-1234-1234-1234
@@ -2244,8 +2243,8 @@ int             dc_continue_key_transfer     (dc_context_t* context, uint32_t ms
  * The ongoing process will return ASAP then, however, it may
  * still take a moment.
  *
- * Typical ongoing processes are started by dc_configure(),
- * dc_initiate_key_transfer() or dc_imex(). As there is always at most only
+ * Typical ongoing processes are started by dc_configure()
+ * or dc_imex(). As there is always at most only
  * one onging process at the same time, there is no need to define _which_ process to exit.
  *
  * @memberof dc_context_t

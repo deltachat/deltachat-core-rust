@@ -43,6 +43,9 @@
 - jsonrpc: add `last_seen` property to `Contact` #3590
 - breaking! jsonrpc: replace `Message.quoted_text` and `Message.quoted_message_id` with `Message.quote` #3590
 - add separate stock strings for actions done by contacts to make them easier to translate #3518
+- `dc_initiate_key_transfer()` is non-blocking now. #3553
+  UIs don't need to display a button to cancel sending Autocrypt Setup Message with
+  `dc_stop_ongoing_process()` anymore.
 
 ### Changes
 - order contact lists by "last seen";

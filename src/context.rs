@@ -346,6 +346,7 @@ impl Context {
         }
     }
 
+    #[allow(unused)]
     pub(crate) async fn shall_stop_ongoing(&self) -> bool {
         match &*self.running_state.read().await {
             RunningState::Running { .. } => false,
