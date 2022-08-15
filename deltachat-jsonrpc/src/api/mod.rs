@@ -587,18 +587,16 @@ impl CommandApi {
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
 
+        let chat_id = if chat_id == 0 {
+            None
+        } else {
+            Some(ChatId::new(chat_id))
+        };
         let msg_type = message_type.into();
         let or_msg_type2 = or_message_type2.map_or(Viewtype::Unknown, |v| v.into());
         let or_msg_type3 = or_message_type3.map_or(Viewtype::Unknown, |v| v.into());
 
-        let media = get_chat_media(
-            &ctx,
-            ChatId::new(chat_id),
-            msg_type,
-            or_msg_type2,
-            or_msg_type3,
-        )
-        .await?;
+        let media = get_chat_media(&ctx, chat_id, msg_type, or_msg_type2, or_msg_type3).await?;
         Ok(media.iter().map(|msg_id| msg_id.to_u32()).collect())
     }
 
