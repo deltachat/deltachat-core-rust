@@ -94,6 +94,9 @@ pub enum QrObject {
         invitenumber: String,
         authcode: String,
     },
+    Login {
+        address: String,
+    },
 }
 
 impl From<Qr> for QrObject {
@@ -224,6 +227,7 @@ impl From<Qr> for QrObject {
                     authcode,
                 }
             }
+            Qr::Login { address, .. } => QrObject::Login { address },
         }
     }
 }

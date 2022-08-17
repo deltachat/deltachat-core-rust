@@ -1,7 +1,9 @@
 //! # QR code module.
 
-use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
 mod dclogin_scheme;
+pub use dclogin_scheme::LoginOptions;
+
+use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
@@ -18,7 +20,7 @@ use crate::peerstate::Peerstate;
 use crate::tools::time;
 use crate::{token, EventType};
 
-use self::dclogin_scheme::{apply_from_login_qr, LoginOptions};
+use self::dclogin_scheme::apply_from_login_qr;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
