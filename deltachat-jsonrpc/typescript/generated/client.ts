@@ -299,8 +299,11 @@ export class RawClient {
    * The list is already sorted and starts with the oldest message.
    * Clients should not try to re-sort the list as this would be an expensive action
    * and would result in inconsistencies between clients.
+   * 
+   * Setting `chat_id` to `None` (`null` in typescript) means get messages with media
+   * from any chat of the currently used account.
    */
-  public chatGetMedia(accountId: T.U32, chatId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
+  public chatGetMedia(accountId: T.U32, chatId: (T.U32|null), messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
     return (this._transport.request('chat_get_media', [accountId, chatId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<(T.U32)[]>;
   }
 
