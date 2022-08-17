@@ -2,9 +2,9 @@
 # if the yaml import fails, run "pip install pyyaml"
 
 import sys
-import os
 import yaml
 import datetime
+from pathlib import Path
 
 out_all = ""
 out_domains = ""
@@ -24,7 +24,7 @@ def cleanstr(s):
 
 
 def file2id(f):
-    return os.path.basename(f).replace(".md", "")
+    return f.stem
 
 
 def file2varname(f):
@@ -141,7 +141,7 @@ def process_data(data, file):
 
     # finally, add the provider
     global out_all, out_domains, out_ids
-    out_all += "// " + file[file.rindex("/")+1:] + ": " + comment.strip(", ") + "\n"
+    out_all += "// " + file.name + ": " + comment.strip(", ") + "\n"
 
     # also add provider with no special things to do -
     # eg. _not_ supporting oauth2 is also an information and we can skip the mx-lookup in this case
@@ -151,7 +151,7 @@ def process_data(data, file):
 
 
 def process_file(file):
-    print("processing file: " + file, file=sys.stderr)
+    print("processing file: {}".format(file), file=sys.stderr)
     with open(file) as f:
         # load_all() loads "---"-separated yamls -
         # by coincidence, this is also the frontmatter separator :)
@@ -160,11 +160,10 @@ def process_file(file):
 
 
 def process_dir(dir):
-    print("processing directory: " + dir, file=sys.stderr)
-    files = [f for f in os.listdir(dir) if f.endswith(".md")]
-    files.sort()
+    print("processing directory: {}".format(dir), file=sys.stderr)
+    files = sorted(f for f in dir.iterdir() if f.suffix == '.md')
     for f in files:
-        process_file(os.path.join(dir, f))
+        process_file(f)
 
 
 if __name__ == "__main__":
@@ -179,7 +178,7 @@ if __name__ == "__main__":
     "use std::collections::HashMap;\n\n"
     "use once_cell::sync::Lazy;\n\n")
 
-    process_dir(sys.argv[1])
+    process_dir(Path(sys.argv[1]))
 
     out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
     out_all += out_domains;

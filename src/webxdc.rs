@@ -1,7 +1,7 @@
 //! # Handle webxdc messages.
 
 use std::convert::TryFrom;
-use std::path::PathBuf;
+use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Result};
 use deltachat_derive::FromSql;
@@ -171,7 +171,7 @@ impl Context {
 
     /// ensure that a file is an acceptable webxdc for sending
     /// (sending has more strict size limits).
-    pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &PathBuf) -> Result<()> {
+    pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
         if !filename.ends_with(WEBXDC_SUFFIX) {
             bail!("{} is not a valid webxdc file", filename);

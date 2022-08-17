@@ -17,11 +17,13 @@
 - added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
 
 ### Changes
-- jsonrpc: auto restart io on setConfig for the following keys `sentbox_watch`, `mvbox_move` and `only_fetch_mvbox`
-- refactorings #3545
+- jsonrpc: auto restart io on setConfig for the following keys `sentbox_watch`, `mvbox_move` and `only_fetch_mvbox` #3542
+- refactorings #3545 #3551
+- use [pathlib](https://docs.python.org/3/library/pathlib.html) in provider update script #3543
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474
+- python: enable certificate checks in cloned accounts #3443
 
 ## 1.92.0
 

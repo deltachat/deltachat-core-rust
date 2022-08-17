@@ -39,7 +39,7 @@ impl Default for CertificateChecks {
 }
 
 /// Login parameters for a single server, either IMAP or SMTP
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ServerLoginParam {
     pub server: String,
     pub user: String,
@@ -53,7 +53,7 @@ pub struct ServerLoginParam {
     pub certificate_checks: CertificateChecks,
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Socks5Config {
     pub host: String,
     pub port: u16,
@@ -128,7 +128,7 @@ impl fmt::Display for Socks5Config {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct LoginParam {
     pub addr: String,
     pub imap: ServerLoginParam,

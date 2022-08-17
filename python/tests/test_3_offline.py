@@ -497,12 +497,6 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_set_config_after_configure_is_forbidden(self, ac1):
-        assert ac1.get_config("mail_pw")
-        assert ac1.is_configured()
-        with pytest.raises(ValueError):
-            ac1.set_config("addr", "123@example.org")
-
     def test_import_export_on_unencrypted_acct(self, acfactory, tmpdir):
         backupdir = tmpdir.mkdir("backup")
         ac1 = acfactory.get_pseudo_configured_account()

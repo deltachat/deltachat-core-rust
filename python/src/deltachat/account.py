@@ -169,8 +169,6 @@ class Account(object):
         """
         self._check_config_key(name)
         namebytes = name.encode("utf8")
-        if namebytes == b"addr" and self.is_configured():
-            raise ValueError("can not change 'addr' after account is configured.")
         if isinstance(value, (int, bool)):
             value = str(int(value))
         if value is not None:
@@ -710,8 +708,9 @@ class Account(object):
         """Start configuration process and return a Configtracker instance
         on which you can block with wait_finish() to get a True/False success
         value for the configuration process.
+
+        :param reconfigure: deprecated, doesn't need to be checked anymore.
         """
-        assert self.is_configured() == reconfigure
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
         configtracker = ConfigureTracker(self)
