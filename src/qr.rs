@@ -1036,6 +1036,101 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_and_apply_dclogin() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let result = check_qr(&ctx.ctx, "dclogin:usename+extension@host?p=1234&v=1").await?;
+        if let Qr::Login { address, options } = result {
+            assert_eq!(address, "usename+extension@host".to_owned());
+
+            if let LoginOptions::V1 { mail_pw, .. } = options {
+                assert_eq!(mail_pw, "1234".to_owned());
+            }
+        } else {
+            bail!("wrong type")
+        }
+
+        assert!(ctx.ctx.get_config(Config::Addr).await?.is_none());
+        assert!(ctx.ctx.get_config(Config::MailPw).await?.is_none());
+
+        set_config_from_qr(&ctx.ctx, "dclogin:username+extension@host?p=1234&v=1").await?;
+        assert_eq!(
+            ctx.ctx.get_config(Config::Addr).await?,
+            Some("username+extension@host".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPw).await?,
+            Some("1234".to_owned())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_and_apply_dclogin_advanced_options() -> Result<()> {
+        let ctx = TestContext::new().await;
+        set_config_from_qr(&ctx.ctx, "dclogin:username+extension@host?p=1234&spw=4321&sh=send.host&sp=7273&su=SendUser&ih=host.tld&ip=4343&iu=user&ipw=password&is=ssl&ic=1&sc=3&ss=plain&v=1").await?;
+        assert_eq!(
+            ctx.ctx.get_config(Config::Addr).await?,
+            Some("username+extension@host".to_owned())
+        );
+
+        // `p=1234` is ignored, because `ipw=password` is set
+
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailServer).await?,
+            Some("host.tld".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPort).await?,
+            Some("4343".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailUser).await?,
+            Some("user".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPw).await?,
+            Some("password".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailSecurity).await?,
+            Some("1".to_owned()) // ssl
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::ImapCertificateChecks).await?,
+            Some("1".to_owned())
+        );
+
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendPw).await?,
+            Some("4321".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendServer).await?,
+            Some("send.host".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendPort).await?,
+            Some("7273".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendUser).await?,
+            Some("SendUser".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SmtpCertificateChecks).await?,
+            Some("3".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendSecurity).await?,
+            Some("3".to_owned()) // plain
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_account() -> Result<()> {
         let ctx = TestContext::new().await;
 

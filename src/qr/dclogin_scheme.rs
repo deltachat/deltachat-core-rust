@@ -166,7 +166,7 @@ pub(crate) async fn apply_from_login_qr(
         } => {
             context.set_config(Config::MailPw, Some(&mail_pw)).await?;
             if let Some(value) = imap_host {
-                context.set_config(Config::MailPw, Some(&value)).await?;
+                context.set_config(Config::MailServer, Some(&value)).await?;
             }
             if let Some(value) = imap_port {
                 context
