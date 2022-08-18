@@ -983,11 +983,9 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
         "listmedia" => {
-            ensure!(sel_chat.is_some(), "No chat selected.");
-
             let images = chat::get_chat_media(
                 &context,
-                sel_chat.as_ref().unwrap().get_id(),
+                sel_chat.map(|c| c.id),
                 Viewtype::Image,
                 Viewtype::Gif,
                 Viewtype::Video,

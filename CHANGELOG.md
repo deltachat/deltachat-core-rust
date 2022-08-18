@@ -19,6 +19,7 @@
 ### Changes
 - refactorings #3545 #3551
 - use [pathlib](https://docs.python.org/3/library/pathlib.html) in provider update script #3543
+- `dc_get_chat_media()` can return media globally #3528
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474

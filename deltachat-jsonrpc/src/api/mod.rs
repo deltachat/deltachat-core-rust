@@ -577,28 +577,28 @@ impl CommandApi {
     /// The list is already sorted and starts with the oldest message.
     /// Clients should not try to re-sort the list as this would be an expensive action
     /// and would result in inconsistencies between clients.
+    ///
+    /// Setting `chat_id` to `None` (`null` in typescript) means get messages with media
+    /// from any chat of the currently used account.
     async fn chat_get_media(
         &self,
         account_id: u32,
-        chat_id: u32,
+        chat_id: Option<u32>,
         message_type: MessageViewtype,
         or_message_type2: Option<MessageViewtype>,
         or_message_type3: Option<MessageViewtype>,
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
 
+        let chat_id = match chat_id {
+            None | Some(0) => None,
+            Some(id) => Some(ChatId::new(id)),
+        };
         let msg_type = message_type.into();
         let or_msg_type2 = or_message_type2.map_or(Viewtype::Unknown, |v| v.into());
         let or_msg_type3 = or_message_type3.map_or(Viewtype::Unknown, |v| v.into());
 
-        let media = get_chat_media(
-            &ctx,
-            ChatId::new(chat_id),
-            msg_type,
-            or_msg_type2,
-            or_msg_type3,
-        )
-        .await?;
+        let media = get_chat_media(&ctx, chat_id, msg_type, or_msg_type2, or_msg_type3).await?;
         Ok(media.iter().map(|msg_id| msg_id.to_u32()).collect())
     }
 

@@ -2423,7 +2423,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
 
 pub async fn get_chat_media(
     context: &Context,
-    chat_id: ChatId,
+    chat_id: Option<ChatId>,
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
@@ -2434,11 +2434,13 @@ pub async fn get_chat_media(
         .query_map(
             "SELECT id
                FROM msgs
-              WHERE chat_id=?
+              WHERE (1=? OR chat_id=?)
                 AND (type=? OR type=? OR type=?)
+                AND hidden=0
               ORDER BY timestamp, id;",
             paramsv![
-                chat_id,
+                if chat_id.is_none() { 1i32 } else { 0i32 },
+                chat_id.unwrap_or_else(|| ChatId::new(0)),
                 msg_type,
                 if msg_type2 != Viewtype::Unknown {
                     msg_type2
@@ -2479,7 +2481,7 @@ pub async fn get_next_media(
     if let Ok(msg) = Message::load_from_db(context, curr_msg_id).await {
         let list: Vec<MsgId> = get_chat_media(
             context,
-            msg.chat_id,
+            Some(msg.chat_id),
             if msg_type != Viewtype::Unknown {
                 msg_type
             } else {
@@ -5482,6 +5484,160 @@ mod tests {
             \n\
             End-to-end encryption available:\n\
             bob@example.net"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_chat_media() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let chat_id2 = create_group_chat(&t, ProtectionStatus::Unprotected, "bar").await?;
+
+        assert_eq!(
+            get_chat_media(
+                &t,
+                Some(chat_id1),
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Unknown
+            )
+            .await?
+            .len(),
+            0
+        );
+
+        async fn send_media(
+            t: &TestContext,
+            chat_id: ChatId,
+            msg_type: Viewtype,
+            name: &str,
+            bytes: &[u8],
+        ) -> Result<MsgId> {
+            let file = t.get_blobdir().join(name);
+            tokio::fs::write(&file, bytes).await?;
+            let mut msg = Message::new(msg_type);
+            msg.set_file(file.to_str().unwrap(), None);
+            send_msg(t, chat_id, &mut msg).await
+        }
+
+        send_media(
+            &t,
+            chat_id1,
+            Viewtype::Image,
+            "a.jpg",
+            include_bytes!("../test-data/image/rectangle200x180-rotated.jpg"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id1,
+            Viewtype::Sticker,
+            "b.png",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id2,
+            Viewtype::Image,
+            "c.jpg",
+            include_bytes!("../test-data/image/avatar64x64.png"),
+        )
+        .await?;
+        send_media(
+            &t,
+            chat_id2,
+            Viewtype::Webxdc,
+            "d.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+
+        assert_eq!(
+            get_chat_media(
+                &t,
+                Some(chat_id1),
+                Viewtype::Image,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                Some(chat_id1),
+                Viewtype::Sticker,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                Some(chat_id1),
+                Viewtype::Sticker,
+                Viewtype::Image,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            2
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                Some(chat_id2),
+                Viewtype::Webxdc,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            1
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                None,
+                Viewtype::Image,
+                Viewtype::Unknown,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            2
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                None,
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Unknown,
+            )
+            .await?
+            .len(),
+            3
+        );
+        assert_eq!(
+            get_chat_media(
+                &t,
+                None,
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Webxdc,
+            )
+            .await?
+            .len(),
+            4
         );
 
         Ok(())
