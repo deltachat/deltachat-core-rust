@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.92.0"
+version = "1.93.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.92.0"
+version = "1.93.0"
 dependencies = [
  "anyhow",
  "deltachat",

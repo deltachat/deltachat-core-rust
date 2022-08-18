@@ -3,28 +3,37 @@
 ## Unreleased
 
 ### API-Changes
-- jsonrpc api over websocket server (basically a new api next to the cffi) #3463
-- jsonrpc methods in cffi #3463: 
+
+### Changes
+
+### Fixes
+
+
+## 1.93.0
+
+### API-Changes
+- added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463 #3554 #3542
+- JSON RPC methods in CFFI #3463:
  - `dc_jsonrpc_instance_t* dc_jsonrpc_init(dc_accounts_t* account_manager);`
  - `void dc_jsonrpc_unref(dc_jsonrpc_instance_t* jsonrpc_instance);`
  - `void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, char* request);`
  - `char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);`
-- node: json rpc methods #3463:
+- node: JSON RPC methods #3463:
  - `AccountManager.prototype.startJsonRpcHandler(callback: ((response: string) => void)): void`
  - `AccountManager.prototype.jsonRpcRequest(message: string): void`
 
-### Added
-- added a JSON RPC API, accessible through a WebSocket server, the CFFI bindings and the Node.js bindings #3463
-
 ### Changes
-- jsonrpc: auto restart io on setConfig for the following keys `sentbox_watch`, `mvbox_move` and `only_fetch_mvbox` #3542
-- refactorings #3545 #3551
 - use [pathlib](https://docs.python.org/3/library/pathlib.html) in provider update script #3543
 - `dc_get_chat_media()` can return media globally #3528
+- node: add `getMailinglistAddr()` #3524
+- avoid duplicate encoded-words package and test `cargo vendor` in ci #3549
+- python: don't raise an error if addr changes #3530
+- improve coverage script #3530
 
 ### Fixes
 - improved error handling for account setup from qrcode #3474
 - python: enable certificate checks in cloned accounts #3443
+
 
 ## 1.92.0
 
