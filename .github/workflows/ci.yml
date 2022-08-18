@@ -116,6 +116,11 @@ jobs:
         command: test
         args: --all
 
+    - name: test cargo vendor
+      uses: actions-rs/cargo@v1
+      with:
+        command: vendor
+
     - name: install python
       if: ${{ matrix.python }}
       uses: actions/setup-python@v4
