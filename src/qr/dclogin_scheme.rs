@@ -34,24 +34,17 @@ pub enum LoginOptions {
 pub(super) fn decode_login(qr: &str) -> Result<Qr> {
     let url = url::Url::parse(qr).with_context(|| format!("Malformed url: {:?}", qr))?;
 
-    let mut payload = qr
+    let url_without_scheme = qr
         .get(DCLOGIN_SCHEME.len()..)
         .context("invalid DCLOGIN payload E1")?;
-
-    // if first 2 chars are `//` remove them
-    if payload.get(0..2) == Some("//") {
-        payload = payload.get(2..).context("invalid DCLOGIN payload E2")?;
-        // todo: is there a more idiomatic way?
-    }
+    let payload = url_without_scheme
+        .strip_prefix("//")
+        .unwrap_or(url_without_scheme);
 
     let addr = payload
-        .get(
-            ..payload
-                .chars()
-                .position(|c| c == '?' || c == '/')
-                .context("invalid DCLOGIN payload E3a")?,
-        )
-        .context("invalid DCLOGIN payload E3b")?;
+        .split(|c| c == '?' || c == '/')
+        .next()
+        .context("invalid DCLOGIN payload E3")?;
 
     let mut scheme = url.scheme().to_owned();
     scheme.make_ascii_lowercase();
@@ -62,43 +55,39 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
             bail!("invalid DCLOGIN payload E4")
         }
         // load options into hashmap
-        let mut parameter_map = HashMap::with_capacity(options.count());
-        for (key, value) in options {
-            parameter_map.insert(key.into_owned(), value.into_owned());
-        }
+        let mut parameter_map: HashMap<String, String> = options
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
 
         // check if username is there
-        println!("{}", addr);
         if !contact::may_be_valid_addr(addr) {
             bail!("invalid DCLOGIN payload: invalid username E5");
         }
 
         // apply to result struct
         let options: LoginOptions = match parameter_map.get("v").map(|i| i.parse::<u32>()) {
-            Some(version_result) => match version_result {
-                Ok(1) => LoginOptions::V1 {
-                    mail_pw: parameter_map
-                        .get("p")
-                        .map(|s| s.to_owned())
-                        .context("password missing")?,
-                    imap_host: parameter_map.get("ih").map(|s| s.to_owned()),
-                    imap_port: parse_port(parameter_map.get("ip"))
-                        .context("could not parse imap port")?,
-                    imap_username: parameter_map.get("iu").map(|s| s.to_owned()),
-                    imap_password: parameter_map.get("ipw").map(|s| s.to_owned()),
-                    imap_security: parse_socket_security(parameter_map.get("is"))?,
-                    imap_certificate_checks: parse_certificate_checks(parameter_map.get("ic"))?,
-                    smtp_host: parameter_map.get("sh").map(|s| s.to_owned()),
-                    smtp_port: parse_port(parameter_map.get("sp"))
-                        .context("could not parse smtp port")?,
-                    smtp_username: parameter_map.get("su").map(|s| s.to_owned()),
-                    smtp_password: parameter_map.get("spw").map(|s| s.to_owned()),
-                    smtp_security: parse_socket_security(parameter_map.get("ss"))?,
-                    smtp_certificate_checks: parse_certificate_checks(parameter_map.get("sc"))?,
-                },
-                Ok(v) => LoginOptions::UnsuportedVersion(v),
-                Err(_) => bail!("version could not be parsed as number E6"),
+            Some(Ok(1)) => LoginOptions::V1 {
+                mail_pw: parameter_map
+                    .get("p")
+                    .map(|s| s.to_owned())
+                    .context("password missing")?,
+                imap_host: parameter_map.get("ih").map(|s| s.to_owned()),
+                imap_port: parse_port(parameter_map.get("ip"))
+                    .context("could not parse imap port")?,
+                imap_username: parameter_map.get("iu").map(|s| s.to_owned()),
+                imap_password: parameter_map.get("ipw").map(|s| s.to_owned()),
+                imap_security: parse_socket_security(parameter_map.get("is"))?,
+                imap_certificate_checks: parse_certificate_checks(parameter_map.get("ic"))?,
+                smtp_host: parameter_map.get("sh").map(|s| s.to_owned()),
+                smtp_port: parse_port(parameter_map.get("sp"))
+                    .context("could not parse smtp port")?,
+                smtp_username: parameter_map.get("su").map(|s| s.to_owned()),
+                smtp_password: parameter_map.get("spw").map(|s| s.to_owned()),
+                smtp_security: parse_socket_security(parameter_map.get("ss"))?,
+                smtp_certificate_checks: parse_certificate_checks(parameter_map.get("sc"))?,
             },
+            Some(Ok(v)) => LoginOptions::UnsuportedVersion(v),
+            Some(Err(_)) => bail!("version could not be parsed as number E6"),
             None => bail!("invalid DCLOGIN payload: version missing E7"),
         };
 

@@ -1047,6 +1047,8 @@ mod tests {
 
             if let LoginOptions::V1 { mail_pw, .. } = options {
                 assert_eq!(mail_pw, "1234".to_owned());
+            } else {
+                bail!("wrong type")
             }
         } else {
             bail!("wrong type")
