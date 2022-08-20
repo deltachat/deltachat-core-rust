@@ -7,6 +7,7 @@
 ### Changes
 
 ### Fixes
+- do not emit notifications for blocked chats #3557
 
 
 ## 1.93.0
