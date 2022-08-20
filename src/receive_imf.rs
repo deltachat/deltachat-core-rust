@@ -3111,7 +3111,13 @@ Hello mailinglist!\r\n"
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
 
+        t.evtracker.consume_events().await;
         receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
+
+        // Check that no notification is displayed for blocked mailing list message.
+        while let Ok(event) = t.evtracker.try_recv() {
+            assert!(!matches!(event.typ, EventType::IncomingMsg { .. }));
+        }
 
         // Test that the mailing list stays disappeared
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
