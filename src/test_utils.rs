@@ -3,7 +3,7 @@
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
 use std::collections::BTreeMap;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::panic;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -816,6 +816,20 @@ pub fn fiona_keypair() -> key::KeyPair {
 #[derive(Debug)]
 pub struct EventTracker(Receiver<Event>);
 
+impl Deref for EventTracker {
+    type Target = Receiver<Event>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for EventTracker {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl EventTracker {
     /// Consumes emitted events returning the first matching one.
     ///
@@ -824,7 +838,7 @@ impl EventTracker {
     pub async fn get_matching<F: Fn(&EventType) -> bool>(&self, event_matcher: F) -> EventType {
         tokio::time::timeout(Duration::from_secs(10), async move {
             loop {
-                let event = self.0.recv().await.unwrap();
+                let event = self.recv().await.unwrap();
                 if event_matcher(&event.typ) {
                     return event.typ;
                 }
