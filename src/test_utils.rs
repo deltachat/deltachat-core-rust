@@ -856,6 +856,11 @@ impl EventTracker {
         })
         .await
     }
+
+    /// Consumes all pending events.
+    pub async fn consume_events(&self) {
+        while self.try_recv().is_ok() {}
+    }
 }
 
 /// Gets a specific message from a chat and asserts that the chat has a specific length.
