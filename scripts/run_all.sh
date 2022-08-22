@@ -8,7 +8,7 @@ set -e -x
 
 # compile core lib
 
-cargo build --release -p deltachat_ffi
+cargo build --release -p deltachat_ffi --features jsonrpc
 
 # Statically link against libdeltachat.a.
 export DCC_RS_DEV="$PWD"
