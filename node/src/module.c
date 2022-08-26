@@ -1930,6 +1930,13 @@ NAPI_METHOD(dcn_contact_get_last_seen) {
   NAPI_RETURN_INT64(timestamp);
 }
 
+NAPI_METHOD(dcn_contact_was_seen_recently) {
+  NAPI_ARGV(1);
+  NAPI_DC_CONTACT();
+  int seen_recently = dc_contact_was_seen_recently(dc_contact);
+  NAPI_RETURN_UINT32(seen_recently);
+}
+
 NAPI_METHOD(dcn_contact_is_blocked) {
   NAPI_ARGV(1);
   NAPI_DC_CONTACT();

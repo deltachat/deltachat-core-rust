@@ -72,6 +72,10 @@ export class Contact {
     return binding.dcn_contact_get_last_seen(this.dc_contact)
   }
 
+  wasSeenRecently() {
+    return Boolean(binding.dcn_contact_was_seen_recently(this.dc_contact))
+  }
+
   getName(): string {
     return binding.dcn_contact_get_name(this.dc_contact)
   }
