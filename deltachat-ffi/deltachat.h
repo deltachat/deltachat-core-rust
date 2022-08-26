@@ -2510,9 +2510,9 @@ int         dc_set_location                 (dc_context_t* context, double latit
  *     Must be given in number of seconds since 00:00 hours, Jan 1, 1970 UTC.
  *     0 for "all up to now".
  * @return An array of locations, NULL is never returned.
- *     The array is sorted decending;
+ *     The array is sorted descending;
  *     the first entry in the array is the location with the newest timestamp.
- *     Note that this is only realated to the recent postion of the user
+ *     Note that this is only related to the recent position of the user
  *     if dc_array_is_independent() returns 0.
  *     The returned array must be freed using dc_array_unref().
  *
