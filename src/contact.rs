@@ -24,8 +24,11 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
-use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
+use crate::tools::{get_abs_path, improve_single_line_input, time, EmailAddress};
 use crate::{chat, stock_str};
+
+/// Time during which a contact is considered as seen recently.
+const SEEN_RECENTLY_SECONDS: i64 = 600;
 
 /// Contact ID, including reserved IDs.
 ///
@@ -321,6 +324,11 @@ impl Contact {
     /// Returns last seen timestamp.
     pub fn last_seen(&self) -> i64 {
         self.last_seen
+    }
+
+    /// Returns `true` if this contact was seen recently.
+    pub fn was_seen_recently(&self) -> bool {
+        time() - self.last_seen <= SEEN_RECENTLY_SECONDS
     }
 
     /// Check if a contact is blocked.
@@ -1444,7 +1452,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::message::Message;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::{self, TestContext};
+    use crate::test_utils::{self, TestContext, TestContextManager};
 
     #[test]
     fn test_contact_id_values() {
@@ -2267,6 +2275,30 @@ Hi."#;
         assert!(timestamp > 0);
         let contact = Contact::load_from_db(&alice, contact_id).await?;
         assert_eq!(contact.last_seen(), timestamp);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_was_seen_recently() -> Result<()> {
+        let mut tcm = TestContextManager::new().await;
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(chat.id, "moin").await;
+
+        let chat = bob.create_chat(&alice).await;
+        let contacts = chat::get_chat_contacts(&bob, chat.id).await?;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(!contact.was_seen_recently());
+
+        bob.recv_msg(&sent_msg).await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(contact.was_seen_recently());
+
+        let self_contact = Contact::get_by_id(&bob, ContactId::SELF).await?;
+        assert!(!self_contact.was_seen_recently());
 
         Ok(())
     }

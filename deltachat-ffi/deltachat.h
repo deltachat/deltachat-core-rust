@@ -4638,6 +4638,22 @@ char*           dc_contact_get_status        (const dc_contact_t* contact);
  */
 int64_t         dc_contact_get_last_seen     (const dc_contact_t* contact);
 
+
+/**
+ * Check if the contact was seen recently.
+ *
+ * The UI may highlight these contacts,
+ * eg. draw a little green dot on the avatars of the users recently seen.
+ * DC_CONTACT_ID_SELF and other special contact IDs are defined as never seen recently (they should not get a dot).
+ * To get the time a contact was seen, use dc_contact_get_last_seen().
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 1=contact seen recently, 0=contact not seen recently.
+ */
+int             dc_contact_was_seen_recently (const dc_contact_t* contact);
+
+
 /**
  * Check if a contact is blocked.
  *

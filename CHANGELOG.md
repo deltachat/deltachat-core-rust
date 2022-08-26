@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### API-Changes
+- add `dc_contact_was_seen_recently()` #3560
 
 ### Changes
 

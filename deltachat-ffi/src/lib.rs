@@ -3860,6 +3860,16 @@ pub unsafe extern "C" fn dc_contact_get_last_seen(contact: *mut dc_contact_t) ->
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_contact_was_seen_recently(contact: *mut dc_contact_t) -> libc::c_int {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_was_seen_recently()");
+        return 0;
+    }
+    let ffi_contact = &*contact;
+    ffi_contact.contact.was_seen_recently() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact_t) -> libc::c_int {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_is_blocked()");
