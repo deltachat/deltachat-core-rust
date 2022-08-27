@@ -2525,7 +2525,7 @@ pub async fn get_chat_contacts(context: &Context, chat_id: ChatId) -> Result<Vec
                LEFT JOIN contacts c
                       ON c.id=cc.contact_id
               WHERE cc.chat_id=?
-              ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
+              ORDER BY c.id=1, c.last_seen DESC, c.id DESC;",
             paramsv![chat_id],
             |row| row.get::<_, ContactId>(0),
             |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
@@ -5456,8 +5456,8 @@ mod tests {
         assert_eq!(
             chat_id.get_encryption_info(&alice).await?,
             "No encryption:\n\
-            bob@example.net\n\
-            fiona@example.net"
+            fiona@example.net\n\
+            bob@example.net"
         );
 
         let direct_chat = bob.create_chat(&alice).await;
