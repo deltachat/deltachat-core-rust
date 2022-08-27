@@ -746,7 +746,7 @@ impl MimeMessage {
                     MimeS::Single
                 }
             } else if mimetype.starts_with("message") {
-                if mimetype == "message/rfc822" {
+                if mimetype == "message/rfc822" && !is_attachment_disposition(mail) {
                     MimeS::Message
                 } else {
                     MimeS::Single
@@ -1674,14 +1674,18 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
         mime::VIDEO => Viewtype::Video,
         mime::MULTIPART => Viewtype::Unknown,
         mime::MESSAGE => {
-            // Enacapsulated messages, see <https://www.w3.org/Protocols/rfc1341/7_3_Message.html>
-            // Also used as part "message/disposition-notification" of "multipart/report", which, however, will
-            // be handled separatedly.
-            // I've not seen any messages using this, so we do not attach these parts (maybe they're used to attach replies,
-            // which are unwanted at all).
-            // For now, we skip these parts at all; if desired, we could return DcMimeType::File/DC_MSG_File
-            // for selected and known subparts.
-            Viewtype::Unknown
+            if is_attachment_disposition(mail) {
+                Viewtype::File
+            } else {
+                // Enacapsulated messages, see <https://www.w3.org/Protocols/rfc1341/7_3_Message.html>
+                // Also used as part "message/disposition-notification" of "multipart/report", which, however, will
+                // be handled separatedly.
+                // I've not seen any messages using this, so we do not attach these parts (maybe they're used to attach replies,
+                // which are unwanted at all).
+                // For now, we skip these parts at all; if desired, we could return DcMimeType::File/DC_MSG_File
+                // for selected and known subparts.
+                Viewtype::Unknown
+            }
         }
         mime::APPLICATION => Viewtype::File,
         _ => Viewtype::Unknown,
@@ -3296,6 +3300,38 @@ Message.
             original_msg_id.get_state(&t).await?,
             MessageState::OutMdnRcvd
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_receive_todo() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let mime_message = MimeMessage::from_bytes(
+            &alice,
+            include_bytes!("../test-data/message/attached-eml.eml"),
+        )
+        .await?;
+
+        assert_eq!(mime_message.parts.len(), 1);
+        assert_eq!(mime_message.parts[0].typ, Viewtype::File);
+        assert_eq!(
+            mime_message.parts[0].mimetype,
+            Some("message/rfc822".parse().unwrap(),)
+        );
+        assert_eq!(
+            mime_message.parts[0].msg,
+            "this is a classic email – I attached the .EML file".to_string()
+        );
+        assert_eq!(
+            mime_message.parts[0].param.get(Param::File),
+            Some("$BLOBDIR/.eml")
+        );
+
+        assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));
+
+        dbg!(mime_message);
 
         Ok(())
     }

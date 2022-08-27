@@ -1,0 +1,138 @@
+Return-Path: <bob@nauta.cu>
+Authentication-Results:  gmx.net; dkim=pass header.i=@nauta.cu
+Received: from relay22.etecsa.net ([181.225.231.92]) by mx-ha.gmx.net
+ (mxgmx002 [212.227.15.9]) with ESMTPS (Nemesis) id 1MfpjH-1p2tvu2MDh-00gIrC
+ for <alice@gmx.de>; Fri, 26 Aug 2022 20:48:28 +0200
+Received: from smtp-gw02.enet.cu (unknown [172.29.8.32])
+	by relay01.etecsa.net (Postfix) with ESMTP id 5FDB0E0136
+	for <alice@gmx.de>; Fri, 26 Aug 2022 14:48:18 -0400 (CDT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nauta.cu; s=nauta;
+	t=1661539698; bh=pp7iY44vKTrdWyBjLR1PLAHM8rgsP+R0LngZ+hpp+Rc=;
+	h=Date:From:To:Subject:In-Reply-To:References;
+	b=H9gt32amS79HP/93yWsIeeMN28cpD/ly9yfTUkkLa+N7oKhUmTgvYd6AS4ztyoMRl
+	 U18Gl9OsFlxKiUtJDA9xbXiJShJ1ixWZjsPWrRnsdlRC6p1NurZcZVC5LlxzMeqHaf
+	 S+T9O6mIqqpMJ0UuEdNPQzFM22vCo7NAXuYICva4=
+Received: from amavis2.etecsa.net (unknown [172.29.8.231])
+	by smtp-gw02.enet.cu (Postfix) with ESMTP id 74CBF180004C
+	for <alice@gmx.de>; Fri, 26 Aug 2022 14:48:15 -0400 (CDT)
+Received: from smtp.nauta.cu ([172.29.8.248])
+	by amavis2.etecsa.net  with ESMTP id 27QImIS3008021-27QImIS4008021;
+	Fri, 26 Aug 2022 14:48:18 -0400
+Date: Fri, 26 Aug 2022 14:48:17 -0400
+From: adb <bob@nauta.cu>
+To: alice@gmx.de
+Subject: this is a classic email
+User-Agent: K-9 Mail for Android
+In-Reply-To: <Mr.qEqZTYn44yJ.1aNPpfpFAA-@disrooot.org>
+References: <Mr.qEqZTYn44yJ.1aNPpfpFAA-@disrooot.org>
+Message-ID: <2DFA2B07-37E8-4E91-84D5-F1C9D81FF9E2@nauta.cu>
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+ boundary=----X9MFOPC8VAUATAMM54N60RYO457N0T
+Content-Transfer-Encoding: 7bit
+Envelope-To: <alice@gmx.de>
+X-GMX-Antispam: 0 (Mail was not recognized as spam); Detail=V3;
+X-Spam-Flag: NO
+
+------X9MFOPC8VAUATAMM54N60RYO457N0T
+Content-Type: multipart/alternative;
+ boundary=----S5IK4AODBC4A8E4GQE13T7ZD9M5SU9
+Content-Transfer-Encoding: 7bit
+
+------S5IK4AODBC4A8E4GQE13T7ZD9M5SU9
+Content-Type: text/plain;
+ charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+I attached the =2EEML file
+------S5IK4AODBC4A8E4GQE13T7ZD9M5SU9
+Content-Type: text/html;
+ charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html><html><body>I attached the =2EEML file it probably will look=
+ ugly in delta chat, use classic MUA</body></html>
+------S5IK4AODBC4A8E4GQE13T7ZD9M5SU9--
+
+------X9MFOPC8VAUATAMM54N60RYO457N0T
+Content-Type: message/rfc822;
+ name=.eml
+Content-Disposition: attachment;
+ filename=.eml;
+ size=5349
+
+Return-Path: <charlie@hisp.net>
+Delivered-To: <bob@nauta.cu>
+Received: from smtp-gw02.enet.cu ([172.29.8.32])
+	by mail-backend21.enet.cu (Dovecot) with LMTP id 0fibJk4TCWP2QAAAhKHYxA
+	for <bob@nauta.cu>; Fri, 26 Aug 2022 14:42:34 -0400
+Received: from amavis.etecsa.net (unknown [172.29.8.230])
+	by smtp-gw02.enet.cu (Postfix) with ESMTP id 83A41180004D
+	for <bob@nauta.cu>; Fri, 26 Aug 2022 14:42:31 -0400 (CDT)
+Received: from emx01.etecsa.net (emx01.etecsa.net [181.225.231.41])
+	by amavis.etecsa.net  with ESMTP id 27QIgTFM024250-27QIgTFN024250
+	for <bob@nauta.cu>; Fri, 26 Aug 2022 14:42:29 -0400
+Received-SPF: pass (hisp.net: 51.15.127.36 is authorized to use 'charlie@hisp.net' in 'mfrom' identity (mechanism 'mx' matched)) receiver=unknown; identity=mailfrom; envelope-from="charlie@hisp.net"; helo=box.hisp.net; client-ip=51.15.127.36
+Received: from box.hisp.net (box.hisp.net [51.15.127.36])
+	by emx01.etecsa.net (Postfix) with ESMTP id 9A8969F15B
+	for <bob@nauta.cu>; Fri, 26 Aug 2022 14:42:28 -0400 (CDT)
+Received: from box.hisp.net (localhost [127.0.0.1])
+	by box.hisp.net (Postfix) with ESMTP id 9621D7E44F
+	for <bob@nauta.cu>; Fri, 26 Aug 2022 20:42:27 +0200 (CEST)
+Authentication-Results: box.hisp.net;
+	dkim=fail reason="signature verification failed" (2048-bit key; secure) header.d=disrooot.org header.i=@disrooot.org header.b="kqh3WUKq";
+	dkim-atps=neutral
+Authentication-Results: box.hisp.net; dmarc=pass (p=quarantine dis=none) header.from=disrooot.org
+Authentication-Results: box.hisp.net; spf=pass smtp.mailfrom=bob@disrooot.org
+Received: from localhost (localhost [127.0.0.1])
+	by disrooot.org (Postfix) with UTF8SMTP id CB886400EA
+	for <test2@hisp.net>; Fri, 26 Aug 2022 20:42:25 +0200 (CEST)
+X-Virus-Scanned: SPAM Filter at disrooot.org
+Received: from knopi.disrooot.org ([127.0.0.1])
+	by localhost (disrooot.org [127.0.0.1]) (amavisd-new, port 10024)
+	with UTF8SMTP id 8rOR0oFsvsSB for <test2@hisp.net>;
+	Fri, 26 Aug 2022 20:42:24 +0200 (CEST)
+Received: from [127.0.0.1] (unknown [152.207.59.223])
+	by disrooot.org (Postfix) with UTF8SMTPSA id 97C3440140
+	for <test2@hisp.net>; Fri, 26 Aug 2022 20:42:21 +0200 (CEST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=disrooot.org; s=mail;
+	t=1661539342; bh=PDQuwT72ixzAL9uft0/IufLsqJSAuFu4gcNsEA84hd0=;
+	h=From:To:Date:In-Reply-To:References;
+	b=kqh3WUKqi5QMv4DT02hqyHcXZvcGu91aHu8bbSuZ2VCUnef5Ggwv0/WE5LBB/Xte2
+	 on7yxLG4eqXRkWCmWStlqJmPhwuGcDupyGy2pFNyvRl8eERPb/uSlTsoSNCIEf5fNT
+	 I2X+bEtyzp7jch3ZIxJgBZ/B3U/ByOO26NsqMP/Gy6ph21TL3YqWhR4VXi60KQXa6G
+	 6A1X1M6pppNGYXofI6qJtjyb+wfQuzeTMRO4hqNqPEnOjETmbFpHYqrBDzz7pL4bZj
+	 +Sdwj7cU+RpFJZPwbRs86wUV2lBIEyP4Pizyr/pgYcyXIt3pzSRHvBsukDQbyQabme
+	 LoyApyOJnzbSA==
+From: adb <bob@disrooot.org>
+To: <test2@hisp.net>
+Date: Fri, 26 Aug 2022 18:42:18 +0000
+Message-ID: <Mr.qEqZTYn44yJ.1aNPpfpFAA-@disrooot.org>
+In-Reply-To: <Mr.CmBUFS4tI6D.LHAPUDmW-x0@nauta.cu>
+References: <Mr.CmBUFS4tI6D.LHAPUDmW-x0@nauta.cu>
+	<Mr.CmBUFS4tI6D.LHAPUDmW-x0@nauta.cu>
+Chat-Version: 1.0
+Mime-Version: 1.0
+Message-ID-Hash: KJBUH4PALETYB65FC5SOMXP5HRWUIQEH
+X-Message-ID-Hash: KJBUH4PALETYB65FC5SOMXP5HRWUIQEH
+X-MailFrom: bob@disrooot.org
+X-Mailman-Rule-Misses: dmarc-mitigation; no-senders; approved; emergency; loop; banned-address; member-moderation; nonmember-moderation; deltachat; implicit-dest; max-recipients; max-size; news-moderation; digests; suspicious-header
+X-Mailman-Version: 3.3.6b1
+Precedence: list
+List-Id: =?utf-8?b?4pqg77iPIE5PVCBBTk9OWU1PVVMgR1JPVVA=?= <test2.hisp.net>
+List-Help: <mailto:test2-request@hisp.net?subject=help>
+List-Owner: <mailto:test2-owner@hisp.net>
+List-Post: <mailto:test2@hisp.net>
+List-Subscribe: <mailto:test2-join@hisp.net>
+List-Unsubscribe: <mailto:test2-leave@hisp.net>
+Content-Type: text/plain; charset="utf-8"; format="flowed"; delsp="no"
+Content-Transfer-Encoding: base64
+
+aGVsbG8gZnJvbSBkaXNyb290IOKYuu+4jw0KDQotLSAKX19fX19fX19fX19fX19fX19fX19fX19f
+X19fX19fX19fX19fX19fX19fX19fX18K4pqg77iPIE5PVCBBTk9OWU1PVVMgR1JPVVAgbWFpbGlu
+ZyBsaXN0IC0tIHRlc3QyQGhpc3BhbmlsYW5kaWEubmV0ClRvIHVuc3Vic2NyaWJlIHNlbmQgYW4g
+ZW1haWwgdG8gdGVzdDItbGVhdmVAaGlzcGFuaWxhbmRpYS5uZXQK
+
+
+------X9MFOPC8VAUATAMM54N60RYO457N0T--
+
