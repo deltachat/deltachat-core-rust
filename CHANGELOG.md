@@ -8,6 +8,7 @@
 
 ### Fixes
 - do not emit notifications for blocked chats #3557
+- Show attached .eml files correctly #3561
 
 
 ## 1.93.0
