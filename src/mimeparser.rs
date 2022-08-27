@@ -3305,7 +3305,7 @@ Message.
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_receive_todo() -> Result<()> {
+    async fn test_receive_eml() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
         let mime_message = MimeMessage::from_bytes(
