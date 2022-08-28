@@ -24,6 +24,9 @@ typedef struct _dc_event    dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_jsonrpc_instance dc_jsonrpc_instance_t;
 
+// Alias for backwards compatibility, use dc_event_emitter_t instead.
+typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
+
 /**
  * @mainpage Getting started
  *
@@ -5277,6 +5280,8 @@ char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
  */
 dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
 
+// Alias for backwards compatibility, use dc_get_next_event instead.
+#define dc_accounts_get_next_event dc_get_next_event
 
 /**
  * Free a context event emitter object.
@@ -5287,6 +5292,8 @@ dc_event_t* dc_get_next_event(dc_event_emitter_t* emitter);
  */
 void  dc_event_emitter_unref(dc_event_emitter_t* emitter);
 
+// Alias for backwards compatibility, use dc_event_emtitter_unref instead.
+#define dc_accounts_event_emitter_unref dc_event_emitter_unref
 
 /**
  * @class dc_event_t
