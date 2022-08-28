@@ -91,8 +91,8 @@ def main():
         else:
             raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
 
-    replace_toml_version("Cargo.toml", newversion)
-    replace_toml_version("deltachat-ffi/Cargo.toml", newversion)
+    for toml_filename in toml_list:
+        replace_toml_version(toml_filename, newversion)
     update_package_json(newversion)
 
     print("running cargo check")
