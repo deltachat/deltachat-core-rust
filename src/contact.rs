@@ -716,7 +716,7 @@ impl Contact {
                  AND c.blocked=0 \
                  AND (iif(c.name='',c.authname,c.name) LIKE ? OR c.addr LIKE ?) \
                  AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)  \
-                 ORDER BY LOWER(iif(c.name='',c.authname,c.name)||c.addr),c.id;",
+                 ORDER BY c.last_seen DESC, c.id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
@@ -768,7 +768,7 @@ impl Contact {
                  AND id>?
                  AND origin>=?
                  AND blocked=0
-                 ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
+                 ORDER BY last_seen DESC, id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
@@ -857,7 +857,7 @@ impl Contact {
         let list = context
             .sql
             .query_map(
-                "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(iif(name='',authname,name)||addr),id;",
+                "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY last_seen DESC, id DESC;",
                 paramsv![ContactId::LAST_SPECIAL],
                 |row| row.get::<_, ContactId>(0),
                 |ids| {

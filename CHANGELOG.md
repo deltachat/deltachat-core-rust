@@ -13,6 +13,8 @@
 - add `dc_contact_was_seen_recently()` #3560
 
 ### Changes
+- order contact lists by "last seen";
+  this affects `dc_get_chat_contacts()`, `dc_get_contacts()` and `dc_get_blocked_contacts()` #3562
 
 ### Fixes
 - do not emit notifications for blocked chats #3557
