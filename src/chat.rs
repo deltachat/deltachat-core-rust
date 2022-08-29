@@ -2863,7 +2863,7 @@ pub async fn remove_contact_from_chat(
     let mut success = false;
 
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
-    /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
+    /* this allows to delete pending references to deleted contacts. Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
         if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
             if !chat.is_self_in_chat(context).await? {
