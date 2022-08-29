@@ -2838,7 +2838,7 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  *
  * The library will emit various @ref DC_EVENT events as "new message", "message read" etc.
  * To get these events, you have to create an event emitter using this function
- * and call dc_accounts_get_next_event() on the emitter.
+ * and call dc_get_next_event() on the emitter.
  *
  * This is similar to dc_get_event_emitter(), which, however,
  * must not be called for accounts handled by the account manager.
