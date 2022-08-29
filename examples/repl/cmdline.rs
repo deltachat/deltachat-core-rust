@@ -487,7 +487,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "Ticket: {}",
                 multibase::encode(multibase::Base::Base64, &ticket_bytes)
             );
-            let qr_code = deltachat::qr_code_generator::generate_backup_qr_code(&ticket)?;
+            let qr_code = deltachat::qr_code_generator::generate_backup_qr_code(ticket)?;
             let file = dir.join("qr.svg");
             tokio::fs::write(file, qr_code.as_bytes()).await?;
 
@@ -495,7 +495,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "receive-backup" => {
             ensure!(!arg1.is_empty(), "Argument <ticket> is missing.");
-            let (_, ticket) = multibase::decode(&arg1.to_string())?;
+            let (_, ticket) = multibase::decode(&arg1)?;
             receive_backup(&context, ticket, Some(arg2.to_string())).await?;
         }
         "import-backup" => {

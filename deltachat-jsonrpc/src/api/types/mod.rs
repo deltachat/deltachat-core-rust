@@ -94,6 +94,9 @@ pub enum QrObject {
         invitenumber: String,
         authcode: String,
     },
+    Backup {
+        ticket: Vec<u8>,
+    },
 }
 
 impl From<Qr> for QrObject {
@@ -224,6 +227,9 @@ impl From<Qr> for QrObject {
                     authcode,
                 }
             }
+            Qr::Backup { ticket } => QrObject::Backup {
+                ticket: ticket.as_bytes(),
+            },
         }
     }
 }

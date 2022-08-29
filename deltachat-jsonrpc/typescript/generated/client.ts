@@ -299,7 +299,7 @@ export class RawClient {
    * The list is already sorted and starts with the oldest message.
    * Clients should not try to re-sort the list as this would be an expensive action
    * and would result in inconsistencies between clients.
-   * 
+   *
    * Setting `chat_id` to `None` (`null` in typescript) means get messages with media
    * from any chat of the currently used account.
    */
