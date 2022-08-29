@@ -151,11 +151,11 @@ pub async fn receive_backup_inner(
     );
     let ticket = Ticket::from_bytes(&ticket_bytes)?;
 
-    let sender_dir = tempfile::tempdir().unwrap();
-    let sender_db = sender_dir.path().join("db");
-
+    let recv_dir = tempfile::tempdir().unwrap();
+    let recv_db = recv_dir.path().join("db");
     let port = 9991;
-    let receiver = Receiver::new(port, &sender_db)
+
+    let receiver = Receiver::new(port, &recv_db)
         .await
         .context("failed to create sender")?;
     let mut receiver_transfer = receiver
@@ -190,16 +190,20 @@ pub async fn receive_backup_inner(
 
     let out = context.get_blobdir();
 
-    for link in data.read_dir().unwrap() {
+    let mut read_dir_stream = data
+        .read_dir()?
+        .ok_or_else(|| anyhow::anyhow!("unexpected data structure"))?;
+
+    while let Some(link) = read_dir_stream.next().await {
         let link = link?;
         let file_content = data.read_file(&link).await?;
         let name = link.name.unwrap_or_default();
         let path = out.join(&name);
-        println!("Writing {}", path.display());
+
         let mut file = tokio::fs::File::create(&path)
             .await
             .with_context(|| format!("create file: {}", path.display()))?;
-        let mut content = file_content.pretty();
+        let mut content = file_content.pretty()?;
         tokio::io::copy(&mut content, &mut file)
             .await
             .context("copy")?;
@@ -223,7 +227,7 @@ pub async fn receive_backup_inner(
     progress_task.await?;
     receiver_transfer.finish().await?;
 
-    println!("Received all data, written to: {}", out.display());
+    info!(context, "Received all data, written to: {}", out.display());
 
     Ok(())
 }
@@ -246,10 +250,10 @@ pub async fn send_backup(
 
     if let Err(err) = res.as_ref() {
         // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-        error!(context, "IMEX failed to complete: {:#}", err);
+        error!(context, "Send backup failed to complete: {:#}", err);
         context.emit_event(EventType::ImexProgress(0));
     } else {
-        info!(context, "IMEX successfully completed");
+        info!(context, "Send backup successfully completed");
         context.emit_event(EventType::ImexProgress(1000));
     }
 
@@ -261,7 +265,7 @@ async fn send_backup_inner(
     path: &Path,
     passphrase: Option<String>,
 ) -> Result<iroh_share::SenderTransfer> {
-    info!(context, "Import/export dir: {}", path.display());
+    info!(context, "Send backup dir: {}", path.display());
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
 
