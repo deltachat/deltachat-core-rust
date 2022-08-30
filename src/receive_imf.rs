@@ -247,7 +247,7 @@ pub(crate) async fn receive_imf_inner(
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
         // protect against users which falsely sent status updates because they
         // didn't yet receive the group-leave message
-        if is_contact_in_chat(&context, chat_id, from_id).await? {
+        if is_contact_in_chat(context, chat_id, from_id).await? {
             if let Err(err) = context
                 .receive_status_update(from_id, insert_msg_id, status_update)
                 .await
