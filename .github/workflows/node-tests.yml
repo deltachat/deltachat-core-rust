@@ -27,7 +27,11 @@ jobs:
           cargo -vV
           npm --version
           node --version
-
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.20.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache node modules
         uses: actions/cache@v2
         with:

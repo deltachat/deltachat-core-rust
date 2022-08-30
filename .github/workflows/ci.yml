@@ -40,6 +40,11 @@ jobs:
             toolchain: stable
             components: clippy
             override: true
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.20.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v1
       - uses: actions-rs/clippy-check@v1
@@ -55,6 +60,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.20.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install rust stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -94,7 +104,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@master
-
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '3.20.1'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Install ${{ matrix.rust }}
       uses: actions-rs/toolchain@v1
       with:
