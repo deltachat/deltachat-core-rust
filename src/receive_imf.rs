@@ -3576,7 +3576,7 @@ Hello mailinglist!\r\n"
     async fn test_mailing_list_chat_message() {
         let t = TestContext::new_alice().await;
 
-        dc_receive_imf(
+        receive_imf(
             &t,
             include_bytes!("../test-data/message/mailinglist_chat_message.eml"),
             false,
@@ -3584,13 +3584,13 @@ Hello mailinglist!\r\n"
         .await
         .unwrap();
         let msg = t.get_last_msg().await;
-        assert_eq!(msg.text, Some("hello, this is a test".to_string()));
+        assert_eq!(msg.text, Some("hello, this is a test 👋\n\n_______________________________________________\nTest1 mailing list -- test1@example.net\nTo unsubscribe send an email to test1-leave@example.net".to_string()));
         assert!(!msg.has_html());
         let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
         assert_eq!(chat.typ, Chattype::Mailinglist);
         assert_eq!(chat.blocked, Blocked::Request);
-        assert_eq!(chat.grpid, "dpdde.mxmail.service.dpd.de");
-        assert_eq!(chat.name, "DPD");
+        assert_eq!(chat.grpid, "test1.example.net");
+        assert_eq!(chat.name, "Test1");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
