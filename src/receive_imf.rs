@@ -548,7 +548,7 @@ async fn add_parts(
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
 
-                // if chat is somehow blocked but we want to create a non-blocked chat
+                // if the chat is somehow blocked but we want to create a non-blocked chat,
                 // unblock the chat
                 if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
                     new_chat_id.unblock(context).await?;
