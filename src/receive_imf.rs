@@ -388,7 +388,9 @@ pub async fn from_field_to_contact_id(
     }
 }
 
-// Creates a `received message` from given parts
+/// Creates a `ReceivedMsg` from given parts which might consist of 
+/// mulitple messages, depending on the attachements.
+/// Every entry in `mime_parser.parts` produces a new row in the `msgs` table.
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 async fn add_parts(
     context: &Context,
