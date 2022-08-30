@@ -19,7 +19,7 @@
 ### Fixes
 - do not emit notifications for blocked chats #3557
 - Show attached .eml files correctly #3561
-
+- Auto accept contact requests if `Config::Bot` is set for a client #3567 
 
 ## 1.93.0
 
