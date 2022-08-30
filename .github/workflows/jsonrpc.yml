@@ -25,6 +25,11 @@ jobs:
           override: true
       - name: Add Rust cache
         uses: Swatinem/rust-cache@v1.3.0
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.20.1'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: npm install
         run: |
           cd deltachat-jsonrpc/typescript
