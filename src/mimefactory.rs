@@ -445,7 +445,7 @@ impl<'a> MimeFactory<'a> {
             .collect()
     }
 
-    // renders a mime factory into a message which can be given to a render job
+    /// Consumes a `MimeFactory` and renders it into a message which can then be given to a render job
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         let mut headers: MessageHeaders = Default::default();
 
