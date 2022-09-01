@@ -445,7 +445,8 @@ impl<'a> MimeFactory<'a> {
             .collect()
     }
 
-    /// Consumes a `MimeFactory` and renders it into a message which can then be given to a render job
+    /// Consumes a `MimeFactory` and renders it into a message which is then stored in 
+    /// `smtp`-table to be used by the SMPT loop
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         let mut headers: MessageHeaders = Default::default();
 
