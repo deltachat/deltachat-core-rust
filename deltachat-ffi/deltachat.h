@@ -393,7 +393,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  * - `bot`          = Set to "1" if this is a bot.
  *                    Prevents adding the "Device messages" and "Saved messages" chats,
- *                    adds Auto-Submitted header to outgoing messages.
+ *                    adds Auto-Submitted header to outgoing messages
+ *                    and accepts contact requests automatically (calling dc_accept_chat() is not needed for bots).
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
@@ -1386,6 +1387,9 @@ void            dc_block_chat                (dc_context_t* context, uint32_t ch
  * Accept a contact request chat.
  *
  * Use it to accept "contact request" chats as indicated by dc_chat_is_contact_request().
+ *
+ * If the dc_set_config()-option `bot` is set,
+ * all chats are accepted automatically and calling this function has no effect.
  *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
