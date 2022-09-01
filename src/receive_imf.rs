@@ -388,6 +388,9 @@ pub async fn from_field_to_contact_id(
     }
 }
 
+/// Creates a `ReceivedMsg` from given parts which might consist of
+/// mulitple messages (if there are multiple attachments).
+/// Every entry in `mime_parser.parts` produces a new row in the `msgs` table.
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 async fn add_parts(
     context: &Context,
@@ -492,7 +495,7 @@ async fn add_parts(
         }
 
         let test_normal_chat = if from_id == ContactId::UNDEFINED {
-            Default::default()
+            None
         } else {
             ChatIdBlocked::lookup_by_contact(context, from_id).await?
         };
@@ -513,6 +516,9 @@ async fn add_parts(
             }
         }
 
+        // signals wether the current user is a bot
+        let is_bot = context.get_config(Config::Bot).await?.is_some();
+
         if chat_id.is_none() {
             // try to create a group
 
@@ -521,6 +527,7 @@ async fn add_parts(
                     id: _,
                     blocked: Blocked::Not,
                 }) => Blocked::Not,
+                _ if is_bot => Blocked::Not,
                 _ => Blocked::Request,
             };
 
@@ -540,6 +547,9 @@ async fn add_parts(
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
+
+                // if the chat is somehow blocked but we want to create a non-blocked chat,
+                // unblock the chat
                 if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
                     new_chat_id.unblock(context).await?;
                     chat_id_blocked = Blocked::Not;
@@ -637,10 +647,10 @@ async fn add_parts(
                 Blocked::Not
             } else {
                 let contact = Contact::load_from_db(context, from_id).await?;
-                if contact.is_blocked() {
-                    Blocked::Yes
-                } else {
-                    Blocked::Request
+                match contact.is_blocked() {
+                    true => Blocked::Yes,
+                    false if is_bot => Blocked::Not,
+                    false => Blocked::Request,
                 }
             };
 
@@ -5087,6 +5097,17 @@ Reply from different address
         assert_eq!(received_chat.name, "bob@example.net");
         assert_eq!(received_chat.can_send(&alice2).await?, true);
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_auto_accept_for_bots() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::Bot, Some("1")).await.unwrap();
+        receive_imf(&t, MSGRMSG, false).await?;
+        let msg = t.get_last_msg().await;
+        let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
+        assert!(!chat.is_contact_request());
         Ok(())
     }
 
