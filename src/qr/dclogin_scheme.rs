@@ -55,7 +55,7 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
             bail!("invalid DCLOGIN payload E4")
         }
         // load options into hashmap
-        let mut parameter_map: HashMap<String, String> = options
+        let parameter_map: HashMap<String, String> = options
             .map(|(key, value)| (key.into_owned(), value.into_owned()))
             .collect();
 
