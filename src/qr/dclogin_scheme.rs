@@ -46,10 +46,7 @@ pub(super) fn decode_login(qr: &str) -> Result<Qr> {
         .next()
         .context("invalid DCLOGIN payload E3")?;
 
-    let mut scheme = url.scheme().to_owned();
-    scheme.make_ascii_lowercase();
-
-    if scheme == "dclogin" {
+    if url.scheme().eq_ignore_ascii_case("dclogin") {
         let options = url.query_pairs();
         if options.count() == 0 {
             bail!("invalid DCLOGIN payload E4")
