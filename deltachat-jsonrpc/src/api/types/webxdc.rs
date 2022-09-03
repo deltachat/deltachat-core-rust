@@ -33,6 +33,8 @@ pub struct WebxdcMessageInfo {
     /// defaults to an empty string.
     /// Implementations may offer an menu or a button to open this URL.
     source_code_url: Option<String>,
+    /// True if full internet access should be granted to the app.
+    internet_access: bool,
 }
 
 impl WebxdcMessageInfo {
@@ -47,6 +49,7 @@ impl WebxdcMessageInfo {
             document,
             summary,
             source_code_url,
+            internet_access,
         } = message.get_webxdc_info(context).await?;
 
         Ok(Self {
@@ -55,6 +58,7 @@ impl WebxdcMessageInfo {
             document: maybe_empty_string_to_option(document),
             summary: maybe_empty_string_to_option(summary),
             source_code_url: maybe_empty_string_to_option(source_code_url),
+            internet_access,
         })
     }
 }
