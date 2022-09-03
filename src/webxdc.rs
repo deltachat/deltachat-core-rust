@@ -698,6 +698,10 @@ impl Message {
             }
         }
 
+        let internet_access = manifest.request_internet_access.unwrap_or_default()
+            && self.chat_id.is_self_talk(context).await.unwrap_or_default()
+            && self.get_showpadlock();
+
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
                 name
@@ -716,19 +720,20 @@ impl Message {
                 .get(Param::WebxdcDocument)
                 .unwrap_or_default()
                 .to_string(),
-            summary: self
-                .param
-                .get(Param::WebxdcSummary)
-                .unwrap_or_default()
-                .to_string(),
+            summary: if internet_access {
+                "Dev Mode: Do not enter sensitive data!".to_string()
+            } else {
+                self.param
+                    .get(Param::WebxdcSummary)
+                    .unwrap_or_default()
+                    .to_string()
+            },
             source_code_url: if let Some(url) = manifest.source_code_url {
                 url
             } else {
                 "".to_string()
             },
-            internet_access: manifest.request_internet_access.unwrap_or_default()
-                && self.chat_id.is_self_talk(context).await.unwrap_or_default()
-                && self.get_showpadlock(),
+            internet_access,
         })
     }
 }
@@ -2236,9 +2241,17 @@ sth_for_the = "future""#
                     )
                     .await?;
                     let instance_id = send_msg(&t, chat_id, &mut instance).await?;
+                    t.send_webxdc_status_update(
+                        instance_id,
+                        r#"{"summary":"real summary", "payload": 42}"#,
+                        "descr",
+                    )
+                    .await?;
                     let instance = Message::load_from_db(&t, instance_id).await?;
                     let info = instance.get_webxdc_info(&t).await?;
                     assert_eq!(info.internet_access, first_test);
+                    assert_eq!(info.summary.contains("Do not enter sensitive"), first_test);
+                    assert_eq!(info.summary.contains("real summary"), !first_test);
 
                     first_test = false;
                 }
