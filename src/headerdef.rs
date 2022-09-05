@@ -63,6 +63,10 @@ pub enum HeaderDef {
     Sender,
     EphemeralTimer,
     Received,
+
+    /// A header that includes the results of the DKIM, SPF and DMARC checks.
+    AuthenticationResults,
+
     _TestHeader,
 }
 

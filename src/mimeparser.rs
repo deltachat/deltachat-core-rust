@@ -7,6 +7,7 @@ use std::pin::Pin;
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
+use mailparse::headers::Headers;
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
@@ -28,7 +29,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines, EmailAddress};
 
 /// A parsed MIME message.
 ///
@@ -89,6 +90,7 @@ pub struct MimeMessage {
     pub decoded_data: Vec<u8>,
 
     pub(crate) hop_info: String,
+    authentication_results: AuthenticationResults,
 }
 
 #[derive(Debug, PartialEq)]
@@ -196,6 +198,9 @@ impl MimeMessage {
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
+
+        let authentication_results =
+            parse_authentication_results(context, &mail.get_headers(), &from).await?;
 
         // Parse hidden headers.
         let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
@@ -336,6 +341,7 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
             hop_info,
+            authentication_results,
         };
 
         match partial {
@@ -1506,6 +1512,52 @@ impl MimeMessage {
         };
         Ok(parent_timestamp)
     }
+}
+
+#[derive(Debug)]
+enum AuthenticationResults {
+    Passed,
+    Failed,
+}
+
+async fn parse_authentication_results(
+    context: &Context,
+    headers: &Headers<'_>,
+    from: &[SingleInfo],
+) -> Result<AuthenticationResults> {
+    // TODO this doesn't work for e.g. GMX which sells @gmx.de addresses, but uses gmx.net as its server
+    // Config::ConfiguredProvider could work?
+    let self_domain = EmailAddress::new(&context.get_primary_self_addr().await?)?.domain;
+    let from = match from.first() {
+        Some(f) => &f.addr,
+        None => return Ok(AuthenticationResults::Failed),
+    };
+    let sender_domain = EmailAddress::new(from)?.domain;
+
+    for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
+        // The Authentication-Results header starts with the identification of the
+        // authentication server that added the Authentication-Results header, called
+        // "authserv-id" in the RFC.
+        // Usually this is the domain of the email provider.
+        // "Our" email provider will remove an Authenticaiton-Results header that claims
+        // to be added by "our" email provider, so if (and only if) there is an
+        // Authentication-Results header with the TODO
+        if header_value.starts_with(&self_domain) {
+            if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
+                let dkim_part = dkim_to_end.split(';').next().context("what the hell")?;
+                let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
+                if let Some(&"pass") = dkim_parts.first() {
+                    let header_d: &str = &format!("header.d={}", &sender_domain);
+                    let header_i: &str = &format!("header.i=&{}", &sender_domain);
+
+                    if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
+                        return Ok(AuthenticationResults::Passed);
+                    }
+                }
+            }
+        }
+    }
+    Ok(AuthenticationResults::Failed)
 }
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
