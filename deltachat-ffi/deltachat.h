@@ -3763,6 +3763,11 @@ char*             dc_msg_get_webxdc_blob      (const dc_msg_t* msg, const char* 
  *   URL where the source code of the Webxdc and other information can be found;
  *   defaults to an empty string.
  *   Implementations may offer an menu or a button to open this URL.
+ * - internet_access:
+ *   true if the Webxdc should get full internet access, including Webrtc.
+ *   currently, this is only true for encrypted Webxdc's in the self chat
+ *   that have requested internet access in the manifest.
+ *   this is useful for development and maybe for internal integrations at some point.
  *
  * @memberof dc_msg_t
  * @param msg The webxdc instance.

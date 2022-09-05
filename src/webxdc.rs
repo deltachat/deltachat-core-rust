@@ -56,6 +56,7 @@ struct WebxdcManifest {
     name: Option<String>,
     min_api: Option<u32>,
     source_code_url: Option<String>,
+    request_internet_access: Option<bool>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -66,6 +67,7 @@ pub struct WebxdcInfo {
     pub document: String,
     pub summary: String,
     pub source_code_url: String,
+    pub internet_access: bool,
 }
 
 /// Status Update ID.
@@ -676,6 +678,7 @@ impl Message {
                     name: None,
                     min_api: None,
                     source_code_url: None,
+                    request_internet_access: None,
                 }
             }
         } else {
@@ -683,6 +686,7 @@ impl Message {
                 name: None,
                 min_api: None,
                 source_code_url: None,
+                request_internet_access: None,
             }
         };
 
@@ -693,6 +697,10 @@ impl Message {
                 manifest.name = None;
             }
         }
+
+        let internet_access = manifest.request_internet_access.unwrap_or_default()
+            && self.chat_id.is_self_talk(context).await.unwrap_or_default()
+            && self.get_showpadlock();
 
         Ok(WebxdcInfo {
             name: if let Some(name) = manifest.name {
@@ -712,16 +720,20 @@ impl Message {
                 .get(Param::WebxdcDocument)
                 .unwrap_or_default()
                 .to_string(),
-            summary: self
-                .param
-                .get(Param::WebxdcSummary)
-                .unwrap_or_default()
-                .to_string(),
+            summary: if internet_access {
+                "Dev Mode: Do not enter sensitive data!".to_string()
+            } else {
+                self.param
+                    .get(Param::WebxdcSummary)
+                    .unwrap_or_default()
+                    .to_string()
+            },
             source_code_url: if let Some(url) = manifest.source_code_url {
                 url
             } else {
                 "".to_string()
             },
+            internet_access,
         })
     }
 }
@@ -729,8 +741,8 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use crate::chat::{
-        add_contact_to_chat, create_group_chat, forward_msgs, resend_msgs, send_msg, send_text_msg,
-        ChatId, ProtectionStatus,
+        add_contact_to_chat, create_broadcast_list, create_group_chat, forward_msgs, resend_msgs,
+        send_msg, send_text_msg, ChatId, ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
@@ -1782,6 +1794,19 @@ sth_for_the = "future""#
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_webxdc_manifest_request_internet_access() -> Result<()> {
+        let result = parse_webxdc_manifest(r#"request_internet_access = 3"#.as_bytes());
+        assert!(result.is_err());
+        let manifest = parse_webxdc_manifest(r#" source_code_url="https://foo.org""#.as_bytes())?;
+        assert_eq!(manifest.request_internet_access, None);
+        let manifest = parse_webxdc_manifest(r#" request_internet_access=false"#.as_bytes())?;
+        assert_eq!(manifest.request_internet_access, Some(false));
+        let manifest = parse_webxdc_manifest(r#"request_internet_access = true"#.as_bytes())?;
+        assert_eq!(manifest.request_internet_access, Some(true));
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webxdc_min_api_too_large() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
@@ -2187,6 +2212,51 @@ sth_for_the = "future""#
         let sent3 = bob.pop_sent_msg().await;
         let update_msg = Message::load_from_db(&bob, sent3.sender_msg_id).await?;
         assert!(!update_msg.get_showpadlock());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_internet_access() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let self_id = t.get_self_chat().await.id;
+        let single_id = t.create_chat_with_contact("bob", "bob@e.com").await.id;
+        let group_id = create_group_chat(&t, ProtectionStatus::Unprotected, "chat").await?;
+        let broadcast_id = create_broadcast_list(&t).await?;
+
+        let mut first_test = true; // only the first test has all conditions for internet access
+
+        for e2ee in ["1", "0"] {
+            t.set_config(Config::E2eeEnabled, Some(e2ee)).await?;
+            for chat_id in [self_id, single_id, group_id, broadcast_id] {
+                for internet_xdc in [true, false] {
+                    let mut instance = create_webxdc_instance(
+                        &t,
+                        "foo.xdc",
+                        if internet_xdc {
+                            include_bytes!("../test-data/webxdc/request-internet-access.xdc")
+                        } else {
+                            include_bytes!("../test-data/webxdc/minimal.xdc")
+                        },
+                    )
+                    .await?;
+                    let instance_id = send_msg(&t, chat_id, &mut instance).await?;
+                    t.send_webxdc_status_update(
+                        instance_id,
+                        r#"{"summary":"real summary", "payload": 42}"#,
+                        "descr",
+                    )
+                    .await?;
+                    let instance = Message::load_from_db(&t, instance_id).await?;
+                    let info = instance.get_webxdc_info(&t).await?;
+                    assert_eq!(info.internet_access, first_test);
+                    assert_eq!(info.summary.contains("Do not enter sensitive"), first_test);
+                    assert_eq!(info.summary.contains("real summary"), !first_test);
+
+                    first_test = false;
+                }
+            }
+        }
 
         Ok(())
     }
