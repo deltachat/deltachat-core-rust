@@ -551,7 +551,7 @@ impl MimeMessage {
 
             // For mailing lists, always add the subject because sometimes there are different topics
             // and otherwise it might be hard to keep track:
-            if self.is_mailinglist_message() {
+            if self.is_mailinglist_message() && !self.has_chat_version() {
                 prepend_subject = true;
             }
 
