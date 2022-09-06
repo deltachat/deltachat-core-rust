@@ -42,15 +42,15 @@ def replace_toml_version(relpath, newversion):
 
 
 def read_json_version(relpath):
-    p = pathlib.Path("package.json")
+    p = pathlib.Path(relpath)
     assert p.exists()
     with open(p, "r") as f:
         json_data = json.loads(f.read())
     return json_data["version"]
 
 
-def update_package_json(newversion):
-    p = pathlib.Path("package.json")
+def update_package_json(relpath, newversion):
+    p = pathlib.Path(relpath)
     assert p.exists()
     with open(p, "r") as f:
         json_data = json.loads(f.read())
@@ -64,13 +64,15 @@ def main():
     parser.add_argument("newversion")
 
     toml_list = ["Cargo.toml", "deltachat-ffi/Cargo.toml",  "deltachat-jsonrpc/Cargo.toml"]
+    json_list = ["package.json",  "deltachat-jsonrpc/typescript/package.json"]
     try:
         opts = parser.parse_args()
     except SystemExit:
         print()
         for x in toml_list:
             print("{}: {}".format(x, read_toml_version(x)))
-        print("package.json:", str(read_json_version("package.json")))
+        for x in json_list:
+            print("{}: {}".format(x, read_json_version(x)))
         print()
         raise SystemExit("need argument: new version, example: 1.25.0")
 
@@ -93,7 +95,10 @@ def main():
 
     for toml_filename in toml_list:
         replace_toml_version(toml_filename, newversion)
-    update_package_json(newversion)
+    
+    for json_filename in json_list:
+        update_package_json(json_filename, newversion)
+
 
     print("running cargo check")
     subprocess.call(["cargo", "check"])
