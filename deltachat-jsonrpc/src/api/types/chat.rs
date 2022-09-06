@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use deltachat::chat::get_chat_contacts;
 use deltachat::chat::{Chat, ChatId};
+use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::context::Context;
 use num_traits::cast::ToPrimitive;
@@ -33,6 +34,7 @@ pub struct FullChat {
     is_muted: bool,
     ephemeral_timer: u32, //TODO look if there are more important properties in newer core versions
     can_send: bool,
+    was_seen_recently: bool,
 }
 
 impl FullChat {
@@ -65,6 +67,17 @@ impl FullChat {
 
         let can_send = chat.can_send(context).await?;
 
+        let was_seen_recently = if chat.get_type() == Chattype::Single {
+            match contact_ids.get(0) {
+                Some(contact) => Contact::load_from_db(context, *contact)
+                    .await?
+                    .was_seen_recently(),
+                None => false,
+            }
+        } else {
+            false
+        };
+
         Ok(FullChat {
             id: chat_id,
             name: chat.name.clone(),
@@ -87,6 +100,7 @@ impl FullChat {
             is_muted: chat.is_muted(),
             ephemeral_timer,
             can_send,
+            was_seen_recently,
         })
     }
 }
