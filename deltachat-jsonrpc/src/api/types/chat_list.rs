@@ -42,6 +42,8 @@ pub enum ChatListItemFetchResult {
         is_pinned: bool,
         is_muted: bool,
         is_contact_request: bool,
+        /// true when chat is a broadcastlist
+        is_broadcast: bool,
         /// contact id if this is a dm chat (for view profile entry in context menu)
         dm_chat_contact: Option<u32>,
     },
@@ -121,6 +123,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         is_pinned: visibility == ChatVisibility::Pinned,
         is_muted: chat.is_muted(),
         is_contact_request: chat.is_contact_request(),
+        is_broadcast: chat.get_type() == Chattype::Broadcast,
         dm_chat_contact,
     })
 }
