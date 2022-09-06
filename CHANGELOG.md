@@ -11,6 +11,13 @@
   and `dc_event_emitter_unref()` should be used instead of
   `dc_accounts_event_emitter_unref`.
 - add `dc_contact_was_seen_recently()` #3560
+- jsonrpc: add functions:
+  - `deleteChat()`
+  - `getChatEncryptionInfo()`
+  - `getChatSecurejoinQrCodeSvg()`
+  - `leaveGroup()`
+  - `removeContactFromChat()`
+  - `addContactToChat()`
 
 ### Changes
 - order contact lists by "last seen";
