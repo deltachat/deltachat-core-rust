@@ -1,29 +1,5 @@
 {
-  "name": "deltachat-jsonrpc-client",
-  "version": "0.1.0",
-  "main": "dist/deltachat.js",
-  "types": "dist/deltachat.d.ts",
-  "type": "module",
   "author": "Delta Chat Developers (ML) <delta@codespeak.net>",
-  "license": "MPL-2.0",
-  "scripts": {
-    "prettier:check": "prettier --check **.ts",
-    "prettier:fix": "prettier --write **.ts",
-    "generate-bindings": "cargo test",
-    "build": "run-s generate-bindings build:tsc build:bundle",
-    "build:tsc": "tsc",
-    "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
-    "example": "run-s build example:build example:start",
-    "example:build": "esbuild --bundle dist/example/example.js --outfile=dist/example.bundle.js",
-    "example:start": "http-server .",
-    "example:dev": "esbuild example/example.ts --bundle --outfile=dist/example.bundle.js --servedir=.",
-    "test": "run-s test:prepare test:run-coverage test:report-coverage",
-    "test:prepare": "cargo build --features webserver --bin deltachat-jsonrpc-server",
-    "test:run": "mocha dist/test",
-    "test:run-coverage": "COVERAGE=1 NODE_OPTIONS=--enable-source-maps c8 --include 'dist/*' -r text -r html -r json mocha dist/test",
-    "test:report-coverage": "node report_api_coverage.mjs",
-    "docs": "typedoc --out docs deltachat.ts"
-  },
   "dependencies": {
     "isomorphic-ws": "^4.0.1",
     "tiny-emitter": "git+https://github.com/Simon-Laux/tiny-emitter.git",
@@ -47,5 +23,29 @@
     "typedoc": "^0.23.2",
     "typescript": "^4.5.5",
     "ws": "^8.5.0"
-  }
+  },
+  "license": "MPL-2.0",
+  "main": "dist/deltachat.js",
+  "name": "deltachat-jsonrpc-client",
+  "scripts": {
+    "build": "run-s generate-bindings build:tsc build:bundle",
+    "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
+    "build:tsc": "tsc",
+    "docs": "typedoc --out docs deltachat.ts",
+    "example": "run-s build example:build example:start",
+    "example:build": "esbuild --bundle dist/example/example.js --outfile=dist/example.bundle.js",
+    "example:dev": "esbuild example/example.ts --bundle --outfile=dist/example.bundle.js --servedir=.",
+    "example:start": "http-server .",
+    "generate-bindings": "cargo test",
+    "prettier:check": "prettier --check **.ts",
+    "prettier:fix": "prettier --write **.ts",
+    "test": "run-s test:prepare test:run-coverage test:report-coverage",
+    "test:prepare": "cargo build --features webserver --bin deltachat-jsonrpc-server",
+    "test:report-coverage": "node report_api_coverage.mjs",
+    "test:run": "mocha dist/test",
+    "test:run-coverage": "COVERAGE=1 NODE_OPTIONS=--enable-source-maps c8 --include 'dist/*' -r text -r html -r json mocha dist/test"
+  },
+  "type": "module",
+  "types": "dist/deltachat.d.ts",
+  "version": "1.93.0"
 }
