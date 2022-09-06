@@ -12,6 +12,7 @@
   `dc_accounts_event_emitter_unref`.
 - add `dc_contact_was_seen_recently()` #3560
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult`
+- jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact`
 
 ### Changes
 - order contact lists by "last seen";
