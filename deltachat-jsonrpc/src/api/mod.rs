@@ -5,7 +5,7 @@ use deltachat::{
     config::Config,
     contact::{may_be_valid_addr, Contact, ContactId},
     context::get_info,
-    message::{Message, MsgId, Viewtype},
+    message::{delete_msgs, get_msg_info, Message, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
@@ -535,6 +535,24 @@ impl CommandApi {
             );
         }
         Ok(messages)
+    }
+
+    /// Delete messages. The messages are deleted on the current device and
+    /// on the IMAP server.
+    async fn delete_messages(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let msgs: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        delete_msgs(&ctx, &msgs).await
+    }
+
+    /// Get an informational text for a single message. The text is multiline and may
+    /// contain e.g. the raw text of the message.
+    ///
+    /// The max. text returned is typically longer (about 100000 characters) than the
+    /// max. text returned by dc_msg_get_text() (about 30000 characters).
+    async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        get_msg_info(&ctx, MsgId::new(message_id)).await
     }
 
     // ---------------------------------------------

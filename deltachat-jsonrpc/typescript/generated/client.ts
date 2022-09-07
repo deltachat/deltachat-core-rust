@@ -223,7 +223,7 @@ export class RawClient {
    * Things that are _not done_ implicitly:
    *
    * - Messages are **not deleted from the server**.
-   * - The chat or the contact is **not blocked**, so new messages from the user/the group may appear
+   * - The chat or the contact is **not blocked**, so new messages from the user/the group may appear as a contact request
    *   and the user may create the chat again.
    * - **Groups are not left** - this would
    *   be unexpected as (1) deleting a normal chat also does not prevent new mails
@@ -319,6 +319,25 @@ export class RawClient {
 
   public messageGetMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.Message>> {
     return (this._transport.request('message_get_messages', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.Message>>;
+  }
+
+  /**
+   * Delete messages. The messages are deleted on the current device and
+   * on the IMAP server.
+   */
+  public deleteMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<null> {
+    return (this._transport.request('delete_messages', [accountId, messageIds] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Get an informational text for a single message. The text is multiline and may
+   * contain e.g. the raw text of the message.
+   *
+   * The max. text returned is typically longer (about 100000 characters) than the
+   * max. text returned by dc_msg_get_text() (about 30000 characters).
+   */
+  public getMessageInfo(accountId: T.U32, messageId: T.U32): Promise<string> {
+    return (this._transport.request('get_message_info', [accountId, messageId] as RPC.Params)) as Promise<string>;
   }
 
   /**

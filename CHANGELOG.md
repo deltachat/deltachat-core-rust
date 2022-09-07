@@ -18,6 +18,8 @@
   - `leaveGroup()`
   - `removeContactFromChat()`
   - `addContactToChat()`
+  - `deleteMessages()`
+  - `getMessageInfo()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 
