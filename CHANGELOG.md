@@ -18,6 +18,8 @@
   - `leaveGroup()`
   - `removeContactFromChat()`
   - `addContactToChat()`
+- jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
+- jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 
 ### Changes
 - order contact lists by "last seen";
@@ -29,6 +31,7 @@
 - Show attached .eml files correctly #3561
 - Auto accept contact requests if `Config::Bot` is set for a client #3567 
 - Don't prepend the subject to chat messages in mailinglists
+- fix `set_core_version.py` script to also update version in `deltachat-jsonrpc/typescript/package.json` #3585
 
 
 ## 1.93.0

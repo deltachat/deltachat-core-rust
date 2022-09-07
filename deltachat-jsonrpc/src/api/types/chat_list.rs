@@ -1,6 +1,6 @@
 use anyhow::Result;
 use deltachat::constants::*;
-use deltachat::contact::ContactId;
+use deltachat::contact::{Contact, ContactId};
 use deltachat::{
     chat::{get_chat_contacts, ChatVisibility},
     chatlist::Chatlist,
@@ -42,8 +42,11 @@ pub enum ChatListItemFetchResult {
         is_pinned: bool,
         is_muted: bool,
         is_contact_request: bool,
+        /// true when chat is a broadcastlist
+        is_broadcast: bool,
         /// contact id if this is a dm chat (for view profile entry in context menu)
         dm_chat_contact: Option<u32>,
+        was_seen_recently: bool,
     },
     ArchiveLink,
     #[serde(rename_all = "camelCase")]
@@ -92,10 +95,20 @@ pub(crate) async fn get_chat_list_item_by_id(
 
     let self_in_group = chat_contacts.contains(&ContactId::SELF);
 
-    let dm_chat_contact = if chat.get_type() == Chattype::Single {
-        chat_contacts.get(0).map(|contact_id| contact_id.to_u32())
+    let (dm_chat_contact, was_seen_recently) = if chat.get_type() == Chattype::Single {
+        let contact = chat_contacts.get(0);
+        let was_seen_recently = match contact {
+            Some(contact) => Contact::load_from_db(ctx, *contact)
+                .await?
+                .was_seen_recently(),
+            None => false,
+        };
+        (
+            contact.map(|contact_id| contact_id.to_u32()),
+            was_seen_recently,
+        )
     } else {
-        None
+        (None, false)
     };
 
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
@@ -121,6 +134,8 @@ pub(crate) async fn get_chat_list_item_by_id(
         is_pinned: visibility == ChatVisibility::Pinned,
         is_muted: chat.is_muted(),
         is_contact_request: chat.is_contact_request(),
+        is_broadcast: chat.get_type() == Chattype::Broadcast,
         dm_chat_contact,
+        was_seen_recently,
     })
 }

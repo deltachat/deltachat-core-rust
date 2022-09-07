@@ -9,11 +9,15 @@ export type ChatListEntry=[U32,U32];
 export type I64=number;
 export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":string;"avatarPath":(string|null);"color":string;"lastUpdated":(I64|null);"summaryText1":string;"summaryText2":string;"summaryStatus":U32;"isProtected":boolean;"isGroup":boolean;"freshMessageCounter":Usize;"isSelfTalk":boolean;"isDeviceTalk":boolean;"isSendingLocation":boolean;"isSelfInGroup":boolean;"isArchived":boolean;"isPinned":boolean;"isMuted":boolean;"isContactRequest":boolean;
 /**
+ * true when chat is a broadcastlist
+ */
+"isBroadcast":boolean;
+/**
  * contact id if this is a dm chat (for view profile entry in context menu)
  */
-"dmChatContact":(U32|null);})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
-export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;};
-export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;};
+"dmChatContact":(U32|null);"wasSeenRecently":boolean;})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
+export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;"wasSeenRecently":boolean;};
+export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;"wasSeenRecently":boolean;};
 export type Viewtype=("Unknown"|
 /**
  * Text message.
