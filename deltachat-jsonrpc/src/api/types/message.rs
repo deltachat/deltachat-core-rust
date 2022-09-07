@@ -10,6 +10,7 @@ use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 use super::contact::ContactObject;
+use super::webxdc::WebxdcMessageInfo;
 
 #[derive(Serialize, TypeDef)]
 #[serde(rename = "Message", rename_all = "camelCase")]
@@ -53,6 +54,8 @@ pub struct MessageObject {
     file_mime: Option<String>,
     file_bytes: u64,
     file_name: Option<String>,
+
+    webxdc_info: Option<WebxdcMessageInfo>,
 }
 
 impl MessageObject {
@@ -69,6 +72,12 @@ impl MessageObject {
         let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
         let file_bytes = message.get_filebytes(context).await;
         let override_sender_name = message.get_override_sender_name();
+
+        let webxdc_info = if message.get_viewtype() == Viewtype::Webxdc {
+            Some(WebxdcMessageInfo::get_for_message(context, msg_id).await?)
+        } else {
+            None
+        };
 
         Ok(MessageObject {
             id: message_id,
@@ -121,6 +130,7 @@ impl MessageObject {
             file_mime: message.get_filemime(),
             file_bytes,
             file_name: message.get_filename(),
+            webxdc_info,
         })
     }
 }
