@@ -386,7 +386,7 @@ impl CommandApi {
     /// Things that are _not done_ implicitly:
     ///
     /// - Messages are **not deleted from the server**.
-    /// - The chat or the contact is **not blocked**, so new messages from the user/the group may appear
+    /// - The chat or the contact is **not blocked**, so new messages from the user/the group may appear as a contact request
     ///   and the user may create the chat again.
     /// - **Groups are not left** - this would
     ///   be unexpected as (1) deleting a normal chat also does not prevent new mails
