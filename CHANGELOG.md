@@ -11,13 +11,15 @@
   and `dc_event_emitter_unref()` should be used instead of
   `dc_accounts_event_emitter_unref`.
 - add `dc_contact_was_seen_recently()` #3560
-- jsonrpc: add functions:
+- jsonrpc: add functions: #3586, #3587
   - `deleteChat()`
   - `getChatEncryptionInfo()`
   - `getChatSecurejoinQrCodeSvg()`
   - `leaveGroup()`
   - `removeContactFromChat()`
   - `addContactToChat()`
+  - `deleteMessages()`
+  - `getMessageInfo()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 - jsonrpc: add `webxdc_info` property to `Message` #3588
