@@ -20,6 +20,7 @@
   - `addContactToChat()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
+- jsonrpc: add `webxdc_info` property to `Message`
 
 ### Changes
 - order contact lists by "last seen";
