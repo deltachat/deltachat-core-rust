@@ -111,12 +111,10 @@ export class RawClient {
 
   /**
    * Set configuration values from a QR code. (technically from the URI that is stored in the qrcode)
-   * Before this function is called, dc_check_qr() should confirm the type of the
-   * QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
+   * Before this function is called, `checkQr()` should confirm the type of the
+   * QR code is `account` or `webrtcInstance`.
    *
    * Internally, the function will call dc_set_config() with the appropriate keys,
-   * e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT
-   * or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
    */
   public setConfigFromQr(accountId: T.U32, qrContent: string): Promise<null> {
     return (this._transport.request('set_config_from_qr', [accountId, qrContent] as RPC.Params)) as Promise<null>;
@@ -214,6 +212,93 @@ export class RawClient {
 
   public blockChat(accountId: T.U32, chatId: T.U32): Promise<null> {
     return (this._transport.request('block_chat', [accountId, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Delete a chat.
+   *
+   * Messages are deleted from the device and the chat database entry is deleted.
+   * After that, the event #DC_EVENT_MSGS_CHANGED is posted.
+   *
+   * Things that are _not done_ implicitly:
+   *
+   * - Messages are **not deleted from the server**.
+   * - The chat or the contact is **not blocked**, so new messages from the user/the group may appear
+   *   and the user may create the chat again.
+   * - **Groups are not left** - this would
+   *   be unexpected as (1) deleting a normal chat also does not prevent new mails
+   *   from arriving, (2) leaving a group requires sending a message to
+   *   all group members - especially for groups not used for a longer time, this is
+   *   really unexpected when deletion results in contacting all members again,
+   *   (3) only leaving groups is also a valid usecase.
+   *
+   * To leave a chat explicitly, use dc_remove_contact_from_chat() with
+   * chat_id=DC_CONTACT_ID_SELF)
+   */
+  public deleteChat(accountId: T.U32, chatId: T.U32): Promise<null> {
+    return (this._transport.request('delete_chat', [accountId, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Get encryption info for a chat.
+   * Get a multi-line encryption info, containing encryption preferences of all members.
+   * Can be used to find out why messages sent to group are not encrypted.
+   *
+   * returns Multi-line text
+   */
+  public getChatEncryptionInfo(accountId: T.U32, chatId: T.U32): Promise<string> {
+    return (this._transport.request('get_chat_encryption_info', [accountId, chatId] as RPC.Params)) as Promise<string>;
+  }
+
+  /**
+   * Get QR code (text and SVG) that will offer an Setup-Contact or Verified-Group invitation.
+   * The QR code is compatible to the OPENPGP4FPR format
+   * so that a basic fingerprint comparison also works e.g. with OpenKeychain.
+   *
+   * The scanning device will pass the scanned content to `checkQr()` then;
+   * if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
+   * an out-of-band-verification can be joined using dc_join_securejoin()
+   *
+   * chat_id: If set to a group-chat-id,
+   *     the Verified-Group-Invite protocol is offered in the QR code;
+   *     works for protected groups as well as for normal groups.
+   *     If not set, the Setup-Contact protocol is offered in the QR code.
+   *     See https://countermitm.readthedocs.io/en/latest/new.html
+   *     for details about both protocols.
+   */
+  public getChatSecurejoinQrCodeSvg(accountId: T.U32, chatId: (T.U32|null)): Promise<[string,string]> {
+    return (this._transport.request('get_chat_securejoin_qr_code_svg', [accountId, chatId] as RPC.Params)) as Promise<[string,string]>;
+  }
+
+
+  public leaveGroup(accountId: T.U32, chatId: T.U32): Promise<null> {
+    return (this._transport.request('leave_group', [accountId, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Remove a member from a group.
+   *
+   * If the group is already _promoted_ (any message was sent to the group),
+   * all group members are informed by a special status message that is sent automatically by this function.
+   *
+   * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+   */
+  public removeContactFromChat(accountId: T.U32, chatId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('remove_contact_from_chat', [accountId, chatId, contactId] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Add a member to a group.
+   *
+   * If the group is already _promoted_ (any message was sent to the group),
+   * all group members are informed by a special status message that is sent automatically by this function.
+   *
+   * If the group has group protection enabled, only verified contacts can be added to the group.
+   *
+   * Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+   */
+  public addContactToChat(accountId: T.U32, chatId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('add_contact_to_chat', [accountId, chatId, contactId] as RPC.Params)) as Promise<null>;
   }
 
 
