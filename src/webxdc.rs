@@ -489,6 +489,12 @@ impl Context {
             bail!("receive_status_update: status message has no parent.")
         };
 
+        if from_id != ContactId::SELF
+            && !chat::is_contact_in_chat(self, instance.chat_id, from_id).await?
+        {
+            bail!("receive_status_update: status sender not chat member.")
+        }
+
         let updates: StatusUpdates = serde_json::from_str(json)?;
         for update_item in updates.updates {
             self.create_status_update_record(
