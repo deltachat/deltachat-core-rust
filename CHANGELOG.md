@@ -35,7 +35,7 @@
 - Auto accept contact requests if `Config::Bot` is set for a client #3567 
 - Don't prepend the subject to chat messages in mailinglists
 - fix `set_core_version.py` script to also update version in `deltachat-jsonrpc/typescript/package.json` #3585
-- Reject webxcd-updates from contacts who are not group members
+- Reject webxcd-updates from contacts who are not group members #3568
 
 
 ## 1.93.0
