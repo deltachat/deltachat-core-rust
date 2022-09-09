@@ -1,11 +1,13 @@
-use anyhow::{anyhow, Result};
-use deltachat::chat::get_chat_contacts;
+use std::time::{Duration, SystemTime};
+
+use anyhow::{anyhow, bail, Result};
+use deltachat::chat::{self, get_chat_contacts};
 use deltachat::chat::{Chat, ChatId};
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::context::Context;
 use num_traits::cast::ToPrimitive;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
@@ -83,7 +85,7 @@ impl FullChat {
             name: chat.name.clone(),
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
-            archived: chat.get_visibility() == deltachat::chat::ChatVisibility::Archived,
+            archived: chat.get_visibility() == chat::ChatVisibility::Archived,
             chat_type: chat
                 .get_type()
                 .to_u32()
@@ -102,5 +104,71 @@ impl FullChat {
             can_send,
             was_seen_recently,
         })
+    }
+}
+
+/// useful when you only need some super basic properties
+#[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
+pub struct BasicChat {
+    id: u32,
+    name: String,
+    is_protected: bool,
+    profile_image: Option<String>, //BLOBS ?
+    chat_type: u32,
+    color: String,
+    can_send: bool,
+}
+
+impl BasicChat {
+    pub async fn try_from_dc_chat_id(context: &Context, chat_id: u32) -> Result<Self> {
+        let rust_chat_id = ChatId::new(chat_id);
+        let chat = Chat::load_from_db(context, rust_chat_id).await?;
+
+        let profile_image = match chat.get_profile_image(context).await? {
+            Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+            None => None,
+        };
+
+        let color = color_int_to_hex_string(chat.get_color(context).await?);
+        let can_send = chat.can_send(context).await?;
+
+        Ok(BasicChat {
+            id: chat_id,
+            name: chat.name.clone(),
+            is_protected: chat.is_protected(),
+            profile_image, //BLOBS ?
+            chat_type: chat
+                .get_type()
+                .to_u32()
+                .ok_or_else(|| anyhow!("unknown chat type id"))?,
+            color,
+            can_send,
+        })
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, TypeDef)]
+pub enum MuteDuration {
+    NotMuted,
+    Forever,
+    Until(i64),
+}
+
+impl MuteDuration {
+    pub fn try_into_core_type(self) -> Result<chat::MuteDuration> {
+        match self {
+            MuteDuration::NotMuted => Ok(chat::MuteDuration::NotMuted),
+            MuteDuration::Forever => Ok(chat::MuteDuration::Forever),
+            MuteDuration::Until(n) => {
+                if n <= 0 {
+                    bail!("failed to read mute duration")
+                }
+
+                Ok(SystemTime::now()
+                    .checked_add(Duration::from_secs(n as u64))
+                    .map_or(chat::MuteDuration::Forever, chat::MuteDuration::Until))
+            }
+        }
     }
 }

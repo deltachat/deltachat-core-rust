@@ -16,8 +16,23 @@ export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":
  * contact id if this is a dm chat (for view profile entry in context menu)
  */
 "dmChatContact":(U32|null);"wasSeenRecently":boolean;})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
-export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;"wasSeenRecently":boolean;};
+export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;
+/**
+ * the contact's last seen timestamp
+ */
+"lastSeen":I64;"wasSeenRecently":boolean;};
 export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;"wasSeenRecently":boolean;};
+
+/**
+ * useful when you only need some super basic properties
+ */
+export type BasicChat=
+/**
+ * useful when you only need some super basic properties
+ */
+{"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"chatType":U32;"color":string;"canSend":boolean;};
+export type MuteDuration=("NotMuted"|"Forever"|{"Until":I64;});
+export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;}));
 export type Viewtype=("Unknown"|
 /**
  * Text message.
@@ -65,7 +80,6 @@ export type Viewtype=("Unknown"|
 "Webxdc");
 export type I32=number;
 export type U64=number;
-export type Message={"id":U32;"chatId":U32;"fromId":U32;"quotedText":(string|null);"quotedMessageId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);};
 export type WebxdcMessageInfo={
 /**
  * The name of the app.
@@ -103,4 +117,7 @@ export type WebxdcMessageInfo={
  * True if full internet access should be granted to the app.
  */
 "internetAccess":boolean;};
-export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,Qr,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,null,U32,U32,null,U32,U32,null,U32,U32,string,U32,(U32|null),[string,string],U32,U32,null,U32,U32,U32,null,U32,U32,U32,null,U32,string,string,U32,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,(U32)[],null,U32,U32,string,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,(U32|null),Viewtype,(Viewtype|null),(Viewtype|null),(U32)[],U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,string,U32,U32];
+export type DownloadState=("Done"|"Available"|"Failure"|"InProgress");
+export type Message={"id":U32;"chatId":U32;"fromId":U32;"quote":(MessageQuote|null);"parentId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);"webxdcInfo":(WebxdcMessageInfo|null);"downloadState":DownloadState;};
+export type F64=number;
+export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,Qr,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,BasicChat,U32,U32,null,U32,U32,null,U32,U32,null,U32,U32,string,U32,(U32|null),[string,string],U32,U32,null,U32,U32,U32,null,U32,U32,U32,null,U32,string,string,U32,U32,U32,null,U32,U32,(U32|null),U32,U32,MuteDuration,null,U32,U32,boolean,U32,(U32)[],null,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,(U32)[],null,U32,U32,string,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,(U32|null),Viewtype,(Viewtype|null),(Viewtype|null),(U32)[],U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,(U32)[],U32,null,U32,U32,null,U32,U32,(Message|null),U32,string,U32,U32,U32,U32,(string|null),(string|null),([F64,F64]|null),(U32|null),[U32,Message],U32,U32,(string|null),(string|null),(U32|null),null];

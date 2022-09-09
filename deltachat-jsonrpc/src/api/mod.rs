@@ -1,11 +1,14 @@
 use anyhow::{anyhow, bail, Context, Result};
 use deltachat::{
-    chat::{add_contact_to_chat, get_chat_media, get_chat_msgs, remove_contact_from_chat, ChatId},
+    chat::{
+        self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
+        remove_contact_from_chat, Chat, ChatId, ChatItem,
+    },
     chatlist::Chatlist,
     config::Config,
     contact::{may_be_valid_addr, Contact, ContactId},
     context::get_info,
-    message::{delete_msgs, get_msg_info, Message, MsgId, Viewtype},
+    message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
@@ -34,7 +37,10 @@ use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
-use self::types::message::MessageViewtype;
+use self::types::{
+    chat::{BasicChat, MuteDuration},
+    message::MessageViewtype,
+};
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {
@@ -368,6 +374,13 @@ impl CommandApi {
         FullChat::try_from_dc_chat_id(&ctx, chat_id).await
     }
 
+    /// get basic info about a chat,
+    /// use chatlist_get_full_chat_by_id() instead if you need more information
+    async fn get_basic_chat_info(&self, account_id: u32, chat_id: u32) -> Result<BasicChat> {
+        let ctx = self.get_context(account_id).await?;
+        BasicChat::try_from_dc_chat_id(&ctx, chat_id).await
+    }
+
     async fn accept_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id).accept(&ctx).await
@@ -495,9 +508,100 @@ impl CommandApi {
         Ok(message_id.to_u32())
     }
 
+    ///  Mark all messages in a chat as _noticed_.
+    ///  _Noticed_ messages are no longer _fresh_ and do not count as being unseen
+    ///  but are still waiting for being marked as "seen" using markseen_msgs()
+    ///  (IMAP/MDNs is not done for noticed messages).
+    ///
+    ///  Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
+    ///  See also markseen_msgs().
+    async fn marknoticed_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        marknoticed_chat(&ctx, ChatId::new(chat_id)).await
+    }
+
+    async fn get_first_unread_message_of_chat(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+    ) -> Result<Option<u32>> {
+        let ctx = self.get_context(account_id).await?;
+
+        // TODO: implement this in core with an SQL query, that will be way faster
+        let messages = get_chat_msgs(&ctx, ChatId::new(chat_id), 0).await?;
+        let mut first_unread_message_id = None;
+        for item in messages.into_iter().rev() {
+            if let ChatItem::Message { msg_id } = item {
+                match msg_id.get_state(&ctx).await? {
+                    MessageState::InSeen => break,
+                    MessageState::InFresh | MessageState::InNoticed => {
+                        first_unread_message_id = Some(msg_id)
+                    }
+                    _ => continue,
+                }
+            }
+        }
+        Ok(first_unread_message_id.map(|id| id.to_u32()))
+    }
+
+    /// Set mute duration of a chat.
+    ///
+    /// The UI can then call is_chat_muted() when receiving a new message
+    /// to decide whether it should trigger an notification.
+    ///
+    /// Muted chats should not sound or vibrate
+    /// and should not show a visual notification in the system area.
+    /// Moreover, muted chats should be excluded from global badge counter
+    /// (get_fresh_msgs() skips muted chats therefore)
+    /// and the in-app, per-chat badge counter should use a less obtrusive color.
+    ///
+    /// Sends out #DC_EVENT_CHAT_MODIFIED.
+    async fn set_chat_mute_duration(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        duration: MuteDuration,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        chat::set_muted(&ctx, ChatId::new(chat_id), duration.try_into_core_type()?).await
+    }
+
+    /// Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).
+    ///
+    /// This is availible as a standalone function outside of fullchat, because it might be needed jsut for notification logic
+    async fn is_chat_muted(&self, account_id: u32, chat_id: u32) -> Result<bool> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(Chat::load_from_db(&ctx, ChatId::new(chat_id))
+            .await?
+            .is_muted())
+    }
+
     // ---------------------------------------------
     // message list
     // ---------------------------------------------
+
+    /// Mark messages as presented to the user.
+    /// Typically, UIs call this function on scrolling through the message list,
+    /// when the messages are presented at least for a little moment.
+    /// The concrete action depends on the type of the chat and on the users settings
+    /// (dc_msgs_presented() may be a better name therefore, but well. :)
+    ///
+    /// - For normal chats, the IMAP state is updated, MDN is sent
+    ///   (if set_config()-options `mdns_enabled` is set)
+    ///   and the internal state is changed to @ref DC_STATE_IN_SEEN to reflect these actions.
+    ///
+    /// - For contact requests, no IMAP or MDNs is done
+    ///   and the internal state is not changed therefore.
+    ///   See also marknoticed_chat().
+    ///
+    /// Moreover, timer is started for incoming ephemeral messages.
+    /// This also happens for contact requests chats.
+    ///
+    /// One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
+    async fn markseen_msgs(&self, account_id: u32, msg_ids: Vec<u32>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
+    }
 
     async fn message_list_get_message_ids(
         &self,
@@ -762,6 +866,45 @@ impl CommandApi {
         WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
     }
 
+    /// Forward messages to another chat.
+    ///
+    /// All types of messages can be forwarded,
+    /// however, they will be flagged as such (dc_msg_is_forwarded() is set).
+    ///
+    /// Original sender, info-state and webxdc updates are not forwarded on purpose.
+    async fn forward_messages(
+        &self,
+        account_id: u32,
+        message_ids: Vec<u32>,
+        chat_id: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        forward_msgs(&ctx, &message_ids, ChatId::new(chat_id)).await
+    }
+
+    // ---------------------------------------------
+    //           functions for the composer
+    //    the composer is the message input field
+    // ---------------------------------------------
+
+    async fn remove_draft(&self, account_id: u32, chat_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ChatId::new(chat_id).set_draft(&ctx, None).await
+    }
+
+    ///  Get draft for a chat, if any.
+    async fn get_draft(&self, account_id: u32, chat_id: u32) -> Result<Option<MessageObject>> {
+        let ctx = self.get_context(account_id).await?;
+        if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
+            Ok(Some(
+                MessageObject::from_msg_id(&ctx, draft.get_id()).await?,
+            ))
+        } else {
+            Ok(None)
+        }
+    }
+
     // ---------------------------------------------
     //           misc prototyping functions
     //       that might get removed later again
@@ -781,6 +924,91 @@ impl CommandApi {
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())
+    }
+
+    // mimics the old desktop call, will get replaced with something better in the composer rewrite,
+    // the better version will just be sending the current draft, though there will be probably something similar with more options to this for the corner cases like setting a marker on the map
+    async fn misc_send_msg(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        text: Option<String>,
+        file: Option<String>,
+        location: Option<(f64, f64)>,
+        quoted_message_id: Option<u32>,
+    ) -> Result<(u32, MessageObject)> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = Message::new(if file.is_some() {
+            Viewtype::File
+        } else {
+            Viewtype::Text
+        });
+        if text.is_some() {
+            message.set_text(text);
+        }
+        if let Some(file) = file {
+            message.set_file(file, None);
+        }
+        if let Some((latitude, longitude)) = location {
+            message.set_location(latitude, longitude);
+        }
+        if let Some(id) = quoted_message_id {
+            message
+                .set_quote(
+                    &ctx,
+                    Some(
+                        &Message::load_from_db(&ctx, MsgId::new(id))
+                            .await
+                            .context("message to quote could not be loaded")?,
+                    ),
+                )
+                .await?;
+        }
+        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+            .await?
+            .to_u32();
+        let message = MessageObject::from_message_id(&ctx, msg_id).await?;
+        Ok((msg_id, message))
+    }
+
+    // mimics the old desktop call, will get replaced with something better in the composer rewrite,
+    // the better version should support:
+    // - changing viewtype to enable/disable compression
+    // - keeping same message id as long as attachment does not change for webxdc messages
+    async fn misc_set_draft(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        text: Option<String>,
+        file: Option<String>,
+        quoted_message_id: Option<u32>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let mut draft = Message::new(if file.is_some() {
+            Viewtype::File
+        } else {
+            Viewtype::Text
+        });
+        if text.is_some() {
+            draft.set_text(text);
+        }
+        if let Some(file) = file {
+            draft.set_file(file, None);
+        }
+        if let Some(id) = quoted_message_id {
+            draft
+                .set_quote(
+                    &ctx,
+                    Some(
+                        &Message::load_from_db(&ctx, MsgId::new(id))
+                            .await
+                            .context("message to quote could not be loaded")?,
+                    ),
+                )
+                .await?;
+        }
+
+        ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
     }
 }
 
