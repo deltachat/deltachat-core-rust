@@ -20,10 +20,25 @@
   - `addContactToChat()`
   - `deleteMessages()`
   - `getMessageInfo()`
+  - `getBasicChatInfo()`
+  - `marknoticedChat()`
+  - `getFirstUnreadMessageOfChat()`
+  - `markseenMsgs()`
+  - `forwardMessages()`
+  - `removeDraft()`
+  - `getDraft()`
+  - `miscSendMsg()`
+  - `miscSetDraft()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 - jsonrpc: add `webxdc_info` property to `Message` #3588
 - python: move `get_dc_event_name()` from `deltachat` to `deltachat.events` #3564
+- jsonrpc: add `webxdc_info`, `parent_id` and `download_state` property to `Message` #3588
+- jsonrpc: add `BasicChat` object as a leaner alternative to `FullChat`
+- jsonrpc: add `last_seen` property to `Contact`
+- breaking! jsonrpc: replace `Message.quoted_text` and `Message.quoted_message_id` with `Message.quote`
+
+/todo add the rest
 
 ### Changes
 - order contact lists by "last seen";

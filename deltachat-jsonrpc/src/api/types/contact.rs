@@ -20,6 +20,8 @@ pub struct ContactObject {
     name_and_addr: String,
     is_blocked: bool,
     is_verified: bool,
+    /// the contact's last seen timestamp
+    last_seen: i64,
     was_seen_recently: bool,
 }
 
@@ -46,6 +48,7 @@ impl ContactObject {
             name_and_addr: contact.get_name_n_addr(),
             is_blocked: contact.is_blocked(),
             is_verified,
+            last_seen: contact.last_seen(),
             was_seen_recently: contact.was_seen_recently(),
         })
     }

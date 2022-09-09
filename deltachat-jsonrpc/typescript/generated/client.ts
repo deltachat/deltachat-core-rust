@@ -204,6 +204,14 @@ export class RawClient {
     return (this._transport.request('chatlist_get_full_chat_by_id', [accountId, chatId] as RPC.Params)) as Promise<T.FullChat>;
   }
 
+  /**
+   * get basic info about a chat,
+   * use chatlist_get_full_chat_by_id() instead if you need more information
+   */
+  public getBasicChatInfo(accountId: T.U32, chatId: T.U32): Promise<T.BasicChat> {
+    return (this._transport.request('get_basic_chat_info', [accountId, chatId] as RPC.Params)) as Promise<T.BasicChat>;
+  }
+
 
   public acceptChat(accountId: T.U32, chatId: T.U32): Promise<null> {
     return (this._transport.request('accept_chat', [accountId, chatId] as RPC.Params)) as Promise<null>;
@@ -304,6 +312,75 @@ export class RawClient {
 
   public addDeviceMessage(accountId: T.U32, label: string, text: string): Promise<T.U32> {
     return (this._transport.request('add_device_message', [accountId, label, text] as RPC.Params)) as Promise<T.U32>;
+  }
+
+  /**
+   *  Mark all messages in a chat as _noticed_.
+   *  _Noticed_ messages are no longer _fresh_ and do not count as being unseen
+   *  but are still waiting for being marked as "seen" using markseen_msgs()
+   *  (IMAP/MDNs is not done for noticed messages).
+   *
+   *  Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.
+   *  See also markseen_msgs().
+   */
+  public marknoticedChat(accountId: T.U32, chatId: T.U32): Promise<null> {
+    return (this._transport.request('marknoticed_chat', [accountId, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public getFirstUnreadMessageOfChat(accountId: T.U32, chatId: T.U32): Promise<(T.U32|null)> {
+    return (this._transport.request('get_first_unread_message_of_chat', [accountId, chatId] as RPC.Params)) as Promise<(T.U32|null)>;
+  }
+
+  /**
+   * Set mute duration of a chat.
+   *
+   * The UI can then call is_chat_muted() when receiving a new message
+   * to decide whether it should trigger an notification.
+   *
+   * Muted chats should not sound or vibrate
+   * and should not show a visual notification in the system area.
+   * Moreover, muted chats should be excluded from global badge counter
+   * (get_fresh_msgs() skips muted chats therefore)
+   * and the in-app, per-chat badge counter should use a less obtrusive color.
+   *
+   * Sends out #DC_EVENT_CHAT_MODIFIED.
+   */
+  public setChatMuteDuration(accountId: T.U32, chatId: T.U32, duration: T.MuteDuration): Promise<null> {
+    return (this._transport.request('set_chat_mute_duration', [accountId, chatId, duration] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   * Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).
+   *
+   * This is availible as a standalone function outside of fullchat, because it might be needed jsut for notification logic
+   */
+  public isChatMuted(accountId: T.U32, chatId: T.U32): Promise<boolean> {
+    return (this._transport.request('is_chat_muted', [accountId, chatId] as RPC.Params)) as Promise<boolean>;
+  }
+
+  /**
+   * Mark messages as presented to the user.
+   * Typically, UIs call this function on scrolling through the message list,
+   * when the messages are presented at least for a little moment.
+   * The concrete action depends on the type of the chat and on the users settings
+   * (dc_msgs_presented() may be a better name therefore, but well. :)
+   *
+   * - For normal chats, the IMAP state is updated, MDN is sent
+   *   (if set_config()-options `mdns_enabled` is set)
+   *   and the internal state is changed to @ref DC_STATE_IN_SEEN to reflect these actions.
+   *
+   * - For contact requests, no IMAP or MDNs is done
+   *   and the internal state is not changed therefore.
+   *   See also marknoticed_chat().
+   *
+   * Moreover, timer is started for incoming ephemeral messages.
+   * This also happens for contact requests chats.
+   *
+   * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
+   */
+  public markseenMsgs(accountId: T.U32, msgIds: (T.U32)[]): Promise<null> {
+    return (this._transport.request('markseen_msgs', [accountId, msgIds] as RPC.Params)) as Promise<null>;
   }
 
 
@@ -429,10 +506,44 @@ export class RawClient {
   }
 
   /**
+   * Forward messages to another chat.
+   *
+   * All types of messages can be forwarded,
+   * however, they will be flagged as such (dc_msg_is_forwarded() is set).
+   *
+   * Original sender, info-state and webxdc updates are not forwarded on purpose.
+   */
+  public forwardMessages(accountId: T.U32, messageIds: (T.U32)[], chatId: T.U32): Promise<null> {
+    return (this._transport.request('forward_messages', [accountId, messageIds, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public removeDraft(accountId: T.U32, chatId: T.U32): Promise<null> {
+    return (this._transport.request('remove_draft', [accountId, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
+   *  Get draft for a chat, if any.
+   */
+  public getDraft(accountId: T.U32, chatId: T.U32): Promise<(T.Message|null)> {
+    return (this._transport.request('get_draft', [accountId, chatId] as RPC.Params)) as Promise<(T.Message|null)>;
+  }
+
+  /**
    * Returns the messageid of the sent message
    */
   public miscSendTextMessage(accountId: T.U32, text: string, chatId: T.U32): Promise<T.U32> {
     return (this._transport.request('misc_send_text_message', [accountId, text, chatId] as RPC.Params)) as Promise<T.U32>;
+  }
+
+
+  public miscSendMsg(accountId: T.U32, chatId: T.U32, text: (string|null), file: (string|null), location: ([T.F64,T.F64]|null), quotedMessageId: (T.U32|null)): Promise<[T.U32,T.Message]> {
+    return (this._transport.request('misc_send_msg', [accountId, chatId, text, file, location, quotedMessageId] as RPC.Params)) as Promise<[T.U32,T.Message]>;
+  }
+
+
+  public miscSetDraft(accountId: T.U32, chatId: T.U32, text: (string|null), file: (string|null), quotedMessageId: (T.U32|null)): Promise<null> {
+    return (this._transport.request('misc_set_draft', [accountId, chatId, text, file, quotedMessageId] as RPC.Params)) as Promise<null>;
   }
 
 
