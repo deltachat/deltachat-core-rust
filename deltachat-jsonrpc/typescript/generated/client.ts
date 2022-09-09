@@ -492,7 +492,7 @@ export class RawClient {
 
   /**
    * Indicate that the network likely has come back.
-   * or just that the network connditions might have changed
+   * or just that the network conditions might have changed
    */
   public maybeNetwork(): Promise<null> {
     return (this._transport.request('maybe_network', [] as RPC.Params)) as Promise<null>;
