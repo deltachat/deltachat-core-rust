@@ -829,6 +829,36 @@ impl CommandApi {
     }
 
     // ---------------------------------------------
+    //                connectivity
+    // ---------------------------------------------
+
+    /// Indicate that the network likely has come back.
+    /// or just that the network connditions might have changed
+    async fn maybe_network(&self) -> Result<()> {
+        self.accounts.read().await.maybe_network().await;
+        Ok(())
+    }
+
+    /// Get the current connectivity, i.e. whether the device is connected to the IMAP server.
+    /// One of:
+    /// - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string "Not connected" or a red dot
+    /// - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string "Connecting…" or a yellow dot
+    /// - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string "Getting new messages" or a spinning wheel
+    /// - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string "Connected" or a green dot
+    ///
+    /// We don't use exact values but ranges here so that we can split up
+    /// states into multiple states in the future.
+    ///
+    /// Meant as a rough overview that can be shown
+    /// e.g. in the title of the main screen.
+    ///
+    /// If the connectivity changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+    async fn get_connectivity(&self, account_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ctx.get_connectivity().await as u32)
+    }
+
+    // ---------------------------------------------
     //                   webxdc
     // ---------------------------------------------
 
