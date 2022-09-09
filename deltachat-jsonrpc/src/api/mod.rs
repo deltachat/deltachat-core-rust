@@ -570,7 +570,7 @@ impl CommandApi {
 
     /// Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).
     ///
-    /// This is availible as a standalone function outside of fullchat, because it might be needed jsut for notification logic
+    /// This is available as a standalone function outside of fullchat, because it might be only needed for notification
     async fn is_chat_muted(&self, account_id: u32, chat_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
         Ok(Chat::load_from_db(&ctx, ChatId::new(chat_id))
