@@ -107,7 +107,16 @@ impl FullChat {
     }
 }
 
-/// useful when you only need some super basic properties
+/// cheaper version of fullchat, omits:
+/// - contacts
+/// - contact_ids
+/// - fresh_message_counter
+/// - ephemeral_timer
+/// - self_in_group
+/// - was_seen_recently
+/// - can_send
+///
+/// used when you only need the basic metadata of a chat like type, name, profile picture
 #[derive(Serialize, TypeDef)]
 #[serde(rename_all = "camelCase")]
 pub struct BasicChat {
@@ -115,9 +124,14 @@ pub struct BasicChat {
     name: String,
     is_protected: bool,
     profile_image: Option<String>, //BLOBS ?
+    archived: bool,
     chat_type: u32,
+    is_unpromoted: bool,
+    is_self_talk: bool,
     color: String,
-    can_send: bool,
+    is_contact_request: bool,
+    is_device_chat: bool,
+    is_muted: bool,
 }
 
 impl BasicChat {
@@ -129,21 +143,24 @@ impl BasicChat {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
             None => None,
         };
-
         let color = color_int_to_hex_string(chat.get_color(context).await?);
-        let can_send = chat.can_send(context).await?;
-
+       
         Ok(BasicChat {
             id: chat_id,
             name: chat.name.clone(),
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
+            archived: chat.get_visibility() == chat::ChatVisibility::Archived,
             chat_type: chat
                 .get_type()
                 .to_u32()
-                .ok_or_else(|| anyhow!("unknown chat type id"))?,
+                .ok_or_else(|| anyhow!("unknown chat type id"))?, // TODO get rid of this unwrap?
+            is_unpromoted: chat.is_unpromoted(),
+            is_self_talk: chat.is_self_talk(),
             color,
-            can_send,
+            is_contact_request: chat.is_contact_request(),
+            is_device_chat: chat.is_device_talk(),
+            is_muted: chat.is_muted(),
         })
     }
 }
