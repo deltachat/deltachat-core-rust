@@ -29,6 +29,8 @@
   - `getDraft()`
   - `miscSendMsg()`
   - `miscSetDraft()`
+  - `maybeNetwork()`
+  - `getConnectivity()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 - jsonrpc: add `webxdc_info`, `parent_id` and `download_state` property to `Message` #3588, #3590
