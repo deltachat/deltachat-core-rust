@@ -197,14 +197,6 @@ pub(crate) async fn receive_imf_inner(
     .await
     .context("add_parts error")?;
 
-    warn!(
-        context,
-        "{:?}, is trash: {:?}, special: {:?}",
-        received_msg,
-        received_msg.chat_id.is_trash(),
-        received_msg.chat_id.is_special()
-    );
-
     if !from_id.is_special() {
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
     }
@@ -255,18 +247,13 @@ pub(crate) async fn receive_imf_inner(
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
         // protect against users which falsely sent status updates because they
         // didn't yet receive the group-leave message
-        if is_contact_in_chat(context, chat_id, from_id).await? || from_id == ContactId::SELF {
+        if is_contact_in_chat(context, chat_id, from_id).await? {
             if let Err(err) = context
                 .receive_status_update(from_id, insert_msg_id, status_update)
                 .await
             {
                 warn!(context, "receive_imf cannot update status: {}", err);
             }
-        } else {
-            warn!(
-                context,
-                "not accepting status update because contact is not in group"
-            );
         };
     }
 
@@ -679,7 +666,6 @@ async fn add_parts(
                     .await
                     .log_err(context, "Failed to get (new) chat for contact")
                 {
-                    info!(context, "retrieved (new) chat for new contact");
                     chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
                 }
@@ -787,7 +773,6 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                info!(context, "here");
                 let to_contact = Contact::load_from_db(context, to_id).await?;
                 if let Some(list_id) = to_contact.param.get(Param::ListId) {
                     if let Some((id, _, blocked)) =
@@ -851,11 +836,10 @@ async fn add_parts(
         info!(context, "Existing non-decipherable message. (TRASH)");
     }
 
-    // !ip!
     if mime_parser.webxdc_status_update.is_some() && mime_parser.parts.len() == 1 {
         if let Some(part) = mime_parser.parts.first() {
             if part.typ == Viewtype::Text && part.msg.is_empty() {
-                //chat_id = Some(DC_CHAT_ID_TRASH);
+                chat_id = Some(DC_CHAT_ID_TRASH);
                 info!(context, "Message is a status update only (TRASH)");
             }
         }
