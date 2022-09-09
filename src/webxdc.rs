@@ -747,8 +747,8 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use crate::chat::{
-        add_contact_to_chat, create_broadcast_list, create_group_chat, forward_msgs, resend_msgs,
-        send_msg, send_text_msg, ChatId, ProtectionStatus,
+        add_contact_to_chat, create_broadcast_list, create_group_chat, forward_msgs,
+        remove_contact_from_chat, resend_msgs, send_msg, send_text_msg, ChatId, ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
@@ -2321,6 +2321,56 @@ sth_for_the = "future""#
             Some("user added text".to_string())
         );
 
+        Ok(())
+    }
+
+    async fn helper_send_receive_status_update(
+        bob: &TestContext,
+        alice: &TestContext,
+        bob_instance: &Message,
+        alice_instance: &Message,
+    ) -> Result<String> {
+        bob.send_webxdc_status_update(
+            bob_instance.id,
+            r#"{"payload":7,"info": "i","summary":"s"}"#,
+            "",
+        )
+        .await?;
+        bob.flush_status_updates().await?;
+        let msg = bob.pop_sent_msg().await;
+        alice.recv_msg(&msg).await;
+        alice
+            .get_webxdc_status_updates(alice_instance.id, StatusUpdateSerial(0))
+            .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_reject_updates_from_non_groupmembers() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let contact_bob = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        add_contact_to_chat(&alice, chat_id, contact_bob).await?;
+        let instance = send_webxdc_instance(&alice, chat_id).await?;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+        let bob_instance = bob.get_last_msg().await;
+        Chat::load_from_db(&bob, bob_instance.chat_id).await?.id.accept(&bob).await?;
+
+        let status =
+            helper_send_receive_status_update(&bob, &alice, &bob_instance, &instance).await?;
+        assert_eq!(
+            status,
+            r#"[{"payload":7,"info":"i","summary":"s","serial":1,"max_serial":1}]"#
+        );
+
+        remove_contact_from_chat(&alice, chat_id, contact_bob).await?;
+        let status =
+            helper_send_receive_status_update(&bob, &alice, &bob_instance, &instance).await?;
+
+        assert_eq!(
+            status,
+            r#"[{"payload":7,"info":"i","summary":"s","serial":1,"max_serial":1}]"#
+        );
         Ok(())
     }
 }
