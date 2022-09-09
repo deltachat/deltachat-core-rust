@@ -833,7 +833,7 @@ impl CommandApi {
     // ---------------------------------------------
 
     /// Indicate that the network likely has come back.
-    /// or just that the network connditions might have changed
+    /// or just that the network conditions might have changed
     async fn maybe_network(&self) -> Result<()> {
         self.accounts.read().await.maybe_network().await;
         Ok(())
