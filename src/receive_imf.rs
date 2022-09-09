@@ -10,7 +10,7 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::chat::{self, is_contact_in_chat, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact;
@@ -245,14 +245,12 @@ pub(crate) async fn receive_imf_inner(
     }
 
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
-        if is_contact_in_chat(context, chat_id, from_id).await? {
-            if let Err(err) = context
-                .receive_status_update(from_id, insert_msg_id, status_update)
-                .await
-            {
-                warn!(context, "receive_imf cannot update status: {}", err);
-            }
-        };
+        if let Err(err) = context
+            .receive_status_update(from_id, insert_msg_id, status_update)
+            .await
+        {
+            warn!(context, "receive_imf cannot update status: {}", err);
+        }
     }
 
     if let Some(avatar_action) = &mime_parser.user_avatar {
