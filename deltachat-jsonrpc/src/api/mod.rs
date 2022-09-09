@@ -440,7 +440,7 @@ impl CommandApi {
     ///     If not set, the Setup-Contact protocol is offered in the QR code.
     ///     See https://countermitm.readthedocs.io/en/latest/new.html
     ///     for details about both protocols.
-    /// 
+    ///
     /// return format: `[code, svg]`
     // TODO fix doc comment after adding dc_join_securejoin
     async fn get_chat_securejoin_qr_code_svg(
