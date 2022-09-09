@@ -2354,7 +2354,11 @@ sth_for_the = "future""#
         let instance = send_webxdc_instance(&alice, chat_id).await?;
         bob.recv_msg(&alice.pop_sent_msg().await).await;
         let bob_instance = bob.get_last_msg().await;
-        Chat::load_from_db(&bob, bob_instance.chat_id).await?.id.accept(&bob).await?;
+        Chat::load_from_db(&bob, bob_instance.chat_id)
+            .await?
+            .id
+            .accept(&bob)
+            .await?;
 
         let status =
             helper_send_receive_status_update(&bob, &alice, &bob_instance, &instance).await?;
