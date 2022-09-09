@@ -355,7 +355,7 @@ export class RawClient {
   /**
    * Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).
    *
-   * This is availible as a standalone function outside of fullchat, because it might be needed jsut for notification logic
+   * This is available as a standalone function outside of fullchat, because it might be only needed for notification
    */
   public isChatMuted(accountId: T.U32, chatId: T.U32): Promise<boolean> {
     return (this._transport.request('is_chat_muted', [accountId, chatId] as RPC.Params)) as Promise<boolean>;

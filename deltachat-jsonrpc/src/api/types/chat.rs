@@ -144,7 +144,7 @@ impl BasicChat {
             None => None,
         };
         let color = color_int_to_hex_string(chat.get_color(context).await?);
-       
+
         Ok(BasicChat {
             id: chat_id,
             name: chat.name.clone(),
