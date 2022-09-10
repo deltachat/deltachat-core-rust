@@ -753,6 +753,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
+    use crate::message;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
 
@@ -2375,6 +2376,20 @@ sth_for_the = "future""#
             status,
             r#"[{"payload":7,"info":"i","summary":"s","serial":1,"max_serial":1}]"#
         );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_webxdc_delete_event() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&alice, chat_id).await?;
+        //let msg_id = alice.pop_sent_msg().await;
+        message::delete_msgs(&alice, &[instance.id]).await?;
+        alice
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::WebXdInstanceDeleted { .. }))
+            .await;
         Ok(())
     }
 }
