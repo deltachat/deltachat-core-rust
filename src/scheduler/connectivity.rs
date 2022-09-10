@@ -476,13 +476,13 @@ impl Context {
                                 info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
+                            let messages = stock_str::messages(self).await;
                             let part_of_total_used = stock_str::part_of_total_used(
                                     self,
                                     resource.usage.to_string(),
                                     resource.limit.to_string()
                                 )
                                 .await;
-                            let messages = stock_str::messages(self).await;
                             ret += &match &resource.name {
                                 Atom(resource_name) => {
                                     format!(
