@@ -2384,7 +2384,6 @@ sth_for_the = "future""#
         let alice = TestContext::new_alice().await;
         let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foo").await?;
         let instance = send_webxdc_instance(&alice, chat_id).await?;
-        //let msg_id = alice.pop_sent_msg().await;
         message::delete_msgs(&alice, &[instance.id]).await?;
         alice
             .evtracker
