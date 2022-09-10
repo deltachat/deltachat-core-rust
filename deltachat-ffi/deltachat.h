@@ -5724,7 +5724,15 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 (int) msg_id
  * @param data2 (int) status_update_serial - must not be used by UI implementations.
  */
-#define DC_EVENT_WEBXDC_STATUS_UPDATE                2120
+#define DC_EVENT_WEBXDC_STATUS_UPDATE             2120
+
+/**
+ * Message deleted which contained a webxdc instance.
+ *
+ * @param data1 (int) msg_id
+ */
+
+#define DC_EVENT_WEBXDC_INSTANCE_DELETED          2120
 
 
 /**
