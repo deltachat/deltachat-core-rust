@@ -390,7 +390,8 @@ impl Context {
         // =============================================================================================
 
         let watched_folders = get_watched_folder_configs(self).await?;
-        ret += &format!("<h3>{}</h3><ul>", stock_str::incoming_messages(self).await);
+        let incoming_messages = stock_str::incoming_messages(self).await;
+        ret += &format!("<h3>{}</h3><ul>", incoming_messages);
         for (folder, state) in &folders_states {
             let mut folder_added = false;
 
@@ -432,9 +433,10 @@ impl Context {
         //                                Your last message was sent successfully
         // =============================================================================================
 
+        let outgoing_messages = stock_str::outgoing_messages(self).await;
         ret += &format!(
             "<h3>{}</h3><ul><li>",
-            stock_str::outgoing_messages(self).await
+            outgoing_messages
         );
         let detailed = smtp.get_detailed().await;
         ret += &*detailed.to_icon();
@@ -450,9 +452,10 @@ impl Context {
         // =============================================================================================
 
         let domain = tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
+        let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
         ret += &format!(
             "<h3>{}</h3><ul>",
-            stock_str::storage_on_domain(self, domain).await
+            storage_on_domain
         );
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
@@ -473,29 +476,26 @@ impl Context {
                                 info!(self, "connectivity: root name hidden: \"{}\"", root_name);
                             }
 
+                            let part_of_total_used = stock_str::part_of_total_used(
+                                    self,
+                                    resource.usage.to_string(),
+                                    resource.limit.to_string()
+                                )
+                                .await;
+                            let messages = stock_str::messages(self).await;
                             ret += &match &resource.name {
                                 Atom(resource_name) => {
                                     format!(
                                         "<b>{}:</b> {}",
                                         &*escaper::encode_minimal(resource_name),
-                                        stock_str::part_of_total_used(
-                                            self,
-                                            resource.usage.to_string(),
-                                            resource.limit.to_string()
-                                        )
-                                        .await,
+                                        part_of_total_used
                                     )
                                 }
                                 Message => {
                                     format!(
                                         "<b>{}:</b> {}",
-                                        stock_str::messages(self).await,
-                                        stock_str::part_of_total_used(
-                                            self,
-                                            resource.usage.to_string(),
-                                            resource.limit.to_string()
-                                        )
-                                        .await,
+                                        part_of_total_used,
+                                        messages
                                     )
                                 }
                                 Storage => {
@@ -538,7 +538,8 @@ impl Context {
                 self.schedule_quota_update().await?;
             }
         } else {
-            ret += &format!("<li>{}</li>", stock_str::not_connected(self).await);
+            let not_connected = stock_str::not_connected(self).await;
+            ret += &format!("<li>{}</li>", not_connected);
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";
