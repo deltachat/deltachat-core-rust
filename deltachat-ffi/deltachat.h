@@ -5732,7 +5732,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 (int) msg_id
  */
 
-#define DC_EVENT_WEBXDC_INSTANCE_DELETED          2120
+#define DC_EVENT_WEBXDC_INSTANCE_DELETED          2121
 
 
 /**

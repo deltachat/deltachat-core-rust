@@ -303,7 +303,7 @@ pub enum EventType {
         status_update_serial: StatusUpdateSerial,
     },
 
-    /// Inform that an instance cointaining a webxdc has been deleted
+    /// Inform that a message containing a webxdc instance has been deleted
     WebXdInstanceDeleted {
         msg_id: MsgId,
     },
