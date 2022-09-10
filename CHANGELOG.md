@@ -23,6 +23,7 @@
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 - jsonrpc: add `webxdc_info` property to `Message` #3588
+- python: move `get_dc_event_name()` from `deltachat` to `deltachat.events` #3564
 
 ### Changes
 - order contact lists by "last seen";
