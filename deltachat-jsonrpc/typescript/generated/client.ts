@@ -476,6 +476,15 @@ export class RawClient {
   }
 
   /**
+   * Get encryption info for a contact.
+   * Get a multi-line encryption info, containing your fingerprint and the
+   * fingerprint of the contact, used e.g. to compare the fingerprints for a simple out-of-band verification.
+   */
+  public getContactEncryptionInfo(accountId: T.U32, contactId: T.U32): Promise<string> {
+    return (this._transport.request('get_contact_encryption_info', [accountId, contactId] as RPC.Params)) as Promise<string>;
+  }
+
+  /**
    * Returns all message IDs of the given types in a chat.
    * Typically used to show a gallery.
    *
@@ -516,6 +525,21 @@ export class RawClient {
    */
   public getConnectivity(accountId: T.U32): Promise<T.U32> {
     return (this._transport.request('get_connectivity', [accountId] as RPC.Params)) as Promise<T.U32>;
+  }
+
+  /**
+   * Get an overview of the current connectivity, and possibly more statistics.
+   * Meant to give the user more insight about the current status than
+   * the basic connectivity info returned by get_connectivity(); show this
+   * e.g., if the user taps on said basic connectivity info.
+   *
+   * If this page changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+   *
+   * This comes as an HTML from the core so that we can easily improve it
+   * and the improvement instantly reaches all UIs.
+   */
+  public getConnectivityHtml(accountId: T.U32): Promise<string> {
+    return (this._transport.request('get_connectivity_html', [accountId] as RPC.Params)) as Promise<string>;
   }
 
 
