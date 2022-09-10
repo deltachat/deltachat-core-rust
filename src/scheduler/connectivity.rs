@@ -434,10 +434,7 @@ impl Context {
         // =============================================================================================
 
         let outgoing_messages = stock_str::outgoing_messages(self).await;
-        ret += &format!(
-            "<h3>{}</h3><ul><li>",
-            outgoing_messages
-        );
+        ret += &format!("<h3>{}</h3><ul><li>", outgoing_messages);
         let detailed = smtp.get_detailed().await;
         ret += &*detailed.to_icon();
         ret += " ";
@@ -453,10 +450,7 @@ impl Context {
 
         let domain = tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
-        ret += &format!(
-            "<h3>{}</h3><ul>",
-            storage_on_domain
-        );
+        ret += &format!("<h3>{}</h3><ul>", storage_on_domain);
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
             match &quota.recent {
@@ -478,11 +472,11 @@ impl Context {
 
                             let messages = stock_str::messages(self).await;
                             let part_of_total_used = stock_str::part_of_total_used(
-                                    self,
-                                    resource.usage.to_string(),
-                                    resource.limit.to_string()
-                                )
-                                .await;
+                                self,
+                                resource.usage.to_string(),
+                                resource.limit.to_string(),
+                            )
+                            .await;
                             ret += &match &resource.name {
                                 Atom(resource_name) => {
                                     format!(
@@ -492,11 +486,7 @@ impl Context {
                                     )
                                 }
                                 Message => {
-                                    format!(
-                                        "<b>{}:</b> {}",
-                                        part_of_total_used,
-                                        messages
-                                    )
+                                    format!("<b>{}:</b> {}", part_of_total_used, messages)
                                 }
                                 Storage => {
                                     // do not use a special title needed for "Storage":
