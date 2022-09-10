@@ -11,6 +11,7 @@
   and `dc_event_emitter_unref()` should be used instead of
   `dc_accounts_event_emitter_unref`.
 - add `dc_contact_was_seen_recently()` #3560
+- Fix get_connectivity_html and get_encrinfo futures not being Send. See rust-lang/rust#101650 for more information
 - jsonrpc: add functions: #3586, #3587, #3590
   - `deleteChat()`
   - `getChatEncryptionInfo()`
@@ -31,6 +32,8 @@
   - `miscSetDraft()`
   - `maybeNetwork()`
   - `getConnectivity()`
+  - `getContactEncryptionInfo()`
+  - `getConnectivityHtml()`
 - jsonrpc: add `is_broadcast` property to `ChatListItemFetchResult` #3584
 - jsonrpc: add `was_seen_recently` property to `ChatListItemFetchResult`, `FullChat` and `Contact` #3584
 - jsonrpc: add `webxdc_info` property to `Message` #3588
