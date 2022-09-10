@@ -793,6 +793,19 @@ impl CommandApi {
         }
         Ok(contacts)
     }
+
+    /// Get encryption info for a contact.
+    /// Get a multi-line encryption info, containing your fingerprint and the
+    /// fingerprint of the contact, used e.g. to compare the fingerprints for a simple out-of-band verification.
+    async fn get_contact_encryption_info(
+        &self,
+        account_id: u32,
+        contact_id: u32,
+    ) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        Contact::get_encrinfo(&ctx, ContactId::new(contact_id)).await
+    }
+
     // ---------------------------------------------
     //                   chat
     // ---------------------------------------------
@@ -856,6 +869,20 @@ impl CommandApi {
     async fn get_connectivity(&self, account_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         Ok(ctx.get_connectivity().await as u32)
+    }
+
+    /// Get an overview of the current connectivity, and possibly more statistics.
+    /// Meant to give the user more insight about the current status than
+    /// the basic connectivity info returned by get_connectivity(); show this
+    /// e.g., if the user taps on said basic connectivity info.
+    ///
+    /// If this page changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
+    ///
+    /// This comes as an HTML from the core so that we can easily improve it
+    /// and the improvement instantly reaches all UIs.
+    async fn get_connectivity_html(&self, account_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.get_connectivity_html().await
     }
 
     // ---------------------------------------------
