@@ -2,7 +2,7 @@ import sys
 
 from pkg_resources import DistributionNotFound, get_distribution
 
-from . import capi, const, events, hookspec  # noqa
+from . import capi, events, hookspec  # noqa
 from .account import Account, get_core_info  # noqa
 from .capi import ffi  # noqa
 from .chat import Chat  # noqa
@@ -15,14 +15,6 @@ try:
 except DistributionNotFound:
     # package is not installed
     __version__ = "0.0.0.dev0-unknown"
-
-
-def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
-    if not _DC_EVENTNAME_MAP:
-        for name in dir(const):
-            if name.startswith("DC_EVENT_"):
-                _DC_EVENTNAME_MAP[getattr(const, name)] = name
-    return _DC_EVENTNAME_MAP[integer]
 
 
 def register_global_plugin(plugin):

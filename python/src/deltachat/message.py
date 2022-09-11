@@ -507,6 +507,8 @@ def parse_system_add_remove(text):
 
     returns a (action, affected, actor) triple"""
 
+    # You removed member a@b.
+    # You added member a@b.
     # Member Me (x@y) removed by a@b.
     # Member x@y added by a@b
     # Member With space (tmp1@x.org) removed by tmp2@x.org.
@@ -518,6 +520,10 @@ def parse_system_add_remove(text):
     if m:
         affected, action, actor = m.groups()
         return action, extract_addr(affected), extract_addr(actor)
+    m = re.match(r"you (removed|added) member (.+)", text)
+    if m:
+        action, affected = m.groups()
+        return action, extract_addr(affected), "me"
     if text.startswith("group left by "):
         addr = extract_addr(text[13:])
         if addr:

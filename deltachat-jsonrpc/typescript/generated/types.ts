@@ -16,8 +16,41 @@ export type ChatListItemFetchResult=(({"type":"ChatListItem";}&{"id":U32;"name":
  * contact id if this is a dm chat (for view profile entry in context menu)
  */
 "dmChatContact":(U32|null);"wasSeenRecently":boolean;})|{"type":"ArchiveLink";}|({"type":"Error";}&{"id":U32;"error":string;}));
-export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;"wasSeenRecently":boolean;};
+export type Contact={"address":string;"color":string;"authName":string;"status":string;"displayName":string;"id":U32;"name":string;"profileImage":(string|null);"nameAndAddr":string;"isBlocked":boolean;"isVerified":boolean;
+/**
+ * the contact's last seen timestamp
+ */
+"lastSeen":I64;"wasSeenRecently":boolean;};
 export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;"wasSeenRecently":boolean;};
+
+/**
+ * cheaper version of fullchat, omits:
+ * - contacts
+ * - contact_ids
+ * - fresh_message_counter
+ * - ephemeral_timer
+ * - self_in_group
+ * - was_seen_recently
+ * - can_send
+ * 
+ * used when you only need the basic metadata of a chat like type, name, profile picture
+ */
+export type BasicChat=
+/**
+ * cheaper version of fullchat, omits:
+ * - contacts
+ * - contact_ids
+ * - fresh_message_counter
+ * - ephemeral_timer
+ * - self_in_group
+ * - was_seen_recently
+ * - can_send
+ * 
+ * used when you only need the basic metadata of a chat like type, name, profile picture
+ */
+{"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"color":string;"isContactRequest":boolean;"isDeviceChat":boolean;"isMuted":boolean;};
+export type MuteDuration=("NotMuted"|"Forever"|{"Until":I64;});
+export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;}));
 export type Viewtype=("Unknown"|
 /**
  * Text message.

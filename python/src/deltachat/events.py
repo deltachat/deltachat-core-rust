@@ -8,12 +8,19 @@ import traceback
 from contextlib import contextmanager
 from queue import Empty, Queue
 
-import deltachat
-
+from . import const
 from .capi import ffi, lib
 from .cutil import from_optional_dc_charpointer
 from .hookspec import account_hookimpl
 from .message import map_system_message
+
+
+def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
+    if not _DC_EVENTNAME_MAP:
+        for name in dir(const):
+            if name.startswith("DC_EVENT_"):
+                _DC_EVENTNAME_MAP[getattr(const, name)] = name
+    return _DC_EVENTNAME_MAP[integer]
 
 
 class FFIEvent:
@@ -239,7 +246,7 @@ class EventThread(threading.Thread):
             data1 = lib.dc_event_get_data1_int(event)
             # the following code relates to the deltachat/_build.py's helper
             # function which provides us signature info of an event call
-            evt_name = deltachat.get_dc_event_name(evt)
+            evt_name = get_dc_event_name(evt)
             if lib.dc_event_has_string_data(evt):
                 data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
             else:
