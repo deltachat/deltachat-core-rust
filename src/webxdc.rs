@@ -414,15 +414,12 @@ impl Context {
     }
 
     /// Attempts to send queued webxdc status updates.
-    ///
-    /// Returns true if there are more status updates to send, but rate limiter does not
-    /// allow to send them. Returns false if there are no more status updates to send.
-    pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
+    pub(crate) async fn flush_status_updates(&self) -> Result<()> {
         loop {
             let (instance_id, first_serial, last_serial, descr) =
                 match self.pop_smtp_status_update().await? {
                     Some(res) => res,
-                    None => return Ok(false),
+                    None => return Ok(()),
                 };
 
             if let Some(json) = self
