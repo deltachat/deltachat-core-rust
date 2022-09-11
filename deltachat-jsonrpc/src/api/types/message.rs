@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
+use deltachat::download;
 use deltachat::message::Message;
 use deltachat::message::MsgId;
 use deltachat::message::Viewtype;
@@ -9,6 +10,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
+use super::color_int_to_hex_string;
 use super::contact::ContactObject;
 use super::webxdc::WebxdcMessageInfo;
 
@@ -18,8 +20,9 @@ pub struct MessageObject {
     id: u32,
     chat_id: u32,
     from_id: u32,
-    quoted_text: Option<String>,
-    quoted_message_id: Option<u32>,
+    quote: Option<MessageQuote>,
+    parent_id: Option<u32>,
+
     text: Option<String>,
     has_location: bool,
     has_html: bool,
@@ -56,17 +59,36 @@ pub struct MessageObject {
     file_name: Option<String>,
 
     webxdc_info: Option<WebxdcMessageInfo>,
+
+    download_state: DownloadState,
+}
+
+#[derive(Serialize, TypeDef)]
+#[serde(tag = "kind")]
+enum MessageQuote {
+    JustText {
+        text: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    WithMessage {
+        text: String,
+        message_id: u32,
+        author_display_name: String,
+        author_display_color: String,
+        override_sender_name: Option<String>,
+        image: Option<String>,
+        is_forwarded: bool,
+    },
 }
 
 impl MessageObject {
     pub async fn from_message_id(context: &Context, message_id: u32) -> Result<Self> {
         let msg_id = MsgId::new(message_id);
-        let message = Message::load_from_db(context, msg_id).await?;
+        Self::from_msg_id(context, msg_id).await
+    }
 
-        let quoted_message_id = message
-            .quoted_message(context)
-            .await?
-            .map(|m| m.get_id().to_u32());
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
+        let message = Message::load_from_db(context, msg_id).await?;
 
         let sender_contact = Contact::load_from_db(context, message.get_from_id()).await?;
         let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
@@ -79,12 +101,45 @@ impl MessageObject {
             None
         };
 
+        let parent_id = message.parent(context).await?.map(|m| m.get_id().to_u32());
+
+        let download_state = message.download_state().into();
+
+        let quote = if let Some(quoted_text) = message.quoted_text() {
+            match message.quoted_message(context).await? {
+                Some(quote) => {
+                    let quote_author = Contact::load_from_db(context, quote.get_from_id()).await?;
+                    Some(MessageQuote::WithMessage {
+                        text: quoted_text,
+                        message_id: quote.get_id().to_u32(),
+                        author_display_name: quote_author.get_display_name().to_owned(),
+                        author_display_color: color_int_to_hex_string(quote_author.get_color()),
+                        override_sender_name: quote.get_override_sender_name(),
+                        image: if quote.get_viewtype() == Viewtype::Image
+                            || quote.get_viewtype() == Viewtype::Gif
+                        {
+                            match quote.get_file(context) {
+                                Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+                                None => None,
+                            }
+                        } else {
+                            None
+                        },
+                        is_forwarded: quote.is_forwarded(),
+                    })
+                }
+                None => Some(MessageQuote::JustText { text: quoted_text }),
+            }
+        } else {
+            None
+        };
+
         Ok(MessageObject {
-            id: message_id,
+            id: msg_id.to_u32(),
             chat_id: message.get_chat_id().to_u32(),
             from_id: message.get_from_id().to_u32(),
-            quoted_text: message.quoted_text(),
-            quoted_message_id,
+            quote,
+            parent_id,
             text: message.get_text(),
             has_location: message.has_location(),
             has_html: message.has_html(),
@@ -131,6 +186,8 @@ impl MessageObject {
             file_bytes,
             file_name: message.get_filename(),
             webxdc_info,
+
+            download_state,
         })
     }
 }
@@ -207,6 +264,25 @@ impl From<MessageViewtype> for Viewtype {
             MessageViewtype::File => Viewtype::File,
             MessageViewtype::VideochatInvitation => Viewtype::VideochatInvitation,
             MessageViewtype::Webxdc => Viewtype::Webxdc,
+        }
+    }
+}
+
+#[derive(Serialize, TypeDef)]
+pub enum DownloadState {
+    Done,
+    Available,
+    Failure,
+    InProgress,
+}
+
+impl From<download::DownloadState> for DownloadState {
+    fn from(state: download::DownloadState) -> Self {
+        match state {
+            download::DownloadState::Done => DownloadState::Done,
+            download::DownloadState::Available => DownloadState::Available,
+            download::DownloadState::Failure => DownloadState::Failure,
+            download::DownloadState::InProgress => DownloadState::InProgress,
         }
     }
 }
