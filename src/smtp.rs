@@ -501,10 +501,10 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     let ratelimited = if context.ratelimit.read().await.can_send() {
         // add status updates and sync messages to end of sending queue
 
-        let update_needed = get_busy_webxdc_instances();
+        let update_needed = get_busy_webxdc_instances(&context.sql).await?;
         context.flush_status_updates().await?;
-        let update_needed_after_sending = get_busy_webxdc_instances();
-    
+        let update_needed_after_sending = get_busy_webxdc_instances(&context.sql).await?;
+
         for msg_id in update_needed.difference(&update_needed_after_sending) {
             context.emit_event(EventType::WebxdcUpToDate { msg_id: *msg_id })
         }
