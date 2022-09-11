@@ -504,6 +504,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::ConnectivityChanged => 2100,
         EventType::SelfavatarChanged => 2110,
         EventType::WebxdcStatusUpdate { .. } => 2120,
+        EventType::WebxdcInstanceDeleted { .. } => 2121,
     }
 }
 
@@ -550,6 +551,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
             contact_id.to_u32() as libc::c_int
         }
         EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
     }
 }
 
@@ -581,6 +583,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ImexFileWritten(_)
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
+        | EventType::WebxdcInstanceDeleted { .. }
         | EventType::SelfavatarChanged => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -637,6 +640,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
+        | EventType::WebxdcInstanceDeleted { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {

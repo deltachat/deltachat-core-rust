@@ -302,4 +302,9 @@ pub enum EventType {
         msg_id: MsgId,
         status_update_serial: StatusUpdateSerial,
     },
+
+    /// Inform that a message containing a webxdc instance has been deleted
+    WebxdcInstanceDeleted {
+        msg_id: MsgId,
+    },
 }
