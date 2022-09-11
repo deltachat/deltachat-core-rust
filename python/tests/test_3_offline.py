@@ -301,7 +301,7 @@ class TestOfflineChat:
         assert d["draft"] == "" if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
-        ac1.set_stock_translation(const.DC_STR_MSGGRPNAME, "abc %1$s xyz %2$s")
+        ac1.set_stock_translation(const.DC_STR_GROUP_NAME_CHANGED_BY_YOU, "abc %1$s xyz %2$s")
         ac1._evtracker.consume_events()
         with pytest.raises(ValueError):
             ac1.set_stock_translation(const.DC_STR_FILE, "xyz %1$s")
@@ -317,7 +317,7 @@ class TestOfflineChat:
         chat.send_text("Now we have a group for homework")
         assert chat.is_promoted()
         chat.set_name("Homework")
-        assert chat.get_messages()[-1].text == "abc homework xyz Homework by me."
+        assert chat.get_messages()[-1].text == "abc homework xyz Homework"
 
     @pytest.mark.parametrize("verified", [True, False])
     def test_group_chat_qr(self, acfactory, ac1, verified):
