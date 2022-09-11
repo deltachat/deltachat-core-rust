@@ -167,9 +167,6 @@ pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// String that indicates that something is left out or truncated.
 pub const DC_ELLIPSIS: &str = "[...]";
-
-/// If text is under this limit it skips the check
-pub const DC_DESIRED_TEXT_LINES_THRESHOLD: usize = 400;
 // how many lines desktop displays when fullscreen
 pub const DC_DESIRED_TEXT_LINES: usize = 38;
 // how many chars desktop displays per line

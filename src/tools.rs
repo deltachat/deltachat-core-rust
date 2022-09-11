@@ -51,8 +51,14 @@ pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
 
 /// Shortens a string to a specified line count and adds "[...]" to the
 /// end of the shortened string.
+///
+/// returns tuple with the String and a boolean whether is was truncated
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn truncate_by_lines(buf: &str, max_lines: usize, max_line_len: usize) -> Cow<str> {
+pub(crate) fn truncate_by_lines(
+    buf: String,
+    max_lines: usize,
+    max_line_len: usize,
+) -> (String, bool) {
     let mut lines = 0;
     let mut line_chars = 0;
     let mut break_point: Option<usize> = None;
@@ -63,8 +69,8 @@ pub(crate) fn truncate_by_lines(buf: &str, max_lines: usize, max_line_len: usize
             lines += 1;
         } else {
             line_chars += 1;
-            if line_chars >= max_line_len {
-                line_chars = 0;
+            if line_chars > max_line_len {
+                line_chars = 1;
                 lines += 1;
             }
         }
@@ -75,19 +81,19 @@ pub(crate) fn truncate_by_lines(buf: &str, max_lines: usize, max_line_len: usize
     }
 
     if let Some(end_pos) = break_point {
-        if end_pos == (buf.len() - 1) {
+        if end_pos.saturating_add(1) == buf.len() {
             // text is unchanged
-            return Cow::Borrowed(buf);
+            return (buf, false);
         }
         // text has to many lines and needs to be truncated
         if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..=index], DC_ELLIPSIS))
+            (format!("{}{}", &buf[..=index], DC_ELLIPSIS), true)
         } else {
-            Cow::Owned(format!("{}{}", &buf[..end_pos], DC_ELLIPSIS))
+            (format!("{}{}", &buf[..end_pos], DC_ELLIPSIS), true)
         }
     } else {
         // text is unchanged
-        Cow::Borrowed(buf)
+        (buf, false)
     }
 }
 
@@ -791,52 +797,70 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
 
         #[test]
         fn test_just_text() {
-            let s = "this is a little test string";
-            assert_eq!(truncate_by_lines(s, 4, 6), "this is a little test [...]");
+            let s = "this is a little test string".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 6),
+                ("this is a little test [...]".to_string(), true)
+            );
         }
 
         #[test]
         fn test_with_linebreaks() {
-            let s = "this\n is\n a little test string";
-            assert_eq!(truncate_by_lines(s, 4, 6), "this\n is\n a little [...]");
+            let s = "this\n is\n a little test string".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 6),
+                ("this\n is\n a little [...]".to_string(), true)
+            );
         }
 
         #[test]
         fn test_only_linebreaks() {
-            let s = "\n\n\n\n\n\n\n";
-            assert_eq!(truncate_by_lines(s, 4, 5), "\n\n\n[...]");
+            let s = "\n\n\n\n\n\n\n".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 5),
+                ("\n\n\n[...]".to_string(), true)
+            );
         }
 
         #[test]
         fn limit_hits_end() {
-            let s = "hello\n world !";
-            assert_eq!(truncate_by_lines(s, 2, 8), "hello\n world !");
+            let s = "hello\n world !".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 2, 8),
+                ("hello\n world !".to_string(), true)
+            );
         }
 
         #[test]
         fn test_edge() {
-            assert_eq!(truncate_by_lines("", 2, 4), "");
-
-            assert_eq!(truncate_by_lines("\n  hello \n world", 2, 4), "\n  [...]");
             assert_eq!(
-                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1, 2),
-                "𐠈[...]"
+                truncate_by_lines("".to_string(), 2, 4),
+                ("".to_string(), false)
+            );
+
+            assert_eq!(
+                truncate_by_lines("\n  hello \n world".to_string(), 2, 4),
+                ("\n  [...]".to_string(), true)
             );
             assert_eq!(
-                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1, 0),
-                "[...]"
+                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 2),
+                ("𐠈[...]".to_string(), true)
+            );
+            assert_eq!(
+                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 0),
+                ("[...]".to_string(), true)
             );
 
             // 9 characters, so no truncation
             assert_eq!(
-                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠", 1, 12),
-                "𑒀ὐ￠🜀\u{1e01b}A a🟠",
+                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠".to_string(), 1, 12),
+                ("𑒀ὐ￠🜀\u{1e01b}A a🟠".to_string(), false),
             );
 
             // 12 characters, truncation
             assert_eq!(
-                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 1, 7),
-                "𑒀ὐ￠🜀\u{1e01b}A[...]",
+                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd".to_string(), 1, 7),
+                ("𑒀ὐ￠🜀\u{1e01b}A[...]".to_string(), true),
             );
         }
     }

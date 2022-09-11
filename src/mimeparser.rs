@@ -12,9 +12,7 @@ use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
-use crate::constants::{
-    DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINES_THRESHOLD, DC_DESIRED_TEXT_LINE_LEN,
-};
+use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
 use crate::decrypt::{create_decryption_info, try_decrypt};
@@ -1014,18 +1012,15 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        let simplified_txt =
-                            if simplified_txt.chars().count() > DC_DESIRED_TEXT_LINES_THRESHOLD {
-                                self.is_mime_modified = true;
-                                truncate_by_lines(
-                                    &*simplified_txt,
-                                    DC_DESIRED_TEXT_LINES,
-                                    DC_DESIRED_TEXT_LINE_LEN,
-                                )
-                                .to_string()
-                            } else {
-                                simplified_txt
-                            };
+                        // Truncate text if it has too many lines
+                        let (simplified_txt, was_truncated) = truncate_by_lines(
+                            simplified_txt,
+                            DC_DESIRED_TEXT_LINES,
+                            DC_DESIRED_TEXT_LINE_LEN,
+                        );
+                        if was_truncated {
+                            self.is_mime_modified = was_truncated;
+                        }
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part {
