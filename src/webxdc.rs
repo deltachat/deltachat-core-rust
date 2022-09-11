@@ -21,6 +21,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::sql::Sql;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
@@ -749,9 +750,12 @@ impl Message {
 }
 
 /// Returns a hashset of all webxdc instaces which still have updates to send
-pub(crate) fn get_busy_webxdc_instances() -> HashSet<MsgId> {
-    // TODO: add sql statement to find that out
-    unimplemented!()
+pub(crate) async fn get_busy_webxdc_instances(sql: &Sql) -> Result<HashSet<MsgId>> {
+    Ok(sql
+        .distinct("smtp_status_updates", "msg_id")
+        .await?
+        .into_iter()
+        .collect())
 }
 
 #[cfg(test)]
