@@ -53,7 +53,6 @@ pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
 /// end of the shortened string.
 ///
 /// returns tuple with the String and a boolean whether is was truncated
-#[allow(clippy::indexing_slicing)]
 pub(crate) fn truncate_by_lines(
     buf: String,
     max_lines: usize,
@@ -86,10 +85,24 @@ pub(crate) fn truncate_by_lines(
             return (buf, false);
         }
         // text has to many lines and needs to be truncated
-        if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
-            (format!("{}{}", &buf[..=index], DC_ELLIPSIS), true)
+        let text = {
+            if let Some(buffer) = buf.get(..end_pos) {
+                if let Some(index) = buffer.rfind(|c| c == ' ' || c == '\n') {
+                    buf.get(..=index)
+                } else {
+                    buf.get(..end_pos)
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(truncated_text) = text {
+            (format!("{}{}", truncated_text, DC_ELLIPSIS), true)
         } else {
-            (format!("{}{}", &buf[..end_pos], DC_ELLIPSIS), true)
+            // this case should not happen, only if code above broke with updates.
+            // to make it obvious we put an error message here, the true ensures there is still a button to open it in full
+            ("[truncation/preview of this message failed, this is a bug in the core of DeltaChat, please report it.\n you can still view the original message by opening the html version]".to_string(), true)
         }
     } else {
         // text is unchanged
