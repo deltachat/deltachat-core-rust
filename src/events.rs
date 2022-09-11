@@ -304,7 +304,7 @@ pub enum EventType {
     },
 
     /// Inform that a message containing a webxdc instance has been deleted
-    WebXdInstanceDeleted {
+    WebxdcInstanceDeleted {
         msg_id: MsgId,
     },
 }

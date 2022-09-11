@@ -2387,7 +2387,7 @@ sth_for_the = "future""#
         message::delete_msgs(&alice, &[instance.id]).await?;
         alice
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::WebXdInstanceDeleted { .. }))
+            .get_matching(|evt| matches!(evt, EventType::WebxdcInstanceDeleted { .. }))
             .await;
         Ok(())
     }
