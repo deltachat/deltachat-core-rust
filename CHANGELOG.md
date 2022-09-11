@@ -43,8 +43,6 @@
 - jsonrpc: add `last_seen` property to `Contact` #3590
 - breaking! jsonrpc: replace `Message.quoted_text` and `Message.quoted_message_id` with `Message.quote` #3590
 
-/todo add the rest
-
 ### Changes
 - order contact lists by "last seen";
   this affects `dc_get_chat_contacts()`, `dc_get_contacts()` and `dc_get_blocked_contacts()` #3562
