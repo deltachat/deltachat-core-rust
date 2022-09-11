@@ -22,6 +22,7 @@ use crate::mimefactory::MimeFactory;
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::sql;
+use crate::webxdc::get_busy_webxdc_instances;
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.
@@ -499,7 +500,15 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<()> {
 pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp) -> Result<()> {
     let ratelimited = if context.ratelimit.read().await.can_send() {
         // add status updates and sync messages to end of sending queue
+
+        let update_needed = get_busy_webxdc_instances();
         context.flush_status_updates().await?;
+        let update_needed_after_sending = get_busy_webxdc_instances();
+    
+        for msg_id in update_needed.difference(&update_needed_after_sending) {
+            context.emit_event(EventType::WebxdcUpToDate { msg_id: *msg_id })
+        }
+
         context.send_sync_msg().await?;
         false
     } else {

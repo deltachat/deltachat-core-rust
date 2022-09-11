@@ -307,4 +307,12 @@ pub enum EventType {
     WebxdcInstanceDeleted {
         msg_id: MsgId,
     },
+
+    WebxdcBusyUpdating {
+        msg_id: MsgId,
+    },
+
+    WebxdcUpToDate {
+        msg_id: MsgId,
+    },
 }

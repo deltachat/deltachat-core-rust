@@ -1,5 +1,6 @@
 //! # Handle webxdc messages.
 
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::Path;
 
@@ -377,6 +378,10 @@ impl Context {
             )
             .await?;
 
+        self.emit_event(EventType::WebxdcBusyUpdating {
+            msg_id: instance.id,
+        });
+
         if send_now {
             self.sql.insert(
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
@@ -390,7 +395,6 @@ impl Context {
     }
 
     /// Pops one record of queued webxdc status updates.
-    /// This function exists to make the sqlite statement testable.
     async fn pop_smtp_status_update(
         &self,
     ) -> Result<Option<(MsgId, StatusUpdateSerial, StatusUpdateSerial, String)>> {
@@ -742,6 +746,12 @@ impl Message {
             internet_access,
         })
     }
+}
+
+/// Returns a hashset of all webxdc instaces which still have updates to send
+pub(crate) fn get_busy_webxdc_instances() -> HashSet<MsgId> {
+    // TODO: add sql statement to find that out
+    unimplemented!()
 }
 
 #[cfg(test)]
