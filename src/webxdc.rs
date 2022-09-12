@@ -1,5 +1,6 @@
 //! # Handle webxdc messages.
 
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::Path;
 
@@ -20,6 +21,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::sql::Sql;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
@@ -379,6 +381,10 @@ impl Context {
             )
             .await?;
 
+        self.emit_event(EventType::WebxdcBusyUpdating {
+            msg_id: instance.id,
+        });
+
         if send_now {
             self.sql.insert(
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
@@ -392,7 +398,6 @@ impl Context {
     }
 
     /// Pops one record of queued webxdc status updates.
-    /// This function exists to make the sqlite statement testable.
     async fn pop_smtp_status_update(
         &self,
     ) -> Result<Option<(MsgId, StatusUpdateSerial, StatusUpdateSerial, String)>> {
@@ -416,12 +421,15 @@ impl Context {
     }
 
     /// Attempts to send queued webxdc status updates.
-    pub(crate) async fn flush_status_updates(&self) -> Result<()> {
+    ///
+    /// Returns true if there are more status updates to send, but rate limiter does not
+    /// allow to send them. Returns false if there are no more status updates to send.
+    pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
         loop {
             let (instance_id, first_serial, last_serial, descr) =
                 match self.pop_smtp_status_update().await? {
                     Some(res) => res,
-                    None => return Ok(()),
+                    None => return Ok(false),
                 };
 
             if let Some(json) = self
@@ -741,6 +749,15 @@ impl Message {
             internet_access,
         })
     }
+}
+
+/// Returns a hashset of all webxdc instaces which still have updates to send
+pub(crate) async fn get_busy_webxdc_instances(sql: &Sql) -> Result<HashSet<MsgId>> {
+    Ok(sql
+        .distinct("smtp_status_updates", "msg_id")
+        .await?
+        .into_iter()
+        .collect())
 }
 
 #[cfg(test)]

@@ -5837,9 +5837,23 @@ void dc_event_unref(dc_event_t* event);
  *
  * @param data1 (int) msg_id
  */
-
 #define DC_EVENT_WEBXDC_INSTANCE_DELETED          2121
 
+
+/**
+ * Webxdc has some updates that need to be sent
+ *
+ * @param data1 (int) msg_id
+ */
+#define DC_EVENT_WEBXDC_BUSY_UPDATING             2122
+
+
+/**
+ * Webxdc has finished sending updates
+ *
+ * @param data1 (int) msg_id
+ */
+#define DC_EVENT_WEBXDC_UP_TO_DATE                2123
 
 /**
  * @}

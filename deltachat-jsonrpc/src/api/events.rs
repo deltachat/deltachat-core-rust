@@ -281,6 +281,8 @@ pub enum JSONRPCEventType {
     WebxdcInstanceDeleted {
         msg_id: u32,
     },
+    WebxdcBusyUpdating,
+    WebxdcUpToDate,
 }
 
 impl From<EventType> for JSONRPCEventType {
@@ -381,6 +383,8 @@ impl From<EventType> for JSONRPCEventType {
             EventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
+            EventType::WebxdcBusyUpdating { .. } => WebxdcBusyUpdating,
+            EventType::WebxdcUpToDate { .. } => WebxdcUpToDate,
         }
     }
 }

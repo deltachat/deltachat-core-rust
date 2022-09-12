@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
+use rusqlite::types::FromSql;
 use rusqlite::{config::DbConfig, Connection, OpenFlags};
 use tokio::sync::RwLock;
 
@@ -361,6 +362,25 @@ impl Sql {
             conn.execute(query, params)?;
             Ok(conn.last_insert_rowid())
         })
+    }
+
+    /// Returns unique values of a `column` in `table`
+    pub async fn distinct<T: FromSql + Default>(
+        &self,
+        table: &str,
+        column: &str,
+    ) -> Result<Vec<T>> {
+        let conn = self.get_conn().await?;
+        let rows: Result<Vec<T>> = tokio::task::block_in_place(move || {
+            let mut stmt = conn.prepare(&format!("SELECT DISTINCT {column} FROM {table}"))?;
+            let rows = stmt
+                .query([])?
+                .mapped(|r| r.get(0))
+                .map(|a| a.unwrap_or_default())
+                .collect();
+            Ok(rows)
+        });
+        rows
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.
