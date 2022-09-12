@@ -2431,7 +2431,6 @@ sth_for_the = "future""#
 
         alice.flush_status_updates().await?;
 
-        println!("received event");
         alice
             .evtracker
             .get_matching(|evt| matches!(evt, EventType::WebxdcUpToDate { .. }))
