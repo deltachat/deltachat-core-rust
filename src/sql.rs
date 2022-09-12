@@ -372,7 +372,7 @@ impl Sql {
     ) -> Result<Vec<T>> {
         let conn = self.get_conn().await?;
         let rows: Result<Vec<T>> = tokio::task::block_in_place(move || {
-            let mut stmt = conn.prepare(&format!("SELECT DISTINCT {column} FROM {table}"))?;
+            let mut stmt = conn.prepare(&format!("SELECT DISTINCT {} FROM {}", column, table))?;
             let rows = stmt
                 .query([])?
                 .mapped(|r| r.get(0))
