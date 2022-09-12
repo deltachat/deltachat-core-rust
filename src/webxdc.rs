@@ -427,13 +427,9 @@ impl Context {
     pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
         let update_needed = get_busy_webxdc_instances(&self.sql).await?;
 
-        loop {
-            let (instance_id, first_serial, last_serial, descr) =
-                match self.pop_smtp_status_update().await? {
-                    Some(res) => res,
-                    None => break,
-                };
-
+        while let Some((instance_id, first_serial, last_serial, descr)) =
+            self.pop_smtp_status_update().await?
+        {
             if let Some(json) = self
                 .render_webxdc_status_update_object(instance_id, Some((first_serial, last_serial)))
                 .await?
