@@ -3303,6 +3303,27 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_info(msg: *mut dc_msg_t) -> *mut libc
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_updating_webxdc(
+    context: *mut dc_context_t,
+) -> *mut dc_array::dc_array_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_blocked_contacts()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+
+    let arr: Vec<MsgId> = block_on(async move {
+        webxdc::get_busy_webxdc_instances(ctx)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect()
+    });
+
+    Box::into_raw(Box::new(dc_array_t::from(arr)))
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filemime()");

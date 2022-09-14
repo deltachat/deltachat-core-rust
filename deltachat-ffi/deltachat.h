@@ -1082,6 +1082,16 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  */
 char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
+
+/**
+ * List all webxdc that have updates in the queue
+ *
+ * @return An array containing all the msg ids
+ *     
+ */
+dc_array_t*    dc_get_updating_webxdc        ();
+
+
 /**
  * Save a draft for a chat in the database.
  *
