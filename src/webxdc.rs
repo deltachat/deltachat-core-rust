@@ -421,11 +421,8 @@ impl Context {
     }
 
     /// Attempts to send queued webxdc status updates.
-    ///
-    /// Returns true if there are more status updates to send, but rate limiter does not
-    /// allow to send them. Returns false if there are no more status updates to send.
-    pub(crate) async fn flush_status_updates(&self) -> Result<bool> {
-        let update_needed = get_busy_webxdc_instances(&self.sql).await?;
+    pub(crate) async fn flush_status_updates(&self) -> Result<()> {
+        let update_needed = get_busy_webxdc_instances(&self).await?;
 
         while let Some((instance_id, first_serial, last_serial, descr)) =
             self.pop_smtp_status_update().await?
@@ -451,11 +448,11 @@ impl Context {
                 chat::send_msg(self, instance.chat_id, &mut status_update).await?;
             }
         }
-        let update_needed_after_sending = get_busy_webxdc_instances(&self.sql).await?;
+        let update_needed_after_sending = get_busy_webxdc_instances(&self).await?;
         for msg_id in update_needed.difference(&update_needed_after_sending) {
             self.emit_event(EventType::WebxdcUpToDate { msg_id: *msg_id })
         }
-        Ok(false)
+        Ok(())
     }
 
     pub(crate) fn build_status_update_part(&self, json: &str) -> PartBuilder {
@@ -755,8 +752,9 @@ impl Message {
 }
 
 /// Returns a hashset of all webxdc instaces which still have updates to send
-pub(crate) async fn get_busy_webxdc_instances(sql: &Sql) -> Result<HashSet<MsgId>> {
-    Ok(sql
+pub async fn get_busy_webxdc_instances(ctx: &Context) -> Result<HashSet<MsgId>> {
+    Ok(ctx
+        .sql
         .distinct("smtp_status_updates", "msg_id")
         .await?
         .into_iter()
