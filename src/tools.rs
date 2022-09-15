@@ -80,7 +80,7 @@ pub(crate) fn truncate_by_lines(
     }
 
     if let Some(end_pos) = break_point {
-        // text has to many lines and needs to be truncated
+        // Text has too many lines and needs to be truncated.
         let text = {
             if let Some(buffer) = buf.get(..end_pos) {
                 if let Some(index) = buffer.rfind(|c| c == ' ' || c == '\n') {
