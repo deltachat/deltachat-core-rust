@@ -100,9 +100,11 @@ pub(crate) fn truncate_by_lines(
         if let Some(truncated_text) = text {
             (format!("{}{}", truncated_text, DC_ELLIPSIS), true)
         } else {
-            // this case should not happen, only if code above broke with updates.
-            // to make it obvious we put an error message here, the true ensures there is still a button to open it in full
-            ("[truncation/preview of this message failed, this is a bug in the core of DeltaChat, please report it.\n you can still view the original message by opening the html version]".to_string(), true)
+            // In case of indexing/slicing error, we return an error
+            // message as a preview and add HTML version. This should
+            // never happen.
+            let error_text = "[Truncation of the message failed, this is a bug in the Delta Chat core. Please report it.\nYou can still open the full text to view the original message.]";
+            (error_text.to_string(), true)
         }
     } else {
         // text is unchanged
