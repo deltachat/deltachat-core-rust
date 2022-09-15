@@ -840,7 +840,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             let s = "hello\n world !".to_string();
             assert_eq!(
                 truncate_by_lines(s, 2, 8),
-                ("hello\n world !".to_string(), true)
+                ("hello\n world !".to_string(), false)
             );
         }
 
@@ -857,7 +857,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             );
             assert_eq!(
                 truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 2),
-                ("𐠈[...]".to_string(), true)
+                ("𐠈0[...]".to_string(), true)
             );
             assert_eq!(
                 truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 0),
@@ -873,7 +873,7 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             // 12 characters, truncation
             assert_eq!(
                 truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd".to_string(), 1, 7),
-                ("𑒀ὐ￠🜀\u{1e01b}A[...]".to_string(), true),
+                ("𑒀ὐ￠🜀\u{1e01b}A [...]".to_string(), true),
             );
         }
     }
