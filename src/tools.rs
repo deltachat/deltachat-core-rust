@@ -80,10 +80,6 @@ pub(crate) fn truncate_by_lines(
     }
 
     if let Some(end_pos) = break_point {
-        if end_pos.saturating_add(1) == buf.len() {
-            // text is unchanged
-            return (buf, false);
-        }
         // text has to many lines and needs to be truncated
         let text = {
             if let Some(buffer) = buf.get(..end_pos) {
