@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### API-Changes
+
+### Changes
+
+### Fixes
+
+
+## 1.94.0
+
+### API-Changes
 - breaking change: replace `dc_accounts_event_emitter_t` with `dc_event_emitter_t` #3422
 
   Type `dc_accounts_event_emitter_t` is removed.
