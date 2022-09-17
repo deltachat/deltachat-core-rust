@@ -61,6 +61,7 @@
   this affects `dc_get_chat_contacts()`, `dc_get_contacts()` and `dc_get_blocked_contacts()` #3562
 - add `internet_access` flag to `dc_msg_get_webxdc_info()` #3516
 - `DC_EVENT_WEBXDC_INSTANCE_DELETED` is emitted when a message containing a webxdc gets deleted #3105
+- truncate incoming messages by lines instead of just length #3480
 
 ### Fixes
 - do not emit notifications for blocked chats #3557

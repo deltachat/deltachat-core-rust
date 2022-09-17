@@ -49,6 +49,65 @@ pub(crate) fn truncate(buf: &str, approx_chars: usize) -> Cow<str> {
     }
 }
 
+/// Shortens a string to a specified line count and adds "[...]" to the
+/// end of the shortened string.
+///
+/// returns tuple with the String and a boolean whether is was truncated
+pub(crate) fn truncate_by_lines(
+    buf: String,
+    max_lines: usize,
+    max_line_len: usize,
+) -> (String, bool) {
+    let mut lines = 0;
+    let mut line_chars = 0;
+    let mut break_point: Option<usize> = None;
+
+    for (index, char) in buf.char_indices() {
+        if char == '\n' {
+            line_chars = 0;
+            lines += 1;
+        } else {
+            line_chars += 1;
+            if line_chars > max_line_len {
+                line_chars = 1;
+                lines += 1;
+            }
+        }
+        if lines == max_lines {
+            break_point = Some(index);
+            break;
+        }
+    }
+
+    if let Some(end_pos) = break_point {
+        // Text has too many lines and needs to be truncated.
+        let text = {
+            if let Some(buffer) = buf.get(..end_pos) {
+                if let Some(index) = buffer.rfind(|c| c == ' ' || c == '\n') {
+                    buf.get(..=index)
+                } else {
+                    buf.get(..end_pos)
+                }
+            } else {
+                None
+            }
+        };
+
+        if let Some(truncated_text) = text {
+            (format!("{}{}", truncated_text, DC_ELLIPSIS), true)
+        } else {
+            // In case of indexing/slicing error, we return an error
+            // message as a preview and add HTML version. This should
+            // never happen.
+            let error_text = "[Truncation of the message failed, this is a bug in the Delta Chat core. Please report it.\nYou can still open the full text to view the original message.]";
+            (error_text.to_string(), true)
+        }
+    } else {
+        // text is unchanged
+        (buf, false)
+    }
+}
+
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
@@ -742,6 +801,79 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
             truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6),
             "𑒀ὐ￠🜀\u{1e01b}A[...]",
         );
+    }
+
+    mod truncate_by_lines {
+        use super::*;
+
+        #[test]
+        fn test_just_text() {
+            let s = "this is a little test string".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 6),
+                ("this is a little test [...]".to_string(), true)
+            );
+        }
+
+        #[test]
+        fn test_with_linebreaks() {
+            let s = "this\n is\n a little test string".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 6),
+                ("this\n is\n a little [...]".to_string(), true)
+            );
+        }
+
+        #[test]
+        fn test_only_linebreaks() {
+            let s = "\n\n\n\n\n\n\n".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 4, 5),
+                ("\n\n\n[...]".to_string(), true)
+            );
+        }
+
+        #[test]
+        fn limit_hits_end() {
+            let s = "hello\n world !".to_string();
+            assert_eq!(
+                truncate_by_lines(s, 2, 8),
+                ("hello\n world !".to_string(), false)
+            );
+        }
+
+        #[test]
+        fn test_edge() {
+            assert_eq!(
+                truncate_by_lines("".to_string(), 2, 4),
+                ("".to_string(), false)
+            );
+
+            assert_eq!(
+                truncate_by_lines("\n  hello \n world".to_string(), 2, 4),
+                ("\n  [...]".to_string(), true)
+            );
+            assert_eq!(
+                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 2),
+                ("𐠈0[...]".to_string(), true)
+            );
+            assert_eq!(
+                truncate_by_lines("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ".to_string(), 1, 0),
+                ("[...]".to_string(), true)
+            );
+
+            // 9 characters, so no truncation
+            assert_eq!(
+                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠".to_string(), 1, 12),
+                ("𑒀ὐ￠🜀\u{1e01b}A a🟠".to_string(), false),
+            );
+
+            // 12 characters, truncation
+            assert_eq!(
+                truncate_by_lines("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd".to_string(), 1, 7),
+                ("𑒀ὐ￠🜀\u{1e01b}A [...]".to_string(), true),
+            );
+        }
     }
 
     #[test]

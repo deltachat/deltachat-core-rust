@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 
 use crate::aheader::Aheader;
 use crate::blob::BlobObject;
-use crate::constants::{DC_DESIRED_TEXT_LEN, DC_ELLIPSIS};
+use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
 use crate::decrypt::{create_decryption_info, try_decrypt};
@@ -28,7 +28,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate};
+use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
 
 /// A parsed MIME message.
 ///
@@ -1012,14 +1012,15 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        let simplified_txt = if simplified_txt.chars().count()
-                            > DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len()
-                        {
-                            self.is_mime_modified = true;
-                            truncate(&*simplified_txt, DC_DESIRED_TEXT_LEN).to_string()
-                        } else {
-                            simplified_txt
-                        };
+                        // Truncate text if it has too many lines
+                        let (simplified_txt, was_truncated) = truncate_by_lines(
+                            simplified_txt,
+                            DC_DESIRED_TEXT_LINES,
+                            DC_DESIRED_TEXT_LINE_LEN,
+                        );
+                        if was_truncated {
+                            self.is_mime_modified = was_truncated;
+                        }
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part {
@@ -1817,7 +1818,7 @@ mod tests {
     use crate::{
         chatlist::Chatlist,
         config::Config,
-        constants::Blocked,
+        constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
         message::{Message, MessageState, MessengerMessage},
         receive_imf::receive_imf,
         test_utils::TestContext,
