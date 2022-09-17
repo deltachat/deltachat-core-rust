@@ -332,35 +332,35 @@ pub(crate) async fn start_ephemeral_timers_msgids(
     Ok(())
 }
 
-/// Deletes messages which are expired according to
+/// Selects messages which are expired according to
 /// `delete_device_after` setting or `ephemeral_timestamp` column.
 ///
-/// Returns true if any message is deleted, so caller can emit
-/// MsgsChanged event. If nothing has been deleted, returns
-/// false. This function does not emit the MsgsChanged event itself,
-/// because it is also called when chatlist is reloaded, and emitting
-/// MsgsChanged there will cause infinite reload loop.
-pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Result<()> {
-    let mut updated = context
+/// For each message a row ID, chat id and viewtype is returned.
+async fn select_expired_messages(
+    context: &Context,
+    now: i64,
+) -> Result<Vec<(MsgId, ChatId, Viewtype)>> {
+    let mut rows = context
         .sql
-        .execute(
-            // If you change which information is removed here, also change MsgId::trash() and
-            // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+        .query_map(
             r#"
-UPDATE msgs
-SET 
-  chat_id=?, txt='', subject='', txt_raw='', 
-  mime_headers='', from_id=0, to_id=0, param=''
+SELECT id, chat_id, type
+FROM msgs
 WHERE
   ephemeral_timestamp != 0
   AND ephemeral_timestamp <= ?
   AND chat_id != ?
 "#,
-            paramsv![DC_CHAT_ID_TRASH, now, DC_CHAT_ID_TRASH],
+            paramsv![now, DC_CHAT_ID_TRASH],
+            |row| {
+                let id: MsgId = row.get("id")?;
+                let chat_id: ChatId = row.get("chat_id")?;
+                let viewtype: Viewtype = row.get("type")?;
+                Ok((id, chat_id, viewtype))
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
-        .await
-        .context("update failed")?
-        > 0;
+        .await?;
 
     if let Some(delete_device_after) = context.get_config_delete_device_after().await? {
         let self_chat_id = ChatId::lookup_by_contact(context, ContactId::SELF)
@@ -372,36 +372,81 @@ WHERE
 
         let threshold_timestamp = now.saturating_sub(delete_device_after);
 
-        // Delete expired messages
-        //
-        // Only update the rows that have to be updated, to avoid emitting
-        // unnecessary "chat modified" events.
-        let rows_modified = context
+        let rows_expired = context
             .sql
-            .execute(
-                "UPDATE msgs \
-             SET chat_id = ?, txt = '', subject='', txt_raw='', \
-                 mime_headers='', from_id=0, to_id=0, param='' \
-             WHERE timestamp < ? \
-             AND chat_id > ? \
-             AND chat_id != ? \
-             AND chat_id != ?",
+            .query_map(
+                r#"
+SELECT id, chat_id, type
+FROM msgs
+WHERE
+  timestamp < ?
+  AND chat_id > ?
+  AND chat_id != ?
+  AND chat_id != ?
+"#,
                 paramsv![
-                    DC_CHAT_ID_TRASH,
                     threshold_timestamp,
                     DC_CHAT_ID_LAST_SPECIAL,
                     self_chat_id,
                     device_chat_id
                 ],
+                |row| {
+                    let id: MsgId = row.get("id")?;
+                    let chat_id: ChatId = row.get("chat_id")?;
+                    let viewtype: Viewtype = row.get("type")?;
+                    Ok((id, chat_id, viewtype))
+                },
+                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
             )
-            .await
-            .context("deleted update failed")?;
+            .await?;
 
-        updated |= rows_modified > 0;
+        rows.extend(rows_expired);
     }
 
-    if updated {
-        context.emit_msgs_changed_without_ids();
+    Ok(rows)
+}
+
+/// Deletes messages which are expired according to
+/// `delete_device_after` setting or `ephemeral_timestamp` column.
+///
+/// Emits relevant `MsgsChanged` and `WebxdcInstanceDeleted` events
+/// if messages are deleted.
+pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Result<()> {
+    let rows = select_expired_messages(context, now).await?;
+
+    if !rows.is_empty() {
+        context
+            .sql
+            .execute(
+                // If you change which information is removed here, also change MsgId::trash() and
+                // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
+                &format!(
+                    r#"
+UPDATE msgs
+SET
+  chat_id=?, txt='', subject='', txt_raw='',
+  mime_headers='', from_id=0, to_id=0, param=''
+WHERE id IN ({})
+"#,
+                    sql::repeat_vars(rows.len())
+                ),
+                rusqlite::params_from_iter(
+                    std::iter::once(&DC_CHAT_ID_TRASH as &dyn crate::ToSql).chain(
+                        rows.iter()
+                            .map(|(msg_id, _chat_id, _viewtype)| msg_id as &dyn crate::ToSql),
+                    ),
+                ),
+            )
+            .await
+            .context("update failed")?;
+
+        for (msg_id, chat_id, viewtype) in rows {
+            context.emit_msgs_changed(chat_id, msg_id);
+
+            if viewtype == Viewtype::Webxdc {
+                context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
+            }
+        }
     }
 
     Ok(())
@@ -956,6 +1001,19 @@ mod tests {
 
         assert!(next_expiration < deleted_at);
         delete_expired_messages(t, deleted_at).await?;
+        t.evtracker
+            .get_matching(|evt| {
+                if let EventType::MsgsChanged {
+                    msg_id: event_msg_id,
+                    ..
+                } = evt
+                {
+                    *event_msg_id == msg_id
+                } else {
+                    false
+                }
+            })
+            .await;
 
         let loaded = Message::load_from_db(t, msg_id).await?;
         assert_eq!(loaded.text.unwrap(), "");
