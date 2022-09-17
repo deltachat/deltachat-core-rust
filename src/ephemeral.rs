@@ -36,15 +36,21 @@
 //!
 //! ## How messages are deleted
 //!
-//! When the message is deleted locally, its contents is removed and
-//! it is moved to the trash chat. This database entry is then used to
-//! track the Message-ID and corresponding IMAP folder and UID until
-//! the message is deleted from the server. Vice versa, when device
-//! deletes the message from the server, it removes IMAP folder and
-//! UID information, but keeps the message contents. When database
-//! entry is both moved to trash chat and does not contain UID
-//! information, it is deleted from the database, leaving no trace of
-//! the message.
+//! When Delta Chat deletes the message locally, it moves the message
+//! to the trash chat and removes actual message contents. Messages in
+//! the trash chat are called "tombstones" and track the Message-ID to
+//! prevent accidental redownloading of the message from the server,
+//! e.g. in case of UID validity change.
+//!
+//! Vice versa, when Delta Chat deletes the message from the server,
+//! it removes IMAP folder and UID row from the `imap` table, but
+//! keeps the message in the `msgs` table.
+//!
+//! Delta Chat eventually removes tombstones from the `msgs` table,
+//! leaving no trace of the message, when it thinks there are no more
+//! copies of the message stored on the server, i.e. when there is no
+//! corresponding `imap` table entry. This is done in the
+//! `prune_tombstones()` procedure during housekeeping.
 //!
 //! ## When messages are deleted
 //!
