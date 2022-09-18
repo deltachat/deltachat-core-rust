@@ -521,7 +521,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::SelfavatarChanged => 2110,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
-        EventType::WebxdcUpdateStateChanged { .. } => 2022,
+        EventType::WebxdcUpdateStateChanged { .. } => 2017,
     }
 }
 
