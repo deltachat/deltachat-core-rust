@@ -380,8 +380,9 @@ impl Context {
             )
             .await?;
 
-        self.emit_event(EventType::WebxdcBusyUpdating {
+        self.emit_event(EventType::WebxdcUpdateStateChanged {
             msg_id: instance.id,
+            is_sending: true,
         });
 
         if send_now {
@@ -449,7 +450,10 @@ impl Context {
         }
         let update_needed_after_sending = get_busy_webxdc_instances(self).await?;
         for msg_id in update_needed.difference(&update_needed_after_sending) {
-            self.emit_event(EventType::WebxdcUpToDate { msg_id: *msg_id })
+            self.emit_event(EventType::WebxdcUpdateStateChanged {
+                msg_id: *msg_id,
+                is_sending: false,
+            })
         }
         Ok(())
     }
@@ -2423,14 +2427,30 @@ sth_for_the = "future""#
             .await?;
         alice
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::WebxdcBusyUpdating { .. }))
+            .get_matching(|evt| {
+                matches!(
+                    evt,
+                    EventType::WebxdcUpdateStateChanged {
+                        is_sending: true,
+                        ..
+                    }
+                )
+            })
             .await;
 
         alice.flush_status_updates().await?;
 
         alice
             .evtracker
-            .get_matching(|evt| matches!(evt, EventType::WebxdcUpToDate { .. }))
+            .get_matching(|evt| {
+                matches!(
+                    evt,
+                    EventType::WebxdcUpdateStateChanged {
+                        is_sending: false,
+                        ..
+                    }
+                )
+            })
             .await;
         Ok(())
     }

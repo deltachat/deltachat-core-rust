@@ -521,8 +521,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::SelfavatarChanged => 2110,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
-        EventType::WebxdcBusyUpdating { .. } => 2022,
-        EventType::WebxdcUpToDate { .. } => 2023,
+        EventType::WebxdcUpdateStateChanged { .. } => 2022,
     }
 }
 
@@ -572,8 +571,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         }
         EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
-        EventType::WebxdcBusyUpdating { msg_id } => msg_id.to_u32() as libc::c_int,
-        EventType::WebxdcUpToDate { msg_id } => msg_id.to_u32() as libc::c_int,
+        EventType::WebxdcUpdateStateChanged { msg_id, .. } => msg_id.to_u32() as libc::c_int,
     }
 }
 
@@ -624,6 +622,10 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
             status_update_serial,
             ..
         } => status_update_serial.to_u32() as libc::c_int,
+        EventType::WebxdcUpdateStateChanged {
+            is_sending: is_send,
+            ..
+        } => *is_send as libc::c_int,
     }
 }
 
@@ -668,8 +670,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::WebxdcBusyUpdating { .. }
-        | EventType::WebxdcUpToDate { .. }
+        | EventType::WebxdcUpdateStateChanged { .. }
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {

@@ -319,11 +319,9 @@ pub enum EventType {
         msg_id: MsgId,
     },
 
-    WebxdcBusyUpdating {
+    /// Inform that the webxdc changed its update sending state
+    WebxdcUpdateStateChanged {
         msg_id: MsgId,
-    },
-
-    WebxdcUpToDate {
-        msg_id: MsgId,
+        is_sending: bool,
     },
 }
