@@ -21,7 +21,6 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
-use crate::sql::Sql;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
@@ -422,7 +421,7 @@ impl Context {
 
     /// Attempts to send queued webxdc status updates.
     pub(crate) async fn flush_status_updates(&self) -> Result<()> {
-        let update_needed = get_busy_webxdc_instances(&self).await?;
+        let update_needed = get_busy_webxdc_instances(self).await?;
 
         while let Some((instance_id, first_serial, last_serial, descr)) =
             self.pop_smtp_status_update().await?
@@ -448,7 +447,7 @@ impl Context {
                 chat::send_msg(self, instance.chat_id, &mut status_update).await?;
             }
         }
-        let update_needed_after_sending = get_busy_webxdc_instances(&self).await?;
+        let update_needed_after_sending = get_busy_webxdc_instances(self).await?;
         for msg_id in update_needed.difference(&update_needed_after_sending) {
             self.emit_event(EventType::WebxdcUpToDate { msg_id: *msg_id })
         }

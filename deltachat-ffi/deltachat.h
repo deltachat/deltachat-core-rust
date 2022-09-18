@@ -1085,11 +1085,12 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
 
 /**
  * List all webxdc that have updates in the queue
- *
- * @return An array containing all the msg ids
+ * @param context The context object.
+ * @param msg_id The ID of the message with the webxdc instance.
+ * @return 1=contact ID is member of chat ID, 0=contact is not in chat
  *     
  */
-dc_array_t*    dc_get_updating_webxdc        ();
+int   dc_get_updating_webxdc        (dc_context_t* context, uint32_t chat_id);
 
 
 /**
