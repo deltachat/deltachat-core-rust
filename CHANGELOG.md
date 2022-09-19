@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### API-Changes
+- jsonrpc: add `mailingListAddress` property to `FullChat` #3607
 
 ### Changes
 - truncate incoming messages by lines instead of just length #3480

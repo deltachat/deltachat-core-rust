@@ -37,6 +37,7 @@ pub struct FullChat {
     ephemeral_timer: u32, //TODO look if there are more important properties in newer core versions
     can_send: bool,
     was_seen_recently: bool,
+    mailing_list_address: String,
 }
 
 impl FullChat {
@@ -80,6 +81,8 @@ impl FullChat {
             false
         };
 
+        let mailing_list_address = chat.get_mailinglist_addr().to_string();
+
         Ok(FullChat {
             id: chat_id,
             name: chat.name.clone(),
@@ -103,6 +106,7 @@ impl FullChat {
             ephemeral_timer,
             can_send,
             was_seen_recently,
+            mailing_list_address,
         })
     }
 }

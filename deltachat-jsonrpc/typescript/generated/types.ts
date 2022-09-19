@@ -21,7 +21,7 @@ export type Contact={"address":string;"color":string;"authName":string;"status":
  * the contact's last seen timestamp
  */
 "lastSeen":I64;"wasSeenRecently":boolean;};
-export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;"wasSeenRecently":boolean;};
+export type FullChat={"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"contacts":(Contact)[];"contactIds":(U32)[];"color":string;"freshMessageCounter":Usize;"isContactRequest":boolean;"isDeviceChat":boolean;"selfInGroup":boolean;"isMuted":boolean;"ephemeralTimer":U32;"canSend":boolean;"wasSeenRecently":boolean;"mailingListAddress":string;};
 
 /**
  * cheaper version of fullchat, omits:
