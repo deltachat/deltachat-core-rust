@@ -5,8 +5,8 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
-use anyhow::{bail, ensure, format_err, Context as _, Result};
-use futures::StreamExt;
+use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
+use futures::{StreamExt, TryStreamExt};
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
 use tokio::fs::{self, File};
@@ -107,6 +107,10 @@ pub async fn imex(
     res
 }
 
+/// Receives a backup, as sent from `send_backup`.
+///
+/// Only one receive-progress can run at the same time.
+/// To cancel a receive-progress, drop the future returned by this function.
 pub async fn receive_backup(
     context: &Context,
     ticket_bytes: Vec<u8>,
@@ -135,7 +139,7 @@ pub async fn receive_backup(
     res
 }
 
-pub async fn receive_backup_inner(
+async fn receive_backup_inner(
     context: &Context,
     ticket_bytes: Vec<u8>,
     passphrase: String,
@@ -153,11 +157,12 @@ pub async fn receive_backup_inner(
 
     let recv_dir = tempfile::tempdir().unwrap();
     let recv_db = recv_dir.path().join("db");
-    let port = 9991;
+    let port = port_check::free_local_port()
+        .ok_or_else(|| anyhow!("failed to find free local port to bind to"))?;
 
     let receiver = Receiver::new(port, &recv_db)
         .await
-        .context("failed to create sender")?;
+        .context("failed to create receiver")?;
     let mut receiver_transfer = receiver
         .transfer_from_ticket(&ticket)
         .await
@@ -200,9 +205,10 @@ pub async fn receive_backup_inner(
         let name = link.name.unwrap_or_default();
         let path = out.join(&name);
 
-        let mut file = tokio::fs::File::create(&path)
+        let file = tokio::fs::File::create(&path)
             .await
             .with_context(|| format!("create file: {}", path.display()))?;
+        let mut file = tokio::io::BufWriter::new(file);
         let mut content = file_content.pretty()?;
         tokio::io::copy(&mut content, &mut file)
             .await
@@ -232,6 +238,10 @@ pub async fn receive_backup_inner(
     Ok(())
 }
 
+/// Send a backup.
+///
+/// Only one send-progress can run at the same time.
+/// To cancel a send-progress, drop the future returned by this function.
 pub async fn send_backup(
     context: &Context,
     path: &Path,
@@ -829,7 +839,8 @@ async fn export_backup_iroh(
 
     match res {
         Ok(dir_builder) => {
-            let port = 9990;
+            let port = port_check::free_local_port()
+                .ok_or_else(|| anyhow!("failed to find free local port to bind to"))?;
             let sender = iroh_share::Sender::new(port, &sender_db_path).await?;
             let transfer = sender.transfer_from_dir_builder(dir_builder).await?;
 

@@ -7,7 +7,7 @@ license = "MPL-2.0"
 rust-version = "1.57"
 
 [profile.dev]
-#debug = 0
+debug = 0
 panic = 'abort'
 opt-level = 1
 
@@ -86,7 +86,8 @@ async_zip = { version = "0.0.9", default-features = false, features = ["deflate"
 iroh-share = { git = "https://github.com/n0-computer/iroh", branch = "main" }
 iroh-resolver = { git = "https://github.com/n0-computer/iroh", branch = "main", default-features = false }
 tempfile = "3"
-multibase = "0.9.1"
+multibase = "0.9"
+port_check = "0.1.5"
 
 [dev-dependencies]
 ansi_term = "0.12.0"
