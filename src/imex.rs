@@ -864,7 +864,7 @@ async fn export_backup_iroh_inner(
     dir_builder.name(
         temp_path
             .file_name()
-            .map(|s| s.to_string_lossy().to_owned())
+            .map(|s| s.to_string_lossy())
             .unwrap_or_default(),
     );
 

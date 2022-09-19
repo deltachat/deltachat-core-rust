@@ -483,7 +483,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let tdir = tempfile::TempDir::new()?;
             let dir = tdir.path();
             println!("Storing backup in: {} ", dir.display());
-            let transfer = send_backup(&context, dir.as_ref(), Some(arg1.to_string())).await?;
+            let transfer = send_backup(&context, dir, Some(arg1.to_string())).await?;
             let ticket = transfer.ticket();
             let ticket_bytes = ticket.as_bytes();
 

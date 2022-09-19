@@ -2225,7 +2225,7 @@ pub unsafe extern "C" fn dc_send_backup(
                 .await
                 .map(|transfer| Box::into_raw(Box::new(dc_backup_sender { transfer })))
                 .log_err(ctx, "send_backup failed")
-                .unwrap_or_else(|_| ptr::null_mut())
+                .unwrap_or(ptr::null_mut())
         })
     } else {
         eprintln!("dc_imex called without a valid directory");
@@ -2250,10 +2250,10 @@ pub unsafe extern "C" fn dc_backup_sender_qr(
     let bs = &*bs;
     let ticket = bs.transfer.ticket();
 
-    qr_code_generator::generate_backup_qr_code(&ticket)
+    qr_code_generator::generate_backup_qr_code(ticket)
         .map(|s| s.strdup())
         .log_err(ctx, "generate_backup_qr_code failed")
-        .unwrap_or_else(|_| ptr::null_mut())
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]
