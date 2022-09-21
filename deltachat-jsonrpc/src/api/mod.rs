@@ -526,24 +526,30 @@ impl CommandApi {
         &self,
         account_id: u32,
         chat_id: u32,
-    ) -> Result<Option<u32>> {
+    ) -> Result<Option<(u32, u32)>> {
         let ctx = self.get_context(account_id).await?;
 
         // TODO: implement this in core with an SQL query, that will be way faster
         let messages = get_chat_msgs(&ctx, ChatId::new(chat_id), 0).await?;
-        let mut first_unread_message_id = None;
+        let mut first_unread_message_id: Option<u32> = None;
+        let mut count_unread_messages: u32 = 0;
         for item in messages.into_iter().rev() {
             if let ChatItem::Message { msg_id } = item {
                 match msg_id.get_state(&ctx).await? {
                     MessageState::InSeen => break,
                     MessageState::InFresh | MessageState::InNoticed => {
-                        first_unread_message_id = Some(msg_id)
+                        first_unread_message_id = Some(msg_id.to_u32());
+                        count_unread_messages += 1;
                     }
                     _ => continue,
                 }
             }
         }
-        Ok(first_unread_message_id.map(|id| id.to_u32()))
+
+        if let Some(first_unread_message_id) = first_unread_message_id {
+            return Ok(Some((first_unread_message_id, count_unread_messages)));
+        }
+        Ok(None)
     }
 
     /// Set mute duration of a chat.

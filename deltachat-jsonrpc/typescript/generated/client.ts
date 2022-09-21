@@ -330,8 +330,8 @@ export class RawClient {
   }
 
 
-  public getFirstUnreadMessageOfChat(accountId: T.U32, chatId: T.U32): Promise<(T.U32|null)> {
-    return (this._transport.request('get_first_unread_message_of_chat', [accountId, chatId] as RPC.Params)) as Promise<(T.U32|null)>;
+  public getFirstUnreadMessageOfChat(accountId: T.U32, chatId: T.U32): Promise<([T.U32,T.U32]|null)> {
+    return (this._transport.request('get_first_unread_message_of_chat', [accountId, chatId] as RPC.Params)) as Promise<([T.U32,T.U32]|null)>;
   }
 
   /**
