@@ -39,6 +39,7 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input, time,
     IsNoneOrEmpty,
 };
+use crate::utils::create_safe_string;
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
 
@@ -2208,6 +2209,21 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
+    // protect all system messages againts LTRO attacks
+    if msg.is_system_message() {
+        if let Some(text) = &msg.text {
+            msg.text = Some(create_safe_string(text.as_ref()));
+        }
+    }
+
+    // protect all file messages againts LTRO attacks
+    if msg.viewtype == Viewtype::File {
+        msg.param.set(
+            Param::File,
+            create_safe_string(msg.param.get(Param::File).unwrap_or_default()),
+        );
+    }
+
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
         context.emit_msgs_changed(msg.chat_id, msg.id);
 
@@ -2847,7 +2863,7 @@ pub async fn create_group_chat(
     protect: ProtectionStatus,
     chat_name: &str,
 ) -> Result<ChatId> {
-    let chat_name = improve_single_line_input(chat_name);
+    let chat_name = create_safe_string(improve_single_line_input(chat_name).as_str());
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let grpid = create_id();
