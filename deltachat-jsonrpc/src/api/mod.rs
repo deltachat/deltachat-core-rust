@@ -850,6 +850,51 @@ impl CommandApi {
         Ok(media.iter().map(|msg_id| msg_id.to_u32()).collect())
     }
 
+    /// Search next/previous message based on a given message and a list of types.
+    /// Typically used to implement the "next" and "previous" buttons
+    /// in a gallery or in a media player.
+    ///
+    /// one combined call for getting chat::get_next_media for both directions
+    /// the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
+    async fn chat_get_neighboring_media(
+        &self,
+        account_id: u32,
+        msg_id: u32,
+        message_type: MessageViewtype,
+        or_message_type2: Option<MessageViewtype>,
+        or_message_type3: Option<MessageViewtype>,
+    ) -> Result<(Option<u32>, Option<u32>)> {
+        let ctx = self.get_context(account_id).await?;
+
+        let msg_type: Viewtype = message_type.into();
+        let msg_type2: Viewtype = or_message_type2.map(|v| v.into()).unwrap_or_default();
+        let msg_type3: Viewtype = or_message_type3.map(|v| v.into()).unwrap_or_default();
+
+        let prev = chat::get_next_media(
+            &ctx,
+            MsgId::new(msg_id),
+            chat::Direction::Backward,
+            msg_type,
+            msg_type2,
+            msg_type3,
+        )
+        .await?
+        .map(|id| id.to_u32());
+
+        let next = chat::get_next_media(
+            &ctx,
+            MsgId::new(msg_id),
+            chat::Direction::Forward,
+            msg_type,
+            msg_type2,
+            msg_type3,
+        )
+        .await?
+        .map(|id| id.to_u32());
+
+        Ok((prev, next))
+    }
+
     // ---------------------------------------------
     //                connectivity
     // ---------------------------------------------

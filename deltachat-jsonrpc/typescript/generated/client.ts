@@ -403,8 +403,8 @@ export class RawClient {
   /**
    * Fetch info desktop needs for creating a notification for a message
    */
-  public messageGetNotificationInfo(accountId: T.U32, messageId: T.U32): Promise<T.MessageNotificationData> {
-    return (this._transport.request('message_get_notification_info', [accountId, messageId] as RPC.Params)) as Promise<T.MessageNotificationData>;
+  public messageGetNotificationInfo(accountId: T.U32, messageId: T.U32): Promise<T.MessageNotificationInfo> {
+    return (this._transport.request('message_get_notification_info', [accountId, messageId] as RPC.Params)) as Promise<T.MessageNotificationInfo>;
   }
 
   /**
@@ -504,6 +504,18 @@ export class RawClient {
    */
   public chatGetMedia(accountId: T.U32, chatId: (T.U32|null), messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
     return (this._transport.request('chat_get_media', [accountId, chatId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<(T.U32)[]>;
+  }
+
+  /**
+   * Search next/previous message based on a given message and a list of types.
+   * Typically used to implement the "next" and "previous" buttons
+   * in a gallery or in a media player.
+   *
+   * one combined call for getting chat::get_next_media for both directions
+   * the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
+   */
+  public chatGetNeighboringMedia(accountId: T.U32, msgId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<[(T.U32|null),(T.U32|null)]> {
+    return (this._transport.request('chat_get_neighboring_media', [accountId, msgId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<[(T.U32|null),(T.U32|null)]>;
   }
 
   /**
