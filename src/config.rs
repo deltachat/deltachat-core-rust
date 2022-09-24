@@ -55,7 +55,7 @@ pub enum Config {
     Selfstatus,
     Selfavatar,
 
-    #[strum(props(default = "0"))]
+    #[strum(props(default = "1"))]
     BccSelf,
 
     #[strum(props(default = "1"))]
