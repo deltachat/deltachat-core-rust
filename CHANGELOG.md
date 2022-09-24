@@ -9,6 +9,7 @@
 - truncate incoming messages by lines instead of just length #3480
 - emit separate `DC_EVENT_MSGS_CHANGED` for each expired message,
   and `DC_EVENT_WEBXDC_INSTANCE_DELETED` when a message contains a webxdc #3605
+- enable `bcc_self` by default #3612
 
 ### Fixes
 
