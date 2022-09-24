@@ -948,6 +948,7 @@ mod tests {
     async fn test_resend_webxdc_instance_and_info() -> Result<()> {
         // Alice uses webxdc in a group
         let alice = TestContext::new_alice().await;
+        alice.set_config_bool(Config::BccSelf, false).await?;
         let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
         let alice_instance = send_webxdc_instance(&alice, alice_grp).await?;
         assert_eq!(alice_grp.get_msg_cnt(&alice).await?, 1);
