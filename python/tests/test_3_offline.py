@@ -118,7 +118,7 @@ class TestOfflineAccountBasic:
     def test_has_bccself(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         assert "bcc_self" in ac1.get_config("sys.config_keys").split()
-        assert ac1.get_config("bcc_self") == "0"
+        assert ac1.get_config("bcc_self") == "1"
 
     def test_selfcontact_if_unconfigured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
