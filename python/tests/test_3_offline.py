@@ -80,7 +80,7 @@ class TestOfflineAccountBasic:
         d = ac1.get_info()
         assert d["arch"]
         assert d["number_of_chats"] == "0"
-        assert d["bcc_self"] == "0"
+        assert d["bcc_self"] == "1"
 
     def test_is_not_configured(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
