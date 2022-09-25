@@ -64,7 +64,7 @@ impl Smtp {
 
     /// Return true if smtp was connected but is not known to
     /// have been successfully used the last 60 seconds
-    pub async fn has_maybe_stale_connection(&self) -> bool {
+    pub fn has_maybe_stale_connection(&self) -> bool {
         if let Some(last_success) = self.last_success {
             SystemTime::now()
                 .duration_since(last_success)
@@ -77,7 +77,7 @@ impl Smtp {
     }
 
     /// Check whether we are connected.
-    pub async fn is_connected(&self) -> bool {
+    pub fn is_connected(&self) -> bool {
         self.transport
             .as_ref()
             .map(|t| t.is_connected())
@@ -86,12 +86,12 @@ impl Smtp {
 
     /// Connect using configured parameters.
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
-        if self.has_maybe_stale_connection().await {
+        if self.has_maybe_stale_connection() {
             info!(context, "Closing stale connection");
             self.disconnect().await;
         }
 
-        if self.is_connected().await {
+        if self.is_connected() {
             return Ok(());
         }
 
@@ -117,7 +117,7 @@ impl Smtp {
         addr: &str,
         provider_strict_tls: bool,
     ) -> Result<()> {
-        if self.is_connected().await {
+        if self.is_connected() {
             warn!(context, "SMTP already connected.");
             return Ok(());
         }

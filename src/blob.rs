@@ -326,10 +326,7 @@ impl<'a> BlobObject<'a> {
 
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) = self
-            .recode_to_size(context, blob_abs, img_wh, Some(20_000))
-            .await?
-        {
+        if let Some(new_name) = self.recode_to_size(context, blob_abs, img_wh, Some(20_000))? {
             self.name = new_name;
         }
         Ok(())
@@ -352,8 +349,7 @@ impl<'a> BlobObject<'a> {
             };
 
         if self
-            .recode_to_size(context, blob_abs, img_wh, None)
-            .await?
+            .recode_to_size(context, blob_abs, img_wh, None)?
             .is_some()
         {
             return Err(format_err!(
@@ -363,7 +359,7 @@ impl<'a> BlobObject<'a> {
         Ok(())
     }
 
-    async fn recode_to_size(
+    fn recode_to_size(
         &self,
         context: &Context,
         mut blob_abs: PathBuf,
@@ -746,7 +742,6 @@ mod tests {
         let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
 
         blob.recode_to_size(&t, blob.to_abs_path(), 1000, Some(3000))
-            .await
             .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);

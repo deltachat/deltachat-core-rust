@@ -44,7 +44,7 @@ pub struct TestContextManager {
 }
 
 impl TestContextManager {
-    pub async fn new() -> Self {
+    pub fn new() -> Self {
         let (log_tx, _log_sink) = LogSink::create();
         Self { log_tx, _log_sink }
     }
@@ -858,7 +858,7 @@ impl EventTracker {
     }
 
     /// Consumes all pending events.
-    pub async fn consume_events(&self) {
+    pub fn consume_events(&self) {
         while self.try_recv().is_ok() {}
     }
 }
@@ -1039,7 +1039,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_with_both() {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 

@@ -579,8 +579,7 @@ async fn try_imap_one_param(
 
     let (_s, r) = async_channel::bounded(1);
 
-    let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r).await
-    {
+    let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r) {
         Err(err) => {
             info!(context, "failure: {}", err);
             return Err(ConfigurationError {

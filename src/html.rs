@@ -98,7 +98,7 @@ impl HtmlMsgParser {
 
         if parser.html.is_empty() {
             if let Some(plain) = &parser.plain {
-                parser.html = plain.to_html().await;
+                parser.html = plain.to_html();
             }
         } else {
             parser.cid_to_data_recursive(context, &parsedmail).await?;

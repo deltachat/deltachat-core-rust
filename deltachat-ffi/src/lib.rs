@@ -169,7 +169,7 @@ pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context_t) {
         eprintln!("ignoring careless call to dc_context_unref()");
         return;
     }
-    Box::from_raw(context);
+    drop(Box::from_raw(context));
 }
 
 #[no_mangle]
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn dc_event_unref(a: *mut dc_event_t) {
         return;
     }
 
-    Box::from_raw(a);
+    drop(Box::from_raw(a));
 }
 
 #[no_mangle]
@@ -687,7 +687,7 @@ pub unsafe extern "C" fn dc_event_emitter_unref(emitter: *mut dc_event_emitter_t
         return;
     }
 
-    Box::from_raw(emitter);
+    drop(Box::from_raw(emitter));
 }
 
 #[no_mangle]
@@ -2426,7 +2426,7 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
         return;
     }
 
-    Box::from_raw(a);
+    drop(Box::from_raw(a));
 }
 
 #[no_mangle]
@@ -2607,7 +2607,7 @@ pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
         eprintln!("ignoring careless call to dc_chatlist_unref()");
         return;
     }
-    Box::from_raw(chatlist);
+    drop(Box::from_raw(chatlist));
 }
 
 #[no_mangle]
@@ -2752,7 +2752,7 @@ pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
         return;
     }
 
-    Box::from_raw(chat);
+    drop(Box::from_raw(chat));
 }
 
 #[no_mangle]
@@ -3022,7 +3022,7 @@ pub unsafe extern "C" fn dc_msg_unref(msg: *mut dc_msg_t) {
         return;
     }
 
-    Box::from_raw(msg);
+    drop(Box::from_raw(msg));
 }
 
 #[no_mangle]
@@ -3744,7 +3744,7 @@ pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact_t) {
         eprintln!("ignoring careless call to dc_contact_unref()");
         return;
     }
-    Box::from_raw(contact);
+    drop(Box::from_raw(contact));
 }
 
 #[no_mangle]
@@ -3908,7 +3908,7 @@ pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot_t) {
         return;
     }
 
-    Box::from_raw(lot);
+    drop(Box::from_raw(lot));
 }
 
 #[no_mangle]
@@ -4200,7 +4200,8 @@ pub unsafe extern "C" fn dc_accounts_get_account(
     }
 
     let accounts = &*accounts;
-    block_on(async move { accounts.read().await.get_account(id).await })
+    block_on(accounts.read())
+        .get_account(id)
         .map(|ctx| Box::into_raw(Box::new(ctx)))
         .unwrap_or_else(std::ptr::null_mut)
 }
@@ -4215,7 +4216,8 @@ pub unsafe extern "C" fn dc_accounts_get_selected_account(
     }
 
     let accounts = &*accounts;
-    block_on(async move { accounts.read().await.get_selected_account().await })
+    block_on(accounts.read())
+        .get_selected_account()
         .map(|ctx| Box::into_raw(Box::new(ctx)))
         .unwrap_or_else(std::ptr::null_mut)
 }
@@ -4360,7 +4362,7 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
     }
 
     let accounts = &*accounts;
-    let list = block_on(async move { accounts.read().await.get_all().await });
+    let list = block_on(accounts.read()).get_all();
     let array: dc_array_t = list.into();
 
     Box::into_raw(Box::new(array))
@@ -4430,7 +4432,7 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     }
 
     let accounts = &*accounts;
-    let emitter = block_on(async move { accounts.read().await.get_event_emitter().await });
+    let emitter = block_on(accounts.read()).get_event_emitter();
 
     Box::into_raw(Box::new(emitter))
 }

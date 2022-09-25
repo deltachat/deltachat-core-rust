@@ -3121,7 +3121,7 @@ Hello mailinglist!\r\n"
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
 
-        t.evtracker.consume_events().await;
+        t.evtracker.consume_events();
         receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
 
         // Check that no notification is displayed for blocked mailing list message.
@@ -4949,7 +4949,7 @@ Reply from different address
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_long_filenames() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
@@ -5001,7 +5001,7 @@ Reply from different address
     /// Tests that contact request is accepted automatically on outgoing message.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_accept_outgoing() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice1 = tcm.alice().await;
         let alice2 = tcm.alice().await;
         let bob1 = tcm.bob().await;
@@ -5046,7 +5046,7 @@ Reply from different address
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_outgoing_private_reply_multidevice() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice1 = tcm.alice().await;
         let alice2 = tcm.alice().await;
         let bob = tcm.bob().await;
@@ -5134,7 +5134,7 @@ Reply from different address
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_no_private_reply_to_blocked_account() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 

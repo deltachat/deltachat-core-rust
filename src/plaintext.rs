@@ -21,7 +21,7 @@ pub struct PlainText {
 impl PlainText {
     /// Convert plain text to HTML.
     /// The function handles quotes, links, fixed and floating text paragraphs.
-    pub async fn to_html(&self) -> String {
+    pub fn to_html(&self) -> String {
         static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
             Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
 
@@ -111,8 +111,7 @@ http://link-at-start-of-line.org
             flowed: false,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r##"<!DOCTYPE html>
@@ -134,8 +133,7 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
             flowed: false,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -153,8 +151,7 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
             flowed: false,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -172,8 +169,7 @@ line with nohttp://no.link here<br/>
             flowed: false,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -191,8 +187,7 @@ just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:an
             flowed: true,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -213,8 +208,7 @@ line still line<br/>
             flowed: true,
             delsp: true,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
@@ -235,8 +229,7 @@ linestill line<br/>
             flowed: false,
             delsp: false,
         }
-        .to_html()
-        .await;
+        .to_html();
         assert_eq!(
             html,
             r#"<!DOCTYPE html>

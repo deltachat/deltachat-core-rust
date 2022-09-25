@@ -392,15 +392,10 @@ impl MimeMessage {
     /// Parses system messages.
     fn parse_system_message_headers(&mut self, context: &Context) {
         if self.get_header(HeaderDef::AutocryptSetupMessage).is_some() {
-            self.parts = self
-                .parts
-                .iter()
-                .filter(|part| {
-                    part.mimetype.is_none()
-                        || part.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
-                })
-                .cloned()
-                .collect();
+            self.parts.retain(|part| {
+                part.mimetype.is_none()
+                    || part.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
+            });
 
             if self.parts.len() == 1 {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;

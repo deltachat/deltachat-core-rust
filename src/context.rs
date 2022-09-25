@@ -138,7 +138,7 @@ impl Context {
         if !blobdir.exists() {
             tokio::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events).await?;
+        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events)?;
         Ok(context)
     }
 
@@ -169,7 +169,7 @@ impl Context {
         self.sql.check_passphrase(passphrase).await
     }
 
-    pub(crate) async fn with_blobdir(
+    pub(crate) fn with_blobdir(
         dbfile: PathBuf,
         blobdir: PathBuf,
         id: u32,
@@ -883,7 +883,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new()).await;
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new());
         assert!(res.is_err());
     }
 
@@ -892,7 +892,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new()).await;
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new());
         assert!(res.is_err());
     }
 

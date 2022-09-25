@@ -1,6 +1,6 @@
 use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
-use futures::{join, try_join};
+use futures::try_join;
 use futures_lite::FutureExt;
 use tokio::task;
 
@@ -42,7 +42,7 @@ impl Context {
     pub async fn maybe_network(&self) {
         let lock = self.scheduler.read().await;
         if let Some(scheduler) = &*lock {
-            scheduler.maybe_network().await;
+            scheduler.maybe_network();
         }
         connectivity::idle_interrupted(lock).await;
     }
@@ -51,32 +51,32 @@ impl Context {
     pub async fn maybe_network_lost(&self) {
         let lock = self.scheduler.read().await;
         if let Some(scheduler) = &*lock {
-            scheduler.maybe_network_lost().await;
+            scheduler.maybe_network_lost();
         }
         connectivity::maybe_network_lost(self, lock).await;
     }
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
         if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_inbox(info).await;
+            scheduler.interrupt_inbox(info);
         }
     }
 
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
         if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_smtp(info).await;
+            scheduler.interrupt_smtp(info);
         }
     }
 
     pub(crate) async fn interrupt_ephemeral_task(&self) {
         if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_ephemeral_task().await;
+            scheduler.interrupt_ephemeral_task();
         }
     }
 
     pub(crate) async fn interrupt_location(&self) {
         if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_location().await;
+            scheduler.interrupt_location();
         }
     }
 }
@@ -501,45 +501,41 @@ impl Scheduler {
         Ok(res)
     }
 
-    async fn maybe_network(&self) {
-        join!(
-            self.interrupt_inbox(InterruptInfo::new(true)),
-            self.interrupt_mvbox(InterruptInfo::new(true)),
-            self.interrupt_sentbox(InterruptInfo::new(true)),
-            self.interrupt_smtp(InterruptInfo::new(true))
-        );
+    fn maybe_network(&self) {
+        self.interrupt_inbox(InterruptInfo::new(true));
+        self.interrupt_mvbox(InterruptInfo::new(true));
+        self.interrupt_sentbox(InterruptInfo::new(true));
+        self.interrupt_smtp(InterruptInfo::new(true));
     }
 
-    async fn maybe_network_lost(&self) {
-        join!(
-            self.interrupt_inbox(InterruptInfo::new(false)),
-            self.interrupt_mvbox(InterruptInfo::new(false)),
-            self.interrupt_sentbox(InterruptInfo::new(false)),
-            self.interrupt_smtp(InterruptInfo::new(false))
-        );
+    fn maybe_network_lost(&self) {
+        self.interrupt_inbox(InterruptInfo::new(false));
+        self.interrupt_mvbox(InterruptInfo::new(false));
+        self.interrupt_sentbox(InterruptInfo::new(false));
+        self.interrupt_smtp(InterruptInfo::new(false));
     }
 
-    async fn interrupt_inbox(&self, info: InterruptInfo) {
-        self.inbox.interrupt(info).await;
+    fn interrupt_inbox(&self, info: InterruptInfo) {
+        self.inbox.interrupt(info);
     }
 
-    async fn interrupt_mvbox(&self, info: InterruptInfo) {
-        self.mvbox.interrupt(info).await;
+    fn interrupt_mvbox(&self, info: InterruptInfo) {
+        self.mvbox.interrupt(info);
     }
 
-    async fn interrupt_sentbox(&self, info: InterruptInfo) {
-        self.sentbox.interrupt(info).await;
+    fn interrupt_sentbox(&self, info: InterruptInfo) {
+        self.sentbox.interrupt(info);
     }
 
-    async fn interrupt_smtp(&self, info: InterruptInfo) {
-        self.smtp.interrupt(info).await;
+    fn interrupt_smtp(&self, info: InterruptInfo) {
+        self.smtp.interrupt(info);
     }
 
-    async fn interrupt_ephemeral_task(&self) {
+    fn interrupt_ephemeral_task(&self) {
         self.ephemeral_interrupt_send.try_send(()).ok();
     }
 
-    async fn interrupt_location(&self) {
+    fn interrupt_location(&self) {
         self.location_interrupt_send.try_send(()).ok();
     }
 
@@ -603,7 +599,7 @@ impl ConnectionState {
         Ok(())
     }
 
-    async fn interrupt(&self, info: InterruptInfo) {
+    fn interrupt(&self, info: InterruptInfo) {
         // Use try_send to avoid blocking on interrupts.
         self.idle_interrupt_sender.try_send(info).ok();
     }
@@ -637,8 +633,8 @@ impl SmtpConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self, info: InterruptInfo) {
-        self.state.interrupt(info).await;
+    fn interrupt(&self, info: InterruptInfo) {
+        self.state.interrupt(info);
     }
 
     /// Shutdown this connection completely.
@@ -682,8 +678,8 @@ impl ImapConnectionState {
     }
 
     /// Interrupt any form of idle.
-    async fn interrupt(&self, info: InterruptInfo) {
-        self.state.interrupt(info).await;
+    fn interrupt(&self, info: InterruptInfo) {
+        self.state.interrupt(info);
     }
 
     /// Shutdown this connection completely.

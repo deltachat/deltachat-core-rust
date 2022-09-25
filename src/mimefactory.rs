@@ -1177,17 +1177,17 @@ impl<'a> MimeFactory<'a> {
         if command == SystemMessage::MultiDeviceSync && self.is_e2ee_guaranteed() {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             let ids = self.msg.param.get(Param::Arg2).unwrap_or_default();
-            parts.push(context.build_sync_part(json.to_string()).await);
+            parts.push(context.build_sync_part(json.to_string()));
             self.sync_ids_to_delete = Some(ids.to_string());
         } else if command == SystemMessage::WebxdcStatusUpdate {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
-            parts.push(context.build_status_update_part(json).await);
+            parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
             if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
                 .await?
             {
-                parts.push(context.build_status_update_part(&json).await);
+                parts.push(context.build_status_update_part(&json));
             }
         }
 

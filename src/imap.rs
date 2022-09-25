@@ -237,7 +237,7 @@ impl Imap {
     /// Creates new disconnected IMAP client using the specific login parameters.
     ///
     /// `addr` is used to renew token if OAuth2 authentication is used.
-    pub async fn new(
+    pub fn new(
         lp: &ServerLoginParam,
         socks5_config: Option<Socks5Config>,
         addr: &str,
@@ -303,8 +303,7 @@ impl Imap {
                     provider.strict_tls
                 }),
             idle_interrupt,
-        )
-        .await?;
+        )?;
         Ok(imap)
     }
 

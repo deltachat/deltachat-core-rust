@@ -185,7 +185,7 @@ impl Context {
         }
     }
 
-    pub(crate) async fn build_sync_part(&self, json: String) -> PartBuilder {
+    pub(crate) fn build_sync_part(&self, json: String) -> PartBuilder {
         PartBuilder::new()
             .content_type(&"application/json".parse::<mime::Mime>().unwrap())
             .header((

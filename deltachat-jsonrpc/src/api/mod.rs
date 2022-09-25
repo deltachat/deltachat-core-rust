@@ -65,7 +65,6 @@ impl CommandApi {
             .read()
             .await
             .get_account(id)
-            .await
             .ok_or_else(|| anyhow!("account with id {} not found", id))?;
         Ok(sc)
     }
@@ -100,7 +99,7 @@ impl CommandApi {
     }
 
     async fn get_all_account_ids(&self) -> Vec<u32> {
-        self.accounts.read().await.get_all().await
+        self.accounts.read().await.get_all()
     }
 
     /// Select account id for internally selected state.
@@ -112,14 +111,14 @@ impl CommandApi {
     /// Get the selected account id of the internal state..
     /// TODO: Likely this is deprecated as all methods take an account id now.
     async fn get_selected_account_id(&self) -> Option<u32> {
-        self.accounts.read().await.get_selected_account_id().await
+        self.accounts.read().await.get_selected_account_id()
     }
 
     /// Get a list of all configured accounts.
     async fn get_all_accounts(&self) -> Result<Vec<Account>> {
         let mut accounts = Vec::new();
-        for id in self.accounts.read().await.get_all().await {
-            let context_option = self.accounts.read().await.get_account(id).await;
+        for id in self.accounts.read().await.get_all() {
+            let context_option = self.accounts.read().await.get_account(id);
             if let Some(ctx) = context_option {
                 accounts.push(Account::from_context(&ctx, id).await?)
             } else {
@@ -135,7 +134,7 @@ impl CommandApi {
 
     /// Get top-level info for an account.
     async fn get_account_info(&self, account_id: u32) -> Result<Account> {
-        let context_option = self.accounts.read().await.get_account(account_id).await;
+        let context_option = self.accounts.read().await.get_account(account_id);
         if let Some(ctx) = context_option {
             Ok(Account::from_context(&ctx, account_id).await?)
         } else {

@@ -198,7 +198,7 @@ impl Context {
                 let rel_path = self.sql.get_raw_config(key).await?;
                 rel_path.map(|p| get_abs_path(self, &p).to_string_lossy().into_owned())
             }
-            Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
+            Config::SysVersion => Some((*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
             _ => self.sql.get_raw_config(key).await?,

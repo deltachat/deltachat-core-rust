@@ -44,7 +44,7 @@ async fn handler(ws: WebSocketUpgrade, Extension(api): Extension<CommandApi>) ->
     let (client, out_receiver) = RpcClient::new();
     let session = RpcSession::new(client.clone(), api.clone());
     tokio::spawn(async move {
-        let events = api.accounts.read().await.get_event_emitter().await;
+        let events = api.accounts.read().await.get_event_emitter();
         while let Some(event) = events.recv().await {
             let event = event_to_json_rpc_notification(event);
             client.send_notification("event", Some(event)).await.ok();

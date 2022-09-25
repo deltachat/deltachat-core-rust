@@ -696,7 +696,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact() {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
         assert_eq!(
@@ -910,7 +910,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_bob_knows_alice() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
@@ -1035,7 +1035,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact_concurrent_calls() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
@@ -1066,7 +1066,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_secure_join() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 

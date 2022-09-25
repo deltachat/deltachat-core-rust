@@ -2278,7 +2278,7 @@ Hi."#;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_was_seen_recently() -> Result<()> {
-        let mut tcm = TestContextManager::new().await;
+        let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 

@@ -445,7 +445,7 @@ impl Context {
         }
     }
 
-    pub(crate) async fn build_status_update_part(&self, json: &str) -> PartBuilder {
+    pub(crate) fn build_status_update_part(&self, json: &str) -> PartBuilder {
         PartBuilder::new()
             .content_type(&"application/json".parse::<mime::Mime>().unwrap())
             .header((

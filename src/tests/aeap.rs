@@ -18,7 +18,7 @@ use crate::test_utils::TestContextManager;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_change_primary_self_addr() -> Result<()> {
-    let mut tcm = TestContextManager::new().await;
+    let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
@@ -130,7 +130,7 @@ async fn check_aeap_transition(
     // the case where Bob already had contact with Alice's new address
     const ALICE_NEW_ADDR: &str = "fiona@example.net";
 
-    let mut tcm = TestContextManager::new().await;
+    let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
@@ -362,7 +362,7 @@ async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Option<Message> 
 /// to make Bob think that there was a transition to Fiona's address.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_aeap_replay_attack() -> Result<()> {
-    let mut tcm = TestContextManager::new().await;
+    let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
