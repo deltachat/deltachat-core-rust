@@ -401,6 +401,13 @@ export class RawClient {
   }
 
   /**
+   * Fetch info desktop needs for creating a notification for a message
+   */
+  public messageGetNotificationInfo(accountId: T.U32, messageId: T.U32): Promise<T.MessageNotificationData> {
+    return (this._transport.request('message_get_notification_info', [accountId, messageId] as RPC.Params)) as Promise<T.MessageNotificationData>;
+  }
+
+  /**
    * Delete messages. The messages are deleted on the current device and
    * on the IMAP server.
    */
