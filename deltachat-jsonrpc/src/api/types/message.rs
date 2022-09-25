@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use deltachat::chat::Chat;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::download;
@@ -284,5 +285,63 @@ impl From<download::DownloadState> for DownloadState {
             download::DownloadState::Failure => DownloadState::Failure,
             download::DownloadState::InProgress => DownloadState::InProgress,
         }
+    }
+}
+
+#[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageNotificationInfo {
+    id: u32,
+    chat_id: u32,
+    account_id: u32,
+
+    image: Option<String>,
+    image_mime_type: Option<String>,
+
+    chat_name: String,
+    chat_profile_image: Option<String>,
+
+    /// also known as summary_text1
+    summary_prefix: Option<String>,
+    /// also known as summary_text2
+    summary_text: String,
+}
+
+impl MessageNotificationInfo {
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
+        let message = Message::load_from_db(context, msg_id).await?;
+        let chat = Chat::load_from_db(context, message.get_chat_id()).await?;
+
+        let image = if matches!(
+            message.get_viewtype(),
+            Viewtype::Image | Viewtype::Gif | Viewtype::Sticker
+        ) {
+            message
+                .get_file(context)
+                .map(|path_buf| path_buf.to_str().map(|s| s.to_owned()))
+                .unwrap_or_default()
+        } else {
+            None
+        };
+
+        let chat_profile_image = chat
+            .get_profile_image(context)
+            .await?
+            .map(|path_buf| path_buf.to_str().map(|s| s.to_owned()))
+            .unwrap_or_default();
+
+        let summary = message.get_summary(context, Some(&chat)).await?;
+
+        Ok(MessageNotificationInfo {
+            id: msg_id.to_u32(),
+            chat_id: message.get_chat_id().to_u32(),
+            account_id: context.get_id(),
+            image,
+            image_mime_type: message.get_filemime(),
+            chat_name: chat.name,
+            chat_profile_image,
+            summary_prefix: summary.prefix.map(|s| s.to_string()),
+            summary_text: summary.text,
+        })
     }
 }

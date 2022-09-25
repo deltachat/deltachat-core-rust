@@ -39,7 +39,7 @@ use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
     chat::{BasicChat, MuteDuration},
-    message::MessageViewtype,
+    message::{MessageNotificationInfo, MessageViewtype},
 };
 
 #[derive(Clone, Debug)]
@@ -640,6 +640,16 @@ impl CommandApi {
             );
         }
         Ok(messages)
+    }
+
+    /// Fetch info desktop needs for creating a notification for a message
+    async fn message_get_notification_info(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<MessageNotificationInfo> {
+        let ctx = self.get_context(account_id).await?;
+        MessageNotificationInfo::from_msg_id(&ctx, MsgId::new(message_id)).await
     }
 
     /// Delete messages. The messages are deleted on the current device and
