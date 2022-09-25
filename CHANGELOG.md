@@ -4,7 +4,7 @@
 
 ### API-Changes
 - jsonrpc: add `mailingListAddress` property to `FullChat` #3607
-- jsonrpc: add `MessageNotificationData` & `messageGetNotificationInfo()` #3614
+- jsonrpc: add `MessageNotificationInfo` & `messageGetNotificationInfo()` #3614
 
 ### Changes
 - truncate incoming messages by lines instead of just length #3480

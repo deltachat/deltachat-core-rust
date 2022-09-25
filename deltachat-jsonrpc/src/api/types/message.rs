@@ -290,7 +290,7 @@ impl From<download::DownloadState> for DownloadState {
 
 #[derive(Serialize, TypeDef)]
 #[serde(rename_all = "camelCase")]
-pub struct MessageNotificationData {
+pub struct MessageNotificationInfo {
     id: u32,
     chat_id: u32,
     account_id: u32,
@@ -307,7 +307,7 @@ pub struct MessageNotificationData {
     summary_text: String,
 }
 
-impl MessageNotificationData {
+impl MessageNotificationInfo {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
         let chat = Chat::load_from_db(context, message.get_chat_id()).await?;
@@ -332,7 +332,7 @@ impl MessageNotificationData {
 
         let summary = message.get_summary(context, Some(&chat)).await?;
 
-        Ok(MessageNotificationData {
+        Ok(MessageNotificationInfo {
             id: msg_id.to_u32(),
             chat_id: message.get_chat_id().to_u32(),
             account_id: context.get_id(),

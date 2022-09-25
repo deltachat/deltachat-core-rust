@@ -39,7 +39,7 @@ use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
     chat::{BasicChat, MuteDuration},
-    message::{MessageNotificationData, MessageViewtype},
+    message::{MessageNotificationInfo, MessageViewtype},
 };
 
 #[derive(Clone, Debug)]
@@ -648,9 +648,9 @@ impl CommandApi {
         &self,
         account_id: u32,
         message_id: u32,
-    ) -> Result<MessageNotificationData> {
+    ) -> Result<MessageNotificationInfo> {
         let ctx = self.get_context(account_id).await?;
-        MessageNotificationData::from_msg_id(&ctx, MsgId::new(message_id)).await
+        MessageNotificationInfo::from_msg_id(&ctx, MsgId::new(message_id)).await
     }
 
     /// Delete messages. The messages are deleted on the current device and
