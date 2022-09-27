@@ -20,7 +20,7 @@ use crate::peerstate::Peerstate;
 use crate::tools::time;
 use crate::{token, EventType};
 
-use self::dclogin_scheme::apply_from_login_qr;
+use self::dclogin_scheme::configure_from_login_qr;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -474,7 +474,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             context.sync_qr_code_tokens(chat_id).await?;
             context.send_sync_msg().await?;
         }
-        Qr::Login { address, options } => apply_from_login_qr(context, &address, options).await?,
+        Qr::Login { address, options } => configure_from_login_qr(context, &address, options).await?,
         _ => bail!("qr code {:?} does not contain config", qr),
     }
 

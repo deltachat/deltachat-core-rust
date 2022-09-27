@@ -127,7 +127,7 @@ fn parse_certificate_checks(
     })
 }
 
-pub(crate) async fn apply_from_login_qr(
+pub(crate) async fn configure_from_login_qr(
     context: &Context,
     address: &str,
     options: LoginOptions,
