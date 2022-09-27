@@ -213,7 +213,7 @@ pub(crate) async fn configure_from_login_qr(
             }
             Ok(())
         }
-        _ => bail!("failed to apply login options"),
+        _ => bail!("DeltaChat does not understand this QR Code yet, please update the app and try again."),
     }
 }
 
