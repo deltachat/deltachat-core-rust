@@ -385,6 +385,4 @@ mod test {
         }
         Ok(())
     }
-
-    // idea: should invalid uri encoding result in error?
 }
