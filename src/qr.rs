@@ -474,7 +474,9 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             context.sync_qr_code_tokens(chat_id).await?;
             context.send_sync_msg().await?;
         }
-        Qr::Login { address, options } => configure_from_login_qr(context, &address, options).await?,
+        Qr::Login { address, options } => {
+            configure_from_login_qr(context, &address, options).await?
+        }
         _ => bail!("qr code {:?} does not contain config", qr),
     }
 
