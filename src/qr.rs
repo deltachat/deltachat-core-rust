@@ -1,5 +1,8 @@
 //! # QR code module.
 
+mod dclogin_scheme;
+pub use dclogin_scheme::LoginOptions;
+
 use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
@@ -17,8 +20,11 @@ use crate::peerstate::Peerstate;
 use crate::tools::time;
 use crate::{token, EventType};
 
+use self::dclogin_scheme::configure_from_login_qr;
+
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
+pub(super) const DCLOGIN_SCHEME: &str = "DCLOGIN:";
 const DCWEBRTC_SCHEME: &str = "DCWEBRTC:";
 const MAILTO_SCHEME: &str = "mailto:";
 const MATMSG_SCHEME: &str = "MATMSG:";
@@ -97,6 +103,10 @@ pub enum Qr {
         invitenumber: String,
         authcode: String,
     },
+    Login {
+        address: String,
+        options: LoginOptions,
+    },
 }
 
 fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
@@ -115,6 +125,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
             .context("failed to decode OPENPGP4FPR QR code")?
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(qr)?
+    } else if starts_with_ignore_case(qr, DCLOGIN_SCHEME) {
+        dclogin_scheme::decode_login(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
@@ -461,6 +473,9 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             token::save(context, token::Namespace::Auth, chat_id, &authcode).await?;
             context.sync_qr_code_tokens(chat_id).await?;
             context.send_sync_msg().await?;
+        }
+        Qr::Login { address, options } => {
+            configure_from_login_qr(context, &address, options).await?
         }
         _ => bail!("qr code {:?} does not contain config", qr),
     }
@@ -1020,6 +1035,103 @@ mod tests {
             bail!("Wrong QR type, expected AskVerifyGroup");
         }
         assert!(set_config_from_qr(&bob, &qr).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_and_apply_dclogin() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let result = check_qr(&ctx.ctx, "dclogin:usename+extension@host?p=1234&v=1").await?;
+        if let Qr::Login { address, options } = result {
+            assert_eq!(address, "usename+extension@host".to_owned());
+
+            if let LoginOptions::V1 { mail_pw, .. } = options {
+                assert_eq!(mail_pw, "1234".to_owned());
+            } else {
+                bail!("wrong type")
+            }
+        } else {
+            bail!("wrong type")
+        }
+
+        assert!(ctx.ctx.get_config(Config::Addr).await?.is_none());
+        assert!(ctx.ctx.get_config(Config::MailPw).await?.is_none());
+
+        set_config_from_qr(&ctx.ctx, "dclogin:username+extension@host?p=1234&v=1").await?;
+        assert_eq!(
+            ctx.ctx.get_config(Config::Addr).await?,
+            Some("username+extension@host".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPw).await?,
+            Some("1234".to_owned())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_and_apply_dclogin_advanced_options() -> Result<()> {
+        let ctx = TestContext::new().await;
+        set_config_from_qr(&ctx.ctx, "dclogin:username+extension@host?p=1234&spw=4321&sh=send.host&sp=7273&su=SendUser&ih=host.tld&ip=4343&iu=user&ipw=password&is=ssl&ic=1&sc=3&ss=plain&v=1").await?;
+        assert_eq!(
+            ctx.ctx.get_config(Config::Addr).await?,
+            Some("username+extension@host".to_owned())
+        );
+
+        // `p=1234` is ignored, because `ipw=password` is set
+
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailServer).await?,
+            Some("host.tld".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPort).await?,
+            Some("4343".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailUser).await?,
+            Some("user".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailPw).await?,
+            Some("password".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::MailSecurity).await?,
+            Some("1".to_owned()) // ssl
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::ImapCertificateChecks).await?,
+            Some("1".to_owned())
+        );
+
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendPw).await?,
+            Some("4321".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendServer).await?,
+            Some("send.host".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendPort).await?,
+            Some("7273".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendUser).await?,
+            Some("SendUser".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SmtpCertificateChecks).await?,
+            Some("3".to_owned())
+        );
+        assert_eq!(
+            ctx.ctx.get_config(Config::SendSecurity).await?,
+            Some("3".to_owned()) // plain
+        );
 
         Ok(())
     }

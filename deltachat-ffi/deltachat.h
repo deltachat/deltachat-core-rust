@@ -468,10 +468,10 @@ int             dc_set_stock_translation(dc_context_t* context, uint32_t stock_i
 /**
  * Set configuration values from a QR code.
  * Before this function is called, dc_check_qr() should confirm the type of the
- * QR code is DC_QR_ACCOUNT or DC_QR_WEBRTC_INSTANCE.
+ * QR code is DC_QR_ACCOUNT, DC_QR_LOGIN or DC_QR_WEBRTC_INSTANCE.
  *
  * Internally, the function will call dc_set_config() with the appropriate keys,
- * e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT
+ * e.g. `addr` and `mail_pw` for DC_QR_ACCOUNT and DC_QR_LOGIN
  * or `webrtc_instance` for DC_QR_WEBRTC_INSTANCE.
  *
  * @memberof dc_context_t
@@ -2270,6 +2270,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_WITHDRAW_VERIFYGROUP   502 // text1=groupname
 #define         DC_QR_REVIVE_VERIFYCONTACT   510
 #define         DC_QR_REVIVE_VERIFYGROUP     512 // text1=groupname
+#define         DC_QR_LOGIN                  520 // text1=email_address
 
 /**
  * Check a scanned QR code.
@@ -2341,6 +2342,10 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_REVIVE_VERIFYGROUP with text1=groupname:
  *   ask the user if they want to revive the withdrawn group-invite code;
  *   if so, call dc_set_config_from_qr().
+ *
+ * - DC_QR_LOGIN with dc_lot_t::text1=email_address:
+ *   ask the user if they want to login with the email_address,
+ *   if so, call dc_set_config_from_qr() and then dc_configure().
  *
  * @memberof dc_context_t
  * @param context The context object.

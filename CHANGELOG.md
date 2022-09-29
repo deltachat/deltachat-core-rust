@@ -7,6 +7,9 @@
 - jsonrpc: add `MessageNotificationInfo` & `messageGetNotificationInfo()` #3614
 - jsonrpc: add `chat_get_neighboring_media` function #3610
 
+### Added
+- `dclogin:` scheme to allow configuration from a qr code (data inside qrcode, contrary to `dcaccount:` which points to an api to create an account) #3541
+
 ### Changes
 - truncate incoming messages by lines instead of just length #3480
 - emit separate `DC_EVENT_MSGS_CHANGED` for each expired message,
