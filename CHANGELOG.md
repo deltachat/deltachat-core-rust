@@ -3,20 +3,26 @@
 ## Unreleased
 
 ### API-Changes
+
+### Changes
+
+### Fixes
+
+
+## 1.95.0
+
+### API-Changes
 - jsonrpc: add `mailingListAddress` property to `FullChat` #3607
 - jsonrpc: add `MessageNotificationInfo` & `messageGetNotificationInfo()` #3614
 - jsonrpc: add `chat_get_neighboring_media` function #3610
 
-### Added
-- `dclogin:` scheme to allow configuration from a qr code (data inside qrcode, contrary to `dcaccount:` which points to an api to create an account) #3541
-
 ### Changes
+- added `dclogin:` scheme to allow configuration from a qr code
+  (data inside qrcode, contrary to `dcaccount:` which points to an API to create an account) #3541
 - truncate incoming messages by lines instead of just length #3480
 - emit separate `DC_EVENT_MSGS_CHANGED` for each expired message,
   and `DC_EVENT_WEBXDC_INSTANCE_DELETED` when a message contains a webxdc #3605
 - enable `bcc_self` by default #3612
-
-### Fixes
 
 
 ## 1.94.0
@@ -30,7 +36,7 @@
   and `dc_event_emitter_unref()` should be used instead of
   `dc_accounts_event_emitter_unref`.
 - add `dc_contact_was_seen_recently()` #3560
-- Fix get_connectivity_html and get_encrinfo futures not being Send. See rust-lang/rust#101650 for more information
+- Fix `get_connectivity_html` and `get_encrinfo` futures not being Send. See rust-lang/rust#101650 for more information
 - jsonrpc: add functions: #3586, #3587, #3590
   - `deleteChat()`
   - `getChatEncryptionInfo()`
