@@ -35,19 +35,17 @@ jobs:
           fi
       - name: System info
         run: |
-          rustc -vV
-          rustup -vV
-          cargo -vV
           npm --version
           node --version
           echo $DELTACHAT_JSONRPC_TAR_GZ
       - name: install dependencies without running scripts
         run: |
+          cd deltachat-jsonrpc/typescript
           npm install --ignore-scripts
       - name: package
         shell: bash
         run: |
-          mv node/README.md README.md
+          cd deltachat-jsonrpc/typescript
           npm pack .
           ls -lah
           mv $(find deltachat-jsonrpc-client-*) $DELTACHAT_JSONRPC_TAR_GZ
