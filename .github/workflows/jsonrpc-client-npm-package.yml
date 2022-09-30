@@ -41,26 +41,6 @@ jobs:
           npm --version
           node --version
           echo $DELTACHAT_JSONRPC_TAR_GZ
-      - name: Download ubuntu prebuild
-        uses: actions/download-artifact@v1
-        with:
-          name: ubuntu-18.04
-      - name: Download macos prebuild
-        uses: actions/download-artifact@v1
-        with:
-          name: macos-latest
-      - name: Download windows prebuild
-        uses: actions/download-artifact@v1
-        with:
-          name: windows-latest
-      - shell: bash
-        run: |
-          mkdir node/prebuilds
-          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C node/prebuilds
-          tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
-          tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
-          tree node/prebuilds
-          rm -rf ubuntu-18.04 macos-latest windows-latest
       - name: install dependencies without running scripts
         run: |
           npm install --ignore-scripts
