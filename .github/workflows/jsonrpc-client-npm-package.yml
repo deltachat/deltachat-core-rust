@@ -70,6 +70,7 @@ jobs:
         env:
          URL: preview/${{ env.DELTACHAT_JSONRPC_TAR_GZ }}
          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         MSG_CONTEXT: Download the deltachat-jsonrpc-client.tgz
       # Upload to download.delta.chat/node/
       - name: Upload deltachat-jsonrpc-client build to download.delta.chat/node/
         if: ${{ steps.tag.outputs.tag }}
