@@ -26,7 +26,7 @@
   },
   "license": "MPL-2.0",
   "main": "dist/deltachat.js",
-  "name": "deltachat-jsonrpc-client",
+  "name": "@deltachat/jsonrpc-client",
   "scripts": {
     "build": "run-s generate-bindings build:tsc build:bundle",
     "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",

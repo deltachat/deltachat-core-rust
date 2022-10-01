@@ -12,11 +12,12 @@ const GITHUB_API_URL =
 
 const file_url = process.env['URL']
 const GITHUB_TOKEN = process.env['GITHUB_TOKEN']
+const context = process.env['MSG_CONTEXT']
 
 const STATUS_DATA = {
   state: 'success',
   description: '⏩ Click on "Details" to download →',
-  context: 'Download the node-bindings.tar.gz',
+  context: context || 'Download the node-bindings.tar.gz',
   target_url: base_url + file_url,
 }
 
