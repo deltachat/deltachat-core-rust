@@ -11,7 +11,7 @@
   - ci: add github ci action to upload it to our download server automaticaly on realease
 
 ### Fixes
-
+- jsonrpc: fix daymarkers
 
 ## 1.95.0
 

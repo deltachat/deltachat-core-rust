@@ -385,7 +385,12 @@ export class RawClient {
     return (this._transport.request('markseen_msgs', [accountId, msgIds] as RPC.Params)) as Promise<null>;
   }
 
-
+  /**
+   * get ids of messages for a chat
+   * (this api is similar to the cffi api, because it's still used that way by desktop)
+   *
+   * returns list with message ids and daymarkers (DC_MSG_ID_DAYMARKER = 9) if daymarkers are active
+   */
   public messageListGetMessageIds(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.U32)[]> {
     return (this._transport.request('message_list_get_message_ids', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.U32)[]>;
   }

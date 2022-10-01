@@ -6,6 +6,7 @@ use deltachat::{
     },
     chatlist::Chatlist,
     config::Config,
+    constants::DC_MSG_ID_DAYMARKER,
     contact::{may_be_valid_addr, Contact, ContactId},
     context::get_info,
     message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
@@ -604,6 +605,10 @@ impl CommandApi {
         markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
     }
 
+    /// get ids of messages for a chat
+    /// (this api is similar to the cffi api, because it's still used that way by desktop)
+    ///
+    /// returns list with message ids and daymarkers (DC_MSG_ID_DAYMARKER = 9) if daymarkers are active
     async fn message_list_get_message_ids(
         &self,
         account_id: u32,
@@ -614,9 +619,9 @@ impl CommandApi {
         let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
         Ok(msg
             .iter()
-            .filter_map(|chat_item| match chat_item {
-                deltachat::chat::ChatItem::Message { msg_id } => Some(msg_id.to_u32()),
-                _ => None,
+            .map(|chat_item| match chat_item {
+                deltachat::chat::ChatItem::Message { msg_id } => msg_id.to_u32(),
+                deltachat::chat::ChatItem::DayMarker { .. } => DC_MSG_ID_DAYMARKER,
             })
             .collect())
     }
