@@ -5,13 +5,16 @@
 ### API-Changes
 
 ### Changes
+
+### Fixes
+
+## 1.96.0
+
+### Changes
 - jsonrpc js client:
   - Change package name from `deltachat-jsonrpc-client` to `@deltachat/jsonrpc-client`
   - remove relative file dependency to it from `deltachat-node` (because it did not work anyway and broke the nix build of desktop)
   - ci: add github ci action to upload it to our download server automaticaly on realease
-
-### Fixes
-
 
 ## 1.95.0
 
