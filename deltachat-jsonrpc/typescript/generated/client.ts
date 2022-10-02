@@ -565,8 +565,8 @@ export class RawClient {
   }
 
 
-  public messageIdsToSearchResults(accountId: T.U32, messageIds: (T.U32)[]): Promise<(T.MessageSearchResult)[]> {
-    return (this._transport.request('message_ids_to_search_results', [accountId, messageIds] as RPC.Params)) as Promise<(T.MessageSearchResult)[]>;
+  public messageIdsToSearchResults(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.MessageSearchResult>> {
+    return (this._transport.request('message_ids_to_search_results', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.MessageSearchResult>>;
   }
 
   /**

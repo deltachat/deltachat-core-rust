@@ -15,7 +15,6 @@ use deltachat::{
     securejoin,
     webxdc::StatusUpdateSerial,
 };
-use futures::TryFutureExt;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
@@ -829,11 +828,15 @@ impl CommandApi {
         &self,
         account_id: u32,
         message_ids: Vec<u32>,
-    ) -> Result<Vec<MessageSearchResult>> {
+    ) -> Result<HashMap<u32, MessageSearchResult>> {
         let ctx = self.get_context(account_id).await?;
-        let mut results: Vec<MessageSearchResult> = Vec::with_capacity(message_ids.len());
+        let mut results: HashMap<u32, MessageSearchResult> =
+            HashMap::with_capacity(message_ids.len());
         for id in message_ids {
-            results.push(MessageSearchResult::from_msg_id(&ctx, MsgId::new(id)).await?)
+            results.insert(
+                id,
+                MessageSearchResult::from_msg_id(&ctx, MsgId::new(id)).await?,
+            );
         }
         Ok(results)
     }
