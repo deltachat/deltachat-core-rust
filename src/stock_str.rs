@@ -1306,6 +1306,7 @@ impl Context {
 mod tests {
     use num_traits::ToPrimitive;
 
+    use crate::chat::delete_and_reset_all_device_msgs;
     use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use crate::test_utils::TestContext;
@@ -1471,7 +1472,17 @@ mod tests {
         assert_eq!(chats.len(), 0);
 
         // a subsequent call to update_device_chats() must not re-add manally deleted messages or chats
-        t.update_device_chats().await.ok();
+        t.update_device_chats().await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0);
+
+        // Reset all device messages. This normally happens due to account export and import.
+        // Check that update_device_chats() does not add welcome message for imported account.
+        delete_and_reset_all_device_msgs(&t).await.unwrap();
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 0);
+
+        t.update_device_chats().await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
     }

@@ -8,6 +8,7 @@
 
 ### Fixes
 - share stock string translations across accounts created by the same account manager #3640
+- suppress welcome device messages after account import #3642
 
 ## 1.96.0
 

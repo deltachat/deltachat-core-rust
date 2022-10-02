@@ -3369,6 +3369,15 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
         .sql
         .execute("DELETE FROM devmsglabels;", paramsv![])
         .await?;
+
+    // Insert labels for welcome messages to avoid them being readded on reconfiguration.
+    context
+        .sql
+        .execute(
+            r#"INSERT INTO devmsglabels (label) VALUES ("core-welcome-image"), ("core-welcome")"#,
+            paramsv![],
+        )
+        .await?;
     context.set_config(Config::QuotaExceeding, None).await?;
     Ok(())
 }
