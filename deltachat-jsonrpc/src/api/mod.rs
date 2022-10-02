@@ -799,6 +799,32 @@ impl CommandApi {
         MsgId::new(message_id).download_full(&ctx).await
     }
 
+    /// Search messages containing the given query string.
+    /// Searching can be done globally (chat_id=0) or in a specified chat only (chat_id set).
+    ///
+    /// Global chat results are typically displayed using dc_msg_get_summary(), chat
+    /// search results may just hilite the corresponding messages and present a
+    /// prev/next button.
+    ///
+    /// For global search, result is limited to 1000 messages,
+    /// this allows incremental search done fast.
+    /// So, when getting exactly 1000 results, the result may be truncated;
+    /// the UIs may display sth. as "1000+ messages found" in this case.
+    /// Chat search (if a chat_id is set) is not limited.
+    async fn search_messages(
+        &self,
+        account_id: u32,
+        query: String,
+        chat_id: Option<u32>,
+    ) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let messages = ctx.search_msgs(chat_id.map(ChatId::new), &query).await?;
+        Ok(messages
+            .iter()
+            .map(|msg_id| msg_id.to_u32())
+            .collect::<Vec<u32>>())
+    }
+
     // ---------------------------------------------
     //  contact
     // ---------------------------------------------

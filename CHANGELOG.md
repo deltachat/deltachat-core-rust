@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### API-Changes
-- jsonrpc: add function:
+- jsonrpc: add function: #3641
   - `getChatContacts()`
   - `createGroupChat()`
   - `createBroadcastList()`
@@ -12,6 +12,7 @@
   - `downloadFullMessage()`
   - `lookupContactIdByAddr()`
   - `sendVideochatInvitation()`
+  - `searchMessages()`
 
 
 ### Changes

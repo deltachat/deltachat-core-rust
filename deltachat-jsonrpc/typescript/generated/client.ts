@@ -547,6 +547,24 @@ export class RawClient {
   }
 
   /**
+   * Search messages containing the given query string.
+   * Searching can be done globally (chat_id=0) or in a specified chat only (chat_id set).
+   *
+   * Global chat results are typically displayed using dc_msg_get_summary(), chat
+   * search results may just hilite the corresponding messages and present a
+   * prev/next button.
+   *
+   * For global search, result is limited to 1000 messages,
+   * this allows incremental search done fast.
+   * So, when getting exactly 1000 results, the result may be truncated;
+   * the UIs may display sth. as "1000+ messages found" in this case.
+   * Chat search (if a chat_id is set) is not limited.
+   */
+  public searchMessages(accountId: T.U32, query: string, chatId: (T.U32|null)): Promise<(T.U32)[]> {
+    return (this._transport.request('search_messages', [accountId, query, chatId] as RPC.Params)) as Promise<(T.U32)[]>;
+  }
+
+  /**
    * Get a single contact options by ID.
    */
   public contactsGetContact(accountId: T.U32, contactId: T.U32): Promise<T.Contact> {
