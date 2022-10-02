@@ -564,6 +564,11 @@ export class RawClient {
     return (this._transport.request('search_messages', [accountId, query, chatId] as RPC.Params)) as Promise<(T.U32)[]>;
   }
 
+
+  public messageIdsToSearchResults(accountId: T.U32, messageIds: (T.U32)[]): Promise<(T.MessageSearchResult)[]> {
+    return (this._transport.request('message_ids_to_search_results', [accountId, messageIds] as RPC.Params)) as Promise<(T.MessageSearchResult)[]>;
+  }
+
   /**
    * Get a single contact options by ID.
    */

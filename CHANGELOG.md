@@ -13,6 +13,9 @@
   - `lookupContactIdByAddr()`
   - `sendVideochatInvitation()`
   - `searchMessages()`
+  - `messageIdsToSearchResults()`
+- jsonrpc: add type: #3641
+  - `MessageSearchResult`
 
 
 ### Changes

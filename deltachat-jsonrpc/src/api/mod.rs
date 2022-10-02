@@ -40,7 +40,7 @@ use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
     chat::{BasicChat, MuteDuration},
-    message::{MessageNotificationInfo, MessageViewtype},
+    message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
 
 #[derive(Clone, Debug)]
@@ -823,6 +823,19 @@ impl CommandApi {
             .iter()
             .map(|msg_id| msg_id.to_u32())
             .collect::<Vec<u32>>())
+    }
+
+    async fn message_ids_to_search_results(
+        &self,
+        account_id: u32,
+        message_ids: Vec<u32>,
+    ) -> Result<Vec<MessageSearchResult>> {
+        let ctx = self.get_context(account_id).await?;
+        let mut results: Vec<MessageSearchResult> = Vec::with_capacity(message_ids.len());
+        for id in message_ids {
+            results.push(MessageSearchResult::from_msg_id(&ctx, MsgId::new(id)).await?)
+        }
+        Ok(results)
     }
 
     // ---------------------------------------------
