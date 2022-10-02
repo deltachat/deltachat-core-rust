@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
 use tokio::sync::RwLock;
@@ -1273,7 +1273,7 @@ impl Context {
         }
     }
 
-    pub(crate) async fn update_device_chats(&self) -> Result<(), Error> {
+    pub(crate) async fn update_device_chats(&self) -> Result<()> {
         if self.get_config_bool(Config::Bot).await? {
             return Ok(());
         }
@@ -1416,7 +1416,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_quota_exceeding_stock_str() -> anyhow::Result<()> {
+    async fn test_quota_exceeding_stock_str() -> Result<()> {
         let t = TestContext::new().await;
         let str = quota_exceeding(&t, 81).await;
         assert!(str.contains("81% "));
@@ -1426,7 +1426,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_partial_download_msg_body() -> anyhow::Result<()> {
+    async fn test_partial_download_msg_body() -> Result<()> {
         let t = TestContext::new().await;
         let str = partial_download_msg_body(&t, 1024 * 1024).await;
         assert_eq!(str, "1 MiB message");
