@@ -1,11 +1,12 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::context::Context;
+use deltachat::stock_str::StockStrings;
 use deltachat::Events;
 use std::path::Path;
 
 async fn search_benchmark(dbfile: impl AsRef<Path>) {
     let id = 100;
-    let context = Context::new(dbfile.as_ref(), id, Events::new())
+    let context = Context::new(dbfile.as_ref(), id, Events::new(), StockStrings::new())
         .await
         .unwrap();
 

@@ -29,6 +29,7 @@ use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
 use crate::receive_imf::receive_imf;
+use crate::stock_str::StockStrings;
 use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
@@ -277,7 +278,7 @@ impl TestContext {
             let mut context_names = CONTEXT_NAMES.write().unwrap();
             context_names.insert(id, name);
         }
-        let ctx = Context::new(&dbfile, id, Events::new())
+        let ctx = Context::new(&dbfile, id, Events::new(), StockStrings::new())
             .await
             .expect("failed to create context");
 

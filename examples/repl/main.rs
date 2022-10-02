@@ -20,6 +20,7 @@ use deltachat::context::*;
 use deltachat::oauth2::*;
 use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::securejoin::*;
+use deltachat::stock_str::StockStrings;
 use deltachat::{EventType, Events};
 use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
@@ -298,7 +299,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new(Path::new(&args[1]), 0, Events::new()).await?;
+    let context = Context::new(Path::new(&args[1]), 0, Events::new(), StockStrings::new()).await?;
 
     let events = context.get_event_emitter();
     tokio::task::spawn(async move {

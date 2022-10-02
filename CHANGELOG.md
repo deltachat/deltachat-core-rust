@@ -7,6 +7,7 @@
 ### Changes
 
 ### Fixes
+- share stock string translations across accounts created by the same account manager #3640
 
 ## 1.96.0
 

@@ -1,8 +1,12 @@
 //! Module to work with translatable stock strings.
 
-use anyhow::{bail, Error};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use anyhow::{bail, Error, Result};
 use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
+use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
@@ -13,6 +17,12 @@ use crate::message::{Message, Viewtype};
 use crate::param::Param;
 use crate::tools::timestamp_to_str;
 use humansize::{file_size_opts, FileSize};
+
+#[derive(Debug, Clone)]
+pub struct StockStrings {
+    /// Map from stock string ID to the translation.
+    translated_stockstrings: Arc<RwLock<HashMap<usize, String>>>,
+}
 
 /// Stock strings
 ///
@@ -402,15 +412,54 @@ impl StockMessage {
     }
 }
 
+impl Default for StockStrings {
+    fn default() -> Self {
+        StockStrings::new()
+    }
+}
+
+impl StockStrings {
+    pub fn new() -> Self {
+        Self {
+            translated_stockstrings: Arc::new(RwLock::new(Default::default())),
+        }
+    }
+
+    async fn translated(&self, id: StockMessage) -> String {
+        self.translated_stockstrings
+            .read()
+            .await
+            .get(&(id as usize))
+            .map(AsRef::as_ref)
+            .unwrap_or_else(|| id.fallback())
+            .to_string()
+    }
+
+    async fn set_stock_translation(&self, id: StockMessage, stockstring: String) -> Result<()> {
+        if stockstring.contains("%1") && !id.fallback().contains("%1") {
+            bail!(
+                "translation {} contains invalid %1 placeholder, default is {}",
+                stockstring,
+                id.fallback()
+            );
+        }
+        if stockstring.contains("%2") && !id.fallback().contains("%2") {
+            bail!(
+                "translation {} contains invalid %2 placeholder, default is {}",
+                stockstring,
+                id.fallback()
+            );
+        }
+        self.translated_stockstrings
+            .write()
+            .await
+            .insert(id as usize, stockstring);
+        Ok(())
+    }
+}
+
 async fn translated(context: &Context, id: StockMessage) -> String {
-    context
-        .translated_stockstrings
-        .read()
-        .await
-        .get(&(id as usize))
-        .map(AsRef::as_ref)
-        .unwrap_or_else(|| id.fallback())
-        .to_string()
+    context.translated_stockstrings.translated(id).await
 }
 
 /// Helper trait only meant to be implemented for [`String`].
@@ -1205,29 +1254,10 @@ pub(crate) async fn aeap_explanation_and_link(
 impl Context {
     /// Set the stock string for the [StockMessage].
     ///
-    pub async fn set_stock_translation(
-        &self,
-        id: StockMessage,
-        stockstring: String,
-    ) -> Result<(), Error> {
-        if stockstring.contains("%1") && !id.fallback().contains("%1") {
-            bail!(
-                "translation {} contains invalid %1 placeholder, default is {}",
-                stockstring,
-                id.fallback()
-            );
-        }
-        if stockstring.contains("%2") && !id.fallback().contains("%2") {
-            bail!(
-                "translation {} contains invalid %2 placeholder, default is {}",
-                stockstring,
-                id.fallback()
-            );
-        }
+    pub async fn set_stock_translation(&self, id: StockMessage, stockstring: String) -> Result<()> {
         self.translated_stockstrings
-            .write()
-            .await
-            .insert(id as usize, stockstring);
+            .set_stock_translation(id, stockstring)
+            .await?;
         Ok(())
     }
 

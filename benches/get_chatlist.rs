@@ -4,6 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use deltachat::chatlist::Chatlist;
 use deltachat::context::Context;
+use deltachat::stock_str::StockStrings;
 use deltachat::Events;
 
 async fn get_chat_list_benchmark(context: &Context) {
@@ -16,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     if let Ok(path) = std::env::var("DELTACHAT_BENCHMARK_DATABASE") {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let context = rt.block_on(async {
-            Context::new(Path::new(&path), 100, Events::new())
+            Context::new(Path::new(&path), 100, Events::new(), StockStrings::new())
                 .await
                 .unwrap()
         });

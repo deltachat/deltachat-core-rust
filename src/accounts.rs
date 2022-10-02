@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::context::Context;
 use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::stock_str::StockStrings;
 
 /// Account manager, that can handle multiple accounts in a single place.
 #[derive(Debug)]
@@ -20,6 +21,12 @@ pub struct Accounts {
 
     /// Event channel to emit account manager errors.
     events: Events,
+
+    /// Stock string translations shared by all created contexts.
+    ///
+    /// This way changing a translation for one context automatically
+    /// changes it for all other contexts.
+    stockstrings: StockStrings,
 }
 
 impl Accounts {
@@ -55,8 +62,9 @@ impl Accounts {
             .await
             .context("failed to load accounts config")?;
         let events = Events::new();
+        let stockstrings = StockStrings::new();
         let accounts = config
-            .load_accounts(&events)
+            .load_accounts(&events, &stockstrings)
             .await
             .context("failed to load accounts")?;
 
@@ -65,6 +73,7 @@ impl Accounts {
             config,
             accounts,
             events,
+            stockstrings,
         })
     }
 
@@ -104,6 +113,7 @@ impl Accounts {
             &account_config.dbfile(),
             account_config.id,
             self.events.clone(),
+            self.stockstrings.clone(),
         )
         .await?;
         self.accounts.insert(account_config.id, ctx);
@@ -119,6 +129,7 @@ impl Accounts {
             &account_config.dbfile(),
             account_config.id,
             self.events.clone(),
+            self.stockstrings.clone(),
         )
         .await?;
         self.accounts.insert(account_config.id, ctx);
@@ -204,7 +215,13 @@ impl Accounts {
 
         match res {
             Ok(_) => {
-                let ctx = Context::new(&new_dbfile, account_config.id, self.events.clone()).await?;
+                let ctx = Context::new(
+                    &new_dbfile,
+                    account_config.id,
+                    self.events.clone(),
+                    self.stockstrings.clone(),
+                )
+                .await?;
                 self.accounts.insert(account_config.id, ctx);
                 Ok(account_config.id)
             }
@@ -339,17 +356,31 @@ impl Config {
         Ok(Config { file, inner })
     }
 
-    pub async fn load_accounts(&self, events: &Events) -> Result<BTreeMap<u32, Context>> {
+    /// Loads all accounts defined in the configuration file.
+    ///
+    /// Created contexts share the same event channel and stock string
+    /// translations.
+    pub async fn load_accounts(
+        &self,
+        events: &Events,
+        stockstrings: &StockStrings,
+    ) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
+
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(&account_config.dbfile(), account_config.id, events.clone())
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed to create context from file {:?}",
-                        account_config.dbfile()
-                    )
-                })?;
+            let ctx = Context::new(
+                &account_config.dbfile(),
+                account_config.id,
+                events.clone(),
+                stockstrings.clone(),
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "failed to create context from file {:?}",
+                    account_config.dbfile()
+                )
+            })?;
 
             accounts.insert(account_config.id, ctx);
         }
@@ -446,6 +477,8 @@ impl AccountConfig {
 mod tests {
     use super::*;
 
+    use crate::stock_str::{self, StockMessage};
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_open() {
         let dir = tempfile::tempdir().unwrap();
@@ -522,7 +555,7 @@ mod tests {
         assert_eq!(accounts.config.get_selected_account(), 0);
 
         let extern_dbfile: PathBuf = dir.path().join("other");
-        let ctx = Context::new(&extern_dbfile, 0, Events::new())
+        let ctx = Context::new(&extern_dbfile, 0, Events::new(), StockStrings::new())
             .await
             .unwrap();
         ctx.set_config(crate::config::Config::Addr, Some("me@mail.com"))
@@ -714,6 +747,30 @@ mod tests {
 
         assert_eq!(account.open("foobar".to_string()).await?, true);
         assert_eq!(account.is_open().await, true);
+
+        Ok(())
+    }
+
+    /// Tests that accounts share stock string translations.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_accounts_share_translations() -> Result<()> {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts");
+
+        let mut accounts = Accounts::new(p.clone()).await?;
+        accounts.add_account().await?;
+        accounts.add_account().await?;
+
+        let account1 = accounts.get_account(1).context("failed to get account 1")?;
+        let account2 = accounts.get_account(2).context("failed to get account 2")?;
+
+        assert_eq!(stock_str::no_messages(&account1).await, "No messages.");
+        assert_eq!(stock_str::no_messages(&account2).await, "No messages.");
+        account1
+            .set_stock_translation(StockMessage::NoMessages, "foobar".to_string())
+            .await?;
+        assert_eq!(stock_str::no_messages(&account1).await, "foobar");
+        assert_eq!(stock_str::no_messages(&account2).await, "foobar");
 
         Ok(())
     }

@@ -6,6 +6,7 @@ use deltachat::{
     context::Context,
     imex::{imex, ImexMode},
     receive_imf::receive_imf,
+    stock_str::StockStrings,
     Events,
 };
 use tempfile::tempdir;
@@ -41,7 +42,9 @@ async fn create_context() -> Context {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = 100;
-    let context = Context::new(&dbfile, id, Events::new()).await.unwrap();
+    let context = Context::new(&dbfile, id, Events::new(), StockStrings::new())
+        .await
+        .unwrap();
 
     let backup: PathBuf = std::env::current_dir()
         .unwrap()

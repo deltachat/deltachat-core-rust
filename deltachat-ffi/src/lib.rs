@@ -38,6 +38,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::stock_str::StockMessage;
+use deltachat::stock_str::StockStrings;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
@@ -98,7 +99,12 @@ pub unsafe extern "C" fn dc_context_new(
     let ctx = if blobdir.is_null() || *blobdir == 0 {
         // generate random ID as this functionality is not yet available on the C-api.
         let id = rand::thread_rng().gen();
-        block_on(Context::new(as_path(dbfile), id, Events::new()))
+        block_on(Context::new(
+            as_path(dbfile),
+            id,
+            Events::new(),
+            StockStrings::new(),
+        ))
     } else {
         eprintln!("blobdir can not be defined explicitly anymore");
         return ptr::null_mut();
@@ -122,7 +128,12 @@ pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *
     }
 
     let id = rand::thread_rng().gen();
-    match block_on(Context::new_closed(as_path(dbfile), id, Events::new())) {
+    match block_on(Context::new_closed(
+        as_path(dbfile),
+        id,
+        Events::new(),
+        StockStrings::new(),
+    )) {
         Ok(context) => Box::into_raw(Box::new(context)),
         Err(err) => {
             eprintln!("failed to create context: {:#}", err);

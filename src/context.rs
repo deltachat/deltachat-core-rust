@@ -23,6 +23,7 @@ use crate::quota::QuotaInfo;
 use crate::ratelimit::Ratelimit;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
+use crate::stock_str::StockStrings;
 use crate::tools::{duration_to_str, time};
 
 #[derive(Clone, Debug)]
@@ -51,7 +52,7 @@ pub struct InnerContext {
     pub(crate) oauth2_mutex: Mutex<()>,
     /// Mutex to prevent a race condition when a "your pw is wrong" warning is sent, resulting in multiple messeges being sent.
     pub(crate) wrong_pw_warning_mutex: Mutex<()>,
-    pub(crate) translated_stockstrings: RwLock<HashMap<usize, String>>,
+    pub(crate) translated_stockstrings: StockStrings,
     pub(crate) events: Events,
 
     pub(crate) scheduler: RwLock<Option<Scheduler>>,
@@ -119,8 +120,13 @@ pub fn get_info() -> BTreeMap<&'static str, String> {
 
 impl Context {
     /// Creates new context and opens the database.
-    pub async fn new(dbfile: &Path, id: u32, events: Events) -> Result<Context> {
-        let context = Self::new_closed(dbfile, id, events).await?;
+    pub async fn new(
+        dbfile: &Path,
+        id: u32,
+        events: Events,
+        stock_strings: StockStrings,
+    ) -> Result<Context> {
+        let context = Self::new_closed(dbfile, id, events, stock_strings).await?;
 
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
@@ -130,7 +136,12 @@ impl Context {
     }
 
     /// Creates new context without opening the database.
-    pub async fn new_closed(dbfile: &Path, id: u32, events: Events) -> Result<Context> {
+    pub async fn new_closed(
+        dbfile: &Path,
+        id: u32,
+        events: Events,
+        stockstrings: StockStrings,
+    ) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
         blob_fname.push("-blobs");
@@ -138,7 +149,7 @@ impl Context {
         if !blobdir.exists() {
             tokio::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events)?;
+        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events, stockstrings)?;
         Ok(context)
     }
 
@@ -174,6 +185,7 @@ impl Context {
         blobdir: PathBuf,
         id: u32,
         events: Events,
+        stockstrings: StockStrings,
     ) -> Result<Context> {
         ensure!(
             blobdir.is_dir(),
@@ -190,7 +202,7 @@ impl Context {
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
-            translated_stockstrings: RwLock::new(HashMap::new()),
+            translated_stockstrings: stockstrings,
             events,
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
@@ -706,7 +718,7 @@ mod tests {
         let tmp = tempfile::tempdir()?;
         let dbfile = tmp.path().join("db.sqlite");
         tokio::fs::write(&dbfile, b"123").await?;
-        let res = Context::new(&dbfile, 1, Events::new()).await?;
+        let res = Context::new(&dbfile, 1, Events::new(), StockStrings::new()).await?;
 
         // Broken database is indistinguishable from encrypted one.
         assert_eq!(res.is_open().await, false);
@@ -852,7 +864,9 @@ mod tests {
     async fn test_blobdir_exists() {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
-        Context::new(&dbfile, 1, Events::new()).await.unwrap();
+        Context::new(&dbfile, 1, Events::new(), StockStrings::new())
+            .await
+            .unwrap();
         let blobdir = tmp.path().join("db.sqlite-blobs");
         assert!(blobdir.is_dir());
     }
@@ -863,7 +877,7 @@ mod tests {
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("db.sqlite-blobs");
         tokio::fs::write(&blobdir, b"123").await.unwrap();
-        let res = Context::new(&dbfile, 1, Events::new()).await;
+        let res = Context::new(&dbfile, 1, Events::new(), StockStrings::new()).await;
         assert!(res.is_err());
     }
 
@@ -873,7 +887,9 @@ mod tests {
         let subdir = tmp.path().join("subdir");
         let dbfile = subdir.join("db.sqlite");
         let dbfile2 = dbfile.clone();
-        Context::new(&dbfile, 1, Events::new()).await.unwrap();
+        Context::new(&dbfile, 1, Events::new(), StockStrings::new())
+            .await
+            .unwrap();
         assert!(subdir.is_dir());
         assert!(dbfile2.is_file());
     }
@@ -883,7 +899,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new());
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
         assert!(res.is_err());
     }
 
@@ -892,7 +908,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new());
+        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
         assert!(res.is_err());
     }
 
@@ -1061,7 +1077,7 @@ mod tests {
         let dbfile = dir.path().join("db.sqlite");
 
         let id = 1;
-        let context = Context::new_closed(&dbfile, id, Events::new())
+        let context = Context::new_closed(&dbfile, id, Events::new(), StockStrings::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.open("foo".to_string()).await?, true);
@@ -1069,7 +1085,7 @@ mod tests {
         drop(context);
 
         let id = 2;
-        let context = Context::new(&dbfile, id, Events::new())
+        let context = Context::new(&dbfile, id, Events::new(), StockStrings::new())
             .await
             .context("failed to create context")?;
         assert_eq!(context.is_open().await, false);

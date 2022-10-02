@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::contact::Contact;
 use deltachat::context::Context;
+use deltachat::stock_str::StockStrings;
 use deltachat::Events;
 use tempfile::tempdir;
 
@@ -8,7 +9,9 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
     let id = 100;
-    let context = Context::new(&dbfile, id, Events::new()).await.unwrap();
+    let context = Context::new(&dbfile, id, Events::new(), StockStrings::new())
+        .await
+        .unwrap();
 
     let book = (0..n)
         .map(|i| format!("Name {}\naddr{}@example.org\n", i, i))
