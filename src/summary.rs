@@ -144,7 +144,7 @@ impl Message {
                     .map(|info| info.name)
                     .unwrap_or_else(|_| "ErrWebxdcName".to_string())
             }
-            Viewtype::Text | Viewtype::Unknown => {
+            Viewtype::Text | Viewtype::Reaction | Viewtype::Unknown => {
                 if self.param.get_cmd() != SystemMessage::LocationOnly {
                     "".to_string()
                 } else {

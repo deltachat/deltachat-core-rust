@@ -173,6 +173,13 @@ pub enum EventType {
         msg_id: MsgId,
     },
 
+    /// Reactions for the message changed.
+    ReactionsChanged {
+        chat_id: ChatId,
+        msg_id: MsgId,
+        contact_id: ContactId,
+    },
+
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///

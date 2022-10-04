@@ -1,5 +1,6 @@
 use crate::chat::ChatItem;
 use crate::constants::DC_MSG_ID_DAYMARKER;
+use crate::contact::ContactId;
 use crate::location::Location;
 use crate::message::MsgId;
 
@@ -7,6 +8,7 @@ use crate::message::MsgId;
 #[derive(Debug, Clone)]
 pub enum dc_array_t {
     MsgIds(Vec<MsgId>),
+    ContactIds(Vec<ContactId>),
     Chat(Vec<ChatItem>),
     Locations(Vec<Location>),
     Uint(Vec<u32>),
@@ -16,6 +18,7 @@ impl dc_array_t {
     pub(crate) fn get_id(&self, index: usize) -> u32 {
         match self {
             Self::MsgIds(array) => array[index].to_u32(),
+            Self::ContactIds(array) => array[index].to_u32(),
             Self::Chat(array) => match array[index] {
                 ChatItem::Message { msg_id } => msg_id.to_u32(),
                 ChatItem::DayMarker { .. } => DC_MSG_ID_DAYMARKER,
@@ -28,6 +31,7 @@ impl dc_array_t {
     pub(crate) fn get_timestamp(&self, index: usize) -> Option<i64> {
         match self {
             Self::MsgIds(_) => None,
+            Self::ContactIds(_) => None,
             Self::Chat(array) => array.get(index).and_then(|item| match item {
                 ChatItem::Message { .. } => None,
                 ChatItem::DayMarker { timestamp } => Some(*timestamp),
@@ -40,6 +44,7 @@ impl dc_array_t {
     pub(crate) fn get_marker(&self, index: usize) -> Option<&str> {
         match self {
             Self::MsgIds(_) => None,
+            Self::ContactIds(_) => None,
             Self::Chat(_) => None,
             Self::Locations(array) => array
                 .get(index)
@@ -60,6 +65,7 @@ impl dc_array_t {
     pub(crate) fn len(&self) -> usize {
         match self {
             Self::MsgIds(array) => array.len(),
+            Self::ContactIds(array) => array.len(),
             Self::Chat(array) => array.len(),
             Self::Locations(array) => array.len(),
             Self::Uint(array) => array.len(),
@@ -80,6 +86,12 @@ impl From<Vec<u32>> for dc_array_t {
 impl From<Vec<MsgId>> for dc_array_t {
     fn from(array: Vec<MsgId>) -> Self {
         dc_array_t::MsgIds(array)
+    }
+}
+
+impl From<Vec<ContactId>> for dc_array_t {
+    fn from(array: Vec<ContactId>) -> Self {
+        dc_array_t::ContactIds(array)
     }
 }
 

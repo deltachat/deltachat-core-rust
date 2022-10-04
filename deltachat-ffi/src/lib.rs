@@ -37,6 +37,7 @@ use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
+use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
 use deltachat::stock_str::StockStrings;
 use deltachat::webxdc::StatusUpdateSerial;
@@ -65,6 +66,8 @@ use deltachat::chatlist::Chatlist;
 
 /// Struct representing the deltachat context.
 pub type dc_context_t = Context;
+
+pub type dc_reactions_t = Reactions;
 
 static RT: Lazy<Runtime> = Lazy::new(|| Runtime::new().expect("unable to create tokio runtime"));
 
@@ -498,6 +501,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::Error(_) => 400,
         EventType::ErrorSelfNotInGroup(_) => 410,
         EventType::MsgsChanged { .. } => 2000,
+        EventType::ReactionsChanged { .. } => 2001,
         EventType::IncomingMsg { .. } => 2005,
         EventType::MsgsNoticed { .. } => 2008,
         EventType::MsgDelivered { .. } => 2010,
@@ -542,6 +546,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SelfavatarChanged
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
+        | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
         | EventType::MsgsNoticed(chat_id)
         | EventType::MsgDelivered { chat_id, .. }
@@ -598,6 +603,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::SelfavatarChanged => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
+        | EventType::ReactionsChanged { msg_id, .. }
         | EventType::IncomingMsg { msg_id, .. }
         | EventType::MsgDelivered { msg_id, .. }
         | EventType::MsgFailed { msg_id, .. }
@@ -637,6 +643,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             data2.into_raw()
         }
         EventType::MsgsChanged { .. }
+        | EventType::ReactionsChanged { .. }
         | EventType::IncomingMsg { .. }
         | EventType::MsgsNoticed(_)
         | EventType::MsgDelivered { .. }
@@ -946,6 +953,48 @@ pub unsafe extern "C" fn dc_send_videochat_invitation(
             .map(|msg_id| msg_id.to_u32())
             .unwrap_or_log_default(ctx, "Failed to send video chat invitation")
     })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_send_reaction(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    reaction: *const libc::c_char,
+) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_reaction()");
+        return 0;
+    }
+    let ctx = &*context;
+
+    block_on(async move {
+        send_reaction(ctx, MsgId::new(msg_id), &to_string_lossy(reaction))
+            .await
+            .map(|msg_id| msg_id.to_u32())
+            .unwrap_or_log_default(ctx, "Failed to send reaction")
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_msg_reactions(
+    context: *mut dc_context_t,
+    msg_id: u32,
+) -> *mut dc_reactions_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_msg_reactions()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+
+    let reactions = if let Ok(reactions) = block_on(get_msg_reactions(ctx, MsgId::new(msg_id)))
+        .log_err(ctx, "failed dc_get_msg_reactions() call")
+    {
+        reactions
+    } else {
+        return ptr::null_mut();
+    };
+
+    Box::into_raw(Box::new(reactions))
 }
 
 #[no_mangle]
@@ -3986,6 +4035,45 @@ pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot_t) -> i64 {
 
     let lot = &*lot;
     lot.get_timestamp()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_reactions_get_contacts(
+    reactions: *mut dc_reactions_t,
+) -> *mut dc_array::dc_array_t {
+    if reactions.is_null() {
+        eprintln!("ignoring careless call to dc_reactions_get_contacts()");
+        return ptr::null_mut();
+    }
+
+    let reactions = &*reactions;
+    let array: dc_array_t = reactions.contacts().into();
+
+    Box::into_raw(Box::new(array))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_reactions_get_by_contact_id(
+    reactions: *mut dc_reactions_t,
+    contact_id: u32,
+) -> *mut libc::c_char {
+    if reactions.is_null() {
+        eprintln!("ignoring careless call to dc_reactions_get_by_contact_id()");
+        return ptr::null_mut();
+    }
+
+    let reactions = &*reactions;
+    reactions.get(ContactId::new(contact_id)).as_str().strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_reactions_unref(reactions: *mut dc_reactions_t) {
+    if reactions.is_null() {
+        eprintln!("ignoring careless call to dc_reactions_unref()");
+        return;
+    }
+
+    drop(Box::from_raw(reactions));
 }
 
 #[no_mangle]

@@ -22,6 +22,7 @@ use crate::imap::markseen_on_imap_table;
 use crate::mimeparser::{parse_message_id, DeliveryReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
+use crate::reaction::get_msg_reactions;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
@@ -1082,6 +1083,11 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
 
     ret += "\n";
 
+    let reactions = get_msg_reactions(context, msg_id).await?;
+    if !reactions.is_empty() {
+        ret += &format!("Reactions: {}\n", reactions);
+    }
+
     if let Some(error) = msg.error.as_ref() {
         ret += &format!("Error: {}", error);
     }
@@ -1762,6 +1768,9 @@ pub enum Viewtype {
     /// The text of the message is set using dc_msg_set_text() and retrieved with dc_msg_get_text().
     Text = 10,
 
+    /// RFC 9078 reaction.
+    Reaction = 11,
+
     /// Image message.
     /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
     /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
@@ -1821,6 +1830,7 @@ impl Viewtype {
         match self {
             Viewtype::Unknown => false,
             Viewtype::Text => false,
+            Viewtype::Reaction => false,
             Viewtype::Image => true,
             Viewtype::Gif => true,
             Viewtype::Sticker => true,

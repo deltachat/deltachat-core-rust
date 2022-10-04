@@ -1812,7 +1812,10 @@ pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) 
 }
 
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
-    if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
+    if msg.viewtype == Viewtype::Text
+        || msg.viewtype == Viewtype::VideochatInvitation
+        || msg.viewtype == Viewtype::Reaction
+    {
         // the caller should check if the message text is empty
     } else if msg.viewtype.has_file() {
         let blob = msg
