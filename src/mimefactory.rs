@@ -1122,6 +1122,11 @@ impl<'a> MimeFactory<'a> {
                 "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
             ))
             .body(message_text);
+
+        if self.msg.viewtype == Viewtype::Reaction {
+            main_part = main_part.header(("Content-Disposition", "reaction"));
+        }
+
         let mut parts = Vec::new();
 
         // add HTML-part, this is needed only if a HTML-message from a non-delta-client is forwarded;

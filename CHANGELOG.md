@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### API-Changes
+- added reactions support #3644
 
 ### Changes
 - simplify `UPSERT` queries #3676

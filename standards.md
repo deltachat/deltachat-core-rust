@@ -8,6 +8,7 @@ Transport                        | IMAP v4 ([RFC 3501](https://tools.ietf.org/ht
 Proxy                            | SOCKS5 ([RFC 1928](https://tools.ietf.org/html/rfc1928))
 Embedded media                   | MIME Document Series ([RFC 2045](https://tools.ietf.org/html/rfc2045), [RFC 2046](https://tools.ietf.org/html/rfc2046)), Content-Disposition Header ([RFC 2183](https://tools.ietf.org/html/rfc2183)), Multipart/Related ([RFC 2387](https://tools.ietf.org/html/rfc2387))
 Text and Quote encoding          | Fixed, Flowed ([RFC 3676](https://tools.ietf.org/html/rfc3676))
+Reactions                        | Reaction: Indicating Summary Reaction to a Message [RFC 9078](https://datatracker.ietf.org/doc/rfc9078/)
 Filename encoding                | Encoded Words ([RFC 2047](https://tools.ietf.org/html/rfc2047)), Encoded Word Extensions ([RFC 2231](https://tools.ietf.org/html/rfc2231))
 Identify server folders          | IMAP LIST Extension ([RFC 6154](https://tools.ietf.org/html/rfc6154))
 Push                             | IMAP IDLE ([RFC 2177](https://tools.ietf.org/html/rfc2177))

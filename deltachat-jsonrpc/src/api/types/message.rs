@@ -205,6 +205,9 @@ pub enum MessageViewtype {
     /// Text message.
     Text,
 
+    /// Reaction emoji.
+    Reaction,
+
     /// Image message.
     /// If the image is an animated GIF, the type `Viewtype.Gif` should be used.
     Image,
@@ -242,6 +245,7 @@ impl From<Viewtype> for MessageViewtype {
         match viewtype {
             Viewtype::Unknown => MessageViewtype::Unknown,
             Viewtype::Text => MessageViewtype::Text,
+            Viewtype::Reaction => MessageViewtype::Reaction,
             Viewtype::Image => MessageViewtype::Image,
             Viewtype::Gif => MessageViewtype::Gif,
             Viewtype::Sticker => MessageViewtype::Sticker,
@@ -260,6 +264,7 @@ impl From<MessageViewtype> for Viewtype {
         match viewtype {
             MessageViewtype::Unknown => Viewtype::Unknown,
             MessageViewtype::Text => Viewtype::Text,
+            MessageViewtype::Reaction => Viewtype::Reaction,
             MessageViewtype::Image => Viewtype::Image,
             MessageViewtype::Gif => Viewtype::Gif,
             MessageViewtype::Sticker => Viewtype::Sticker,

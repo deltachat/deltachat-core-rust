@@ -34,7 +34,9 @@ const SEEN_RECENTLY_SECONDS: i64 = 600;
 ///
 /// Some contact IDs are reserved to identify special contacts.  This
 /// type can represent both the special as well as normal contacts.
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct ContactId(u32);
 
 impl ContactId {

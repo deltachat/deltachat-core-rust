@@ -33,6 +33,7 @@ use crate::mimeparser::{
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
+use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
@@ -430,8 +431,12 @@ async fn add_parts(
     };
     // incoming non-chat messages may be discarded
 
-    let location_kml_is = mime_parser.location_kml.is_some();
+    let is_location_kml = mime_parser.location_kml.is_some();
     let is_mdn = !mime_parser.mdn_reports.is_empty();
+    let is_reaction = mime_parser
+        .parts
+        .iter()
+        .any(|part| part.typ == Viewtype::Reaction);
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
 
@@ -450,7 +455,7 @@ async fn add_parts(
             ShowEmails::All => allow_creation = !is_mdn,
         }
     } else {
-        allow_creation = !is_mdn;
+        allow_creation = !is_mdn && !is_reaction;
     }
 
     // check if the message introduces a new chat:
@@ -689,7 +694,8 @@ async fn add_parts(
         state = if seen
             || fetching_existing_messages
             || is_mdn
-            || location_kml_is
+            || is_reaction
+            || is_location_kml
             || securejoin_seen
             || chat_id_blocked == Blocked::Yes
         {
@@ -841,14 +847,15 @@ async fn add_parts(
         }
     }
 
-    if is_mdn {
-        chat_id = Some(DC_CHAT_ID_TRASH);
-    }
-
-    let chat_id = chat_id.unwrap_or_else(|| {
-        info!(context, "No chat id for message (TRASH)");
+    let orig_chat_id = chat_id;
+    let chat_id = if is_mdn || is_reaction {
         DC_CHAT_ID_TRASH
-    });
+    } else {
+        chat_id.unwrap_or_else(|| {
+            info!(context, "No chat id for message (TRASH)");
+            DC_CHAT_ID_TRASH
+        })
+    };
 
     // Extract ephemeral timer from the message or use the existing timer if the message is not fully downloaded.
     let mut ephemeral_timer = if is_partial_download.is_some() {
@@ -1053,6 +1060,17 @@ async fn add_parts(
     let conn = context.sql.get_conn().await?;
 
     for part in &mime_parser.parts {
+        if part.typ == Viewtype::Reaction {
+            set_msg_reaction(
+                context,
+                &mime_in_reply_to,
+                orig_chat_id.unwrap_or_default(),
+                from_id,
+                Reaction::from(part.msg.as_str()),
+            )
+            .await?;
+        }
+
         let mut txt_raw = "".to_string();
         let mut stmt = conn.prepare_cached(
             r#"
@@ -1113,7 +1131,7 @@ INSERT INTO msgs
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash() || (location_kml_is && msg.is_empty());
+        let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
 
         stmt.execute(paramsv![
             rfc724_mid,
