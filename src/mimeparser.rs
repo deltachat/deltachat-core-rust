@@ -1514,7 +1514,7 @@ impl MimeMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum AuthenticationResults {
     Passed,
     Failed,
@@ -1526,7 +1526,15 @@ async fn parse_authentication_results(
     from: &[SingleInfo],
 ) -> Result<AuthenticationResults> {
     // TODO this doesn't work for e.g. GMX which sells @gmx.de addresses, but uses gmx.net as its server
-    // Config::ConfiguredProvider could work?
+    // Config::ConfiguredProvider doesn't work for e.g. Gmail which uses mx.google.com.
+    //
+    // We could self-send a message during configure and use the Authentication-Results header from there -
+    // this works for e.g. GMX, but not for Testrun and GMAIL.
+    // -> Alternatively, we could send a message to nonexistent@example.com and wait for the NDN. This works
+    //    for Gmail, but the Testrun NDN doesn't contain such a header, and GMX returns an error directly
+    //    while sending.
+    //
+    // We could save this info in the provider db, but this only works for these providers.
     let self_domain = EmailAddress::new(&context.get_primary_self_addr().await?)?.domain;
     let from = match from.first() {
         Some(f) => &f.addr,
@@ -1534,30 +1542,48 @@ async fn parse_authentication_results(
     };
     let sender_domain = EmailAddress::new(from)?.domain;
 
+    let mut header_map: HashMap<String, Vec<String>> = HashMap::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
-        // The Authentication-Results header starts with the identification of the
-        // authentication server that added the Authentication-Results header, called
-        // "authserv-id" in the RFC.
-        // Usually this is the domain of the email provider.
-        // "Our" email provider will remove an Authenticaiton-Results header that claims
-        // to be added by "our" email provider, so if (and only if) there is an
-        // Authentication-Results header with the TODO
-        if header_value.starts_with(&self_domain) {
-            if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
-                let dkim_part = dkim_to_end.split(';').next().context("what the hell")?;
-                let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
-                if let Some(&"pass") = dkim_parts.first() {
-                    let header_d: &str = &format!("header.d={}", &sender_domain);
-                    let header_i: &str = &format!("header.i=&{}", &sender_domain);
+        // TODO there could be a comment [CFWS] before the self domain. Do we care? Probably not.
+        let authserv_id = header_value
+            .split_whitespace()
+            .next()
+            .context("Empty header")?;
+        header_map
+            .entry(authserv_id.to_string())
+            .or_default()
+            .push(header_value);
+    }
 
-                    if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
-                        return Ok(AuthenticationResults::Passed);
-                    }
+    for (_authserv_id, headers) in header_map {
+        if !any_header_says_pass(&headers, &sender_domain)? {
+            return Ok(AuthenticationResults::Failed);
+        }
+    }
+
+    Ok(AuthenticationResults::Passed)
+}
+
+fn any_header_says_pass(headers: &[String], sender_domain: &str) -> Result<bool> {
+    for header_value in headers {
+        if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
+            let dkim_part = dkim_to_end
+                .split(';')
+                .next()
+                .context("what the hell TODO malformed")?;
+            let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
+            if let Some(&"pass") = dkim_parts.first() {
+                let header_d: &str = format!("header.d={}", &sender_domain);
+                let header_i: &str = format!("header.i=@{}", &sender_domain);
+
+                if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
+                    return Ok(true);
                 }
             }
         }
     }
-    Ok(AuthenticationResults::Failed)
+
+    Ok(false)
 }
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
@@ -1871,6 +1897,7 @@ mod tests {
         test_utils::TestContext,
     };
     use mailparse::ParsedMail;
+    use tokio::{fs, io::AsyncReadExt};
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
@@ -3380,5 +3407,125 @@ Message.
         assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));
 
         Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_authentication_results() -> Result<()> {
+        // TODO test that foreign Auth-Res headers are ignored
+        check_parse_authentication_results_combination(
+            "alice@gmx.net",
+            b"From: info@slack.com
+Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
+Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com",
+            AuthenticationResults::Passed,
+        )
+        .await;
+
+        check_parse_authentication_results_combination(
+            "alice@testrun.org",
+            // TODO actually the address is alice@gmx.de, but then it doesn't work because `header.d=gmx.net`:
+            b"From: alice@gmx.net
+Authentication-Results: testrun.org;
+	dkim=pass header.d=gmx.net header.s=badeba3b8450 header.b=Gug6p4zD;
+	dmarc=pass (policy=none) header.from=gmx.de;
+	spf=pass (testrun.org: domain of alice@gmx.de designates 212.227.17.21 as permitted sender) smtp.mailfrom=alice@gmx.de",
+            AuthenticationResults::Passed,
+        )
+        .await;
+
+        check_parse_authentication_results_combination(
+            "alice@testrun.org",
+            br#"From: hocuri@testrun.org
+Authentication-Results: box.hispanilandia.net; dmarc=none (p=none dis=none) header.from=nauta.cu
+Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@nauta.cu
+Authentication-Results: testrun.org;
+	dkim=fail ("body hash did not verify") header.d=nauta.cu header.s=nauta header.b=YrWhU6qk;
+	dmarc=none;
+	spf=pass (testrun.org: domain of "test1-bounces+hocuri=testrun.org@hispanilandia.net" designates 51.15.127.36 as permitted sender) smtp.mailfrom="test1-bounces+hocuri=testrun.org@hispanilandia.net"
+"#,
+            AuthenticationResults::Failed,
+        )
+        .await;
+
+        check_parse_authentication_results_combination(
+
+            // TODO fails because mx.google.com, not google.com
+            "alice@gmail.com",
+            br#"From: not-so-fake@hispanilandia.net
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@hispanilandia.net header.s=mail header.b="Ih5Sz2/P";
+       spf=pass (google.com: domain of not-so-fake@hispanilandia.net designates 51.15.127.36 as permitted sender) smtp.mailfrom=not-so-fake@hispanilandia.net;
+       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=hispanilandia.net"#,
+            AuthenticationResults::Passed,
+        )
+        .await;
+
+        check_parse_authentication_results_combination(
+            "alice@nauta.cu",
+            br#"From: adb <adbenitez@disroot.org>
+Authentication-Results: box.hispanilandia.net;
+	dkim=fail reason="signature verification failed" (2048-bit key; secure) header.d=disroot.org header.i=@disroot.org header.b="kqh3WUKq";
+	dkim-atps=neutral
+Authentication-Results: box.hispanilandia.net; dmarc=pass (p=quarantine dis=none) header.from=disroot.org
+Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@disroot.org"#,
+            AuthenticationResults::Passed,
+        )
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_realworld_authentication_results() -> Result<()> {
+        let mut dir = fs::read_dir("test-data/message/dkimchecks-2022-09-28/")
+            .await
+            .unwrap();
+        let mut bytes = Vec::new();
+        while let Some(entry) = dir.next_entry().await.unwrap() {
+            let self_addr = entry.file_name().into_string().unwrap();
+            let mut dir = fs::read_dir(entry.path()).await.unwrap();
+            while let Some(entry) = dir.next_entry().await.unwrap() {
+                let mut file = fs::File::open(entry.path()).await?;
+                println!("{:?}", entry.path());
+                bytes.clear();
+                file.read_to_end(&mut bytes).await.unwrap();
+                if bytes.is_empty() {
+                    continue;
+                }
+                check_parse_authentication_results_combination(
+                    &self_addr,
+                    &bytes,
+                    AuthenticationResults::Passed,
+                )
+                .await;
+            }
+        }
+        Ok(())
+    }
+
+    async fn check_parse_authentication_results_combination(
+        self_addr: &str,
+        header_bytes: &[u8],
+        expected_result: AuthenticationResults,
+    ) {
+        let t = TestContext::new().await;
+        t.set_primary_self_addr(self_addr).await.unwrap();
+        let message = MimeMessage::from_bytes(&t, header_bytes).await.unwrap();
+        //assert_eq!(message.authentication_results, expected_result);
+        if message.authentication_results != expected_result {
+            eprintln!(
+                "EXPECTED {expected_result:?}, GOT {:?}, SELF {}, FROM {:?}",
+                message.authentication_results,
+                self_addr,
+                message.from.first().map(|i| &i.addr),
+            )
+        } else {
+            eprintln!(
+                "CORRECT {:?}, SELF {}, FROM {:?}",
+                message.authentication_results,
+                self_addr,
+                message.from.first().map(|i| &i.addr),
+            )
+        }
     }
 }

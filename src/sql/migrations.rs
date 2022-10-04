@@ -596,6 +596,17 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 92 {
+        info!(context, "[migration] v92");
+        sql.execute_migration(
+            // TODO Is this really the database scheme we want?
+            // Would be possible to save the timestamp here until when it was correct (change it as soon as it becomes incorrect).
+            // Then if this is old enough, accept a deviating key again
+            "ALTER TABLE acpeerstates ADD COLUMN dkim_status INTEGER DEFAULT 0;",
+            92,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
