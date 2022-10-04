@@ -2,7 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
-        remove_contact_from_chat, Chat, ChatId, ChatItem, ProtectionStatus,
+        remove_contact_from_chat, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus,
     },
     chatlist::Chatlist,
     config::Config,
@@ -38,7 +38,7 @@ use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
-    chat::{BasicChat, MuteDuration},
+    chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
     message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
 
@@ -603,6 +603,19 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), image_path.unwrap_or_default())
+            .await
+    }
+
+    async fn set_chat_visibility(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        visibility: JSONRPCChatVisibility,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+
+        ChatId::new(chat_id)
+            .set_visibility(&ctx, visibility.into_core_type())
             .await
     }
 

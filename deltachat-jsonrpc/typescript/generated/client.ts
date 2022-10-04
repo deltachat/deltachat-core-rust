@@ -415,6 +415,11 @@ export class RawClient {
   }
 
 
+  public setChatVisibility(accountId: T.U32, chatId: T.U32, visibility: T.ChatVisibility): Promise<null> {
+    return (this._transport.request('set_chat_visibility', [accountId, chatId, visibility] as RPC.Params)) as Promise<null>;
+  }
+
+
   public addDeviceMessage(accountId: T.U32, label: string, text: string): Promise<T.U32> {
     return (this._transport.request('add_device_message', [accountId, label, text] as RPC.Params)) as Promise<T.U32>;
   }
