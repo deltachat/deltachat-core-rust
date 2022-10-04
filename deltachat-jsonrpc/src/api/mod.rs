@@ -2,12 +2,13 @@ use anyhow::{anyhow, bail, Context, Result};
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
-        remove_contact_from_chat, Chat, ChatId, ChatItem, ChatVisibility, ProtectionStatus,
+        remove_contact_from_chat, Chat, ChatId, ChatItem, ProtectionStatus,
     },
     chatlist::Chatlist,
     config::Config,
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
+    ephemeral::Timer,
     message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
@@ -617,6 +618,26 @@ impl CommandApi {
         ChatId::new(chat_id)
             .set_visibility(&ctx, visibility.into_core_type())
             .await
+    }
+
+    async fn set_chat_ephemeral_timer(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        timer: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ChatId::new(chat_id)
+            .set_ephemeral_timer(&ctx, Timer::from_u32(timer))
+            .await
+    }
+
+    async fn get_chat_ephemeral_timer(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ChatId::new(chat_id)
+            .get_ephemeral_timer(&ctx)
+            .await?
+            .to_u32())
     }
 
     // for now only text messages, because we only used text messages in desktop thusfar

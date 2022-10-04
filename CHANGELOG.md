@@ -14,6 +14,9 @@
   - `sendVideochatInvitation()`
   - `searchMessages()`
   - `messageIdsToSearchResults()`
+  - `setChatVisibility()`
+  - `getChatEphemeralTimer()`
+  - `setChatEphemeralTimer()`
 - jsonrpc: add type: #3641
   - `MessageSearchResult`
 

@@ -420,6 +420,16 @@ export class RawClient {
   }
 
 
+  public setChatEphemeralTimer(accountId: T.U32, chatId: T.U32, timer: T.U32): Promise<null> {
+    return (this._transport.request('set_chat_ephemeral_timer', [accountId, chatId, timer] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public getChatEphemeralTimer(accountId: T.U32, chatId: T.U32): Promise<T.U32> {
+    return (this._transport.request('get_chat_ephemeral_timer', [accountId, chatId] as RPC.Params)) as Promise<T.U32>;
+  }
+
+
   public addDeviceMessage(accountId: T.U32, label: string, text: string): Promise<T.U32> {
     return (this._transport.request('add_device_message', [accountId, label, text] as RPC.Params)) as Promise<T.U32>;
   }
