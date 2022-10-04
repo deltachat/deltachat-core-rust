@@ -9,6 +9,7 @@ use deltachat::{
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
     ephemeral::Timer,
+    location,
     message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
@@ -40,6 +41,7 @@ use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
+    location::JsonrpcLocation,
     message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
 
@@ -1157,6 +1159,32 @@ impl CommandApi {
     async fn get_connectivity_html(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         ctx.get_connectivity_html().await
+    }
+
+    // ---------------------------------------------
+    //                  locations
+    // ---------------------------------------------
+
+    async fn get_locations(
+        &self,
+        account_id: u32,
+        chat_id: Option<u32>,
+        contact_id: Option<u32>,
+        timestamp_begin: i64,
+        timestamp_end: i64,
+    ) -> Result<Vec<JsonrpcLocation>> {
+        let ctx = self.get_context(account_id).await?;
+
+        let locations = location::get_range(
+            &ctx,
+            chat_id.map(ChatId::new),
+            contact_id,
+            timestamp_begin,
+            timestamp_end,
+        )
+        .await?;
+
+        Ok(locations.into_iter().map(|l| l.into()).collect())
     }
 
     // ---------------------------------------------

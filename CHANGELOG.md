@@ -17,8 +17,10 @@
   - `setChatVisibility()`
   - `getChatEphemeralTimer()`
   - `setChatEphemeralTimer()`
-- jsonrpc: add type: #3641
+  - `getLocations()`
+- jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
+  - `Location`
 
 
 ### Changes

@@ -731,6 +731,11 @@ export class RawClient {
   }
 
 
+  public getLocations(accountId: T.U32, chatId: (T.U32|null), contactId: (T.U32|null), timestampBegin: T.I64, timestampEnd: T.I64): Promise<(T.Location)[]> {
+    return (this._transport.request('get_locations', [accountId, chatId, contactId, timestampBegin, timestampEnd] as RPC.Params)) as Promise<(T.Location)[]>;
+  }
+
+
   public webxdcSendStatusUpdate(accountId: T.U32, instanceMsgId: T.U32, updateStr: string, description: string): Promise<null> {
     return (this._transport.request('webxdc_send_status_update', [accountId, instanceMsgId, updateStr, description] as RPC.Params)) as Promise<null>;
   }
