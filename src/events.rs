@@ -189,6 +189,10 @@ pub enum EventType {
         msg_id: MsgId,
     },
 
+    IncomingMsgBunch {
+        msg_ids: Vec<MsgId>,
+    },
+
     /// Messages were seen or noticed.
     /// chat id is always set.
     MsgsNoticed(ChatId),

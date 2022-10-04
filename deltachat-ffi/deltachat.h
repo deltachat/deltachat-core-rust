@@ -5634,6 +5634,11 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_EVENT_INCOMING_MSG             2005
 
+/**
+ * TODO docs
+ */
+#define DC_EVENT_INCOMING_MSG_BUNCH       2006
+
 
 /**
  * Messages were marked noticed or seen.
