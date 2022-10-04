@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### API-Changes
+- jsonrpc: add function: #3641
+  - `getChatContacts()`
+  - `createGroupChat()`
+  - `createBroadcastList()`
+  - `setChatName()`
+  - `setChatProfileImage()`
+  - `downloadFullMessage()`
+  - `lookupContactIdByAddr()`
+  - `sendVideochatInvitation()`
+  - `searchMessages()`
+  - `messageIdsToSearchResults()`
+- jsonrpc: add type: #3641
+  - `MessageSearchResult`
+
 
 ### Changes
 

@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use deltachat::chat::Chat;
+use deltachat::constants::Chattype;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::download;
@@ -342,6 +343,45 @@ impl MessageNotificationInfo {
             chat_profile_image,
             summary_prefix: summary.prefix.map(|s| s.to_string()),
             summary_text: summary.text,
+        })
+    }
+}
+
+#[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageSearchResult {
+    id: u32,
+    author_profile_image: Option<String>,
+    author_name: String,
+    author_color: String,
+    chat_name: Option<String>,
+    message: String,
+    timestamp: i64,
+}
+
+impl MessageSearchResult {
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
+        let message = Message::load_from_db(context, msg_id).await?;
+        let chat = Chat::load_from_db(context, message.get_chat_id()).await?;
+        let sender = Contact::load_from_db(context, message.get_from_id()).await?;
+
+        let profile_image = match sender.get_profile_image(context).await? {
+            Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+            None => None,
+        };
+
+        Ok(Self {
+            id: msg_id.to_u32(),
+            author_profile_image: profile_image,
+            author_name: sender.get_display_name().to_owned(),
+            author_color: color_int_to_hex_string(sender.get_color()),
+            chat_name: if chat.get_type() == Chattype::Single {
+                Some(chat.get_name().to_owned())
+            } else {
+                None
+            },
+            message: message.get_text().unwrap_or_default(),
+            timestamp: message.get_timestamp(),
         })
     }
 }

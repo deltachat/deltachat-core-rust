@@ -2,11 +2,11 @@ use anyhow::{anyhow, bail, Context, Result};
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
-        remove_contact_from_chat, Chat, ChatId, ChatItem,
+        remove_contact_from_chat, Chat, ChatId, ChatItem, ProtectionStatus,
     },
     chatlist::Chatlist,
     config::Config,
-    contact::{may_be_valid_addr, Contact, ContactId},
+    contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
     message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
@@ -39,7 +39,7 @@ use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
     chat::{BasicChat, MuteDuration},
-    message::{MessageNotificationInfo, MessageViewtype},
+    message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
 
 #[derive(Clone, Debug)]
@@ -407,9 +407,7 @@ impl CommandApi {
     ///   really unexpected when deletion results in contacting all members again,
     ///   (3) only leaving groups is also a valid usecase.
     ///
-    /// To leave a chat explicitly, use dc_remove_contact_from_chat() with
-    /// chat_id=DC_CONTACT_ID_SELF)
-    // TODO fix doc comment after adding dc_remove_contact_from_chat
+    /// To leave a chat explicitly, use leave_group()
     async fn delete_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id).delete(&ctx).await
@@ -492,6 +490,120 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         add_contact_to_chat(&ctx, ChatId::new(chat_id), ContactId::new(contact_id)).await
+    }
+
+    /// Get the contact IDs belonging to a chat.
+    ///
+    /// - for normal chats, the function always returns exactly one contact,
+    ///   DC_CONTACT_ID_SELF is returned only for SELF-chats.
+    ///
+    /// - for group chats all members are returned, DC_CONTACT_ID_SELF is returned
+    ///   explicitly as it may happen that oneself gets removed from a still existing
+    ///   group
+    ///
+    /// - for broadcasts, all recipients are returned, DC_CONTACT_ID_SELF is not included
+    ///
+    /// - for mailing lists, the behavior is not documented currently, we will decide on that later.
+    ///   for now, the UI should not show the list for mailing lists.
+    ///   (we do not know all members and there is not always a global mailing list address,
+    ///   so we could return only SELF or the known members; this is not decided yet)
+    async fn get_chat_contacts(&self, account_id: u32, chat_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let contacts = chat::get_chat_contacts(&ctx, ChatId::new(chat_id)).await?;
+        Ok(contacts.iter().map(|id| id.to_u32()).collect::<Vec<u32>>())
+    }
+
+    /// Create a new group chat.
+    ///
+    /// After creation,
+    /// the group has one member with the ID DC_CONTACT_ID_SELF
+    /// and is in _unpromoted_ state.
+    /// This means, you can add or remove members, change the name,
+    /// the group image and so on without messages being sent to all group members.
+    ///
+    /// This changes as soon as the first message is sent to the group members
+    /// and the group becomes _promoted_.
+    /// After that, all changes are synced with all group members
+    /// by sending status message.
+    ///
+    /// To check, if a chat is still unpromoted, you can look at the `is_unpromoted` property of `BasicChat` or `FullChat`.
+    /// This may be useful if you want to show some help for just created groups.
+    ///
+    /// @param protect If set to 1 the function creates group with protection initially enabled.
+    ///     Only verified members are allowed in these groups
+    ///     and end-to-end-encryption is always enabled.
+    async fn create_group_chat(&self, account_id: u32, name: String, protect: bool) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let protect = match protect {
+            true => ProtectionStatus::Protected,
+            false => ProtectionStatus::Unprotected,
+        };
+        chat::create_group_chat(&ctx, protect, &name)
+            .await
+            .map(|id| id.to_u32())
+    }
+
+    /// Create a new broadcast list.
+    ///
+    /// Broadcast lists are similar to groups on the sending device,
+    /// however, recipients get the messages in normal one-to-one chats
+    /// and will not be aware of other members.
+    ///
+    /// Replies to broadcasts go only to the sender
+    /// and not to all broadcast recipients.
+    /// Moreover, replies will not appear in the broadcast list
+    /// but in the one-to-one chat with the person answering.
+    ///
+    /// The name and the image of the broadcast list is set automatically
+    /// and is visible to the sender only.
+    /// Not asking for these data allows more focused creation
+    /// and we bypass the question who will get which data.
+    /// Also, many users will have at most one broadcast list
+    /// so, a generic name and image is sufficient at the first place.
+    ///
+    /// Later on, however, the name can be changed using dc_set_chat_name().
+    /// The image cannot be changed to have a unique, recognizable icon in the chat lists.
+    /// All in all, this is also what other messengers are doing here.
+    async fn create_broadcast_list(&self, account_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        chat::create_broadcast_list(&ctx)
+            .await
+            .map(|id| id.to_u32())
+    }
+
+    /// Set group name.
+    ///
+    /// If the group is already _promoted_ (any message was sent to the group),
+    /// all group members are informed by a special status message that is sent automatically by this function.
+    ///
+    /// Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+    async fn set_chat_name(&self, account_id: u32, chat_id: u32, new_name: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        chat::set_chat_name(&ctx, ChatId::new(chat_id), &new_name).await
+    }
+
+    /// Set group profile image.
+    ///
+    /// If the group is already _promoted_ (any message was sent to the group),
+    /// all group members are informed by a special status message that is sent automatically by this function.
+    ///
+    /// Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
+    ///
+    /// To find out the profile image of a chat, use dc_chat_get_profile_image()
+    ///
+    /// @param image_path Full path of the image to use as the group image. The image will immediately be copied to the
+    ///     `blobdir`; the original image will not be needed anymore.
+    ///      If you pass null here, the group image is deleted (for promoted groups, all members are informed about
+    ///      this change anyway).
+    async fn set_chat_profile_image(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        image_path: Option<String>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), image_path.unwrap_or_default())
+            .await
     }
 
     // for now only text messages, because we only used text messages in desktop thusfar
@@ -670,6 +782,65 @@ impl CommandApi {
         get_msg_info(&ctx, MsgId::new(message_id)).await
     }
 
+    /// Asks the core to start downloading a message fully.
+    /// This function is typically called when the user hits the "Download" button
+    /// that is shown by the UI in case `download_state` is `'Available'` or `'Failure'`
+    ///
+    /// On success, the @ref DC_MSG "view type of the message" may change
+    /// or the message may be replaced completely by one or more messages with other message IDs.
+    /// That may happen e.g. in cases where the message was encrypted
+    /// and the type could not be determined without fully downloading.
+    /// Downloaded content can be accessed as usual after download.
+    ///
+    /// To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.
+    async fn download_full_message(&self, account_id: u32, message_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        MsgId::new(message_id).download_full(&ctx).await
+    }
+
+    /// Search messages containing the given query string.
+    /// Searching can be done globally (chat_id=0) or in a specified chat only (chat_id set).
+    ///
+    /// Global chat results are typically displayed using dc_msg_get_summary(), chat
+    /// search results may just hilite the corresponding messages and present a
+    /// prev/next button.
+    ///
+    /// For global search, result is limited to 1000 messages,
+    /// this allows incremental search done fast.
+    /// So, when getting exactly 1000 results, the result may be truncated;
+    /// the UIs may display sth. as "1000+ messages found" in this case.
+    /// Chat search (if a chat_id is set) is not limited.
+    async fn search_messages(
+        &self,
+        account_id: u32,
+        query: String,
+        chat_id: Option<u32>,
+    ) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let messages = ctx.search_msgs(chat_id.map(ChatId::new), &query).await?;
+        Ok(messages
+            .iter()
+            .map(|msg_id| msg_id.to_u32())
+            .collect::<Vec<u32>>())
+    }
+
+    async fn message_ids_to_search_results(
+        &self,
+        account_id: u32,
+        message_ids: Vec<u32>,
+    ) -> Result<HashMap<u32, MessageSearchResult>> {
+        let ctx = self.get_context(account_id).await?;
+        let mut results: HashMap<u32, MessageSearchResult> =
+            HashMap::with_capacity(message_ids.len());
+        for id in message_ids {
+            results.insert(
+                id,
+                MessageSearchResult::from_msg_id(&ctx, MsgId::new(id)).await?,
+            );
+        }
+        Ok(results)
+    }
+
     // ---------------------------------------------
     //  contact
     // ---------------------------------------------
@@ -813,6 +984,21 @@ impl CommandApi {
     ) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         Contact::get_encrinfo(&ctx, ContactId::new(contact_id)).await
+    }
+
+    /// Check if an e-mail address belongs to a known and unblocked contact.
+    /// To get a list of all known and unblocked contacts, use contacts_get_contacts().
+    ///
+    /// To validate an e-mail address independently of the contact database
+    /// use check_email_validity().
+    async fn lookup_contact_id_by_addr(
+        &self,
+        account_id: u32,
+        addr: String,
+    ) -> Result<Option<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let contact_id = Contact::lookup_id_by_addr(&ctx, &addr, Origin::IncomingReplyTo).await?;
+        Ok(contact_id.map(|id| id.to_u32()))
     }
 
     // ---------------------------------------------
@@ -1016,6 +1202,13 @@ impl CommandApi {
         } else {
             Ok(None)
         }
+    }
+
+    async fn send_videochat_invitation(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
+            .await
+            .map(|msg_id| msg_id.to_u32())
     }
 
     // ---------------------------------------------
