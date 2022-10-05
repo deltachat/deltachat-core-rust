@@ -17,6 +17,7 @@ use deltachat::{
     qr,
     qr_code_generator::get_securejoin_qr_svg,
     securejoin,
+    stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
 };
 use std::collections::BTreeMap;
@@ -47,6 +48,8 @@ use self::types::{
     location::JsonrpcLocation,
     message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
+
+use num_traits::FromPrimitive;
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {
@@ -252,6 +255,18 @@ impl CommandApi {
             result.insert(key.clone(), get_config(&ctx, &key).await?);
         }
         Ok(result)
+    }
+
+    async fn set_stock_strings(&self, strings: HashMap<u32, String>) -> Result<()> {
+        let accounts = self.accounts.read().await;
+        for (stock_id, stock_message) in strings {
+            if let Some(stock_id) = StockMessage::from_u32(stock_id) {
+                accounts
+                    .set_stock_translation(stock_id, stock_message)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     /// Configures this account with the currently set parameters.

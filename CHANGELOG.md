@@ -21,6 +21,7 @@
   - `imex()`
   - `getAccountFileSize()`
   - `estimateAutoDeletionCount()`
+  - `setStockStrings()`
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`

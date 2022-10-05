@@ -142,6 +142,11 @@ export class RawClient {
     return (this._transport.request('batch_get_config', [accountId, keys] as RPC.Params)) as Promise<Record<string,(string|null)>>;
   }
 
+
+  public setStockStrings(strings: Record<T.U32,string>): Promise<null> {
+    return (this._transport.request('set_stock_strings', [strings] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Configures this account with the currently set parameters.
    * Setup the credential config before calling this.
