@@ -9,19 +9,19 @@ use deltachat::{
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
     ephemeral::Timer,
-    location,
+    imex, location,
     message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
     securejoin,
     webxdc::StatusUpdateSerial,
-    imex
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 use tokio::sync::RwLock;
+use walkdir::WalkDir;
 use yerpc::rpc;
 
 pub use deltachat::accounts::Accounts;
@@ -30,7 +30,7 @@ pub mod events;
 pub mod types;
 
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
-use crate::api::types::{QrObject, JSONRPCImexMode};
+use crate::api::types::{JSONRPCImexMode, QrObject};
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -149,6 +149,21 @@ impl CommandApi {
         }
     }
 
+    /// Get the combined filesize of an account in bytes
+    async fn get_account_file_size(&self, account_id: u32) -> Result<u64> {
+        let ctx = self.get_context(account_id).await?;
+        let dbfile = ctx.get_dbfile().metadata()?.len();
+        let total_size = WalkDir::new(ctx.get_blobdir())
+            .max_depth(2)
+            .into_iter()
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| entry.metadata().ok())
+            .filter(|metadata| metadata.is_file())
+            .fold(0, |acc, m| acc + m.len());
+
+        Ok(dbfile + total_size)
+    }
+
     /// Returns provider for the given domain.
     ///
     /// This function looks up domain in offline database.
@@ -260,10 +275,15 @@ impl CommandApi {
         Ok(())
     }
 
-    async fn imex(&self, account_id: u32, what: JSONRPCImexMode, path: String, passphrase: Option<String>) -> Result<()> {
+    async fn imex(
+        &self,
+        account_id: u32,
+        what: JSONRPCImexMode,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        imex::imex(&ctx, what.into_core_type(), path.as_ref(), passphrase)
-            .await
+        imex::imex(&ctx, what.into_core_type(), path.as_ref(), passphrase).await
     }
 
     /// Returns the message IDs of all _fresh_ messages of any chat.

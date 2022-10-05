@@ -1,5 +1,5 @@
-use deltachat::{qr::Qr, imex::ImexMode};
-use serde::{Serialize, Deserialize};
+use deltachat::{imex::ImexMode, qr::Qr};
+use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
 
 pub mod account;

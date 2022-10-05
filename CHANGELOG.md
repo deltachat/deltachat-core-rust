@@ -18,6 +18,8 @@
   - `getChatEphemeralTimer()`
   - `setChatEphemeralTimer()`
   - `getLocations()`
+  - `imex()`
+  - `getAccountFileSize()`
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`

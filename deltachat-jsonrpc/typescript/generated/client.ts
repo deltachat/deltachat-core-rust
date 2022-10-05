@@ -74,6 +74,13 @@ export class RawClient {
   }
 
   /**
+   * Get the combined filesize of an account in bytes
+   */
+  public getAccountFileSize(accountId: T.U32): Promise<T.U64> {
+    return (this._transport.request('get_account_file_size', [accountId] as RPC.Params)) as Promise<T.U64>;
+  }
+
+  /**
    * Returns provider for the given domain.
    *
    * This function looks up domain in offline database.

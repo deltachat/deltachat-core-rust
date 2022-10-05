@@ -980,6 +980,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "typescript-type-def",
+ "walkdir",
  "yerpc",
 ]
 
