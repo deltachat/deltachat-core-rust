@@ -34,7 +34,7 @@ const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
 pub const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Qr {
     AskVerifyContact {
         contact_id: ContactId,
