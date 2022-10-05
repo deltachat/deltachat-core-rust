@@ -10,7 +10,9 @@ use deltachat::{
     context::get_info,
     ephemeral::Timer,
     imex, location,
-    message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
+    message::{
+        self, delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+    },
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
@@ -316,6 +318,20 @@ impl CommandApi {
     async fn get_fresh_msg_cnt(&self, account_id: u32, chat_id: u32) -> Result<usize> {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await
+    }
+
+    /// Estimate the number of messages that will be deleted
+    /// by the set_config()-options `delete_device_after` or `delete_server_after`.
+    /// This is typically used to show the estimated impact to the user
+    /// before actually enabling deletion of old messages.
+    async fn estimate_auto_deletion_count(
+        &self,
+        account_id: u32,
+        from_server: bool,
+        seconds: i64,
+    ) -> Result<usize> {
+        let ctx = self.get_context(account_id).await?;
+        message::estimate_deletion_cnt(&ctx, from_server, seconds).await
     }
 
     // ---------------------------------------------

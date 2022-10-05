@@ -191,6 +191,16 @@ export class RawClient {
     return (this._transport.request('get_fresh_msg_cnt', [accountId, chatId] as RPC.Params)) as Promise<T.Usize>;
   }
 
+  /**
+   * Estimate the number of messages that will be deleted
+   * by the set_config()-options `delete_device_after` or `delete_server_after`.
+   * This is typically used to show the estimated impact to the user
+   * before actually enabling deletion of old messages.
+   */
+  public estimateAutoDeletionCount(accountId: T.U32, fromServer: boolean, seconds: T.I64): Promise<T.Usize> {
+    return (this._transport.request('estimate_auto_deletion_count', [accountId, fromServer, seconds] as RPC.Params)) as Promise<T.Usize>;
+  }
+
 
   public autocryptInitiateKeyTransfer(accountId: T.U32): Promise<string> {
     return (this._transport.request('autocrypt_initiate_key_transfer', [accountId] as RPC.Params)) as Promise<string>;

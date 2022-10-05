@@ -20,6 +20,7 @@
   - `getLocations()`
   - `imex()`
   - `getAccountFileSize()`
+  - `estimateAutoDeletionCount()`
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`
