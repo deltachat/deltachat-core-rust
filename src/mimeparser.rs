@@ -90,7 +90,7 @@ pub struct MimeMessage {
     pub decoded_data: Vec<u8>,
 
     pub(crate) hop_info: String,
-    authentication_results: AuthenticationResults,
+    //pub(crate) authentication_results: HashMap<AuthservId, AuthenticationResults>, // TODO
 }
 
 #[derive(Debug, PartialEq)]
@@ -198,9 +198,6 @@ impl MimeMessage {
             &mut chat_disposition_notification_to,
             &mail.headers,
         );
-
-        let authentication_results =
-            parse_authentication_results(context, &mail.get_headers(), &from).await?;
 
         // Parse hidden headers.
         let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
@@ -341,7 +338,7 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
             hop_info,
-            authentication_results,
+            //authentication_results,
         };
 
         match partial {
@@ -1512,78 +1509,6 @@ impl MimeMessage {
         };
         Ok(parent_timestamp)
     }
-}
-
-#[derive(Debug, PartialEq)]
-enum AuthenticationResults {
-    Passed,
-    Failed,
-}
-
-async fn parse_authentication_results(
-    context: &Context,
-    headers: &Headers<'_>,
-    from: &[SingleInfo],
-) -> Result<AuthenticationResults> {
-    // TODO this doesn't work for e.g. GMX which sells @gmx.de addresses, but uses gmx.net as its server
-    // Config::ConfiguredProvider doesn't work for e.g. Gmail which uses mx.google.com.
-    //
-    // We could self-send a message during configure and use the Authentication-Results header from there -
-    // this works for e.g. GMX, but not for Testrun and GMAIL.
-    // -> Alternatively, we could send a message to nonexistent@example.com and wait for the NDN. This works
-    //    for Gmail, but the Testrun NDN doesn't contain such a header, and GMX returns an error directly
-    //    while sending.
-    //
-    // We could save this info in the provider db, but this only works for these providers.
-    let self_domain = EmailAddress::new(&context.get_primary_self_addr().await?)?.domain;
-    let from = match from.first() {
-        Some(f) => &f.addr,
-        None => return Ok(AuthenticationResults::Failed),
-    };
-    let sender_domain = EmailAddress::new(from)?.domain;
-
-    let mut header_map: HashMap<String, Vec<String>> = HashMap::new();
-    for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
-        // TODO there could be a comment [CFWS] before the self domain. Do we care? Probably not.
-        let authserv_id = header_value
-            .split_whitespace()
-            .next()
-            .context("Empty header")?;
-        header_map
-            .entry(authserv_id.to_string())
-            .or_default()
-            .push(header_value);
-    }
-
-    for (_authserv_id, headers) in header_map {
-        if !any_header_says_pass(&headers, &sender_domain)? {
-            return Ok(AuthenticationResults::Failed);
-        }
-    }
-
-    Ok(AuthenticationResults::Passed)
-}
-
-fn any_header_says_pass(headers: &[String], sender_domain: &str) -> Result<bool> {
-    for header_value in headers {
-        if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
-            let dkim_part = dkim_to_end
-                .split(';')
-                .next()
-                .context("what the hell TODO malformed")?;
-            let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
-            if let Some(&"pass") = dkim_parts.first() {
-                let header_d: &str = format!("header.d={}", &sender_domain);
-                let header_i: &str = format!("header.i=@{}", &sender_domain);
-
-                if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
-                    return Ok(true);
-                }
-            }
-        }
-    }
-
-    Ok(false)
 }
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.

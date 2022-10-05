@@ -1,8 +1,10 @@
 //! End-to-end decryption support.
 
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
+use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;
@@ -15,6 +17,7 @@ use crate::keyring::Keyring;
 use crate::log::LogExt;
 use crate::peerstate::Peerstate;
 use crate::pgp;
+use crate::tools;
 
 /// Tries to decrypt a message, but only if it is structured as an
 /// Autocrypt message.
@@ -55,6 +58,126 @@ pub async fn try_decrypt(
     .await
 }
 
+// TODO move somewhere else
+
+#[derive(Debug)]
+struct AuthenticationResults {
+    dkim_passed: bool,
+}
+
+type AuthservId = String;
+
+fn parse_authentication_results(
+    context: &Context,
+    headers: &mailparse::headers::Headers<'_>,
+    from: &str,
+) -> Result<HashMap<AuthservId, AuthenticationResults>> {
+    // TODO old comment:
+    // TODO this doesn't work for e.g. GMX which sells @gmx.de addresses, but uses gmx.net as its server
+    // Config::ConfiguredProvider doesn't work for e.g. Gmail which uses mx.google.com.
+    //
+    // We could self-send a message during configure and use the Authentication-Results header from there -
+    // this works for e.g. GMX, but not for Testrun and GMAIL.
+    // -> Alternatively, we could send a message to nonexistent@example.com and wait for the NDN. This works
+    //    for Gmail, but the Testrun NDN doesn't contain such a header, and GMX returns an error directly
+    //    while sending.
+    //
+    // We could save this info in the provider db, but this only works for these providers.
+
+    // let from = match from.first() {
+    //     Some(f) => &f.addr,
+    //     None => return Ok(HashMap::new()),
+    // }; // TODO
+    let sender_domain = crate::tools::EmailAddress::new(from)?.domain;
+
+    let mut header_map: HashMap<AuthservId, Vec<String>> = HashMap::new();
+    for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
+        // TODO there could be a comment [CFWS] before the self domain. Do we care? Probably not.
+        let authserv_id = header_value
+            .split_whitespace()
+            .next()
+            .context("Empty header")?; // TODO do we really want to return Err here if it's empty
+        header_map
+            .entry(authserv_id.to_string())
+            .or_default()
+            .push(header_value);
+    }
+
+    let mut authresults_map = HashMap::new();
+    for (authserv_id, headers) in header_map {
+        let dkim_passed = authresults_dkim_passed(&headers, &sender_domain)?;
+        authresults_map.insert(authserv_id, AuthenticationResults { dkim_passed });
+    }
+
+    Ok(authresults_map)
+}
+
+/// Parses the Authentication-Results headers belonging to a specific authserv-id
+/// and returns whether they say that DKIM passed.
+/// TODO document better
+/// TODO if there are multiple headers and one says `pass`, one says `fail`, `none`
+/// or whatever, then we still interpret that as `pass` - is this a problem?
+fn authresults_dkim_passed(headers: &[String], sender_domain: &str) -> Result<bool> {
+    for header_value in headers {
+        if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
+            let dkim_part = dkim_to_end
+                .split(';')
+                .next()
+                .context("what the hell TODO")?;
+            let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
+            if let Some(&"pass") = dkim_parts.first() {
+                let header_d: &str = &format!("header.d={}", &sender_domain);
+                let header_i: &str = &format!("header.i=@{}", &sender_domain);
+
+                if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
+                    // We have found a `dkim=pass` header!
+                    return Ok(true);
+                }
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+// TODO this is only half of the algorithm we thought of; we also wanted to save how sure we are
+// about the authserv id. Like, a same-domain email is more trustworthy.
+async fn update_authservid_candidates(
+    context: &Context,
+    authentication_results: &HashMap<AuthservId, AuthenticationResults>,
+) -> Result<()> {
+    let mut new_ids: HashSet<_> = authentication_results.keys().map(String::as_str).collect();
+    if new_ids.is_empty() {
+        // The incoming message doesn't contain any authentication results, maybe it's a
+        // self-sent or a mailer-daemon message
+        return Ok(());
+    }
+
+    let ids_config;
+    if let Some(ids_config_temp) = context
+        .get_config(crate::config::Config::AuthservIdCandidates)
+        .await?
+    {
+        ids_config = ids_config_temp;
+        let old_ids: HashSet<_> = ids_config.split(' ').collect();
+        if !old_ids.is_empty() {
+            new_ids = old_ids.intersection(&new_ids).copied().collect();
+        }
+    }
+    // If there were no AuthservIdCandidates previously, just start with
+    // the ones from the incoming email
+
+    let new_config = new_ids.into_iter().collect::<Vec<_>>().join(" ");
+    context
+        .set_config(
+            crate::config::Config::AuthservIdCandidates,
+            Some(&new_config),
+        )
+        .await?;
+
+    Ok(())
+}
+
 pub async fn create_decryption_info(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -72,8 +195,35 @@ pub async fn create_decryption_info(
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let peerstate =
-        get_autocrypt_peerstate(context, &from, autocrypt_header.as_ref(), message_time).await?;
+    let authentication_results = parse_authentication_results(context, &mail.get_headers(), &from)?;
+    update_authservid_candidates(context, &authentication_results).await?;
+    // TODO code duplication with update_authservid_candidates()
+    // TODO too much low-level code
+    let mut dkim_passed = true; // TODO what do we want to do if there are multiple or no authservid candidates?
+    if let Some(ids_config) = context
+        .get_config(crate::config::Config::AuthservIdCandidates)
+        .await?
+    {
+        let ids: HashSet<_> = ids_config.split(' ').collect();
+        if let Some(authserv_id) = tools::single_value(ids) {
+            // TODO unwrap
+            dkim_passed = authentication_results.get(authserv_id).unwrap().dkim_passed;
+        }
+    }
+
+    // TODO old comment Allow changes to the autocrypt key if DKIM passed.
+    // If DKIM failed, we assume that the From address may have been forged
+    // and therefore we prohibit changes to the autocrypt key.
+
+    let peerstate = get_autocrypt_peerstate(
+        context,
+        &from,
+        autocrypt_header.as_ref(),
+        message_time,
+        true, // TODO key changes should not be allowed if the sending domain sent DKIM-valid emails
+              // until now, but this one is DKIM-invalid.
+    )
+    .await?;
 
     Ok(DecryptionInfo {
         from,
@@ -269,6 +419,7 @@ pub(crate) async fn get_autocrypt_peerstate(
     from: &str,
     autocrypt_header: Option<&Aheader>,
     message_time: i64,
+    allow_change: bool,
 ) -> Result<Option<Peerstate>> {
     let mut peerstate;
 
@@ -288,7 +439,7 @@ pub(crate) async fn get_autocrypt_peerstate(
         .await?;
 
         if let Some(ref mut peerstate) = peerstate {
-            if addr_cmp(&peerstate.addr, from) {
+            if addr_cmp(&peerstate.addr, from) && allow_change {
                 peerstate.apply_header(header, message_time);
                 peerstate.save_to_db(&context.sql, false).await?;
             }
