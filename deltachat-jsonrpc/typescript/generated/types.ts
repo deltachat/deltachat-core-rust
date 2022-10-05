@@ -4,6 +4,34 @@ export type U32=number;
 export type Account=(({"type":"Configured";}&{"id":U32;"displayName":(string|null);"addr":(string|null);"profileImage":(string|null);"color":string;})|({"type":"Unconfigured";}&{"id":U32;}));
 export type ProviderInfo={"beforeLoginHint":string;"overviewPage":string;"status":U32;};
 export type Qr=(({"type":"askVerifyContact";}&{"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"askVerifyGroup";}&{"grpname":string;"grpid":string;"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"fprOk";}&{"contact_id":U32;})|({"type":"fprMismatch";}&{"contact_id":(U32|null);})|({"type":"fprWithoutAddr";}&{"fingerprint":string;})|({"type":"account";}&{"domain":string;})|({"type":"webrtcInstance";}&{"domain":string;"instance_pattern":string;})|({"type":"addr";}&{"contact_id":U32;"draft":(string|null);})|({"type":"url";}&{"url":string;})|({"type":"text";}&{"text":string;})|({"type":"withdrawVerifyContact";}&{"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"withdrawVerifyGroup";}&{"grpname":string;"grpid":string;"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"reviveVerifyContact";}&{"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"reviveVerifyGroup";}&{"grpname":string;"grpid":string;"contact_id":U32;"fingerprint":string;"invitenumber":string;"authcode":string;})|({"type":"login";}&{"address":string;}));
+export type ImexMode=(
+/**
+ * Export all private keys and all public keys of the user to the
+ * directory given as `path`.  The default key is written to the files `public-key-default.asc`
+ * and `private-key-default.asc`, if there are more keys, they are written to files as
+ * `public-key-<id>.asc` and `private-key-<id>.asc`
+ */
+"ExportSelfKeys"|
+/**
+ * Import private keys found in the directory given as `path`.
+ * The last imported key is made the default keys unless its name contains the string `legacy`.
+ * Public keys are not imported.
+ */
+"ImportSelfKeys"|
+/**
+ * Export a backup to the directory given as `path` with the given `passphrase`.
+ * The backup contains all contacts, chats, images and other data and device independent settings.
+ * The backup does not contain device dependent settings as ringtones or LED notification settings.
+ * The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
+ * the format is `delta-chat-<day>-<number>.tar`
+ */
+"ExportBackup"|
+/**
+ * `path` is the file (not: directory) to import. The file is normally
+ * created by DC_IMEX_EXPORT_BACKUP and detected by imex_has_backup(). Importing a backup
+ * is only possible as long as the context is not configured or used in another way.
+ */
+"ImportBackup");
 export type Usize=number;
 export type ChatListEntry=[U32,U32];
 export type I64=number;
@@ -150,4 +178,4 @@ export type MessageNotificationInfo={"id":U32;"chatId":U32;"accountId":U32;"imag
 export type MessageSearchResult={"id":U32;"authorProfileImage":(string|null);"authorName":string;"authorColor":string;"chatName":(string|null);"message":string;"timestamp":I64;};
 export type F64=number;
 export type Location={"locationId":U32;"isIndependent":boolean;"latitude":F64;"longitude":F64;"accuracy":F64;"timestamp":I64;"contactId":U32;"msgId":U32;"chatId":U32;"marker":(string|null);};
-export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,Qr,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,BasicChat,U32,U32,null,U32,U32,null,U32,U32,null,U32,U32,string,U32,(U32|null),[string,string],U32,U32,null,U32,U32,U32,null,U32,U32,U32,null,U32,U32,(U32)[],U32,string,boolean,U32,U32,U32,U32,U32,string,null,U32,U32,(string|null),null,U32,U32,ChatVisibility,null,U32,U32,U32,null,U32,U32,U32,U32,string,string,U32,U32,U32,null,U32,U32,(U32|null),U32,U32,MuteDuration,null,U32,U32,boolean,U32,(U32)[],null,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,MessageNotificationInfo,U32,(U32)[],null,U32,U32,string,U32,U32,null,U32,string,(U32|null),(U32)[],U32,(U32)[],Record<U32,MessageSearchResult>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,U32,string,U32,string,(U32|null),U32,(U32|null),Viewtype,(Viewtype|null),(Viewtype|null),(U32)[],U32,U32,Viewtype,(Viewtype|null),(Viewtype|null),[(U32|null),(U32|null)],null,U32,U32,U32,string,U32,(U32|null),(U32|null),I64,I64,(Location)[],U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,(U32)[],U32,null,U32,U32,null,U32,U32,(Message|null),U32,U32,U32,U32,string,U32,U32,U32,U32,(string|null),(string|null),([F64,F64]|null),(U32|null),[U32,Message],U32,U32,(string|null),(string|null),(U32|null),null];
+export type __AllTyps=[string,boolean,Record<string,string>,U32,U32,null,(U32)[],U32,null,(U32|null),(Account)[],U32,Account,U32,string,(ProviderInfo|null),U32,boolean,U32,Record<string,string>,U32,string,(string|null),null,U32,Record<string,(string|null)>,null,U32,string,null,U32,string,Qr,U32,string,(string|null),U32,(string)[],Record<string,(string|null)>,U32,null,U32,null,U32,ImexMode,string,(string|null),null,U32,(U32)[],U32,U32,Usize,U32,string,U32,U32,string,null,U32,(U32|null),(string|null),(U32|null),(ChatListEntry)[],U32,(ChatListEntry)[],Record<U32,ChatListItemFetchResult>,U32,U32,FullChat,U32,U32,BasicChat,U32,U32,null,U32,U32,null,U32,U32,null,U32,U32,string,U32,(U32|null),[string,string],U32,U32,null,U32,U32,U32,null,U32,U32,U32,null,U32,U32,(U32)[],U32,string,boolean,U32,U32,U32,U32,U32,string,null,U32,U32,(string|null),null,U32,U32,ChatVisibility,null,U32,U32,U32,null,U32,U32,U32,U32,string,string,U32,U32,U32,null,U32,U32,(U32|null),U32,U32,MuteDuration,null,U32,U32,boolean,U32,(U32)[],null,U32,U32,U32,(U32)[],U32,U32,Message,U32,(U32)[],Record<U32,Message>,U32,U32,MessageNotificationInfo,U32,(U32)[],null,U32,U32,string,U32,U32,null,U32,string,(U32|null),(U32)[],U32,(U32)[],Record<U32,MessageSearchResult>,U32,U32,Contact,U32,string,(string|null),U32,U32,U32,U32,U32,U32,null,U32,U32,null,U32,(Contact)[],U32,U32,(string|null),(U32)[],U32,U32,(string|null),(Contact)[],U32,(U32)[],Record<U32,Contact>,U32,U32,string,U32,string,(U32|null),U32,(U32|null),Viewtype,(Viewtype|null),(Viewtype|null),(U32)[],U32,U32,Viewtype,(Viewtype|null),(Viewtype|null),[(U32|null),(U32|null)],null,U32,U32,U32,string,U32,(U32|null),(U32|null),I64,I64,(Location)[],U32,U32,string,string,null,U32,U32,U32,string,U32,U32,WebxdcMessageInfo,U32,(U32)[],U32,null,U32,U32,null,U32,U32,(Message|null),U32,U32,U32,U32,string,U32,U32,U32,U32,(string|null),(string|null),([F64,F64]|null),(U32|null),[U32,Message],U32,U32,(string|null),(string|null),(U32|null),null];

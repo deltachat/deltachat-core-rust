@@ -150,6 +150,11 @@ export class RawClient {
     return (this._transport.request('stop_ongoing_process', [accountId] as RPC.Params)) as Promise<null>;
   }
 
+
+  public imex(accountId: T.U32, what: T.ImexMode, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('imex', [accountId, what, path, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Returns the message IDs of all _fresh_ messages of any chat.
    * Typically used for implementing notification summaries
