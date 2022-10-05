@@ -16,6 +16,7 @@ use deltachat::{
     qr_code_generator::get_securejoin_qr_svg,
     securejoin,
     webxdc::StatusUpdateSerial,
+    imex
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +30,7 @@ pub mod events;
 pub mod types;
 
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
-use crate::api::types::QrObject;
+use crate::api::types::{QrObject, JSONRPCImexMode};
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -257,6 +258,12 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         ctx.stop_ongoing().await;
         Ok(())
+    }
+
+    async fn imex(&self, account_id: u32, what: JSONRPCImexMode, path: String, passphrase: Option<String>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        imex::imex(&ctx, what.into_core_type(), path.as_ref(), passphrase)
+            .await
     }
 
     /// Returns the message IDs of all _fresh_ messages of any chat.
