@@ -163,8 +163,13 @@ export class RawClient {
   }
 
 
-  public imex(accountId: T.U32, what: T.ImexMode, path: string, passphrase: (string|null)): Promise<null> {
-    return (this._transport.request('imex', [accountId, what, path, passphrase] as RPC.Params)) as Promise<null>;
+  public exportSelfKeys(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('export_self_keys', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public importSelfKeys(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('import_self_keys', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
   }
 
   /**
