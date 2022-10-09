@@ -4626,7 +4626,7 @@ Reply to all"#,
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_assignment_adhoc() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
         alice.set_config(Config::ShowEmails, Some("2")).await?;
         bob.set_config(Config::ShowEmails, Some("2")).await?;
 
