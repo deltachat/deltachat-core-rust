@@ -7,7 +7,7 @@ use std::pin::Pin;
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-use mailparse::headers::Headers;
+
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
@@ -29,7 +29,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines, EmailAddress};
+use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
 
 /// A parsed MIME message.
 ///
@@ -3332,125 +3332,5 @@ Message.
         assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));
 
         Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_parse_authentication_results() -> Result<()> {
-        // TODO test that foreign Auth-Res headers are ignored
-        check_parse_authentication_results_combination(
-            "alice@gmx.net",
-            b"From: info@slack.com
-Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
-Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com",
-            AuthenticationResults::Passed,
-        )
-        .await;
-
-        check_parse_authentication_results_combination(
-            "alice@testrun.org",
-            // TODO actually the address is alice@gmx.de, but then it doesn't work because `header.d=gmx.net`:
-            b"From: alice@gmx.net
-Authentication-Results: testrun.org;
-	dkim=pass header.d=gmx.net header.s=badeba3b8450 header.b=Gug6p4zD;
-	dmarc=pass (policy=none) header.from=gmx.de;
-	spf=pass (testrun.org: domain of alice@gmx.de designates 212.227.17.21 as permitted sender) smtp.mailfrom=alice@gmx.de",
-            AuthenticationResults::Passed,
-        )
-        .await;
-
-        check_parse_authentication_results_combination(
-            "alice@testrun.org",
-            br#"From: hocuri@testrun.org
-Authentication-Results: box.hispanilandia.net; dmarc=none (p=none dis=none) header.from=nauta.cu
-Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@nauta.cu
-Authentication-Results: testrun.org;
-	dkim=fail ("body hash did not verify") header.d=nauta.cu header.s=nauta header.b=YrWhU6qk;
-	dmarc=none;
-	spf=pass (testrun.org: domain of "test1-bounces+hocuri=testrun.org@hispanilandia.net" designates 51.15.127.36 as permitted sender) smtp.mailfrom="test1-bounces+hocuri=testrun.org@hispanilandia.net"
-"#,
-            AuthenticationResults::Failed,
-        )
-        .await;
-
-        check_parse_authentication_results_combination(
-
-            // TODO fails because mx.google.com, not google.com
-            "alice@gmail.com",
-            br#"From: not-so-fake@hispanilandia.net
-Authentication-Results: mx.google.com;
-       dkim=pass header.i=@hispanilandia.net header.s=mail header.b="Ih5Sz2/P";
-       spf=pass (google.com: domain of not-so-fake@hispanilandia.net designates 51.15.127.36 as permitted sender) smtp.mailfrom=not-so-fake@hispanilandia.net;
-       dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=hispanilandia.net"#,
-            AuthenticationResults::Passed,
-        )
-        .await;
-
-        check_parse_authentication_results_combination(
-            "alice@nauta.cu",
-            br#"From: adb <adbenitez@disroot.org>
-Authentication-Results: box.hispanilandia.net;
-	dkim=fail reason="signature verification failed" (2048-bit key; secure) header.d=disroot.org header.i=@disroot.org header.b="kqh3WUKq";
-	dkim-atps=neutral
-Authentication-Results: box.hispanilandia.net; dmarc=pass (p=quarantine dis=none) header.from=disroot.org
-Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@disroot.org"#,
-            AuthenticationResults::Passed,
-        )
-        .await;
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_realworld_authentication_results() -> Result<()> {
-        let mut dir = fs::read_dir("test-data/message/dkimchecks-2022-09-28/")
-            .await
-            .unwrap();
-        let mut bytes = Vec::new();
-        while let Some(entry) = dir.next_entry().await.unwrap() {
-            let self_addr = entry.file_name().into_string().unwrap();
-            let mut dir = fs::read_dir(entry.path()).await.unwrap();
-            while let Some(entry) = dir.next_entry().await.unwrap() {
-                let mut file = fs::File::open(entry.path()).await?;
-                println!("{:?}", entry.path());
-                bytes.clear();
-                file.read_to_end(&mut bytes).await.unwrap();
-                if bytes.is_empty() {
-                    continue;
-                }
-                check_parse_authentication_results_combination(
-                    &self_addr,
-                    &bytes,
-                    AuthenticationResults::Passed,
-                )
-                .await;
-            }
-        }
-        Ok(())
-    }
-
-    async fn check_parse_authentication_results_combination(
-        self_addr: &str,
-        header_bytes: &[u8],
-        expected_result: AuthenticationResults,
-    ) {
-        let t = TestContext::new().await;
-        t.set_primary_self_addr(self_addr).await.unwrap();
-        let message = MimeMessage::from_bytes(&t, header_bytes).await.unwrap();
-        //assert_eq!(message.authentication_results, expected_result);
-        if message.authentication_results != expected_result {
-            eprintln!(
-                "EXPECTED {expected_result:?}, GOT {:?}, SELF {}, FROM {:?}",
-                message.authentication_results,
-                self_addr,
-                message.from.first().map(|i| &i.addr),
-            )
-        } else {
-            eprintln!(
-                "CORRECT {:?}, SELF {}, FROM {:?}",
-                message.authentication_results,
-                self_addr,
-                message.from.first().map(|i| &i.addr),
-            )
-        }
     }
 }
