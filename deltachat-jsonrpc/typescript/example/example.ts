@@ -73,7 +73,7 @@ async function run() {
         chatId
       );
       write($main, `<h3>${chat.name}</h3>`);
-      const messageIds = await client.rpc.messageListGetMessageIds(
+      const messageIds = await client.rpc.getMessageIds(
         selectedAccount,
         chatId,
         0

@@ -6,6 +6,7 @@ use deltachat::{
     },
     chatlist::Chatlist,
     config::Config,
+    constants::DC_MSG_ID_DAYMARKER,
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
     ephemeral::Timer,
@@ -46,7 +47,9 @@ use types::webxdc::WebxdcMessageInfo;
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
     location::JsonrpcLocation,
-    message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
+    message::{
+        JSONRPCMessageListItem, MessageNotificationInfo, MessageSearchResult, MessageViewtype,
+    },
 };
 
 use num_traits::FromPrimitive;
@@ -831,21 +834,32 @@ impl CommandApi {
         markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
     }
 
-    async fn message_list_get_message_ids(
-        &self,
-        account_id: u32,
-        chat_id: u32,
-        flags: u32,
-    ) -> Result<Vec<u32>> {
+    async fn get_message_ids(&self, account_id: u32, chat_id: u32, flags: u32) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
         let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
         Ok(msg
             .iter()
-            .filter_map(|chat_item| match chat_item {
-                deltachat::chat::ChatItem::Message { msg_id } => Some(msg_id.to_u32()),
-                _ => None,
+            .map(|chat_item| -> u32 {
+                match chat_item {
+                    deltachat::chat::ChatItem::Message { msg_id } => msg_id.to_u32(),
+                    deltachat::chat::ChatItem::DayMarker { .. } => DC_MSG_ID_DAYMARKER,
+                }
             })
             .collect())
+    }
+
+    async fn get_message_list_entries(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        flags: u32,
+    ) -> Result<Vec<JSONRPCMessageListItem>> {
+        let ctx = self.get_context(account_id).await?;
+        let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
+        Ok(msg
+            .iter()
+            .map(|chat_item| (*chat_item).into())
+            .collect::<Vec<JSONRPCMessageListItem>>())
     }
 
     async fn message_get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
