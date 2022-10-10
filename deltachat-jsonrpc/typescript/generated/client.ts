@@ -74,6 +74,13 @@ export class RawClient {
   }
 
   /**
+   * Get the combined filesize of an account in bytes
+   */
+  public getAccountFileSize(accountId: T.U32): Promise<T.U64> {
+    return (this._transport.request('get_account_file_size', [accountId] as RPC.Params)) as Promise<T.U64>;
+  }
+
+  /**
    * Returns provider for the given domain.
    *
    * This function looks up domain in offline database.
@@ -135,6 +142,11 @@ export class RawClient {
     return (this._transport.request('batch_get_config', [accountId, keys] as RPC.Params)) as Promise<Record<string,(string|null)>>;
   }
 
+
+  public setStockStrings(strings: Record<T.U32,string>): Promise<null> {
+    return (this._transport.request('set_stock_strings', [strings] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Configures this account with the currently set parameters.
    * Setup the credential config before calling this.
@@ -148,6 +160,16 @@ export class RawClient {
    */
   public stopOngoingProcess(accountId: T.U32): Promise<null> {
     return (this._transport.request('stop_ongoing_process', [accountId] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public exportSelfKeys(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('export_self_keys', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public importSelfKeys(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('import_self_keys', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
   }
 
   /**
@@ -177,6 +199,16 @@ export class RawClient {
    */
   public getFreshMsgCnt(accountId: T.U32, chatId: T.U32): Promise<T.Usize> {
     return (this._transport.request('get_fresh_msg_cnt', [accountId, chatId] as RPC.Params)) as Promise<T.Usize>;
+  }
+
+  /**
+   * Estimate the number of messages that will be deleted
+   * by the set_config()-options `delete_device_after` or `delete_server_after`.
+   * This is typically used to show the estimated impact to the user
+   * before actually enabling deletion of old messages.
+   */
+  public estimateAutoDeletionCount(accountId: T.U32, fromServer: boolean, seconds: T.I64): Promise<T.Usize> {
+    return (this._transport.request('estimate_auto_deletion_count', [accountId, fromServer, seconds] as RPC.Params)) as Promise<T.Usize>;
   }
 
 
@@ -412,6 +444,21 @@ export class RawClient {
    */
   public setChatProfileImage(accountId: T.U32, chatId: T.U32, imagePath: (string|null)): Promise<null> {
     return (this._transport.request('set_chat_profile_image', [accountId, chatId, imagePath] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public setChatVisibility(accountId: T.U32, chatId: T.U32, visibility: T.ChatVisibility): Promise<null> {
+    return (this._transport.request('set_chat_visibility', [accountId, chatId, visibility] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public setChatEphemeralTimer(accountId: T.U32, chatId: T.U32, timer: T.U32): Promise<null> {
+    return (this._transport.request('set_chat_ephemeral_timer', [accountId, chatId, timer] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public getChatEphemeralTimer(accountId: T.U32, chatId: T.U32): Promise<T.U32> {
+    return (this._transport.request('get_chat_ephemeral_timer', [accountId, chatId] as RPC.Params)) as Promise<T.U32>;
   }
 
 
@@ -713,6 +760,11 @@ export class RawClient {
    */
   public getConnectivityHtml(accountId: T.U32): Promise<string> {
     return (this._transport.request('get_connectivity_html', [accountId] as RPC.Params)) as Promise<string>;
+  }
+
+
+  public getLocations(accountId: T.U32, chatId: (T.U32|null), contactId: (T.U32|null), timestampBegin: T.I64, timestampEnd: T.I64): Promise<(T.Location)[]> {
+    return (this._transport.request('get_locations', [accountId, chatId, contactId, timestampBegin, timestampEnd] as RPC.Params)) as Promise<(T.Location)[]>;
   }
 
 

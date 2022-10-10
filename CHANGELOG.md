@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### API-Changes
-- jsonrpc: add function: #3641
+- jsonrpc: add function: #3641, #3645
   - `getChatContacts()`
   - `createGroupChat()`
   - `createBroadcastList()`
@@ -14,8 +14,18 @@
   - `sendVideochatInvitation()`
   - `searchMessages()`
   - `messageIdsToSearchResults()`
-- jsonrpc: add type: #3641
+  - `setChatVisibility()`
+  - `getChatEphemeralTimer()`
+  - `setChatEphemeralTimer()`
+  - `getLocations()`
+  - `getAccountFileSize()`
+  - `estimateAutoDeletionCount()`
+  - `setStockStrings()`
+  - `exportSelfKeys()`
+  - `importSelfKeys()`
+- jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
+  - `Location`
 
 
 ### Changes

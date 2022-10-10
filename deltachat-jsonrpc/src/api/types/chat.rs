@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, bail, Result};
-use deltachat::chat::{self, get_chat_contacts};
+use deltachat::chat::{self, get_chat_contacts, ChatVisibility};
 use deltachat::chat::{Chat, ChatId};
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
@@ -190,6 +190,24 @@ impl MuteDuration {
                     .checked_add(Duration::from_secs(n as u64))
                     .map_or(chat::MuteDuration::Forever, chat::MuteDuration::Until))
             }
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, TypeDef)]
+#[serde(rename = "ChatVisibility")]
+pub enum JSONRPCChatVisibility {
+    Normal,
+    Archived,
+    Pinned,
+}
+
+impl JSONRPCChatVisibility {
+    pub fn into_core_type(self) -> ChatVisibility {
+        match self {
+            JSONRPCChatVisibility::Normal => ChatVisibility::Normal,
+            JSONRPCChatVisibility::Archived => ChatVisibility::Archived,
+            JSONRPCChatVisibility::Pinned => ChatVisibility::Pinned,
         }
     }
 }

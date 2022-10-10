@@ -8,6 +8,7 @@ use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
 use tokio::sync::RwLock;
 
+use crate::accounts::Accounts;
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat, ChatId, ProtectionStatus};
 use crate::config::Config;
@@ -1298,6 +1299,17 @@ impl Context {
         let mut msg = Message::new(Viewtype::Text);
         msg.text = Some(welcome_message(self).await);
         chat::add_device_msg(self, Some("core-welcome"), Some(&mut msg)).await?;
+        Ok(())
+    }
+}
+
+impl Accounts {
+    /// Set the stock string for the [StockMessage].
+    ///
+    pub async fn set_stock_translation(&self, id: StockMessage, stockstring: String) -> Result<()> {
+        self.stockstrings
+            .set_stock_translation(id, stockstring)
+            .await?;
         Ok(())
     }
 }

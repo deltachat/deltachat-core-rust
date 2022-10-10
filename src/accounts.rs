@@ -26,7 +26,7 @@ pub struct Accounts {
     ///
     /// This way changing a translation for one context automatically
     /// changes it for all other contexts.
-    stockstrings: StockStrings,
+    pub(crate) stockstrings: StockStrings,
 }
 
 impl Accounts {

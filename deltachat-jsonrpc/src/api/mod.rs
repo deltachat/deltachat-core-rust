@@ -8,17 +8,23 @@ use deltachat::{
     config::Config,
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
     context::get_info,
-    message::{delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype},
+    ephemeral::Timer,
+    imex, location,
+    message::{
+        self, delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+    },
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
     securejoin,
+    stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 use tokio::sync::RwLock;
+use walkdir::WalkDir;
 use yerpc::rpc;
 
 pub use deltachat::accounts::Accounts;
@@ -38,9 +44,12 @@ use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
-    chat::{BasicChat, MuteDuration},
+    chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
+    location::JsonrpcLocation,
     message::{MessageNotificationInfo, MessageSearchResult, MessageViewtype},
 };
+
+use num_traits::FromPrimitive;
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {
@@ -145,6 +154,21 @@ impl CommandApi {
         }
     }
 
+    /// Get the combined filesize of an account in bytes
+    async fn get_account_file_size(&self, account_id: u32) -> Result<u64> {
+        let ctx = self.get_context(account_id).await?;
+        let dbfile = ctx.get_dbfile().metadata()?.len();
+        let total_size = WalkDir::new(ctx.get_blobdir())
+            .max_depth(2)
+            .into_iter()
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| entry.metadata().ok())
+            .filter(|metadata| metadata.is_file())
+            .fold(0, |acc, m| acc + m.len());
+
+        Ok(dbfile + total_size)
+    }
+
     /// Returns provider for the given domain.
     ///
     /// This function looks up domain in offline database.
@@ -233,6 +257,18 @@ impl CommandApi {
         Ok(result)
     }
 
+    async fn set_stock_strings(&self, strings: HashMap<u32, String>) -> Result<()> {
+        let accounts = self.accounts.read().await;
+        for (stock_id, stock_message) in strings {
+            if let Some(stock_id) = StockMessage::from_u32(stock_id) {
+                accounts
+                    .set_stock_translation(stock_id, stock_message)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     /// Configures this account with the currently set parameters.
     /// Setup the credential config before calling this.
     async fn configure(&self, account_id: u32) -> Result<()> {
@@ -254,6 +290,38 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         ctx.stop_ongoing().await;
         Ok(())
+    }
+
+    async fn export_self_keys(
+        &self,
+        account_id: u32,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        imex::imex(
+            &ctx,
+            imex::ImexMode::ExportSelfKeys,
+            path.as_ref(),
+            passphrase,
+        )
+        .await
+    }
+
+    async fn import_self_keys(
+        &self,
+        account_id: u32,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        imex::imex(
+            &ctx,
+            imex::ImexMode::ImportSelfKeys,
+            path.as_ref(),
+            passphrase,
+        )
+        .await
     }
 
     /// Returns the message IDs of all _fresh_ messages of any chat.
@@ -286,6 +354,20 @@ impl CommandApi {
     async fn get_fresh_msg_cnt(&self, account_id: u32, chat_id: u32) -> Result<usize> {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await
+    }
+
+    /// Estimate the number of messages that will be deleted
+    /// by the set_config()-options `delete_device_after` or `delete_server_after`.
+    /// This is typically used to show the estimated impact to the user
+    /// before actually enabling deletion of old messages.
+    async fn estimate_auto_deletion_count(
+        &self,
+        account_id: u32,
+        from_server: bool,
+        seconds: i64,
+    ) -> Result<usize> {
+        let ctx = self.get_context(account_id).await?;
+        message::estimate_deletion_cnt(&ctx, from_server, seconds).await
     }
 
     // ---------------------------------------------
@@ -604,6 +686,39 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), image_path.unwrap_or_default())
             .await
+    }
+
+    async fn set_chat_visibility(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        visibility: JSONRPCChatVisibility,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+
+        ChatId::new(chat_id)
+            .set_visibility(&ctx, visibility.into_core_type())
+            .await
+    }
+
+    async fn set_chat_ephemeral_timer(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        timer: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ChatId::new(chat_id)
+            .set_ephemeral_timer(&ctx, Timer::from_u32(timer))
+            .await
+    }
+
+    async fn get_chat_ephemeral_timer(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        Ok(ChatId::new(chat_id)
+            .get_ephemeral_timer(&ctx)
+            .await?
+            .to_u32())
     }
 
     // for now only text messages, because we only used text messages in desktop thusfar
@@ -1123,6 +1238,32 @@ impl CommandApi {
     async fn get_connectivity_html(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         ctx.get_connectivity_html().await
+    }
+
+    // ---------------------------------------------
+    //                  locations
+    // ---------------------------------------------
+
+    async fn get_locations(
+        &self,
+        account_id: u32,
+        chat_id: Option<u32>,
+        contact_id: Option<u32>,
+        timestamp_begin: i64,
+        timestamp_end: i64,
+    ) -> Result<Vec<JsonrpcLocation>> {
+        let ctx = self.get_context(account_id).await?;
+
+        let locations = location::get_range(
+            &ctx,
+            chat_id.map(ChatId::new),
+            contact_id,
+            timestamp_begin,
+            timestamp_end,
+        )
+        .await?;
+
+        Ok(locations.into_iter().map(|l| l.into()).collect())
     }
 
     // ---------------------------------------------
