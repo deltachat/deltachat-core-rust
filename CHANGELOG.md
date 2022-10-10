@@ -18,10 +18,11 @@
   - `getChatEphemeralTimer()`
   - `setChatEphemeralTimer()`
   - `getLocations()`
-  - `imex()`
   - `getAccountFileSize()`
   - `estimateAutoDeletionCount()`
   - `setStockStrings()`
+  - `exportSelfKeys()`
+  - `importSelfKeys()`
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`
