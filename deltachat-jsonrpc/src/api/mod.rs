@@ -538,6 +538,19 @@ impl CommandApi {
         ))
     }
 
+
+    /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
+    ///
+    /// This is the start of the process for the joiner.  See the module and ffi documentation
+    /// for more details.
+    ///
+    /// The function returns immediately and the handshake will run in background.
+    async join_securejoin(account_id: u32, qr: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        securejoin::join_securejoin(&ctx, &qr)
+            .await
+    }
+
     async fn leave_group(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         remove_contact_from_chat(&ctx, ChatId::new(chat_id), ContactId::SELF).await
@@ -1103,6 +1116,24 @@ impl CommandApi {
         Ok(contacts)
     }
 
+    async fn contacts_delete(&self, account_id: u32, contact_id: u32) -> Result<bool> {
+        let ctx = self.get_context(account_id).await?;
+        let contact_id = ContactId::new(contact_id);
+
+        Contact::delete(ctx, contact_id).await?;
+        Ok(())
+    }
+
+    async fn contacts_change_name(&self, account_id: u32, contact_id: u32, name: String) -> Result<bool> {
+        let ctx = self.get_context(account_id).await?;
+        let contact_id = ContactId::new(contact_id);
+        let contact = Contact::load_from_db(&ctx, contact_id).await?;
+        let addr = contact.addr;
+        
+        let contact_id = Contact::create(&ctx, &name, &addr).await?;
+        Ok(())
+    }
+
     /// Get encryption info for a contact.
     /// Get a multi-line encryption info, containing your fingerprint and the
     /// fingerprint of the contact, used e.g. to compare the fingerprints for a simple out-of-band verification.
@@ -1336,6 +1367,23 @@ impl CommandApi {
         let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
         forward_msgs(&ctx, &message_ids, ChatId::new(chat_id)).await
     }
+
+
+    async fn send_sticker(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        sticker_path: String
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(&sticker_path, None);
+
+        let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
+        Ok(message_id.to_u32())
+    }
+
 
     // ---------------------------------------------
     //           functions for the composer
