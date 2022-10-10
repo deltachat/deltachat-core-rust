@@ -16,7 +16,7 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::decrypt::{create_decryption_info, try_decrypt};
+use crate::decrypt::{prepare_decryption, try_decrypt};
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -222,7 +222,7 @@ impl MimeMessage {
         let mut mail_raw = Vec::new();
         let mut gossiped_addr = Default::default();
         let mut from_is_signed = false;
-        let mut decryption_info = create_decryption_info(context, &mail, message_time).await?;
+        let mut decryption_info = prepare_decryption(context, &mail, &from, message_time).await?;
 
         // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
         let (mail, signatures, warn_empty_signature) =
@@ -1822,7 +1822,7 @@ mod tests {
         test_utils::TestContext,
     };
     use mailparse::ParsedMail;
-    use tokio::{fs, io::AsyncReadExt};
+    
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {

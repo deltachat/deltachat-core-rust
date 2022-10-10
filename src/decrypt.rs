@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use anyhow::{Context as _, Result};
 
 use mailparse::ParsedMail;
+use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
 use crate::authentication_results_handling::parse_authentication_results;
@@ -12,8 +13,7 @@ use crate::authentication_results_handling::should_allow_keychange;
 use crate::authentication_results_handling::update_authservid_candidates;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::headerdef::HeaderDef;
-use crate::headerdef::HeaderDefMap;
+
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
@@ -59,30 +59,34 @@ pub async fn try_decrypt(
     .await
 }
 
-pub async fn create_decryption_info(
+pub async fn prepare_decryption(
     context: &Context,
     mail: &ParsedMail<'_>,
+    from: &[SingleInfo],
     message_time: i64,
 ) -> Result<DecryptionInfo> {
-    let from = mail
-        .headers
-        .get_header(HeaderDef::From_)
-        .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
-        .and_then(|from| from.extract_single_info())
-        .map(|from| from.addr)
-        .unwrap_or_default();
+    let from = if let Some(f) = from.first() {
+        &f.addr
+    } else {
+        return Ok(DecryptionInfo {
+            from: "".to_string(),
+            autocrypt_header: None,
+            peerstate: None,
+            message_time,
+        });
+    };
 
-    let autocrypt_header = Aheader::from_headers(&from, &mail.headers)
+    let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let authentication_results = parse_authentication_results(&mail.get_headers(), &from)?;
+    let authentication_results = parse_authentication_results(&mail.get_headers(), from)?;
     update_authservid_candidates(context, &authentication_results).await?;
-    let allow_keychange = should_allow_keychange(context, &authentication_results, &from).await?;
+    let allow_keychange = should_allow_keychange(context, &authentication_results, from).await?;
 
     let peerstate = get_autocrypt_peerstate(
         context,
-        &from,
+        from,
         autocrypt_header.as_ref(),
         message_time,
         allow_keychange,
@@ -90,7 +94,7 @@ pub async fn create_decryption_info(
     .await?;
 
     Ok(DecryptionInfo {
-        from,
+        from: from.to_string(),
         autocrypt_header,
         peerstate,
         message_time,

@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use anyhow::{Context as _, Result};
 use mailparse::MailHeaderMap;
 
+use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
 
@@ -39,15 +40,23 @@ pub(crate) fn parse_authentication_results(
     //     Some(f) => &f.addr,
     //     None => return Ok(HashMap::new()),
     // }; // TODO
-    let sender_domain = crate::tools::EmailAddress::new(from)?.domain;
+    let sender_domain = EmailAddress::new(from)?.domain;
 
     let mut header_map: HashMap<AuthservId, Vec<String>> = HashMap::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
         // TODO there could be a comment [CFWS] before the self domain. Do we care? Probably not.
-        let authserv_id = header_value
-            .split_whitespace()
-            .next()
-            .context("Empty header")?; // TODO do we really want to return Err here if it's empty
+        let mut authserv_id = header_value.split(';').next().context("Empty header")?; // TODO do we really want to return Err here if it's empty
+        if authserv_id.contains(char::is_whitespace) {
+            // Outlook violates the RFC by not adding an authserv-id at all, which we notice
+            // because there is whitespace in the first identifier before the ';'.
+            // Authentication-Results-parsing still works securely because they remove incoming
+            // Authentication-Results headers.
+            // Just use an arbitrary authserv-id, it will work for Outlook, and in general,
+            // with providers not implementing the RFC correctly, someone can trick us
+            // into thinking that an incoming email is DKIM-correct, anyway.
+            // TODO is this comment understandable?
+            authserv_id = "invalidAuthservId"
+        }
         header_map
             .entry(authserv_id.to_string())
             .or_default()
@@ -84,11 +93,21 @@ fn authresults_dkim_passed(headers: &[String], sender_domain: &str) -> Result<bo
                     // We have found a `dkim=pass` header!
                     return Ok(true);
                 }
+            } else {
+                // dkim=fail, dkim=none or whatever
+                return Ok(false);
             }
         }
     }
 
     Ok(false)
+}
+
+fn parse_authservid_candidates_config(config: &Option<String>) -> HashSet<&str> {
+    config
+        .as_deref()
+        .map(|c| c.split_whitespace().collect())
+        .unwrap_or_default()
 }
 
 // TODO this is only half of the algorithm we thought of; we also wanted to save how sure we are
@@ -104,28 +123,20 @@ pub(crate) async fn update_authservid_candidates(
         return Ok(());
     }
 
-    let ids_config;
-    if let Some(ids_config_temp) = context
-        .get_config(crate::config::Config::AuthservIdCandidates)
-        .await?
-    {
-        ids_config = ids_config_temp;
-        let old_ids: HashSet<_> = ids_config.split(' ').collect();
-        if !old_ids.is_empty() {
-            new_ids = old_ids.intersection(&new_ids).copied().collect();
-        }
+    let old_config = context.get_config(Config::AuthservIdCandidates).await?;
+    let old_ids = parse_authservid_candidates_config(&old_config);
+    if !old_ids.is_empty() {
+        new_ids = old_ids.intersection(&new_ids).copied().collect();
     }
     // If there were no AuthservIdCandidates previously, just start with
     // the ones from the incoming email
 
-    let new_config = new_ids.into_iter().collect::<Vec<_>>().join(" ");
-    context
-        .set_config(
-            crate::config::Config::AuthservIdCandidates,
-            Some(&new_config),
-        )
-        .await?;
-
+    if old_ids != new_ids {
+        let new_config = new_ids.into_iter().collect::<Vec<_>>().join(" ");
+        context
+            .set_config(Config::AuthservIdCandidates, Some(&new_config))
+            .await?;
+    }
     Ok(())
 }
 
@@ -138,16 +149,19 @@ pub(crate) async fn should_allow_keychange(
 ) -> Result<bool> {
     // TODO code duplication with update_authservid_candidates()
     let mut dkim_passed = true; // TODO what do we want to do if there are multiple or no authservid candidates?
-    if let Some(ids_config) = context
-        .get_config(crate::config::Config::AuthservIdCandidates)
-        .await?
-    {
-        let ids = ids_config.split(' ').filter(|s| !s.is_empty());
-        dbg!(&ids_config);
-        if let Some(authserv_id) = tools::single_value(ids) {
-            // dbg!(&authentication_results, &ids_config);
-            // TODO unwrap
-            dkim_passed = authentication_results.get(authserv_id).unwrap().dkim_passed;
+
+    // If the authentication results are empty, then our provider doesn't add them
+    // and an attacker could just add their own Authentication-Results, making us
+    // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
+    if !authentication_results.is_empty() {
+        if let Some(ids_config) = context.get_config(Config::AuthservIdCandidates).await? {
+            let ids = ids_config.split(' ').filter(|s| !s.is_empty());
+            println!("{}", &ids_config);
+            if let Some(authserv_id) = tools::single_value(ids) {
+                dbg!(&authentication_results, &ids_config);
+                // TODO unwrap
+                dkim_passed = authentication_results.get(authserv_id).unwrap().dkim_passed;
+            }
         }
     }
 
@@ -176,19 +190,19 @@ pub(crate) async fn should_allow_keychange(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::indexing_slicing)]
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 
     use super::*;
-    use crate::headerdef::HeaderDefMap;
-    use crate::test_utils::*;
+    use crate::mimeparser;
+    use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_authentication_results() -> Result<()> {
         let t = TestContext::new().await;
         t.configure_addr("alice@gmx.net").await;
-        let bytes = b"From: info@slack.com
-Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
+        let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
 Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let mail = mailparse::parse_mail(bytes)?;
         let actual = parse_authentication_results(&mail.get_headers(), "info@slack.com").unwrap();
@@ -197,6 +211,52 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
             [(
                 "gmx.net".to_string(),
                 AuthenticationResults { dkim_passed: true }
+            )]
+            .into()
+        );
+
+        let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authentication_results(&mail.get_headers(), "info@slack.com").unwrap();
+        assert_eq!(
+            actual,
+            [(
+                "gmx.net".to_string(),
+                AuthenticationResults { dkim_passed: false }
+            )]
+            .into()
+        );
+
+        // Weird Authentication-Results from Outlook without an authserv-id
+        let bytes = b"Authentication-Results: spf=pass (sender IP is 40.92.73.85)
+        smtp.mailfrom=hotmail.com; dkim=pass (signature was verified)
+        header.d=hotmail.com;dmarc=pass action=none
+        header.from=hotmail.com;compauth=pass reason=100";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual =
+            parse_authentication_results(&mail.get_headers(), "alice@hotmail.com").unwrap();
+        // At this point, the most important thing to test is that there are no
+        // authserv-ids with whitespace in them.
+        assert_eq!(
+            actual,
+            [(
+                "invalidAuthservId".to_string(),
+                AuthenticationResults { dkim_passed: true }
+            )]
+            .into()
+        );
+
+        // Usually, MUAs put their Authentication-Results to the top, so if in doubt,
+        // headers from the top should be preferred
+        let bytes = b"Authentication-Results:  gmx.net; dkim=none header.i=@slack.com
+Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authentication_results(&mail.get_headers(), "info@slack.com").unwrap();
+        assert_eq!(
+            actual,
+            [(
+                "gmx.net".to_string(),
+                AuthenticationResults { dkim_passed: false }
             )]
             .into()
         );
@@ -258,6 +318,37 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_update_authservid_candidates() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        update_authservid_candidates_test(&t, &["mx3.messagingengine.com"]).await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx3.messagingengine.com");
+
+        update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "");
+
+        // "mx4.messagingengine.com" seems to be the new authserv-id, DC should accept it
+        update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx4.messagingengine.com");
+
+        Ok(())
+    }
+
+    /// TODO document
+    async fn update_authservid_candidates_test(context: &Context, incoming_ids: &[&str]) {
+        let map = incoming_ids
+            .iter()
+            // update_authservid_candidates() only looks at the keys of the HashMap argument,
+            // so just provide some arbitrary values
+            .map(|id| (id.to_string(), AuthenticationResults { dkim_passed: true }))
+            .collect();
+        update_authservid_candidates(context, &map).await.unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_realworld_authentication_results() -> Result<()> {
         let mut dir = fs::read_dir("test-data/message/dkimchecks-2022-09-28/")
             .await
@@ -272,29 +363,22 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
 
             while let Some(entry) = dir.next_entry().await.unwrap() {
                 let mut file = fs::File::open(entry.path()).await?;
-                println!("{:?}", entry.path());
                 bytes.clear();
                 file.read_to_end(&mut bytes).await.unwrap();
                 if bytes.is_empty() {
                     continue;
                 }
+                println!("{:?}", entry.path());
 
                 let mail = mailparse::parse_mail(&bytes)?;
-                // TODO code duplication with create_decryption_info()
-                let from = mail
-                    .headers
-                    .get_header(HeaderDef::From_)
-                    .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
-                    .and_then(|from| from.extract_single_info())
-                    .map(|from| from.addr)
-                    .unwrap_or_default();
+                let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
                 // TODO code duplication with create_decryption_info()
                 let authentication_results =
-                    parse_authentication_results(&mail.get_headers(), &from)?;
+                    parse_authentication_results(&mail.get_headers(), from)?;
                 update_authservid_candidates(&t, &authentication_results).await?;
                 let allow_keychange =
-                    should_allow_keychange(&t, &authentication_results, &from).await?;
+                    should_allow_keychange(&t, &authentication_results, from).await?;
 
                 assert!(allow_keychange);
 
