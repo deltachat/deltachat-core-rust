@@ -62,7 +62,6 @@ export type MessageListItem=(({"kind":"message";}&{"msg_id":U32;})|({
  * Marker timestamp, for day markers, in unix milliseconds
  */
 "timestamp":I64;}));
-export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;}));
 export type Viewtype=("Unknown"|
 /**
  * Text message.
@@ -108,6 +107,7 @@ export type Viewtype=("Unknown"|
  * Message is an webxdc instance.
  */
 "Webxdc");
+export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;"viewType":Viewtype;}));
 export type I32=number;
 export type WebxdcMessageInfo={
 /**
