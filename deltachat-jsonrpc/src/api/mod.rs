@@ -292,14 +292,36 @@ impl CommandApi {
         Ok(())
     }
 
-    async fn export_self_keys(&self, account_id: u32, path: String, passphrase: Option<String>) -> Result<()> {
+    async fn export_self_keys(
+        &self,
+        account_id: u32,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        imex::imex(&ctx, imex::ImexMode::ExportSelfKeys, path.as_ref(), passphrase).await
+        imex::imex(
+            &ctx,
+            imex::ImexMode::ExportSelfKeys,
+            path.as_ref(),
+            passphrase,
+        )
+        .await
     }
 
-    async fn import_self_keys(&self, account_id: u32, path: String, passphrase: Option<String>) -> Result<()> {
+    async fn import_self_keys(
+        &self,
+        account_id: u32,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        imex::imex(&ctx, imex::ImexMode::ImportSelfKeys, path.as_ref(), passphrase).await
+        imex::imex(
+            &ctx,
+            imex::ImexMode::ImportSelfKeys,
+            path.as_ref(),
+            passphrase,
+        )
+        .await
     }
 
     /// Returns the message IDs of all _fresh_ messages of any chat.
