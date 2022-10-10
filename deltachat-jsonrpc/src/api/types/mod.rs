@@ -1,5 +1,5 @@
 use deltachat::qr::Qr;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 pub mod account;
