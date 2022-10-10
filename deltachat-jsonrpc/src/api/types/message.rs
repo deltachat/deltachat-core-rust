@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use deltachat::chat::Chat;
+use deltachat::chat::ChatItem;
 use deltachat::constants::Chattype;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
@@ -383,5 +384,31 @@ impl MessageSearchResult {
             message: message.get_text().unwrap_or_default(),
             timestamp: message.get_timestamp(),
         })
+    }
+}
+
+#[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase", rename = "MessageListItem")]
+pub enum JSONRPCMessageListItem {
+    Message {
+        msg_id: u32,
+    },
+
+    /// Day marker, separating messages that correspond to different
+    /// days according to local time.
+    DayMarker {
+        /// Marker timestamp, for day markers
+        timestamp: i64,
+    },
+}
+
+impl From<ChatItem> for JSONRPCMessageListItem {
+    fn from(item: ChatItem) -> Self {
+        match item {
+            ChatItem::Message { msg_id } => JSONRPCMessageListItem::Message {
+                msg_id: msg_id.to_u32(),
+            },
+            ChatItem::DayMarker { timestamp } => JSONRPCMessageListItem::DayMarker { timestamp },
+        }
     }
 }
