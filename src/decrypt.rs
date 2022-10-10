@@ -8,9 +8,7 @@ use mailparse::ParsedMail;
 use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
-use crate::authentication_results_handling::parse_authentication_results;
-use crate::authentication_results_handling::should_allow_keychange;
-use crate::authentication_results_handling::update_authservid_candidates;
+use crate::authres_handling::handle_authres;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 
@@ -80,9 +78,7 @@ pub async fn prepare_decryption(
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let authentication_results = parse_authentication_results(&mail.get_headers(), from)?;
-    update_authservid_candidates(context, &authentication_results).await?;
-    let allow_keychange = should_allow_keychange(context, &authentication_results, from).await?;
+    let allow_keychange = handle_authres(context, mail, from).await?;
 
     let peerstate = get_autocrypt_peerstate(
         context,

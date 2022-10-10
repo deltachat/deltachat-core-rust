@@ -193,7 +193,7 @@ pub enum Config {
     ///
     /// See https://github.com/deltachat/deltachat-core-rust/issues/3507 for more
     /// info about the Authentication-Results header.
-    AuthservIdCandidates,
+    AuthservidCandidates,
 }
 
 impl Context {
