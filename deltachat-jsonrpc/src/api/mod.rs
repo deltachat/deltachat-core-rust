@@ -140,6 +140,14 @@ impl CommandApi {
         Ok(accounts)
     }
 
+    async fn start_io_for_all_accounts(&self) -> Result<()> {
+        Ok(self.accounts.read().await.start_io().await)
+    }
+    
+    async fn stop_io_for_all_accounts(&self) -> Result<()> {
+        Ok(self.accounts.read().await.stop_io().await)
+    }
+
     // ---------------------------------------------
     // Methods that work on individual accounts
     // ---------------------------------------------

@@ -66,6 +66,16 @@ export class RawClient {
     return (this._transport.request('get_all_accounts', [] as RPC.Params)) as Promise<(T.Account)[]>;
   }
 
+
+  public startIoForAllAccounts(): Promise<null> {
+    return (this._transport.request('start_io_for_all_accounts', [] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public stopIoForAllAccounts(): Promise<null> {
+    return (this._transport.request('stop_io_for_all_accounts', [] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Get top-level info for an account.
    */
