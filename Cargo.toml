@@ -74,7 +74,7 @@ fast-socks5 = "0.8"
 humansize = "1"
 qrcodegen = "1.7.0"
 tagger = "4.3.3"
-textwrap = "0.15.0"
+textwrap = "0.15.1"
 async-channel = "1.6.1"
 futures-lite = "1.12.0"
 tokio-stream = { version = "0.1.9", features = ["fs"] }
