@@ -525,8 +525,22 @@ pub struct EmailAddress {
 }
 
 impl EmailAddress {
-    /// Performs a dead-simple parse of an email address.
     pub fn new(input: &str) -> Result<Self> {
+        input.parse::<EmailAddress>()
+    }
+}
+
+impl fmt::Display for EmailAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}@{}", self.local, self.domain)
+    }
+}
+
+impl FromStr for EmailAddress {
+    type Err = Error;
+
+    /// Performs a dead-simple parse of an email address.
+    fn from_str(input: &str) -> Result<EmailAddress> {
         if input.is_empty() {
             bail!("empty string is not valid");
         }
@@ -554,20 +568,6 @@ impl EmailAddress {
             }
             _ => bail!("Email {:?} must contain '@' character", input),
         }
-    }
-}
-
-impl fmt::Display for EmailAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}@{}", self.local, self.domain)
-    }
-}
-
-impl FromStr for EmailAddress {
-    type Err = Error;
-
-    fn from_str(input: &str) -> Result<EmailAddress> {
-        EmailAddress::new(input)
     }
 }
 
