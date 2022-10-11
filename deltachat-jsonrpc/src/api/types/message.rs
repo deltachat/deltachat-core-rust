@@ -388,7 +388,7 @@ impl MessageSearchResult {
 }
 
 #[derive(Serialize, TypeDef)]
-#[serde(rename_all = "camelCase", rename = "MessageListItem")]
+#[serde(rename_all = "camelCase", rename = "MessageListItem", tag = "kind")]
 pub enum JSONRPCMessageListItem {
     Message {
         msg_id: u32,

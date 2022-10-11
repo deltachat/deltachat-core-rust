@@ -896,7 +896,7 @@ impl CommandApi {
             .collect())
     }
 
-    async fn get_message_list_entries(
+    async fn get_message_list_items(
         &self,
         account_id: u32,
         chat_id: u32,

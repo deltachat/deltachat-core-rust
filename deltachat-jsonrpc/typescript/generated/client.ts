@@ -588,8 +588,8 @@ export class RawClient {
   }
 
 
-  public getMessageListEntries(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.MessageListItem)[]> {
-    return (this._transport.request('get_message_list_entries', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.MessageListItem)[]>;
+  public getMessageListItems(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.MessageListItem)[]> {
+    return (this._transport.request('get_message_list_items', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.MessageListItem)[]>;
   }
 
 

@@ -52,16 +52,16 @@ export type BasicChat=
 {"id":U32;"name":string;"isProtected":boolean;"profileImage":(string|null);"archived":boolean;"chatType":U32;"isUnpromoted":boolean;"isSelfTalk":boolean;"color":string;"isContactRequest":boolean;"isDeviceChat":boolean;"isMuted":boolean;};
 export type ChatVisibility=("Normal"|"Archived"|"Pinned");
 export type MuteDuration=("NotMuted"|"Forever"|{"Until":I64;});
-export type MessageListItem=({"message":{"msg_id":U32;};}|{
+export type MessageListItem=(({"kind":"message";}&{"msg_id":U32;})|({
 /**
  * Day marker, separating messages that correspond to different
  * days according to local time.
  */
-"dayMarker":{
+"kind":"dayMarker";}&{
 /**
  * Marker timestamp, for day markers
  */
-"timestamp":I64;};});
+"timestamp":I64;}));
 export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;}));
 export type Viewtype=("Unknown"|
 /**
