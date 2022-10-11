@@ -544,7 +544,7 @@ impl CommandApi {
     /// for more details.
     ///
     /// The function returns immediately and the handshake will run in background.
-    async fn join_securejoin(account_id: u32, qr: String) -> Result<()> {
+    async fn join_securejoin(&self, account_id: u32, qr: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         securejoin::join_securejoin(&ctx, &qr).await
     }
