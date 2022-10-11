@@ -154,6 +154,18 @@ impl CommandApi {
     // Methods that work on individual accounts
     // ---------------------------------------------
 
+    async fn start_io(&self, id: u32) -> Result<()> {
+        let ctx = self.get_context(id).await?;
+        ctx.start_io().await;
+        Ok(())
+    }
+
+    async fn stop_io(&self, id: u32) -> Result<()> {
+        let ctx = self.get_context(id).await?;
+        ctx.stop_io().await;
+        Ok(())
+    }
+
     /// Get top-level info for an account.
     async fn get_account_info(&self, account_id: u32) -> Result<Account> {
         let context_option = self.accounts.read().await.get_account(account_id);

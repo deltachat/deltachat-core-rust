@@ -76,6 +76,16 @@ export class RawClient {
     return (this._transport.request('stop_io_for_all_accounts', [] as RPC.Params)) as Promise<null>;
   }
 
+
+  public startIo(id: T.U32): Promise<null> {
+    return (this._transport.request('start_io', [id] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public stopIo(id: T.U32): Promise<null> {
+    return (this._transport.request('stop_io', [id] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Get top-level info for an account.
    */
