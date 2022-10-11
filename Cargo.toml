@@ -36,7 +36,7 @@ encoded-words = { git = "https://github.com/async-email/encoded-words", branch =
 escaper = "0.1"
 futures = "0.3"
 hex = "0.4.0"
-image = { version = "0.24.3", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+image = { version = "0.24.4", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
