@@ -141,11 +141,13 @@ impl CommandApi {
     }
 
     async fn start_io_for_all_accounts(&self) -> Result<()> {
-        Ok(self.accounts.read().await.start_io().await)
+        self.accounts.read().await.start_io().await;
+        Ok(())
     }
-    
+
     async fn stop_io_for_all_accounts(&self) -> Result<()> {
-        Ok(self.accounts.read().await.stop_io().await)
+        self.accounts.read().await.stop_io().await;
+        Ok(())
     }
 
     // ---------------------------------------------
@@ -522,7 +524,7 @@ impl CommandApi {
     ///
     /// The scanning device will pass the scanned content to `checkQr()` then;
     /// if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
-    /// an out-of-band-verification can be joined using `join_securejoin()`
+    /// an out-of-band-verification can be joined using `secure_join()`
     ///
     /// chat_id: If set to a group-chat-id,
     ///     the Verified-Group-Invite protocol is offered in the QR code;
@@ -555,7 +557,7 @@ impl CommandApi {
     /// During the handshake, info messages are added to the chat,
     /// showing progress, success or errors.
     ///
-    /// Subsequent calls of `join_securejoin()` will abort previous, unfinished handshakes.
+    /// Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
     ///
     /// See https://countermitm.readthedocs.io/en/latest/new.html
     /// for details about both protocols.
@@ -566,7 +568,7 @@ impl CommandApi {
     /// **returns**: The chat ID of the joined chat, the UI may redirect to the this chat.
     ///         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.
     ///
-    async fn join_securejoin(&self, account_id: u32, qr: String) -> Result<u32> {
+    async fn secure_join(&self, account_id: u32, qr: String) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
         Ok(chat_id.to_u32())
@@ -1137,7 +1139,7 @@ impl CommandApi {
         Ok(contacts)
     }
 
-    async fn contacts_delete(&self, account_id: u32, contact_id: u32) -> Result<bool> {
+    async fn delete_contact(&self, account_id: u32, contact_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
@@ -1145,7 +1147,7 @@ impl CommandApi {
         Ok(true)
     }
 
-    async fn contacts_change_name(
+    async fn change_contact_name(
         &self,
         account_id: u32,
         contact_id: u32,

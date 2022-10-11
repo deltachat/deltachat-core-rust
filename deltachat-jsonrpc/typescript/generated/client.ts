@@ -715,13 +715,13 @@ export class RawClient {
   }
 
 
-  public contactsDelete(accountId: T.U32, contactId: T.U32): Promise<boolean> {
-    return (this._transport.request('contacts_delete', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
+  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<boolean> {
+    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
   }
 
 
-  public contactsChangeName(accountId: T.U32, contactId: T.U32, name: string): Promise<null> {
-    return (this._transport.request('contacts_change_name', [accountId, contactId, name] as RPC.Params)) as Promise<null>;
+  public changeContactName(accountId: T.U32, contactId: T.U32, name: string): Promise<null> {
+    return (this._transport.request('change_contact_name', [accountId, contactId, name] as RPC.Params)) as Promise<null>;
   }
 
   /**
