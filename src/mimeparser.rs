@@ -1822,7 +1822,6 @@ mod tests {
         test_utils::TestContext,
     };
     use mailparse::ParsedMail;
-    
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
