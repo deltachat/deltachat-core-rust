@@ -306,7 +306,7 @@ export class RawClient {
    *
    * The scanning device will pass the scanned content to `checkQr()` then;
    * if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
-   * an out-of-band-verification can be joined using `join_securejoin()`
+   * an out-of-band-verification can be joined using `secure_join()`
    *
    * chat_id: If set to a group-chat-id,
    *     the Verified-Group-Invite protocol is offered in the QR code;
@@ -332,7 +332,7 @@ export class RawClient {
    * During the handshake, info messages are added to the chat,
    * showing progress, success or errors.
    *
-   * Subsequent calls of `join_securejoin()` will abort previous, unfinished handshakes.
+   * Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
    *
    * See https://countermitm.readthedocs.io/en/latest/new.html
    * for details about both protocols.
@@ -344,8 +344,8 @@ export class RawClient {
    *         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.
    *
    */
-  public joinSecurejoin(accountId: T.U32, qr: string): Promise<T.U32> {
-    return (this._transport.request('join_securejoin', [accountId, qr] as RPC.Params)) as Promise<T.U32>;
+  public secureJoin(accountId: T.U32, qr: string): Promise<T.U32> {
+    return (this._transport.request('secure_join', [accountId, qr] as RPC.Params)) as Promise<T.U32>;
   }
 
 

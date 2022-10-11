@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### API-Changes
-- jsonrpc: add function: #3641, #3645
+- jsonrpc: add function: #3641, #3645, #3653
   - `getChatContacts()`
   - `createGroupChat()`
   - `createBroadcastList()`
@@ -23,6 +23,13 @@
   - `setStockStrings()`
   - `exportSelfKeys()`
   - `importSelfKeys()`
+  - `sendSticker()`
+  - `changeContactName()`
+  - `deleteContact()`
+  - `joinSecurejoin()`
+  - `stopIoForAllAccounts()`
+  - `startIoForAllAccounts()`
+
 - breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListEntries()` the latter returns a new `MessageListItem` type, which is the now prefered way of using the message list.
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
