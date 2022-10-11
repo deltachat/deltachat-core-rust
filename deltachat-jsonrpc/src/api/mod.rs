@@ -514,7 +514,7 @@ impl CommandApi {
     ///
     /// The scanning device will pass the scanned content to `checkQr()` then;
     /// if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
-    /// an out-of-band-verification can be joined using dc_join_securejoin()
+    /// an out-of-band-verification can be joined using `join_securejoin()`
     ///
     /// chat_id: If set to a group-chat-id,
     ///     the Verified-Group-Invite protocol is offered in the QR code;
@@ -524,7 +524,6 @@ impl CommandApi {
     ///     for details about both protocols.
     ///
     /// return format: `[code, svg]`
-    // TODO fix doc comment after adding dc_join_securejoin
     async fn get_chat_securejoin_qr_code_svg(
         &self,
         account_id: u32,
@@ -538,17 +537,31 @@ impl CommandApi {
         ))
     }
 
-    /// Take a scanned QR-code and do the setup-contact/join-group/invite handshake.
+    /// Continue a Setup-Contact or Verified-Group-Invite protocol
+    /// started on another device with `get_chat_securejoin_qr_code_svg()`.
+    /// This function is typically called when `check_qr()` returns
+    /// type=AskVerifyContact or type=AskVerifyGroup.
     ///
-    /// This is the start of the process for the joiner.  See the module and ffi documentation
-    /// for more details.
+    /// The function returns immediately and the handshake runs in background,
+    /// sending and receiving several messages.
+    /// During the handshake, info messages are added to the chat,
+    /// showing progress, success or errors.
     ///
-    /// The function returns immediately and the handshake will run in background.
-    async fn join_securejoin(&self, account_id: u32, qr: String) -> Result<()> {
+    /// Subsequent calls of `join_securejoin()` will abort previous, unfinished handshakes.
+    ///
+    /// See https://countermitm.readthedocs.io/en/latest/new.html
+    /// for details about both protocols.
+    ///
+    /// **qr**: The text of the scanned QR code. Typically, the same string as given
+    ///     to `check_qr()`.
+    ///
+    /// **returns**: The chat ID of the joined chat, the UI may redirect to the this chat.
+    ///         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.
+    ///
+    async fn join_securejoin(&self, account_id: u32, qr: String) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        securejoin::join_securejoin(&ctx, &qr).await;
-        Ok(())
-        
+        let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+        Ok(chat_id.to_u32())
     }
 
     async fn leave_group(&self, account_id: u32, chat_id: u32) -> Result<()> {
@@ -1129,14 +1142,13 @@ impl CommandApi {
         account_id: u32,
         contact_id: u32,
         name: String,
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
         let contact = Contact::load_from_db(&ctx, contact_id).await?;
         let addr = contact.get_addr();
-
-        let contact_id = Contact::create(&ctx, &name, &addr).await?;
-        Ok(true)
+        Contact::create(&ctx, &name, addr).await?;
+        Ok(())
     }
 
     /// Get encryption info for a contact.

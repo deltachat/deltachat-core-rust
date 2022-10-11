@@ -296,7 +296,7 @@ export class RawClient {
    *
    * The scanning device will pass the scanned content to `checkQr()` then;
    * if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
-   * an out-of-band-verification can be joined using dc_join_securejoin()
+   * an out-of-band-verification can be joined using `join_securejoin()`
    *
    * chat_id: If set to a group-chat-id,
    *     the Verified-Group-Invite protocol is offered in the QR code;
@@ -309,6 +309,33 @@ export class RawClient {
    */
   public getChatSecurejoinQrCodeSvg(accountId: T.U32, chatId: (T.U32|null)): Promise<[string,string]> {
     return (this._transport.request('get_chat_securejoin_qr_code_svg', [accountId, chatId] as RPC.Params)) as Promise<[string,string]>;
+  }
+
+  /**
+   * Continue a Setup-Contact or Verified-Group-Invite protocol
+   * started on another device with `get_chat_securejoin_qr_code_svg()`.
+   * This function is typically called when `check_qr()` returns
+   * type=AskVerifyContact or type=AskVerifyGroup.
+   *
+   * The function returns immediately and the handshake runs in background,
+   * sending and receiving several messages.
+   * During the handshake, info messages are added to the chat,
+   * showing progress, success or errors.
+   *
+   * Subsequent calls of `join_securejoin()` will abort previous, unfinished handshakes.
+   *
+   * See https://countermitm.readthedocs.io/en/latest/new.html
+   * for details about both protocols.
+   *
+   * **qr**: The text of the scanned QR code. Typically, the same string as given
+   *     to `check_qr()`.
+   *
+   * **returns**: The chat ID of the joined chat, the UI may redirect to the this chat.
+   *         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.
+   *
+   */
+  public joinSecurejoin(accountId: T.U32, qr: string): Promise<T.U32> {
+    return (this._transport.request('join_securejoin', [accountId, qr] as RPC.Params)) as Promise<T.U32>;
   }
 
 
@@ -677,6 +704,16 @@ export class RawClient {
     return (this._transport.request('contacts_get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
   }
 
+
+  public contactsDelete(accountId: T.U32, contactId: T.U32): Promise<boolean> {
+    return (this._transport.request('contacts_delete', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
+  }
+
+
+  public contactsChangeName(accountId: T.U32, contactId: T.U32, name: string): Promise<null> {
+    return (this._transport.request('contacts_change_name', [accountId, contactId, name] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Get encryption info for a contact.
    * Get a multi-line encryption info, containing your fingerprint and the
@@ -799,6 +836,11 @@ export class RawClient {
    */
   public forwardMessages(accountId: T.U32, messageIds: (T.U32)[], chatId: T.U32): Promise<null> {
     return (this._transport.request('forward_messages', [accountId, messageIds, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public sendSticker(accountId: T.U32, chatId: T.U32, stickerPath: string): Promise<T.U32> {
+    return (this._transport.request('send_sticker', [accountId, chatId, stickerPath] as RPC.Params)) as Promise<T.U32>;
   }
 
 
