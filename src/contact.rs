@@ -506,9 +506,9 @@ impl Contact {
         let mut update_addr = false;
         let mut row_id = 0;
 
-        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context
+        if let Some((id, row_name, row_addr, row_origin, row_authname)) = context
             .sql
-            .query_row(
+            .query_row_optional(
                 "SELECT id, name, addr, origin, authname \
             FROM contacts WHERE addr=? COLLATE NOCASE;",
                 paramsv![addr.to_string()],
@@ -522,7 +522,7 @@ impl Contact {
                     Ok((row_id, row_name, row_addr, row_origin, row_authname))
                 },
             )
-            .await
+            .await?
         {
             let update_name = manual && name != row_name;
             let update_authname = !manual
