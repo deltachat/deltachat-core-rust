@@ -546,7 +546,9 @@ impl CommandApi {
     /// The function returns immediately and the handshake will run in background.
     async fn join_securejoin(&self, account_id: u32, qr: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        securejoin::join_securejoin(&ctx, &qr).await
+        securejoin::join_securejoin(&ctx, &qr).await;
+        Ok(())
+        
     }
 
     async fn leave_group(&self, account_id: u32, chat_id: u32) -> Result<()> {
@@ -1118,8 +1120,8 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
-        Contact::delete(ctx, contact_id).await?;
-        Ok(())
+        Contact::delete(&ctx, contact_id).await?;
+        Ok(true)
     }
 
     async fn contacts_change_name(
@@ -1131,10 +1133,10 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
         let contact = Contact::load_from_db(&ctx, contact_id).await?;
-        let addr = contact.addr;
+        let addr = contact.get_addr();
 
         let contact_id = Contact::create(&ctx, &name, &addr).await?;
-        Ok(())
+        Ok(true)
     }
 
     /// Get encryption info for a contact.
@@ -1376,7 +1378,7 @@ impl CommandApi {
         account_id: u32,
         chat_id: u32,
         sticker_path: String,
-    ) -> Result<()> {
+    ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
 
         let mut msg = Message::new(Viewtype::Sticker);
