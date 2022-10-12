@@ -209,7 +209,7 @@ impl DcSecretKey for SignedSecretKey {
 
 async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     let addr = context.get_primary_self_addr().await?;
-    let addr = EmailAddress::from_str(&addr)?;
+    let addr = EmailAddress::new(&addr)?;
     let _guard = context.generating_key_mutex.lock().await;
 
     // Check if the key appeared while we were waiting on the lock.

@@ -740,7 +740,7 @@ impl SentMessage {
             .split(' ')
             .next()
             .expect("no recipient found");
-        rcpt.parse().expect("failed to parse email address")
+        EmailAddress::new(rcpt).expect("failed to parse email address")
     }
 
     /// The raw message payload.
@@ -755,7 +755,7 @@ impl SentMessage {
 ///
 /// The keypair was created using the crate::key::tests::gen_key test.
 pub fn alice_keypair() -> KeyPair {
-    let addr = EmailAddress::from_str("alice@example.org").unwrap();
+    let addr = EmailAddress::new("alice@example.org").unwrap();
 
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/alice-public.asc"))
         .unwrap()
@@ -774,7 +774,7 @@ pub fn alice_keypair() -> KeyPair {
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn bob_keypair() -> KeyPair {
-    let addr = EmailAddress::from_str("bob@example.net").unwrap();
+    let addr = EmailAddress::new("bob@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/bob-public.asc"))
         .unwrap()
         .0;
@@ -792,7 +792,7 @@ pub fn bob_keypair() -> KeyPair {
 ///
 /// Like [alice_keypair] but a different key and identity.
 pub fn fiona_keypair() -> key::KeyPair {
-    let addr = EmailAddress::from_str("fiona@example.net").unwrap();
+    let addr = EmailAddress::new("fiona@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
         .unwrap()
         .0;

@@ -448,7 +448,7 @@ impl Context {
         //                                [======67%=====       ]
         // =============================================================================================
 
-        let domain = tools::EmailAddress::from_str(&self.get_primary_self_addr().await?)?.domain;
+        let domain = tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
         ret += &format!("<h3>{}</h3><ul>", storage_on_domain);
         let quota = self.quota.read().await;
