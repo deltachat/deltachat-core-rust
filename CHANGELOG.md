@@ -34,6 +34,7 @@
 ### Fixes
 - share stock string translations across accounts created by the same account manager #3640
 - suppress welcome device messages after account import #3642
+- fix unix timestamp used for daymarker #3660
 
 ## 1.96.0
 

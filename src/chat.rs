@@ -2254,7 +2254,7 @@ pub async fn get_chat_msgs(
                 let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
                     ret.push(ChatItem::DayMarker {
-                        timestamp: curr_day,
+                        timestamp: curr_day * 86400, // Convert day back to Unix timestamp
                     });
                     last_day = curr_day;
                 }
