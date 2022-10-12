@@ -740,7 +740,7 @@ impl SentMessage {
             .split(' ')
             .next()
             .expect("no recipient found");
-        rcpt.parse().expect("failed to parse email address")
+        EmailAddress::new(rcpt).expect("failed to parse email address")
     }
 
     /// The raw message payload.

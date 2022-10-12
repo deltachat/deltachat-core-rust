@@ -196,7 +196,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
     // no oauth? - just continue it's no error
 
-    let parsed: EmailAddress = param.addr.parse().context("Bad email-address")?;
+    let parsed = EmailAddress::new(&param.addr).context("Bad email-address")?;
     let param_domain = parsed.domain;
     let param_addr_urlencoded = utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 

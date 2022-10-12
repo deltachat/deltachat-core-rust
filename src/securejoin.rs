@@ -693,6 +693,7 @@ mod tests {
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
+    use crate::tools::EmailAddress;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact() {
@@ -722,7 +723,10 @@ mod tests {
         );
 
         let sent = bob.pop_sent_msg().await;
-        assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
+        assert_eq!(
+            sent.recipient(),
+            EmailAddress::new("alice@example.org").unwrap()
+        );
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
@@ -1087,7 +1091,10 @@ mod tests {
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
         let sent = bob.pop_sent_msg().await;
-        assert_eq!(sent.recipient(), "alice@example.org".parse().unwrap());
+        assert_eq!(
+            sent.recipient(),
+            EmailAddress::new("alice@example.org").unwrap()
+        );
         let msg = alice.parse_msg(&sent).await;
         assert!(!msg.was_encrypted());
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
