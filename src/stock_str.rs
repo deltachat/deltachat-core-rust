@@ -17,7 +17,7 @@ use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
 use crate::tools::timestamp_to_str;
-use humansize::{file_size_opts, FileSize};
+use humansize::{format_size, BINARY};
 
 #[derive(Debug, Clone)]
 pub struct StockStrings {
@@ -1127,9 +1127,7 @@ pub(crate) async fn quota_exceeding(context: &Context, highest_usage: u64) -> St
 
 /// Stock string: `%1$s message` with placeholder replaced by human-readable size.
 pub(crate) async fn partial_download_msg_body(context: &Context, org_bytes: u32) -> String {
-    let size = org_bytes
-        .file_size(file_size_opts::BINARY)
-        .unwrap_or_default();
+    let size = format_size(org_bytes, BINARY);
     translated(context, StockMessage::PartialDownloadMsgBody)
         .await
         .replace1(size)

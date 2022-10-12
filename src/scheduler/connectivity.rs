@@ -12,7 +12,7 @@ use crate::tools::time;
 use crate::{config::Config, scheduler::Scheduler, stock_str, tools};
 use crate::{context::Context, log::LogExt};
 use anyhow::{anyhow, Result};
-use humansize::{file_size_opts, FileSize};
+use humansize::{format_size, BINARY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
@@ -495,12 +495,8 @@ impl Context {
                                     // - the string is not longer than the other strings that way (minus title, plus units) -
                                     //   additional linebreaks on small displays are unlikely therefore
                                     // - most times, this is the only item anyway
-                                    let usage = (resource.usage * 1024)
-                                        .file_size(file_size_opts::BINARY)
-                                        .unwrap_or_default();
-                                    let limit = (resource.limit * 1024)
-                                        .file_size(file_size_opts::BINARY)
-                                        .unwrap_or_default();
+                                    let usage = format_size(resource.usage * 1024, BINARY);
+                                    let limit = format_size(resource.limit * 1024, BINARY);
                                     stock_str::part_of_total_used(self, usage, limit).await
                                 }
                             };
