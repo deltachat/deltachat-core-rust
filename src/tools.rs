@@ -510,7 +510,7 @@ pub(crate) fn time() -> i64 {
 ///
 /// ```
 /// use deltachat::tools::EmailAddress;
-/// let email = match EmailAddress::new("someone@example.com") {
+/// let email = match EmailAddress::from_str("someone@example.com") {
 ///     Ok(addr) => addr,
 ///     Err(e) => panic!("Error parsing address, error was {}", e),
 /// };
@@ -522,12 +522,6 @@ pub(crate) fn time() -> i64 {
 pub struct EmailAddress {
     pub local: String,
     pub domain: String,
-}
-
-impl EmailAddress {
-    pub fn new(input: &str) -> Result<Self> {
-        input.parse::<EmailAddress>()
-    }
 }
 
 impl fmt::Display for EmailAddress {
@@ -945,36 +939,36 @@ Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22
 
     #[test]
     fn test_emailaddress_parse() {
-        assert_eq!("".parse::<EmailAddress>().is_ok(), false);
+        assert_eq!(EmailAddress::from_str("").is_ok(), false);
         assert_eq!(
-            "user@domain.tld".parse::<EmailAddress>().unwrap(),
+            EmailAddress::from_str("user@domain.tld").unwrap(),
             EmailAddress {
                 local: "user".into(),
                 domain: "domain.tld".into(),
             }
         );
         assert_eq!(
-            "user@localhost".parse::<EmailAddress>().unwrap(),
+            EmailAddress::from_str("user@localhost").unwrap(),
             EmailAddress {
                 local: "user".into(),
                 domain: "localhost".into()
             }
         );
-        assert_eq!("uuu".parse::<EmailAddress>().is_ok(), false);
-        assert_eq!("dd.tt".parse::<EmailAddress>().is_ok(), false);
-        assert!("tt.dd@uu".parse::<EmailAddress>().is_ok());
-        assert!("u@d".parse::<EmailAddress>().is_ok());
-        assert!("u@d.".parse::<EmailAddress>().is_ok());
-        assert!("u@d.t".parse::<EmailAddress>().is_ok());
+        assert_eq!(EmailAddress::from_str("uuu").is_ok(), false);
+        assert_eq!(EmailAddress::from_str("dd.tt").is_ok(), false);
+        assert!(EmailAddress::from_str("tt.dd@uu").is_ok());
+        assert!(EmailAddress::from_str("u@d").is_ok());
+        assert!(EmailAddress::from_str("u@d.").is_ok());
+        assert!(EmailAddress::from_str("u@d.t").is_ok());
         assert_eq!(
-            "u@d.tt".parse::<EmailAddress>().unwrap(),
+            EmailAddress::from_str("u@d.tt").unwrap(),
             EmailAddress {
                 local: "u".into(),
                 domain: "d.tt".into(),
             }
         );
-        assert!("u@tt".parse::<EmailAddress>().is_ok());
-        assert_eq!("@d.tt".parse::<EmailAddress>().is_ok(), false);
+        assert!(EmailAddress::from_str("u@tt").is_ok());
+        assert_eq!(EmailAddress::from_str("@d.tt").is_ok(), false);
     }
 
     use crate::chatlist::Chatlist;

@@ -1183,7 +1183,7 @@ impl Contact {
 
 /// Returns false if addr is an invalid address, otherwise true.
 pub fn may_be_valid_addr(addr: &str) -> bool {
-    let res = addr.parse::<EmailAddress>();
+    let res = EmailAddress::from_str(addr);
     res.is_ok()
 }
 

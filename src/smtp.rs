@@ -126,7 +126,7 @@ impl Smtp {
             bail!("bad connection parameters");
         }
 
-        let from = EmailAddress::new(addr.to_string())
+        let from = EmailAddress::from_str(addr.to_string())
             .with_context(|| format!("invalid login address {}", addr))?;
 
         self.from = Some(from);
@@ -423,7 +423,7 @@ pub(crate) async fn send_msg_to_smtp(
     let recipients_list = recipients
         .split(' ')
         .filter_map(
-            |addr| match async_smtp::EmailAddress::new(addr.to_string()) {
+            |addr| match async_smtp::EmailAddress::from_str(addr.to_string()) {
                 Ok(addr) => Some(addr),
                 Err(err) => {
                     warn!(context, "invalid recipient: {} {:?}", addr, err);
@@ -582,7 +582,7 @@ async fn send_mdn_msg_id(
     let body = rendered_msg.message;
 
     let addr = contact.get_addr();
-    let recipient = async_smtp::EmailAddress::new(addr.to_string())
+    let recipient = async_smtp::EmailAddress::from_str(addr.to_string())
         .map_err(|err| format_err!("invalid recipient: {} {:?}", addr, err))?;
     let recipients = vec![recipient];
 

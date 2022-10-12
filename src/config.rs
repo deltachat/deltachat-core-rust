@@ -376,11 +376,11 @@ impl Context {
             .await?;
 
         if let Some(old_addr) = old_addr {
-            let old_addr = EmailAddress::new(&old_addr)?;
+            let old_addr = EmailAddress::from_str(&old_addr)?;
             let old_keypair = crate::key::load_keypair(self, &old_addr).await?;
 
             if let Some(mut old_keypair) = old_keypair {
-                old_keypair.addr = EmailAddress::new(primary_new)?;
+                old_keypair.addr = EmailAddress::from_str(primary_new)?;
                 crate::key::store_self_keypair(self, &old_keypair, crate::key::KeyPairUse::Default)
                     .await?;
             }

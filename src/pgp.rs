@@ -418,12 +418,12 @@ mod tests {
     #[test]
     fn test_create_keypair() {
         let keypair0 = create_keypair(
-            EmailAddress::new("foo@bar.de").unwrap(),
+            EmailAddress::from_str("foo@bar.de").unwrap(),
             KeyGenType::Default,
         )
         .unwrap();
         let keypair1 = create_keypair(
-            EmailAddress::new("two@zwo.de").unwrap(),
+            EmailAddress::from_str("two@zwo.de").unwrap(),
             KeyGenType::Default,
         )
         .unwrap();
