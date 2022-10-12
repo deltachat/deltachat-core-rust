@@ -339,6 +339,36 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
             .into()
         );
 
+        let bytes = b"Authentication-Results: mx1.messagingengine.com;
+    x-csa=none;
+    x-me-sender=none;
+    x-ptr=pass smtp.helo=nx184.node01.secure-mailgate.com
+      policy.ptr=nx184.node01.secure-mailgate.com
+Authentication-Results: mx1.messagingengine.com;
+    bimi=skipped (DMARC did not pass)
+Authentication-Results: mx1.messagingengine.com;
+    arc=none (no signatures found)
+Authentication-Results: mx1.messagingengine.com;
+    dkim=none (no signatures found);
+    dmarc=none policy.published-domain-policy=none
+      policy.applied-disposition=none policy.evaluated-disposition=none
+      (p=none,d=none,d.eval=none) policy.policy-from=p
+      header.from=delta.blinzeln.de;
+    iprev=pass smtp.remote-ip=89.22.108.184
+      (nx184.node01.secure-mailgate.com);
+    spf=none smtp.mailfrom=nami.lefherz@delta.blinzeln.de
+      smtp.helo=nx184.node01.secure-mailgate.com";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authres_headers(&mail.get_headers(), "delta.blinzeln.de");
+        assert_eq!(
+            actual,
+            [(
+                "mx1.messagingengine.com".to_string(),
+                AuthenticationResults { dkim_passed: false }
+            )]
+            .into()
+        );
+
         // TODO test that foreign Auth-Res headers are ignored
 
         //         check_parse_authentication_results_combination(
@@ -463,14 +493,15 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
             ]
             .contains(&self_domain.as_str());
 
-            let mut dir = fs::read_dir(entry.path()).await.unwrap();
-
             let t = TestContext::new().await;
             t.configure_addr(&self_addr).await;
             if !authres_parsing_works {
                 println!("========= Receiving as {self_addr} =========");
             }
 
+            // TODO code duplication with the next while loop
+            // Simulate receiving all emails once, so that we have the correct authserv-ids
+            let mut dir = fs::read_dir(entry.path()).await.unwrap();
             while let Some(entry) = dir.next_entry().await.unwrap() {
                 let mut file = fs::File::open(entry.path()).await?;
                 bytes.clear();
@@ -485,6 +516,29 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
 
                 let allow_keychange = handle_authres(&t, &mail, from).await?;
                 assert!(allow_keychange);
+            }
+
+            let mut dir = fs::read_dir(entry.path()).await.unwrap();
+            while let Some(entry) = dir.next_entry().await.unwrap() {
+                let mut file = fs::File::open(entry.path()).await?;
+                bytes.clear();
+                file.read_to_end(&mut bytes).await.unwrap();
+                if bytes.is_empty() {
+                    continue;
+                }
+                //println!("{:?}", entry.path());
+
+                let mail = mailparse::parse_mail(&bytes)?;
+                let from = &mimeparser::get_from(&mail.headers)[0].addr;
+
+                let allow_keychange = handle_authres(&t, &mail, from).await?;
+                if !allow_keychange {
+                    println!(
+                        "!!!!!! FAILURE Receiving {:?}, keychange is not allowed !!!!!!",
+                        entry.path()
+                    );
+                    test_failed = true;
+                }
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
                 let dkim_result = dkim_works(&t, &from_domain).await.unwrap();
@@ -492,7 +546,10 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
                 let expected_result = from_domain != "delta.blinzeln.de";
                 if dkim_result != expected_result {
                     if authres_parsing_works {
-                        println!("========= FAILURE (self_addr={self_addr} =========");
+                        println!(
+                            "!!!!!! FAILURE Receiving {:?}, wrong result: !!!!!!",
+                            entry.path()
+                        );
                         test_failed = true;
                     }
                     println!("From {from_domain}: {dkim_result}");
