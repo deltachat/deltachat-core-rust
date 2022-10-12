@@ -57,7 +57,7 @@ fn parse_authres_headers(
 ) -> HashMap<AuthservId, AuthenticationResults> {
     let mut header_map: HashMap<AuthservId, Vec<String>> = HashMap::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
-        let header_value = dbg!(remove_comments(&header_value));
+        let header_value = remove_comments(&header_value);
 
         if let Some(mut authserv_id) = header_value.split(';').next() {
             if authserv_id.contains(char::is_whitespace) || authserv_id.is_empty() {
@@ -181,29 +181,43 @@ async fn should_allow_keychange(
         }
     }
 
-    let dkim_known_to_work = context
+    let dkim_works = dkim_works(context, from_domain).await?;
+    if !dkim_works && dkim_passed {
+        //print!("executing ");
+        set_dkim_works(context, from_domain).await?;
+    }
+
+    // //TODO dbg
+    // if dkim_passed {
+    //     let works_now = dkim_known_to_work(context, from_domain).await.unwrap();
+    //     println!("should_work {should_work} dkim_passed {dkim_passed} works_now {works_now}");
+    //     assert!(works_now);
+    // }
+
+    Ok(dkim_passed || !dkim_works)
+}
+
+async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
+    Ok(context
         .sql
         .query_get_value(
-            "SELECT correct_dkim FROM sending_domains WHERE domain=?;",
+            "SELECT dkim_works FROM sending_domains WHERE domain=?;",
             paramsv![from_domain],
         )
         .await?
-        .unwrap_or(false);
+        .unwrap_or(false))
+}
 
-    if !dkim_known_to_work && dkim_passed {
-        context
-            .sql
-            .execute(
-                "UPDATE sending_domains SET correct_dkim=1 WHERE domain=?;",
-                paramsv![from_domain],
-            )
-            .await?;
-    }
-
-    // println!("From {from_domain}: passed {dkim_passed}, known to work {dkim_known_to_work}");
-    println!("From {from_domain}: {dkim_passed}");
-
-    Ok(dkim_passed || !dkim_known_to_work)
+async fn set_dkim_works(context: &Context, from_domain: &str) -> Result<()> {
+    context
+        .sql
+        .execute(
+            "INSERT INTO sending_domains (domain, dkim_works) VALUES (?1,1)
+                ON CONFLICT(domain) DO UPDATE SET dkim_works=1 WHERE domain=?1;",
+            paramsv![from_domain],
+        )
+        .await?;
+    Ok(())
 }
 
 fn parse_authservid_candidates_config(config: &Option<String>) -> HashSet<&str> {
@@ -427,17 +441,35 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_realworld_authentication_results() -> Result<()> {
+        let mut test_failed = false;
+
         let mut dir = fs::read_dir("test-data/message/dkimchecks-2022-09-28/")
             .await
             .unwrap();
         let mut bytes = Vec::new();
         while let Some(entry) = dir.next_entry().await.unwrap() {
             let self_addr = entry.file_name().into_string().unwrap();
+            let self_domain = EmailAddress::new(&self_addr).unwrap().domain;
+            let authres_parsing_works = [
+                "ik.me",
+                "web.de",
+                "posteo.de",
+                "gmail.com",
+                "hotmail.com",
+                "mail.ru",
+                "delta.blinzeln.de",
+                "e.email",
+                "mailo.com",
+            ]
+            .contains(&self_domain.as_str());
+
             let mut dir = fs::read_dir(entry.path()).await.unwrap();
 
             let t = TestContext::new().await;
             t.configure_addr(&self_addr).await;
-            println!("========= Receiving as {self_addr} =========");
+            if !authres_parsing_works {
+                println!("========= Receiving as {self_addr} =========");
+            }
 
             while let Some(entry) = dir.next_entry().await.unwrap() {
                 let mut file = fs::File::open(entry.path()).await?;
@@ -452,12 +484,25 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
                 let allow_keychange = handle_authres(&t, &mail, from).await?;
-
                 assert!(allow_keychange);
+
+                let from_domain = EmailAddress::new(from).unwrap().domain;
+                let dkim_result = dkim_works(&t, &from_domain).await.unwrap();
+                // println!("From {from_domain}: passed {dkim_passed}, known to work {dkim_known_to_work}");
+                let expected_result = from_domain != "delta.blinzeln.de";
+                if dkim_result != expected_result {
+                    if authres_parsing_works {
+                        println!("========= FAILURE (self_addr={self_addr} =========");
+                        test_failed = true;
+                    }
+                    println!("From {from_domain}: {dkim_result}");
+                }
             }
 
             std::mem::forget(t) // TODO dbg
         }
+
+        assert!(!test_failed);
         Ok(())
     }
 

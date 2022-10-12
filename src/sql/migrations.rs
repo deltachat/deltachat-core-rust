@@ -599,7 +599,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
     if dbversion < 92 {
         info!(context, "[migration] v92");
         sql.execute_migration(
-            "CREATE TABLE sending_domains(domain TEXT PRIMARY KEY, correct_dkim INTEGER DEFAULT 0);",
+            "CREATE TABLE sending_domains(domain TEXT PRIMARY KEY, dkim_works INTEGER DEFAULT 0);",
             92,
         )
         .await?;
