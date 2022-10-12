@@ -545,7 +545,7 @@ impl Context {
                 .to_string(),
         );
         res.insert(
-            "authserv_id_candidates",
+            "authservid_candidates",
             self.get_config(Config::AuthservidCandidates)
                 .await?
                 .unwrap_or_default(),

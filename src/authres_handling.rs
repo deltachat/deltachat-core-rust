@@ -1,12 +1,14 @@
 //! Parsing and handling of the Authentication-Results header.
 //! See the comment on [`handle_authres`] for more.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
 use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
+use once_cell::sync::Lazy;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -55,7 +57,8 @@ fn parse_authres_headers(
 ) -> HashMap<AuthservId, AuthenticationResults> {
     let mut header_map: HashMap<AuthservId, Vec<String>> = HashMap::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
-        // TODO there could be a comment [CFWS] before the self domain. Do we care? Probably not.
+        let header_value = dbg!(remove_comments(&header_value));
+
         if let Some(mut authserv_id) = header_value.split(';').next() {
             if authserv_id.contains(char::is_whitespace) || authserv_id.is_empty() {
                 // Outlook violates the RFC by not adding an authserv-id at all, which we notice
@@ -71,7 +74,7 @@ fn parse_authres_headers(
             header_map
                 .entry(authserv_id.to_string())
                 .or_default()
-                .push(header_value);
+                .push(header_value.to_string());
         }
     }
 
@@ -82,6 +85,14 @@ fn parse_authres_headers(
     }
 
     authresults_map
+}
+
+fn remove_comments(header: &str) -> Cow<'_, str> {
+    // Written in Pomsky, the regex is: "(" Codepoint* lazy ")"
+    // See https://playground.pomsky-lang.org/?text=%22(%22%20Codepoint*%20lazy%20%22)%22
+    static RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\([\s\S]*?\)").unwrap());
+
+    RE.replace_all(header, " ")
 }
 
 /// Parses the Authentication-Results headers belonging to a specific authserv-id
@@ -161,11 +172,11 @@ async fn should_allow_keychange(
     if !authentication_results.is_empty() {
         let ids_config = context.get_config(Config::AuthservidCandidates).await?;
         let ids = parse_authservid_candidates_config(&ids_config);
-        println!("{:?}", &ids_config);
+        //println!("{:?}", &ids_config);
         if let Some(authserv_id) = tools::single_value(ids) {
             // dbg!(&authentication_results, &ids_config); //TODO
-            dkim_passed = if let Some(res) = authentication_results.get(authserv_id) {
-                res.dkim_passed
+            if let Some(res) = authentication_results.get(authserv_id) {
+                dkim_passed = res.dkim_passed;
             };
         }
     }
@@ -189,6 +200,9 @@ async fn should_allow_keychange(
             .await?;
     }
 
+    // println!("From {from_domain}: passed {dkim_passed}, known to work {dkim_known_to_work}");
+    println!("From {from_domain}: {dkim_passed}");
+
     Ok(dkim_passed || !dkim_known_to_work)
 }
 
@@ -209,6 +223,31 @@ mod tests {
     use crate::mimeparser;
     use crate::test_utils::TestContext;
 
+    #[test]
+    fn test_remove_comments() {
+        let header = "Authentication-Results: mx3.messagingengine.com;
+    dkim=pass (1024-bit rsa key sha256) header.d=riseup.net;"
+            .to_string();
+        assert_eq!(
+            remove_comments(&header),
+            "Authentication-Results: mx3.messagingengine.com;
+    dkim=pass   header.d=riseup.net;"
+        );
+
+        let header = ") aaa (".to_string();
+        assert_eq!(remove_comments(&header), ") aaa (");
+
+        let header = "((something weird) no comment".to_string();
+        assert_eq!(remove_comments(&header), "  no comment");
+
+        let header = "🎉(🎉(🎉))🎉(".to_string();
+        assert_eq!(remove_comments(&header), "🎉 )🎉(");
+
+        // Comments are allowed to include whitespace
+        let header = "(com\n\t\r\nment) no comment (comment)".to_string();
+        assert_eq!(remove_comments(&header), "  no comment  ");
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_authentication_results() -> Result<()> {
         let t = TestContext::new().await;
@@ -216,7 +255,7 @@ mod tests {
         let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
 Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let mail = mailparse::parse_mail(bytes)?;
-        let actual = parse_authres_headers(&mail.get_headers(), "info@slack.com");
+        let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
         assert_eq!(
             actual,
             [(
@@ -228,7 +267,7 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
 
         let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let mail = mailparse::parse_mail(bytes)?;
-        let actual = parse_authres_headers(&mail.get_headers(), "info@slack.com");
+        let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
         assert_eq!(
             actual,
             [(
@@ -240,11 +279,11 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
 
         // Weird Authentication-Results from Outlook without an authserv-id
         let bytes = b"Authentication-Results: spf=pass (sender IP is 40.92.73.85)
-        smtp.mailfrom=hotmail.com; dkim=pass (signature was verified)
-        header.d=hotmail.com;dmarc=pass action=none
-        header.from=hotmail.com;compauth=pass reason=100";
+    smtp.mailfrom=hotmail.com; dkim=pass (signature was verified)
+    header.d=hotmail.com;dmarc=pass action=none
+    header.from=hotmail.com;compauth=pass reason=100";
         let mail = mailparse::parse_mail(bytes)?;
-        let actual = parse_authres_headers(&mail.get_headers(), "alice@hotmail.com");
+        let actual = parse_authres_headers(&mail.get_headers(), "hotmail.com");
         // At this point, the most important thing to test is that there are no
         // authserv-ids with whitespace in them.
         assert_eq!(
@@ -261,12 +300,27 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let bytes = b"Authentication-Results:  gmx.net; dkim=none header.i=@slack.com
 Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         let mail = mailparse::parse_mail(bytes)?;
-        let actual = parse_authres_headers(&mail.get_headers(), "info@slack.com");
+        let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
         assert_eq!(
             actual,
             [(
                 "gmx.net".to_string(),
                 AuthenticationResults { dkim_passed: false }
+            )]
+            .into()
+        );
+
+        // ';' in comments
+        let bytes = b"Authentication-Results: mx1.riseup.net;
+	dkim=pass (1024-bit key; unprotected) header.d=yandex.ru header.i=@yandex.ru header.a=rsa-sha256 header.s=mail header.b=avNJu6sw;
+	dkim-atps=neutral";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authres_headers(&mail.get_headers(), "yandex.ru");
+        assert_eq!(
+            actual,
+            [(
+                "mx1.riseup.net".to_string(),
+                AuthenticationResults { dkim_passed: true }
             )]
             .into()
         );
@@ -344,6 +398,17 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
 
+        // A message without any Authentication-Results headers shouldn't remove all
+        // candidates since it could be a mailer-daemon message or so
+        update_authservid_candidates_test(&t, &[]).await;
+        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx4.messagingengine.com");
+
+        update_authservid_candidates_test(&t, &["mx4.messagingengine.com", "someotherdomain.com"])
+            .await;
+        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx4.messagingengine.com");
+
         Ok(())
     }
 
@@ -372,6 +437,7 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
 
             let t = TestContext::new().await;
             t.configure_addr(&self_addr).await;
+            println!("========= Receiving as {self_addr} =========");
 
             while let Some(entry) = dir.next_entry().await.unwrap() {
                 let mut file = fs::File::open(entry.path()).await?;
@@ -380,7 +446,7 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
                 if bytes.is_empty() {
                     continue;
                 }
-                println!("{:?}", entry.path());
+                //println!("{:?}", entry.path());
 
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
