@@ -1281,6 +1281,45 @@ impl CommandApi {
     }
 
     // ---------------------------------------------
+    //                   backup
+    // ---------------------------------------------
+
+    async fn export_backup(
+        &self,
+        account_id: u32,
+        destination: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.stop_io().await;
+        let result = imex::imex(
+            &ctx,
+            imex::ImexMode::ExportBackup,
+            destination.as_ref(),
+            passphrase,
+        )
+        .await;
+        ctx.start_io().await;
+        result
+    }
+
+    async fn import_backup(
+        &self,
+        account_id: u32,
+        path: String,
+        passphrase: Option<String>,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        imex::imex(
+            &ctx,
+            imex::ImexMode::ImportBackup,
+            path.as_ref(),
+            passphrase,
+        )
+        .await
+    }
+
+    // ---------------------------------------------
     //                connectivity
     // ---------------------------------------------
 

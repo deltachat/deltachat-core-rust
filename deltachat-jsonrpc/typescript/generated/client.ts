@@ -781,6 +781,16 @@ export class RawClient {
     return (this._transport.request('chat_get_neighboring_media', [accountId, msgId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<[(T.U32|null),(T.U32|null)]>;
   }
 
+
+  public exportBackup(accountId: T.U32, destination: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('export_backup', [accountId, destination, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public importBackup(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('import_backup', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Indicate that the network likely has come back.
    * or just that the network conditions might have changed
