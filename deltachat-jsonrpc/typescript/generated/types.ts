@@ -59,7 +59,7 @@ export type MessageListItem=(({"kind":"message";}&{"msg_id":U32;})|({
  */
 "kind":"dayMarker";}&{
 /**
- * Marker timestamp, for day markers
+ * Marker timestamp, for day markers, in seconds (this is different from the cffi, which returns it in days)
  */
 "timestamp":I64;}));
 export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;}));

@@ -397,7 +397,7 @@ pub enum JSONRPCMessageListItem {
     /// Day marker, separating messages that correspond to different
     /// days according to local time.
     DayMarker {
-        /// Marker timestamp, for day markers
+        /// Marker timestamp, for day markers, in seconds (this is different from the cffi, which returns it in days)
         timestamp: i64,
     },
 }
@@ -408,7 +408,10 @@ impl From<ChatItem> for JSONRPCMessageListItem {
             ChatItem::Message { msg_id } => JSONRPCMessageListItem::Message {
                 msg_id: msg_id.to_u32(),
             },
-            ChatItem::DayMarker { timestamp } => JSONRPCMessageListItem::DayMarker { timestamp },
+            ChatItem::DayMarker { timestamp } => JSONRPCMessageListItem::DayMarker {
+                // normalize timestamp, from unix days to unix miliseconds
+                timestamp: timestamp * 86400,
+            },
         }
     }
 }
