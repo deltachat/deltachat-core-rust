@@ -30,6 +30,7 @@
 
 
 ### Changes
+- jsonrpc: `getFirstUnreadMessageOfChat()` - quick exit on encountering outgoing message
 
 ### Fixes
 - share stock string translations across accounts created by the same account manager #3640

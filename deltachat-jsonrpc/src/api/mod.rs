@@ -763,7 +763,14 @@ impl CommandApi {
         let mut first_unread_message_id = None;
         for item in messages.into_iter().rev() {
             if let ChatItem::Message { msg_id } = item {
-                match msg_id.get_state(&ctx).await? {
+                let state = msg_id.get_state(&ctx).await?;
+                if state.is_outgoing() {
+                    // notice that the draft message (and oher internal messages), which could cause problems,
+                    // are not an issue here, because they are not part of the `messages` vector.
+                    // keep that in mind when you optimize this into an sql query
+                    break;
+                }
+                match state {
                     MessageState::InSeen => break,
                     MessageState::InFresh | MessageState::InNoticed => {
                         first_unread_message_id = Some(msg_id)
