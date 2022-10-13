@@ -2,10 +2,9 @@
 //! See the comment on [`handle_authres`] for more.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::collections::HashSet;
 
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
 use once_cell::sync::Lazy;
@@ -13,7 +12,6 @@ use once_cell::sync::Lazy;
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
-use crate::tools;
 use crate::tools::EmailAddress;
 
 /// `authres` is short for the Authentication-Results header, which contains info
@@ -40,22 +38,35 @@ pub(crate) async fn handle_authres(
     let authentication_results = parse_authres_headers(&mail.get_headers(), &from_domain);
     update_authservid_candidates(context, &authentication_results).await?;
     let allow_keychange =
-        should_allow_keychange(context, &authentication_results, &from_domain).await?;
+        should_allow_keychange(context, authentication_results, &from_domain).await?;
     Ok(allow_keychange)
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct AuthenticationResults {
-    dkim_passed: bool,
-}
+// #[derive(Debug, PartialEq, Eq)]
+// struct AuthenticationResults {
+//     dkim_passed: bool,
+// }
 
 type AuthservId = String;
+
+#[derive(Debug, PartialEq)]
+enum DkimResult {
+    /// Some(true): The header explicitly said that DKIM passed
+    Passed,
+    /// Some(false): The header explicitly said that DKIM failed
+    Failed,
+    /// None: The header didn't say anything about DKIM;
+    /// this might mean that it failed or that it wasn't checked.
+    Nothing,
+}
+
+type AuthenticationResults = Vec<(AuthservId, DkimResult)>;
 
 fn parse_authres_headers(
     headers: &mailparse::headers::Headers<'_>,
     from_domain: &str,
-) -> HashMap<AuthservId, AuthenticationResults> {
-    let mut header_map: HashMap<AuthservId, Vec<String>> = HashMap::new();
+) -> AuthenticationResults {
+    let mut res = Vec::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
         let header_value = remove_comments(&header_value);
 
@@ -68,23 +79,16 @@ fn parse_authres_headers(
                 // Just use an arbitrary authserv-id, it will work for Outlook, and in general,
                 // with providers not implementing the RFC correctly, someone can trick us
                 // into thinking that an incoming email is DKIM-correct, anyway.
+                // The most important thing here is that we have some valid `authserv_id`.
                 // TODO is this comment understandable?
                 authserv_id = "invalidAuthservId";
             }
-            header_map
-                .entry(authserv_id.to_string())
-                .or_default()
-                .push(header_value.to_string());
+            let dkim_passed = parse_one_authres_header(&header_value, from_domain);
+            res.push((authserv_id.to_string(), dkim_passed));
         }
     }
 
-    let mut authresults_map = HashMap::new();
-    for (authserv_id, headers) in header_map {
-        let dkim_passed = authres_dkim_passed(&headers, from_domain).unwrap_or(false);
-        authresults_map.insert(authserv_id, AuthenticationResults { dkim_passed });
-    }
-
-    authresults_map
+    res
 }
 
 fn remove_comments(header: &str) -> Cow<'_, str> {
@@ -98,42 +102,40 @@ fn remove_comments(header: &str) -> Cow<'_, str> {
 /// Parses the Authentication-Results headers belonging to a specific authserv-id
 /// and returns whether they say that DKIM passed.
 /// TODO document better
-fn authres_dkim_passed(headers: &[String], from_domain: &str) -> Result<bool> {
-    for header_value in headers {
-        if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
-            let dkim_part = dkim_to_end
-                .split(';')
-                .next()
-                .context("split() result shouldn't be empty")?;
-            let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
-            if let Some(&"pass") = dkim_parts.first() {
-                // DKIM headers contain a header.d or header.i field
-                // that says which domain signed. We have to check ourselves
-                // that this is the same domain as in the From header.
-                let header_d: &str = &format!("header.d={}", &from_domain);
-                let header_i: &str = &format!("header.i=@{}", &from_domain);
+fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult {
+    if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
+        let dkim_part = dkim_to_end.split(';').next().unwrap_or_default();
+        let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
+        if let Some(&"pass") = dkim_parts.first() {
+            // DKIM headers contain a header.d or header.i field
+            // that says which domain signed. We have to check ourselves
+            // that this is the same domain as in the From header.
+            let header_d: &str = &format!("header.d={}", &from_domain);
+            let header_i: &str = &format!("header.i=@{}", &from_domain);
 
-                if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
-                    // We have found a `dkim=pass` header!
-                    return Ok(true);
-                }
-            } else {
-                // dkim=fail, dkim=none, ...
-                return Ok(false);
+            if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
+                // We have found a `dkim=pass` header!
+                return DkimResult::Passed;
             }
+        } else {
+            // dkim=fail, dkim=none, ...
+            return DkimResult::Failed;
         }
     }
 
-    Ok(false)
+    DkimResult::Nothing
 }
 
 // TODO this is only half of the algorithm we thought of; we also wanted to save how sure we are
 // about the authserv id. Like, a same-domain email is more trustworthy.
 async fn update_authservid_candidates(
     context: &Context,
-    authentication_results: &HashMap<AuthservId, AuthenticationResults>,
+    authentication_results: &AuthenticationResults,
 ) -> Result<()> {
-    let mut new_ids: HashSet<_> = authentication_results.keys().map(String::as_str).collect();
+    let mut new_ids: HashSet<&str> = authentication_results
+        .iter()
+        .map(|(authserv_id, _dkim_passed)| authserv_id.as_str())
+        .collect();
     if new_ids.is_empty() {
         // The incoming message doesn't contain any authentication results, maybe it's a
         // self-sent or a mailer-daemon message
@@ -162,29 +164,41 @@ async fn update_authservid_candidates(
 /// because we then assume that the From header is forged.
 async fn should_allow_keychange(
     context: &Context,
-    authentication_results: &HashMap<String, AuthenticationResults>,
+    mut authentication_results: AuthenticationResults,
     from_domain: &str,
 ) -> Result<bool> {
-    let mut dkim_passed = true; // TODO what do we want to do if there are multiple or no authservid candidates?
+    let mut dkim_passed = false; // TODO what do we want to do if there are multiple or no authservid candidates?
 
-    // If the authentication results are empty, then our provider doesn't add them
-    // and an attacker could just add their own Authentication-Results, making us
-    // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
-    if !authentication_results.is_empty() {
-        let ids_config = context.get_config(Config::AuthservidCandidates).await?;
-        let ids = parse_authservid_candidates_config(&ids_config);
-        //println!("{:?}", &ids_config);
-        if let Some(authserv_id) = tools::single_value(ids) {
-            // dbg!(&authentication_results, &ids_config); //TODO
-            if let Some(res) = authentication_results.get(authserv_id) {
-                dkim_passed = res.dkim_passed;
-            };
+    let ids_config = context.get_config(Config::AuthservidCandidates).await?;
+    let ids = parse_authservid_candidates_config(&ids_config);
+
+    // Remove all foreign authentication results
+    authentication_results
+        .retain_mut(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
+
+    if authentication_results.is_empty() {
+        // If the authentication results are empty, then our provider doesn't add them
+        // and an attacker could just add their own Authentication-Results, making us
+        // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
+        dkim_passed = true;
+    } else {
+        for (_authserv_id, current_dkim_passed) in authentication_results {
+            match current_dkim_passed {
+                DkimResult::Passed => {
+                    dkim_passed = true;
+                    break;
+                }
+                DkimResult::Failed => {
+                    dkim_passed = false;
+                    break;
+                }
+                DkimResult::Nothing => {}
+            }
         }
     }
 
     let dkim_works = dkim_works(context, from_domain).await?;
     if !dkim_works && dkim_passed {
-        //print!("executing ");
         set_dkim_works(context, from_domain).await?;
     }
 
@@ -273,24 +287,18 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
         assert_eq!(
             actual,
-            [(
-                "gmx.net".to_string(),
-                AuthenticationResults { dkim_passed: true }
-            )]
-            .into()
+            vec![
+                ("gmx.net".to_string(), DkimResult::Passed),
+                ("gmx.net".to_string(), DkimResult::Nothing)
+            ]
         );
 
         let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let mail = mailparse::parse_mail(bytes)?;
         let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
-        assert_eq!(
-            actual,
-            [(
-                "gmx.net".to_string(),
-                AuthenticationResults { dkim_passed: false }
-            )]
-            .into()
-        );
+        // TODO Actually, we could be able to tell that DkimResult::Failed here, since a check was done
+        // but the From domain didn't match.
+        assert_eq!(actual, vec![("gmx.net".to_string(), DkimResult::Nothing)],);
 
         // Weird Authentication-Results from Outlook without an authserv-id
         let bytes = b"Authentication-Results: spf=pass (sender IP is 40.92.73.85)
@@ -303,26 +311,23 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         // authserv-ids with whitespace in them.
         assert_eq!(
             actual,
-            [(
-                "invalidAuthservId".to_string(),
-                AuthenticationResults { dkim_passed: true }
-            )]
-            .into()
+            vec![("invalidAuthservId".to_string(), DkimResult::Passed)]
         );
 
         // Usually, MUAs put their Authentication-Results to the top, so if in doubt,
         // headers from the top should be preferred
+        // TODO this has to be checked somewhere else now
+
         let bytes = b"Authentication-Results:  gmx.net; dkim=none header.i=@slack.com
 Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         let mail = mailparse::parse_mail(bytes)?;
         let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
         assert_eq!(
             actual,
-            [(
-                "gmx.net".to_string(),
-                AuthenticationResults { dkim_passed: false }
-            )]
-            .into()
+            vec![
+                ("gmx.net".to_string(), DkimResult::Failed),
+                ("gmx.net".to_string(), DkimResult::Passed)
+            ]
         );
 
         // ';' in comments
@@ -333,42 +338,31 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         let actual = parse_authres_headers(&mail.get_headers(), "yandex.ru");
         assert_eq!(
             actual,
-            [(
-                "mx1.riseup.net".to_string(),
-                AuthenticationResults { dkim_passed: true }
-            )]
-            .into()
+            vec![("mx1.riseup.net".to_string(), DkimResult::Passed)]
         );
 
-        let bytes = b"Authentication-Results: mx1.messagingengine.com;
-    x-csa=none;
-    x-me-sender=none;
-    x-ptr=pass smtp.helo=nx184.node01.secure-mailgate.com
-      policy.ptr=nx184.node01.secure-mailgate.com
-Authentication-Results: mx1.messagingengine.com;
-    bimi=skipped (DMARC did not pass)
-Authentication-Results: mx1.messagingengine.com;
-    arc=none (no signatures found)
-Authentication-Results: mx1.messagingengine.com;
-    dkim=none (no signatures found);
-    dmarc=none policy.published-domain-policy=none
-      policy.applied-disposition=none policy.evaluated-disposition=none
-      (p=none,d=none,d.eval=none) policy.policy-from=p
-      header.from=delta.blinzeln.de;
-    iprev=pass smtp.remote-ip=89.22.108.184
-      (nx184.node01.secure-mailgate.com);
-    spf=none smtp.mailfrom=nami.lefherz@delta.blinzeln.de
-      smtp.helo=nx184.node01.secure-mailgate.com";
-        let mail = mailparse::parse_mail(bytes)?;
-        let actual = parse_authres_headers(&mail.get_headers(), "delta.blinzeln.de");
-        assert_eq!(
-            actual,
-            [(
-                "mx1.messagingengine.com".to_string(),
-                AuthenticationResults { dkim_passed: false }
-            )]
-            .into()
-        );
+        //         let bytes = b"Authentication-Results: mx1.messagingengine.com;
+        //     x-csa=none;
+        //     x-me-sender=none;
+        //     x-ptr=pass smtp.helo=nx184.node01.secure-mailgate.com
+        //       policy.ptr=nx184.node01.secure-mailgate.com
+        // Authentication-Results: mx1.messagingengine.com;
+        //     bimi=skipped (DMARC did not pass)
+        // Authentication-Results: mx1.messagingengine.com;
+        //     arc=none (no signatures found)
+        // Authentication-Results: mx1.messagingengine.com;
+        //     dkim=none (no signatures found);
+        //     dmarc=none policy.published-domain-policy=none
+        //       policy.applied-disposition=none policy.evaluated-disposition=none
+        //       (p=none,d=none,d.eval=none) policy.policy-from=p
+        //       header.from=delta.blinzeln.de;
+        //     iprev=pass smtp.remote-ip=89.22.108.184
+        //       (nx184.node01.secure-mailgate.com);
+        //     spf=none smtp.mailfrom=nami.lefherz@delta.blinzeln.de
+        //       smtp.helo=nx184.node01.secure-mailgate.com";
+        //         let mail = mailparse::parse_mail(bytes)?;
+        //         let actual = parse_authres_headers(&mail.get_headers(), "delta.blinzeln.de");
+        //         assert_eq!(actual, vec![("mx1.messagingengine.com".to_string(), false)]);
 
         // TODO test that foreign Auth-Res headers are ignored
 
@@ -463,11 +457,11 @@ Authentication-Results: mx1.messagingengine.com;
     /// `authentication_results` parameter. So, this function takes `incoming_ids`
     /// and adds some AuthenticationResults to get the HashMap we need.
     async fn update_authservid_candidates_test(context: &Context, incoming_ids: &[&str]) {
-        let map = incoming_ids
+        let v = incoming_ids
             .iter()
-            .map(|id| (id.to_string(), AuthenticationResults { dkim_passed: true }))
+            .map(|id| (id.to_string(), DkimResult::Passed))
             .collect();
-        update_authservid_candidates(context, &map).await.unwrap()
+        update_authservid_candidates(context, &v).await.unwrap()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
