@@ -81,6 +81,7 @@ enum MessageQuote {
         override_sender_name: Option<String>,
         image: Option<String>,
         is_forwarded: bool,
+        view_type: MessageViewtype,
     },
 }
 
@@ -129,6 +130,7 @@ impl MessageObject {
                             None
                         },
                         is_forwarded: quote.is_forwarded(),
+                        view_type: quote.get_viewtype().into(),
                     })
                 }
                 None => Some(MessageQuote::JustText { text: quoted_text }),
