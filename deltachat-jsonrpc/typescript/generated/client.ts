@@ -66,6 +66,26 @@ export class RawClient {
     return (this._transport.request('get_all_accounts', [] as RPC.Params)) as Promise<(T.Account)[]>;
   }
 
+
+  public startIoForAllAccounts(): Promise<null> {
+    return (this._transport.request('start_io_for_all_accounts', [] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public stopIoForAllAccounts(): Promise<null> {
+    return (this._transport.request('stop_io_for_all_accounts', [] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public startIo(id: T.U32): Promise<null> {
+    return (this._transport.request('start_io', [id] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public stopIo(id: T.U32): Promise<null> {
+    return (this._transport.request('stop_io', [id] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Get top-level info for an account.
    */
@@ -296,7 +316,7 @@ export class RawClient {
    *
    * The scanning device will pass the scanned content to `checkQr()` then;
    * if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`
-   * an out-of-band-verification can be joined using dc_join_securejoin()
+   * an out-of-band-verification can be joined using `secure_join()`
    *
    * chat_id: If set to a group-chat-id,
    *     the Verified-Group-Invite protocol is offered in the QR code;
@@ -309,6 +329,33 @@ export class RawClient {
    */
   public getChatSecurejoinQrCodeSvg(accountId: T.U32, chatId: (T.U32|null)): Promise<[string,string]> {
     return (this._transport.request('get_chat_securejoin_qr_code_svg', [accountId, chatId] as RPC.Params)) as Promise<[string,string]>;
+  }
+
+  /**
+   * Continue a Setup-Contact or Verified-Group-Invite protocol
+   * started on another device with `get_chat_securejoin_qr_code_svg()`.
+   * This function is typically called when `check_qr()` returns
+   * type=AskVerifyContact or type=AskVerifyGroup.
+   *
+   * The function returns immediately and the handshake runs in background,
+   * sending and receiving several messages.
+   * During the handshake, info messages are added to the chat,
+   * showing progress, success or errors.
+   *
+   * Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
+   *
+   * See https://countermitm.readthedocs.io/en/latest/new.html
+   * for details about both protocols.
+   *
+   * **qr**: The text of the scanned QR code. Typically, the same string as given
+   *     to `check_qr()`.
+   *
+   * **returns**: The chat ID of the joined chat, the UI may redirect to the this chat.
+   *         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.
+   *
+   */
+  public secureJoin(accountId: T.U32, qr: string): Promise<T.U32> {
+    return (this._transport.request('secure_join', [accountId, qr] as RPC.Params)) as Promise<T.U32>;
   }
 
 
@@ -541,8 +588,8 @@ export class RawClient {
   }
 
 
-  public getMessageListEntries(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.MessageListItem)[]> {
-    return (this._transport.request('get_message_list_entries', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.MessageListItem)[]>;
+  public getMessageListItems(accountId: T.U32, chatId: T.U32, flags: T.U32): Promise<(T.MessageListItem)[]> {
+    return (this._transport.request('get_message_list_items', [accountId, chatId, flags] as RPC.Params)) as Promise<(T.MessageListItem)[]>;
   }
 
 
@@ -677,6 +724,16 @@ export class RawClient {
     return (this._transport.request('contacts_get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
   }
 
+
+  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<boolean> {
+    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
+  }
+
+
+  public changeContactName(accountId: T.U32, contactId: T.U32, name: string): Promise<null> {
+    return (this._transport.request('change_contact_name', [accountId, contactId, name] as RPC.Params)) as Promise<null>;
+  }
+
   /**
    * Get encryption info for a contact.
    * Get a multi-line encryption info, containing your fingerprint and the
@@ -722,6 +779,16 @@ export class RawClient {
    */
   public chatGetNeighboringMedia(accountId: T.U32, msgId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<[(T.U32|null),(T.U32|null)]> {
     return (this._transport.request('chat_get_neighboring_media', [accountId, msgId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<[(T.U32|null),(T.U32|null)]>;
+  }
+
+
+  public exportBackup(accountId: T.U32, destination: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('export_backup', [accountId, destination, passphrase] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public importBackup(accountId: T.U32, path: string, passphrase: (string|null)): Promise<null> {
+    return (this._transport.request('import_backup', [accountId, path, passphrase] as RPC.Params)) as Promise<null>;
   }
 
   /**
@@ -799,6 +866,11 @@ export class RawClient {
    */
   public forwardMessages(accountId: T.U32, messageIds: (T.U32)[], chatId: T.U32): Promise<null> {
     return (this._transport.request('forward_messages', [accountId, messageIds, chatId] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public sendSticker(accountId: T.U32, chatId: T.U32, stickerPath: string): Promise<T.U32> {
+    return (this._transport.request('send_sticker', [accountId, chatId, stickerPath] as RPC.Params)) as Promise<T.U32>;
   }
 
 
