@@ -142,8 +142,9 @@ async fn update_authservid_candidates(
 
     let old_config = context.get_config(Config::AuthservidCandidates).await?;
     let old_ids = parse_authservid_candidates_config(&old_config);
-    if !old_ids.is_empty() {
-        new_ids = old_ids.intersection(&new_ids).copied().collect();
+    let intersection: HashSet<&str> = old_ids.intersection(&new_ids).copied().collect();
+    if !intersection.is_empty() {
+        new_ids = intersection;
     }
     // If there were no AuthservIdCandidates previously, just start with
     // the ones from the incoming email
