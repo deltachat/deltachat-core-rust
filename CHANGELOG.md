@@ -37,7 +37,7 @@
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`
-- jsonrpc: add `viewType` to quoted message(`MessageQuote` type) in `Message` object type
+- jsonrpc: add `viewType` to quoted message(`MessageQuote` type) in `Message` object type #3651
 
 
 ### Changes
