@@ -40,6 +40,7 @@
 
 
 ### Changes
+- jsonrpc in cffi also sends events now
 
 ### Fixes
 - share stock string translations across accounts created by the same account manager #3640
