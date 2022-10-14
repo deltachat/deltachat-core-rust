@@ -380,79 +380,21 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
             vec![("mx1.riseup.net".to_string(), DkimResult::Passed)]
         );
 
-        //         let bytes = b"Authentication-Results: mx1.messagingengine.com;
-        //     x-csa=none;
-        //     x-me-sender=none;
-        //     x-ptr=pass smtp.helo=nx184.node01.secure-mailgate.com
-        //       policy.ptr=nx184.node01.secure-mailgate.com
-        // Authentication-Results: mx1.messagingengine.com;
-        //     bimi=skipped (DMARC did not pass)
-        // Authentication-Results: mx1.messagingengine.com;
-        //     arc=none (no signatures found)
-        // Authentication-Results: mx1.messagingengine.com;
-        //     dkim=none (no signatures found);
-        //     dmarc=none policy.published-domain-policy=none
-        //       policy.applied-disposition=none policy.evaluated-disposition=none
-        //       (p=none,d=none,d.eval=none) policy.policy-from=p
-        //       header.from=delta.blinzeln.de;
-        //     iprev=pass smtp.remote-ip=89.22.108.184
-        //       (nx184.node01.secure-mailgate.com);
-        //     spf=none smtp.mailfrom=nami.lefherz@delta.blinzeln.de
-        //       smtp.helo=nx184.node01.secure-mailgate.com";
-        //         let mail = mailparse::parse_mail(bytes)?;
-        //         let actual = parse_authres_headers(&mail.get_headers(), "delta.blinzeln.de");
-        //         assert_eq!(actual, vec![("mx1.messagingengine.com".to_string(), false)]);
-
-        //         check_parse_authentication_results_combination(
-        //             "alice@testrun.org",
-        //             // TODO actually the address is alice@gmx.de, but then it doesn't work because `header.d=gmx.net`:
-        //             b"From: alice@gmx.net
-        // Authentication-Results: testrun.org;
-        // 	dkim=pass header.d=gmx.net header.s=badeba3b8450 header.b=Gug6p4zD;
-        // 	dmarc=pass (policy=none) header.from=gmx.de;
-        // 	spf=pass (testrun.org: domain of alice@gmx.de designates 212.227.17.21 as permitted sender) smtp.mailfrom=alice@gmx.de",
-        //             AuthenticationResults::Passed,
-        //         )
-        //         .await;
-
-        //         check_parse_authentication_results_combination(
-        //             "alice@testrun.org",
-        //             br#"From: hocuri@testrun.org
-        // Authentication-Results: box.hispanilandia.net; dmarc=none (p=none dis=none) header.from=nauta.cu
-        // Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@nauta.cu
-        // Authentication-Results: testrun.org;
-        // 	dkim=fail ("body hash did not verify") header.d=nauta.cu header.s=nauta header.b=YrWhU6qk;
-        // 	dmarc=none;
-        // 	spf=pass (testrun.org: domain of "test1-bounces+hocuri=testrun.org@hispanilandia.net" designates 51.15.127.36 as permitted sender) smtp.mailfrom="test1-bounces+hocuri=testrun.org@hispanilandia.net"
-        // "#,
-        //             AuthenticationResults::Failed,
-        //         )
-        //         .await;
-
-        //         check_parse_authentication_results_combination(
-
-        //             // TODO fails because mx.google.com, not google.com
-        //             "alice@gmail.com",
-        //             br#"From: not-so-fake@hispanilandia.net
-        // Authentication-Results: mx.google.com;
-        //        dkim=pass header.i=@hispanilandia.net header.s=mail header.b="Ih5Sz2/P";
-        //        spf=pass (google.com: domain of not-so-fake@hispanilandia.net designates 51.15.127.36 as permitted sender) smtp.mailfrom=not-so-fake@hispanilandia.net;
-        //        dmarc=pass (p=QUARANTINE sp=QUARANTINE dis=NONE) header.from=hispanilandia.net"#,
-        //             AuthenticationResults::Passed,
-        //         )
-        //         .await;
-
-        //         check_parse_authentication_results_combination(
-        //             "alice@nauta.cu",
-        //             br#"From: adb <adbenitez@disroot.org>
-        // Authentication-Results: box.hispanilandia.net;
-        // 	dkim=fail reason="signature verification failed" (2048-bit key; secure) header.d=disroot.org header.i=@disroot.org header.b="kqh3WUKq";
-        // 	dkim-atps=neutral
-        // Authentication-Results: box.hispanilandia.net; dmarc=pass (p=quarantine dis=none) header.from=disroot.org
-        // Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@disroot.org"#,
-        //             AuthenticationResults::Passed,
-        //         )
-        //         .await;
+        let bytes = br#"Authentication-Results: box.hispanilandia.net;
+	dkim=fail reason="signature verification failed" (2048-bit key; secure) header.d=disroot.org header.i=@disroot.org header.b="kqh3WUKq";
+	dkim-atps=neutral
+Authentication-Results: box.hispanilandia.net; dmarc=pass (p=quarantine dis=none) header.from=disroot.org
+Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@disroot.org"#;
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authres_headers(&mail.get_headers(), "disroot.org");
+        assert_eq!(
+            actual,
+            vec![
+                ("box.hispanilandia.net".to_string(), DkimResult::Failed),
+                ("box.hispanilandia.net".to_string(), DkimResult::Nothing),
+                ("box.hispanilandia.net".to_string(), DkimResult::Nothing),
+            ]
+        );
 
         Ok(())
     }
@@ -524,6 +466,8 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
                 "fastmail.com",
                 "mail.de",
                 "outlook.com",
+                "gmx.de",
+                "testrun.org",
             ]
             .contains(&self_domain.as_str());
 
@@ -572,9 +516,13 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
                 let dkim_result = dkim_works(&t, &from_domain).await.unwrap();
-                // println!("From {from_domain}: passed {dkim_passed}, known to work {dkim_known_to_work}");
-                let expected_result = from_domain != "delta.blinzeln.de"
-                    && from != "authresadding-attacker@example.com"
+                // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail
+                let expected_result = (from_domain != "delta.blinzeln.de") && (from_domain != "gmx.de")
+                    // These are (fictional) forged emails where the attacker added a fake
+                    // Authentication-Results before sending the email
+                    && from != "forged-authres-added@example.com"
+                    // Other forged emails
+                    && !from.starts_with("forged")
                     && !entry
                         .path()
                         .to_str()
@@ -611,32 +559,4 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         let mail = mailparse::parse_mail(bytes).unwrap();
         handle_authres(&t, &mail, "invalidfrom.com").await.unwrap();
     }
-
-    // async fn check_parse_authentication_results_combination(
-    //     self_addr: &str,
-    //     header_bytes: &[u8],
-    //     expected_result: AuthenticationResults,
-    // ) {
-    //     let t = TestContext::new().await;
-    //     t.set_primary_self_addr(self_addr).await.unwrap();
-    //     let mail = mailparse::parse_mail(body)?;
-
-    //     let actual = parse_authentication_results(&t, &mail.get_headers(), &from)?;
-    //     //assert_eq!(message.authentication_results, expected_result);
-    //     if message.authentication_results != expected_result {
-    //         eprintln!(
-    //             "EXPECTED {expected_result:?}, GOT {:?}, SELF {}, FROM {:?}",
-    //             message.authentication_results,
-    //             self_addr,
-    //             message.from.first().map(|i| &i.addr),
-    //         )
-    //     } else {
-    //         eprintln!(
-    //             "CORRECT {:?}, SELF {}, FROM {:?}",
-    //             message.authentication_results,
-    //             self_addr,
-    //             message.from.first().map(|i| &i.addr),
-    //         )
-    //     }
-    // }
 }

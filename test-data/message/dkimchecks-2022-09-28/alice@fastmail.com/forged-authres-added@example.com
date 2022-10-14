@@ -17,6 +17,6 @@ Authentication-Results: mx1.messagingengine.com;
       (nx184.node01.secure-mailgate.com);
     spf=none smtp.mailfrom=alice@delta.blinzeln.de
       smtp.helo=nx184.node01.secure-mailgate.com
-From: authresadding-attacker@example.com
+From: forged-authres-added@example.com
 Authentication-Results: aaa.com; dkim=pass header.i=@example.com
 Authentication-Results: aaa.com; dkim=pass header.i=@example.com
