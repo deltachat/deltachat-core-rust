@@ -1,4 +1,4 @@
-import { DeltaChat, DeltaChatEvent } from "../deltachat.js";
+import { DcEvent, DeltaChat } from "../deltachat.js";
 
 var SELECTED_ACCOUNT = 0;
 
@@ -7,7 +7,7 @@ window.addEventListener("DOMContentLoaded", (_event) => {
     SELECTED_ACCOUNT = Number(id);
     window.dispatchEvent(new Event("account-changed"));
   };
-  console.log('launch run script...')
+  console.log("launch run script...");
   run().catch((err) => console.error("run failed", err));
 });
 
@@ -16,13 +16,13 @@ async function run() {
   const $side = document.getElementById("side")!;
   const $head = document.getElementById("header")!;
 
-  const client = new DeltaChat('ws://localhost:20808/ws')
+  const client = new DeltaChat("ws://localhost:20808/ws");
 
-  ;(window as any).client = client.rpc;
+  (window as any).client = client.rpc;
 
-  client.on("ALL", event => {
-    onIncomingEvent(event)
-  })
+  client.on("ALL", (accountId, event) => {
+    onIncomingEvent(accountId, event);
+  });
 
   window.addEventListener("account-changed", async (_event: Event) => {
     listChatsForSelectedAccount();
@@ -31,9 +31,9 @@ async function run() {
   await Promise.all([loadAccountsInHeader(), listChatsForSelectedAccount()]);
 
   async function loadAccountsInHeader() {
-    console.log('load accounts')
+    console.log("load accounts");
     const accounts = await client.rpc.getAllAccounts();
-    console.log('accounts loaded', accounts)
+    console.log("accounts loaded", accounts);
     for (const account of accounts) {
       if (account.type === "Configured") {
         write(
@@ -48,14 +48,14 @@ async function run() {
           `<a href="#">
           ${account.id}: (unconfigured)
           </a>&nbsp;`
-        )
+        );
       }
     }
   }
 
   async function listChatsForSelectedAccount() {
     clear($main);
-    const selectedAccount = SELECTED_ACCOUNT
+    const selectedAccount = SELECTED_ACCOUNT;
     const info = await client.rpc.getAccountInfo(selectedAccount);
     if (info.type !== "Configured") {
       return write($main, "Account is not configured");
@@ -88,14 +88,15 @@ async function run() {
     }
   }
 
-  function onIncomingEvent(event: DeltaChatEvent) {
+  function onIncomingEvent(accountId: number, event: DcEvent) {
     write(
       $side,
       `
         <p class="message">
-          [<strong>${event.id}</strong> on account ${event.contextId}]<br>
-          <em>f1:</em> ${JSON.stringify(event.field1)}<br>
-          <em>f2:</em> ${JSON.stringify(event.field2)}
+          [<strong>${event.type}</strong> on account ${accountId}]<br>
+          <em>f1:</em> ${JSON.stringify(
+            Object.assign({}, event, { type: undefined })
+          )}
         </p>`
     );
   }
