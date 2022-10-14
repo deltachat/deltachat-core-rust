@@ -14,12 +14,15 @@ use crate::context::Context;
 use crate::headerdef::HeaderDef;
 use crate::tools::EmailAddress;
 
-/// `authres` is short for the Authentication-Results header, which contains info
+/// `authres` is short for the Authentication-Results header, defined in
+/// https://datatracker.ietf.org/doc/html/rfc8601, which contains info
 /// about whether DKIM and SPF passed.
 ///
 /// To mitigate from forgery, we remember for each sending domain whether it is known
 /// to have valid DKIM. If an email from such a domain comes with invalid DKIM,
 /// we don't allow changing the autocrypt key.
+///
+/// See https://github.com/deltachat/deltachat-core-rust/issues/3507.
 pub(crate) async fn handle_authres(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -35,28 +38,24 @@ pub(crate) async fn handle_authres(
         }
     };
 
-    let authentication_results = parse_authres_headers(&mail.get_headers(), &from_domain);
-    update_authservid_candidates(context, &authentication_results).await?;
-    let allow_keychange =
-        should_allow_keychange(context, authentication_results, &from_domain).await?;
+    let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
+    update_authservid_candidates(context, &authres).await?;
+    let allow_keychange = should_allow_keychange(context, authres, &from_domain).await?;
     Ok(allow_keychange)
 }
-
-// #[derive(Debug, PartialEq, Eq)]
-// struct AuthenticationResults {
-//     dkim_passed: bool,
-// }
 
 type AuthservId = String;
 
 #[derive(Debug, PartialEq)]
 enum DkimResult {
-    /// Some(true): The header explicitly said that DKIM passed
+    /// The header explicitly said that DKIM passed
     Passed,
-    /// Some(false): The header explicitly said that DKIM failed
+    /// The header explicitly said that DKIM failed
     Failed,
-    /// None: The header didn't say anything about DKIM;
-    /// this might mean that it failed or that it wasn't checked.
+    /// The header didn't say anything about DKIM; this might mean that it wasn't
+    /// checked, but it might also mean that it failed. This is because some providers
+    /// (e.g. ik.me, mail.ru, posteo.de) don't add `dkim=none` to their
+    /// Authentication-Results if there was no DKIM.
     Nothing,
 }
 
@@ -76,7 +75,7 @@ fn parse_authres_headers(
                 // because there is whitespace in the first identifier before the ';'.
                 // Authentication-Results-parsing still works securely because they remove incoming
                 // Authentication-Results headers.
-                // Just use an arbitrary authserv-id, it will work for Outlook, and in general,
+                // We just use an arbitrary authserv-id, it will work for Outlook, and in general,
                 // with providers not implementing the RFC correctly, someone can trick us
                 // into thinking that an incoming email is DKIM-correct, anyway.
                 // The most important thing here is that we have some valid `authserv_id`.
@@ -91,17 +90,24 @@ fn parse_authres_headers(
     res
 }
 
+/// The headers can contain comments that look like this:
+/// ```text
+/// Authentication-Results: (this is a comment) gmx.net; (another; comment) dkim=pass;
+/// ```
 fn remove_comments(header: &str) -> Cow<'_, str> {
-    // Written in Pomsky, the regex is: "(" Codepoint* lazy ")"
+    // In Pomsky, this is:
+    //     "(" Codepoint* lazy ")"
     // See https://playground.pomsky-lang.org/?text=%22(%22%20Codepoint*%20lazy%20%22)%22
     static RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"\([\s\S]*?\)").unwrap());
 
     RE.replace_all(header, " ")
 }
 
-/// Parses the Authentication-Results headers belonging to a specific authserv-id
-/// and returns whether they say that DKIM passed.
-/// TODO document better
+/// Parses a single Authentication-Results header, like:
+///
+/// ```text
+/// Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
+/// ```
 fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult {
     if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
         let dkim_part = dkim_to_end.split(';').next().unwrap_or_default();
@@ -126,13 +132,41 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
     DkimResult::Nothing
 }
 
-// TODO this is only half of the algorithm we thought of; we also wanted to save how sure we are
-// about the authserv id. Like, a same-domain email is more trustworthy.
+/// ## About authserv-ids
+///
+/// After having checked DKIM, our email server adds an Authentication-Results header.
+///
+/// Now, an attacker could just add an Authentication-Results header that says dkim=pass
+/// in order to make us think that DKIM was correct in their from-forged email.
+///
+/// In order to prevent this, each email server adds its authserv-id to the
+/// Authentication-Results header, e.g. Testrun's authserv-id is `testrun.org`, Gmail's
+/// is `mx.google.com`. When Testrun gets a mail delivered from outside, it will then
+/// remove any Authentication-Results headers whose authserv-id is also `testrun.org`.
+///
+/// We need to somehow find out the authserv-id(s) of our email server, so that
+/// we can use the Authentication-Results with the right authserv-id.
+///
+/// ## What this function does
+///
+/// When receiving an email, this function is called and updates the candidates for
+/// our server's authserv-id, i.e. what we think our server's authserv-id is.
+///
+/// Usually, every incoming email has Authentication-Results  with our server's
+/// authserv-id, so, the intersection of the existing authserv-ids and the incoming
+/// authserv-ids for our server's authserv-id. When this intersection
+/// is empty, we assume that the authserv-id has changed and start over with the
+/// new authserv-ids.
+///
+/// TODO this is only half of the algorithm we thought of; we also wanted to save how
+/// sure we are about the authserv id. Like, a same-domain email is more trustworthy.
+///
+/// See [`handle_authres`].
 async fn update_authservid_candidates(
     context: &Context,
-    authentication_results: &AuthenticationResults,
+    authres: &AuthenticationResults,
 ) -> Result<()> {
-    let mut new_ids: HashSet<&str> = authentication_results
+    let mut new_ids: HashSet<&str> = authres
         .iter()
         .map(|(authserv_id, _dkim_passed)| authserv_id.as_str())
         .collect();
@@ -164,29 +198,32 @@ async fn update_authservid_candidates(
     Ok(())
 }
 
-/// We disallow changes to the autocrypt key if DKIM failed, but worked in the past,
-/// because we then assume that the From header is forged.
+/// We track in the `sending_domains` table whether we get positive Authentication-Results
+/// for mails from a contact (meaning that their provider properly authenticates against
+/// our provider).
+///
+/// Once a contact is known to come with positive Authentication-Resutls (dkim: pass),
+/// we don't accept Autocrypt key changes if they come with negative Authentication-Results.
 async fn should_allow_keychange(
     context: &Context,
-    mut authentication_results: AuthenticationResults,
+    mut authres: AuthenticationResults,
     from_domain: &str,
 ) -> Result<bool> {
-    let mut dkim_passed = false; // TODO what do we want to do if there are multiple or no authservid candidates?
+    let mut dkim_passed = false;
 
     let ids_config = context.get_config(Config::AuthservidCandidates).await?;
     let ids = parse_authservid_candidates_config(&ids_config);
 
     // Remove all foreign authentication results
-    authentication_results
-        .retain_mut(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
+    authres.retain_mut(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
 
-    if authentication_results.is_empty() {
+    if authres.is_empty() {
         // If the authentication results are empty, then our provider doesn't add them
         // and an attacker could just add their own Authentication-Results, making us
         // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
         dkim_passed = true;
     } else {
-        for (_authserv_id, current_dkim_passed) in authentication_results {
+        for (_authserv_id, current_dkim_passed) in authres {
             match current_dkim_passed {
                 DkimResult::Passed => {
                     dkim_passed = true;
@@ -196,7 +233,9 @@ async fn should_allow_keychange(
                     dkim_passed = false;
                     break;
                 }
-                DkimResult::Nothing => {}
+                DkimResult::Nothing => {
+                    // Continue looking for an Authentication-Results header
+                }
             }
         }
     }
@@ -205,13 +244,6 @@ async fn should_allow_keychange(
     if !dkim_works && dkim_passed {
         set_dkim_works(context, from_domain).await?;
     }
-
-    // //TODO dbg
-    // if dkim_passed {
-    //     let works_now = dkim_known_to_work(context, from_domain).await.unwrap();
-    //     println!("should_work {should_work} dkim_passed {dkim_passed} works_now {works_now}");
-    //     assert!(works_now);
-    // }
 
     Ok(dkim_passed || !dkim_works)
 }
@@ -309,8 +341,6 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let bytes = b"Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
         let mail = mailparse::parse_mail(bytes)?;
         let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
-        // TODO Actually, we could be able to tell that DkimResult::Failed here, since a check was done
-        // but the From domain didn't match.
         assert_eq!(actual, vec![("gmx.net".to_string(), DkimResult::Nothing)],);
 
         // Weird Authentication-Results from Outlook without an authserv-id
@@ -326,10 +356,6 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
             actual,
             vec![("invalidAuthservId".to_string(), DkimResult::Passed)]
         );
-
-        // Usually, MUAs put their Authentication-Results to the top, so if in doubt,
-        // headers from the top should be preferred
-        // TODO this has to be checked somewhere else now
 
         let bytes = b"Authentication-Results:  gmx.net; dkim=none header.i=@slack.com
 Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
@@ -376,8 +402,6 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         //         let mail = mailparse::parse_mail(bytes)?;
         //         let actual = parse_authres_headers(&mail.get_headers(), "delta.blinzeln.de");
         //         assert_eq!(actual, vec![("mx1.messagingengine.com".to_string(), false)]);
-
-        // TODO test that foreign Auth-Res headers are ignored
 
         //         check_parse_authentication_results_combination(
         //             "alice@testrun.org",
@@ -440,10 +464,6 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
         update_authservid_candidates_test(&t, &["mx3.messagingengine.com"]).await;
         let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
         assert_eq!(candidates, "mx3.messagingengine.com");
-
-        // update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;
-        // let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
-        // assert_eq!(candidates, "");
 
         // "mx4.messagingengine.com" seems to be the new authserv-id, DC should accept it
         update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;

@@ -188,11 +188,7 @@ pub enum Config {
     /// Space-separated list of all the authserv-ids which we believe
     /// may be the one of our email server.
     ///
-    /// When checking DKIM and SPF, our email server adds the results in an
-    /// Authentication-Results... TODO documentation
-    ///
-    /// See https://github.com/deltachat/deltachat-core-rust/issues/3507 for more
-    /// info about the Authentication-Results header.
+    /// See [update_authservid_candidates](`crate::authres_handling::update_authservid_candidates`).
     AuthservidCandidates,
 }
 
