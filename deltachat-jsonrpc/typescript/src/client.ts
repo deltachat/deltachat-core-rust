@@ -1,40 +1,56 @@
 import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { EventTypeName } from "../generated/events.js";
+import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "tiny-emitter";
 
-export type DeltaChatEvent = {
-  id: EventTypeName;
+type DCWireEvent<T extends Event> = {
+  event: T;
   contextId: number;
-  field1: any;
-  field2: any;
 };
-export type Events = Record<
-  EventTypeName | "ALL",
-  (event: DeltaChatEvent) => void
->;
+// export type Events = Record<
+//   Event["type"] | "ALL",
+//   (event: DeltaChatEvent<Event>) => void
+// >;
+
+type Events = { ALL: (accountId: number, event: Event) => void } & {
+  [Property in Event["type"]]: (
+    accountId: number,
+    event: Extract<Event, { type: Property }>
+  ) => void;
+};
+
+type ContextEvents = { ALL: (event: Event) => void } & {
+  [Property in Event["type"]]: (
+    event: Extract<Event, { type: Property }>
+  ) => void;
+};
+
+export type DcEvent = Event;
 
 export class BaseDeltaChat<
   Transport extends BaseTransport<any>
 > extends TinyEmitter<Events> {
   rpc: RawClient;
   account?: T.Account;
-  private contextEmitters: TinyEmitter<Events>[] = [];
+  private contextEmitters: TinyEmitter<ContextEvents>[] = [];
   constructor(public transport: Transport) {
     super();
     this.rpc = new RawClient(this.transport);
     this.transport.on("request", (request: Request) => {
       const method = request.method;
       if (method === "event") {
-        const event = request.params! as DeltaChatEvent;
-        this.emit(event.id, event);
-        this.emit("ALL", event);
+        const event = request.params! as DCWireEvent<Event>;
+        this.emit(event.event.type, event.contextId, event.event as any);
+        this.emit("ALL", event.contextId, event.event as any);
 
         if (this.contextEmitters[event.contextId]) {
-          this.contextEmitters[event.contextId].emit(event.id, event);
-          this.contextEmitters[event.contextId].emit("ALL", event);
+          this.contextEmitters[event.contextId].emit(
+            event.event.type,
+            event.event as any
+          );
+          this.contextEmitters[event.contextId].emit("ALL", event.event);
         }
       }
     });
@@ -70,7 +86,7 @@ export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
     if (typeof opts === "string") opts = { url: opts };
     if (opts) opts = { ...DEFAULT_OPTS, ...opts };
     else opts = { ...DEFAULT_OPTS };
-    const transport = new WebsocketTransport(opts.url)
+    const transport = new WebsocketTransport(opts.url);
     super(transport);
     this.opts = opts;
   }

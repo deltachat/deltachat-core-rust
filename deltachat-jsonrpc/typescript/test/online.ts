@@ -1,12 +1,8 @@
 import { assert, expect } from "chai";
-import { DeltaChat, DeltaChatEvent, EventTypeName } from "../deltachat.js";
-import {
-  RpcServerHandle,
-  createTempUser,
-  startServer,
-} from "./test_base.js";
+import { DeltaChat, DcEvent } from "../deltachat.js";
+import { RpcServerHandle, createTempUser, startServer } from "./test_base.js";
 
-const EVENT_TIMEOUT = 20000
+const EVENT_TIMEOUT = 20000;
 
 describe("online tests", function () {
   let serverHandle: RpcServerHandle;
@@ -16,7 +12,7 @@ describe("online tests", function () {
   let accountId1: number, accountId2: number;
 
   before(async function () {
-    this.timeout(12000)
+    this.timeout(12000);
     if (!process.env.DCC_NEW_TMP_EMAIL) {
       if (process.env.COVERAGE && !process.env.COVERAGE_OFFLINE) {
         console.error(
@@ -31,10 +27,10 @@ describe("online tests", function () {
       this.skip();
     }
     serverHandle = await startServer();
-    dc = new DeltaChat(serverHandle.url)
+    dc = new DeltaChat(serverHandle.url);
 
-    dc.on("ALL", ({ id, contextId }) => {
-      if (id !== "Info") console.log(contextId, id);
+    dc.on("ALL", (contextId, { type }) => {
+      if (type !== "Info") console.log(contextId, type);
     });
 
     account1 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
@@ -74,7 +70,7 @@ describe("online tests", function () {
       addr: account2.email,
       mail_pw: account2.password,
     });
-    await dc.rpc.configure(accountId2)
+    await dc.rpc.configure(accountId2);
     accountsConfigured = true;
   });
 
@@ -89,14 +85,17 @@ describe("online tests", function () {
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(accountId1, contactId);
+    const chatId = await dc.rpc.contactsCreateChatByContactId(
+      accountId1,
+      contactId
+    );
     const eventPromise = Promise.race([
       waitForEvent(dc, "MsgsChanged", accountId2),
       waitForEvent(dc, "IncomingMsg", accountId2),
     ]);
 
     await dc.rpc.miscSendTextMessage(accountId1, "Hello", chatId);
-    const { field1: chatIdOnAccountB } = await eventPromise;
+    const { chatId: chatIdOnAccountB } = await eventPromise;
     await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.getMessageIds(
       accountId2,
@@ -121,7 +120,10 @@ describe("online tests", function () {
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(accountId1, contactId);
+    const chatId = await dc.rpc.contactsCreateChatByContactId(
+      accountId1,
+      contactId
+    );
     const eventPromise = Promise.race([
       waitForEvent(dc, "MsgsChanged", accountId2),
       waitForEvent(dc, "IncomingMsg", accountId2),
@@ -131,7 +133,7 @@ describe("online tests", function () {
     console.log("wait for message from A");
 
     const event = await eventPromise;
-    const { field1: chatIdOnAccountB } = event;
+    const { chatId: chatIdOnAccountB } = event;
 
     await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.getMessageIds(
@@ -179,22 +181,22 @@ describe("online tests", function () {
   });
 });
 
-async function waitForEvent(
+async function waitForEvent<T extends DcEvent["type"]>(
   dc: DeltaChat,
-  eventType: EventTypeName,
+  eventType: T,
   accountId: number,
   timeout: number = EVENT_TIMEOUT
-): Promise<DeltaChatEvent> {
+): Promise<Extract<DcEvent, { type: T }>> {
   return new Promise((resolve, reject) => {
     const rejectTimeout = setTimeout(
-      () => reject(new Error('Timeout reached before event came in')),
+      () => reject(new Error("Timeout reached before event came in")),
       timeout
-    )
-    const callback = (event: DeltaChatEvent) => {
-      if (event.contextId == accountId) {
+    );
+    const callback = (contextId: number, event: DcEvent) => {
+      if (contextId == accountId) {
         dc.off(eventType, callback);
-        clearTimeout(rejectTimeout)
-        resolve(event);
+        clearTimeout(rejectTimeout);
+        resolve(event as any);
       }
     };
     dc.on(eventType, callback);
