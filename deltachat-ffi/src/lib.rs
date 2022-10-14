@@ -4515,7 +4515,7 @@ mod jsonrpc {
             return;
         }
         (*jsonrpc_instance).event_thread.abort();
-        Box::from_raw(jsonrpc_instance);
+        drop(Box::from_raw(jsonrpc_instance));
     }
 
     #[no_mangle]
