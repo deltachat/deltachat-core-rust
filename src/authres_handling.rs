@@ -156,6 +156,10 @@ async fn update_authservid_candidates(
         context
             .set_config(Config::AuthservidCandidates, Some(&new_config))
             .await?;
+        // Updating the authservid candidates may mean that we now consider
+        // emails as "failed" which "passed" previously, so we need to
+        // reset our expectation which DKIMs work.
+        clear_dkim_works(context).await?
     }
     Ok(())
 }
@@ -231,6 +235,14 @@ async fn set_dkim_works(context: &Context, from_domain: &str) -> Result<()> {
                 ON CONFLICT(domain) DO UPDATE SET dkim_works=1 WHERE domain=?1;",
             paramsv![from_domain],
         )
+        .await?;
+    Ok(())
+}
+
+async fn clear_dkim_works(context: &Context) -> Result<()> {
+    context
+        .sql
+        .execute("DELETE FROM sending_domains", paramsv![])
         .await?;
     Ok(())
 }
