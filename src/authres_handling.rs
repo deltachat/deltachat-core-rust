@@ -516,18 +516,15 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
                 let dkim_result = dkim_works(&t, &from_domain).await.unwrap();
+
                 // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail
                 let expected_result = (from_domain != "delta.blinzeln.de") && (from_domain != "gmx.de")
                     // These are (fictional) forged emails where the attacker added a fake
                     // Authentication-Results before sending the email
                     && from != "forged-authres-added@example.com"
                     // Other forged emails
-                    && !from.starts_with("forged")
-                    && !entry
-                        .path()
-                        .to_str()
-                        .unwrap()
-                        .ends_with("alice@mailo.com/alice@mail.ru");
+                    && !from.starts_with("forged");
+
                 if dkim_result != expected_result {
                     if authres_parsing_works {
                         println!(
@@ -554,7 +551,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
         // Even if the format is wrong and parsing fails, handle_authres() shouldn't
         // return an Err because this would prevent the message from being added
-        // to the database and
+        // to the database and downloaded again and again
         let bytes = b"Authentication-Results: dkim=";
         let mail = mailparse::parse_mail(bytes).unwrap();
         handle_authres(&t, &mail, "invalidfrom.com").await.unwrap();
