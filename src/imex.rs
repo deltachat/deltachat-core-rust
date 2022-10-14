@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
 use anyhow::{bail, ensure, format_err, Context as _, Result};
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
 use tokio::fs::{self, File};
@@ -17,7 +17,6 @@ use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
 use crate::context::Context;
-use crate::e2ee;
 use crate::events::EventType;
 use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
 use crate::log::LogExt;
@@ -31,6 +30,7 @@ use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, open_file_std, read_file, time, write_file,
     EmailAddress,
 };
+use crate::{e2ee, tools};
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
@@ -576,10 +576,7 @@ async fn export_backup_inner(
         .append_path_with_name(temp_db_path, DBFILE_BACKUP_NAME)
         .await?;
 
-    let read_dir: Vec<_> =
-        tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(context.get_blobdir()).await?)
-            .try_collect()
-            .await?;
+    let read_dir = tools::read_dir(context.get_blobdir()).await?;
     let count = read_dir.len();
     let mut written_files = 0;
 
