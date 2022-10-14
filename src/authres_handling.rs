@@ -15,14 +15,14 @@ use crate::headerdef::HeaderDef;
 use crate::tools::EmailAddress;
 
 /// `authres` is short for the Authentication-Results header, defined in
-/// https://datatracker.ietf.org/doc/html/rfc8601, which contains info
+/// <https://datatracker.ietf.org/doc/html/rfc8601>, which contains info
 /// about whether DKIM and SPF passed.
 ///
 /// To mitigate from forgery, we remember for each sending domain whether it is known
 /// to have valid DKIM. If an email from such a domain comes with invalid DKIM,
 /// we don't allow changing the autocrypt key.
 ///
-/// See https://github.com/deltachat/deltachat-core-rust/issues/3507.
+/// See <https://github.com/deltachat/deltachat-core-rust/issues/3507>.
 pub(crate) async fn handle_authres(
     context: &Context,
     mail: &ParsedMail<'_>,
@@ -215,7 +215,7 @@ async fn should_allow_keychange(
     let ids = parse_authservid_candidates_config(&ids_config);
 
     // Remove all foreign authentication results
-    authres.retain_mut(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
+    authres.retain(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
 
     if authres.is_empty() {
         // If the authentication results are empty, then our provider doesn't add them
@@ -530,7 +530,7 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
             let t = TestContext::new().await;
             t.configure_addr(&self_addr).await;
             if !authres_parsing_works {
-                println!("========= Receiving as {self_addr} =========");
+                println!("========= Receiving as {} =========", &self_addr);
             }
 
             // Simulate receiving all emails once, so that we have the correct authserv-ids
@@ -587,10 +587,9 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com";
                             entry.path(),
                             dir.iter().map(|e| e.file_name()).collect::<Vec<_>>()
                         );
-                        println!("works {authres_parsing_works} self {self_domain}");
                         test_failed = true;
                     }
-                    println!("From {from_domain}: {dkim_result}");
+                    println!("From {}: {}", from_domain, dkim_result);
                 }
             }
 

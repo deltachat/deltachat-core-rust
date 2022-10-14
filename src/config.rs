@@ -188,7 +188,7 @@ pub enum Config {
     /// Space-separated list of all the authserv-ids which we believe
     /// may be the one of our email server.
     ///
-    /// See [update_authservid_candidates](`crate::authres_handling::update_authservid_candidates`).
+    /// See `crate::authres_handling::update_authservid_candidates`.
     AuthservidCandidates,
 }
 
