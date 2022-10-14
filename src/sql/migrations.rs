@@ -597,19 +597,21 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
 
-    let created_db = if exists_before_update {
-        ""
-    } else {
-        "Created new database; "
-    };
-    let new_version = context.sql.get_raw_config(VERSION_CFG).await?;
-    info!(
-        context,
-        "{}[migration] v{}-v{}",
-        created_db,
-        dbversion,
-        new_version.unwrap_or_default()
-    );
+    let new_version = sql
+        .get_raw_config_int(VERSION_CFG)
+        .await?
+        .unwrap_or_default();
+    if new_version != dbversion || !exists_before_update {
+        let created_db = if exists_before_update {
+            ""
+        } else {
+            "Created new database; "
+        };
+        info!(
+            context,
+            "{}[migration] v{}-v{}", created_db, dbversion, new_version
+        );
+    }
 
     Ok((
         recalc_fingerprints,
