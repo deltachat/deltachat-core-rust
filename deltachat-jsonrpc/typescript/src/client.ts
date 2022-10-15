@@ -28,6 +28,7 @@ type ContextEvents = { ALL: (event: Event) => void } & {
 };
 
 export type DcEvent = Event;
+export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>
 
 export class BaseDeltaChat<
   Transport extends BaseTransport<any>
