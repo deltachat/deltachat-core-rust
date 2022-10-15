@@ -1528,29 +1528,29 @@ impl CommandApi {
 
         let mut packs = tokio::fs::read_dir(sticker_folder_path).await?;
         while let Some(entry) = packs.next_entry().await? {
-            if entry.file_type().await?.is_dir() {
-                let pack_name = entry.file_name().into_string().unwrap_or_default();
-                let mut stickers = tokio::fs::read_dir(entry.path()).await?;
-                let mut sticker_paths = Vec::new();
-                while let Some(sticker_entry) = stickers.next_entry().await? {
-                    if sticker_entry.file_type().await?.is_file() {
-                        let sticker_name =
-                            sticker_entry.file_name().into_string().unwrap_or_default();
-
-                        if sticker_name.ends_with(".png") || sticker_name.ends_with(".webp") {
-                            sticker_paths.push(
-                                sticker_entry
-                                    .path()
-                                    .to_str()
-                                    .map(|s| s.to_owned())
-                                    .context("path conversion to string failed")?,
-                            );
-                        }
-                    }
+            if !entry.file_type().await?.is_dir() {
+                continue;
+            }
+            let pack_name = entry.file_name().into_string().unwrap_or_default();
+            let mut stickers = tokio::fs::read_dir(entry.path()).await?;
+            let mut sticker_paths = Vec::new();
+            while let Some(sticker_entry) = stickers.next_entry().await? {
+                if !sticker_entry.file_type().await?.is_file() {
+                    continue;
                 }
-                if !sticker_paths.is_empty() {
-                    result.insert(pack_name, sticker_paths);
+                let sticker_name = sticker_entry.file_name().into_string().unwrap_or_default();
+                if sticker_name.ends_with(".png") || sticker_name.ends_with(".webp") {
+                    sticker_paths.push(
+                        sticker_entry
+                            .path()
+                            .to_str()
+                            .map(|s| s.to_owned())
+                            .context("path conversion to string failed")?,
+                    );
                 }
+            }
+            if !sticker_paths.is_empty() {
+                result.insert(pack_name, sticker_paths);
             }
         }
 
