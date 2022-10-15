@@ -57,7 +57,7 @@
     "prebuildify": "cd node && prebuildify -t 16.13.0 --napi --strip --postinstall \"node scripts/postinstall.js --prebuild\"",
     "test": "npm run test:lint && npm run test:mocha",
     "test:lint": "npm run lint",
-    "test:mocha": "mocha -r esm node/test/test.js --growl --reporter=spec --bail"
+    "test:mocha": "mocha -r esm node/test/test.js --growl --reporter=spec --bail --exit"
   },
   "types": "node/dist/index.d.ts",
   "version": "1.96.0"
