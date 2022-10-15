@@ -141,7 +141,6 @@ pub(crate) async fn receive_imf_inner(
             None
         };
 
-    // the function returns the number of created messages in the database
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get_header(HeaderDef::Sender).is_some();
 
@@ -168,7 +167,6 @@ pub(crate) async fn receive_imf_inner(
         } else {
             Origin::IncomingUnknownTo
         },
-        prevent_rename,
     )
     .await?;
 
@@ -353,28 +351,33 @@ pub(crate) async fn receive_imf_inner(
 /// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
 pub async fn from_field_to_contact_id(
     context: &Context,
-    from_address_list: &[SingleInfo],
+    from: &Option<SingleInfo>,
     prevent_rename: bool,
 ) -> Result<(ContactId, bool, Origin)> {
-    let from_ids = add_or_lookup_contacts_by_address_list(
+    let from = match from {
+        Some(f) => f,
+        None => {
+            warn!(context, "mail has an empty From header");
+            return Ok((ContactId::UNDEFINED, false, Origin::Unknown));
+        }
+    };
+
+    let display_name = if prevent_rename {
+        Some("")
+    } else {
+        from.display_name.as_deref()
+    };
+    let from_id = add_or_lookup_contact_by_addr(
         context,
-        from_address_list,
+        display_name,
+        &from.addr,
         Origin::IncomingUnknownFrom,
-        prevent_rename,
     )
     .await?;
 
-    if from_ids.contains(&ContactId::SELF) {
+    if from_id == ContactId::SELF {
         Ok((ContactId::SELF, false, Origin::OutgoingBcc))
-    } else if !from_ids.is_empty() {
-        if from_ids.len() > 1 {
-            warn!(
-                context,
-                "mail has more than one From address, only using first: {:?}", from_address_list
-            );
-        }
-        let from_id = from_ids.get(0).cloned().unwrap_or_default();
-
+    } else {
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
         if let Ok(contact) = Contact::load_from_db(context, from_id).await {
@@ -382,13 +385,6 @@ pub async fn from_field_to_contact_id(
             incoming_origin = contact.origin;
         }
         Ok((from_id, from_id_blocked, incoming_origin))
-    } else {
-        warn!(
-            context,
-            "mail has an empty From header: {:?}", from_address_list
-        );
-
-        Ok((ContactId::UNDEFINED, false, Origin::Unknown))
     }
 }
 
@@ -570,7 +566,7 @@ async fn add_parts(
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
                     mime_parser.repl_msg_by_error(&s);
-                } else if let Some(from) = mime_parser.from.first() {
+                } else if let Some(from) = &mime_parser.from {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
                     let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
@@ -637,7 +633,7 @@ async fn add_parts(
         // if contact renaming is prevented (for mailinglists and bots),
         // we use name from From:-header as override name
         if prevent_rename {
-            if let Some(from) = mime_parser.from.first() {
+            if let Some(from) = &mime_parser.from {
                 if let Some(name) = &from.display_name {
                     for part in mime_parser.parts.iter_mut() {
                         part.param.set(Param::OverrideSenderDisplayname, name);
@@ -1801,7 +1797,7 @@ async fn create_or_lookup_mailinglist(
     // a usable name for these lists is in the `From` header
     // and we can detect these lists by a unique `ListId`-suffix.
     if listid.ends_with(".list-id.mcsv.net") {
-        if let Some(from) = mime_parser.from.first() {
+        if let Some(from) = &mime_parser.from {
             if let Some(display_name) = &from.display_name {
                 name = display_name.clone();
             }
@@ -1825,7 +1821,7 @@ async fn create_or_lookup_mailinglist(
     // this pattern is similar to mailchimp above, however,
     // with weaker conditions and does not overwrite existing names.
     if name.is_empty() {
-        if let Some(from) = mime_parser.from.first() {
+        if let Some(from) = &mime_parser.from {
             if from.addr.contains("noreply")
                 || from.addr.contains("no-reply")
                 || from.addr.starts_with("notifications@")
@@ -2233,7 +2229,6 @@ async fn add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
     origin: Origin,
-    prevent_rename: bool,
 ) -> Result<Vec<ContactId>> {
     let mut contact_ids = HashSet::new();
     for info in address_list.iter() {
@@ -2241,11 +2236,7 @@ async fn add_or_lookup_contacts_by_address_list(
         if !may_be_valid_addr(addr) {
             continue;
         }
-        let display_name = if prevent_rename {
-            Some("")
-        } else {
-            info.display_name.as_deref()
-        };
+        let display_name = info.display_name.as_deref();
         contact_ids
             .insert(add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?);
     }

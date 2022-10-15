@@ -617,7 +617,7 @@ pub async fn maybe_do_aeap_transition(
     mime_parser: &crate::mimeparser::MimeMessage,
 ) -> Result<()> {
     if let Some(peerstate) = &mut info.peerstate {
-        if let Some(from) = mime_parser.from.first() {
+        if let Some(from) = &mime_parser.from {
             // If the from addr is different from the peerstate address we know,
             // we may want to do an AEAP transition.
             if !addr_cmp(&peerstate.addr, &from.addr)

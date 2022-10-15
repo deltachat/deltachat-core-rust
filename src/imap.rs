@@ -1278,7 +1278,7 @@ impl Imap {
                 let msg = fetch?;
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
-                        if let Some(from) = mimeparser::get_from(&headers).first() {
+                        if let Some(from) = mimeparser::get_from(&headers) {
                             if context.is_self_addr(&from.addr).await? {
                                 result.extend(mimeparser::get_recipients(&headers));
                             }

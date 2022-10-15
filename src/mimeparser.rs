@@ -21,7 +21,6 @@ use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
-use crate::location;
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -29,6 +28,7 @@ use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
 use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::{location, tools};
 
 /// A parsed MIME message.
 ///
@@ -46,7 +46,7 @@ pub struct MimeMessage {
 
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
-    pub from: Vec<SingleInfo>,
+    pub from: Option<SingleInfo>,
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
@@ -255,7 +255,7 @@ impl MimeMessage {
 
                     // Signature was checked for original From, so we
                     // do not allow overriding it.
-                    let mut signed_from = Vec::new();
+                    let mut signed_from = None;
 
                     // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
@@ -270,8 +270,8 @@ impl MimeMessage {
                         &mut chat_disposition_notification_to,
                         &decrypted_mail.headers,
                     );
-                    if let Some(signed_from) = signed_from.first() {
-                        if let Some(from) = from.first() {
+                    if let Some(signed_from) = signed_from {
+                        if let Some(from) = &from {
                             if addr_cmp(&signed_from.addr, &from.addr) {
                                 from_is_signed = true;
                             } else {
@@ -582,7 +582,7 @@ impl MimeMessage {
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
-                if let Some(from) = self.from.get(0) {
+                if let Some(from) = &self.from {
                     // Check that the message is not outgoing.
                     if !context.is_self_addr(&from.addr).await? {
                         if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
@@ -1226,7 +1226,7 @@ impl MimeMessage {
         context: &Context,
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
-        from: &mut Vec<SingleInfo>,
+        from: &mut Option<SingleInfo>,
         list_post: &mut Option<String>,
         chat_disposition_notification_to: &mut Option<SingleInfo>,
         fields: &[mailparse::MailHeader<'_>],
@@ -1255,7 +1255,7 @@ impl MimeMessage {
             *recipients = recipients_new;
         }
         let from_new = get_from(fields);
-        if !from_new.is_empty() {
+        if from_new.is_some() {
             *from = from_new;
         }
         let list_post_new = get_list_post(fields);
@@ -1800,8 +1800,9 @@ pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
 }
 
 /// Returned addresses are normalized and lowercased.
-pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
-    get_all_addresses_from_header(headers, |header_key| header_key == "from")
+pub(crate) fn get_from(headers: &[MailHeader]) -> Option<SingleInfo> {
+    let all = get_all_addresses_from_header(headers, |header_key| header_key == "from");
+    tools::single_value(all)
 }
 
 /// Returned addresses are normalized and lowercased.
@@ -1877,35 +1878,35 @@ mod tests {
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: g@c.de\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From:   g@c.de  \n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: Goetz C <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: \"Goetz C\" <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
@@ -1913,7 +1914,7 @@ mod tests {
             MimeMessage::from_bytes(&ctx, b"From: =?utf-8?q?G=C3=B6tz?= C <g@c.de>\n\nhi")
                 .await
                 .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
 
@@ -1923,7 +1924,7 @@ mod tests {
             MimeMessage::from_bytes(&ctx, b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi")
                 .await
                 .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from.unwrap();
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
     }
@@ -2159,8 +2160,7 @@ mod tests {
             .await
             .unwrap();
 
-        let of = &mimeparser.from[0];
-        assert_eq!(of.addr, "hello@one.org");
+        assert_eq!(mimeparser.from, None);
 
         assert!(mimeparser.chat_disposition_notification_to.is_none());
     }

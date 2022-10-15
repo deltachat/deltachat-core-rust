@@ -574,7 +574,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 file.read_to_end(&mut bytes).await.unwrap();
 
                 let mail = mailparse::parse_mail(&bytes)?;
-                let from = &mimeparser::get_from(&mail.headers)[0].addr;
+                let from = &mimeparser::get_from(&mail.headers).unwrap().addr;
 
                 let res = handle_authres(&t, &mail, from, time()).await?;
                 assert!(res.allow_keychange);
@@ -586,7 +586,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 file.read_to_end(&mut bytes).await.unwrap();
 
                 let mail = mailparse::parse_mail(&bytes)?;
-                let from = &mimeparser::get_from(&mail.headers)[0].addr;
+                let from = &mimeparser::get_from(&mail.headers).unwrap().addr;
 
                 let res = handle_authres(&t, &mail, from, time()).await?;
                 if !res.allow_keychange {

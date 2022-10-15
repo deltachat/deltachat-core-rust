@@ -59,10 +59,10 @@ pub async fn try_decrypt(
 pub async fn prepare_decryption(
     context: &Context,
     mail: &ParsedMail<'_>,
-    from: &[SingleInfo],
+    from: &Option<SingleInfo>,
     message_time: i64,
 ) -> Result<DecryptionInfo> {
-    let from = if let Some(f) = from.first() {
+    let from = if let Some(f) = from {
         &f.addr
     } else {
         return Ok(DecryptionInfo::default());
