@@ -33,6 +33,7 @@
   - `stopIo()`
   - `exportBackup()`
   - `importBackup()`
+  - `getMessageHtml()` #3671
 - breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListItems()` the latter returns a new `MessageListItem` type, which is the now prefered way of using the message list.
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`

@@ -598,6 +598,11 @@ export class RawClient {
   }
 
 
+  public getMessageHtml(accountId: T.U32, messageId: T.U32): Promise<(string|null)> {
+    return (this._transport.request('get_message_html', [accountId, messageId] as RPC.Params)) as Promise<(string|null)>;
+  }
+
+
   public messageGetMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.Message>> {
     return (this._transport.request('message_get_messages', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.Message>>;
   }
