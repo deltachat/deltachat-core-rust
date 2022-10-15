@@ -60,6 +60,7 @@ jobs:
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       - name: Run tests on Windows, except lint
+        timeout-minutes: 10
         if: runner.os == 'Windows'
         run: |
           cd node
