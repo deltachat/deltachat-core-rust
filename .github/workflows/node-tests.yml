@@ -52,6 +52,7 @@ jobs:
           npm install --verbose
 
       - name: Test
+        timeout-minutes: 10
         if: runner.os != 'Windows'
         run: |
           cd node
