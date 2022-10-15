@@ -7,6 +7,7 @@ use mailparse::ParsedMail;
 use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
+use crate::authres_handling;
 use crate::authres_handling::handle_authres;
 use crate::contact::addr_cmp;
 use crate::context::Context;
@@ -64,26 +65,21 @@ pub async fn prepare_decryption(
     let from = if let Some(f) = from.first() {
         &f.addr
     } else {
-        return Ok(DecryptionInfo {
-            from: "".to_string(),
-            autocrypt_header: None,
-            peerstate: None,
-            message_time,
-        });
+        return Ok(DecryptionInfo::default());
     };
 
     let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let allow_keychange = handle_authres(context, mail, from).await?;
+    let dkim_results = handle_authres(context, mail, from).await?;
 
     let peerstate = get_autocrypt_peerstate(
         context,
         from,
         autocrypt_header.as_ref(),
         message_time,
-        allow_keychange,
+        dkim_results.allow_keychange,
     )
     .await?;
 
@@ -92,10 +88,11 @@ pub async fn prepare_decryption(
         autocrypt_header,
         peerstate,
         message_time,
+        dkim_results,
     })
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct DecryptionInfo {
     /// The From address. This is the address from the unnencrypted, outer
     /// From header.
@@ -108,6 +105,7 @@ pub struct DecryptionInfo {
     /// means out-of-order message arrival, We don't modify the
     /// peerstate in this case.
     pub message_time: i64,
+    pub(crate) dkim_results: authres_handling::DkimResults,
 }
 
 /// Returns a reference to the encrypted payload of a ["Mixed

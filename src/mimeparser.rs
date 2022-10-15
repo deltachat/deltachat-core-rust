@@ -178,7 +178,7 @@ impl MimeMessage {
             .get_header_value(HeaderDef::Date)
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
-        let hop_info = parse_receive_headers(&mail.get_headers());
+        let mut hop_info = parse_receive_headers(&mail.get_headers());
 
         let mut headers = Default::default();
         let mut recipients = Default::default();
@@ -221,6 +221,7 @@ impl MimeMessage {
         let mut gossiped_addr = Default::default();
         let mut from_is_signed = false;
         let mut decryption_info = prepare_decryption(context, &mail, &from, message_time).await?;
+        hop_info += &decryption_info.dkim_results.to_string();
 
         // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
         let (mail, signatures, warn_empty_signature) =
@@ -372,6 +373,11 @@ impl MimeMessage {
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
                 part.error = Some("No valid signature".to_string());
+            }
+        }
+        if !decryption_info.dkim_results.allow_keychange {
+            for part in parser.parts.iter_mut() {
+                part.error = Some("No keychange allowed, this either is an attack or (more likely) a bug in authres-checking".to_string());
             }
         }
 

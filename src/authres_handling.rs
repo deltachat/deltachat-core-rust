@@ -3,6 +3,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::fmt;
 
 use anyhow::Result;
 use mailparse::MailHeaderMap;
@@ -27,14 +28,14 @@ pub(crate) async fn handle_authres(
     context: &Context,
     mail: &ParsedMail<'_>,
     from: &str,
-) -> Result<bool> {
+) -> Result<DkimResults> {
     let from_domain = match EmailAddress::new(from) {
         Ok(email) => email.domain,
         Err(e) => {
             warn!(context, "invalid email {:#}", e);
             // This email is invalid, but don't return an error, we still want to
             // add a stub to the database so that it's not downloaded again
-            return Ok(false);
+            return Ok(DkimResults::default());
         }
     };
 
@@ -42,6 +43,27 @@ pub(crate) async fn handle_authres(
     update_authservid_candidates(context, &authres).await?;
     let allow_keychange = should_allow_keychange(context, authres, &from_domain).await?;
     Ok(allow_keychange)
+}
+
+#[derive(Default, Debug)]
+pub(crate) struct DkimResults {
+    pub dkim_passed: bool,
+    pub dkim_works: bool,
+    pub allow_keychange: bool,
+}
+
+impl fmt::Display for DkimResults {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            fmt,
+            "DKIM Results: Passed={}, Works={}, Allow_Keychange={}",
+            self.dkim_passed, self.dkim_works, self.allow_keychange
+        )?;
+        if !self.allow_keychange {
+            write!(fmt, " KEYCHANGES NOT ALLOWED!!!!")?;
+        }
+        Ok(())
+    }
 }
 
 type AuthservId = String;
@@ -59,12 +81,12 @@ enum DkimResult {
     Nothing,
 }
 
-type AuthenticationResults = Vec<(AuthservId, DkimResult)>;
+type ParsedAuthresHeaders = Vec<(AuthservId, DkimResult)>;
 
 fn parse_authres_headers(
     headers: &mailparse::headers::Headers<'_>,
     from_domain: &str,
-) -> AuthenticationResults {
+) -> ParsedAuthresHeaders {
     let mut res = Vec::new();
     for header_value in headers.get_all_values(HeaderDef::AuthenticationResults.into()) {
         let header_value = remove_comments(&header_value);
@@ -163,7 +185,7 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
 /// See [`handle_authres`].
 async fn update_authservid_candidates(
     context: &Context,
-    authres: &AuthenticationResults,
+    authres: &ParsedAuthresHeaders,
 ) -> Result<()> {
     let mut new_ids: HashSet<&str> = authres
         .iter()
@@ -205,9 +227,9 @@ async fn update_authservid_candidates(
 /// we don't accept Autocrypt key changes if they come with negative Authentication-Results.
 async fn should_allow_keychange(
     context: &Context,
-    mut authres: AuthenticationResults,
+    mut authres: ParsedAuthresHeaders,
     from_domain: &str,
-) -> Result<bool> {
+) -> Result<DkimResults> {
     let mut dkim_passed = false;
 
     let ids_config = context.get_config(Config::AuthservidCandidates).await?;
@@ -239,12 +261,17 @@ async fn should_allow_keychange(
         }
     }
 
-    let dkim_works = dkim_works(context, from_domain).await?;
+    let mut dkim_works = dkim_works(context, from_domain).await?;
     if !dkim_works && dkim_passed {
         set_dkim_works(context, from_domain).await?;
+        dkim_works = true;
     }
 
-    Ok(dkim_passed || !dkim_works)
+    Ok(DkimResults {
+        dkim_passed,
+        dkim_works,
+        allow_keychange: dkim_passed || !dkim_works,
+    })
 }
 
 async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
@@ -492,8 +519,8 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
-                let allow_keychange = handle_authres(&t, &mail, from).await?;
-                assert!(allow_keychange);
+                let res = handle_authres(&t, &mail, from).await?;
+                assert!(res.allow_keychange);
             }
 
             for entry in &dir {
@@ -504,8 +531,8 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
-                let allow_keychange = handle_authres(&t, &mail, from).await?;
-                if !allow_keychange {
+                let res = handle_authres(&t, &mail, from).await?;
+                if !res.allow_keychange {
                     println!(
                         "!!!!!! FAILURE Receiving {:?}, keychange is not allowed !!!!!!",
                         entry.path()
@@ -514,7 +541,8 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 }
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
-                let dkim_result = dkim_works(&t, &from_domain).await.unwrap();
+                assert_eq!(res.dkim_works, dkim_works(&t, &from_domain).await.unwrap());
+                assert_eq!(res.dkim_passed, res.dkim_works);
 
                 // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail
                 let expected_result = (from_domain != "delta.blinzeln.de") && (from_domain != "gmx.de")
@@ -524,7 +552,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                     // Other forged emails
                     && !from.starts_with("forged");
 
-                if dkim_result != expected_result {
+                if res.dkim_passed != expected_result {
                     if authres_parsing_works {
                         println!(
                             "!!!!!! FAILURE Receiving {:?}, order {:#?} wrong result: !!!!!!",
@@ -533,7 +561,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                         );
                         test_failed = true;
                     }
-                    println!("From {}: {}", from_domain, dkim_result);
+                    println!("From {}: {}", from_domain, res.dkim_passed);
                 }
             }
         }
