@@ -21,9 +21,9 @@ use deltachat::{
     stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
 };
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
-use std::{fs::FileType, sync::Arc};
 use tokio::{fs, sync::RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
