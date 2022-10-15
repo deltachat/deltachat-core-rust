@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### API-Changes
+
+### Changes
+
+### Fixes
+
+
+## 1.97.0
+
+### API-Changes
 - jsonrpc: add function: #3641, #3645, #3653
   - `getChatContacts()`
   - `createGroupChat()`
