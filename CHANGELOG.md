@@ -34,7 +34,7 @@
   - `exportBackup()`
   - `importBackup()`
   - `getMessageHtml()` #3671
-  - `miscGetStickerFolder` and `miscGetStickers`
+  - `miscGetStickerFolder` and `miscGetStickers` #3672
 - breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListItems()` the latter returns a new `MessageListItem` type, which is the now prefered way of using the message list.
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
