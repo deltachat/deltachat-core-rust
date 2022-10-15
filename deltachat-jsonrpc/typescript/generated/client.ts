@@ -895,6 +895,19 @@ export class RawClient {
     return (this._transport.request('send_videochat_invitation', [accountId, chatId] as RPC.Params)) as Promise<T.U32>;
   }
 
+
+  public miscGetStickerFolder(accountId: T.U32): Promise<string> {
+    return (this._transport.request('misc_get_sticker_folder', [accountId] as RPC.Params)) as Promise<string>;
+  }
+
+  /**
+   * for desktop, get stickers from stickers folder,
+   * grouped by the folder they are in.
+   */
+  public miscGetStickers(accountId: T.U32): Promise<Record<string,(string)[]>> {
+    return (this._transport.request('misc_get_stickers', [accountId] as RPC.Params)) as Promise<Record<string,(string)[]>>;
+  }
+
   /**
    * Returns the messageid of the sent message
    */
