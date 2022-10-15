@@ -79,7 +79,6 @@ fn parse_authres_headers(
                 // with providers not implementing the RFC correctly, someone can trick us
                 // into thinking that an incoming email is DKIM-correct, anyway.
                 // The most important thing here is that we have some valid `authserv_id`.
-                // TODO is this comment understandable?
                 authserv_id = "invalidAuthservId";
             }
             let dkim_passed = parse_one_authres_header(&header_value, from_domain);
@@ -537,8 +536,6 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                     println!("From {}: {}", from_domain, dkim_result);
                 }
             }
-
-            std::mem::forget(t) // TODO dbg
         }
 
         assert!(!test_failed);

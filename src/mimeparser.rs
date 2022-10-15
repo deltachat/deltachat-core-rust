@@ -7,7 +7,6 @@ use std::pin::Pin;
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use lettre_email::mime::{self, Mime};
-
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
@@ -90,7 +89,6 @@ pub struct MimeMessage {
     pub decoded_data: Vec<u8>,
 
     pub(crate) hop_info: String,
-    //pub(crate) authentication_results: HashMap<AuthservId, AuthenticationResults>, // TODO
 }
 
 #[derive(Debug, PartialEq)]
@@ -338,7 +336,6 @@ impl MimeMessage {
             is_mime_modified: false,
             decoded_data: Vec::new(),
             hop_info,
-            //authentication_results,
         };
 
         match partial {

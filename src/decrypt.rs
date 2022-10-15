@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
-
 use mailparse::ParsedMail;
 use mailparse::SingleInfo;
 
@@ -11,7 +10,6 @@ use crate::aheader::Aheader;
 use crate::authres_handling::handle_authres;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
