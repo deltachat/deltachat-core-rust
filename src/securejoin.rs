@@ -695,214 +695,222 @@ mod tests {
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::EmailAddress;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_setup_contact() {
-        let mut tcm = TestContextManager::new();
-        let alice = tcm.alice().await;
-        let bob = tcm.bob().await;
-        assert_eq!(
-            Chatlist::try_load(&alice, 0, None, None)
-                .await
-                .unwrap()
-                .len(),
-            0
-        );
-        assert_eq!(
-            Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
-            0
-        );
+    #[test]
+    fn test_setup_contact() {
+        let body = Box::pin(async {
+            let mut tcm = TestContextManager::new();
+            let alice = tcm.alice().await;
+            let bob = tcm.bob().await;
+            assert_eq!(
+                Chatlist::try_load(&alice, 0, None, None)
+                    .await
+                    .unwrap()
+                    .len(),
+                0
+            );
+            assert_eq!(
+                Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
+                0
+            );
 
-        // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
-        let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
+            // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
+            let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
 
-        // Step 2: Bob scans QR-code, sends vc-request
-        join_securejoin(&bob.ctx, &qr).await.unwrap();
-        assert_eq!(
-            Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
-            1
-        );
+            // Step 2: Bob scans QR-code, sends vc-request
+            join_securejoin(&bob.ctx, &qr).await.unwrap();
+            assert_eq!(
+                Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
+                1
+            );
 
-        let sent = bob.pop_sent_msg().await;
-        assert_eq!(
-            sent.recipient(),
-            EmailAddress::new("alice@example.org").unwrap()
-        );
-        let msg = alice.parse_msg(&sent).await;
-        assert!(!msg.was_encrypted());
-        assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
-        assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
+            let sent = bob.pop_sent_msg().await;
+            assert_eq!(
+                sent.recipient(),
+                EmailAddress::new("alice@example.org").unwrap()
+            );
+            let msg = alice.parse_msg(&sent).await;
+            assert!(!msg.was_encrypted());
+            assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vc-request");
+            assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
-        // Step 3: Alice receives vc-request, sends vc-auth-required
-        alice.recv_msg(&sent).await;
-        assert_eq!(
-            Chatlist::try_load(&alice, 0, None, None)
-                .await
-                .unwrap()
-                .len(),
-            1
-        );
+            // Step 3: Alice receives vc-request, sends vc-auth-required
+            alice.recv_msg(&sent).await;
+            assert_eq!(
+                Chatlist::try_load(&alice, 0, None, None)
+                    .await
+                    .unwrap()
+                    .len(),
+                1
+            );
 
-        let sent = alice.pop_sent_msg().await;
-        let msg = bob.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-auth-required"
-        );
+            let sent = alice.pop_sent_msg().await;
+            let msg = bob.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vc-auth-required"
+            );
 
-        // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
-        bob.recv_msg(&sent).await;
+            // Step 4: Bob receives vc-auth-required, sends vc-request-with-auth
+            bob.recv_msg(&sent).await;
 
-        // Check Bob emitted the JoinerProgress event.
-        let event = bob
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
-            .await;
-        match event {
-            EventType::SecurejoinJoinerProgress {
-                contact_id,
-                progress,
-            } => {
-                let alice_contact_id =
-                    Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
-                        .await
-                        .expect("Error looking up contact")
-                        .expect("Contact not found");
-                assert_eq!(contact_id, alice_contact_id);
-                assert_eq!(progress, 400);
+            // Check Bob emitted the JoinerProgress event.
+            let event = bob
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
+                .await;
+            match event {
+                EventType::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    let alice_contact_id =
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+                            .await
+                            .expect("Error looking up contact")
+                            .expect("Contact not found");
+                    assert_eq!(contact_id, alice_contact_id);
+                    assert_eq!(progress, 400);
+                }
+                _ => unreachable!(),
             }
-            _ => unreachable!(),
-        }
 
-        // Check Bob sent the right message.
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-request-with-auth"
-        );
-        assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx)
-            .await
-            .unwrap()
-            .fingerprint();
-        assert_eq!(
-            *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
-            bob_fp.hex()
-        );
-
-        // Alice should not yet have Bob verified
-        let contact_bob_id =
-            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
-                .await
-                .expect("Error looking up contact")
-                .expect("Contact not found");
-        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
-            .await
-            .unwrap();
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await.unwrap(),
-            VerifiedStatus::Unverified
-        );
-
-        // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
-        alice.recv_msg(&sent).await;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await.unwrap(),
-            VerifiedStatus::BidirectVerified
-        );
-
-        // exactly one one-to-one chat should be visible for both now
-        // (check this before calling alice.create_chat() explicitly below)
-        assert_eq!(
-            Chatlist::try_load(&alice, 0, None, None)
+            // Check Bob sent the right message.
+            let sent = bob.pop_sent_msg().await;
+            let msg = alice.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vc-request-with-auth"
+            );
+            assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
+            let bob_fp = SignedPublicKey::load_self(&bob.ctx)
                 .await
                 .unwrap()
-                .len(),
-            1
-        );
-        assert_eq!(
-            Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
-            1
-        );
+                .fingerprint();
+            assert_eq!(
+                *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
+                bob_fp.hex()
+            );
 
-        // Check Alice got the verified message in her 1:1 chat.
-        {
-            let chat = alice.create_chat(&bob).await;
-            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
+            // Alice should not yet have Bob verified
+            let contact_bob_id =
+                Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
+                    .await
+                    .expect("Error looking up contact")
+                    .expect("Contact not found");
+            let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
                 .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .max()
-                .expect("No messages in Alice's 1:1 chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("bob@example.net verified"));
-        }
+                .unwrap();
+            assert_eq!(
+                contact_bob.is_verified(&alice.ctx).await.unwrap(),
+                VerifiedStatus::Unverified
+            );
 
-        // Check Alice sent the right message to Bob.
-        let sent = alice.pop_sent_msg().await;
-        let msg = bob.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-contact-confirm"
-        );
+            // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
+            alice.recv_msg(&sent).await;
+            assert_eq!(
+                contact_bob.is_verified(&alice.ctx).await.unwrap(),
+                VerifiedStatus::BidirectVerified
+            );
 
-        // Bob should not yet have Alice verified
-        let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+            // exactly one one-to-one chat should be visible for both now
+            // (check this before calling alice.create_chat() explicitly below)
+            assert_eq!(
+                Chatlist::try_load(&alice, 0, None, None)
+                    .await
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(
+                Chatlist::try_load(&bob, 0, None, None).await.unwrap().len(),
+                1
+            );
+
+            // Check Alice got the verified message in her 1:1 chat.
+            {
+                let chat = alice.create_chat(&bob).await;
+                let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .filter_map(|item| match item {
+                        chat::ChatItem::Message { msg_id } => Some(msg_id),
+                        _ => None,
+                    })
+                    .max()
+                    .expect("No messages in Alice's 1:1 chat");
+                let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
+                assert!(msg.is_info());
+                let text = msg.get_text().unwrap();
+                assert!(text.contains("bob@example.net verified"));
+            }
+
+            // Check Alice sent the right message to Bob.
+            let sent = alice.pop_sent_msg().await;
+            let msg = bob.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vc-contact-confirm"
+            );
+
+            // Bob should not yet have Alice verified
+            let contact_alice_id =
+                Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+                    .await
+                    .expect("Error looking up contact")
+                    .expect("Contact not found");
+            let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
                 .await
-                .expect("Error looking up contact")
-                .expect("Contact not found");
-        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
-            .await
-            .unwrap();
-        assert_eq!(
-            contact_bob.is_verified(&bob.ctx).await.unwrap(),
-            VerifiedStatus::Unverified
-        );
+                .unwrap();
+            assert_eq!(
+                contact_bob.is_verified(&bob.ctx).await.unwrap(),
+                VerifiedStatus::Unverified
+            );
 
-        // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
-        bob.recv_msg(&sent).await;
-        assert_eq!(
-            contact_alice.is_verified(&bob.ctx).await.unwrap(),
-            VerifiedStatus::BidirectVerified
-        );
+            // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+            bob.recv_msg(&sent).await;
+            assert_eq!(
+                contact_alice.is_verified(&bob.ctx).await.unwrap(),
+                VerifiedStatus::BidirectVerified
+            );
 
-        // Check Bob got the verified message in his 1:1 chat.
-        {
-            let chat = bob.create_chat(&alice).await;
-            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .max()
-                .expect("No messages in Bob's 1:1 chat");
-            let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("alice@example.org verified"));
-        }
+            // Check Bob got the verified message in his 1:1 chat.
+            {
+                let chat = bob.create_chat(&alice).await;
+                let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .filter_map(|item| match item {
+                        chat::ChatItem::Message { msg_id } => Some(msg_id),
+                        _ => None,
+                    })
+                    .max()
+                    .expect("No messages in Bob's 1:1 chat");
+                let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
+                assert!(msg.is_info());
+                let text = msg.get_text().unwrap();
+                assert!(text.contains("alice@example.org verified"));
+            }
 
-        // Check Bob sent the final message
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-contact-confirm-received"
-        );
+            // Check Bob sent the final message
+            let sent = bob.pop_sent_msg().await;
+            let msg = alice.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vc-contact-confirm-received"
+            );
+        });
+        return tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2usize)
+            .enable_all()
+            .build()
+            .expect("Failed building the Runtime")
+            .block_on(body);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1068,231 +1076,240 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_secure_join() -> Result<()> {
-        let mut tcm = TestContextManager::new();
-        let alice = tcm.alice().await;
-        let bob = tcm.bob().await;
+    #[test]
+    fn test_secure_join() -> Result<()> {
+        let body = Box::pin(async {
+            let mut tcm = TestContextManager::new();
+            let alice = tcm.alice().await;
+            let bob = tcm.bob().await;
 
-        // We start with empty chatlists.
-        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
-        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
+            // We start with empty chatlists.
+            assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
+            assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
 
-        let alice_chatid =
-            chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat").await?;
+            let alice_chatid =
+                chat::create_group_chat(&alice.ctx, ProtectionStatus::Protected, "the chat")
+                    .await?;
 
-        // Step 1: Generate QR-code, secure-join implied by chatid
-        let qr = get_securejoin_qr(&alice.ctx, Some(alice_chatid))
-            .await
-            .unwrap();
-
-        // Step 2: Bob scans QR-code, sends vg-request
-        let bob_chatid = join_securejoin(&bob.ctx, &qr).await?;
-        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
-
-        let sent = bob.pop_sent_msg().await;
-        assert_eq!(
-            sent.recipient(),
-            EmailAddress::new("alice@example.org").unwrap()
-        );
-        let msg = alice.parse_msg(&sent).await;
-        assert!(!msg.was_encrypted());
-        assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
-        assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
-
-        // Step 3: Alice receives vg-request, sends vg-auth-required
-        alice.recv_msg(&sent).await;
-
-        let sent = alice.pop_sent_msg().await;
-        let msg = bob.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vg-auth-required"
-        );
-
-        // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
-        bob.recv_msg(&sent).await;
-        let sent = bob.pop_sent_msg().await;
-
-        // Check Bob emitted the JoinerProgress event.
-        let event = bob
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
-            .await;
-        match event {
-            EventType::SecurejoinJoinerProgress {
-                contact_id,
-                progress,
-            } => {
-                let alice_contact_id =
-                    Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
-                        .await
-                        .expect("Error looking up contact")
-                        .expect("Contact not found");
-                assert_eq!(contact_id, alice_contact_id);
-                assert_eq!(progress, 400);
-            }
-            _ => unreachable!(),
-        }
-
-        // Check Bob sent the right handshake message.
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vg-request-with-auth"
-        );
-        assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
-        assert_eq!(
-            *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
-            bob_fp.hex()
-        );
-
-        // Alice should not yet have Bob verified
-        let contact_bob_id =
-            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
-                .await?
-                .expect("Contact not found");
-        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::Unverified
-        );
-
-        // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
-        alice.recv_msg(&sent).await;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::BidirectVerified
-        );
-
-        let sent = alice.pop_sent_msg().await;
-        let msg = bob.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vg-member-added"
-        );
-
-        {
-            // Now Alice's chat with Bob should still be hidden, the verified message should
-            // appear in the group chat.
-
-            let chat = alice
-                .get_chat(&bob)
+            // Step 1: Generate QR-code, secure-join implied by chatid
+            let qr = get_securejoin_qr(&alice.ctx, Some(alice_chatid))
                 .await
-                .expect("Alice has no 1:1 chat with bob");
+                .unwrap();
+
+            // Step 2: Bob scans QR-code, sends vg-request
+            let bob_chatid = join_securejoin(&bob.ctx, &qr).await?;
+            assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
+
+            let sent = bob.pop_sent_msg().await;
             assert_eq!(
-                chat.blocked,
-                Blocked::Yes,
-                "Alice's 1:1 chat with Bob is not hidden"
+                sent.recipient(),
+                EmailAddress::new("alice@example.org").unwrap()
             );
-            let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid, DC_GCM_ADDDAYMARKER)
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .min()
-                .expect("No messages in Alice's group chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("bob@example.net verified"));
-        }
+            let msg = alice.parse_msg(&sent).await;
+            assert!(!msg.was_encrypted());
+            assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
+            assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
-        // Bob should not yet have Alice verified
-        let contact_alice_id =
-            Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
-                .await
-                .expect("Error looking up contact")
-                .expect("Contact not found");
-        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&bob.ctx).await?,
-            VerifiedStatus::Unverified
-        );
+            // Step 3: Alice receives vg-request, sends vg-auth-required
+            alice.recv_msg(&sent).await;
 
-        // Step 7: Bob receives vg-member-added, sends vg-member-added-received
-        bob.recv_msg(&sent).await;
-        {
-            // Bob has Alice verified, message shows up in the group chat.
+            let sent = alice.pop_sent_msg().await;
+            let msg = bob.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
             assert_eq!(
-                contact_alice.is_verified(&bob.ctx).await?,
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vg-auth-required"
+            );
+
+            // Step 4: Bob receives vg-auth-required, sends vg-request-with-auth
+            bob.recv_msg(&sent).await;
+            let sent = bob.pop_sent_msg().await;
+
+            // Check Bob emitted the JoinerProgress event.
+            let event = bob
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::SecurejoinJoinerProgress { .. }))
+                .await;
+            match event {
+                EventType::SecurejoinJoinerProgress {
+                    contact_id,
+                    progress,
+                } => {
+                    let alice_contact_id =
+                        Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+                            .await
+                            .expect("Error looking up contact")
+                            .expect("Contact not found");
+                    assert_eq!(contact_id, alice_contact_id);
+                    assert_eq!(progress, 400);
+                }
+                _ => unreachable!(),
+            }
+
+            // Check Bob sent the right handshake message.
+            let msg = alice.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vg-request-with-auth"
+            );
+            assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
+            let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
+            assert_eq!(
+                *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
+                bob_fp.hex()
+            );
+
+            // Alice should not yet have Bob verified
+            let contact_bob_id =
+                Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
+                    .await?
+                    .expect("Contact not found");
+            let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
+            assert_eq!(
+                contact_bob.is_verified(&alice.ctx).await?,
+                VerifiedStatus::Unverified
+            );
+
+            // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
+            alice.recv_msg(&sent).await;
+            assert_eq!(
+                contact_bob.is_verified(&alice.ctx).await?,
                 VerifiedStatus::BidirectVerified
             );
-            let chat = bob
-                .get_chat(&alice)
-                .await
-                .expect("Bob has no 1:1 chat with Alice");
+
+            let sent = alice.pop_sent_msg().await;
+            let msg = bob.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
             assert_eq!(
-                chat.blocked,
-                Blocked::Yes,
-                "Bob's 1:1 chat with Alice is not hidden"
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vg-member-added"
             );
-            for item in chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
-                .await
-                .unwrap()
+
             {
-                if let chat::ChatItem::Message { msg_id } = item {
-                    let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-                    let text = msg.get_text().unwrap();
-                    println!("msg {} text: {}", msg_id, text);
-                }
+                // Now Alice's chat with Bob should still be hidden, the verified message should
+                // appear in the group chat.
+
+                let chat = alice
+                    .get_chat(&bob)
+                    .await
+                    .expect("Alice has no 1:1 chat with bob");
+                assert_eq!(
+                    chat.blocked,
+                    Blocked::Yes,
+                    "Alice's 1:1 chat with Bob is not hidden"
+                );
+                let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid, DC_GCM_ADDDAYMARKER)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .filter_map(|item| match item {
+                        chat::ChatItem::Message { msg_id } => Some(msg_id),
+                        _ => None,
+                    })
+                    .min()
+                    .expect("No messages in Alice's group chat");
+                let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
+                assert!(msg.is_info());
+                let text = msg.get_text().unwrap();
+                assert!(text.contains("bob@example.net verified"));
             }
-            let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
-                .await
-                .unwrap()
-                .into_iter();
-            loop {
-                match msg_iter.next() {
-                    Some(chat::ChatItem::Message { msg_id }) => {
+
+            // Bob should not yet have Alice verified
+            let contact_alice_id =
+                Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+                    .await
+                    .expect("Error looking up contact")
+                    .expect("Contact not found");
+            let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id).await?;
+            assert_eq!(
+                contact_bob.is_verified(&bob.ctx).await?,
+                VerifiedStatus::Unverified
+            );
+
+            // Step 7: Bob receives vg-member-added, sends vg-member-added-received
+            bob.recv_msg(&sent).await;
+            {
+                // Bob has Alice verified, message shows up in the group chat.
+                assert_eq!(
+                    contact_alice.is_verified(&bob.ctx).await?,
+                    VerifiedStatus::BidirectVerified
+                );
+                let chat = bob
+                    .get_chat(&alice)
+                    .await
+                    .expect("Bob has no 1:1 chat with Alice");
+                assert_eq!(
+                    chat.blocked,
+                    Blocked::Yes,
+                    "Bob's 1:1 chat with Alice is not hidden"
+                );
+                for item in chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
+                    .await
+                    .unwrap()
+                {
+                    if let chat::ChatItem::Message { msg_id } = item {
                         let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
                         let text = msg.get_text().unwrap();
-                        match text.contains("alice@example.org verified") {
-                            true => {
-                                assert!(msg.is_info());
-                                break;
-                            }
-                            false => continue,
-                        }
+                        println!("msg {} text: {}", msg_id, text);
                     }
-                    Some(_) => continue,
-                    None => panic!("Verified message not found in Bob's group chat"),
+                }
+                let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
+                    .await
+                    .unwrap()
+                    .into_iter();
+                loop {
+                    match msg_iter.next() {
+                        Some(chat::ChatItem::Message { msg_id }) => {
+                            let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
+                            let text = msg.get_text().unwrap();
+                            match text.contains("alice@example.org verified") {
+                                true => {
+                                    assert!(msg.is_info());
+                                    break;
+                                }
+                                false => continue,
+                            }
+                        }
+                        Some(_) => continue,
+                        None => panic!("Verified message not found in Bob's group chat"),
+                    }
                 }
             }
-        }
 
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vg-member-added-received"
-        );
+            let sent = bob.pop_sent_msg().await;
+            let msg = alice.parse_msg(&sent).await;
+            assert!(msg.was_encrypted());
+            assert_eq!(
+                msg.get_header(HeaderDef::SecureJoin).unwrap(),
+                "vg-member-added-received"
+            );
 
-        let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
-        assert!(bob_chat.is_protected());
-        assert!(bob_chat.typ == Chattype::Group);
+            let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
+            assert!(bob_chat.is_protected());
+            assert!(bob_chat.typ == Chattype::Group);
 
-        // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
-        // The one-to-one chats are used internally for the hidden handshake messages,
-        // however, should not be visible in the UIs.
-        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
-        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
+            // On this "happy path", Alice and Bob get only a group-chat where all information are added to.
+            // The one-to-one chats are used internally for the hidden handshake messages,
+            // however, should not be visible in the UIs.
+            assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
+            assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 1);
 
-        // If Bob then sends a direct message to alice, however, the one-to-one with Alice should appear.
-        let bobs_chat_with_alice = bob.create_chat(&alice).await;
-        let sent = bob.send_text(bobs_chat_with_alice.id, "Hello").await;
-        alice.recv_msg(&sent).await;
-        assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
-        assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
+            // If Bob then sends a direct message to alice, however, the one-to-one with Alice should appear.
+            let bobs_chat_with_alice = bob.create_chat(&alice).await;
+            let sent = bob.send_text(bobs_chat_with_alice.id, "Hello").await;
+            alice.recv_msg(&sent).await;
+            assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 2);
+            assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 2);
 
-        Ok(())
+            Ok(())
+        });
+        return tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2usize)
+            .enable_all()
+            .build()
+            .expect("Failed building the Runtime")
+            .block_on(body);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
