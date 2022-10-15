@@ -43,6 +43,7 @@
 ### Changes
 - jsonrpc in cffi also sends events now #3662
 - jsonrpc: new format for events and better typescript autocompletion
+- Join all "[migration] vXX" log messages into one
 
 ### Fixes
 - share stock string translations across accounts created by the same account manager #3640

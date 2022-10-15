@@ -24,7 +24,6 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
         .await
         .context("failed to check if config table exists")?
     {
-        info!(context, "First time init: creating tables",);
         sql.transaction(move |transaction| {
             transaction.execute_batch(TABLES)?;
 
@@ -35,7 +34,8 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
             )?;
             Ok(())
         })
-        .await?;
+        .await
+        .context("Creating tables failed")?;
 
         let mut lock = context.sql.config_cache.write().await;
         lock.insert(
@@ -57,7 +57,6 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
     let mut recode_avatar = false;
 
     if dbversion < 1 {
-        info!(context, "[migration] v1");
         sql.execute_migration(
             r#"
 CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT '');
@@ -67,7 +66,6 @@ CREATE INDEX leftgrps_index1 ON leftgrps (grpid);"#,
         .await?;
     }
     if dbversion < 2 {
-        info!(context, "[migration] v2");
         sql.execute_migration(
             "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT '';",
             2,
@@ -75,7 +73,6 @@ CREATE INDEX leftgrps_index1 ON leftgrps (grpid);"#,
         .await?;
     }
     if dbversion < 7 {
-        info!(context, "[migration] v7");
         sql.execute_migration(
             "CREATE TABLE keypairs (\
                  id INTEGER PRIMARY KEY, \
@@ -89,7 +86,6 @@ CREATE INDEX leftgrps_index1 ON leftgrps (grpid);"#,
         .await?;
     }
     if dbversion < 10 {
-        info!(context, "[migration] v10");
         sql.execute_migration(
             "CREATE TABLE acpeerstates (\
                  id INTEGER PRIMARY KEY, \
@@ -104,7 +100,6 @@ CREATE INDEX leftgrps_index1 ON leftgrps (grpid);"#,
         .await?;
     }
     if dbversion < 12 {
-        info!(context, "[migration] v12");
         sql.execute_migration(
             r#"
 CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);
@@ -114,7 +109,6 @@ CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);"#,
         .await?;
     }
     if dbversion < 17 {
-        info!(context, "[migration] v17");
         sql.execute_migration(
             r#"
 ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;
@@ -128,7 +122,6 @@ CREATE INDEX msgs_index5 ON msgs (starred);"#,
         .await?;
     }
     if dbversion < 18 {
-        info!(context, "[migration] v18");
         sql.execute_migration(
             r#"
 ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;
@@ -138,7 +131,6 @@ ALTER TABLE acpeerstates ADD COLUMN gossip_key;"#,
         .await?;
     }
     if dbversion < 27 {
-        info!(context, "[migration] v27");
         // chat.id=1 and chat.id=2 are the old deaddrops,
         // the current ones are defined by chats.blocked=2
         sql.execute_migration(
@@ -152,7 +144,6 @@ ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;"#,
         .await?;
     }
     if dbversion < 34 {
-        info!(context, "[migration] v34");
         sql.execute_migration(
             r#"
 ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;
@@ -167,7 +158,6 @@ CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);"#,
         recalc_fingerprints = true;
     }
     if dbversion < 39 {
-        info!(context, "[migration] v39");
         sql.execute_migration(
             r#"
 CREATE TABLE tokens ( 
@@ -185,17 +175,14 @@ CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);"#,
         .await?;
     }
     if dbversion < 40 {
-        info!(context, "[migration] v40");
         sql.execute_migration("ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;", 40)
             .await?;
     }
     if dbversion < 44 {
-        info!(context, "[migration] v44");
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", 44)
             .await?;
     }
     if dbversion < 46 {
-        info!(context, "[migration] v46");
         sql.execute_migration(
             r#"
 ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;
@@ -205,12 +192,10 @@ ALTER TABLE msgs ADD COLUMN mime_references TEXT;"#,
         .await?;
     }
     if dbversion < 47 {
-        info!(context, "[migration] v47");
         sql.execute_migration("ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;", 47)
             .await?;
     }
     if dbversion < 48 {
-        info!(context, "[migration] v48");
         // NOTE: move_state is not used anymore
         sql.execute_migration(
             "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
@@ -219,7 +204,6 @@ ALTER TABLE msgs ADD COLUMN mime_references TEXT;"#,
         .await?;
     }
     if dbversion < 49 {
-        info!(context, "[migration] v49");
         sql.execute_migration(
             "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
             49,
@@ -227,7 +211,6 @@ ALTER TABLE msgs ADD COLUMN mime_references TEXT;"#,
         .await?;
     }
     if dbversion < 50 {
-        info!(context, "[migration] v50");
         // installations <= 0.100.1 used DC_SHOW_EMAILS_ALL implicitly;
         // keep this default and use DC_SHOW_EMAILS_NO
         // only for new installations
@@ -238,7 +221,6 @@ ALTER TABLE msgs ADD COLUMN mime_references TEXT;"#,
         sql.set_db_version(50).await?;
     }
     if dbversion < 53 {
-        info!(context, "[migration] v53");
         // the messages containing _only_ locations
         // are also added to the database as _hidden_.
         sql.execute_migration(
@@ -263,7 +245,6 @@ CREATE INDEX chats_index3 ON chats (locations_send_until);"#,
         .await?;
     }
     if dbversion < 54 {
-        info!(context, "[migration] v54");
         sql.execute_migration(
             r#"
 ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;
@@ -273,7 +254,6 @@ CREATE INDEX msgs_index6 ON msgs (location_id);"#,
         .await?;
     }
     if dbversion < 55 {
-        info!(context, "[migration] v55");
         sql.execute_migration(
             "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
             55,
@@ -281,7 +261,6 @@ CREATE INDEX msgs_index6 ON msgs (location_id);"#,
         .await?;
     }
     if dbversion < 59 {
-        info!(context, "[migration] v59");
         // records in the devmsglabels are kept when the message is deleted.
         // so, msg_id may or may not exist.
         sql.execute_migration(
@@ -295,7 +274,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);"#, 59)
     }
 
     if dbversion < 60 {
-        info!(context, "[migration] v60");
         sql.execute_migration(
             "ALTER TABLE chats ADD COLUMN created_timestamp INTEGER DEFAULT 0;",
             60,
@@ -303,7 +281,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);"#, 59)
         .await?;
     }
     if dbversion < 61 {
-        info!(context, "[migration] v61");
         sql.execute_migration(
             "ALTER TABLE contacts ADD COLUMN selfavatar_sent INTEGER DEFAULT 0;",
             61,
@@ -312,7 +289,6 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);"#, 59)
         update_icons = true;
     }
     if dbversion < 62 {
-        info!(context, "[migration] v62");
         sql.execute_migration(
             "ALTER TABLE chats ADD COLUMN muted_until INTEGER DEFAULT 0;",
             62,
@@ -320,17 +296,14 @@ CREATE INDEX devmsglabels_index1 ON devmsglabels (label);"#, 59)
         .await?;
     }
     if dbversion < 63 {
-        info!(context, "[migration] v63");
         sql.execute_migration("UPDATE chats SET grpid='' WHERE type=100", 63)
             .await?;
     }
     if dbversion < 64 {
-        info!(context, "[migration] v64");
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN error TEXT DEFAULT '';", 64)
             .await?;
     }
     if dbversion < 65 {
-        info!(context, "[migration] v65");
         sql.execute_migration(
             r#"
 ALTER TABLE chats ADD COLUMN ephemeral_timer INTEGER;
@@ -341,12 +314,10 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
         .await?;
     }
     if dbversion < 66 {
-        info!(context, "[migration] v66");
         update_icons = true;
         sql.set_db_version(66).await?;
     }
     if dbversion < 67 {
-        info!(context, "[migration] v67");
         for prefix in &["", "configured_"] {
             if let Some(server_flags) = sql
                 .get_raw_config_int(format!("{}server_flags", prefix))
@@ -373,7 +344,6 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
         sql.set_db_version(67).await?;
     }
     if dbversion < 68 {
-        info!(context, "[migration] v68");
         // the index is used to speed up get_fresh_msg_cnt() (see comment there for more details) and marknoticed_chat()
         sql.execute_migration(
             "CREATE INDEX IF NOT EXISTS msgs_index7 ON msgs (state, hidden, chat_id);",
@@ -382,7 +352,6 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
         .await?;
     }
     if dbversion < 69 {
-        info!(context, "[migration] v69");
         sql.execute_migration(
             r#"
 ALTER TABLE chats ADD COLUMN protected INTEGER DEFAULT 0;
@@ -394,7 +363,6 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
     }
 
     if dbversion < 71 {
-        info!(context, "[migration] v71");
         if let Ok(addr) = context.get_primary_self_addr().await {
             if let Ok(domain) = EmailAddress::new(&addr).map(|email| email.domain) {
                 context
@@ -410,20 +378,16 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
 
         sql.set_db_version(71).await?;
     }
-    if dbversion < 72 {
-        info!(context, "[migration] v72");
-        if !sql.col_exists("msgs", "mime_modified").await? {
-            sql.execute_migration(
-                r#"
-ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
-                72,
-            )
-            .await?;
-        }
+    if dbversion < 72 && !sql.col_exists("msgs", "mime_modified").await? {
+        sql.execute_migration(
+            r#"
+    ALTER TABLE msgs ADD COLUMN mime_modified INTEGER DEFAULT 0;"#,
+            72,
+        )
+        .await?;
     }
     if dbversion < 73 {
         use Config::*;
-        info!(context, "[migration] v73");
         sql.execute(
             r#"
 CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
@@ -459,12 +423,10 @@ paramsv![]
         sql.set_db_version(73).await?;
     }
     if dbversion < 74 {
-        info!(context, "[migration] v74");
         sql.execute_migration("UPDATE contacts SET name='' WHERE name=authname", 74)
             .await?;
     }
     if dbversion < 75 {
-        info!(context, "[migration] v75");
         sql.execute_migration(
             "ALTER TABLE contacts ADD COLUMN status TEXT DEFAULT '';",
             75,
@@ -472,24 +434,20 @@ paramsv![]
         .await?;
     }
     if dbversion < 76 {
-        info!(context, "[migration] v76");
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN subject TEXT DEFAULT '';", 76)
             .await?;
     }
     if dbversion < 77 {
-        info!(context, "[migration] v77");
         recode_avatar = true;
         sql.set_db_version(77).await?;
     }
     if dbversion < 78 {
         // move requests to "Archived Chats",
         // this way, the app looks familiar after the contact request upgrade.
-        info!(context, "[migration] v78");
         sql.execute_migration("UPDATE chats SET archived=1 WHERE blocked=2;", 78)
             .await?;
     }
     if dbversion < 79 {
-        info!(context, "[migration] v79");
         sql.execute_migration(
             r#"
         ALTER TABLE msgs ADD COLUMN download_state INTEGER DEFAULT 0;
@@ -499,7 +457,6 @@ paramsv![]
         .await?;
     }
     if dbversion < 80 {
-        info!(context, "[migration] v80");
         sql.execute_migration(
             r#"CREATE TABLE multi_device_sync (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -509,12 +466,10 @@ item TEXT DEFAULT '');"#,
         .await?;
     }
     if dbversion < 81 {
-        info!(context, "[migration] v81");
         sql.execute_migration("ALTER TABLE msgs ADD COLUMN hop_info TEXT;", 81)
             .await?;
     }
     if dbversion < 82 {
-        info!(context, "[migration] v82");
         sql.execute_migration(
             r#"CREATE TABLE imap (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -547,7 +502,6 @@ DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
         .await?;
     }
     if dbversion < 83 {
-        info!(context, "[migration] v83");
         sql.execute_migration(
             "ALTER TABLE imap_sync
              ADD COLUMN modseq -- Highest modification sequence
@@ -557,7 +511,6 @@ DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
         .await?;
     }
     if dbversion < 84 {
-        info!(context, "[migration] v84");
         sql.execute_migration(
             r#"CREATE TABLE msgs_status_updates (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -570,7 +523,6 @@ CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);"#,
         .await?;
     }
     if dbversion < 85 {
-        info!(context, "[migration] v85");
         sql.execute_migration(
             r#"CREATE TABLE smtp (
 id INTEGER PRIMARY KEY,
@@ -587,7 +539,6 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
     if dbversion < 86 {
-        info!(context, "[migration] v86");
         sql.execute_migration(
             r#"CREATE TABLE bobstate (
                    id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -600,7 +551,6 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
     if dbversion < 87 {
-        info!(context, "[migration] v87");
         // the index is used to speed up delete_expired_messages()
         sql.execute_migration(
             "CREATE INDEX IF NOT EXISTS msgs_index8 ON msgs (ephemeral_timestamp);",
@@ -609,12 +559,10 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
     if dbversion < 88 {
-        info!(context, "[migration] v88");
         sql.execute_migration("DROP TABLE IF EXISTS backup_blobs;", 88)
             .await?;
     }
     if dbversion < 89 {
-        info!(context, "[migration] v89");
         sql.execute_migration(
             r#"CREATE TABLE imap_markseen (
               id INTEGER,
@@ -625,7 +573,6 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
     if dbversion < 90 {
-        info!(context, "[migration] v90");
         sql.execute_migration(
             r#"CREATE TABLE smtp_mdns (
               msg_id INTEGER NOT NULL, -- id of the message in msgs table which requested MDN
@@ -638,7 +585,6 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
     if dbversion < 91 {
-        info!(context, "[migration] v91");
         sql.execute_migration(
             r#"CREATE TABLE smtp_status_updates (
               msg_id INTEGER NOT NULL UNIQUE, -- msg_id of the webxdc instance with pending updates
@@ -649,6 +595,22 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
             91,
         )
         .await?;
+    }
+
+    let new_version = sql
+        .get_raw_config_int(VERSION_CFG)
+        .await?
+        .unwrap_or_default();
+    if new_version != dbversion || !exists_before_update {
+        let created_db = if exists_before_update {
+            ""
+        } else {
+            "Created new database; "
+        };
+        info!(
+            context,
+            "{}[migration] v{}-v{}", created_db, dbversion, new_version
+        );
     }
 
     Ok((
