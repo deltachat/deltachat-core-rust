@@ -7,8 +7,8 @@ use mailparse::ParsedMail;
 use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
-use crate::authres_handling;
-use crate::authres_handling::handle_authres;
+use crate::authres;
+use crate::authres::handle_authres;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
@@ -105,7 +105,7 @@ pub struct DecryptionInfo {
     /// means out-of-order message arrival, We don't modify the
     /// peerstate in this case.
     pub message_time: i64,
-    pub(crate) dkim_results: authres_handling::DkimResults,
+    pub(crate) dkim_results: authres::DkimResults,
 }
 
 /// Returns a reference to the encrypted payload of a ["Mixed
@@ -273,6 +273,9 @@ fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublic
 /// If we already know this fingerprint from another contact's peerstate, return that
 /// peerstate in order to make AEAP work, but don't save it into the db yet.
 ///
+/// The param `allow_change` is used to prevent the autocrypt key from being changed
+/// if we suspect that the message may be forged and have a spoofed sender identity.
+///
 /// Returns updated peerstate.
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
@@ -299,9 +302,16 @@ pub(crate) async fn get_autocrypt_peerstate(
         .await?;
 
         if let Some(ref mut peerstate) = peerstate {
-            if addr_cmp(&peerstate.addr, from) && allow_change {
-                peerstate.apply_header(header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
+            if addr_cmp(&peerstate.addr, from) {
+                if allow_change {
+                    peerstate.apply_header(header, message_time);
+                    peerstate.save_to_db(&context.sql, false).await?;
+                } else {
+                    info!(
+                        context,
+                        "Refusing to update existing peerstate of {}", &peerstate.addr
+                    );
+                }
             }
             // If `peerstate.addr` and `from` differ, this means that
             // someone is using the same key but a different addr, probably

@@ -495,8 +495,8 @@ pub fn open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
-pub async fn read_dir(path: impl AsRef<Path>) -> Result<Vec<fs::DirEntry>> {
-    let res = tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(path.as_ref()).await?)
+pub async fn read_dir(path: &Path) -> Result<Vec<fs::DirEntry>> {
+    let res = tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(path).await?)
         .try_collect()
         .await?;
     Ok(res)

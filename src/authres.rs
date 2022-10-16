@@ -469,7 +469,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
     async fn test_realworld_authentication_results() -> Result<()> {
         let mut test_failed = false;
 
-        let dir = tools::read_dir("test-data/message/dkimchecks-2022-09-28/")
+        let dir = tools::read_dir("test-data/message/dkimchecks-2022-09-28/".as_ref())
             .await
             .unwrap();
         let mut bytes = Vec::new();
@@ -504,7 +504,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
             }
 
             // Simulate receiving all emails once, so that we have the correct authserv-ids
-            let mut dir = tools::read_dir(entry.path()).await.unwrap();
+            let mut dir = tools::read_dir(&entry.path()).await.unwrap();
 
             // The ordering in which the emails are received can matter;
             // the test _should_ pass for every ordering.
