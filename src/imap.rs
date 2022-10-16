@@ -2157,8 +2157,8 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
         .sql
         .execute(
             "INSERT INTO imap_sync (folder, uid_next) VALUES (?,?)
-                ON CONFLICT(folder) DO UPDATE SET uid_next=? WHERE folder=?;",
-            paramsv![folder, uid_next, uid_next, folder],
+                ON CONFLICT(folder) DO UPDATE SET uid_next=excluded.uid_next",
+            paramsv![folder, uid_next],
         )
         .await?;
     Ok(())
@@ -2189,8 +2189,8 @@ pub(crate) async fn set_uidvalidity(
         .sql
         .execute(
             "INSERT INTO imap_sync (folder, uidvalidity) VALUES (?,?)
-                ON CONFLICT(folder) DO UPDATE SET uidvalidity=? WHERE folder=?;",
-            paramsv![folder, uidvalidity, uidvalidity, folder],
+                ON CONFLICT(folder) DO UPDATE SET uidvalidity=excluded.uidvalidity",
+            paramsv![folder, uidvalidity],
         )
         .await?;
     Ok(())
@@ -2212,8 +2212,8 @@ pub(crate) async fn set_modseq(context: &Context, folder: &str, modseq: u64) -> 
         .sql
         .execute(
             "INSERT INTO imap_sync (folder, modseq) VALUES (?,?)
-                ON CONFLICT(folder) DO UPDATE SET modseq=? WHERE folder=?;",
-            paramsv![folder, modseq, modseq, folder],
+                ON CONFLICT(folder) DO UPDATE SET modseq=excluded.modseq",
+            paramsv![folder, modseq],
         )
         .await?;
     Ok(())

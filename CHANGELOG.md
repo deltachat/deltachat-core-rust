@@ -5,6 +5,7 @@
 ### API-Changes
 
 ### Changes
+- simplify `UPSERT` queries #3676
 
 ### Fixes
 
