@@ -915,7 +915,7 @@ impl CommandApi {
         MessageObject::from_message_id(&ctx, message_id).await
     }
 
-    async fn get_message_html(&self, account_id: u32, message_id: u32)->Result<Option<String>>{
+    async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         MsgId::new(message_id).get_html(&ctx).await
     }
