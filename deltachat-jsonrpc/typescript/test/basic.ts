@@ -84,21 +84,21 @@ describe("basic tests", () => {
       accountId = await dc.rpc.addAccount();
     });
     it("should block and unblock contact", async function () {
-      const contactId = await dc.rpc.contactsCreateContact(
+      const contactId = await dc.rpc.createContact(
         accountId,
         "example@delta.chat",
         null
       );
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
+      expect((await dc.rpc.getContact(accountId, contactId)).isBlocked).to.be
         .false;
-      await dc.rpc.contactsBlock(accountId, contactId);
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
+      await dc.rpc.blockContact(accountId, contactId);
+      expect((await dc.rpc.getContact(accountId, contactId)).isBlocked).to.be
         .true;
-      expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(1);
-      await dc.rpc.contactsUnblock(accountId, contactId);
-      expect((await dc.rpc.contactsGetContact(accountId, contactId)).isBlocked).to.be
+      expect(await dc.rpc.getBlockedContacts(accountId)).to.have.length(1);
+      await dc.rpc.unblockContact(accountId, contactId);
+      expect((await dc.rpc.getContact(accountId, contactId)).isBlocked).to.be
         .false;
-      expect(await dc.rpc.contactsGetBlocked(accountId)).to.have.length(0);
+      expect(await dc.rpc.getBlockedContacts(accountId)).to.have.length(0);
     });
   });
 
