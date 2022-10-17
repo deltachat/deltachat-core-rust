@@ -2605,6 +2605,7 @@ pub unsafe fn dc_array_is_independent(
 /// because the FFI API has a refernce from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
+#[doc(hidden)]
 pub struct ChatlistWrapper {
     context: *const dc_context_t,
     list: chatlist::Chatlist,
@@ -2749,6 +2750,7 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 /// because the FFI API has a refernce from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
+#[doc(hidden)]
 pub struct ChatWrapper {
     context: *const dc_context_t,
     chat: chat::Chat,
@@ -3001,6 +3003,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
 /// because the FFI API has a refernce from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
+#[doc(hidden)]
 pub struct MessageWrapper {
     context: *const dc_context_t,
     message: message::Message,
@@ -3742,6 +3745,7 @@ pub unsafe extern "C" fn dc_msg_force_plaintext(msg: *mut dc_msg_t) {
 /// because the FFI API has a refernce from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
+#[doc(hidden)]
 pub struct ContactWrapper {
     context: *const dc_context_t,
     contact: contact::Contact,
@@ -4142,6 +4146,7 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
 
 /// Reader-writer lock wrapper for accounts manager to guarantee thread safety when using
 /// `dc_accounts_t` in multiple threads at once.
+#[doc(hidden)]
 pub struct AccountsWrapper {
     inner: Arc<RwLock<Accounts>>,
 }
@@ -4161,9 +4166,58 @@ impl AccountsWrapper {
     }
 }
 
-/// Struct representing a list of deltachat accounts.
+/// This class provides functionality that can be used to manage several [`dc_context_t`]
+/// objects running at the same time.
+///
+/// The account manager takes a directory where all context-databases are created in.
+///
+/// You can add, remove, import account to the account manager, all context-databases are
+/// persisted and stay available once the account manager is created again for the same
+/// directory.
+///
+/// All accounts may receive messages at the same time (e.g. by #DC_EVENT_INCOMING_MSG), and
+/// all accounts may be accessed by their own dc_context_t object.
+///
+/// To make this possible, some dc_context_t functions must not be called when using the
+/// account manager:
+///
+/// - use [`dc_accounts_add_account()`] and [`dc_accounts_get_account()`] instead of
+///   [`dc_context_new()`].
+/// - use [`dc_accounts_add_closed_account()`] instead of [`dc_context_new_closed()`]
+/// - use [`dc_accounts_start_io()`] and [`dc_accounts_stop_io()`] instead of
+///   [`dc_start_io()`] and [`dc_stop_io()`]
+/// - use dc_accounts_maybe_network() instead of dc_maybe_network()
+/// - use dc_accounts_get_event_emitter() instead of dc_get_event_emitter()
+///
+/// Additionally, there are functions to list, import and migrate accounts
+/// and to handle a "selected" account, see below.
+///
 pub type dc_accounts_t = AccountsWrapper;
 
+/// Create a new [account manager](dc_accounts_t).
+///
+/// Member of: [`dc_accounts_t`]
+///
+/// The account manager takes an directory
+/// where all context-databases are placed in.
+/// To add a context to the account manager,
+/// use [`dc_accounts_add_account()`] or [`dc_accounts_migrate_account()`].
+/// All account information are persisted.
+/// To remove a context from the account manager,
+/// use [`dc_accounts_remove_account()`].
+///
+/// # Params
+///
+/// *os_name*: deprecated and unused.
+///
+/// *dir*: The directory to create the context-databases in.  If the directory does not
+/// exist, dc_accounts_new() will try to create it.
+///
+/// # Returns
+///
+/// An [account manager object](dc_accounts_t).  The object must be passed to the other
+/// account manager functions and must be freed using [`dc_accounts_unref()`] after usage.
+/// On errors, NULL is returned.
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_new(
     _os_name: *const libc::c_char,
