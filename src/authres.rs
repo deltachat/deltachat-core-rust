@@ -2,7 +2,7 @@
 //! See the comment on [`handle_authres`] for more.
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::fmt;
 
 use anyhow::Result;
@@ -19,7 +19,7 @@ use crate::tools::EmailAddress;
 /// <https://datatracker.ietf.org/doc/html/rfc8601>, which contains info
 /// about whether DKIM and SPF passed.
 ///
-/// To mitigate from forgery, we remember for each sending domain whether it is known
+/// To mitigate From forgery, we remember for each sending domain whether it is known
 /// to have valid DKIM. If an email from such a domain comes with invalid DKIM,
 /// we don't allow changing the autocrypt key.
 ///
@@ -41,8 +41,7 @@ pub(crate) async fn handle_authres(
 
     let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
     update_authservid_candidates(context, &authres).await?;
-    let allow_keychange = should_allow_keychange(context, authres, &from_domain).await?;
-    Ok(allow_keychange)
+    compute_dkim_results(context, authres, &from_domain).await
 }
 
 #[derive(Default, Debug)]
@@ -158,7 +157,7 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
 /// After having checked DKIM, our email server adds an Authentication-Results header.
 ///
 /// Now, an attacker could just add an Authentication-Results header that says dkim=pass
-/// in order to make us think that DKIM was correct in their from-forged email.
+/// in order to make us think that DKIM was correct in their From-forged email.
 ///
 /// In order to prevent this, each email server adds its authserv-id to the
 /// Authentication-Results header, e.g. Testrun's authserv-id is `testrun.org`, Gmail's
@@ -187,7 +186,7 @@ async fn update_authservid_candidates(
     context: &Context,
     authres: &ParsedAuthresHeaders,
 ) -> Result<()> {
-    let mut new_ids: HashSet<&str> = authres
+    let mut new_ids: BTreeSet<&str> = authres
         .iter()
         .map(|(authserv_id, _dkim_passed)| authserv_id.as_str())
         .collect();
@@ -197,9 +196,9 @@ async fn update_authservid_candidates(
         return Ok(());
     }
 
-    let old_config = context.get_config(Config::AuthservidCandidates).await?;
+    let old_config = context.get_config(Config::AuthservIdCandidates).await?;
     let old_ids = parse_authservid_candidates_config(&old_config);
-    let intersection: HashSet<&str> = old_ids.intersection(&new_ids).copied().collect();
+    let intersection: BTreeSet<&str> = old_ids.intersection(&new_ids).copied().collect();
     if !intersection.is_empty() {
         new_ids = intersection;
     }
@@ -209,7 +208,7 @@ async fn update_authservid_candidates(
     if old_ids != new_ids {
         let new_config = new_ids.into_iter().collect::<Vec<_>>().join(" ");
         context
-            .set_config(Config::AuthservidCandidates, Some(&new_config))
+            .set_config(Config::AuthservIdCandidates, Some(&new_config))
             .await?;
         // Updating the authservid candidates may mean that we now consider
         // emails as "failed" which "passed" previously, so we need to
@@ -219,20 +218,23 @@ async fn update_authservid_candidates(
     Ok(())
 }
 
+/// Use the parsed authres and the authservid candidates to compute whether DKIM passed
+/// and whether a keychange should be allowed.
+///
 /// We track in the `sending_domains` table whether we get positive Authentication-Results
 /// for mails from a contact (meaning that their provider properly authenticates against
 /// our provider).
 ///
 /// Once a contact is known to come with positive Authentication-Resutls (dkim: pass),
 /// we don't accept Autocrypt key changes if they come with negative Authentication-Results.
-async fn should_allow_keychange(
+async fn compute_dkim_results(
     context: &Context,
     mut authres: ParsedAuthresHeaders,
     from_domain: &str,
 ) -> Result<DkimResults> {
     let mut dkim_passed = false;
 
-    let ids_config = context.get_config(Config::AuthservidCandidates).await?;
+    let ids_config = context.get_config(Config::AuthservIdCandidates).await?;
     let ids = parse_authservid_candidates_config(&ids_config);
 
     // Remove all foreign authentication results
@@ -278,7 +280,7 @@ async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
     Ok(context
         .sql
         .query_get_value(
-            "SELECT dkim_works FROM sending_domains WHERE domain=?;",
+            "SELECT dkim_works FROM sending_domains WHERE domain=?",
             paramsv![from_domain],
         )
         .await?
@@ -290,7 +292,7 @@ async fn set_dkim_works(context: &Context, from_domain: &str) -> Result<()> {
         .sql
         .execute(
             "INSERT INTO sending_domains (domain, dkim_works) VALUES (?1,1)
-                ON CONFLICT(domain) DO UPDATE SET dkim_works=1 WHERE domain=?1;",
+                ON CONFLICT(domain) DO UPDATE SET dkim_works=1 WHERE domain=?1",
             paramsv![from_domain],
         )
         .await?;
@@ -305,7 +307,7 @@ async fn clear_dkim_works(context: &Context) -> Result<()> {
     Ok(())
 }
 
-fn parse_authservid_candidates_config(config: &Option<String>) -> HashSet<&str> {
+fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str> {
     config
         .as_deref()
         .map(|c| c.split_whitespace().collect())
@@ -430,23 +432,23 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         let t = TestContext::new_alice().await;
 
         update_authservid_candidates_test(&t, &["mx3.messagingengine.com"]).await;
-        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx3.messagingengine.com");
 
         // "mx4.messagingengine.com" seems to be the new authserv-id, DC should accept it
         update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;
-        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
 
         // A message without any Authentication-Results headers shouldn't remove all
         // candidates since it could be a mailer-daemon message or so
         update_authservid_candidates_test(&t, &[]).await;
-        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
 
         update_authservid_candidates_test(&t, &["mx4.messagingengine.com", "someotherdomain.com"])
             .await;
-        let candidates = t.get_config(Config::AuthservidCandidates).await?.unwrap();
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
 
         Ok(())

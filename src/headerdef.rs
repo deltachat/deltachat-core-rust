@@ -65,7 +65,7 @@ pub enum HeaderDef {
     Received,
 
     /// A header that includes the results of the DKIM, SPF and DMARC checks.
-    /// See https://datatracker.ietf.org/doc/html/rfc8601
+    /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
     _TestHeader,

@@ -189,7 +189,7 @@ pub enum Config {
     /// may be the one of our email server.
     ///
     /// See `crate::authres::update_authservid_candidates`.
-    AuthservidCandidates,
+    AuthservIdCandidates,
 }
 
 impl Context {
