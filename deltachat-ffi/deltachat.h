@@ -1016,6 +1016,8 @@ uint32_t dc_send_reaction (dc_context_t* context, uint32_t msg_id, char *reactio
  * @param context The context object.
  * @param msg_id The message ID to get reactions for.
  * @return A structure with all reactions to the message.
+ *    If there are no reactions, still a structure is returned and dc_reactions_get_contacts() will return an empty array.
+ *    On errors, NULL is returned.
  */
 dc_reactions_t* dc_get_msg_reactions (dc_context_t *context, int msg_id);
 
