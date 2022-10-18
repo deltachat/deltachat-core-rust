@@ -50,7 +50,7 @@
   - `MessageSearchResult`
   - `Location`
 - jsonrpc: add `viewType` to quoted message(`MessageQuote` type) in `Message` object type #3651
-- jsonrpc: typescript client: export constants under `C` enum, similar to how its exported from `deltachat-node`
+- jsonrpc: typescript client: export constants under `C` enum, similar to how its exported from `deltachat-node` #3681
 
 
 ### Changes
