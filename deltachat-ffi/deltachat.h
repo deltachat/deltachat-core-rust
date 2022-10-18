@@ -4927,6 +4927,8 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
  * @param reactions The object containing message reactions.
  * @return array of contact IDs. Use dc_array_get_cnt() to get array length and
  *         dc_array_get_id() to get the IDs. Should be freed using `dc_array_unref()` after usage.
+ *         If there are no reactions, the returned array will be empty.
+ *         On errors, NULL is returned.
  */
 dc_array_t*     dc_reactions_get_contacts(dc_reactions_t* reactions);
 
