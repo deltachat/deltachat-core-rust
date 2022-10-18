@@ -847,9 +847,17 @@ async fn add_parts(
         }
     }
 
-    if is_mdn || is_reaction {
+    if is_mdn {
         chat_id = Some(DC_CHAT_ID_TRASH);
     }
+
+    let orig_reaction_chat_id = if is_reaction {
+        let orig_reaction_chat_id = chat_id;
+        chat_id = Some(DC_CHAT_ID_TRASH);
+        orig_reaction_chat_id
+    } else {
+        None
+    };
 
     let chat_id = chat_id.unwrap_or_else(|| {
         info!(context, "No chat id for message (TRASH)");
@@ -1063,7 +1071,7 @@ async fn add_parts(
             set_msg_reaction(
                 context,
                 &mime_in_reply_to,
-                chat_id,
+                orig_reaction_chat_id.unwrap_or_default(),
                 from_id,
                 Reaction::from(part.msg.as_str()),
             )
