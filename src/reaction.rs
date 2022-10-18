@@ -397,6 +397,31 @@ Content-Disposition: reaction\n\
         Ok(())
     }
 
+    async fn expect_reactions_changed_event(
+        t: &TestContext,
+        expected_chat_id: ChatId,
+        expected_msg_id: MsgId,
+        expected_contact_id: ContactId,
+    ) -> Result<()> {
+        let event = t
+            .evtracker
+            .get_matching(|evt| matches!(evt, EventType::ReactionsChanged { .. }))
+            .await;
+        match event {
+            EventType::ReactionsChanged {
+                chat_id,
+                msg_id,
+                contact_id,
+            } => {
+                assert_eq!(chat_id, expected_chat_id);
+                assert_eq!(msg_id, expected_msg_id);
+                assert_eq!(contact_id, expected_contact_id);
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_reaction() -> Result<()> {
         let alice = TestContext::new_alice().await;
@@ -409,6 +434,8 @@ Content-Disposition: reaction\n\
         bob_msg.chat_id.accept(&bob).await?;
 
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
+        expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
+
         let bob_reaction_msg = bob.pop_sent_msg().await;
         let alice_reaction_msg = alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
         assert_eq!(alice_reaction_msg.chat_id, DC_CHAT_ID_TRASH);
@@ -422,6 +449,8 @@ Content-Disposition: reaction\n\
         assert_eq!(bob_reaction.is_empty(), false);
         assert_eq!(bob_reaction.emojis(), vec!["👍"]);
         assert_eq!(bob_reaction.as_str(), "👍");
+        expect_reactions_changed_event(&alice, chat_alice.id, alice_msg.sender_msg_id, *bob_id)
+            .await?;
 
         // Alice reacts to own message.
         send_reaction(&alice, alice_msg.sender_msg_id, "👍 😀")
