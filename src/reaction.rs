@@ -75,7 +75,7 @@ impl Reaction {
         self.reaction.split(' ').collect()
     }
 
-    /// Returns space-separated string of emojis
+    /// Returns space-separated string of emojis.
     pub fn as_str(&self) -> &str {
         &self.reaction
     }
