@@ -455,7 +455,7 @@ async fn add_parts(
             ShowEmails::All => allow_creation = !is_mdn,
         }
     } else {
-        allow_creation = !is_mdn;
+        allow_creation = !is_mdn && !is_reaction;
     }
 
     // check if the message introduces a new chat:
