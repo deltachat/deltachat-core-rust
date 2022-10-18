@@ -279,6 +279,7 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::get_chat_msgs;
 
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
@@ -430,15 +431,19 @@ Content-Disposition: reaction\n\
         let chat_alice = alice.create_chat(&bob).await;
         let alice_msg = alice.send_text(chat_alice.id, "Hi!").await;
         let bob_msg = bob.recv_msg(&alice_msg).await;
+        assert_eq!(get_chat_msgs(&alice, chat_alice.id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id, 0).await?.len(), 1);
 
         bob_msg.chat_id.accept(&bob).await?;
 
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
         expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
+        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id, 0).await?.len(), 1);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
         let alice_reaction_msg = alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
         assert_eq!(alice_reaction_msg.chat_id, DC_CHAT_ID_TRASH);
+        assert_eq!(get_chat_msgs(&alice, chat_alice.id, 0).await?.len(), 1);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
