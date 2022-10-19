@@ -3702,11 +3702,11 @@ mod tests {
 
         // create group and sync it to the second device
         let a1_chat_id = create_group_chat(&a1, ProtectionStatus::Unprotected, "foo").await?;
-        a1.send_text(a1_chat_id, "ho!").await;
+        let sent = a1.send_text(a1_chat_id, "ho!").await;
         let a1_msg = a1.get_last_msg().await;
         let a1_chat = Chat::load_from_db(&a1, a1_chat_id).await?;
 
-        let a2_msg = a2.recv_msg(&a1.pop_sent_msg().await).await;
+        let a2_msg = a2.recv_msg(&sent).await;
         let a2_chat_id = a2_msg.chat_id;
         let a2_chat = Chat::load_from_db(&a2, a2_chat_id).await?;
 

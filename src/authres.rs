@@ -317,12 +317,21 @@ fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str>
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
+    use std::time::Duration;
+
     use tokio::fs;
     use tokio::io::AsyncReadExt;
 
     use super::*;
+
+    use crate::e2ee;
     use crate::mimeparser;
+    use crate::peerstate::Peerstate;
+    use crate::securejoin::get_securejoin_qr;
+    use crate::securejoin::join_securejoin;
+    use crate::test_utils;
     use crate::test_utils::TestContext;
+    use crate::test_utils::TestContextManager;
     use crate::tools;
 
     #[test]
@@ -582,5 +591,104 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         let bytes = b"Authentication-Results: dkim=";
         let mail = mailparse::parse_mail(bytes).unwrap();
         handle_authres(&t, &mail, "invalidfrom.com").await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_handle_authres_fails() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Bob sends Alice a message, so she gets his key
+        tcm.send_recv_accept(&bob, &alice, "Hi").await;
+
+        // We don't need bob anymore, let's make sure it's not accidentally used
+        drop(bob);
+
+        // Assume Alice receives an email from bob@example.net in the past with
+        // correct DKIM -> `dkim_works()` was called
+        dkim_works(&alice, "example.net").await?;
+        // And Alice knows her server's authserv-id
+        alice
+            .set_config(Config::AuthservIdCandidates, Some("example.org"))
+            .await?;
+
+        tcm.section("An attacker, bob2, sends a from-forged email to Alice!");
+
+        let bob2 = tcm.unconfigured().await;
+        bob2.configure_addr("bob@example.net").await;
+        e2ee::ensure_secret_key_exists(&bob2).await?;
+
+        let chat = bob2.create_chat(&alice).await;
+        let mut sent = bob2
+            .send_text(chat.id, "Please send me lots of money")
+            .await;
+
+        sent.payload
+            .insert_str(0, "Authentication-Results: example.org; dkim=fail");
+
+        let received = alice.recv_msg(&sent).await;
+
+        // Assert that the error tells the user about the problem
+        assert!(received.error.unwrap().contains("DKIM failed"));
+
+        let bob_state = Peerstate::from_addr(&alice, "bob@example.net")
+            .await?
+            .unwrap();
+
+        // Also check that the keypair was not changed
+        assert_eq!(
+            bob_state.public_key.unwrap(),
+            test_utils::bob_keypair().public
+        );
+
+        // Since Alice didn't change the key, Bob can't read her message
+        let received = tcm
+            .try_send_recv(&alice, &bob2, "My credit card number is 1234")
+            .await;
+        assert!(!received.text.as_ref().unwrap().contains("1234"));
+        assert!(received.error.is_some());
+
+        tcm.section("Turns out bob2 wasn't an attacker at all, Bob just has a new phone and DKIM just stopped working.");
+        tcm.section("To fix the key problems, Bob scans Alice's QR code.");
+
+        let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
+        join_securejoin(&bob2.ctx, &qr).await.unwrap();
+
+        loop {
+            if let Some(mut sent) = bob2.pop_sent_msg_opt(Duration::ZERO).await {
+                sent.payload
+                    .insert_str(0, "Authentication-Results: example.org; dkim=fail");
+                alice.recv_msg(&sent).await;
+            } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
+                bob2.recv_msg(&sent).await;
+            } else {
+                break;
+            }
+        }
+
+        // Unfortunately, securejoin currently doesn't work with authres-checking,
+        // so these checks would fail:
+
+        // let contact_bob = alice.add_or_lookup_contact(&bob2).await;
+        // assert_eq!(
+        //     contact_bob.is_verified(&alice.ctx).await.unwrap(),
+        //     VerifiedStatus::BidirectVerified
+        // );
+
+        // let contact_alice = bob2.add_or_lookup_contact(&alice).await;
+        // assert_eq!(
+        //     contact_alice.is_verified(&bob2.ctx).await.unwrap(),
+        //     VerifiedStatus::BidirectVerified
+        // );
+
+        // // Bob can read Alice's messages again
+        // let received = tcm
+        //     .try_send_recv(&alice, &bob2, "Can you read this again?")
+        //     .await;
+        // assert_eq!(received.text.as_ref().unwrap(), "Can you read this again?");
+        // assert!(received.error.is_none());
+
+        Ok(())
     }
 }
