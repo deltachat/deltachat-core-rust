@@ -183,7 +183,10 @@ impl<'a> MimeFactory<'a> {
                 )
                 .await?;
 
-            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
+            if !msg.is_system_message()
+                && msg.viewtype != Viewtype::Reaction
+                && context.get_config_bool(Config::MdnsEnabled).await?
+            {
                 req_mdn = true;
             }
         }
