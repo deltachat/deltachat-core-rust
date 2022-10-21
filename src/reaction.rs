@@ -292,7 +292,7 @@ mod tests {
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, Origin};
     use crate::message::MessageState;
-    use crate::receive_imf::receive_imf;
+    use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
 
     #[test]
