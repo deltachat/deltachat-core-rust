@@ -78,6 +78,10 @@ export type Event=(({
  */
 "type":"MsgsChanged";}&{"chatId":U32;"msgId":U32;})|({
 /**
+ * Reactions for the message changed.
+ */
+"type":"ReactionsChanged";}&{"chatId":U32;"msgId":U32;"contactId":U32;})|({
+/**
  * There is a fresh message. Typically, the user will show an notification
  * when receiving this message.
  * 

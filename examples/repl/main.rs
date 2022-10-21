@@ -72,6 +72,19 @@ fn receive_event(event: EventType) {
                 ))
             );
         }
+        EventType::ReactionsChanged {
+            chat_id,
+            msg_id,
+            contact_id,
+        } => {
+            info!(
+                "{}",
+                yellow.paint(format!(
+                    "Received REACTIONS_CHANGED(chat_id={}, msg_id={}, contact_id={})",
+                    chat_id, msg_id, contact_id
+                ))
+            );
+        }
         EventType::ContactsChanged(_) => {
             info!("{}", yellow.paint("Received CONTACTS_CHANGED()"));
         }
@@ -208,7 +221,7 @@ const CHAT_COMMANDS: [&str; 36] = [
     "accept",
     "blockchat",
 ];
-const MESSAGE_COMMANDS: [&str; 8] = [
+const MESSAGE_COMMANDS: [&str; 9] = [
     "listmsgs",
     "msginfo",
     "listfresh",
@@ -217,6 +230,7 @@ const MESSAGE_COMMANDS: [&str; 8] = [
     "markseen",
     "delmsg",
     "download",
+    "react",
 ];
 const CONTACT_COMMANDS: [&str; 9] = [
     "listcontacts",

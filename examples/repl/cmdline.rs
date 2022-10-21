@@ -20,6 +20,7 @@ use deltachat::log::LogExt;
 use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::peerstate::*;
 use deltachat::qr::*;
+use deltachat::reaction::send_reaction;
 use deltachat::receive_imf::*;
 use deltachat::sql;
 use deltachat::tools::*;
@@ -407,6 +408,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  resend <msg-id>\n\
                  markseen <msg-id>\n\
                  delmsg <msg-id>\n\
+                 react <msg-id> [<reaction>]\n\
                  ===========================Contact commands==\n\
                  listcontacts [<query>]\n\
                  listverified [<query>]\n\
@@ -1120,6 +1122,12 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let mut ids = [MsgId::new(0); 1];
             ids[0] = MsgId::new(arg1.parse()?);
             message::delete_msgs(&context, &ids).await?;
+        }
+        "react" => {
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let msg_id = MsgId::new(arg1.parse()?);
+            let reaction = arg2;
+            send_reaction(&context, msg_id, reaction).await?;
         }
         "listcontacts" | "contacts" | "listverified" => {
             let contacts = Contact::get_all(

@@ -878,6 +878,18 @@ export class RawClient {
     return (this._transport.request('send_sticker', [accountId, chatId, stickerPath] as RPC.Params)) as Promise<T.U32>;
   }
 
+  /**
+   * Send a reaction to message.
+   *
+   * Reaction is a string of emojis separated by spaces. Reaction to a
+   * single message can be sent multiple times. The last reaction
+   * received overrides all previously received reactions. It is
+   * possible to remove all reactions by sending an empty string.
+   */
+  public sendReaction(accountId: T.U32, messageId: T.U32, reaction: (string)[]): Promise<T.U32> {
+    return (this._transport.request('send_reaction', [accountId, messageId, reaction] as RPC.Params)) as Promise<T.U32>;
+  }
+
 
   public removeDraft(accountId: T.U32, chatId: T.U32): Promise<null> {
     return (this._transport.request('remove_draft', [accountId, chatId] as RPC.Params)) as Promise<null>;
