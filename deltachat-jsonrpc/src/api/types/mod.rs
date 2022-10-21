@@ -9,6 +9,7 @@ pub mod contact;
 pub mod location;
 pub mod message;
 pub mod provider_info;
+pub mod reactions;
 pub mod webxdc;
 
 pub fn color_int_to_hex_string(color: u32) -> String {
