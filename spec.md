@@ -450,6 +450,16 @@ This allows the receiver to show the time without knowing the file format.
     Chat-Duration: 10000
 
 
+# Reactions
+
+Messengers MAY implement [RFC 9078](https://tools.ietf.org/html/rfc9078) reactions.
+Received reaction should be interpreted as overwriting all previous reactions
+received from the same contact.
+This semantics is compatible to [XEP-0444](https://xmpp.org/extensions/xep-0444.html).
+As an extension to RFC 9078, it is allowed to send empty reaction message,
+in which case all previously sent reactions are retracted.
+
+
 # Miscellaneous
 
 Messengers SHOULD use the header `In-Reply-To` as usual.

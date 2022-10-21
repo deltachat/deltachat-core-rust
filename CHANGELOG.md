@@ -4,6 +4,7 @@
 
 ### API-Changes
 - jsonrpc: typescript client: export constants under `C` enum, similar to how its exported from `deltachat-node` #3681
+- added reactions support #3644
 
 ### Changes
 - simplify `UPSERT` queries #3676

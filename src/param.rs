@@ -59,6 +59,9 @@ pub enum Param {
     /// For Messages
     WantsMdn = b'r',
 
+    /// For Messages: the message is a reaction.
+    Reaction = b'x',
+
     /// For Messages: a message with Auto-Submitted header ("bot").
     Bot = b'b',
 

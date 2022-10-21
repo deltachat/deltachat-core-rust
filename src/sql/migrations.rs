@@ -596,6 +596,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 92 {
+        sql.execute_migration(
+            r#"CREATE TABLE reactions (
+              msg_id INTEGER NOT NULL, -- id of the message reacted to
+              contact_id INTEGER NOT NULL, -- id of the contact reacting to the message
+              reaction TEXT DEFAULT '' NOT NULL, -- a sequence of emojis separated by spaces
+              PRIMARY KEY(msg_id, contact_id),
+              FOREIGN KEY(msg_id) REFERENCES msgs(id) ON DELETE CASCADE -- delete reactions when message is deleted
+              FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE CASCADE -- delete reactions when contact is deleted
+            )"#,
+            92
+        ).await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
