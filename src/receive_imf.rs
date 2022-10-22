@@ -405,7 +405,7 @@ async fn add_parts(
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
-    replace_msg_id: Option<MsgId>,
+    mut replace_msg_id: Option<MsgId>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
 ) -> Result<ReceivedMsg> {
@@ -1068,11 +1068,30 @@ async fn add_parts(
             .await?;
         }
 
+        let mut param = part.param.clone();
+        if is_system_message != SystemMessage::Unknown {
+            param.set_int(Param::Cmd, is_system_message as i32);
+        }
+        if let Some(replace_msg_id) = replace_msg_id {
+            let placeholder = Message::load_from_db(context, replace_msg_id).await?;
+            for key in [
+                Param::WebxdcSummary,
+                Param::WebxdcSummaryTimestamp,
+                Param::WebxdcDocument,
+                Param::WebxdcDocumentTimestamp,
+            ] {
+                if let Some(value) = placeholder.param.get(key) {
+                    param.set(key, value);
+                }
+            }
+        }
+
         let mut txt_raw = "".to_string();
         let mut stmt = conn.prepare_cached(
             r#"
 INSERT INTO msgs
   (
+    id,
     rfc724_mid, chat_id,
     from_id, to_id, timestamp, timestamp_sent, 
     timestamp_rcvd, type, state, msgrmsg, 
@@ -1082,13 +1101,22 @@ INSERT INTO msgs
     ephemeral_timestamp, download_state, hop_info
   )
   VALUES (
+    ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?
-  );
+  )
+ON CONFLICT (id) DO UPDATE
+SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
+    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
+    bytes=excluded.bytes, mime_headers=excluded.mime_headers, mime_in_reply_to=excluded.mime_in_reply_to,
+    mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
+    ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
 "#,
         )?;
 
@@ -1110,11 +1138,6 @@ INSERT INTO msgs
             txt_raw = format!("{}\n\n{}", subject, msg_raw);
         }
 
-        let mut param = part.param.clone();
-        if is_system_message != SystemMessage::Unknown {
-            param.set_int(Param::Cmd, is_system_message as i32);
-        }
-
         let ephemeral_timestamp = if in_fresh {
             0
         } else {
@@ -1131,6 +1154,7 @@ INSERT INTO msgs
         let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
 
         stmt.execute(paramsv![
+            replace_msg_id,
             rfc724_mid,
             if trash { DC_CHAT_ID_TRASH } else { chat_id },
             if trash { ContactId::UNDEFINED } else { from_id },
@@ -1169,6 +1193,10 @@ INSERT INTO msgs
             },
             mime_parser.hop_info
         ])?;
+
+        // We only replace placeholder with a first part,
+        // afterwards insert additional parts.
+        replace_msg_id = None;
         let row_id = conn.last_insert_rowid();
 
         drop(stmt);
@@ -1177,14 +1205,8 @@ INSERT INTO msgs
     drop(conn);
 
     if let Some(replace_msg_id) = replace_msg_id {
-        if let Some(created_msg_id) = created_db_entries.pop() {
-            context
-                .merge_messages(created_msg_id, replace_msg_id)
-                .await?;
-            created_db_entries.push(replace_msg_id);
-        } else {
-            replace_msg_id.delete_from_db(context).await?;
-        }
+        // "Replace" placeholder with a message that has no parts.
+        replace_msg_id.delete_from_db(context).await?;
     }
 
     chat_id.unarchive_if_not_muted(context).await?;

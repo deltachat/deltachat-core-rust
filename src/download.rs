@@ -11,7 +11,7 @@ use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::param::{Param, Params};
+use crate::param::Params;
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
@@ -68,76 +68,6 @@ impl Context {
         } else {
             Ok(Some(max(MIN_DOWNLOAD_LIMIT, download_limit as u32)))
         }
-    }
-
-    // Merges the two messages to `placeholder_msg_id`;
-    // `full_msg_id` is no longer used afterwards.
-    pub(crate) async fn merge_messages(
-        &self,
-        full_msg_id: MsgId,
-        placeholder_msg_id: MsgId,
-    ) -> Result<()> {
-        let placeholder = Message::load_from_db(self, placeholder_msg_id).await?;
-        self.sql
-            .transaction(move |transaction| {
-                // Move all the data from full message to placeholder.
-                // `id` stays the same, so foreign key constraints are not violated.
-                // For example, `reactions.msg_id` foreign key keeps pointing
-                // to the same message.
-                transaction.execute(
-                    "UPDATE msgs
-                     SET
-                     rfc724_mid=full.rfc724_mid,
-                     chat_id=full.chat_id,
-                     from_id=full.from_id,
-                     to_id=full.to_id,
-                     timestamp=full.timestamp,
-                     type=full.type,
-                     state=full.state,
-                     msgrmsg=full.msgrmsg,
-                     bytes=full.bytes,
-                     txt=full.txt,
-                     txt_raw=full.txt_raw,
-                     param=full.param,
-                     starred=full.starred,
-                     timestamp_sent=full.timestamp_sent,
-                     timestamp_rcvd=full.timestamp_rcvd,
-                     hidden=full.hidden,
-                     mime_headers=full.mime_headers,
-                     mime_in_reply_to=full.mime_in_reply_to,
-                     mime_references=full.mime_references,
-                     move_state=full.move_state,
-                     location_id=full.location_id,
-                     error=full.error,
-                     ephemeral_timer=full.ephemeral_timer,
-                     ephemeral_timestamp=full.ephemeral_timestamp,
-                     mime_modified=full.mime_modified,
-                     subject=full.subject,
-                     download_state=full.download_state,
-                     hop_info=full.hop_info
-                     FROM msgs AS full
-                     WHERE msgs.id=?1 AND full.id=?2",
-                    paramsv![placeholder_msg_id, full_msg_id],
-                )?;
-                transaction.execute("DELETE FROM msgs WHERE id=?;", paramsv![full_msg_id])?;
-                Ok(())
-            })
-            .await?;
-        let mut full = Message::load_from_db(self, placeholder_msg_id).await?;
-
-        for key in [
-            Param::WebxdcSummary,
-            Param::WebxdcSummaryTimestamp,
-            Param::WebxdcDocument,
-            Param::WebxdcDocumentTimestamp,
-        ] {
-            if let Some(value) = placeholder.param.get(key) {
-                full.param.set(key, value);
-            }
-        }
-        full.update_param(self).await?;
-
-        Ok(())
     }
 }
 
