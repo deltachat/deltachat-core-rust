@@ -34,7 +34,7 @@ pub mod events;
 pub mod types;
 
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
-use crate::api::types::QrObject;
+use crate::api::types::qr::QrObject;
 
 use types::account::Account;
 use types::chat::FullChat;
