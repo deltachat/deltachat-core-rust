@@ -291,8 +291,9 @@ mod tests {
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, Origin};
+    use crate::download::DownloadState;
     use crate::message::MessageState;
-    use crate::receive_imf::receive_imf;
+    use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
 
     #[test]
@@ -475,6 +476,75 @@ Content-Disposition: reaction\n\
             .unwrap();
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍2 😀1");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_partial_download_and_reaction() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        alice
+            .create_chat_with_contact("Bob", "bob@example.net")
+            .await;
+
+        let msg_header = "From: Bob <bob@example.net>\n\
+                    To: Alice <alice@example.org>\n\
+                    Chat-Version: 1.0\n\
+                    Subject: subject\n\
+                    Message-ID: <first@example.org>\n\
+                    Date: Sun, 14 Nov 2021 00:10:00 +0000\
+                    Content-Type: text/plain";
+        let msg_full = format!("{}\n\n100k text...", msg_header);
+
+        // Alice downloads message from Bob partially.
+        let alice_received_message = receive_imf_inner(
+            &alice,
+            "first@example.org",
+            msg_header.as_bytes(),
+            false,
+            Some(100000),
+            false,
+        )
+        .await?
+        .unwrap();
+        let alice_msg_id = *alice_received_message.msg_ids.get(0).unwrap();
+
+        // Bob downloads own message on the other device.
+        let bob_received_message = receive_imf(&bob, msg_full.as_bytes(), false)
+            .await?
+            .unwrap();
+        let bob_msg_id = *bob_received_message.msg_ids.get(0).unwrap();
+
+        // Bob reacts to own message.
+        send_reaction(&bob, bob_msg_id, "👍").await.unwrap();
+        let bob_reaction_msg = bob.pop_sent_msg().await;
+
+        // Alice receives a reaction.
+        alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
+
+        let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
+        assert_eq!(reactions.to_string(), "👍1");
+        let msg = Message::load_from_db(&alice, alice_msg_id).await?;
+        assert_eq!(msg.download_state(), DownloadState::Available);
+
+        // Alice downloads full message.
+        receive_imf_inner(
+            &alice,
+            "first@example.org",
+            msg_full.as_bytes(),
+            false,
+            None,
+            false,
+        )
+        .await?;
+
+        // Check that reaction is still on the message after full download.
+        let msg = Message::load_from_db(&alice, alice_msg_id).await?;
+        assert_eq!(msg.download_state(), DownloadState::Done);
+        let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
+        assert_eq!(reactions.to_string(), "👍1");
 
         Ok(())
     }
