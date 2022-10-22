@@ -30,6 +30,7 @@ pub(crate) async fn handle_authres(
     context: &Context,
     mail: &ParsedMail<'_>,
     from: &str,
+    message_time: i64,
 ) -> Result<DkimResults> {
     let from_domain = match EmailAddress::new(from) {
         Ok(email) => email.domain,
@@ -43,7 +44,7 @@ pub(crate) async fn handle_authres(
 
     let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
     update_authservid_candidates(context, &authres).await?;
-    compute_dkim_results(context, authres, &from_domain).await
+    compute_dkim_results(context, authres, &from_domain, message_time).await
 }
 
 #[derive(Default, Debug)]
@@ -233,6 +234,7 @@ async fn compute_dkim_results(
     context: &Context,
     mut authres: ParsedAuthresHeaders,
     from_domain: &str,
+    message_time: i64,
 ) -> Result<DkimResults> {
     let mut dkim_passed = false;
 
@@ -267,7 +269,7 @@ async fn compute_dkim_results(
 
     let mut dkim_works = dkim_works(context, from_domain).await?;
     if !dkim_works && dkim_passed {
-        set_dkim_works(context, from_domain).await?;
+        set_dkim_works(context, from_domain, message_time).await?;
         dkim_works = true;
     }
 
@@ -294,17 +296,23 @@ async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
     let should_work_until = last_working_timestamp + 3600 * 24 * 30;
 
     let dkim_ever_worked = last_working_timestamp > 0;
+
+    // We're using time() here and not the time when the message
+    // claims to have been sent (passed around as `message_time`)
+    // because otherwise an attacker could just put a time way
+    // in the future into the `Date` header and then we would
+    // assume that DKIM doesn't have to be valid anymore.
     let dkim_should_work_now = should_work_until > time();
     Ok(dkim_ever_worked && dkim_should_work_now)
 }
 
-async fn set_dkim_works(context: &Context, from_domain: &str) -> Result<()> {
+async fn set_dkim_works(context: &Context, from_domain: &str, timestamp: i64) -> Result<()> {
     context
         .sql
         .execute(
             "INSERT INTO sending_domains (domain, dkim_works) VALUES (?,?)
                 ON CONFLICT(domain) DO UPDATE SET dkim_works=excluded.dkim_works",
-            paramsv![from_domain, time()],
+            paramsv![from_domain, timestamp],
         )
         .await?;
     Ok(())
@@ -541,7 +549,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
-                let res = handle_authres(&t, &mail, from).await?;
+                let res = handle_authres(&t, &mail, from, time()).await?;
                 assert!(res.allow_keychange);
             }
 
@@ -553,7 +561,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 let mail = mailparse::parse_mail(&bytes)?;
                 let from = &mimeparser::get_from(&mail.headers)[0].addr;
 
-                let res = handle_authres(&t, &mail, from).await?;
+                let res = handle_authres(&t, &mail, from, time()).await?;
                 if !res.allow_keychange {
                     println!(
                         "!!!!!! FAILURE Receiving {:?}, keychange is not allowed !!!!!!",
@@ -601,7 +609,9 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         // to the database and downloaded again and again
         let bytes = b"Authentication-Results: dkim=";
         let mail = mailparse::parse_mail(bytes).unwrap();
-        handle_authres(&t, &mail, "invalidfrom.com").await.unwrap();
+        handle_authres(&t, &mail, "invalidfrom.com", time())
+            .await
+            .unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -618,7 +628,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
         // Assume Alice receives an email from bob@example.net with
         // correct DKIM -> `set_dkim_works()` was called
-        set_dkim_works(&alice, "example.net").await?;
+        set_dkim_works(&alice, "example.net", time()).await?;
         // And Alice knows her server's authserv-id
         alice
             .set_config(Config::AuthservIdCandidates, Some("example.org"))

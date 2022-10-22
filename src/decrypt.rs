@@ -72,7 +72,7 @@ pub async fn prepare_decryption(
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let dkim_results = handle_authres(context, mail, from).await?;
+    let dkim_results = handle_authres(context, mail, from, message_time).await?;
 
     let peerstate = get_autocrypt_peerstate(
         context,
