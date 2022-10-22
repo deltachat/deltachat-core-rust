@@ -4,6 +4,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::time::SystemTime;
 
 use anyhow::Result;
 use mailparse::MailHeaderMap;
@@ -13,6 +14,7 @@ use once_cell::sync::Lazy;
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
+use crate::tools::time;
 use crate::tools::EmailAddress;
 
 /// `authres` is short for the Authentication-Results header, defined in
@@ -276,24 +278,33 @@ async fn compute_dkim_results(
     })
 }
 
+/// Whether DKIM in emails from this domain is known to work.
 async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
-    Ok(context
+    let last_working_timestamp: i64 = context
         .sql
         .query_get_value(
             "SELECT dkim_works FROM sending_domains WHERE domain=?",
             paramsv![from_domain],
         )
         .await?
-        .unwrap_or(false))
+        .unwrap_or(0);
+
+    // When we get an email with valid DKIM-Authentication-Results,
+    // then we assume that DKIM works for 30 days from this time on.
+    let should_work_until = last_working_timestamp + 3600 * 24 * 30;
+
+    let dkim_ever_worked = last_working_timestamp > 0;
+    let dkim_should_work_now = should_work_until > time();
+    Ok(dkim_ever_worked && dkim_should_work_now)
 }
 
 async fn set_dkim_works(context: &Context, from_domain: &str) -> Result<()> {
     context
         .sql
         .execute(
-            "INSERT INTO sending_domains (domain, dkim_works) VALUES (?1,1)
-                ON CONFLICT(domain) DO UPDATE SET dkim_works=1 WHERE domain=?1",
-            paramsv![from_domain],
+            "INSERT INTO sending_domains (domain, dkim_works) VALUES (?,?)
+                ON CONFLICT(domain) DO UPDATE SET dkim_works=excluded.dkim_works",
+            paramsv![from_domain, time()],
         )
         .await?;
     Ok(())
@@ -605,9 +616,9 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         // We don't need bob anymore, let's make sure it's not accidentally used
         drop(bob);
 
-        // Assume Alice receives an email from bob@example.net in the past with
-        // correct DKIM -> `dkim_works()` was called
-        dkim_works(&alice, "example.net").await?;
+        // Assume Alice receives an email from bob@example.net with
+        // correct DKIM -> `set_dkim_works()` was called
+        set_dkim_works(&alice, "example.net").await?;
         // And Alice knows her server's authserv-id
         alice
             .set_config(Config::AuthservIdCandidates, Some("example.org"))
