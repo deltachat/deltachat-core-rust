@@ -183,7 +183,10 @@ impl<'a> MimeFactory<'a> {
                 )
                 .await?;
 
-            if !msg.is_system_message() && context.get_config_bool(Config::MdnsEnabled).await? {
+            if !msg.is_system_message()
+                && msg.param.get_int(Param::Reaction).unwrap_or_default() == 0
+                && context.get_config_bool(Config::MdnsEnabled).await?
+            {
                 req_mdn = true;
             }
         }
@@ -1122,6 +1125,11 @@ impl<'a> MimeFactory<'a> {
                 "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
             ))
             .body(message_text);
+
+        if self.msg.param.get_int(Param::Reaction).unwrap_or_default() != 0 {
+            main_part = main_part.header(("Content-Disposition", "reaction"));
+        }
+
         let mut parts = Vec::new();
 
         // add HTML-part, this is needed only if a HTML-message from a non-delta-client is forwarded;

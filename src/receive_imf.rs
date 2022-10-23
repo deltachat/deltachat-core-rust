@@ -33,6 +33,7 @@ use crate::mimeparser::{
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
+use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
@@ -404,7 +405,7 @@ async fn add_parts(
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
-    replace_msg_id: Option<MsgId>,
+    mut replace_msg_id: Option<MsgId>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
 ) -> Result<ReceivedMsg> {
@@ -430,8 +431,9 @@ async fn add_parts(
     };
     // incoming non-chat messages may be discarded
 
-    let location_kml_is = mime_parser.location_kml.is_some();
+    let is_location_kml = mime_parser.location_kml.is_some();
     let is_mdn = !mime_parser.mdn_reports.is_empty();
+    let is_reaction = mime_parser.parts.iter().any(|part| part.is_reaction);
     let show_emails =
         ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
 
@@ -450,7 +452,7 @@ async fn add_parts(
             ShowEmails::All => allow_creation = !is_mdn,
         }
     } else {
-        allow_creation = !is_mdn;
+        allow_creation = !is_mdn && !is_reaction;
     }
 
     // check if the message introduces a new chat:
@@ -689,7 +691,8 @@ async fn add_parts(
         state = if seen
             || fetching_existing_messages
             || is_mdn
-            || location_kml_is
+            || is_reaction
+            || is_location_kml
             || securejoin_seen
             || chat_id_blocked == Blocked::Yes
         {
@@ -841,14 +844,15 @@ async fn add_parts(
         }
     }
 
-    if is_mdn {
-        chat_id = Some(DC_CHAT_ID_TRASH);
-    }
-
-    let chat_id = chat_id.unwrap_or_else(|| {
-        info!(context, "No chat id for message (TRASH)");
+    let orig_chat_id = chat_id;
+    let chat_id = if is_mdn || is_reaction {
         DC_CHAT_ID_TRASH
-    });
+    } else {
+        chat_id.unwrap_or_else(|| {
+            info!(context, "No chat id for message (TRASH)");
+            DC_CHAT_ID_TRASH
+        })
+    };
 
     // Extract ephemeral timer from the message or use the existing timer if the message is not fully downloaded.
     let mut ephemeral_timer = if is_partial_download.is_some() {
@@ -1053,11 +1057,41 @@ async fn add_parts(
     let conn = context.sql.get_conn().await?;
 
     for part in &mime_parser.parts {
+        if part.is_reaction {
+            set_msg_reaction(
+                context,
+                &mime_in_reply_to,
+                orig_chat_id.unwrap_or_default(),
+                from_id,
+                Reaction::from(part.msg.as_str()),
+            )
+            .await?;
+        }
+
+        let mut param = part.param.clone();
+        if is_system_message != SystemMessage::Unknown {
+            param.set_int(Param::Cmd, is_system_message as i32);
+        }
+        if let Some(replace_msg_id) = replace_msg_id {
+            let placeholder = Message::load_from_db(context, replace_msg_id).await?;
+            for key in [
+                Param::WebxdcSummary,
+                Param::WebxdcSummaryTimestamp,
+                Param::WebxdcDocument,
+                Param::WebxdcDocumentTimestamp,
+            ] {
+                if let Some(value) = placeholder.param.get(key) {
+                    param.set(key, value);
+                }
+            }
+        }
+
         let mut txt_raw = "".to_string();
         let mut stmt = conn.prepare_cached(
             r#"
 INSERT INTO msgs
   (
+    id,
     rfc724_mid, chat_id,
     from_id, to_id, timestamp, timestamp_sent, 
     timestamp_rcvd, type, state, msgrmsg, 
@@ -1067,13 +1101,22 @@ INSERT INTO msgs
     ephemeral_timestamp, download_state, hop_info
   )
   VALUES (
+    ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?
-  );
+  )
+ON CONFLICT (id) DO UPDATE
+SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
+    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
+    bytes=excluded.bytes, mime_headers=excluded.mime_headers, mime_in_reply_to=excluded.mime_in_reply_to,
+    mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
+    ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
 "#,
         )?;
 
@@ -1095,11 +1138,6 @@ INSERT INTO msgs
             txt_raw = format!("{}\n\n{}", subject, msg_raw);
         }
 
-        let mut param = part.param.clone();
-        if is_system_message != SystemMessage::Unknown {
-            param.set_int(Param::Cmd, is_system_message as i32);
-        }
-
         let ephemeral_timestamp = if in_fresh {
             0
         } else {
@@ -1113,9 +1151,10 @@ INSERT INTO msgs
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash() || (location_kml_is && msg.is_empty());
+        let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
 
         stmt.execute(paramsv![
+            replace_msg_id,
             rfc724_mid,
             if trash { DC_CHAT_ID_TRASH } else { chat_id },
             if trash { ContactId::UNDEFINED } else { from_id },
@@ -1154,6 +1193,10 @@ INSERT INTO msgs
             },
             mime_parser.hop_info
         ])?;
+
+        // We only replace placeholder with a first part,
+        // afterwards insert additional parts.
+        replace_msg_id = None;
         let row_id = conn.last_insert_rowid();
 
         drop(stmt);
@@ -1162,14 +1205,8 @@ INSERT INTO msgs
     drop(conn);
 
     if let Some(replace_msg_id) = replace_msg_id {
-        if let Some(created_msg_id) = created_db_entries.pop() {
-            context
-                .merge_messages(created_msg_id, replace_msg_id)
-                .await?;
-            created_db_entries.push(replace_msg_id);
-        } else {
-            replace_msg_id.delete_from_db(context).await?;
-        }
+        // "Replace" placeholder with a message that has no parts.
+        replace_msg_id.delete_from_db(context).await?;
     }
 
     chat_id.unarchive_if_not_muted(context).await?;

@@ -102,6 +102,14 @@ pub enum JSONRPCEventType {
         msg_id: u32,
     },
 
+    /// Reactions for the message changed.
+    #[serde(rename_all = "camelCase")]
+    ReactionsChanged {
+        chat_id: u32,
+        msg_id: u32,
+        contact_id: u32,
+    },
+
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///
@@ -283,6 +291,15 @@ impl From<EventType> for JSONRPCEventType {
             EventType::MsgsChanged { chat_id, msg_id } => MsgsChanged {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
+            },
+            EventType::ReactionsChanged {
+                chat_id,
+                msg_id,
+                contact_id,
+            } => ReactionsChanged {
+                chat_id: chat_id.to_u32(),
+                msg_id: msg_id.to_u32(),
+                contact_id: contact_id.to_u32(),
             },
             EventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),
