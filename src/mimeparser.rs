@@ -372,7 +372,7 @@ impl MimeMessage {
 
         if !decryption_info.dkim_results.allow_keychange {
             for part in parser.parts.iter_mut() {
-                part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results-checking. Please tell us about this at https://support.delta.chat.\n\nScan the sender's QR code to make this work again.".to_string());
+                part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
             }
         }
         if warn_empty_signature && parser.signatures.is_empty() {

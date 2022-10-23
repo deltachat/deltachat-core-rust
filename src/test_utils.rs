@@ -74,6 +74,7 @@ impl TestContextManager {
             .await
     }
 
+    /// Creates a new unconfigured test account.
     pub async fn unconfigured(&mut self) -> TestContext {
         TestContext::builder()
             .with_log_sink(self.log_tx.clone())

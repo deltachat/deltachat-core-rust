@@ -181,9 +181,6 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
 /// is empty, we assume that the authserv-id has changed and start over with the
 /// new authserv-ids.
 ///
-/// TODO this is only half of the algorithm we thought of; we also wanted to save how
-/// sure we are about the authserv id. Like, a same-domain email is more trustworthy.
-///
 /// See [`handle_authres`].
 async fn update_authservid_candidates(
     context: &Context,
