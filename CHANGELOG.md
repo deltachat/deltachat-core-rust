@@ -31,6 +31,7 @@
 - Show a warning if quota list is empty #4261
 - Update "accounts.toml" atomically
 - Don't let blocking be bypassed using groups #4316 
+- Do not reset status on other devices when sending signed reaction messages #3692
 
 ## [1.112.7] - 2023-04-17
 
