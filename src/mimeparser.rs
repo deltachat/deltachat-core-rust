@@ -90,6 +90,9 @@ pub(crate) struct MimeMessage {
     pub(crate) delivery_report: Option<DeliveryReport>,
 
     /// Standard USENET signature, if any.
+    ///
+    /// `None` means no text part was received, empty string means a text part without a footer is
+    /// received.
     pub(crate) footer: Option<String>,
 
     // if this flag is set, the parts/text/etc. are just close to the original mime-message;
@@ -1059,6 +1062,7 @@ impl MimeMessage {
                             }
                         };
 
+                        let is_plaintext = mime_type == mime::TEXT_PLAIN;
                         let mut dehtml_failed = false;
 
                         let SimplifiedText {
@@ -1139,7 +1143,9 @@ impl MimeMessage {
                             self.is_forwarded = true;
                         }
 
-                        self.footer = footer;
+                        if self.footer.is_none() && is_plaintext {
+                            self.footer = Some(footer.unwrap_or_default());
+                        }
                     }
                     _ => {}
                 }
