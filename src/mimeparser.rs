@@ -557,7 +557,10 @@ impl MimeMessage {
             }
 
             if prepend_subject && !subject.is_empty() {
-                let part_with_text = self.parts.iter_mut().find(|part| !part.msg.is_empty());
+                let part_with_text = self
+                    .parts
+                    .iter_mut()
+                    .find(|part| !part.msg.is_empty() && !part.is_reaction);
                 if let Some(mut part) = part_with_text {
                     part.msg = format!("{} – {}", subject, part.msg);
                 }
@@ -919,6 +922,7 @@ impl MimeMessage {
         Ok(any_part_added)
     }
 
+    /// Returns true if any part was added, false otherwise.
     async fn add_single_part_if_known(
         &mut self,
         context: &Context,
@@ -951,6 +955,30 @@ impl MimeMessage {
                     mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
                         warn!(context, "Missing attachment");
                         return Ok(false);
+                    }
+                    mime::TEXT
+                        if mail.get_content_disposition().disposition
+                            == DispositionType::Extension("reaction".to_string()) =>
+                    {
+                        // Reaction.
+                        let decoded_data = match mail.get_body() {
+                            Ok(decoded_data) => decoded_data,
+                            Err(err) => {
+                                warn!(context, "Invalid body parsed {:?}", err);
+                                // Note that it's not always an error - might be no data
+                                return Ok(false);
+                            }
+                        };
+
+                        let part = Part {
+                            typ: Viewtype::Text,
+                            mimetype: Some(mime_type),
+                            msg: decoded_data,
+                            is_reaction: true,
+                            ..Default::default()
+                        };
+                        self.do_add_single_part(part);
+                        return Ok(true);
                     }
                     mime::TEXT | mime::HTML => {
                         let decoded_data = match mail.get_body() {
@@ -1650,6 +1678,9 @@ pub struct Part {
     /// note that multipart/related may contain further multipart nestings
     /// and all of them needs to be marked with `is_related`.
     pub(crate) is_related: bool,
+
+    /// Part is an RFC 9078 reaction.
+    pub(crate) is_reaction: bool,
 }
 
 /// return mimetype and viewtype for a parsed mail
@@ -3332,6 +3363,41 @@ Message.
         );
 
         assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));
+
+        Ok(())
+    }
+
+    /// Tests parsing of MIME message containing RFC 9078 reaction.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_parse_reaction() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let mime_message = MimeMessage::from_bytes(
+            &alice,
+            "To: alice@example.org\n\
+From: bob@example.net\n\
+Date: Today, 29 February 2021 00:00:10 -800\n\
+Message-ID: 56789@example.net\n\
+In-Reply-To: 12345@example.org\n\
+Subject: Meeting\n\
+Mime-Version: 1.0 (1.0)\n\
+Content-Type: text/plain; charset=utf-8\n\
+Content-Disposition: reaction\n\
+\n\
+\u{1F44D}"
+                .as_bytes(),
+        )
+        .await?;
+
+        assert_eq!(mime_message.parts.len(), 1);
+        assert_eq!(mime_message.parts[0].is_reaction, true);
+        assert_eq!(
+            mime_message
+                .get_header(HeaderDef::InReplyTo)
+                .and_then(|msgid| parse_message_id(msgid).ok())
+                .unwrap(),
+            "12345@example.org"
+        );
 
         Ok(())
     }

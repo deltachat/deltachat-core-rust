@@ -3,6 +3,19 @@
 ## Unreleased
 
 ### API-Changes
+- jsonrpc: typescript client: export constants under `C` enum, similar to how its exported from `deltachat-node` #3681
+- added reactions support #3644
+- jsonrpc: reactions: added reactions to `Message` type and the `sendReaction()` method #3686
+
+### Changes
+- simplify `UPSERT` queries #3676
+
+### Fixes
+
+
+## 1.97.0
+
+### API-Changes
 - jsonrpc: add function: #3641, #3645, #3653
   - `getChatContacts()`
   - `createGroupChat()`
@@ -33,6 +46,8 @@
   - `stopIo()`
   - `exportBackup()`
   - `importBackup()`
+  - `getMessageHtml()` #3671
+  - `miscGetStickerFolder` and `miscGetStickers` #3672
 - breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListItems()` the latter returns a new `MessageListItem` type, which is the now prefered way of using the message list.
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`

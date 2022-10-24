@@ -4,3 +4,4 @@ export * from "../generated/events.js";
 export { RawClient } from "../generated/client.js";
 export * from "./client.js";
 export * as yerpc from "yerpc";
+export { C } from "../generated/constants.js";

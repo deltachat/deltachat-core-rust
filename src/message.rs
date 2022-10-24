@@ -22,6 +22,7 @@ use crate::imap::markseen_on_imap_table;
 use crate::mimeparser::{parse_message_id, DeliveryReport, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
+use crate::reaction::get_msg_reactions;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::stock_str;
@@ -751,6 +752,11 @@ impl Message {
         self.param.set_int(Param::Duration, duration);
     }
 
+    /// Marks the message as reaction.
+    pub(crate) fn set_reaction(&mut self) {
+        self.param.set_int(Param::Reaction, 1);
+    }
+
     pub async fn latefiling_mediasize(
         &mut self,
         context: &Context,
@@ -1081,6 +1087,11 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
 
     ret += "\n";
+
+    let reactions = get_msg_reactions(context, msg_id).await?;
+    if !reactions.is_empty() {
+        ret += &format!("Reactions: {}\n", reactions);
+    }
 
     if let Some(error) = msg.error.as_ref() {
         ret += &format!("Error: {}", error);

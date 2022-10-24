@@ -11,7 +11,7 @@ use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::param::{Param, Params};
+use crate::param::Params;
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 use std::cmp::max;
@@ -68,42 +68,6 @@ impl Context {
         } else {
             Ok(Some(max(MIN_DOWNLOAD_LIMIT, download_limit as u32)))
         }
-    }
-
-    // Merges the two messages to `placeholder_msg_id`;
-    // `full_msg_id` is no longer used afterwards.
-    pub(crate) async fn merge_messages(
-        &self,
-        full_msg_id: MsgId,
-        placeholder_msg_id: MsgId,
-    ) -> Result<()> {
-        let placeholder = Message::load_from_db(self, placeholder_msg_id).await?;
-        self.sql
-            .transaction(move |transaction| {
-                transaction
-                    .execute("DELETE FROM msgs WHERE id=?;", paramsv![placeholder_msg_id])?;
-                transaction.execute(
-                    "UPDATE msgs SET id=? WHERE id=?",
-                    paramsv![placeholder_msg_id, full_msg_id],
-                )?;
-                Ok(())
-            })
-            .await?;
-        let mut full = Message::load_from_db(self, placeholder_msg_id).await?;
-
-        for key in [
-            Param::WebxdcSummary,
-            Param::WebxdcSummaryTimestamp,
-            Param::WebxdcDocument,
-            Param::WebxdcDocumentTimestamp,
-        ] {
-            if let Some(value) = placeholder.param.get(key) {
-                full.param.set(key, value);
-            }
-        }
-        full.update_param(self).await?;
-
-        Ok(())
     }
 }
 

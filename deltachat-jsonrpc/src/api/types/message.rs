@@ -8,6 +8,7 @@ use deltachat::download;
 use deltachat::message::Message;
 use deltachat::message::MsgId;
 use deltachat::message::Viewtype;
+use deltachat::reaction::get_msg_reactions;
 use num_traits::cast::ToPrimitive;
 use serde::Deserialize;
 use serde::Serialize;
@@ -15,6 +16,7 @@ use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
 use super::contact::ContactObject;
+use super::reactions::JSONRPCReactions;
 use super::webxdc::WebxdcMessageInfo;
 
 #[derive(Serialize, TypeDef)]
@@ -64,6 +66,8 @@ pub struct MessageObject {
     webxdc_info: Option<WebxdcMessageInfo>,
 
     download_state: DownloadState,
+
+    reactions: Option<JSONRPCReactions>,
 }
 
 #[derive(Serialize, TypeDef)]
@@ -139,6 +143,13 @@ impl MessageObject {
             None
         };
 
+        let reactions = get_msg_reactions(context, msg_id).await?;
+        let reactions = if reactions.is_empty() {
+            None
+        } else {
+            Some(reactions.into())
+        };
+
         Ok(MessageObject {
             id: msg_id.to_u32(),
             chat_id: message.get_chat_id().to_u32(),
@@ -193,6 +204,8 @@ impl MessageObject {
             webxdc_info,
 
             download_state,
+
+            reactions,
         })
     }
 }

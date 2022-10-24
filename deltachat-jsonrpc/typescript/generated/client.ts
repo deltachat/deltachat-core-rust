@@ -598,6 +598,11 @@ export class RawClient {
   }
 
 
+  public getMessageHtml(accountId: T.U32, messageId: T.U32): Promise<(string|null)> {
+    return (this._transport.request('get_message_html', [accountId, messageId] as RPC.Params)) as Promise<(string|null)>;
+  }
+
+
   public messageGetMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.Message>> {
     return (this._transport.request('message_get_messages', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.Message>>;
   }
@@ -873,6 +878,18 @@ export class RawClient {
     return (this._transport.request('send_sticker', [accountId, chatId, stickerPath] as RPC.Params)) as Promise<T.U32>;
   }
 
+  /**
+   * Send a reaction to message.
+   *
+   * Reaction is a string of emojis separated by spaces. Reaction to a
+   * single message can be sent multiple times. The last reaction
+   * received overrides all previously received reactions. It is
+   * possible to remove all reactions by sending an empty string.
+   */
+  public sendReaction(accountId: T.U32, messageId: T.U32, reaction: (string)[]): Promise<T.U32> {
+    return (this._transport.request('send_reaction', [accountId, messageId, reaction] as RPC.Params)) as Promise<T.U32>;
+  }
+
 
   public removeDraft(accountId: T.U32, chatId: T.U32): Promise<null> {
     return (this._transport.request('remove_draft', [accountId, chatId] as RPC.Params)) as Promise<null>;
@@ -888,6 +905,19 @@ export class RawClient {
 
   public sendVideochatInvitation(accountId: T.U32, chatId: T.U32): Promise<T.U32> {
     return (this._transport.request('send_videochat_invitation', [accountId, chatId] as RPC.Params)) as Promise<T.U32>;
+  }
+
+
+  public miscGetStickerFolder(accountId: T.U32): Promise<string> {
+    return (this._transport.request('misc_get_sticker_folder', [accountId] as RPC.Params)) as Promise<string>;
+  }
+
+  /**
+   * for desktop, get stickers from stickers folder,
+   * grouped by the folder they are in.
+   */
+  public miscGetStickers(accountId: T.U32): Promise<Record<string,(string)[]>> {
+    return (this._transport.request('misc_get_stickers', [accountId] as RPC.Params)) as Promise<Record<string,(string)[]>>;
   }
 
   /**

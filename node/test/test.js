@@ -89,7 +89,11 @@ describe('JSON RPC', function () {
     const { dc } = DeltaChat.newTemporary()
     let promise_resolve
     const promise = new Promise((res, _rej) => {
-      promise_resolve = res
+      promise_resolve = (response) => {
+        // ignore events
+        const answer = JSON.parse(response)
+        if (answer['method'] !== 'event') res(answer)
+      }
     })
     dc.startJsonRpcHandler(promise_resolve)
     dc.jsonRpcRequest(
@@ -106,7 +110,7 @@ describe('JSON RPC', function () {
         id: 2,
         result: [1],
       },
-      JSON.parse(await promise)
+      await promise
     )
     dc.close()
   })

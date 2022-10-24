@@ -17,6 +17,7 @@ use deltachat::{
     provider::get_provider_info,
     qr,
     qr_code_generator::get_securejoin_qr_svg,
+    reaction::send_reaction,
     securejoin,
     stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
@@ -24,7 +25,7 @@ use deltachat::{
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
-use tokio::sync::RwLock;
+use tokio::{fs, sync::RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
 
@@ -34,7 +35,7 @@ pub mod events;
 pub mod types;
 
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
-use crate::api::types::QrObject;
+use crate::api::types::qr::QrObject;
 
 use types::account::Account;
 use types::chat::FullChat;
@@ -915,6 +916,11 @@ impl CommandApi {
         MessageObject::from_message_id(&ctx, message_id).await
     }
 
+    async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
+        let ctx = self.get_context(account_id).await?;
+        MsgId::new(message_id).get_html(&ctx).await
+    }
+
     async fn message_get_messages(
         &self,
         account_id: u32,
@@ -1461,6 +1467,23 @@ impl CommandApi {
         Ok(message_id.to_u32())
     }
 
+    /// Send a reaction to message.
+    ///
+    /// Reaction is a string of emojis separated by spaces. Reaction to a
+    /// single message can be sent multiple times. The last reaction
+    /// received overrides all previously received reactions. It is
+    /// possible to remove all reactions by sending an empty string.
+    async fn send_reaction(
+        &self,
+        account_id: u32,
+        message_id: u32,
+        reaction: Vec<String>,
+    ) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" ")).await?;
+        Ok(message_id.to_u32())
+    }
+
     // ---------------------------------------------
     //           functions for the composer
     //    the composer is the message input field
@@ -1494,6 +1517,63 @@ impl CommandApi {
     //           misc prototyping functions
     //       that might get removed later again
     // ---------------------------------------------
+
+    async fn misc_get_sticker_folder(&self, account_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let account_folder = ctx
+            .get_dbfile()
+            .parent()
+            .context("account folder not found")?;
+        let sticker_folder_path = account_folder.join("./stickers");
+        fs::create_dir_all(&sticker_folder_path).await?;
+        sticker_folder_path
+            .to_str()
+            .map(|s| s.to_owned())
+            .context("path conversion to string failed")
+    }
+
+    /// for desktop, get stickers from stickers folder,
+    /// grouped by the folder they are in.
+    async fn misc_get_stickers(&self, account_id: u32) -> Result<HashMap<String, Vec<String>>> {
+        let ctx = self.get_context(account_id).await?;
+        let account_folder = ctx
+            .get_dbfile()
+            .parent()
+            .context("account folder not found")?;
+        let sticker_folder_path = account_folder.join("./stickers");
+        fs::create_dir_all(&sticker_folder_path).await?;
+        let mut result = HashMap::new();
+
+        let mut packs = tokio::fs::read_dir(sticker_folder_path).await?;
+        while let Some(entry) = packs.next_entry().await? {
+            if !entry.file_type().await?.is_dir() {
+                continue;
+            }
+            let pack_name = entry.file_name().into_string().unwrap_or_default();
+            let mut stickers = tokio::fs::read_dir(entry.path()).await?;
+            let mut sticker_paths = Vec::new();
+            while let Some(sticker_entry) = stickers.next_entry().await? {
+                if !sticker_entry.file_type().await?.is_file() {
+                    continue;
+                }
+                let sticker_name = sticker_entry.file_name().into_string().unwrap_or_default();
+                if sticker_name.ends_with(".png") || sticker_name.ends_with(".webp") {
+                    sticker_paths.push(
+                        sticker_entry
+                            .path()
+                            .to_str()
+                            .map(|s| s.to_owned())
+                            .context("path conversion to string failed")?,
+                    );
+                }
+            }
+            if !sticker_paths.is_empty() {
+                result.insert(pack_name, sticker_paths);
+            }
+        }
+
+        Ok(result)
+    }
 
     /// Returns the messageid of the sent message
     async fn misc_send_text_message(

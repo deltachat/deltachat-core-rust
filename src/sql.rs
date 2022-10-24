@@ -396,7 +396,7 @@ impl Sql {
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
-    pub async fn count(&self, query: &str, params: impl rusqlite::Params) -> anyhow::Result<usize> {
+    pub async fn count(&self, query: &str, params: impl rusqlite::Params) -> Result<usize> {
         let count: isize = self.query_row(query, params, |row| row.get(0)).await?;
         Ok(usize::try_from(count)?)
     }
@@ -429,10 +429,10 @@ impl Sql {
     ///
     /// If the function returns an error, the transaction will be rolled back. If it does not return an
     /// error, the transaction will be committed.
-    pub async fn transaction<G, H>(&self, callback: G) -> anyhow::Result<H>
+    pub async fn transaction<G, H>(&self, callback: G) -> Result<H>
     where
         H: Send + 'static,
-        G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> anyhow::Result<H>,
+        G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
     {
         let mut conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
@@ -453,7 +453,7 @@ impl Sql {
     }
 
     /// Query the database if the requested table already exists.
-    pub async fn table_exists(&self, name: &str) -> anyhow::Result<bool> {
+    pub async fn table_exists(&self, name: &str) -> Result<bool> {
         let conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
             let mut exists = false;
@@ -468,7 +468,7 @@ impl Sql {
     }
 
     /// Check if a column exists in a given table.
-    pub async fn col_exists(&self, table_name: &str, col_name: &str) -> anyhow::Result<bool> {
+    pub async fn col_exists(&self, table_name: &str, col_name: &str) -> Result<bool> {
         let conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
             let mut exists = false;
@@ -492,7 +492,7 @@ impl Sql {
         sql: &str,
         params: impl rusqlite::Params,
         f: F,
-    ) -> anyhow::Result<Option<T>>
+    ) -> Result<Option<T>>
     where
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
@@ -516,7 +516,7 @@ impl Sql {
         &self,
         query: &str,
         params: impl rusqlite::Params,
-    ) -> anyhow::Result<Option<T>>
+    ) -> Result<Option<T>>
     where
         T: rusqlite::types::FromSql,
     {
