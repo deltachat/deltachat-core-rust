@@ -2,6 +2,7 @@ import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
 import { Event } from "../generated/events.js";
+import { Context } from "../generated/context_methods.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "tiny-emitter";
 
@@ -28,14 +29,14 @@ type ContextEvents = { ALL: (event: Event) => void } & {
 };
 
 export type DcEvent = Event;
-export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>
+export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>;
 
 export class BaseDeltaChat<
   Transport extends BaseTransport<any>
 > extends TinyEmitter<Events> {
   rpc: RawClient;
   account?: T.Account;
-  private contextEmitters: TinyEmitter<ContextEvents>[] = [];
+  private contextEmitters: Context<ContextEvents>[] = [];
   constructor(public transport: Transport) {
     super();
     this.rpc = new RawClient(this.transport);
@@ -62,10 +63,14 @@ export class BaseDeltaChat<
   }
 
   getContextEvents(account_id: number) {
+    return this.getContext(account_id);
+  }
+
+  getContext(account_id: number) {
     if (this.contextEmitters[account_id]) {
       return this.contextEmitters[account_id];
     } else {
-      this.contextEmitters[account_id] = new TinyEmitter();
+      this.contextEmitters[account_id] = new Context(this, account_id);
       return this.contextEmitters[account_id];
     }
   }

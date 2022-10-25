@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### API-Changes
+- jsonrpc: add `Context` class you can get via `getContext` or `getContextEvents`, it is a convinience wrapper that has all account specific functions with the accountId pre-set.
 
 ### Changes
 

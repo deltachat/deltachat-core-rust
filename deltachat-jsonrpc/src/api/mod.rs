@@ -1710,3 +1710,89 @@ async fn get_config(
             .await
     }
 }
+
+#[cfg(test)]
+#[test]
+fn stuff() {
+    let root_namespace = Some("T");
+    let methods: Vec<yerpc::typescript::Method> = raw_ts_binding_methods();
+    let account_methods: Vec<String> = methods
+        .into_iter()
+        .filter_map(|m| {
+            // No idea how to check the type, to lazy to find out
+            // if let Some((name, _)) = m.args.get(0) {
+            //     println!("{}", name);
+            // }
+
+            //println!("-> {}", m.to_string(root_namespace));
+            if m.to_string(root_namespace).contains("accountId: T.U32") {
+                //println!("old: {}", m.to_string(root_namespace));
+
+                let args2 = Vec::from_iter(m.args[1..].iter().map(|m| m.to_owned()));
+
+                let m2 = yerpc::typescript::Method::new(
+                    &m.ts_name,
+                    &m.rpc_name,
+                    args2,
+                    m.output,
+                    m.is_notification,
+                    m.is_positional,
+                    m.docs.as_deref(),
+                );
+
+                let args_string = if m2.args.is_empty() {
+                    "".to_string()
+                } else {
+                    format!(
+                        ", {}",
+                        m2.args
+                            .iter()
+                            .map(|(name, _)| name.as_ref())
+                            .collect::<Vec<&str>>()
+                            .join(", ")
+                    )
+                };
+
+                let replacement_line = format!(
+                    "     return this.controller.rpc.{}(this.accountId{})",
+                    m.ts_name, args_string
+                );
+
+                // println!("{}", m2.to_string(root_namespace));
+                let m_string = m2.to_string(root_namespace);
+                let new_string: String = m_string
+                    .split('\n')
+                    .map(|line| {
+                        if line.contains("this._transport") {
+                            &replacement_line
+                        } else {
+                            line
+                        }
+                    })
+                    .collect::<Vec<&str>>()
+                    .join("\n");
+
+                // println!("new: {}", new_string);
+
+                Some(new_string)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let head = r#"import * as T from "./types.js"
+import { RawClient } from "./client.js"
+import { TinyEmitter } from "tiny-emitter";
+export class Context<T> extends TinyEmitter<T> {
+  constructor(
+    private controller: {rpc: RawClient},
+    readonly accountId: T.U32
+  ){
+    super()
+  }"#;
+
+    let context_methods = format!("{}\n{}\n}}\n", head, account_methods.join(""));
+
+    std::fs::write("typescript/generated/context_methods.ts", context_methods).unwrap();
+}

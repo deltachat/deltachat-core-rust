@@ -18,6 +18,7 @@ async function run() {
 
   const client = new DeltaChat("ws://localhost:20808/ws");
 
+  (window as any).dc = client;
   (window as any).client = client.rpc;
 
   client.on("ALL", (accountId, event) => {
