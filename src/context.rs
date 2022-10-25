@@ -650,7 +650,7 @@ impl Context {
                         ON m.chat_id=c.id
                  WHERE m.chat_id>9
                    AND m.hidden=0
-                   AND c.blocked=0
+                   AND c.blocked!=1
                    AND ct.blocked=0
                    AND m.txt LIKE ?
                  ORDER BY m.id DESC LIMIT 1000",
@@ -703,6 +703,8 @@ mod tests {
     use crate::chat::{
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
+    use crate::chatlist::Chatlist;
+    use crate::constants::Chattype;
     use crate::contact::ContactId;
     use crate::message::{Message, Viewtype};
     use crate::receive_imf::receive_imf;
@@ -1034,6 +1036,59 @@ mod tests {
         // Search in Saved Messages does not find the message.
         let res = alice.search_msgs(Some(self_talk), "foo").await?;
         assert!(res.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_search_unaccepted_requests() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        receive_imf(
+            &t,
+            b"From: BobBar <bob@example.org>\n\
+                 To: alice@example.org\n\
+                 Subject: foo\n\
+                 Message-ID: <msg1234@example.org>\n\
+                 Chat-Version: 1.0\n\
+                 Date: Tue, 25 Oct 2022 13:37:00 +0000\n\
+                 \n\
+                 hello bob, foobar test!\n",
+            false,
+        )
+        .await?;
+        let chat_id = t.get_last_msg().await.get_chat_id();
+        let chat = Chat::load_from_db(&t, chat_id).await?;
+        assert_eq!(chat.get_type(), Chattype::Single);
+        assert!(chat.is_contact_request());
+
+        assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 1);
+        assert_eq!(
+            Chatlist::try_load(&t, 0, Some("BobBar"), None).await?.len(),
+            1
+        );
+        assert_eq!(t.search_msgs(None, "foobar").await?.len(), 1);
+        assert_eq!(t.search_msgs(Some(chat_id), "foobar").await?.len(), 1);
+
+        chat_id.block(&t).await?;
+
+        assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 0);
+        assert_eq!(
+            Chatlist::try_load(&t, 0, Some("BobBar"), None).await?.len(),
+            0
+        );
+        assert_eq!(t.search_msgs(None, "foobar").await?.len(), 0);
+        assert_eq!(t.search_msgs(Some(chat_id), "foobar").await?.len(), 0);
+
+        let contact_ids = get_chat_contacts(&t, chat_id).await?;
+        Contact::unblock(&t, *contact_ids.first().unwrap()).await?;
+
+        assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 1);
+        assert_eq!(
+            Chatlist::try_load(&t, 0, Some("BobBar"), None).await?.len(),
+            1
+        );
+        assert_eq!(t.search_msgs(None, "foobar").await?.len(), 1);
+        assert_eq!(t.search_msgs(Some(chat_id), "foobar").await?.len(), 1);
 
         Ok(())
     }

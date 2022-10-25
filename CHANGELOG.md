@@ -7,6 +7,7 @@
 ### Changes
 
 ### Fixes
+- `dc_search_msgs()` returns unaccepted requests #3694
 
 
 ## 1.98.0
