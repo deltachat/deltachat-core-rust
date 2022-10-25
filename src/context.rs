@@ -650,7 +650,7 @@ impl Context {
                         ON m.chat_id=c.id
                  WHERE m.chat_id>9
                    AND m.hidden=0
-                   AND c.blocked=0
+                   AND (c.blocked=0 OR c.blocked=2)
                    AND ct.blocked=0
                    AND m.txt LIKE ?
                  ORDER BY m.id DESC LIMIT 1000",
