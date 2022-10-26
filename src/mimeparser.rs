@@ -221,6 +221,7 @@ impl MimeMessage {
         let mut gossiped_addr = Default::default();
         let mut from_is_signed = false;
         let mut decryption_info = prepare_decryption(context, &mail, &from, message_time).await?;
+        hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
         // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
