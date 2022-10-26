@@ -4,7 +4,6 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
-use std::time::SystemTime;
 
 use anyhow::Result;
 use mailparse::MailHeaderMap;
@@ -132,23 +131,27 @@ fn remove_comments(header: &str) -> Cow<'_, str> {
 /// Authentication-Results:  gmx.net; dkim=pass header.i=@slack.com
 /// ```
 fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult {
-    if let Some((_start, dkim_to_end)) = header_value.split_once("dkim=") {
-        let dkim_part = dkim_to_end.split(';').next().unwrap_or_default();
-        let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
-        if let Some(&"pass") = dkim_parts.first() {
-            // DKIM headers contain a header.d or header.i field
-            // that says which domain signed. We have to check ourselves
-            // that this is the same domain as in the From header.
-            let header_d: &str = &format!("header.d={}", &from_domain);
-            let header_i: &str = &format!("header.i=@{}", &from_domain);
+    if let Some((before_dkim_part, dkim_to_end)) = header_value.split_once("dkim=") {
+        // Check that the character right before `dkim=` is a space or a tab
+        // so that we wouldn't e.g. mistake `notdkim=pass` for `dkim=pass`
+        if before_dkim_part.ends_with(' ') || before_dkim_part.ends_with('\t') {
+            let dkim_part = dkim_to_end.split(';').next().unwrap_or_default();
+            let dkim_parts: Vec<_> = dkim_part.split_whitespace().collect();
+            if let Some(&"pass") = dkim_parts.first() {
+                // DKIM headers contain a header.d or header.i field
+                // that says which domain signed. We have to check ourselves
+                // that this is the same domain as in the From header.
+                let header_d: &str = &format!("header.d={}", &from_domain);
+                let header_i: &str = &format!("header.i=@{}", &from_domain);
 
-            if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
-                // We have found a `dkim=pass` header!
-                return DkimResult::Passed;
+                if dkim_parts.contains(&header_d) || dkim_parts.contains(&header_i) {
+                    // We have found a `dkim=pass` header!
+                    return DkimResult::Passed;
+                }
+            } else {
+                // dkim=fail, dkim=none, ...
+                return DkimResult::Failed;
             }
-        } else {
-            // dkim=fail, dkim=none, ...
-            return DkimResult::Failed;
         }
     }
 
@@ -387,6 +390,18 @@ Authentication-Results:  gmx.net; dkim=pass header.i=@amazonses.com";
             actual,
             vec![
                 ("gmx.net".to_string(), DkimResult::Passed),
+                ("gmx.net".to_string(), DkimResult::Nothing)
+            ]
+        );
+
+        let bytes = b"Authentication-Results:  gmx.net; notdkim=pass header.i=@slack.com
+Authentication-Results:  gmx.net; notdkim=pass header.i=@amazonses.com";
+        let mail = mailparse::parse_mail(bytes)?;
+        let actual = parse_authres_headers(&mail.get_headers(), "slack.com");
+        assert_eq!(
+            actual,
+            vec![
+                ("gmx.net".to_string(), DkimResult::Nothing),
                 ("gmx.net".to_string(), DkimResult::Nothing)
             ]
         );
