@@ -52,7 +52,7 @@ pub(crate) struct DkimResults {
     pub dkim_passed: bool,
     /// Whether DKIM is known to work for e-mails coming from the sender's domain,
     /// i.e. whether we expect DKIM to work.
-    pub dkim_works: bool,
+    pub dkim_should_work: bool,
     /// Whether changing the public Autocrypt key should be allowed.
     /// This is false if we expected DKIM to work (dkim_works=true),
     /// but it failed now (dkim_passed=false).
@@ -64,7 +64,7 @@ impl fmt::Display for DkimResults {
         write!(
             fmt,
             "DKIM Results: Passed={}, Works={}, Allow_Keychange={}",
-            self.dkim_passed, self.dkim_works, self.allow_keychange
+            self.dkim_passed, self.dkim_should_work, self.allow_keychange
         )?;
         if !self.allow_keychange {
             write!(fmt, " KEYCHANGES NOT ALLOWED!!!!")?;
@@ -273,30 +273,22 @@ async fn compute_dkim_results(
         }
     }
 
-    let mut dkim_works = dkim_works(context, from_domain).await?;
-    if !dkim_works && dkim_passed {
-        set_dkim_works(context, from_domain, message_time).await?;
-        dkim_works = true;
+    let last_working_timestamp = dkim_works_timestamp(context, from_domain).await?;
+    let mut dkim_should_work = dkim_should_work(last_working_timestamp)?;
+    if message_time > last_working_timestamp && dkim_passed {
+        set_dkim_works_timestamp(context, from_domain, message_time).await?;
+        dkim_should_work = true;
     }
 
     Ok(DkimResults {
         dkim_passed,
-        dkim_works,
-        allow_keychange: dkim_passed || !dkim_works,
+        dkim_should_work,
+        allow_keychange: dkim_passed || !dkim_should_work,
     })
 }
 
-/// Whether DKIM in emails from this domain is known to work.
-async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
-    let last_working_timestamp: i64 = context
-        .sql
-        .query_get_value(
-            "SELECT dkim_works FROM sending_domains WHERE domain=?",
-            paramsv![from_domain],
-        )
-        .await?
-        .unwrap_or(0);
-
+/// Whether DKIM in emails from this domain should be considered to work.
+fn dkim_should_work(last_working_timestamp: i64) -> Result<bool> {
     // When we get an email with valid DKIM-Authentication-Results,
     // then we assume that DKIM works for 30 days from this time on.
     let should_work_until = last_working_timestamp + 3600 * 24 * 30;
@@ -312,7 +304,23 @@ async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
     Ok(dkim_ever_worked && dkim_should_work_now)
 }
 
-async fn set_dkim_works(context: &Context, from_domain: &str, timestamp: i64) -> Result<()> {
+async fn dkim_works_timestamp(context: &Context, from_domain: &str) -> Result<i64, anyhow::Error> {
+    let last_working_timestamp: i64 = context
+        .sql
+        .query_get_value(
+            "SELECT dkim_works FROM sending_domains WHERE domain=?",
+            paramsv![from_domain],
+        )
+        .await?
+        .unwrap_or(0);
+    Ok(last_working_timestamp)
+}
+
+async fn set_dkim_works_timestamp(
+    context: &Context,
+    from_domain: &str,
+    timestamp: i64,
+) -> Result<()> {
     context
         .sql
         .execute(
@@ -589,8 +597,11 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 }
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
-                assert_eq!(res.dkim_works, dkim_works(&t, &from_domain).await.unwrap());
-                assert_eq!(res.dkim_passed, res.dkim_works);
+                assert_eq!(
+                    res.dkim_should_work,
+                    dkim_should_work(dkim_works_timestamp(&t, &from_domain).await?)?
+                );
+                assert_eq!(res.dkim_passed, res.dkim_should_work);
 
                 // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail
                 let expected_result = (from_domain != "delta.blinzeln.de") && (from_domain != "gmx.de")
@@ -646,7 +657,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
         // Assume Alice receives an email from bob@example.net with
         // correct DKIM -> `set_dkim_works()` was called
-        set_dkim_works(&alice, "example.net", time()).await?;
+        set_dkim_works_timestamp(&alice, "example.net", time()).await?;
         // And Alice knows her server's authserv-id
         alice
             .set_config(Config::AuthservIdCandidates, Some("example.org"))
