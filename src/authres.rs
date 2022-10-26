@@ -48,8 +48,14 @@ pub(crate) async fn handle_authres(
 
 #[derive(Default, Debug)]
 pub(crate) struct DkimResults {
+    /// Whether DKIM passed for this particular e-mail.
     pub dkim_passed: bool,
+    /// Whether DKIM is known to work for e-mails coming from the sender's domain,
+    /// i.e. whether we expect DKIM to work.
     pub dkim_works: bool,
+    /// Whether changing the public Autocrypt key should be allowed.
+    /// This is false if we expected DKIM to work (dkim_works=true),
+    /// but it failed now (dkim_passed=false).
     pub allow_keychange: bool,
 }
 
@@ -180,9 +186,9 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
 ///
 /// Usually, every incoming email has Authentication-Results  with our server's
 /// authserv-id, so, the intersection of the existing authserv-ids and the incoming
-/// authserv-ids for our server's authserv-id. When this intersection
-/// is empty, we assume that the authserv-id has changed and start over with the
-/// new authserv-ids.
+/// authserv-ids for our server's authserv-id is a good guess for our server's
+/// authserv-id. When this intersection is empty, we assume that the authserv-id has
+/// changed and start over with the new authserv-ids.
 ///
 /// See [`handle_authres`].
 async fn update_authservid_candidates(
