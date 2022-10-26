@@ -113,8 +113,7 @@ impl TestContextManager {
         ));
         let chat = from.create_chat(to).await;
         let sent = from.send_text(chat.id, msg).await;
-        let received_msg = to.recv_msg(&sent).await;
-        received_msg
+        to.recv_msg(&sent).await
     }
 
     pub async fn change_addr(&self, test_context: &TestContext, new_addr: &str) {
