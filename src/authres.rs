@@ -13,7 +13,6 @@ use once_cell::sync::Lazy;
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
-use crate::tools::time;
 use crate::tools::EmailAddress;
 
 /// `authres` is short for the Authentication-Results header, defined in
@@ -273,7 +272,7 @@ async fn compute_dkim_results(
         }
     }
 
-    let mut dkim_works = dkim_works(context, from_domain).await?;
+    let mut dkim_works = dkim_works(context, from_domain, message_time).await?;
     if !dkim_works && dkim_passed {
         set_dkim_works(context, from_domain, message_time).await?;
         dkim_works = true;
@@ -287,7 +286,7 @@ async fn compute_dkim_results(
 }
 
 /// Whether DKIM in emails from this domain is known to work.
-async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
+async fn dkim_works(context: &Context, from_domain: &str, message_time: i64) -> Result<bool> {
     let last_working_timestamp: i64 = context
         .sql
         .query_get_value(
@@ -303,12 +302,7 @@ async fn dkim_works(context: &Context, from_domain: &str) -> Result<bool> {
 
     let dkim_ever_worked = last_working_timestamp > 0;
 
-    // We're using time() here and not the time when the message
-    // claims to have been sent (passed around as `message_time`)
-    // because otherwise an attacker could just put a time way
-    // in the future into the `Date` header and then we would
-    // assume that DKIM doesn't have to be valid anymore.
-    let dkim_should_work_now = should_work_until > time();
+    let dkim_should_work_now = should_work_until > message_time;
     Ok(dkim_ever_worked && dkim_should_work_now)
 }
 
@@ -358,6 +352,7 @@ mod tests {
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
     use crate::tools;
+    use crate::tools::time;
 
     #[test]
     fn test_remove_comments() {
@@ -589,7 +584,10 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 }
 
                 let from_domain = EmailAddress::new(from).unwrap().domain;
-                assert_eq!(res.dkim_works, dkim_works(&t, &from_domain).await.unwrap());
+                assert_eq!(
+                    res.dkim_works,
+                    dkim_works(&t, &from_domain, time()).await.unwrap()
+                );
                 assert_eq!(res.dkim_passed, res.dkim_works);
 
                 // delta.blinzeln.de and gmx.de have invalid DKIM, so the DKIM check should fail

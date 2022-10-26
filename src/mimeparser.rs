@@ -1,5 +1,6 @@
 //! # MIME message parsing module.
 
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
@@ -28,7 +29,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::tools::{get_filemeta, parse_receive_headers, smeared_time, time, truncate_by_lines};
 
 /// A parsed MIME message.
 ///
@@ -173,11 +174,23 @@ impl MimeMessage {
     ) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
-        let message_time = mail
-            .headers
-            .get_header_value(HeaderDef::Date)
+        let rcvd_timestamp = time();
+        let date_header = mail.headers.get_header_value(HeaderDef::Date);
+        let alleged_message_time = date_header
+            .as_ref()
             .and_then(|v| mailparse::dateparse(&v).ok())
             .unwrap_or_default();
+        let message_time = min(alleged_message_time, rcvd_timestamp);
+
+        if message_time != alleged_message_time {
+            info!(
+                context,
+                "Message claims to come from the future ({:?}), using current time ({:?}) instead",
+                date_header,
+                message_time
+            )
+        }
+
         let mut hop_info = parse_receive_headers(&mail.get_headers());
 
         let mut headers = Default::default();
