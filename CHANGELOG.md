@@ -4,6 +4,8 @@
 
 ### API-Changes
 
+- Rust: Introduce a ContextBuilder #3698
+
 ### Changes
 
 ### Fixes
