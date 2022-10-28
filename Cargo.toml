@@ -9,7 +9,7 @@ rust-version = "1.56"
 [profile.dev]
 debug = 0
 panic = 'abort'
-opt-level = 1
+opt-level = 0
 
 [profile.release]
 lto = true
