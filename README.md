@@ -143,4 +143,4 @@ or its language bindings:
 - [Telepathy](https://code.ur.gs/lupine/telepathy-padfoot/)
 - several **Bots**
 
-[^1]: out of date / unmaintained, If you like those languages feel free to start maintining them, If you got questions we'll help you, just ask in the issues.
+[^1]: out of date / unmaintained, If you like those languages feel free to start maintining them, If you have questions we'll help you, please ask in the issues.
