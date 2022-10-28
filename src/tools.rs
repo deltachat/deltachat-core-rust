@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Error, Result};
 use chrono::{Local, TimeZone};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
@@ -495,6 +495,13 @@ pub fn open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
+pub async fn read_dir(path: &Path) -> Result<Vec<fs::DirEntry>> {
+    let res = tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(path).await?)
+        .try_collect()
+        .await?;
+    Ok(res)
+}
+
 pub(crate) fn time() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -715,7 +722,9 @@ hi
 Message-ID: 2dfdbde7@example.org
 
 Hop: From: localhost; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:22 +0000
-Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000";
+Hop: From: hq5.merlinux.eu; By: hq5.merlinux.eu; Date: Sat, 14 Sep 2019 17:00:25 +0000
+
+DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         check_parse_receive_headers_integration(raw, expected).await;
 
         let raw = include_bytes!("../test-data/message/encrypted_with_received_headers.eml");
@@ -732,7 +741,9 @@ Message-ID: Mr.adQpEwndXLH.LPDdlFVJ7wG@example.net
 
 Hop: From: [127.0.0.1]; By: mail.example.org; Date: Mon, 27 Dec 2021 11:21:21 +0000
 Hop: From: mout.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000
-Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000";
+Hop: From: hq5.example.org; By: hq5.example.org; Date: Mon, 27 Dec 2021 11:21:22 +0000
+
+DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         check_parse_receive_headers_integration(raw, expected).await;
     }
 

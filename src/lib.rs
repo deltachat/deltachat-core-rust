@@ -93,6 +93,7 @@ mod update_helper;
 pub mod webxdc;
 #[macro_use]
 mod dehtml;
+mod authres;
 mod color;
 pub mod html;
 pub mod plaintext;

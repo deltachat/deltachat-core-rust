@@ -66,6 +66,9 @@
 
 
 ### Changes
+- Look at Authentication-Results. Don't accept Autocrypt key changes
+  if they come with negative authentiation results while this contact
+  sent emails with positive authentication results in the past. #3583
 - jsonrpc in cffi also sends events now #3662
 - jsonrpc: new format for events and better typescript autocompletion
 - Join all "[migration] vXX" log messages into one

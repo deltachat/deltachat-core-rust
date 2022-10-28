@@ -74,6 +74,14 @@ impl TestContextManager {
             .await
     }
 
+    /// Creates a new unconfigured test account.
+    pub async fn unconfigured(&mut self) -> TestContext {
+        TestContext::builder()
+            .with_log_sink(self.log_tx.clone())
+            .build()
+            .await
+    }
+
     /// Writes info events to the log that mark a section, e.g.:
     ///
     /// ========== `msg` goes here ==========
@@ -89,19 +97,23 @@ impl TestContextManager {
     /// - Let the other TestContext receive it and accept the chat
     /// - Assert that the message arrived
     pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
+        let received_msg = self.try_send_recv(from, to, msg).await;
+        assert_eq!(received_msg.text.as_ref().unwrap(), msg);
+        received_msg.chat_id.accept(to).await.unwrap();
+    }
+
+    /// - Let one TestContext send a message
+    /// - Let the other TestContext receive it
+    pub async fn try_send_recv(&self, from: &TestContext, to: &TestContext, msg: &str) -> Message {
         self.section(&format!(
             "{} sends a message '{}' to {}",
             from.name(),
             msg,
             to.name()
         ));
-
         let chat = from.create_chat(to).await;
         let sent = from.send_text(chat.id, msg).await;
-
-        let received_msg = to.recv_msg(&sent).await;
-        received_msg.chat_id.accept(to).await.unwrap();
-        assert_eq!(received_msg.text.unwrap(), msg);
+        to.recv_msg(&sent).await
     }
 
     pub async fn change_addr(&self, test_context: &TestContext, new_addr: &str) {
@@ -369,6 +381,12 @@ impl TestContext {
     ///
     /// Panics if there is no message or on any error.
     pub async fn pop_sent_msg(&self) -> SentMessage {
+        self.pop_sent_msg_opt(Duration::from_secs(3))
+            .await
+            .expect("no sent message found in jobs table")
+    }
+
+    pub async fn pop_sent_msg_opt(&self, timeout: Duration) -> Option<SentMessage> {
         let start = Instant::now();
         let (rowid, msg_id, payload, recipients) = loop {
             let row = self
@@ -393,25 +411,25 @@ impl TestContext {
             if let Some(row) = row {
                 break row;
             }
-            if start.elapsed() < Duration::from_secs(3) {
+            if start.elapsed() < timeout {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             } else {
-                panic!("no sent message found in jobs table");
+                return None;
             }
         };
         self.ctx
             .sql
-            .execute("DELETE FROM jobs WHERE id=?;", paramsv![rowid])
+            .execute("DELETE FROM smtp WHERE id=?;", paramsv![rowid])
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
             .await
             .expect("failed to update message state");
-        SentMessage {
+        Some(SentMessage {
             payload,
             sender_msg_id: msg_id,
             recipients,
-        }
+        })
     }
 
     /// Parses a message.
@@ -725,7 +743,7 @@ impl Drop for LogSink {
 /// passed through a SMTP-IMAP pipeline.
 #[derive(Debug, Clone)]
 pub struct SentMessage {
-    payload: String,
+    pub payload: String,
     recipients: String,
     pub sender_msg_id: MsgId,
 }

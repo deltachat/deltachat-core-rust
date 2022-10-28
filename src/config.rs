@@ -184,6 +184,12 @@ pub enum Config {
     /// In a future versions, this switch may be removed.
     #[strum(props(default = "0"))]
     SendSyncMsgs,
+
+    /// Space-separated list of all the authserv-ids which we believe
+    /// may be the one of our email server.
+    ///
+    /// See `crate::authres::update_authservid_candidates`.
+    AuthservIdCandidates,
 }
 
 impl Context {

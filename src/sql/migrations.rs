@@ -609,6 +609,13 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
             92
         ).await?;
     }
+    if dbversion < 93 {
+        sql.execute_migration(
+            "CREATE TABLE sending_domains(domain TEXT PRIMARY KEY, dkim_works INTEGER DEFAULT 0);",
+            93,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)

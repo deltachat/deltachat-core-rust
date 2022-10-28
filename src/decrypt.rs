@@ -4,12 +4,13 @@ use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
 use mailparse::ParsedMail;
+use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
+use crate::authres;
+use crate::authres::handle_authres;
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::headerdef::HeaderDef;
-use crate::headerdef::HeaderDefMap;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
@@ -55,35 +56,43 @@ pub async fn try_decrypt(
     .await
 }
 
-pub async fn create_decryption_info(
+pub async fn prepare_decryption(
     context: &Context,
     mail: &ParsedMail<'_>,
+    from: &[SingleInfo],
     message_time: i64,
 ) -> Result<DecryptionInfo> {
-    let from = mail
-        .headers
-        .get_header(HeaderDef::From_)
-        .and_then(|from_addr| mailparse::addrparse_header(from_addr).ok())
-        .and_then(|from| from.extract_single_info())
-        .map(|from| from.addr)
-        .unwrap_or_default();
+    let from = if let Some(f) = from.first() {
+        &f.addr
+    } else {
+        return Ok(DecryptionInfo::default());
+    };
 
-    let autocrypt_header = Aheader::from_headers(&from, &mail.headers)
+    let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
 
-    let peerstate =
-        get_autocrypt_peerstate(context, &from, autocrypt_header.as_ref(), message_time).await?;
+    let dkim_results = handle_authres(context, mail, from, message_time).await?;
+
+    let peerstate = get_autocrypt_peerstate(
+        context,
+        from,
+        autocrypt_header.as_ref(),
+        message_time,
+        dkim_results.allow_keychange,
+    )
+    .await?;
 
     Ok(DecryptionInfo {
-        from,
+        from: from.to_string(),
         autocrypt_header,
         peerstate,
         message_time,
+        dkim_results,
     })
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct DecryptionInfo {
     /// The From address. This is the address from the unnencrypted, outer
     /// From header.
@@ -96,6 +105,7 @@ pub struct DecryptionInfo {
     /// means out-of-order message arrival, We don't modify the
     /// peerstate in this case.
     pub message_time: i64,
+    pub(crate) dkim_results: authres::DkimResults,
 }
 
 /// Returns a reference to the encrypted payload of a ["Mixed
@@ -263,12 +273,16 @@ fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublic
 /// If we already know this fingerprint from another contact's peerstate, return that
 /// peerstate in order to make AEAP work, but don't save it into the db yet.
 ///
+/// The param `allow_change` is used to prevent the autocrypt key from being changed
+/// if we suspect that the message may be forged and have a spoofed sender identity.
+///
 /// Returns updated peerstate.
 pub(crate) async fn get_autocrypt_peerstate(
     context: &Context,
     from: &str,
     autocrypt_header: Option<&Aheader>,
     message_time: i64,
+    allow_change: bool,
 ) -> Result<Option<Peerstate>> {
     let mut peerstate;
 
@@ -289,8 +303,15 @@ pub(crate) async fn get_autocrypt_peerstate(
 
         if let Some(ref mut peerstate) = peerstate {
             if addr_cmp(&peerstate.addr, from) {
-                peerstate.apply_header(header, message_time);
-                peerstate.save_to_db(&context.sql, false).await?;
+                if allow_change {
+                    peerstate.apply_header(header, message_time);
+                    peerstate.save_to_db(&context.sql, false).await?;
+                } else {
+                    info!(
+                        context,
+                        "Refusing to update existing peerstate of {}", &peerstate.addr
+                    );
+                }
             }
             // If `peerstate.addr` and `from` differ, this means that
             // someone is using the same key but a different addr, probably
