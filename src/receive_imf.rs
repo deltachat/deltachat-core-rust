@@ -173,10 +173,13 @@ pub(crate) async fn receive_imf_inner(
     .await?;
 
     let rcvd_timestamp = smeared_time(context).await;
+
+    // Sender timestamp is allowed to be a bit in the future due to
+    // unsynchronized clocks, but not too much.
     let sent_timestamp = mime_parser
         .get_header(HeaderDef::Date)
         .and_then(|value| mailparse::dateparse(value).ok())
-        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp));
+        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
 
     // Add parts
     let received_msg = add_parts(
