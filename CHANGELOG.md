@@ -34,6 +34,7 @@
 
 ### Fixes
 - `dc_search_msgs()` returns unaccepted requests #3694
+- emit "contacts changed" event when the contact is no longer "seen recently" #3703
 
 
 ## 1.98.0

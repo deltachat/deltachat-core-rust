@@ -5,6 +5,7 @@ use futures_lite::FutureExt;
 use tokio::task;
 
 use crate::config::Config;
+use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
@@ -35,6 +36,8 @@ pub(crate) struct Scheduler {
     ephemeral_interrupt_send: Sender<()>,
     location_handle: task::JoinHandle<()>,
     location_interrupt_send: Sender<()>,
+
+    recently_seen_loop: RecentlySeenLoop,
 }
 
 impl Context {
@@ -77,6 +80,12 @@ impl Context {
     pub(crate) async fn interrupt_location(&self) {
         if let Some(scheduler) = &*self.scheduler.read().await {
             scheduler.interrupt_location();
+        }
+    }
+
+    pub(crate) async fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            scheduler.interrupt_recently_seen(contact_id, timestamp);
         }
     }
 }
@@ -472,6 +481,8 @@ impl Scheduler {
             })
         };
 
+        let recently_seen_loop = RecentlySeenLoop::new(ctx.clone());
+
         let res = Self {
             inbox,
             mvbox,
@@ -485,6 +496,7 @@ impl Scheduler {
             ephemeral_interrupt_send,
             location_handle,
             location_interrupt_send,
+            recently_seen_loop,
         };
 
         // wait for all loops to be started
@@ -539,6 +551,10 @@ impl Scheduler {
         self.location_interrupt_send.try_send(()).ok();
     }
 
+    fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
+        self.recently_seen_loop.interrupt(contact_id, timestamp);
+    }
+
     /// Halt the scheduler.
     ///
     /// It consumes the scheduler and never fails to stop it. In the worst case, long-running tasks
@@ -574,6 +590,7 @@ impl Scheduler {
             .ok_or_log(context);
         self.ephemeral_handle.abort();
         self.location_handle.abort();
+        self.recently_seen_loop.abort();
     }
 }
 

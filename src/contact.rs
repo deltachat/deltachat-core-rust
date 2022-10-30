@@ -1,14 +1,20 @@
 //! Contacts module
 
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context as _, Result};
+use async_channel::{self as channel, Receiver, Sender};
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tokio::task;
+use tokio::time::{timeout, Duration};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -24,7 +30,7 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
-use crate::tools::{get_abs_path, improve_single_line_input, time, EmailAddress};
+use crate::tools::{duration_to_str, get_abs_path, improve_single_line_input, time, EmailAddress};
 use crate::{chat, stock_str};
 
 /// Time during which a contact is considered as seen recently.
@@ -1370,13 +1376,17 @@ pub(crate) async fn update_last_seen(
         "Can not update special contact last seen timestamp"
     );
 
-    context
+    if context
         .sql
         .execute(
             "UPDATE contacts SET last_seen = ?1 WHERE last_seen < ?1 AND id = ?2",
             paramsv![timestamp, contact_id],
         )
-        .await?;
+        .await?
+        > 0
+    {
+        context.interrupt_recently_seen(contact_id, timestamp).await;
+    }
     Ok(())
 }
 
@@ -1441,6 +1451,121 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
             Some((*name, *addr))
         })
         .collect()
+}
+
+#[derive(Debug)]
+pub(crate) struct RecentlySeenInterrupt {
+    contact_id: ContactId,
+    timestamp: i64,
+}
+
+#[derive(Debug)]
+pub(crate) struct RecentlySeenLoop {
+    /// Task running "recently seen" loop.
+    handle: task::JoinHandle<()>,
+
+    interrupt_send: Sender<RecentlySeenInterrupt>,
+}
+
+impl RecentlySeenLoop {
+    pub(crate) fn new(context: Context) -> Self {
+        let (interrupt_send, interrupt_recv) = channel::bounded(1);
+
+        let handle = task::spawn(async move { Self::run(context, interrupt_recv).await });
+        Self {
+            handle,
+            interrupt_send,
+        }
+    }
+
+    async fn run(context: Context, interrupt: Receiver<RecentlySeenInterrupt>) {
+        type MyHeapElem = (Reverse<i64>, ContactId);
+
+        // Priority contains all recently seen sorted by the timestamp
+        // when they become not recently seen.
+        //
+        // Initialize with contacts which are currently seen, but will
+        // become unseen in the future.
+        let mut unseen_queue: BinaryHeap<MyHeapElem> = context
+            .sql
+            .query_map(
+                "SELECT id, last_seen FROM contacts
+                 WHERE last_seen > ?",
+                paramsv![time() - SEEN_RECENTLY_SECONDS],
+                |row| {
+                    let contact_id: ContactId = row.get("id")?;
+                    let last_seen: i64 = row.get("last_seen")?;
+                    Ok((Reverse(last_seen + SEEN_RECENTLY_SECONDS), contact_id))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<BinaryHeap<MyHeapElem>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+            .unwrap_or_default();
+
+        loop {
+            let now = SystemTime::now();
+
+            let (until, contact_id) =
+                if let Some((Reverse(timestamp), contact_id)) = unseen_queue.peek() {
+                    (
+                        UNIX_EPOCH
+                            + Duration::from_secs((*timestamp).try_into().unwrap_or(u64::MAX))
+                            + Duration::from_secs(1),
+                        Some(contact_id),
+                    )
+                } else {
+                    // Sleep for 24 hours.
+                    (now + Duration::from_secs(86400), None)
+                };
+
+            if let Ok(duration) = until.duration_since(now) {
+                info!(
+                    context,
+                    "Recently seen loop waiting for {} or interupt",
+                    duration_to_str(duration)
+                );
+
+                match timeout(duration, interrupt.recv()).await {
+                    Err(_) => {
+                        // Timeout, notify about contact.
+                        if let Some(contact_id) = contact_id {
+                            context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
+                            unseen_queue.pop();
+                        }
+                    }
+                    Ok(Err(err)) => {
+                        warn!(
+                            context,
+                            "Error receiving an interruption in recently seen loop: {}", err
+                        );
+                    }
+                    Ok(Ok(RecentlySeenInterrupt {
+                        contact_id,
+                        timestamp,
+                    })) => {
+                        // Received an interrupt.
+                        unseen_queue.push((Reverse(timestamp + SEEN_RECENTLY_SECONDS), contact_id));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn interrupt(&self, contact_id: ContactId, timestamp: i64) {
+        self.interrupt_send
+            .try_send(RecentlySeenInterrupt {
+                contact_id,
+                timestamp,
+            })
+            .ok();
+    }
+
+    pub(crate) fn abort(self) {
+        self.handle.abort();
+    }
 }
 
 #[cfg(test)]
