@@ -81,7 +81,7 @@ impl FullChat {
             false
         };
 
-        let mailing_list_address = chat.get_mailinglist_addr().map(|s|s.to_string());
+        let mailing_list_address = chat.get_mailinglist_addr().map(|s| s.to_string());
 
         Ok(FullChat {
             id: chat_id,
