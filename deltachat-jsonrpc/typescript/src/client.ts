@@ -92,3 +92,34 @@ export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
     this.opts = opts;
   }
 }
+
+export class StdioDeltaChat extends BaseDeltaChat<StdioTransport> {
+  close() {}
+  constructor(input: any, output: any) {
+    const transport = new StdioTransport(input, output);
+    super(transport);
+  }
+}
+
+export class StdioTransport extends BaseTransport {
+  constructor(public input: any, public output: any) {
+    super();
+
+    var buffer = "";
+    this.output.on("data", (data: any) => {
+      buffer += data.toString();
+      while (buffer.includes("\n")) {
+        const n = buffer.indexOf("\n");
+        const line = buffer.substring(0, n);
+        const message = JSON.parse(line);
+        this._onmessage(message);
+        buffer = buffer.substring(n + 1);
+      }
+    });
+  }
+
+  _send(message: RPC.Message): void {
+    const serialized = JSON.stringify(message);
+    this.input.write(serialized + "\n");
+  }
+}

@@ -5,6 +5,7 @@
 ### API-Changes
 
 ### Changes
+- add JSON-RPC stdio server `deltachat-rpc-server` and use it for JSON-RPC tests #3695
 
 ### Fixes
 

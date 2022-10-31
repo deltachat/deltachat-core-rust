@@ -1,38 +1,37 @@
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { mkdtemp, rm } from "fs/promises";
-import { existsSync } from "fs";
 import { spawn, exec } from "child_process";
 import fetch from "node-fetch";
-
-export const RPC_SERVER_PORT = 20808;
+import { Readable, Writable } from "node:stream";
 
 export type RpcServerHandle = {
-  url: string,
-  close: () => Promise<void>
-}
+  stdin: Writable;
+  stdout: Readable;
+  close: () => Promise<void>;
+};
 
-export async function startServer(port: number = RPC_SERVER_PORT): Promise<RpcServerHandle> {
+export async function startServer(): Promise<RpcServerHandle> {
   const tmpDir = await mkdtemp(join(tmpdir(), "deltachat-jsonrpc-test"));
 
-  const pathToServerBinary = resolve(join(await getTargetDir(), "debug/deltachat-jsonrpc-server"));
-  console.log('using server binary: ' + pathToServerBinary);
-
-  if (!existsSync(pathToServerBinary)) {
-    throw new Error(
-      "server executable does not exist, you need to build it first" +
-        "\nserver executable not found at " +
-        pathToServerBinary
-    );
-  }
+  const pathToServerBinary = resolve(
+    join(await getTargetDir(), "debug/deltachat-rpc-server")
+  );
 
   const server = spawn(pathToServerBinary, {
     cwd: tmpDir,
     env: {
       RUST_LOG: process.env.RUST_LOG || "info",
-      DC_PORT: '' + port,
-      RUST_MIN_STACK: "8388608"
+      RUST_MIN_STACK: "8388608",
     },
+  });
+
+  server.on("error", (err) => {
+    throw new Error(
+      "Failed to start server executable " +
+        pathToServerBinary +
+        ", make sure you built it first."
+    );
   });
   let shouldClose = false;
 
@@ -44,12 +43,10 @@ export async function startServer(port: number = RPC_SERVER_PORT): Promise<RpcSe
   });
 
   server.stderr.pipe(process.stderr);
-  server.stdout.pipe(process.stdout)
-
-  const url = `ws://localhost:${port}/ws`
 
   return {
-    url,
+    stdin: server.stdin,
+    stdout: server.stdout,
     close: async () => {
       shouldClose = true;
       if (!server.kill()) {

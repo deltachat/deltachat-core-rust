@@ -987,6 +987,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "deltachat-rpc-server"
+version = "1.98.0"
+dependencies = [
+ "anyhow",
+ "deltachat-jsonrpc",
+ "env_logger 0.9.1",
+ "futures-lite",
+ "log",
+ "serde",
+ "serde_json",
+ "tokio",
+ "yerpc",
+]
+
+[[package]]
 name = "deltachat_derive"
 version = "2.0.0"
 dependencies = [

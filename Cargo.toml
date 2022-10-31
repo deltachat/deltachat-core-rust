@@ -98,7 +98,8 @@ tokio = { version = "1", features = ["parking_lot", "rt-multi-thread", "macros"]
 members = [
   "deltachat-ffi",
   "deltachat_derive",
-  "deltachat-jsonrpc"
+  "deltachat-jsonrpc",
+  "deltachat-rpc-server"
 ]
 
 [[example]]

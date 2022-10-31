@@ -63,8 +63,13 @@ def main():
     parser = ArgumentParser(prog="set_core_version")
     parser.add_argument("newversion")
 
-    toml_list = ["Cargo.toml", "deltachat-ffi/Cargo.toml",  "deltachat-jsonrpc/Cargo.toml"]
     json_list = ["package.json",  "deltachat-jsonrpc/typescript/package.json"]
+    toml_list = [
+        "Cargo.toml",
+        "deltachat-ffi/Cargo.toml",
+        "deltachat-jsonrpc/Cargo.toml",
+        "deltachat-rpc-server/Cargo.toml",
+    ]
     try:
         opts = parser.parse_args()
     except SystemExit:

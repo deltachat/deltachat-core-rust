@@ -1,5 +1,5 @@
 import { assert, expect } from "chai";
-import { DeltaChat, DcEvent } from "../deltachat.js";
+import { StdioDeltaChat as DeltaChat, DcEvent } from "../deltachat.js";
 import { RpcServerHandle, createTempUser, startServer } from "./test_base.js";
 
 const EVENT_TIMEOUT = 20000;
@@ -27,7 +27,7 @@ describe("online tests", function () {
       this.skip();
     }
     serverHandle = await startServer();
-    dc = new DeltaChat(serverHandle.url);
+    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout);
 
     dc.on("ALL", (contextId, { type }) => {
       if (type !== "Info") console.log(contextId, type);
