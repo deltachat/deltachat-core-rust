@@ -400,12 +400,12 @@ impl CommandApi {
     //  autocrypt
     // ---------------------------------------------
 
-    async fn autocrypt_initiate_key_transfer(&self, account_id: u32) -> Result<String> {
+    async fn initiate_autocrypt_key_transfer(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         deltachat::imex::initiate_key_transfer(&ctx).await
     }
 
-    async fn autocrypt_continue_key_transfer(
+    async fn continue_autocrypt_key_transfer(
         &self,
         account_id: u32,
         message_id: u32,
@@ -472,11 +472,7 @@ impl CommandApi {
     //  chat
     // ---------------------------------------------
 
-    async fn chatlist_get_full_chat_by_id(
-        &self,
-        account_id: u32,
-        chat_id: u32,
-    ) -> Result<FullChat> {
+    async fn get_full_chat_by_id(&self, account_id: u32, chat_id: u32) -> Result<FullChat> {
         let ctx = self.get_context(account_id).await?;
         FullChat::try_from_dc_chat_id(&ctx, chat_id).await
     }
@@ -911,7 +907,7 @@ impl CommandApi {
             .collect::<Vec<JSONRPCMessageListItem>>())
     }
 
-    async fn message_get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
+    async fn get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
         let ctx = self.get_context(account_id).await?;
         MessageObject::from_message_id(&ctx, message_id).await
     }
@@ -921,7 +917,7 @@ impl CommandApi {
         MsgId::new(message_id).get_html(&ctx).await
     }
 
-    async fn message_get_messages(
+    async fn get_messages(
         &self,
         account_id: u32,
         message_ids: Vec<u32>,
@@ -938,7 +934,7 @@ impl CommandApi {
     }
 
     /// Fetch info desktop needs for creating a notification for a message
-    async fn message_get_notification_info(
+    async fn get_message_notification_info(
         &self,
         account_id: u32,
         message_id: u32,
@@ -1029,11 +1025,7 @@ impl CommandApi {
     // ---------------------------------------------
 
     /// Get a single contact options by ID.
-    async fn contacts_get_contact(
-        &self,
-        account_id: u32,
-        contact_id: u32,
-    ) -> Result<ContactObject> {
+    async fn get_contact(&self, account_id: u32, contact_id: u32) -> Result<ContactObject> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
@@ -1047,7 +1039,7 @@ impl CommandApi {
     /// Add a single contact as a result of an explicit user action.
     ///
     /// Returns contact id of the created or existing contact
-    async fn contacts_create_contact(
+    async fn create_contact(
         &self,
         account_id: u32,
         email: String,
@@ -1064,11 +1056,7 @@ impl CommandApi {
     }
 
     /// Returns contact id of the created or existing DM chat with that contact
-    async fn contacts_create_chat_by_contact_id(
-        &self,
-        account_id: u32,
-        contact_id: u32,
-    ) -> Result<u32> {
+    async fn create_chat_by_contact_id(&self, account_id: u32, contact_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let contact = Contact::get_by_id(&ctx, ContactId::new(contact_id)).await?;
         ChatId::create_for_contact(&ctx, contact.id)
@@ -1076,17 +1064,17 @@ impl CommandApi {
             .map(|id| id.to_u32())
     }
 
-    async fn contacts_block(&self, account_id: u32, contact_id: u32) -> Result<()> {
+    async fn block_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         Contact::block(&ctx, ContactId::new(contact_id)).await
     }
 
-    async fn contacts_unblock(&self, account_id: u32, contact_id: u32) -> Result<()> {
+    async fn unblock_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         Contact::unblock(&ctx, ContactId::new(contact_id)).await
     }
 
-    async fn contacts_get_blocked(&self, account_id: u32) -> Result<Vec<ContactObject>> {
+    async fn get_blocked_contacts(&self, account_id: u32) -> Result<Vec<ContactObject>> {
         let ctx = self.get_context(account_id).await?;
         let blocked_ids = Contact::get_all_blocked(&ctx).await?;
         let mut contacts: Vec<ContactObject> = Vec::with_capacity(blocked_ids.len());
@@ -1102,7 +1090,7 @@ impl CommandApi {
         Ok(contacts)
     }
 
-    async fn contacts_get_contact_ids(
+    async fn get_contact_ids(
         &self,
         account_id: u32,
         list_flags: u32,
@@ -1115,7 +1103,7 @@ impl CommandApi {
 
     /// Get a list of contacts.
     /// (formerly called getContacts2 in desktop)
-    async fn contacts_get_contacts(
+    async fn get_contacts(
         &self,
         account_id: u32,
         list_flags: u32,
@@ -1136,7 +1124,7 @@ impl CommandApi {
         Ok(contacts)
     }
 
-    async fn contacts_get_contacts_by_ids(
+    async fn get_contacts_by_ids(
         &self,
         account_id: u32,
         ids: Vec<u32>,
@@ -1219,7 +1207,7 @@ impl CommandApi {
     ///
     /// Setting `chat_id` to `None` (`null` in typescript) means get messages with media
     /// from any chat of the currently used account.
-    async fn chat_get_media(
+    async fn get_chat_media(
         &self,
         account_id: u32,
         chat_id: Option<u32>,
@@ -1247,7 +1235,7 @@ impl CommandApi {
     ///
     /// one combined call for getting chat::get_next_media for both directions
     /// the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
-    async fn chat_get_neighboring_media(
+    async fn get_neighboring_chat_media(
         &self,
         account_id: u32,
         msg_id: u32,
@@ -1399,7 +1387,7 @@ impl CommandApi {
     //                   webxdc
     // ---------------------------------------------
 
-    async fn webxdc_send_status_update(
+    async fn send_webxdc_status_update(
         &self,
         account_id: u32,
         instance_msg_id: u32,
@@ -1411,7 +1399,7 @@ impl CommandApi {
             .await
     }
 
-    async fn webxdc_get_status_updates(
+    async fn get_webxdc_status_updates(
         &self,
         account_id: u32,
         instance_msg_id: u32,
@@ -1426,7 +1414,7 @@ impl CommandApi {
     }
 
     /// Get info from a webxdc message
-    async fn message_get_webxdc_info(
+    async fn get_webxdc_info(
         &self,
         account_id: u32,
         instance_msg_id: u32,
@@ -1579,8 +1567,8 @@ impl CommandApi {
     async fn misc_send_text_message(
         &self,
         account_id: u32,
-        text: String,
         chat_id: u32,
+        text: String,
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
 

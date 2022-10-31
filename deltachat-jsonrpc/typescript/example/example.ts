@@ -68,7 +68,7 @@ async function run() {
       null
     );
     for (const [chatId, _messageId] of chats) {
-      const chat = await client.rpc.chatlistGetFullChatById(
+      const chat = await client.rpc.getFullChatById(
         selectedAccount,
         chatId
       );
@@ -78,7 +78,7 @@ async function run() {
         chatId,
         0
       );
-      const messages = await client.rpc.messageGetMessages(
+      const messages = await client.rpc.getMessages(
         selectedAccount,
         messageIds
       );

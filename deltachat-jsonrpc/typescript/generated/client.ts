@@ -232,13 +232,13 @@ export class RawClient {
   }
 
 
-  public autocryptInitiateKeyTransfer(accountId: T.U32): Promise<string> {
-    return (this._transport.request('autocrypt_initiate_key_transfer', [accountId] as RPC.Params)) as Promise<string>;
+  public initiateAutocryptKeyTransfer(accountId: T.U32): Promise<string> {
+    return (this._transport.request('initiate_autocrypt_key_transfer', [accountId] as RPC.Params)) as Promise<string>;
   }
 
 
-  public autocryptContinueKeyTransfer(accountId: T.U32, messageId: T.U32, setupCode: string): Promise<null> {
-    return (this._transport.request('autocrypt_continue_key_transfer', [accountId, messageId, setupCode] as RPC.Params)) as Promise<null>;
+  public continueAutocryptKeyTransfer(accountId: T.U32, messageId: T.U32, setupCode: string): Promise<null> {
+    return (this._transport.request('continue_autocrypt_key_transfer', [accountId, messageId, setupCode] as RPC.Params)) as Promise<null>;
   }
 
 
@@ -252,8 +252,8 @@ export class RawClient {
   }
 
 
-  public chatlistGetFullChatById(accountId: T.U32, chatId: T.U32): Promise<T.FullChat> {
-    return (this._transport.request('chatlist_get_full_chat_by_id', [accountId, chatId] as RPC.Params)) as Promise<T.FullChat>;
+  public getFullChatById(accountId: T.U32, chatId: T.U32): Promise<T.FullChat> {
+    return (this._transport.request('get_full_chat_by_id', [accountId, chatId] as RPC.Params)) as Promise<T.FullChat>;
   }
 
   /**
@@ -593,8 +593,8 @@ export class RawClient {
   }
 
 
-  public messageGetMessage(accountId: T.U32, messageId: T.U32): Promise<T.Message> {
-    return (this._transport.request('message_get_message', [accountId, messageId] as RPC.Params)) as Promise<T.Message>;
+  public getMessage(accountId: T.U32, messageId: T.U32): Promise<T.Message> {
+    return (this._transport.request('get_message', [accountId, messageId] as RPC.Params)) as Promise<T.Message>;
   }
 
 
@@ -603,15 +603,15 @@ export class RawClient {
   }
 
 
-  public messageGetMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.Message>> {
-    return (this._transport.request('message_get_messages', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.Message>>;
+  public getMessages(accountId: T.U32, messageIds: (T.U32)[]): Promise<Record<T.U32,T.Message>> {
+    return (this._transport.request('get_messages', [accountId, messageIds] as RPC.Params)) as Promise<Record<T.U32,T.Message>>;
   }
 
   /**
    * Fetch info desktop needs for creating a notification for a message
    */
-  public messageGetNotificationInfo(accountId: T.U32, messageId: T.U32): Promise<T.MessageNotificationInfo> {
-    return (this._transport.request('message_get_notification_info', [accountId, messageId] as RPC.Params)) as Promise<T.MessageNotificationInfo>;
+  public getMessageNotificationInfo(accountId: T.U32, messageId: T.U32): Promise<T.MessageNotificationInfo> {
+    return (this._transport.request('get_message_notification_info', [accountId, messageId] as RPC.Params)) as Promise<T.MessageNotificationInfo>;
   }
 
   /**
@@ -676,8 +676,8 @@ export class RawClient {
   /**
    * Get a single contact options by ID.
    */
-  public contactsGetContact(accountId: T.U32, contactId: T.U32): Promise<T.Contact> {
-    return (this._transport.request('contacts_get_contact', [accountId, contactId] as RPC.Params)) as Promise<T.Contact>;
+  public getContact(accountId: T.U32, contactId: T.U32): Promise<T.Contact> {
+    return (this._transport.request('get_contact', [accountId, contactId] as RPC.Params)) as Promise<T.Contact>;
   }
 
   /**
@@ -685,48 +685,48 @@ export class RawClient {
    *
    * Returns contact id of the created or existing contact
    */
-  public contactsCreateContact(accountId: T.U32, email: string, name: (string|null)): Promise<T.U32> {
-    return (this._transport.request('contacts_create_contact', [accountId, email, name] as RPC.Params)) as Promise<T.U32>;
+  public createContact(accountId: T.U32, email: string, name: (string|null)): Promise<T.U32> {
+    return (this._transport.request('create_contact', [accountId, email, name] as RPC.Params)) as Promise<T.U32>;
   }
 
   /**
    * Returns contact id of the created or existing DM chat with that contact
    */
-  public contactsCreateChatByContactId(accountId: T.U32, contactId: T.U32): Promise<T.U32> {
-    return (this._transport.request('contacts_create_chat_by_contact_id', [accountId, contactId] as RPC.Params)) as Promise<T.U32>;
+  public createChatByContactId(accountId: T.U32, contactId: T.U32): Promise<T.U32> {
+    return (this._transport.request('create_chat_by_contact_id', [accountId, contactId] as RPC.Params)) as Promise<T.U32>;
   }
 
 
-  public contactsBlock(accountId: T.U32, contactId: T.U32): Promise<null> {
-    return (this._transport.request('contacts_block', [accountId, contactId] as RPC.Params)) as Promise<null>;
+  public blockContact(accountId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('block_contact', [accountId, contactId] as RPC.Params)) as Promise<null>;
   }
 
 
-  public contactsUnblock(accountId: T.U32, contactId: T.U32): Promise<null> {
-    return (this._transport.request('contacts_unblock', [accountId, contactId] as RPC.Params)) as Promise<null>;
+  public unblockContact(accountId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('unblock_contact', [accountId, contactId] as RPC.Params)) as Promise<null>;
   }
 
 
-  public contactsGetBlocked(accountId: T.U32): Promise<(T.Contact)[]> {
-    return (this._transport.request('contacts_get_blocked', [accountId] as RPC.Params)) as Promise<(T.Contact)[]>;
+  public getBlockedContacts(accountId: T.U32): Promise<(T.Contact)[]> {
+    return (this._transport.request('get_blocked_contacts', [accountId] as RPC.Params)) as Promise<(T.Contact)[]>;
   }
 
 
-  public contactsGetContactIds(accountId: T.U32, listFlags: T.U32, query: (string|null)): Promise<(T.U32)[]> {
-    return (this._transport.request('contacts_get_contact_ids', [accountId, listFlags, query] as RPC.Params)) as Promise<(T.U32)[]>;
+  public getContactIds(accountId: T.U32, listFlags: T.U32, query: (string|null)): Promise<(T.U32)[]> {
+    return (this._transport.request('get_contact_ids', [accountId, listFlags, query] as RPC.Params)) as Promise<(T.U32)[]>;
   }
 
   /**
    * Get a list of contacts.
    * (formerly called getContacts2 in desktop)
    */
-  public contactsGetContacts(accountId: T.U32, listFlags: T.U32, query: (string|null)): Promise<(T.Contact)[]> {
-    return (this._transport.request('contacts_get_contacts', [accountId, listFlags, query] as RPC.Params)) as Promise<(T.Contact)[]>;
+  public getContacts(accountId: T.U32, listFlags: T.U32, query: (string|null)): Promise<(T.Contact)[]> {
+    return (this._transport.request('get_contacts', [accountId, listFlags, query] as RPC.Params)) as Promise<(T.Contact)[]>;
   }
 
 
-  public contactsGetContactsByIds(accountId: T.U32, ids: (T.U32)[]): Promise<Record<T.U32,T.Contact>> {
-    return (this._transport.request('contacts_get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
+  public getContactsByIds(accountId: T.U32, ids: (T.U32)[]): Promise<Record<T.U32,T.Contact>> {
+    return (this._transport.request('get_contacts_by_ids', [accountId, ids] as RPC.Params)) as Promise<Record<T.U32,T.Contact>>;
   }
 
 
@@ -770,8 +770,8 @@ export class RawClient {
    * Setting `chat_id` to `None` (`null` in typescript) means get messages with media
    * from any chat of the currently used account.
    */
-  public chatGetMedia(accountId: T.U32, chatId: (T.U32|null), messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
-    return (this._transport.request('chat_get_media', [accountId, chatId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<(T.U32)[]>;
+  public getChatMedia(accountId: T.U32, chatId: (T.U32|null), messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<(T.U32)[]> {
+    return (this._transport.request('get_chat_media', [accountId, chatId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<(T.U32)[]>;
   }
 
   /**
@@ -782,8 +782,8 @@ export class RawClient {
    * one combined call for getting chat::get_next_media for both directions
    * the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
    */
-  public chatGetNeighboringMedia(accountId: T.U32, msgId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<[(T.U32|null),(T.U32|null)]> {
-    return (this._transport.request('chat_get_neighboring_media', [accountId, msgId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<[(T.U32|null),(T.U32|null)]>;
+  public getNeighboringChatMedia(accountId: T.U32, msgId: T.U32, messageType: T.Viewtype, orMessageType2: (T.Viewtype|null), orMessageType3: (T.Viewtype|null)): Promise<[(T.U32|null),(T.U32|null)]> {
+    return (this._transport.request('get_neighboring_chat_media', [accountId, msgId, messageType, orMessageType2, orMessageType3] as RPC.Params)) as Promise<[(T.U32|null),(T.U32|null)]>;
   }
 
 
@@ -845,20 +845,20 @@ export class RawClient {
   }
 
 
-  public webxdcSendStatusUpdate(accountId: T.U32, instanceMsgId: T.U32, updateStr: string, description: string): Promise<null> {
-    return (this._transport.request('webxdc_send_status_update', [accountId, instanceMsgId, updateStr, description] as RPC.Params)) as Promise<null>;
+  public sendWebxdcStatusUpdate(accountId: T.U32, instanceMsgId: T.U32, updateStr: string, description: string): Promise<null> {
+    return (this._transport.request('send_webxdc_status_update', [accountId, instanceMsgId, updateStr, description] as RPC.Params)) as Promise<null>;
   }
 
 
-  public webxdcGetStatusUpdates(accountId: T.U32, instanceMsgId: T.U32, lastKnownSerial: T.U32): Promise<string> {
-    return (this._transport.request('webxdc_get_status_updates', [accountId, instanceMsgId, lastKnownSerial] as RPC.Params)) as Promise<string>;
+  public getWebxdcStatusUpdates(accountId: T.U32, instanceMsgId: T.U32, lastKnownSerial: T.U32): Promise<string> {
+    return (this._transport.request('get_webxdc_status_updates', [accountId, instanceMsgId, lastKnownSerial] as RPC.Params)) as Promise<string>;
   }
 
   /**
    * Get info from a webxdc message
    */
-  public messageGetWebxdcInfo(accountId: T.U32, instanceMsgId: T.U32): Promise<T.WebxdcMessageInfo> {
-    return (this._transport.request('message_get_webxdc_info', [accountId, instanceMsgId] as RPC.Params)) as Promise<T.WebxdcMessageInfo>;
+  public getWebxdcInfo(accountId: T.U32, instanceMsgId: T.U32): Promise<T.WebxdcMessageInfo> {
+    return (this._transport.request('get_webxdc_info', [accountId, instanceMsgId] as RPC.Params)) as Promise<T.WebxdcMessageInfo>;
   }
 
   /**
@@ -923,8 +923,8 @@ export class RawClient {
   /**
    * Returns the messageid of the sent message
    */
-  public miscSendTextMessage(accountId: T.U32, text: string, chatId: T.U32): Promise<T.U32> {
-    return (this._transport.request('misc_send_text_message', [accountId, text, chatId] as RPC.Params)) as Promise<T.U32>;
+  public miscSendTextMessage(accountId: T.U32, chatId: T.U32, text: string): Promise<T.U32> {
+    return (this._transport.request('misc_send_text_message', [accountId, chatId, text] as RPC.Params)) as Promise<T.U32>;
   }
 
 

@@ -3,6 +3,31 @@
 ## Unreleased
 
 ### API-Changes
+- breaking jsonrpc: changed function naming
+  - `autocryptInitiateKeyTransfer` -> `initiateAutocryptKeyTransfer`
+  - `autocryptContinueKeyTransfer` -> `continueAutocryptKeyTransfer`
+  - `chatlistGetFullChatById` -> `getFullChatById`
+  - `messageGetMessage` -> `getMessage`
+  - `messageGetMessages` -> `getMessages`
+  - `messageGetNotificationInfo` -> `getMessageNotificationInfo`
+  - `contactsGetContact` -> `getContact`
+  - `contactsCreateContact` -> `createContact`
+  - `contactsCreateChatByContactId` -> `createChatByContactId`
+  - `contactsBlock` -> `blockContact`
+  - `contactsUnblock` -> `unblockContact`
+  - `contactsGetBlocked` -> `getBlockedContacts`
+  - `contactsGetContactIds` -> `getContactIds`
+  - `contactsGetContacts` -> `getContacts`
+  - `contactsGetContactsByIds` -> `getContactsByIds`
+  - `chatGetMedia` -> `getChatMedia`
+  - `chatGetNeighboringMedia` -> `getNeighboringChatMedia`
+  - `webxdcSendStatusUpdate` -> `sendWebxdcStatusUpdate`
+  - `webxdcGetStatusUpdates` -> `getWebxdcStatusUpdates`
+  - `messageGetWebxdcInfo` -> `getWebxdcInfo`
+- jsonrpc: changed method signature
+  - `miscSendTextMessage(accountId, text, chatId)` -> `miscSendTextMessage(accountId, chatId, text)`
+
+
 
 ### Changes
 - allow sender timestamp to be in the future, but not too much

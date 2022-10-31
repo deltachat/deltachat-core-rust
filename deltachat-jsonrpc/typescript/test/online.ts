@@ -80,21 +80,18 @@ describe("online tests", function () {
     }
     this.timeout(15000);
 
-    const contactId = await dc.rpc.contactsCreateContact(
+    const contactId = await dc.rpc.createContact(
       accountId1,
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(
-      accountId1,
-      contactId
-    );
+    const chatId = await dc.rpc.createChatByContactId(accountId1, contactId);
     const eventPromise = Promise.race([
       waitForEvent(dc, "MsgsChanged", accountId2),
       waitForEvent(dc, "IncomingMsg", accountId2),
     ]);
 
-    await dc.rpc.miscSendTextMessage(accountId1, "Hello", chatId);
+    await dc.rpc.miscSendTextMessage(accountId1, chatId, "Hello");
     const { chatId: chatIdOnAccountB } = await eventPromise;
     await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.getMessageIds(
@@ -104,7 +101,7 @@ describe("online tests", function () {
     );
 
     expect(messageList).have.length(1);
-    const message = await dc.rpc.messageGetMessage(accountId2, messageList[0]);
+    const message = await dc.rpc.getMessage(accountId2, messageList[0]);
     expect(message.text).equal("Hello");
   });
 
@@ -115,20 +112,17 @@ describe("online tests", function () {
     this.timeout(10000);
 
     // send message from A to B
-    const contactId = await dc.rpc.contactsCreateContact(
+    const contactId = await dc.rpc.createContact(
       accountId1,
       account2.email,
       null
     );
-    const chatId = await dc.rpc.contactsCreateChatByContactId(
-      accountId1,
-      contactId
-    );
+    const chatId = await dc.rpc.createChatByContactId(accountId1, contactId);
     const eventPromise = Promise.race([
       waitForEvent(dc, "MsgsChanged", accountId2),
       waitForEvent(dc, "IncomingMsg", accountId2),
     ]);
-    dc.rpc.miscSendTextMessage(accountId1, "Hello2", chatId);
+    dc.rpc.miscSendTextMessage(accountId1, chatId, "Hello2");
     // wait for message from A
     console.log("wait for message from A");
 
@@ -141,7 +135,7 @@ describe("online tests", function () {
       chatIdOnAccountB,
       0
     );
-    const message = await dc.rpc.messageGetMessage(
+    const message = await dc.rpc.getMessage(
       accountId2,
       messageList.reverse()[0]
     );
@@ -151,14 +145,14 @@ describe("online tests", function () {
       waitForEvent(dc, "MsgsChanged", accountId1),
       waitForEvent(dc, "IncomingMsg", accountId1),
     ]);
-    dc.rpc.miscSendTextMessage(accountId2, "super secret message", chatId);
+    dc.rpc.miscSendTextMessage(accountId2, chatId, "super secret message");
     // Check if answer arives at A and if it is encrypted
     await eventPromise2;
 
     const messageId = (
       await dc.rpc.getMessageIds(accountId1, chatId, 0)
     ).reverse()[0];
-    const message2 = await dc.rpc.messageGetMessage(accountId1, messageId);
+    const message2 = await dc.rpc.getMessage(accountId1, messageId);
     expect(message2.text).equal("super secret message");
     expect(message2.showPadlock).equal(true);
   });
