@@ -2852,7 +2852,7 @@ pub unsafe extern "C" fn dc_chat_get_mailinglist_addr(chat: *mut dc_chat_t) -> *
         return "".strdup();
     }
     let ffi_chat = &*chat;
-    ffi_chat.chat.get_mailinglist_addr().strdup()
+    ffi_chat.chat.get_mailinglist_addr().unwrap_or_default().strdup()
 }
 
 #[no_mangle]
