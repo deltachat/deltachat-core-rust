@@ -125,10 +125,12 @@ $ cargo test -- --ignored
 Language bindings are available for:
 
 - **C** \[[📂 source](./deltachat-ffi) | [📚 docs](https://c.delta.chat)\]
-- **Node.js** \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
+- **Node.js** 
+  - over cffi (legacy): \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
+  - over jsonrpc built with napi.rs: \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | \[📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
-- **Go** \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
-- **Free Pascal** \[[📂 source](https://github.com/deltachat/deltachat-fp/)\]
+- **Go**[^1] \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
+- **Free Pascal**[^1] \[[📂 source](https://github.com/deltachat/deltachat-fp/)\]
 - **Java** and **Swift** (contained in the Android/iOS repos)
 
 The following "frontend" projects make use of the Rust-library
@@ -140,3 +142,5 @@ or its language bindings:
 - [Pidgin](https://code.ur.gs/lupine/purple-plugin-delta/)
 - [Telepathy](https://code.ur.gs/lupine/telepathy-padfoot/)
 - several **Bots**
+
+[^1]: Out of date / unmaintained, if you like those languages feel free to start maintaining them. If you have questions we'll help you, please ask in the issues.
