@@ -4097,9 +4097,22 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
 
 
 // DC_INFO* uses the same values as SystemMessage in rust-land
-#define         DC_INFO_PROTECTION_ENABLED     11
-#define         DC_INFO_PROTECTION_DISABLED    12
-
+#define         DC_INFO_UNKNOWN                    0
+#define         DC_INFO_GROUP_NAME_CHANGED         2
+#define         DC_INFO_GROUP_IMAGE_CHANGED        3
+#define         DC_INFO_MEMBER_ADDED_TO_GROUP      4
+#define         DC_INFO_MEMBER_REMOVED_FROM_GROUP  5
+#define         DC_INFO_AUTOCRYPT_SETUP_MESSAGE    6
+#define         DC_INFO_SECURE_JOIN_MESSAGE        7
+#define         DC_INFO_LOCATIONSTREAMING_ENABLED  8
+#define         DC_INFO_LOCATION_ONLY              9
+#define         DC_INFO_EPHEMERAL_TIMER_CHANGED   10
+#define         DC_INFO_PROTECTION_ENABLED        11
+#define         DC_INFO_PROTECTION_DISABLED       12
+#define         DC_INFO_MULTIDEVICE_SYNC          20
+// DC_INFO_WEBXDC_STATUS_UPDATE messages are hidden and not visible to the ui
+// #define         DC_INFO_WEBXDC_STATUS_UPDATE     30
+#define         DC_INFO_WEBXDC_INFO_MESSAGE       32
 
 /**
  * Check if a message is still in creation. A message is in creation between

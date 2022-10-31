@@ -45,6 +45,8 @@ pub struct MessageObject {
     is_setupmessage: bool,
     is_info: bool,
     is_forwarded: bool,
+    /// when is_info is true this describes what type of system message it is
+    system_message_type: SystemMessageType,
 
     duration: i32,
     dimensions_height: i32,
@@ -175,6 +177,7 @@ impl MessageObject {
             is_setupmessage: message.is_setupmessage(),
             is_info: message.is_info(),
             is_forwarded: message.is_forwarded(),
+            system_message_type: message.get_info_type().into(),
 
             duration: message.get_duration(),
             dimensions_height: message.get_height(),
@@ -301,6 +304,61 @@ impl From<download::DownloadState> for DownloadState {
             download::DownloadState::Available => DownloadState::Available,
             download::DownloadState::Failure => DownloadState::Failure,
             download::DownloadState::InProgress => DownloadState::InProgress,
+        }
+    }
+}
+
+#[derive(Serialize, TypeDef)]
+pub enum SystemMessageType {
+    Unknown,
+    GroupNameChanged,
+    GroupImageChanged,
+    MemberAddedToGroup,
+    MemberRemovedFromGroup,
+    AutocryptSetupMessage,
+    SecurejoinMessage,
+    LocationStreamingEnabled,
+    LocationOnly,
+
+    /// Chat ephemeral message timer is changed.
+    EphemeralTimerChanged,
+
+    // Chat protection state changed
+    ChatProtectionEnabled,
+    ChatProtectionDisabled,
+
+    /// Self-sent-message that contains only json used for multi-device-sync;
+    /// if possible, we attach that to other messages as for locations.
+    MultiDeviceSync,
+
+    // Sync message that contains a json payload
+    // sent to the other webxdc instances
+    // These messages are not shown in the chat.
+    WebxdcStatusUpdate,
+
+    /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
+    WebxdcInfoMessage,
+}
+
+impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
+    fn from(system_message_type: deltachat::mimeparser::SystemMessage) -> Self {
+        use deltachat::mimeparser::SystemMessage;
+        match system_message_type {
+            SystemMessage::Unknown => SystemMessageType::Unknown,
+            SystemMessage::GroupNameChanged => SystemMessageType::GroupNameChanged,
+            SystemMessage::GroupImageChanged => SystemMessageType::GroupImageChanged,
+            SystemMessage::MemberAddedToGroup => SystemMessageType::MemberAddedToGroup,
+            SystemMessage::MemberRemovedFromGroup => SystemMessageType::MemberRemovedFromGroup,
+            SystemMessage::AutocryptSetupMessage => SystemMessageType::AutocryptSetupMessage,
+            SystemMessage::SecurejoinMessage => SystemMessageType::SecurejoinMessage,
+            SystemMessage::LocationStreamingEnabled => SystemMessageType::LocationStreamingEnabled,
+            SystemMessage::LocationOnly => SystemMessageType::LocationOnly,
+            SystemMessage::EphemeralTimerChanged => SystemMessageType::EphemeralTimerChanged,
+            SystemMessage::ChatProtectionEnabled => SystemMessageType::ChatProtectionEnabled,
+            SystemMessage::ChatProtectionDisabled => SystemMessageType::ChatProtectionDisabled,
+            SystemMessage::MultiDeviceSync => SystemMessageType::MultiDeviceSync,
+            SystemMessage::WebxdcStatusUpdate => SystemMessageType::WebxdcStatusUpdate,
+            SystemMessage::WebxdcInfoMessage => SystemMessageType::WebxdcInfoMessage,
         }
     }
 }
