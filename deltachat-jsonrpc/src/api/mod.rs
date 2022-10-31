@@ -472,11 +472,7 @@ impl CommandApi {
     //  chat
     // ---------------------------------------------
 
-    async fn get_full_chat_by_id(
-        &self,
-        account_id: u32,
-        chat_id: u32,
-    ) -> Result<FullChat> {
+    async fn get_full_chat_by_id(&self, account_id: u32, chat_id: u32) -> Result<FullChat> {
         let ctx = self.get_context(account_id).await?;
         FullChat::try_from_dc_chat_id(&ctx, chat_id).await
     }
@@ -1029,11 +1025,7 @@ impl CommandApi {
     // ---------------------------------------------
 
     /// Get a single contact options by ID.
-    async fn get_contact(
-        &self,
-        account_id: u32,
-        contact_id: u32,
-    ) -> Result<ContactObject> {
+    async fn get_contact(&self, account_id: u32, contact_id: u32) -> Result<ContactObject> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
@@ -1064,11 +1056,7 @@ impl CommandApi {
     }
 
     /// Returns contact id of the created or existing DM chat with that contact
-    async fn create_chat_by_contact_id(
-        &self,
-        account_id: u32,
-        contact_id: u32,
-    ) -> Result<u32> {
+    async fn create_chat_by_contact_id(&self, account_id: u32, contact_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let contact = Contact::get_by_id(&ctx, ContactId::new(contact_id)).await?;
         ChatId::create_for_contact(&ctx, contact.id)
