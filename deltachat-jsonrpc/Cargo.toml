@@ -27,7 +27,7 @@ typescript-type-def = { version = "0.5.3", features = ["json_value"] }
 tokio = { version = "1.21.2" }
 
 # optional dependencies
-axum = { version = "0.5.16", optional = true, features = ["ws"] }
+axum = { version = "0.5.17", optional = true, features = ["ws"] }
 env_logger = { version = "0.9.1", optional = true }
 walkdir = "2.3.2"
 
