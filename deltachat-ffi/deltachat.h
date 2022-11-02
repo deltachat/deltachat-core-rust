@@ -4109,9 +4109,6 @@ int             dc_msg_get_info_type          (const dc_msg_t* msg);
 #define         DC_INFO_EPHEMERAL_TIMER_CHANGED   10
 #define         DC_INFO_PROTECTION_ENABLED        11
 #define         DC_INFO_PROTECTION_DISABLED       12
-#define         DC_INFO_MULTIDEVICE_SYNC          20
-// DC_INFO_WEBXDC_STATUS_UPDATE messages are hidden and not visible to the ui
-// #define         DC_INFO_WEBXDC_STATUS_UPDATE     30
 #define         DC_INFO_WEBXDC_INFO_MESSAGE       32
 
 /**
