@@ -108,6 +108,20 @@ export type Viewtype=("Unknown"|
  */
 "Webxdc");
 export type MessageQuote=(({"kind":"JustText";}&{"text":string;})|({"kind":"WithMessage";}&{"text":string;"messageId":U32;"authorDisplayName":string;"authorDisplayColor":string;"overrideSenderName":(string|null);"image":(string|null);"isForwarded":boolean;"viewType":Viewtype;}));
+export type SystemMessageType=("Unknown"|"GroupNameChanged"|"GroupImageChanged"|"MemberAddedToGroup"|"MemberRemovedFromGroup"|"AutocryptSetupMessage"|"SecurejoinMessage"|"LocationStreamingEnabled"|"LocationOnly"|
+/**
+ * Chat ephemeral message timer is changed.
+ */
+"EphemeralTimerChanged"|"ChatProtectionEnabled"|"ChatProtectionDisabled"|
+/**
+ * Self-sent-message that contains only json used for multi-device-sync;
+ * if possible, we attach that to other messages as for locations.
+ */
+"MultiDeviceSync"|"WebxdcStatusUpdate"|
+/**
+ * Webxdc info added with `info` set in `send_webxdc_status_update()`.
+ */
+"WebxdcInfoMessage");
 export type I32=number;
 export type WebxdcMessageInfo={
 /**
@@ -164,7 +178,11 @@ export type Reactions=
  * Unique reactions and their count
  */
 "reactions":Record<string,U32>;};
-export type Message={"id":U32;"chatId":U32;"fromId":U32;"quote":(MessageQuote|null);"parentId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);"webxdcInfo":(WebxdcMessageInfo|null);"downloadState":DownloadState;"reactions":(Reactions|null);};
+export type Message={"id":U32;"chatId":U32;"fromId":U32;"quote":(MessageQuote|null);"parentId":(U32|null);"text":(string|null);"hasLocation":boolean;"hasHtml":boolean;"viewType":Viewtype;"state":U32;"timestamp":I64;"sortTimestamp":I64;"receivedTimestamp":I64;"hasDeviatingTimestamp":boolean;"subject":string;"showPadlock":boolean;"isSetupmessage":boolean;"isInfo":boolean;"isForwarded":boolean;
+/**
+ * when is_info is true this describes what type of system message it is
+ */
+"systemMessageType":SystemMessageType;"duration":I32;"dimensionsHeight":I32;"dimensionsWidth":I32;"videochatType":(U32|null);"videochatUrl":(string|null);"overrideSenderName":(string|null);"sender":Contact;"setupCodeBegin":(string|null);"file":(string|null);"fileMime":(string|null);"fileBytes":U64;"fileName":(string|null);"webxdcInfo":(WebxdcMessageInfo|null);"downloadState":DownloadState;"reactions":(Reactions|null);};
 export type MessageNotificationInfo={"id":U32;"chatId":U32;"accountId":U32;"image":(string|null);"imageMimeType":(string|null);"chatName":string;"chatProfileImage":(string|null);
 /**
  * also known as summary_text1

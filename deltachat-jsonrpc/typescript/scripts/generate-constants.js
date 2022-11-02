@@ -38,6 +38,7 @@ const constants = data
       key.startsWith("DC_IMEX_") ||
       key.startsWith("DC_CHAT_VISIBILITY") ||
       key.startsWith("DC_DOWNLOAD") ||
+      key.startsWith("DC_INFO_") ||
       (key.startsWith("DC_MSG") && !key.startsWith("DC_MSG_ID")) ||
       key.startsWith("DC_QR_")
     );
