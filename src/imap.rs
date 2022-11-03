@@ -902,8 +902,11 @@ impl Imap {
 
         info!(context, "{} mails read from \"{}\".", read_cnt, folder);
 
-        let msg_ids = received_msgs.iter().flat_map(|m| m.msg_ids).collect();
-        context.send_event(EventType::IncomingMsgBunch { msg_ids });
+        let msg_ids = received_msgs
+            .iter()
+            .flat_map(|m| m.msg_ids.clone())
+            .collect();
+        context.emit_event(EventType::IncomingMsgBunch { msg_ids });
 
         chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 

@@ -120,6 +120,12 @@ pub enum JSONRPCEventType {
         msg_id: u32,
     },
 
+    /// TODO docs
+    #[serde(rename_all = "camelCase")]
+    IncomingMsgBunch {
+        msg_ids: String,
+    },
+
     /// Messages were seen or noticed.
     /// chat id is always set.
     #[serde(rename_all = "camelCase")]
@@ -304,6 +310,9 @@ impl From<EventType> for JSONRPCEventType {
             EventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
+            },
+            EventType::IncomingMsgBunch { msg_ids } => IncomingMsgBunch {
+                msg_ids: serde_json::to_string(&msg_ids).unwrap_or_default(),
             },
             EventType::MsgsNoticed(chat_id) => MsgsNoticed {
                 chat_id: chat_id.to_u32(),

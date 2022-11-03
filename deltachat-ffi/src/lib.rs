@@ -674,7 +674,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
-        EventType::IncomingMsgBunch { msg_ids } => serde_json::json!(msg_ids)
+        EventType::IncomingMsgBunch { msg_ids } => serde_json::to_string(msg_ids)
+            .unwrap_or_default()
             .to_c_string()
             .unwrap_or_default()
             .into_raw(),

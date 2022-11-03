@@ -89,6 +89,10 @@ export type Event=(({
  */
 "type":"IncomingMsg";}&{"chatId":U32;"msgId":U32;})|({
 /**
+ * TODO docs
+ */
+"type":"IncomingMsgBunch";}&{"msgIds":string;})|({
+/**
  * Messages were seen or noticed.
  * chat id is always set.
  */
