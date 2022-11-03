@@ -272,7 +272,7 @@ pub(crate) fn create_id() -> String {
     rng.fill(&mut arr[..]);
 
     // Take 11 base64 characters containing 66 random bits.
-    base64::encode_config(&arr, base64::URL_SAFE)
+    base64::encode_config(arr, base64::URL_SAFE)
         .chars()
         .take(11)
         .collect()

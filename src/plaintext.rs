@@ -44,12 +44,12 @@ impl PlainText {
             let line = line.to_string().replace('\r', "");
 
             let mut line = LINKIFY_MAIL_RE
-                .replace_all(&*line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")
+                .replace_all(&line, "\rLTa href=\rQUOTmailto:$1\rQUOT\rGT$1\rLT/a\rGT")
                 .as_ref()
                 .to_string();
 
             line = LINKIFY_URL_RE
-                .replace_all(&*line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
+                .replace_all(&line, "\rLTa href=\rQUOT$1\rQUOT\rGT$1\rLT/a\rGT")
                 .as_ref()
                 .to_string();
 

@@ -18,7 +18,11 @@
     clippy::mixed_read_write_in_expression,
     clippy::bool_assert_comparison,
     clippy::manual_split_once,
-    clippy::format_push_string
+    clippy::format_push_string,
+    clippy::bool_to_int_with_if,
+    // This lint can be re-enabled once we don't target
+    // Rust 1.56 anymore:
+    clippy::collapsible_str_replace
 )]
 
 #[macro_use]

@@ -94,7 +94,7 @@ impl HtmlMsgParser {
 
         let parsedmail = mailparse::parse_mail(rawmime)?;
 
-        parser.collect_texts_recursive(context, &parsedmail).await?;
+        parser.collect_texts_recursive(&parsedmail).await?;
 
         if parser.html.is_empty() {
             if let Some(plain) = &parser.plain {
@@ -117,7 +117,6 @@ impl HtmlMsgParser {
     /// therefore we use the first one.
     fn collect_texts_recursive<'a>(
         &'a mut self,
-        context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         // Boxed future to deal with recursion
@@ -125,7 +124,7 @@ impl HtmlMsgParser {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
                     for cur_data in mail.subparts.iter() {
-                        self.collect_texts_recursive(context, cur_data).await?
+                        self.collect_texts_recursive(cur_data).await?
                     }
                     Ok(())
                 }
@@ -135,7 +134,7 @@ impl HtmlMsgParser {
                         return Ok(());
                     }
                     let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
-                    self.collect_texts_recursive(context, &mail).await
+                    self.collect_texts_recursive(&mail).await
                 }
                 MimeMultipartType::Single => {
                     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
@@ -207,7 +206,7 @@ impl HtmlMsgParser {
                                         Ok(re) => {
                                             self.html = re
                                                 .replace_all(
-                                                    &*self.html,
+                                                    &self.html,
                                                     format!("${{1}}{}${{3}}", replacement).as_str(),
                                                 )
                                                 .as_ref()

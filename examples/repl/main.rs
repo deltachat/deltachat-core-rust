@@ -446,7 +446,7 @@ async fn handle_cmd(
                 }
                 println!("{}", qr);
                 let output = Command::new("qrencode")
-                    .args(&["-t", "ansiutf8", qr.as_str(), "-o", "-"])
+                    .args(["-t", "ansiutf8", qr.as_str(), "-o", "-"])
                     .output()
                     .expect("failed to execute process");
                 io::stdout().write_all(&output.stdout).unwrap();

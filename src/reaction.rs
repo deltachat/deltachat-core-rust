@@ -57,7 +57,7 @@ impl From<&str> for Reaction {
             .split_ascii_whitespace()
             .filter(|&emoji| emoji.len() < 30)
             .collect();
-        emojis.sort();
+        emojis.sort_unstable();
         emojis.dedup();
         let reaction = emojis.join(" ");
         Self { reaction }
@@ -84,7 +84,7 @@ impl Reaction {
     pub fn add(&self, other: Self) -> Self {
         let mut emojis: Vec<&str> = self.emojis();
         emojis.append(&mut other.emojis());
-        emojis.sort();
+        emojis.sort_unstable();
         emojis.dedup();
         let reaction = emojis.join(" ");
         Self { reaction }
