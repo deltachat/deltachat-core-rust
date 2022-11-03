@@ -2439,7 +2439,7 @@ pub async fn get_chat_media(
                 AND hidden=0
               ORDER BY timestamp, id;",
             paramsv![
-                if chat_id.is_none() { 1i32 } else { 0i32 },
+                chat_id.is_none(),
                 chat_id.unwrap_or_else(|| ChatId::new(0)),
                 msg_type,
                 if msg_type2 != Viewtype::Unknown {

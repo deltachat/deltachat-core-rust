@@ -496,7 +496,7 @@ impl Context {
         for update_item in updates.updates {
             self.create_status_update_record(
                 &mut instance,
-                &*serde_json::to_string(&update_item)?,
+                &serde_json::to_string(&update_item)?,
                 timestamp,
                 can_info_msg,
                 from_id,
@@ -545,7 +545,7 @@ impl Context {
                         let (update_item_str, serial) = row;
                         let update_item = StatusUpdateItemAndSerial
                         {
-                            item: serde_json::from_str(&*update_item_str)?,
+                            item: serde_json::from_str(&update_item_str)?,
                             serial,
                             max_serial,
                         };
@@ -553,7 +553,7 @@ impl Context {
                         if !json.is_empty() {
                             json.push_str(",\n");
                         }
-                        json.push_str(&*serde_json::to_string(&update_item)?);
+                        json.push_str(&serde_json::to_string(&update_item)?);
                     }
                     Ok(json)
                 },
@@ -1825,7 +1825,7 @@ sth_for_the = "future""#
 
         let instance = t.get_last_msg().await;
         let html = instance.get_webxdc_blob(&t, "index.html").await?;
-        assert!(String::from_utf8_lossy(&*html).contains("requires a newer Delta Chat version"));
+        assert!(String::from_utf8_lossy(&html).contains("requires a newer Delta Chat version"));
 
         Ok(())
     }

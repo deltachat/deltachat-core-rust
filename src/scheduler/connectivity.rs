@@ -405,7 +405,7 @@ impl Context {
                     ret += " <b>";
                     ret += &*escaper::encode_minimal(&foldername);
                     ret += ":</b> ";
-                    ret += &*escaper::encode_minimal(&*detailed.to_string_imap(self).await);
+                    ret += &*escaper::encode_minimal(&detailed.to_string_imap(self).await);
                     ret += "</li>";
 
                     folder_added = true;
