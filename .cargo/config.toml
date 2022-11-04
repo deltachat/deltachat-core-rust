@@ -1,0 +1,11 @@
+[env]
+# In unoptimised builds tokio tends to use a lot of stack space when
+# creating some complicated futures, tokio has an open issue for this:
+# https://github.com/tokio-rs/tokio/issues/2055.  Some of our tests
+# manage to not fit in the default 2MiB stack anymore due to this, so
+# while the issue is not resolved we want to work around this.
+# Because compiling optimised builds takes a very long time we prefer
+# to avoid that.  Setting this environment variable ensures that when
+# invoking `cargo test` threads are allowed to have a large enough
+# stack size without needing to use an optimised build.
+RUST_MIN_STACK = "8388608"

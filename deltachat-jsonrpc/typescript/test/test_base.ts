@@ -30,7 +30,8 @@ export async function startServer(port: number = RPC_SERVER_PORT): Promise<RpcSe
     cwd: tmpDir,
     env: {
       RUST_LOG: process.env.RUST_LOG || "info",
-      DC_PORT: '' + port
+      DC_PORT: '' + port,
+      RUST_MIN_STACK: "8388608"
     },
   });
   let shouldClose = false;
