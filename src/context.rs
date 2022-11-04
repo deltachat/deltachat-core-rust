@@ -100,8 +100,8 @@ impl ContextBuilder {
     /// [`Context`]s you currently have open.  So if you handle multiple [`Context`]s you
     /// may want to use this.
     ///
-    /// Note that to handle multiple [`Context`]s it is better to use the [account
-    /// manager](crate::accounts::Accounts).
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
     pub fn with_id(mut self, id: u32) -> Self {
         self.id = id;
         self
@@ -113,8 +113,8 @@ impl ContextBuilder {
     /// channel and passing it to all [`Context`]s so all events are recieved on the same
     /// channel.
     ///
-    /// Note that to handle multiple [`Context`]s it is better to use the [account
-    /// manager](crate::accounts::Accounts).
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
     pub fn with_events(mut self, events: Events) -> Self {
         self.events = events;
         self
@@ -126,8 +126,8 @@ impl ContextBuilder {
     /// The mapping may be empty when set, it will be populated by
     /// [`Context::set_stock-translation`] or [`Accounts::set_stock_translation`] calls.
     ///
-    /// Note that to handle multiple [`Context`]s it is better to use the [account
-    /// manager](crate::accounts::Accounts).
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
     ///
     /// [`Accounts::set_stock_translation`]: crate::accounts::Accounts::set_stock_translation
     pub fn with_stock_strings(mut self, stock_strings: StockStrings) -> Self {
