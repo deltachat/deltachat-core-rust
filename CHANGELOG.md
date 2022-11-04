@@ -26,6 +26,8 @@
   - `messageGetWebxdcInfo` -> `getWebxdcInfo`
 - jsonrpc: changed method signature
   - `miscSendTextMessage(accountId, text, chatId)` -> `miscSendTextMessage(accountId, chatId, text)`
+- jsonrpc: add `SystemMessageType` to `Message`
+- cffi: add missing `DC_INFO_` constants
 
 
 
