@@ -357,6 +357,7 @@ mod tests {
 
     use super::*;
 
+    use crate::aheader::EncryptPreference;
     use crate::e2ee;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
@@ -685,6 +686,9 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         let bob_state = Peerstate::from_addr(&alice, "bob@example.net")
             .await?
             .unwrap();
+
+        // Encryption preference is still mutual.
+        assert_eq!(bob_state.prefer_encrypt, EncryptPreference::Mutual);
 
         // Also check that the keypair was not changed
         assert_eq!(
