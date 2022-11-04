@@ -196,35 +196,36 @@ impl Peerstate {
                 //   gossip_key_fingerprint, verified_key, verified_key_fingerprint
 
                 let res = Peerstate {
-                    addr: row.get(0)?,
-                    last_seen: row.get(1)?,
-                    last_seen_autocrypt: row.get(2)?,
-                    prefer_encrypt: EncryptPreference::from_i32(row.get(3)?).unwrap_or_default(),
+                    addr: row.get("addr")?,
+                    last_seen: row.get("last_seen")?,
+                    last_seen_autocrypt: row.get("last_seen_autocrypt")?,
+                    prefer_encrypt: EncryptPreference::from_i32(row.get("prefer_encrypted")?)
+                        .unwrap_or_default(),
                     public_key: row
-                        .get(4)
+                        .get("public_key")
                         .ok()
                         .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
                     public_key_fingerprint: row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>("public_key_fingerprint")?
                         .map(|s| s.parse::<Fingerprint>())
                         .transpose()
                         .unwrap_or_default(),
                     gossip_key: row
-                        .get(6)
+                        .get("gossip_key")
                         .ok()
                         .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
                     gossip_key_fingerprint: row
-                        .get::<_, Option<String>>(8)?
+                        .get::<_, Option<String>>("gossip_key_fingerprint")?
                         .map(|s| s.parse::<Fingerprint>())
                         .transpose()
                         .unwrap_or_default(),
-                    gossip_timestamp: row.get(5)?,
+                    gossip_timestamp: row.get("gossip_timestamp")?,
                     verified_key: row
-                        .get(9)
+                        .get("verified_key")
                         .ok()
                         .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
                     verified_key_fingerprint: row
-                        .get::<_, Option<String>>(10)?
+                        .get::<_, Option<String>>("verified_key_fingerprint")?
                         .map(|s| s.parse::<Fingerprint>())
                         .transpose()
                         .unwrap_or_default(),
