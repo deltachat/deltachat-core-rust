@@ -372,11 +372,12 @@ impl MimeMessage {
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context).await?;
 
-        if !decryption_info.dkim_results.allow_keychange {
-            for part in parser.parts.iter_mut() {
-                part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
-            }
-        }
+        // Disallowing keychanges is disabled for now
+        // if !decryption_info.dkim_results.allow_keychange {
+        //     for part in parser.parts.iter_mut() {
+        //         part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
+        //     }
+        // }
         if warn_empty_signature && parser.signatures.is_empty() {
             for part in parser.parts.iter_mut() {
                 part.error = Some("No valid signature".to_string());
