@@ -31,6 +31,8 @@
 
 
 
+- Rust: Introduce a ContextBuilder #3698
+
 ### Changes
 - allow sender timestamp to be in the future, but not too much
 

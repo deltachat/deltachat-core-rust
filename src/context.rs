@@ -26,6 +26,156 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::tools::{duration_to_str, time};
 
+/// Builder for the [`Context`].
+///
+/// Many arguments to the [`Context`] are kind of optional and only needed to handle
+/// multiple contexts, for which the [account manager](crate::accounts::Accounts) should be
+/// used.  This builder makes creating a new context simpler, especially for the
+/// standalone-context case.
+///
+/// # Examples
+///
+/// Creating a new unecrypted database:
+///
+/// ```
+/// # let rt = tokio::runtime::Runtime::new().unwrap();
+/// # rt.block_on(async move {
+/// use deltachat::context::ContextBuilder;
+///
+/// let dir = tempfile::tempdir().unwrap();
+/// let context = ContextBuilder::new(dir.path().join("db"))
+///      .open()
+///      .await
+///      .unwrap();
+/// drop(context);
+/// # });
+/// ```
+///
+/// To use an encrypted database provide a password.  If the database does not yet exist it
+/// will be created:
+///
+/// ```
+/// # let rt = tokio::runtime::Runtime::new().unwrap();
+/// # rt.block_on(async move {
+/// use deltachat::context::ContextBuilder;
+///
+/// let dir = tempfile::tempdir().unwrap();
+/// let context = ContextBuilder::new(dir.path().join("db"))
+///      .with_password("secret".into())
+///      .open()
+///      .await
+///      .unwrap();
+/// drop(context);
+/// # });
+/// ```
+#[derive(Clone, Debug)]
+pub struct ContextBuilder {
+    dbfile: PathBuf,
+    id: u32,
+    events: Events,
+    stock_strings: StockStrings,
+    password: Option<String>,
+}
+
+impl ContextBuilder {
+    /// Create the builder using the given database file.
+    ///
+    /// The *dbfile* should be in a dedicated directory and this directory must exist.  The
+    /// [`Context`] will create other files and folders in the same directory as the
+    /// database file used.
+    pub fn new(dbfile: PathBuf) -> Self {
+        ContextBuilder {
+            dbfile,
+            id: rand::random(),
+            events: Events::new(),
+            stock_strings: StockStrings::new(),
+            password: None,
+        }
+    }
+
+    /// Sets the context ID.
+    ///
+    /// This identifier is used e.g. in [`Event`]s to identify which [`Context`] an event
+    /// belongs to.  The only real limit on it is that it should not conflict with any other
+    /// [`Context`]s you currently have open.  So if you handle multiple [`Context`]s you
+    /// may want to use this.
+    ///
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
+    pub fn with_id(mut self, id: u32) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Sets the event channel for this [`Context`].
+    ///
+    /// Mostly useful when using multiple [`Context`]s, this allows creating one [`Events`]
+    /// channel and passing it to all [`Context`]s so all events are recieved on the same
+    /// channel.
+    ///
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
+    pub fn with_events(mut self, events: Events) -> Self {
+        self.events = events;
+        self
+    }
+
+    /// Sets the [`StockStrings`] map to use for this [`Context`].
+    ///
+    /// This is useful in order to share the same translation strings in all [`Context`]s.
+    /// The mapping may be empty when set, it will be populated by
+    /// [`Context::set_stock-translation`] or [`Accounts::set_stock_translation`] calls.
+    ///
+    /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
+    /// common case for using multiple [`Context`] instances.
+    ///
+    /// [`Accounts::set_stock_translation`]: crate::accounts::Accounts::set_stock_translation
+    pub fn with_stock_strings(mut self, stock_strings: StockStrings) -> Self {
+        self.stock_strings = stock_strings;
+        self
+    }
+
+    /// Sets the password to unlock the database.
+    ///
+    /// If an encrypted database is used it must be opened with a password.  Setting a
+    /// password on a new database will enable encryption.
+    pub fn with_password(mut self, password: String) -> Self {
+        self.password = Some(password);
+        self
+    }
+
+    /// Opens the [`Context`].
+    pub async fn open(self) -> Result<Context, ContextError> {
+        let context =
+            Context::new_closed(&self.dbfile, self.id, self.events, self.stock_strings).await?;
+        let password = self.password.unwrap_or_default();
+        match context.open(password).await? {
+            true => Ok(context),
+            false => Err(ContextError::DatabaseEncrypted),
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, thiserror::Error)]
+pub enum ContextError {
+    #[error("database could not be decrypted, incorrect or missing password")]
+    DatabaseEncrypted,
+    #[error("failed to open context")]
+    Other(#[from] anyhow::Error),
+}
+
+/// The context for a single DeltaChat account.
+///
+/// This contains all the state for a single DeltaChat account, including background tasks
+/// running in Tokio to operate the account.  The [`Context`] can be cheaply cloned.
+///
+/// Each context, and thus each account, must be associated with an directory where all the
+/// state is kept.  This state is also preserved between restarts.
+///
+/// To use multiple accounts it is best to look at the [accounts
+/// manager][crate::accounts::Accounts] which handles storing multiple accounts in a single
+/// directory structure and handles loading them all concurrently.
 #[derive(Clone, Debug)]
 pub struct Context {
     pub(crate) inner: Arc<InnerContext>,
