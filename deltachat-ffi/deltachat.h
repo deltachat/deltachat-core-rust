@@ -5635,7 +5635,11 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_INCOMING_MSG             2005
 
 /**
- * TODO docs
+ * Downloading a bunch of messages just finished. This is an experimental
+ * event to allow the UI to only show one notification per message bunch,
+ * instead of cluttering the user with many notifications.
+ * 
+ * msg_ids is a json object of the message ids.
  */
 #define DC_EVENT_INCOMING_MSG_BUNCH       2006
 

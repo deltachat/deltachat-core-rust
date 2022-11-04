@@ -120,7 +120,11 @@ pub enum JSONRPCEventType {
         msg_id: u32,
     },
 
-    /// TODO docs
+    /// Downloading a bunch of messages just finished. This is an experimental
+    /// event to allow the UI to only show one notification per message bunch,
+    /// instead of cluttering the user with many notifications.
+    ///
+    /// msg_ids is a json object of the message ids.
     #[serde(rename_all = "camelCase")]
     IncomingMsgBunch {
         msg_ids: String,
