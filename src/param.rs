@@ -266,8 +266,8 @@ impl Params {
     }
 
     /// Set the given key to the passed in value.
-    pub fn set(&mut self, key: Param, value: impl AsRef<str>) -> &mut Self {
-        self.inner.insert(key, value.as_ref().to_string());
+    pub fn set(&mut self, key: Param, value: impl ToString) -> &mut Self {
+        self.inner.insert(key, value.to_string());
         self
     }
 
