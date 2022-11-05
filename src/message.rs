@@ -726,7 +726,7 @@ impl Message {
         self.text = text;
     }
 
-    pub fn set_file(&mut self, file: impl AsRef<str>, filemime: Option<&str>) {
+    pub fn set_file(&mut self, file: impl ToString, filemime: Option<&str>) {
         self.param.set(Param::File, file);
         if let Some(filemime) = filemime {
             self.param.set(Param::MimeType, filemime);
