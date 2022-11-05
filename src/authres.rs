@@ -357,6 +357,7 @@ mod tests {
 
     use super::*;
 
+    use crate::aheader::EncryptPreference;
     use crate::e2ee;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
@@ -665,6 +666,10 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
         tcm.section("An attacker, bob2, sends a from-forged email to Alice!");
 
+        // Sleep to make sure key reset is ignored because of DKIM failure
+        // and not because reordering is suspected.
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
         let bob2 = tcm.unconfigured().await;
         bob2.configure_addr("bob@example.net").await;
         e2ee::ensure_secret_key_exists(&bob2).await?;
@@ -685,6 +690,9 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         let bob_state = Peerstate::from_addr(&alice, "bob@example.net")
             .await?
             .unwrap();
+
+        // Encryption preference is still mutual.
+        assert_eq!(bob_state.prefer_encrypt, EncryptPreference::Mutual);
 
         // Also check that the keypair was not changed
         assert_eq!(

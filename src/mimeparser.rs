@@ -298,6 +298,7 @@ impl MimeMessage {
                     if let Some(peerstate) = &mut decryption_info.peerstate {
                         if message_time > peerstate.last_seen_autocrypt
                             && mail.ctype.mimetype != "multipart/report"
+                            && decryption_info.dkim_results.allow_keychange
                         {
                             peerstate.degrade_encryption(message_time);
                             peerstate.save_to_db(&context.sql, false).await?;
