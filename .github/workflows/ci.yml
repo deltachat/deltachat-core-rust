@@ -147,6 +147,20 @@ jobs:
       working-directory: python
       run: tox -e lint,mypy,doc,py3
 
+    - name: build deltachat-rpc-server
+      if: ${{ matrix.python }}
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: -p deltachat-rpc-server
+
+    - name: run deltachat-rpc-client tests
+      if: ${{ matrix.python }}
+      env:
+        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+      working-directory: deltachat-rpc-client
+      run: tox -e py3
+
     - name: install pypy
       if: ${{ matrix.python }}
       uses: actions/setup-python@v4

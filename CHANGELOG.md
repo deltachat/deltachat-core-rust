@@ -9,6 +9,7 @@
 ### API-Changes
 - Add Python API to send reactions #3762
 - jsonrpc: add message errors to MessageObject #3788
+- jsonrpc: Add async Python client #3734
 
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771

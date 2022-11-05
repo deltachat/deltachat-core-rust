@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deltachat-rpc-client"
+description = "Python client for Delta Chat core JSON-RPC interface"
+dependencies = [
+    "aiohttp",
+    "aiodns"
+]
+dynamic = [
+    "version"
+]
