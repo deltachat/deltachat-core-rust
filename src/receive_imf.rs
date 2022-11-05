@@ -3149,6 +3149,7 @@ Hello mailinglist!\r\n"
             .unwrap();
 
         receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
+        t.evtracker.wait_next_incoming_message().await;
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let chat_id = chats.get_chat_id(0).unwrap();
@@ -3161,7 +3162,6 @@ Hello mailinglist!\r\n"
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0); // Test that the message disappeared
 
-        t.evtracker.consume_events();
         receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
 
         // Check that no notification is displayed for blocked mailing list message.
