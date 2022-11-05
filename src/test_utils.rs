@@ -876,9 +876,10 @@ impl EventTracker {
         .await
     }
 
-    /// Consumes all pending events.
-    pub fn consume_events(&self) {
-        while self.try_recv().is_ok() {}
+    /// Wait for the next IncomingMsg event.
+    pub async fn wait_next_incoming_message(&self) {
+        self.get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
+            .await;
     }
 }
 
