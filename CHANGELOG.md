@@ -35,6 +35,7 @@
 
 ### Changes
 - allow sender timestamp to be in the future, but not too much
+- refactorings #3706
 
 ### Fixes
 - `dc_search_msgs()` returns unaccepted requests #3694
