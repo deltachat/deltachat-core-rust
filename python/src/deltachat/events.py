@@ -105,7 +105,7 @@ class FFIEventTracker:
             yield self.get(timeout=timeout, check_error=check_error)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        rex = re.compile("^{}$".format(event_name_regex))
+        rex = re.compile("^(?:{})$".format(event_name_regex))
         for ev in self.iter_events(timeout=timeout, check_error=check_error):
             if rex.match(ev.name):
                 return ev
