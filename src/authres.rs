@@ -644,6 +644,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
             .unwrap();
     }
 
+    #[ignore = "Disallowing keychanges is disabled for now"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_handle_authres_fails() -> Result<()> {
         let mut tcm = TestContextManager::new();
