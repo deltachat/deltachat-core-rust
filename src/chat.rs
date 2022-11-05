@@ -1130,8 +1130,8 @@ impl Chat {
     }
 
     /// Returns mailing list address where messages are sent to.
-    pub fn get_mailinglist_addr(&self) -> &str {
-        self.param.get(Param::ListPost).unwrap_or_default()
+    pub fn get_mailinglist_addr(&self) -> Option<&str> {
+        self.param.get(Param::ListPost)
     }
 
     /// Returns profile image path for the chat.
