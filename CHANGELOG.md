@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### API-Changes
+
+### Changes
+
+### Fixes
+
+
+## 1.99.0
+
+### API-Changes
 - breaking jsonrpc: changed function naming
   - `autocryptInitiateKeyTransfer` -> `initiateAutocryptKeyTransfer`
   - `autocryptContinueKeyTransfer` -> `continueAutocryptKeyTransfer`
