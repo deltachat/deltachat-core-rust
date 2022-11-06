@@ -89,9 +89,13 @@ export type Event=(({
  */
 "type":"IncomingMsg";}&{"chatId":U32;"msgId":U32;})|({
 /**
- * TODO docs
+ * Downloading a bunch of messages just finished. This is an experimental
+ * event to allow the UI to only show one notification per message bunch,
+ * instead of cluttering the user with many notifications.
+ * 
+ * msg_ids contains the message ids.
  */
-"type":"IncomingMsgBunch";}&{"msgIds":string;})|({
+"type":"IncomingMsgBunch";}&{"msgIds":(U32)[];})|({
 /**
  * Messages were seen or noticed.
  * chat id is always set.
