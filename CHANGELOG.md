@@ -28,7 +28,7 @@
   - `miscSendTextMessage(accountId, text, chatId)` -> `miscSendTextMessage(accountId, chatId, text)`
 - jsonrpc: add `SystemMessageType` to `Message`
 - cffi: add missing `DC_INFO_` constants
-- Add experimental DC_EVENT_INCOMING_MSG_BUNCH #3643
+- Add DC_EVENT_INCOMING_MSG_BUNCH event #3643
 - Python bindings: Make get_matching() only match the
   whole event name, e.g. events.get_matching("DC_EVENT_INCOMING_MSG")
   won't match DC_EVENT_INCOMING_MSG_BUNCH anymore #3643
