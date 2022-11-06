@@ -35,6 +35,8 @@
 
 ### Changes
 - allow sender timestamp to be in the future, but not too much
+- Disable the new "Authentication-Results/DKIM checking" security feature
+  until we have tested it a bit #3728
 - refactorings #3706
 
 ### Fixes
