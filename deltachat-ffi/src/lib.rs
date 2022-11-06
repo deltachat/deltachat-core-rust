@@ -503,6 +503,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::MsgsChanged { .. } => 2000,
         EventType::ReactionsChanged { .. } => 2001,
         EventType::IncomingMsg { .. } => 2005,
+        EventType::IncomingMsgBunch { .. } => 2006,
         EventType::MsgsNoticed { .. } => 2008,
         EventType::MsgDelivered { .. } => 2010,
         EventType::MsgFailed { .. } => 2012,
@@ -544,6 +545,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::Error(_)
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
+        | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
@@ -600,6 +602,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgsNoticed(_)
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
+        | EventType::IncomingMsgBunch { .. }
         | EventType::SelfavatarChanged => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -671,6 +674,11 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
+        EventType::IncomingMsgBunch { msg_ids } => serde_json::to_string(msg_ids)
+            .unwrap_or_default()
+            .to_c_string()
+            .unwrap_or_default()
+            .into_raw(),
     }
 }
 

@@ -120,6 +120,16 @@ pub enum JSONRPCEventType {
         msg_id: u32,
     },
 
+    /// Downloading a bunch of messages just finished. This is an experimental
+    /// event to allow the UI to only show one notification per message bunch,
+    /// instead of cluttering the user with many notifications.
+    ///
+    /// msg_ids contains the message ids.
+    #[serde(rename_all = "camelCase")]
+    IncomingMsgBunch {
+        msg_ids: Vec<u32>,
+    },
+
     /// Messages were seen or noticed.
     /// chat id is always set.
     #[serde(rename_all = "camelCase")]
@@ -304,6 +314,9 @@ impl From<EventType> for JSONRPCEventType {
             EventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
+            },
+            EventType::IncomingMsgBunch { msg_ids } => IncomingMsgBunch {
+                msg_ids: msg_ids.into_iter().map(|id| id.to_u32()).collect(),
             },
             EventType::MsgsNoticed(chat_id) => MsgsNoticed {
                 chat_id: chat_id.to_u32(),
