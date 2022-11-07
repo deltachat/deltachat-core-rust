@@ -428,14 +428,14 @@ mod tests {
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = alice.pop_sent_msg().await;
-        let sent2_rfc742_mid = Message::load_from_db(&alice, sent2.sender_msg_id)
+        let sent2_rfc724_mid = Message::load_from_db(&alice, sent2.sender_msg_id)
             .await?
             .rfc724_mid;
 
         // not downloading the status update results in an placeholder
         receive_imf_inner(
             &bob,
-            &sent2_rfc742_mid,
+            &sent2_rfc724_mid,
             sent2.payload().as_bytes(),
             false,
             Some(sent2.payload().len() as u32),
@@ -451,7 +451,7 @@ mod tests {
         // (usually status updates are too small for not being downloaded directly)
         receive_imf_inner(
             &bob,
-            &sent2_rfc742_mid,
+            &sent2_rfc724_mid,
             sent2.payload().as_bytes(),
             false,
             None,
