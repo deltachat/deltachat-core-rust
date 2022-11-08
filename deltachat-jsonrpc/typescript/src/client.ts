@@ -3,7 +3,7 @@ import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
 import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
-import { TinyEmitter } from "tiny-emitter";
+import { TinyEmitter } from "@deltachat/tiny-emitter";
 
 type DCWireEvent<T extends Event> = {
   event: T;
