@@ -1674,8 +1674,11 @@ async fn set_config(
     if key.starts_with("ui.") {
         ctx.set_ui_config(key, value).await?;
     } else {
-        ctx.set_config(Config::from_str(key).context("unknown key")?, value)
-            .await?;
+        ctx.set_config(
+            Config::from_str(key).with_context(|| format!("unknown key {:?}", key))?,
+            value,
+        )
+        .await?;
 
         match key {
             "sentbox_watch" | "mvbox_move" | "only_fetch_mvbox" => {
@@ -1694,7 +1697,7 @@ async fn get_config(
     if key.starts_with("ui.") {
         ctx.get_ui_config(key).await
     } else {
-        ctx.get_config(Config::from_str(key).context("unknown key")?)
+        ctx.get_config(Config::from_str(key).with_context(|| format!("unknown key {:?}", key))?)
             .await
     }
 }
