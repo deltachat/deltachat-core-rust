@@ -28,14 +28,14 @@ type ContextEvents = { ALL: (event: Event) => void } & {
 };
 
 export type DcEvent = Event;
-export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>
+export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>;
 
 export class BaseDeltaChat<
   Transport extends BaseTransport<any>
 > extends TinyEmitter<Events> {
   rpc: RawClient;
   account?: T.Account;
-  private contextEmitters: TinyEmitter<ContextEvents>[] = [];
+  private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
   constructor(public transport: Transport) {
     super();
     this.rpc = new RawClient(this.transport);
