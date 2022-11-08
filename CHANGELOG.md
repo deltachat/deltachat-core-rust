@@ -7,6 +7,7 @@
 ### Changes
 - add JSON-RPC stdio server `deltachat-rpc-server` and use it for JSON-RPC tests #3695
 - update rPGP from 0.8 to 0.9 #3737
+- jsonrpc: typescript client: use npm released deltachat fork of the tiny emitter package
 
 ### Fixes
 

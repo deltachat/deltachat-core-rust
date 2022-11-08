@@ -1,8 +1,8 @@
 {
   "author": "Delta Chat Developers (ML) <delta@codespeak.net>",
   "dependencies": {
+    "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
-    "tiny-emitter": "git+https://github.com/Simon-Laux/tiny-emitter.git",
     "yerpc": "^0.3.3"
   },
   "devDependencies": {
