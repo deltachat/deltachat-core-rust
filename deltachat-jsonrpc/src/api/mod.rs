@@ -1520,6 +1520,42 @@ impl CommandApi {
             .context("path conversion to string failed")
     }
 
+    async fn misc_save_sticker(
+        &self,
+        account_id: u32,
+        message_id: u32,
+        collection: String,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(message_id)).await?;
+        if message.get_viewtype() != Viewtype::Sticker {
+            bail!("message is not a sticker");
+        }
+        let account_folder = ctx
+            .get_dbfile()
+            .parent()
+            .context("account folder not found")?;
+        if collection.contains('/') || collection.contains('\\') || collection.contains('.') {
+            bail!("illegal characters in collection name");
+        }
+        let destination_path = account_folder.join("./stickers").join(collection);
+        fs::create_dir_all(&destination_path).await?;
+        let file = message.get_file(&ctx).context("no file")?;
+        fs::copy(
+            &file,
+            destination_path.join(format!(
+                "{}.{}",
+                message_id,
+                file.extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+            )),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// for desktop, get stickers from stickers folder,
     /// grouped by the folder they are in.
     async fn misc_get_stickers(&self, account_id: u32) -> Result<HashMap<String, Vec<String>>> {
