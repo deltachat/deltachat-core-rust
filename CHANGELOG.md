@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### API-Changes
+
+### Changes
+
+### Fixes
+
+
+## 1.100.0
+
+### API-Changes
 - jsonrpc: add `miscSaveSticker` method
 
 ### Changes
@@ -11,7 +20,6 @@
 - jsonrpc: typescript client: use npm released deltachat fork of the tiny emitter package #3741
 - jsonrpc: show sticker image in quote #3744
 
-### Fixes
 
 
 ## 1.99.0
