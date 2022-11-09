@@ -127,6 +127,7 @@ impl MessageObject {
                         override_sender_name: quote.get_override_sender_name(),
                         image: if quote.get_viewtype() == Viewtype::Image
                             || quote.get_viewtype() == Viewtype::Gif
+                            || quote.get_viewtype() == Viewtype::Sticker
                         {
                             match quote.get_file(context) {
                                 Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
