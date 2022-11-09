@@ -906,6 +906,7 @@ dependencies = [
  "futures",
  "log",
  "num-traits",
+ "sanitize-filename",
  "serde",
  "serde_json",
  "tempfile",
