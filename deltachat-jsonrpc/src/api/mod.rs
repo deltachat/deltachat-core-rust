@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
@@ -22,6 +22,7 @@ use deltachat::{
     stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
 };
+use sanitize_filename::is_sanitized;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
@@ -1512,7 +1513,7 @@ impl CommandApi {
             .get_dbfile()
             .parent()
             .context("account folder not found")?;
-        let sticker_folder_path = account_folder.join("./stickers");
+        let sticker_folder_path = account_folder.join("stickers");
         fs::create_dir_all(&sticker_folder_path).await?;
         sticker_folder_path
             .to_str()
@@ -1520,15 +1521,55 @@ impl CommandApi {
             .context("path conversion to string failed")
     }
 
+    /// save a sticker to a collection/folder in the account's sticker folder
+    async fn misc_save_sticker(
+        &self,
+        account_id: u32,
+        msg_id: u32,
+        collection: String,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+        ensure!(
+            message.get_viewtype() == Viewtype::Sticker,
+            "message {} is not a sticker",
+            msg_id
+        );
+        let account_folder = ctx
+            .get_dbfile()
+            .parent()
+            .context("account folder not found")?;
+        ensure!(
+            is_sanitized(&collection),
+            "illegal characters in collection name"
+        );
+        let destination_path = account_folder.join("stickers").join(collection);
+        fs::create_dir_all(&destination_path).await?;
+        let file = message.get_file(&ctx).context("no file")?;
+        fs::copy(
+            &file,
+            destination_path.join(format!(
+                "{}.{}",
+                msg_id,
+                file.extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+            )),
+        )
+        .await?;
+        Ok(())
+    }
+
     /// for desktop, get stickers from stickers folder,
-    /// grouped by the folder they are in.
+    /// grouped by the collection/folder they are in.
     async fn misc_get_stickers(&self, account_id: u32) -> Result<HashMap<String, Vec<String>>> {
         let ctx = self.get_context(account_id).await?;
         let account_folder = ctx
             .get_dbfile()
             .parent()
             .context("account folder not found")?;
-        let sticker_folder_path = account_folder.join("./stickers");
+        let sticker_folder_path = account_folder.join("stickers");
         fs::create_dir_all(&sticker_folder_path).await?;
         let mut result = HashMap::new();
 

@@ -913,8 +913,15 @@ export class RawClient {
   }
 
   /**
+   * save a sticker to a collection/folder in the account's sticker folder
+   */
+  public miscSaveSticker(accountId: T.U32, msgId: T.U32, collection: string): Promise<null> {
+    return (this._transport.request('misc_save_sticker', [accountId, msgId, collection] as RPC.Params)) as Promise<null>;
+  }
+
+  /**
    * for desktop, get stickers from stickers folder,
-   * grouped by the folder they are in.
+   * grouped by the collection/folder they are in.
    */
   public miscGetStickers(accountId: T.U32): Promise<Record<string,(string)[]>> {
     return (this._transport.request('misc_get_stickers', [accountId] as RPC.Params)) as Promise<Record<string,(string)[]>>;
