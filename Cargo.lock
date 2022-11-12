@@ -109,9 +109,9 @@ dependencies = [
 
 [[package]]
 name = "async-compression"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "345fd392ab01f746c717b1357165b76f0b67a60192007b234058c9045fdcf695"
+checksum = "942c7cd7ae39e91bde4820d74132e9862e62c2f386c3aa90ccf55949f5bad63a"
 dependencies = [
  "flate2",
  "futures-core",
@@ -197,16 +197,18 @@ dependencies = [
 
 [[package]]
 name = "async_io_utilities"
-version = "0.1.3"
-source = "git+https://github.com/Majored/rs-async-io-utilities#6661a0fb914ccc1f97a6acd446bc03e9547d64fc"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b20cffc5590f4bf33f05f97a3ea587feba9c50d20325b401daa096b92ff7da0"
 dependencies = [
  "tokio",
 ]
 
 [[package]]
 name = "async_zip"
-version = "0.0.8"
-source = "git+https://github.com/dignifiedquire/rs-async-zip?branch=main#5556c5ac5e0bbc89e2d440291a9a6b77c74070aa"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a36d43bdefc7215b2b3a97edd03b1553b7969ad76551025eedd3b913c645f6e"
 dependencies = [
  "async-compression",
  "async_io_utilities",
