@@ -233,7 +233,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
             Err(err) => {
                 // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
                 // but maybe just one folder can't be selected or something
-                warn!(ctx, "{}", err);
+                warn!(ctx, "{:#}", err);
             }
             Ok(true) => {
                 // Fetch the watched folder again in case scanning other folder moved messages
