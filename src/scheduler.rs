@@ -273,7 +273,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
         Ok(v) => v,
         Err(err) => {
             connection.trigger_reconnect(ctx).await;
-            warn!(ctx, "{}", err);
+            warn!(ctx, "{:#}", err);
             InterruptInfo::new(false)
         }
     }
