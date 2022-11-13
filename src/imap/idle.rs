@@ -183,6 +183,7 @@ impl Imap {
                 }
                 Event::Interrupt(info) => {
                     // Interrupt
+                    info!(context, "Fake IDLE interrupted");
                     break info;
                 }
             }
