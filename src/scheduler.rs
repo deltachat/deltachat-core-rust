@@ -206,6 +206,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     if let Err(err) = connection
         .fetch_move_delete(ctx, &watch_folder, false)
         .await
+        .context("fetch_move_delete")
     {
         connection.trigger_reconnect(ctx).await;
         warn!(ctx, "{:#}", err);
@@ -218,7 +219,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     // otherwise slow down message fetching.
     if let Err(err) = delete_expired_imap_messages(ctx)
         .await
-        .context("delete_expired_imap_messages failed")
+        .context("delete_expired_imap_messages")
     {
         warn!(ctx, "{:#}", err);
     }
@@ -229,7 +230,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     // be able to scan all folders before time is up if there are many of them.
     if folder_config == Config::ConfiguredInboxFolder {
         // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
-        match connection.scan_folders(ctx).await {
+        match connection.scan_folders(ctx).await.context("scan_folders") {
             Err(err) => {
                 // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
                 // but maybe just one folder can't be selected or something
@@ -245,6 +246,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
                 if let Err(err) = connection
                     .fetch_move_delete(ctx, &watch_folder, false)
                     .await
+                    .context("fetch_move_delete after scan_folders")
                 {
                     connection.trigger_reconnect(ctx).await;
                     warn!(ctx, "{:#}", err);
