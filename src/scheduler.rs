@@ -166,112 +166,115 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         .await;
 }
 
-async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder: Config) -> InterruptInfo {
-    match ctx.get_config(folder).await {
-        Ok(Some(watch_folder)) => {
-            // connect and fake idle if unable to connect
-            if let Err(err) = connection.prepare(ctx).await {
-                warn!(ctx, "imap connection failed: {}", err);
-                return connection.fake_idle(ctx, Some(watch_folder)).await;
-            }
-
-            if folder == Config::ConfiguredInboxFolder {
-                if let Err(err) = connection
-                    .store_seen_flags_on_imap(ctx)
-                    .await
-                    .context("store_seen_flags_on_imap failed")
-                {
-                    warn!(ctx, "{:#}", err);
-                }
-            }
-
-            // Fetch the watched folder.
-            if let Err(err) = connection
-                .fetch_move_delete(ctx, &watch_folder, false)
-                .await
-            {
-                connection.trigger_reconnect(ctx).await;
-                warn!(ctx, "{:#}", err);
-                return InterruptInfo::new(false);
-            }
-
-            // Mark expired messages for deletion. Marked messages will be deleted from the server
-            // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
-            // called right before `fetch_move_delete` because it is not well optimized and would
-            // otherwise slow down message fetching.
-            if let Err(err) = delete_expired_imap_messages(ctx)
-                .await
-                .context("delete_expired_imap_messages failed")
-            {
-                warn!(ctx, "{:#}", err);
-            }
-
-            // Scan additional folders only after finishing fetching the watched folder.
-            //
-            // On iOS the application has strictly limited time to work in background, so we may not
-            // be able to scan all folders before time is up if there are many of them.
-            if folder == Config::ConfiguredInboxFolder {
-                // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
-                match connection.scan_folders(ctx).await {
-                    Err(err) => {
-                        // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
-                        // but maybe just one folder can't be selected or something
-                        warn!(ctx, "{}", err);
-                    }
-                    Ok(true) => {
-                        // Fetch the watched folder again in case scanning other folder moved messages
-                        // there.
-                        //
-                        // In most cases this will select the watched folder and return because there are
-                        // no new messages. We want to select the watched folder anyway before going IDLE
-                        // there, so this does not take additional protocol round-trip.
-                        if let Err(err) = connection
-                            .fetch_move_delete(ctx, &watch_folder, false)
-                            .await
-                        {
-                            connection.trigger_reconnect(ctx).await;
-                            warn!(ctx, "{:#}", err);
-                            return InterruptInfo::new(false);
-                        }
-                    }
-                    Ok(false) => {}
-                }
-            }
-
-            // Synchronize Seen flags.
-            connection
-                .sync_seen_flags(ctx, &watch_folder)
-                .await
-                .context("sync_seen_flags")
-                .ok_or_log(ctx);
-
-            connection.connectivity.set_connected(ctx).await;
-
-            // idle
-            if connection.can_idle() {
-                match connection.idle(ctx, Some(watch_folder)).await {
-                    Ok(v) => v,
-                    Err(err) => {
-                        connection.trigger_reconnect(ctx).await;
-                        warn!(ctx, "{}", err);
-                        InterruptInfo::new(false)
-                    }
-                }
-            } else {
-                connection.fake_idle(ctx, Some(watch_folder)).await
-            }
-        }
-        Ok(None) => {
-            connection.connectivity.set_not_configured(ctx).await;
-            info!(ctx, "Can not watch {} folder, not set", folder);
-            connection.fake_idle(ctx, None).await
-        }
+async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config) -> InterruptInfo {
+    let folder = match ctx.get_config(folder_config).await {
+        Ok(folder) => folder,
         Err(err) => {
             warn!(
                 ctx,
-                "Can not watch {} folder, failed to retrieve config: {:?}", folder, err
+                "Can not watch {} folder, failed to retrieve config: {:#}", folder_config, err
             );
-            connection.fake_idle(ctx, None).await
+            return connection.fake_idle(ctx, None).await;
+        }
+    };
+
+    let watch_folder = if let Some(watch_folder) = folder {
+        watch_folder
+    } else {
+        connection.connectivity.set_not_configured(ctx).await;
+        info!(ctx, "Can not watch {} folder, not set", folder_config);
+        return connection.fake_idle(ctx, None).await;
+    };
+
+    // connect and fake idle if unable to connect
+    if let Err(err) = connection.prepare(ctx).await {
+        warn!(ctx, "imap connection failed: {}", err);
+        return connection.fake_idle(ctx, Some(watch_folder)).await;
+    }
+
+    if folder_config == Config::ConfiguredInboxFolder {
+        if let Err(err) = connection
+            .store_seen_flags_on_imap(ctx)
+            .await
+            .context("store_seen_flags_on_imap failed")
+        {
+            warn!(ctx, "{:#}", err);
+        }
+    }
+
+    // Fetch the watched folder.
+    if let Err(err) = connection
+        .fetch_move_delete(ctx, &watch_folder, false)
+        .await
+    {
+        connection.trigger_reconnect(ctx).await;
+        warn!(ctx, "{:#}", err);
+        return InterruptInfo::new(false);
+    }
+
+    // Mark expired messages for deletion. Marked messages will be deleted from the server
+    // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
+    // called right before `fetch_move_delete` because it is not well optimized and would
+    // otherwise slow down message fetching.
+    if let Err(err) = delete_expired_imap_messages(ctx)
+        .await
+        .context("delete_expired_imap_messages failed")
+    {
+        warn!(ctx, "{:#}", err);
+    }
+
+    // Scan additional folders only after finishing fetching the watched folder.
+    //
+    // On iOS the application has strictly limited time to work in background, so we may not
+    // be able to scan all folders before time is up if there are many of them.
+    if folder_config == Config::ConfiguredInboxFolder {
+        // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
+        match connection.scan_folders(ctx).await {
+            Err(err) => {
+                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+                // but maybe just one folder can't be selected or something
+                warn!(ctx, "{}", err);
+            }
+            Ok(true) => {
+                // Fetch the watched folder again in case scanning other folder moved messages
+                // there.
+                //
+                // In most cases this will select the watched folder and return because there are
+                // no new messages. We want to select the watched folder anyway before going IDLE
+                // there, so this does not take additional protocol round-trip.
+                if let Err(err) = connection
+                    .fetch_move_delete(ctx, &watch_folder, false)
+                    .await
+                {
+                    connection.trigger_reconnect(ctx).await;
+                    warn!(ctx, "{:#}", err);
+                    return InterruptInfo::new(false);
+                }
+            }
+            Ok(false) => {}
+        }
+    }
+
+    // Synchronize Seen flags.
+    connection
+        .sync_seen_flags(ctx, &watch_folder)
+        .await
+        .context("sync_seen_flags")
+        .ok_or_log(ctx);
+
+    connection.connectivity.set_connected(ctx).await;
+
+    // idle
+    if !connection.can_idle() {
+        return connection.fake_idle(ctx, Some(watch_folder)).await;
+    }
+
+    match connection.idle(ctx, Some(watch_folder)).await {
+        Ok(v) => v,
+        Err(err) => {
+            connection.trigger_reconnect(ctx).await;
+            warn!(ctx, "{}", err);
+            InterruptInfo::new(false)
         }
     }
 }
