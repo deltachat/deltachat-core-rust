@@ -97,8 +97,9 @@ impl Imap {
             }
 
             let session = tokio::time::timeout(Duration::from_secs(15), handle.done())
-                .await?
-                .with_context(|| format!("{}: IMAP IDLE protocol timed out", folder_name))?;
+                .await
+                .with_context(|| format!("{}: IMAP IDLE protocol timed out", folder_name))?
+                .with_context(|| format!("{}: IMAP IDLE failed", folder_name))?;
             self.session = Some(Session { inner: session });
         } else {
             warn!(context, "Attempted to idle without a session");
