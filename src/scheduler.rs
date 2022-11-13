@@ -285,11 +285,11 @@ async fn simple_imap_loop(
     ctx: Context,
     started: Sender<()>,
     inbox_handlers: ImapConnectionHandlers,
-    folder: Config,
+    folder_config: Config,
 ) {
     use futures::future::FutureExt;
 
-    info!(ctx, "starting simple loop for {}", folder.as_ref());
+    info!(ctx, "starting simple loop for {}", folder_config);
     let ImapConnectionHandlers {
         mut connection,
         stop_receiver,
@@ -305,7 +305,7 @@ async fn simple_imap_loop(
         }
 
         loop {
-            fetch_idle(&ctx, &mut connection, folder).await;
+            fetch_idle(&ctx, &mut connection, folder_config).await;
         }
     };
 
