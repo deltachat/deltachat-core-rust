@@ -5,6 +5,7 @@
 ### API-Changes
 
 ### Changes
+- add `configured_inbox_folder` to account info #3748
 
 ### Fixes
 
