@@ -32,6 +32,7 @@ use crate::receive_imf::ReceivedMsg;
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
+use crate::stock_str::ByContact;
 use crate::tools::{
     create_id, create_outgoing_rfc724_mid, create_smeared_timestamp, create_smeared_timestamps,
     get_abs_path, gm2local_offset, improve_single_line_input, time, IsNoneOrEmpty,
@@ -2744,7 +2745,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         msg.viewtype = Viewtype::Text;
 
         msg.text =
-            Some(stock_str::msg_add_member(context, contact.get_addr(), ContactId::SELF).await);
+            Some(stock_str::msg_add_member(context, contact.get_addr(), ByContact::SelfName).await);
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact.get_addr());
         msg.param.set_int(Param::Arg2, from_handshake.into());
@@ -2877,13 +2878,13 @@ pub async fn remove_contact_from_chat(
                         if contact.id == ContactId::SELF {
                             set_group_explicitly_left(context, &chat.grpid).await?;
                             msg.text =
-                                Some(stock_str::msg_group_left(context, ContactId::SELF).await);
+                                Some(stock_str::msg_group_left(context, ByContact::SelfName).await);
                         } else {
                             msg.text = Some(
                                 stock_str::msg_del_member(
                                     context,
                                     contact.get_addr(),
-                                    ContactId::SELF,
+                                    ByContact::SelfName,
                                 )
                                 .await,
                             );
@@ -2976,7 +2977,8 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
             if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast {
                 msg.viewtype = Viewtype::Text;
                 msg.text = Some(
-                    stock_str::msg_grp_name(context, &chat.name, &new_name, ContactId::SELF).await,
+                    stock_str::msg_grp_name(context, &chat.name, &new_name, ByContact::SelfName)
+                        .await,
                 );
                 msg.param.set_cmd(SystemMessage::GroupNameChanged);
                 if !chat.name.is_empty() {
@@ -3026,14 +3028,14 @@ pub async fn set_chat_profile_image(
     if new_image.as_ref().is_empty() {
         chat.param.remove(Param::ProfileImage);
         msg.param.remove(Param::Arg);
-        msg.text = Some(stock_str::msg_grp_img_deleted(context, ContactId::SELF).await);
+        msg.text = Some(stock_str::msg_grp_img_deleted(context, ByContact::SelfName).await);
     } else {
         let mut image_blob =
             BlobObject::new_from_path(context, Path::new(new_image.as_ref())).await?;
         image_blob.recode_to_avatar_size(context).await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
-        msg.text = Some(stock_str::msg_grp_img_changed(context, ContactId::SELF).await);
+        msg.text = Some(stock_str::msg_grp_img_changed(context, ByContact::SelfName).await);
     }
     chat.update_param(context).await?;
     if chat.is_promoted() && !chat.is_mailing_list() {

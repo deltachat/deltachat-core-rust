@@ -404,6 +404,11 @@ pub enum StockMessage {
     ProtectionDisabledBy = 161,
 }
 
+pub(crate) enum ByContact {
+    YouOrName(ContactId),
+    SelfName,
+}
+
 impl StockMessage {
     /// Default untranslated strings for stock messages.
     ///
@@ -553,29 +558,45 @@ pub(crate) async fn msg_grp_name(
     context: &Context,
     from_group: impl AsRef<str>,
     to_group: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouChangedGrpName)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouChangedGrpName)
+                    .await
+                    .replace1(from_group)
+                    .replace2(to_group)
+            } else {
+                translated(context, StockMessage::MsgGrpNameChangedBy)
+                    .await
+                    .replace1(from_group)
+                    .replace2(to_group)
+                    .replace3(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgGrpNameChangedBy)
             .await
             .replace1(from_group)
             .replace2(to_group)
-    } else {
-        translated(context, StockMessage::MsgGrpNameChangedBy)
-            .await
-            .replace1(from_group)
-            .replace2(to_group)
-            .replace3(by_contact.get_stock_name(context).await)
+            .replace3(context.get_config_self_name().await),
     }
 }
 
-pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouChangedGrpImg).await
-    } else {
-        translated(context, StockMessage::MsgGrpImgChangedBy)
+pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouChangedGrpImg).await
+            } else {
+                translated(context, StockMessage::MsgGrpImgChangedBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgGrpImgChangedBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -586,7 +607,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
 pub(crate) async fn msg_add_member(
     context: &Context,
     added_member_addr: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
     let addr = added_member_addr.as_ref();
     let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
@@ -596,15 +617,23 @@ pub(crate) async fn msg_add_member(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouAddMember)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouAddMember)
+                    .await
+                    .replace1(who)
+            } else {
+                translated(context, StockMessage::MsgAddMemberBy)
+                    .await
+                    .replace1(who)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgAddMemberBy)
             .await
             .replace1(who)
-    } else {
-        translated(context, StockMessage::MsgAddMemberBy)
-            .await
-            .replace1(who)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
@@ -615,7 +644,7 @@ pub(crate) async fn msg_add_member(
 pub(crate) async fn msg_del_member(
     context: &Context,
     removed_member_addr: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
     let addr = removed_member_addr.as_ref();
     let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
@@ -625,26 +654,41 @@ pub(crate) async fn msg_del_member(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouDelMember)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouDelMember)
+                    .await
+                    .replace1(who)
+            } else {
+                translated(context, StockMessage::MsgDelMemberBy)
+                    .await
+                    .replace1(who)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgDelMemberBy)
             .await
             .replace1(who)
-    } else {
-        translated(context, StockMessage::MsgDelMemberBy)
-            .await
-            .replace1(who)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Group left.`.
-pub(crate) async fn msg_group_left(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouLeftGroup).await
-    } else {
-        translated(context, StockMessage::MsgGroupLeftBy)
+pub(crate) async fn msg_group_left(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouLeftGroup).await
+            } else {
+                translated(context, StockMessage::MsgGroupLeftBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgGroupLeftBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -691,13 +735,20 @@ pub(crate) async fn read_rcpt_mail_body(context: &Context, message: impl AsRef<s
 }
 
 /// Stock string: `Group image deleted.`.
-pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouDeletedGrpImg).await
-    } else {
-        translated(context, StockMessage::MsgGrpImgDeletedBy)
+pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouDeletedGrpImg).await
+            } else {
+                translated(context, StockMessage::MsgGrpImgDeletedBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgGrpImgDeletedBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -1394,7 +1445,12 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_me() {
         let t = TestContext::new().await;
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
+            msg_add_member(
+                &t,
+                "alice@example.org",
+                ByContact::YouOrName(ContactId::SELF)
+            )
+            .await,
             "You added member alice@example.org."
         )
     }
@@ -1406,7 +1462,12 @@ mod tests {
             .await
             .expect("failed to create contact");
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
+            msg_add_member(
+                &t,
+                "alice@example.org",
+                ByContact::YouOrName(ContactId::SELF)
+            )
+            .await,
             "You added member Alice (alice@example.org)."
         );
     }
@@ -1423,7 +1484,7 @@ mod tests {
                 .expect("failed to create bob")
         };
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", contact_id,).await,
+            msg_add_member(&t, "alice@example.org", ByContact::YouOrName(contact_id)).await,
             "Member Alice (alice@example.org) added by Bob (bob@example.com)."
         );
     }

@@ -282,6 +282,21 @@ impl Context {
         }
     }
 
+    pub async fn get_config_self_name(&self) -> String {
+        match self
+            .get_config(Config::Displayname)
+            .await
+            .unwrap_or_default()
+        {
+            Some(name) => name,
+            None => self
+                .get_config(Config::Addr)
+                .await
+                .unwrap_or_default()
+                .unwrap_or_default(),
+        }
+    }
+
     /// Set the given config key.
     /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub async fn set_config(&self, key: Config, value: Option<&str>) -> Result<()> {

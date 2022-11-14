@@ -37,6 +37,7 @@ use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
+use crate::stock_str::ByContact;
 use crate::tools::{create_id, extract_grpid_from_rfc724_mid, smeared_time};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -1601,9 +1602,16 @@ async fn apply_group_changes(
         match removed_id {
             Some(contact_id) => {
                 better_msg = if contact_id == from_id {
-                    Some(stock_str::msg_group_left(context, from_id).await)
+                    Some(stock_str::msg_group_left(context, ByContact::YouOrName(from_id)).await)
                 } else {
-                    Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
+                    Some(
+                        stock_str::msg_del_member(
+                            context,
+                            &removed_addr,
+                            ByContact::YouOrName(from_id),
+                        )
+                        .await,
+                    )
                 };
             }
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
@@ -1614,7 +1622,10 @@ async fn apply_group_changes(
             .get_header(HeaderDef::ChatGroupMemberAdded)
             .cloned()
         {
-            better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
+            better_msg = Some(
+                stock_str::msg_add_member(context, &added_member, ByContact::YouOrName(from_id))
+                    .await,
+            );
             recreate_member_list = true;
         } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
             if let Some(grpname) = mime_parser
@@ -1636,8 +1647,15 @@ async fn apply_group_changes(
                     send_event_chat_modified = true;
                 }
 
-                better_msg =
-                    Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+                better_msg = Some(
+                    stock_str::msg_grp_name(
+                        context,
+                        old_name,
+                        grpname,
+                        ByContact::YouOrName(from_id),
+                    )
+                    .await,
+                );
             }
         } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
             if value == "group-avatar-changed" {
@@ -1645,12 +1663,14 @@ async fn apply_group_changes(
                     // this is just an explicit message containing the group-avatar,
                     // apart from that, the group-avatar is send along with various other messages
                     better_msg = match avatar_action {
-                        AvatarAction::Delete => {
-                            Some(stock_str::msg_grp_img_deleted(context, from_id).await)
-                        }
-                        AvatarAction::Change(_) => {
-                            Some(stock_str::msg_grp_img_changed(context, from_id).await)
-                        }
+                        AvatarAction::Delete => Some(
+                            stock_str::msg_grp_img_deleted(context, ByContact::YouOrName(from_id))
+                                .await,
+                        ),
+                        AvatarAction::Change(_) => Some(
+                            stock_str::msg_grp_img_changed(context, ByContact::YouOrName(from_id))
+                                .await,
+                        ),
                     };
                 }
             }
