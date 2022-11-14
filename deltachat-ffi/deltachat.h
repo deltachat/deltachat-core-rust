@@ -2056,8 +2056,9 @@ char*           dc_get_contact_encrinfo      (dc_context_t* context, uint32_t co
 
 
 /**
- * Delete a contact. The contact is deleted from the local device. It may happen that this is not
- * possible as the contact is in use. In this case, the contact can be blocked.
+ * Delete a contact so that it disappears from the corresponding lists.
+ * Depending on whether there are ongoing chats, deletion is done by physical deletion or hiding.
+ * The contact is deleted from the local device.
  *
  * May result in a #DC_EVENT_CONTACTS_CHANGED event.
  *
