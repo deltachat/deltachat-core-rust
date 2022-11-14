@@ -11,6 +11,8 @@
 ### Fixes
 - improve IMAP logging, in particular fix incorrect "IMAP IDLE protocol
   timed out" message on network error during IDLE #3749
+- pop Recently Seen Loop event out of the queue when it is in the past
+  to avoid busy looping #3753
 
 
 ## 1.100.0

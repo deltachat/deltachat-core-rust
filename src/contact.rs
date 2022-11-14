@@ -1543,6 +1543,17 @@ impl RecentlySeenLoop {
                         unseen_queue.push((Reverse(timestamp + SEEN_RECENTLY_SECONDS), contact_id));
                     }
                 }
+            } else {
+                info!(
+                    context,
+                    "Recently seen loop is not waiting, event is already due."
+                );
+
+                // Event is already in the past.
+                if let Some(contact_id) = contact_id {
+                    context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
+                }
+                unseen_queue.pop();
             }
         }
     }
