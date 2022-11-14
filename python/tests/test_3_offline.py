@@ -200,11 +200,11 @@ class TestOfflineContact:
         assert ac1.delete_contact(contact1)
         assert contact1 not in ac1.get_contacts()
 
-    def test_get_contacts_and_delete_fails(self, acfactory):
+    def test_delete_referenced_contact_hides_contact(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.com", name="some1")
         msg = contact1.create_chat().send_text("one message")
-        assert not ac1.delete_contact(contact1)
+        assert ac1.delete_contact(contact1)
         assert not msg.filemime
 
     def test_create_chat_flexibility(self, acfactory):
