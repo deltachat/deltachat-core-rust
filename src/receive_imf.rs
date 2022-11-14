@@ -29,7 +29,8 @@ use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError,
+    SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -105,10 +106,27 @@ pub(crate) async fn receive_imf_inner(
 
     let mut mime_parser =
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
-            Err(err) => {
+            Err(ParserError::Malformed(err)) => {
                 warn!(context, "receive_imf: can't parse MIME: {}", err);
-                return Ok(None);
+
+                // TODO should be only done if rfc724_mid is the correct one, and has not been generated??
+                let row_id = context
+                    .sql
+                    .execute(
+                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                        paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
+                    )
+                    .await?;
+
+                return Ok(Some(ReceivedMsg {
+                    chat_id: DC_CHAT_ID_TRASH,
+                    state: MessageState::Undefined,
+                    sort_timestamp: 0,
+                    msg_ids: vec![MsgId::new(u32::try_from(row_id)?)],
+                    needs_delete_job: false,
+                }));
             }
+            Err(ParserError::Sql(err)) => return Err(err),
             Ok(mime_parser) => mime_parser,
         };
 
@@ -153,7 +171,7 @@ pub(crate) async fn receive_imf_inner(
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await?;
+        from_field_to_contact_id(context, Some(&mime_parser.from), prevent_rename).await?;
 
     let incoming = from_id != ContactId::SELF;
 
@@ -351,7 +369,7 @@ pub(crate) async fn receive_imf_inner(
 /// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
 pub async fn from_field_to_contact_id(
     context: &Context,
-    from: &Option<SingleInfo>,
+    from: Option<&SingleInfo>,
     prevent_rename: bool,
 ) -> Result<(ContactId, bool, Origin)> {
     let from = match from {
@@ -566,9 +584,10 @@ async fn add_parts(
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
                     mime_parser.repl_msg_by_error(&s);
-                } else if let Some(from) = &mime_parser.from {
+                } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
+                    let from = &mime_parser.from;
                     let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
                     for part in mime_parser.parts.iter_mut() {
                         part.param.set(Param::OverrideSenderDisplayname, name);
@@ -633,11 +652,9 @@ async fn add_parts(
         // if contact renaming is prevented (for mailinglists and bots),
         // we use name from From:-header as override name
         if prevent_rename {
-            if let Some(from) = &mime_parser.from {
-                if let Some(name) = &from.display_name {
-                    for part in mime_parser.parts.iter_mut() {
-                        part.param.set(Param::OverrideSenderDisplayname, name);
-                    }
+            if let Some(name) = &mime_parser.from.display_name {
+                for part in mime_parser.parts.iter_mut() {
+                    part.param.set(Param::OverrideSenderDisplayname, name);
                 }
             }
         }
@@ -1797,10 +1814,8 @@ async fn create_or_lookup_mailinglist(
     // a usable name for these lists is in the `From` header
     // and we can detect these lists by a unique `ListId`-suffix.
     if listid.ends_with(".list-id.mcsv.net") {
-        if let Some(from) = &mime_parser.from {
-            if let Some(display_name) = &from.display_name {
-                name = display_name.clone();
-            }
+        if let Some(display_name) = &mime_parser.from.display_name {
+            name = display_name.clone();
         }
     }
 
@@ -1821,16 +1836,14 @@ async fn create_or_lookup_mailinglist(
     // this pattern is similar to mailchimp above, however,
     // with weaker conditions and does not overwrite existing names.
     if name.is_empty() {
-        if let Some(from) = &mime_parser.from {
-            if from.addr.contains("noreply")
-                || from.addr.contains("no-reply")
-                || from.addr.starts_with("notifications@")
-                || from.addr.starts_with("newsletter@")
-                || listid.ends_with(".xt.local")
-            {
-                if let Some(display_name) = &from.display_name {
-                    name = display_name.clone();
-                }
+        if mime_parser.from.addr.contains("noreply")
+            || mime_parser.from.addr.contains("no-reply")
+            || mime_parser.from.addr.starts_with("notifications@")
+            || mime_parser.from.addr.starts_with("newsletter@")
+            || listid.ends_with(".xt.local")
+        {
+            if let Some(display_name) = &mime_parser.from.display_name {
+                name = display_name.clone();
             }
         }
     }
@@ -2279,7 +2292,7 @@ mod tests {
     async fn test_grpid_simple() {
         let context = TestContext::new().await;
         let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello\n\
+                    From: hello@example.org\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
@@ -2294,10 +2307,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_grpid_from_multiple() {
+    async fn test_bad_from() {
         let context = TestContext::new().await;
         let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <lqkjwelq123@123123>\n\
+                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
+        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_grpid_from_multiple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello@example.org\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
@@ -2584,8 +2611,14 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        // Check that the message was added to the database:
-        assert!(chats.get_msg_id(0).is_ok());
+        // Check that the message is not shown to the user:
+        assert!(chats.is_empty());
+
+        // Check that the message was added to the db:
+        assert!(message::rfc724_mid_exists(context, "3924@example.com")
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

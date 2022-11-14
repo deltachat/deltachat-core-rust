@@ -13,6 +13,8 @@ use once_cell::sync::Lazy;
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
+use crate::mimeparser;
+use crate::mimeparser::ParserErrorExt;
 use crate::tools::time;
 use crate::tools::EmailAddress;
 
@@ -30,20 +32,23 @@ pub(crate) async fn handle_authres(
     mail: &ParsedMail<'_>,
     from: &str,
     message_time: i64,
-) -> Result<DkimResults> {
+) -> mimeparser::ParserResult<DkimResults> {
     let from_domain = match EmailAddress::new(from) {
         Ok(email) => email.domain,
         Err(e) => {
-            warn!(context, "invalid email {:#}", e);
             // This email is invalid, but don't return an error, we still want to
             // add a stub to the database so that it's not downloaded again
-            return Ok(DkimResults::default());
+            return Err(anyhow::format_err!("invalid email {}: {:#}", from, e)).map_err_malformed();
         }
     };
 
     let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
-    update_authservid_candidates(context, &authres).await?;
-    compute_dkim_results(context, authres, &from_domain, message_time).await
+    update_authservid_candidates(context, &authres)
+        .await
+        .map_err_sql()?;
+    compute_dkim_results(context, authres, &from_domain, message_time)
+        .await
+        .map_err_sql()
 }
 
 #[derive(Default, Debug)]
@@ -637,9 +642,10 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         // Even if the format is wrong and parsing fails, handle_authres() shouldn't
         // return an Err because this would prevent the message from being added
         // to the database and downloaded again and again
-        let bytes = b"Authentication-Results: dkim=";
+        let bytes = b"From: invalid@from.com
+Authentication-Results: dkim=";
         let mail = mailparse::parse_mail(bytes).unwrap();
-        handle_authres(&t, &mail, "invalidfrom.com", time())
+        handle_authres(&t, &mail, "invalid@rom.com", time())
             .await
             .unwrap();
     }

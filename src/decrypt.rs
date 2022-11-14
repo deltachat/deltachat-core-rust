@@ -4,7 +4,6 @@ use std::collections::HashSet;
 
 use anyhow::{Context as _, Result};
 use mailparse::ParsedMail;
-use mailparse::SingleInfo;
 
 use crate::aheader::Aheader;
 use crate::authres;
@@ -14,6 +13,7 @@ use crate::context::Context;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
+use crate::mimeparser::{self, ParserErrorExt};
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -56,18 +56,12 @@ pub async fn try_decrypt(
     .await
 }
 
-pub async fn prepare_decryption(
+pub(crate) async fn prepare_decryption(
     context: &Context,
     mail: &ParsedMail<'_>,
-    from: &Option<SingleInfo>,
+    from: &str,
     message_time: i64,
-) -> Result<DecryptionInfo> {
-    let from = if let Some(f) = from {
-        &f.addr
-    } else {
-        return Ok(DecryptionInfo::default());
-    };
-
+) -> mimeparser::ParserResult<DecryptionInfo> {
     let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
@@ -82,7 +76,8 @@ pub async fn prepare_decryption(
         // Disallowing keychanges is disabled for now:
         true, // dkim_results.allow_keychange,
     )
-    .await?;
+    .await
+    .map_err_sql()?;
 
     Ok(DecryptionInfo {
         from: from.to_string(),

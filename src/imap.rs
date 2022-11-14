@@ -1448,7 +1448,7 @@ impl Imap {
                     .context("we checked that message has body right above, but it has vanished")?;
                 let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
-                let rfc724_mid = if let Some(rfc724_mid) = &uid_message_ids.get(&server_uid) {
+                let rfc724_mid = if let Some(rfc724_mid) = uid_message_ids.get(&server_uid) {
                     rfc724_mid
                 } else {
                     warn!(
@@ -1456,7 +1456,7 @@ impl Imap {
                         "No Message-ID corresponding to UID {} passed in uid_messsage_ids",
                         server_uid
                     );
-                    ""
+                    continue;
                 };
                 match receive_imf_inner(
                     &context,
@@ -1754,7 +1754,7 @@ async fn should_move_out_of_spam(
     } else {
         // No chat found.
         let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+            from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
             return Ok(false);
@@ -2038,7 +2038,7 @@ pub(crate) async fn prefetch_should_download(
         .is_some();
 
     let (_from_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+        from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
