@@ -13,7 +13,6 @@ use regex::Regex;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
-use crate::contact;
 use crate::contact::{
     may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
@@ -22,15 +21,14 @@ use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::imap::markseen_on_imap_table;
+use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError,
-    SystemMessage,
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -38,7 +36,8 @@ use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
-use crate::tools::{create_id, extract_grpid_from_rfc724_mid, smeared_time};
+use crate::tools::{extract_grpid_from_rfc724_mid, smeared_time};
+use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -67,11 +66,7 @@ pub async fn receive_imf(
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
-    let rfc724_mid = mail
-        .headers
-        .get_header_value(HeaderDef::MessageId)
-        .and_then(|msgid| parse_message_id(&msgid).ok())
-        .unwrap_or_else(create_id);
+    let rfc724_mid = imap::prefetch_get_or_create_message_id(&mail.headers);
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -109,20 +104,26 @@ pub(crate) async fn receive_imf_inner(
             Err(ParserError::Malformed(err)) => {
                 warn!(context, "receive_imf: can't parse MIME: {}", err);
 
-                // TODO should be only done if rfc724_mid is the correct one, and has not been generated??
-                let row_id = context
-                    .sql
-                    .execute(
-                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                        paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
-                    )
-                    .await?;
+                let msg_ids;
+                if !rfc724_mid.starts_with(GENERATED_PREFIX) {
+                    let row_id = context
+                        .sql
+                        .execute(
+                            "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                            paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
+                        )
+                        .await?;
+                    msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
+                } else {
+                    return Ok(None);
+                    // We don't have an rfc724_mid, there's point in adding a trash entry
+                }
 
                 return Ok(Some(ReceivedMsg {
                     chat_id: DC_CHAT_ID_TRASH,
                     state: MessageState::Undefined,
                     sort_timestamp: 0,
-                    msg_ids: vec![MsgId::new(u32::try_from(row_id)?)],
+                    msg_ids,
                     needs_delete_job: false,
                 }));
             }
@@ -2619,6 +2620,47 @@ mod tests {
             .await
             .unwrap()
             .is_some());
+    }
+
+    /// If there is no Message-Id header, we generate a random id.
+    /// But there is no point in adding a trash entry in the database
+    /// if the email is malformed (e.g. because `From` is missing)
+    /// with this random id we just generated.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_no_message_id_header() {
+        let t = TestContext::new_alice().await;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        assert!(chats.get_msg_id(0).is_err());
+
+        let received = receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+              To: bob@example.com\n\
+              Subject: foo\n\
+              Chat-Version: 1.0\n\
+              Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+              \n\
+              hello\n",
+            false,
+        )
+        .await
+        .unwrap();
+        dbg!(&received);
+        assert!(received.is_none());
+
+        assert!(!t
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
+                paramsv![DC_CHAT_ID_TRASH],
+            )
+            .await
+            .unwrap());
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        // Check that the message is not shown to the user:
+        assert!(chats.is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

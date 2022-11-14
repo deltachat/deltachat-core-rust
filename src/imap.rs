@@ -56,6 +56,8 @@ use session::Session;
 
 use self::select_folder::NewlySelected;
 
+pub(crate) const GENERATED_PREFIX: &str = "GEN_";
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
     Failed,
@@ -795,7 +797,7 @@ impl Imap {
             };
 
             // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(create_id);
+            let message_id = prefetch_get_or_create_message_id(&headers);
 
             let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
@@ -1974,13 +1976,15 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
-    if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
-        crate::mimeparser::parse_message_id(&message_id).ok()
-    } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
-        crate::mimeparser::parse_message_id(&message_id).ok()
-    } else {
-        None
-    }
+    headers
+        .get_header_value(HeaderDef::XMicrosoftOriginalMessageId)
+        .or_else(|| headers.get_header_value(HeaderDef::MessageId))
+        .and_then(|msgid| mimeparser::parse_message_id(&msgid).ok())
+}
+
+pub(crate) fn prefetch_get_or_create_message_id(headers: &[mailparse::MailHeader]) -> String {
+    prefetch_get_message_id(headers)
+        .unwrap_or_else(|| format!("{}{}", GENERATED_PREFIX, create_id()))
 }
 
 /// Returns chat by prefetched headers.
