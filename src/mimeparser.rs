@@ -625,7 +625,7 @@ impl MimeMessage {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
                 // Check that the message is not outgoing.
                 let from = &self.from.addr;
-                if !context.is_self_addr(&from).await? {
+                if !context.is_self_addr(from).await? {
                     if from.to_lowercase() == dn_to.addr.to_lowercase() {
                         if let Some(part) = self.parts.last_mut() {
                             part.param.set_int(Param::WantsMdn, 1);

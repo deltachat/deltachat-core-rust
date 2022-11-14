@@ -1836,16 +1836,15 @@ async fn create_or_lookup_mailinglist(
     //
     // this pattern is similar to mailchimp above, however,
     // with weaker conditions and does not overwrite existing names.
-    if name.is_empty() {
-        if mime_parser.from.addr.contains("noreply")
+    if name.is_empty()
+        && (mime_parser.from.addr.contains("noreply")
             || mime_parser.from.addr.contains("no-reply")
             || mime_parser.from.addr.starts_with("notifications@")
             || mime_parser.from.addr.starts_with("newsletter@")
-            || listid.ends_with(".xt.local")
-        {
-            if let Some(display_name) = &mime_parser.from.display_name {
-                name = display_name.clone();
-            }
+            || listid.ends_with(".xt.local"))
+    {
+        if let Some(display_name) = &mime_parser.from.display_name {
+            name = display_name.clone();
         }
     }
 
