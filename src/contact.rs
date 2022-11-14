@@ -952,28 +952,25 @@ impl Contact {
     pub async fn delete(context: &Context, contact_id: ContactId) -> Result<()> {
         ensure!(!contact_id.is_special(), "Can not delete special contact");
 
-        let count_chats = context
+        context
             .sql
-            .count(
-                "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-                paramsv![contact_id],
-            )
+            .transaction(move |transaction| {
+                // make sure, the transaction starts with a write command and becomes EXCLUSIVE by that -
+                // upgrading later may be impossible by races.
+                let deleted_contacts = transaction.execute(
+                    "DELETE FROM contacts WHERE id=?
+                     AND (SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?)=0;",
+                    paramsv![contact_id, contact_id],
+                )?;
+                if deleted_contacts == 0 {
+                    transaction.execute(
+                        "UPDATE contacts SET origin=? WHERE id=?;",
+                        paramsv![Origin::Hidden, contact_id],
+                    )?;
+                }
+                Ok(())
+            })
             .await?;
-
-        if count_chats == 0 {
-            context
-                .sql
-                .execute("DELETE FROM contacts WHERE id=?;", paramsv![contact_id])
-                .await?;
-        } else {
-            context
-                .sql
-                .execute(
-                    "UPDATE contacts SET origin=? WHERE id=?;",
-                    paramsv![Origin::Hidden, contact_id],
-                )
-                .await?;
-        }
 
         context.emit_event(EventType::ContactsChanged(None));
         Ok(())
