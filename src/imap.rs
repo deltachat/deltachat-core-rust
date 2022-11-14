@@ -494,6 +494,8 @@ impl Imap {
     }
 
     async fn disconnect(&mut self, context: &Context) {
+        info!(context, "disconnecting");
+
         // Close folder if messages should be expunged
         if let Err(err) = self.close_folder(context).await {
             warn!(context, "failed to close folder: {:?}", err);

@@ -8,6 +8,8 @@
 - add `configured_inbox_folder` to account info #3748
 
 ### Fixes
+- improve IMAP logging, in particular fix incorrect "IMAP IDLE protocol
+  timed out" message on network error during IDLE #3749
 
 
 ## 1.100.0

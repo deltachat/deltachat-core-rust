@@ -19,11 +19,14 @@ pub enum Error {
     #[error("Got a NO response when trying to select {0}, usually this means that it doesn't exist: {1}")]
     NoFolder(String, String),
 
-    #[error("IMAP close/expunge failed")]
-    CloseExpungeFailed(#[from] async_imap::error::Error),
-
     #[error("IMAP other error: {0}")]
     Other(String),
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Error {
+        Error::Other(format!("{:#}", err))
+    }
 }
 
 impl Imap {
@@ -31,23 +34,16 @@ impl Imap {
     ///
     /// CLOSE is considerably faster than an EXPUNGE, see
     /// <https://tools.ietf.org/html/rfc3501#section-6.4.2>
-    pub(super) async fn close_folder(&mut self, context: &Context) -> Result<()> {
+    pub(super) async fn close_folder(&mut self, context: &Context) -> anyhow::Result<()> {
         if let Some(ref folder) = self.config.selected_folder {
             info!(context, "Expunge messages in \"{}\".", folder);
 
-            if let Some(ref mut session) = self.session {
-                match session.close().await {
-                    Ok(_) => {
-                        info!(context, "close/expunge succeeded");
-                    }
-                    Err(err) => {
-                        self.trigger_reconnect(context).await;
-                        return Err(Error::CloseExpungeFailed(err));
-                    }
-                }
-            } else {
-                return Err(Error::NoSession);
+            let session = self.session.as_mut().context("no session")?;
+            if let Err(err) = session.close().await.context("IMAP close/expunge failed") {
+                self.trigger_reconnect(context).await;
+                return Err(err);
             }
+            info!(context, "close/expunge succeeded");
         }
         self.config.selected_folder = None;
         self.config.selected_folder_needs_expunge = false;
@@ -56,7 +52,7 @@ impl Imap {
     }
 
     /// Issues a CLOSE command if selected folder needs expunge.
-    pub(crate) async fn maybe_close_folder(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn maybe_close_folder(&mut self, context: &Context) -> anyhow::Result<()> {
         if self.config.selected_folder_needs_expunge {
             self.close_folder(context).await?;
         }
