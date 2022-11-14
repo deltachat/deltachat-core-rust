@@ -25,7 +25,7 @@ pub enum Error {
 
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Error {
-        Error::Other(err.to_string())
+        Error::Other(format!("{:#}", err))
     }
 }
 
