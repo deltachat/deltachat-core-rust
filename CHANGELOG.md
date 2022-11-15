@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+### Changes
+
 ### API-Changes
+
+### Fixes
+
+
+## 1.101.0
 
 ### Changes
 - add `configured_inbox_folder` to account info #3748
@@ -14,6 +21,7 @@
   timed out" message on network error during IDLE #3749
 - pop Recently Seen Loop event out of the queue when it is in the past
   to avoid busy looping #3753
+- fix build failures by going back to standard `async_zip` #3747
 
 
 ## 1.100.0
