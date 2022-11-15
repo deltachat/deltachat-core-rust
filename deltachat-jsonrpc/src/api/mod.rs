@@ -1146,12 +1146,12 @@ impl CommandApi {
         Ok(contacts)
     }
 
-    async fn delete_contact(&self, account_id: u32, contact_id: u32) -> Result<bool> {
+    async fn delete_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
         Contact::delete(&ctx, contact_id).await?;
-        Ok(true)
+        Ok(())
     }
 
     async fn change_contact_name(

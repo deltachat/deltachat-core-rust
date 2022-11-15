@@ -616,7 +616,7 @@ describe('Offline Tests with unconfigured account', function () {
     const id = context.createContact('someuser', 'someuser@site.com')
     const contact = context.getContact(id)
     strictEqual(contact.getId(), id, 'contact id matches')
-    strictEqual(context.deleteContact(id), true, 'delete call succesful')
+    context.deleteContact(id)
     strictEqual(context.getContact(id), null, 'contact is gone')
   })
 
