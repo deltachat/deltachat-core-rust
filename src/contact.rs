@@ -944,43 +944,36 @@ impl Contact {
         Ok(ret)
     }
 
-    /// Delete a contact. The contact is deleted from the local device. It may happen that this is not
-    /// possible as the contact is in use. In this case, the contact can be blocked.
+    /// Delete a contact so that it disappears from the corresponding lists.
+    //  Depending on whether there are ongoing chats, deletion is done by physical deletion or hiding.
+    //  The contact is deleted from the local device.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub async fn delete(context: &Context, contact_id: ContactId) -> Result<()> {
         ensure!(!contact_id.is_special(), "Can not delete special contact");
 
-        let count_chats = context
+        context
             .sql
-            .count(
-                "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-                paramsv![contact_id],
-            )
+            .transaction(move |transaction| {
+                // make sure, the transaction starts with a write command and becomes EXCLUSIVE by that -
+                // upgrading later may be impossible by races.
+                let deleted_contacts = transaction.execute(
+                    "DELETE FROM contacts WHERE id=?
+                     AND (SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?)=0;",
+                    paramsv![contact_id, contact_id],
+                )?;
+                if deleted_contacts == 0 {
+                    transaction.execute(
+                        "UPDATE contacts SET origin=? WHERE id=?;",
+                        paramsv![Origin::Hidden, contact_id],
+                    )?;
+                }
+                Ok(())
+            })
             .await?;
 
-        if count_chats == 0 {
-            match context
-                .sql
-                .execute("DELETE FROM contacts WHERE id=?;", paramsv![contact_id])
-                .await
-            {
-                Ok(_) => {
-                    context.emit_event(EventType::ContactsChanged(None));
-                    return Ok(());
-                }
-                Err(err) => {
-                    error!(context, "delete_contact {} failed ({})", contact_id, err);
-                    return Err(err);
-                }
-            }
-        }
-
-        info!(
-            context,
-            "could not delete contact {}, there are {} chats with it", contact_id, count_chats
-        );
-        bail!("Could not delete contact with ongoing chats");
+        context.emit_event(EventType::ContactsChanged(None));
+        Ok(())
     }
 
     /// Get a single contact object.  For a list, see eg. get_contacts().
@@ -1935,21 +1928,70 @@ mod tests {
         // Create Bob contact
         let (contact_id, _) =
             Contact::add_or_lookup(&alice, "Bob", "bob@example.net", Origin::ManuallyCreated)
-                .await
-                .unwrap();
-
+                .await?;
         let chat = alice
             .create_chat_with_contact("Bob", "bob@example.net")
             .await;
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            1
+        );
 
-        // Can't delete a contact with ongoing chats.
-        assert!(Contact::delete(&alice, contact_id).await.is_err());
+        // If a contact has ongoing chats, contact is only hidden on deletion
+        Contact::delete(&alice, contact_id).await?;
+        let contact = Contact::load_from_db(&alice, contact_id).await?;
+        assert_eq!(contact.origin, Origin::Hidden);
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            0
+        );
 
         // Delete chat.
         chat.get_id().delete(&alice).await?;
 
-        // Can delete contact now.
+        // Can delete contact physically now
         Contact::delete(&alice, contact_id).await?;
+        assert!(Contact::load_from_db(&alice, contact_id).await.is_err());
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            0
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_and_recreate_contact() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        // test recreation after physical deletion
+        let contact_id1 = Contact::create(&t, "Foo", "foo@bar.de").await?;
+        assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 1);
+        Contact::delete(&t, contact_id1).await?;
+        assert!(Contact::load_from_db(&t, contact_id1).await.is_err());
+        assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 0);
+        let contact_id2 = Contact::create(&t, "Foo", "foo@bar.de").await?;
+        assert_ne!(contact_id2, contact_id1);
+        assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 1);
+
+        // test recreation after hiding
+        t.create_chat_with_contact("Foo", "foo@bar.de").await;
+        Contact::delete(&t, contact_id2).await?;
+        let contact = Contact::load_from_db(&t, contact_id2).await?;
+        assert_eq!(contact.origin, Origin::Hidden);
+        assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 0);
+
+        let contact_id3 = Contact::create(&t, "Foo", "foo@bar.de").await?;
+        let contact = Contact::load_from_db(&t, contact_id3).await?;
+        assert_eq!(contact.origin, Origin::ManuallyCreated);
+        assert_eq!(contact_id3, contact_id2);
+        assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 1);
 
         Ok(())
     }

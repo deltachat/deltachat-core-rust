@@ -2144,7 +2144,10 @@ pub unsafe extern "C" fn dc_delete_contact(
     block_on(async move {
         match Contact::delete(ctx, contact_id).await {
             Ok(_) => 1,
-            Err(_) => 0,
+            Err(err) => {
+                error!(ctx, "cannot delete contact: {}", err);
+                0
+            }
         }
     })
 }
