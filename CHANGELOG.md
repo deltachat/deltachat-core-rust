@@ -8,6 +8,7 @@
 
 ### Fixes
 - fix detection of "All mail", "Trash", "Junk" etc folders. #3760
+- fetch messages sequentially to fix reactions on partially downloaded messages #3688
 
 
 ## 1.101.0
