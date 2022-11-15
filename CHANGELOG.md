@@ -7,6 +7,7 @@
 ### API-Changes
 
 ### Fixes
+- fix detection of "All mail", "Trash", "Junk" etc folders. #3760
 
 
 ## 1.101.0

@@ -1949,15 +1949,20 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
 
 fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
     for attr in folder_name.attributes() {
-        if let NameAttribute::Extension(ref label) = attr {
-            match label.as_ref() {
-                "\\Trash" => return FolderMeaning::Other,
-                "\\Sent" => return FolderMeaning::Sent,
-                "\\Spam" | "\\Junk" => return FolderMeaning::Spam,
-                "\\Drafts" => return FolderMeaning::Drafts,
-                "\\All" | "\\Important" | "\\Flagged" => return FolderMeaning::Virtual,
-                _ => {}
-            };
+        match attr {
+            NameAttribute::Trash => return FolderMeaning::Other,
+            NameAttribute::Sent => return FolderMeaning::Sent,
+            NameAttribute::Junk => return FolderMeaning::Spam,
+            NameAttribute::Drafts => return FolderMeaning::Drafts,
+            NameAttribute::All | NameAttribute::Flagged => return FolderMeaning::Virtual,
+            NameAttribute::Extension(ref label) => {
+                match label.as_ref() {
+                    "\\Spam" => return FolderMeaning::Spam,
+                    "\\Important" => return FolderMeaning::Virtual,
+                    _ => {}
+                };
+            }
+            _ => {}
         }
     }
     FolderMeaning::Unknown
