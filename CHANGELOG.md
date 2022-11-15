@@ -7,6 +7,7 @@
 ### Changes
 - add `configured_inbox_folder` to account info #3748
 - `dc_delete_contact()` hides contacts if referenced #3751
+- add IMAP UIDs to message info #3755
 
 ### Fixes
 - improve IMAP logging, in particular fix incorrect "IMAP IDLE protocol
