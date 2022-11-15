@@ -1005,7 +1005,11 @@ async fn add_parts(
                             // do not return an error as this would result in retrying the message
                         }
                     }
-                    better_msg = Some(context.stock_protection_msg(new_status, from_id).await);
+                    better_msg = Some(
+                        context
+                            .stock_protection_msg(new_status, ByContact::YouOrName(from_id))
+                            .await,
+                    );
                 }
             }
         }

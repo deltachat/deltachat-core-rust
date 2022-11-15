@@ -1098,24 +1098,38 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
 }
 
 /// Stock string: `Chat protection enabled.`.
-pub(crate) async fn protection_enabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouEnabledProtection).await
-    } else {
-        translated(context, StockMessage::ProtectionEnabledBy)
+pub(crate) async fn protection_enabled(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::YouEnabledProtection).await
+            } else {
+                translated(context, StockMessage::ProtectionEnabledBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::ProtectionEnabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Chat protection disabled.`.
-pub(crate) async fn protection_disabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouDisabledProtection).await
-    } else {
-        translated(context, StockMessage::ProtectionDisabledBy)
+pub(crate) async fn protection_disabled(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::YouDisabledProtection).await
+            } else {
+                translated(context, StockMessage::ProtectionDisabledBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::ProtectionDisabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -1392,7 +1406,7 @@ impl Context {
     pub(crate) async fn stock_protection_msg(
         &self,
         protect: ProtectionStatus,
-        from_id: ContactId,
+        from_id: ByContact,
     ) -> String {
         match protect {
             ProtectionStatus::Unprotected => protection_enabled(self, from_id).await,

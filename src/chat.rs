@@ -415,7 +415,6 @@ impl ChatId {
         promote: bool,
         from_id: ContactId,
     ) -> Result<()> {
-        let msg_text = context.stock_protection_msg(protect, from_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
@@ -424,7 +423,11 @@ impl ChatId {
         if promote {
             let mut msg = Message {
                 viewtype: Viewtype::Text,
-                text: Some(msg_text),
+                text: Some(
+                    context
+                        .stock_protection_msg(protect, ByContact::SelfName)
+                        .await,
+                ),
                 ..Default::default()
             };
             msg.param.set_cmd(cmd);
@@ -433,7 +436,9 @@ impl ChatId {
             add_info_msg_with_cmd(
                 context,
                 self,
-                &msg_text,
+                &context
+                    .stock_protection_msg(protect, ByContact::YouOrName(from_id))
+                    .await,
                 cmd,
                 create_smeared_timestamp(context).await,
                 None,
