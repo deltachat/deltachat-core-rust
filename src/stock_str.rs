@@ -579,7 +579,7 @@ pub(crate) async fn msg_grp_name(
             .await
             .replace1(from_group)
             .replace2(to_group)
-            .replace3(context.get_config_self_name().await),
+            .replace3(context.get_config_name_and_addr().await),
     }
 }
 
@@ -596,7 +596,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ByContact
         }
         ByContact::SelfName => translated(context, StockMessage::MsgGrpImgChangedBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -633,7 +633,7 @@ pub(crate) async fn msg_add_member(
         ByContact::SelfName => translated(context, StockMessage::MsgAddMemberBy)
             .await
             .replace1(who)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -670,7 +670,7 @@ pub(crate) async fn msg_del_member(
         ByContact::SelfName => translated(context, StockMessage::MsgDelMemberBy)
             .await
             .replace1(who)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -688,7 +688,7 @@ pub(crate) async fn msg_group_left(context: &Context, by_contact: ByContact) -> 
         }
         ByContact::SelfName => translated(context, StockMessage::MsgGroupLeftBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -748,7 +748,7 @@ pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ByContact
         }
         ByContact::SelfName => translated(context, StockMessage::MsgGrpImgDeletedBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -958,7 +958,7 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
         }
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -984,7 +984,7 @@ pub(crate) async fn msg_ephemeral_timer_enabled(
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
             .await
             .replace1(timer)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1002,7 +1002,7 @@ pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: By
         }
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1020,7 +1020,7 @@ pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: ByCo
         }
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerHourBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1038,7 +1038,7 @@ pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: ByCon
         }
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDayBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1056,7 +1056,7 @@ pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: ByCo
         }
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerWeekBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1111,7 +1111,7 @@ pub(crate) async fn protection_enabled(context: &Context, by_contact: ByContact)
         }
         ByContact::SelfName => translated(context, StockMessage::ProtectionEnabledBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1129,7 +1129,7 @@ pub(crate) async fn protection_disabled(context: &Context, by_contact: ByContact
         }
         ByContact::SelfName => translated(context, StockMessage::ProtectionDisabledBy)
             .await
-            .replace1(context.get_config_self_name().await),
+            .replace1(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1170,7 +1170,7 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
             .await
             .replace1(minutes)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1196,7 +1196,7 @@ pub(crate) async fn msg_ephemeral_timer_hours(
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerHoursBy)
             .await
             .replace1(hours)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1222,7 +1222,7 @@ pub(crate) async fn msg_ephemeral_timer_days(
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDaysBy)
             .await
             .replace1(days)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1248,7 +1248,7 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
             .await
             .replace1(weeks)
-            .replace2(context.get_config_self_name().await),
+            .replace2(context.get_config_name_and_addr().await),
     }
 }
 
@@ -1576,6 +1576,22 @@ mod tests {
             msg_add_member(&t, "alice@example.org", ByContact::YouOrName(contact_id)).await,
             "Member Alice (alice@example.org) added by Bob (bob@example.com)."
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_stock_system_msg_add_member_by_self_name() -> Result<()> {
+        let t = TestContext::new_bob().await;
+        assert_eq!(
+            msg_add_member(&t, "alice@example.org", ByContact::SelfName).await,
+            "Member alice@example.org added by bob@example.net."
+        );
+
+        t.set_config(Config::Displayname, Some("Bobby")).await?;
+        assert_eq!(
+            msg_add_member(&t, "alice@example.org", ByContact::SelfName).await,
+            "Member alice@example.org added by Bobby (bob@example.net)."
+        );
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

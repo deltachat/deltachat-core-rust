@@ -282,18 +282,21 @@ impl Context {
         }
     }
 
-    pub async fn get_config_self_name(&self) -> String {
-        match self
+    pub async fn get_config_name_and_addr(&self) -> String {
+        let name = self
             .get_config(Config::Displayname)
             .await
             .unwrap_or_default()
-        {
-            Some(name) => name,
-            None => self
-                .get_config(Config::Addr)
-                .await
-                .unwrap_or_default()
-                .unwrap_or_default(),
+            .unwrap_or_default();
+        let addr = self
+            .get_config(Config::Addr)
+            .await
+            .unwrap_or_default()
+            .unwrap_or_else(|| "unconfigured".to_string());
+        if !name.is_empty() {
+            format!("{} ({})", name, addr)
+        } else {
+            addr
         }
     }
 
