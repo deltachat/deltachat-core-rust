@@ -1122,6 +1122,28 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
     if !msg.rfc724_mid.is_empty() {
         ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
+
+        let server_uids = context
+            .sql
+            .query_map(
+                "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
+                paramsv![msg.rfc724_mid],
+                |row| {
+                    let folder: String = row.get("folder")?;
+                    let uid: u32 = row.get("uid")?;
+                    Ok((folder, uid))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await?;
+
+        for (folder, uid) in server_uids {
+            // Format as RFC 5092 relative IMAP URL.
+            ret += &format!("\n</{}/;UID={}>", folder, uid);
+        }
     }
     let hop_info: Option<String> = context
         .sql
