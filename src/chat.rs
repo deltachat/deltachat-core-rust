@@ -5346,6 +5346,35 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_info_message_wording() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let alice_grp = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "bob@example.net").await?,
+        )
+        .await?;
+        alice.send_text(alice_grp, "alice->bob").await;
+        add_contact_to_chat(
+            &alice,
+            alice_grp,
+            Contact::create(&alice, "", "claire@example.org").await?,
+        )
+        .await?;
+        let sent2 = alice.pop_sent_msg().await;
+        let msg = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
+
+        // For DC, info message reads "You added"; for non-DC MUA, info message should not read "You added"
+        let you_added = "You added";
+        assert!(msg.get_text().unwrap().contains(you_added));
+        assert!(!sent2.payload().contains(you_added));
+        assert!(sent2.payload().contains("added by"));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_can_send_group() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = Contact::create(&alice, "", "bob@f.br").await?;
