@@ -780,8 +780,7 @@ impl Imap {
         let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
             .unwrap_or_default();
         let download_limit = context.download_limit().await?;
-        let mut uids_fetch_fully = Vec::with_capacity(msgs.len());
-        let mut uids_fetch_partially = Vec::with_capacity(msgs.len());
+        let mut uids_fetch = Vec::<(_, bool /* partially? */)>::with_capacity(msgs.len() + 1);
         let mut uid_message_ids = BTreeMap::new();
         let mut largest_uid_skipped = None;
 
@@ -840,14 +839,11 @@ impl Imap {
                 .await?
             {
                 match download_limit {
-                    Some(download_limit) => {
-                        if fetch_response.size.unwrap_or_default() > download_limit {
-                            uids_fetch_partially.push(uid);
-                        } else {
-                            uids_fetch_fully.push(uid)
-                        }
-                    }
-                    None => uids_fetch_fully.push(uid),
+                    Some(download_limit) => uids_fetch.push((
+                        uid,
+                        fetch_response.size.unwrap_or_default() > download_limit,
+                    )),
+                    None => uids_fetch.push((uid, false)),
                 }
                 uid_message_ids.insert(uid, message_id);
             } else {
@@ -855,33 +851,37 @@ impl Imap {
             }
         }
 
-        if !uids_fetch_fully.is_empty() || !uids_fetch_partially.is_empty() {
+        if !uids_fetch.is_empty() {
             self.connectivity.set_working(context).await;
         }
 
         // Actually download messages.
-        let (largest_uid_fully_fetched, mut received_msgs) = self
-            .fetch_many_msgs(
-                context,
-                folder,
-                uids_fetch_fully,
-                &uid_message_ids,
-                false,
-                fetch_existing_msgs,
-            )
-            .await?;
-
-        let (largest_uid_partially_fetched, received_msgs_2) = self
-            .fetch_many_msgs(
-                context,
-                folder,
-                uids_fetch_partially,
-                &uid_message_ids,
-                true,
-                fetch_existing_msgs,
-            )
-            .await?;
-        received_msgs.extend(received_msgs_2);
+        let mut largest_uid_fetched: u32 = 0;
+        let mut received_msgs = Vec::with_capacity(uids_fetch.len());
+        let mut uids_fetch_in_batch = Vec::with_capacity(max(uids_fetch.len(), 1));
+        let mut fetch_partially = false;
+        uids_fetch.push((0, !uids_fetch.last().unwrap_or(&(0, false)).1));
+        for (uid, fp) in uids_fetch {
+            if fp != fetch_partially {
+                let (largest_uid_fetched_in_batch, received_msgs_in_batch) = self
+                    .fetch_many_msgs(
+                        context,
+                        folder,
+                        uids_fetch_in_batch.split_off(0),
+                        &uid_message_ids,
+                        fetch_partially,
+                        fetch_existing_msgs,
+                    )
+                    .await?;
+                received_msgs.extend(received_msgs_in_batch);
+                largest_uid_fetched = max(
+                    largest_uid_fetched,
+                    largest_uid_fetched_in_batch.unwrap_or(0),
+                );
+                fetch_partially = fp;
+            }
+            uids_fetch_in_batch.push(uid);
+        }
 
         // determine which uid_next to use to update to
         // receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
@@ -889,13 +889,7 @@ impl Imap {
 
         // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
         // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
-        let largest_uid_without_errors = max(
-            max(
-                largest_uid_fully_fetched.unwrap_or(0),
-                largest_uid_partially_fetched.unwrap_or(0),
-            ),
-            largest_uid_skipped.unwrap_or(0),
-        );
+        let largest_uid_without_errors = max(largest_uid_fetched, largest_uid_skipped.unwrap_or(0));
         let new_uid_next = largest_uid_without_errors + 1;
 
         if new_uid_next > old_uid_next {
