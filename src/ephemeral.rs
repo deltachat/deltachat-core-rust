@@ -83,6 +83,7 @@ use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql::{self, params_iter};
 use crate::stock_str;
+use crate::stock_str::ByContact;
 use crate::tools::{duration_to_str, time};
 use std::cmp::max;
 
@@ -204,7 +205,7 @@ impl ChatId {
         }
         self.inner_set_ephemeral_timer(context, timer).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
+        msg.text = Some(stock_ephemeral_timer_changed(context, timer, ByContact::SelfName).await);
         msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
         if let Err(err) = send_msg(context, self, &mut msg).await {
             error!(
@@ -220,7 +221,7 @@ impl ChatId {
 pub(crate) async fn stock_ephemeral_timer_changed(
     context: &Context,
     timer: Timer,
-    from_id: ContactId,
+    from_id: ByContact,
 ) -> String {
     match timer {
         Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id).await,
@@ -637,7 +638,12 @@ mod tests {
         let context = TestContext::new().await;
 
         assert_eq!(
-            stock_ephemeral_timer_changed(&context, Timer::Disabled, ContactId::SELF).await,
+            stock_ephemeral_timer_changed(
+                &context,
+                Timer::Disabled,
+                ByContact::YouOrName(ContactId::SELF)
+            )
+            .await,
             "You disabled message deletion timer."
         );
 
@@ -645,7 +651,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 1 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1 s."
@@ -654,7 +660,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 30 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 30 s."
@@ -663,7 +669,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 60 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1 minute."
@@ -672,7 +678,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 90 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1.5 minutes."
@@ -681,7 +687,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 30 * 60 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 30 minutes."
@@ -690,7 +696,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 60 * 60 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1 hour."
@@ -699,7 +705,7 @@ mod tests {
             stock_ephemeral_timer_changed(
                 &context,
                 Timer::Enabled { duration: 5400 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1.5 hours."
@@ -710,7 +716,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 2 * 60 * 60
                 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 2 hours."
@@ -721,7 +727,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 24 * 60 * 60
                 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1 day."
@@ -732,7 +738,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 2 * 24 * 60 * 60
                 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 2 days."
@@ -743,7 +749,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 7 * 24 * 60 * 60
                 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 1 week."
@@ -754,7 +760,7 @@ mod tests {
                 Timer::Enabled {
                     duration: 4 * 7 * 24 * 60 * 60
                 },
-                ContactId::SELF
+                ByContact::YouOrName(ContactId::SELF)
             )
             .await,
             "You set message deletion timer to 4 weeks."

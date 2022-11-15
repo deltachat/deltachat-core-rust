@@ -934,7 +934,12 @@ async fn add_parts(
                     chat::add_info_msg(
                         context,
                         chat_id,
-                        &stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await,
+                        &stock_ephemeral_timer_changed(
+                            context,
+                            ephemeral_timer,
+                            ByContact::YouOrName(from_id),
+                        )
+                        .await,
                         sort_timestamp,
                     )
                     .await?;
@@ -949,7 +954,10 @@ async fn add_parts(
     }
 
     if mime_parser.is_system_message == SystemMessage::EphemeralTimerChanged {
-        better_msg = Some(stock_ephemeral_timer_changed(context, ephemeral_timer, from_id).await);
+        better_msg = Some(
+            stock_ephemeral_timer_changed(context, ephemeral_timer, ByContact::YouOrName(from_id))
+                .await,
+        );
 
         // Do not delete the system message itself.
         //

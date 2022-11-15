@@ -944,14 +944,21 @@ pub(crate) async fn failed_sending_to(context: &Context, name: impl AsRef<str>) 
 /// Stock string: `Message deletion timer is disabled.`.
 pub(crate) async fn msg_ephemeral_timer_disabled(
     context: &Context,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouDisabledEphemeralTimer).await
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouDisabledEphemeralTimer).await
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -959,61 +966,97 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
 pub(crate) async fn msg_ephemeral_timer_enabled(
     context: &Context,
     timer: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEnabledEphemeralTimer)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEnabledEphemeralTimer)
+                    .await
+                    .replace1(timer)
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
+                    .await
+                    .replace1(timer)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
             .await
             .replace1(timer)
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
-            .await
-            .replace1(timer)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Message deletion timer is set to 1 minute.`.
-pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerMinute).await
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
+pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerMinute).await
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Message deletion timer is set to 1 hour.`.
-pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerHour).await
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerHourBy)
+pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerHour).await
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerHourBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerHourBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Message deletion timer is set to 1 day.`.
-pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerDay).await
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerDayBy)
+pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerDay).await
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerDayBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDayBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
 /// Stock string: `Message deletion timer is set to 1 week.`.
-pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerWeek).await
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerWeekBy)
+pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: ByContact) -> String {
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerWeek).await
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerWeekBy)
+                    .await
+                    .replace1(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerWeekBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(context.get_config_self_name().await),
     }
 }
 
@@ -1095,17 +1138,25 @@ pub(crate) async fn delete_server_turned_off(context: &Context) -> String {
 pub(crate) async fn msg_ephemeral_timer_minutes(
     context: &Context,
     minutes: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerMinutes)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerMinutes)
+                    .await
+                    .replace1(minutes)
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
+                    .await
+                    .replace1(minutes)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
             .await
             .replace1(minutes)
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
-            .await
-            .replace1(minutes)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
@@ -1113,17 +1164,25 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
 pub(crate) async fn msg_ephemeral_timer_hours(
     context: &Context,
     hours: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerHours)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerHours)
+                    .await
+                    .replace1(hours)
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerHoursBy)
+                    .await
+                    .replace1(hours)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerHoursBy)
             .await
             .replace1(hours)
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerHoursBy)
-            .await
-            .replace1(hours)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
@@ -1131,17 +1190,25 @@ pub(crate) async fn msg_ephemeral_timer_hours(
 pub(crate) async fn msg_ephemeral_timer_days(
     context: &Context,
     days: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerDays)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerDays)
+                    .await
+                    .replace1(days)
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerDaysBy)
+                    .await
+                    .replace1(days)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerDaysBy)
             .await
             .replace1(days)
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerDaysBy)
-            .await
-            .replace1(days)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
@@ -1149,17 +1216,25 @@ pub(crate) async fn msg_ephemeral_timer_days(
 pub(crate) async fn msg_ephemeral_timer_weeks(
     context: &Context,
     weeks: impl AsRef<str>,
-    by_contact: ContactId,
+    by_contact: ByContact,
 ) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::MsgYouEphemeralTimerWeeks)
+    match by_contact {
+        ByContact::YouOrName(by_contact) => {
+            if by_contact == ContactId::SELF {
+                translated(context, StockMessage::MsgYouEphemeralTimerWeeks)
+                    .await
+                    .replace1(weeks)
+            } else {
+                translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
+                    .await
+                    .replace1(weeks)
+                    .replace2(by_contact.get_stock_name(context).await)
+            }
+        }
+        ByContact::SelfName => translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
             .await
             .replace1(weeks)
-    } else {
-        translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
-            .await
-            .replace1(weeks)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(context.get_config_self_name().await),
     }
 }
 
