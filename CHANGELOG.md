@@ -8,6 +8,7 @@
 
 ### Fixes
 - fix detection of "All mail", "Trash", "Junk" etc folders. #3760
+- fix info messages shown for non-dc MUA #3754
 
 
 ## 1.101.0
