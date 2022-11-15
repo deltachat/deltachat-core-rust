@@ -229,7 +229,7 @@ pub enum Origin {
     /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling contact_is_verified() !
     SecurejoinJoined = 0x0200_0000,
 
-    /// contact added mannually by create_contact(), this should be the largest origin as otherwise the user cannot modify the names
+    /// contact added manually by create_contact(), this should be the largest origin as otherwise the user cannot modify the names
     ManuallyCreated = 0x0400_0000,
 }
 
@@ -455,7 +455,7 @@ impl Contact {
     /// - "row_authname": name as authorized from a contact, set only through a From-header
     /// Depending on the origin, both, "row_name" and "row_authname" are updated from "name".
     ///
-    /// Returns the contact_id and a `Modifier` value indicating if a modification occured.
+    /// Returns the contact_id and a `Modifier` value indicating if a modification occurred.
     pub(crate) async fn add_or_lookup(
         context: &Context,
         name: &str,
@@ -945,8 +945,8 @@ impl Contact {
     }
 
     /// Delete a contact so that it disappears from the corresponding lists.
-    //  Depending on whether there are ongoing chats, deletion is done by physical deletion or hiding.
-    //  The contact is deleted from the local device.
+    /// Depending on whether there are ongoing chats, deletion is done by physical deletion or hiding.
+    /// The contact is deleted from the local device.
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub async fn delete(context: &Context, contact_id: ContactId) -> Result<()> {
@@ -1517,7 +1517,7 @@ impl RecentlySeenLoop {
             if let Ok(duration) = until.duration_since(now) {
                 info!(
                     context,
-                    "Recently seen loop waiting for {} or interupt",
+                    "Recently seen loop waiting for {} or interrupt",
                     duration_to_str(duration)
                 );
 
@@ -1731,7 +1731,7 @@ mod tests {
         );
         assert_eq!(Contact::add_address_book(&t, book).await.unwrap(), 4);
 
-        // check first added contact, this modifies authname beacuse it is empty
+        // check first added contact, this modifies authname because it is empty
         let (contact_id, sth_modified) =
             Contact::add_or_lookup(&t, "bla foo", "one@eins.org", Origin::IncomingUnknownTo)
                 .await
