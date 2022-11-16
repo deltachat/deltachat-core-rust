@@ -43,12 +43,14 @@ export class BaseDeltaChat<
       const method = request.method;
       if (method === "event") {
         const event = request.params! as DCWireEvent<Event>;
+	//@ts-ignore
         this.emit(event.event.type, event.contextId, event.event as any);
         this.emit("ALL", event.contextId, event.event as any);
 
         if (this.contextEmitters[event.contextId]) {
           this.contextEmitters[event.contextId].emit(
             event.event.type,
+            //@ts-ignore
             event.event as any
           );
           this.contextEmitters[event.contextId].emit("ALL", event.event);
