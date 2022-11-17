@@ -75,6 +75,29 @@ pub enum ProtectionStatus {
     Protected = 1,
 }
 
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    IntoStaticStr,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u32)]
+pub enum EncryptionModus {
+    Opportunistic = 0,
+    ForcePlaintext = 1,
+    ForceEncrypted = 2,
+    ForceVerified = 3,
+}
+
 impl Default for ProtectionStatus {
     fn default() -> Self {
         ProtectionStatus::Unprotected
@@ -897,6 +920,33 @@ impl ChatId {
 
         Ok(ret.trim().to_string())
     }
+
+    /// This sets a protection modus for the chat and enforces that messages are only send if they
+    /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
+    pub async fn set_encryption_modus(self, context: &Context, modus: &EncryptionModus) -> Result<()> {
+        let encryption_modus: u32 = context
+            .sql
+            .query_get_value(
+                "SELECT encryption_modus FROM chats WHERE id=?;",
+                paramsv![self],
+            )
+            .await??;
+        Ok(encryption_modus.unwrap_or_default())
+    }
+
+    /// This sets a protection modus for the chat and enforces that messages are only send if they
+    /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
+    pub async fn get_encryption_modus(self, context: &Context) -> Result<EncryptionModus> {
+        let encryption_modus: u32 = context
+            .sql
+            .query_get_value(
+                "SELECT encryption_modus FROM chats WHERE id=?;",
+                paramsv![self],
+            )
+            .await??;
+        Ok(encryption_modus.into())
+    }
+
 
     /// Bad evil escape hatch.
     ///
