@@ -605,7 +605,7 @@ impl<'a> MimeFactory<'a> {
 
         let min_verified = self.min_verified();
         let grpimage = self.grpimage();
-        let encryption_modus = match self.msg.get_encryption_modus(context).await? {
+        let encryption_modus = match self.msg.encryption_modus(context).await? {
             Some(encryption_modus) => encryption_modus,
             None => EncryptionModus::Opportunistic,
         };

@@ -926,7 +926,7 @@ impl ChatId {
     pub async fn set_encryption_modus(
         self,
         context: &Context,
-        modus: &EncryptionModus,
+        modus: EncryptionModus,
     ) -> Result<()> {
         context
             .sql
@@ -941,7 +941,7 @@ impl ChatId {
 
     /// This sets a protection modus for the chat and enforces that messages are only send if they
     /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
-    pub async fn get_encryption_modus(self, context: &Context) -> Result<Option<EncryptionModus>> {
+    pub async fn encryption_modus(self, context: &Context) -> Result<Option<EncryptionModus>> {
         let encryption_modus: Option<EncryptionModus> = context
             .sql
             .query_get_value(
@@ -2001,8 +2001,8 @@ pub async fn is_contact_in_chat(
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
     // Propagate same encryption_mode of chat to message in case messages doesn't yet have an
     // encryption_mode
-    if let None = msg.get_encryption_modus(&context).await? {
-        if let Some(encryption_mode) = chat_id.get_encryption_modus(&context).await? {
+    if let None = msg.encryption_modus(&context).await? {
+        if let Some(encryption_mode) = chat_id.encryption_modus(&context).await? {
             msg.set_encryption_modus(&context, encryption_mode);
         }
     }

@@ -855,10 +855,10 @@ impl Message {
         self.param.set_int(Param::ForcePlaintext, 1);
     }
 
-    async fn set_encryption_modus(
+    pub async fn set_encryption_modus(
         &mut self,
         context: &Context,
-        encryption_modus: &EncryptionModus,
+        encryption_modus: EncryptionModus,
     ) -> Result<()> {
         context
             .sql
@@ -871,7 +871,7 @@ impl Message {
         Ok(())
     }
 
-    pub async fn get_encryption_modus(&self, context: &Context) -> Result<Option<EncryptionModus>> {
+    pub async fn encryption_modus(&self, context: &Context) -> Result<Option<EncryptionModus>> {
         let encryption_modus: Option<EncryptionModus> = context
             .sql
             .query_get_value(
