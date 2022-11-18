@@ -1998,6 +1998,14 @@ pub async fn is_contact_in_chat(
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
+    // Propagate same encryption_mode of chat to message in case messages doesn't yet have an
+    // encryption_mode
+    if let None = msg.get_encryption_modus(&context).await? {
+        if let Some(encryption_mode) = chat_id.get_encryption_modus(&context).await? {
+            msg.set_encryption_modus(&context, encryption_mode);
+        }
+    }
+
     if chat_id.is_unset() {
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
