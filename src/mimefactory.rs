@@ -9,6 +9,7 @@ use tokio::fs;
 
 use crate::blob::BlobObject;
 use crate::chat::Chat;
+use crate::chat::EncryptionModus;
 use crate::config::Config;
 use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
@@ -29,7 +30,6 @@ use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, get_filebytes, remove_subject_prefix,
     time,
 };
-use crate::chat::EncryptionModus;
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
@@ -607,7 +607,7 @@ impl<'a> MimeFactory<'a> {
         let grpimage = self.grpimage();
         let encryption_modus = match self.msg.get_encryption_modus(context).await? {
             Some(encryption_modus) => encryption_modus,
-            None => EncryptionModus::Opportunistic
+            None => EncryptionModus::Opportunistic,
         };
         let force_plaintext = self.should_force_plaintext(&encryption_modus);
         let skip_autocrypt = self.should_skip_autocrypt();
@@ -651,23 +651,31 @@ impl<'a> MimeFactory<'a> {
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
 
-
         // Ensure we fulfill encryption_modus
         match encryption_modus {
-            EncryptionModus::Opportunistic => {},
+            EncryptionModus::Opportunistic => {}
             EncryptionModus::ForcePlaintext => {
-                ensure!(!is_encrypted, "EncryptionModus is ForcePlaintext but message is encrypted");
-            },
+                ensure!(
+                    !is_encrypted,
+                    "EncryptionModus is ForcePlaintext but message is encrypted"
+                );
+            }
             EncryptionModus::ForceEncrypted => {
-                ensure!(is_encrypted, "EncryptionModus is ForceEncrypted but message is unencrypted");
-            },
+                ensure!(
+                    is_encrypted,
+                    "EncryptionModus is ForceEncrypted but message is unencrypted"
+                );
+            }
             EncryptionModus::ForceVerified => {
                 let chat_is_protected = if let Loaded::Message { chat } = &self.loaded {
                     chat.is_protected()
                 } else {
                     false
                 };
-                ensure!(is_encrypted && chat_is_protected, "EncryptionModus is ForceVerified but chat is not protected");
+                ensure!(
+                    is_encrypted && chat_is_protected,
+                    "EncryptionModus is ForceVerified but chat is not protected"
+                );
             }
         };
 

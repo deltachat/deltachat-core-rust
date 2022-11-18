@@ -8,6 +8,7 @@ use deltachat_derive::{FromSql, ToSql};
 use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
+use crate::chat::EncryptionModus;
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
@@ -31,7 +32,6 @@ use crate::tools::{
     create_smeared_timestamp, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
     timestamp_to_str, truncate,
 };
-use crate::chat::EncryptionModus;
 
 /// Message ID, including reserved IDs.
 ///
@@ -356,7 +356,7 @@ impl Message {
                         location_id: row.get("location")?,
                         chat_blocked: row
                             .get::<_, Option<Blocked>>("blocked")?
-                            .unwrap_or_default()
+                            .unwrap_or_default(),
                     };
                     Ok(msg)
                 },
@@ -855,7 +855,11 @@ impl Message {
         self.param.set_int(Param::ForcePlaintext, 1);
     }
 
-    async fn set_encryption_modus(&mut self, context: &Context,  encryption_modus: &EncryptionModus) -> Result<()> { 
+    async fn set_encryption_modus(
+        &mut self,
+        context: &Context,
+        encryption_modus: &EncryptionModus,
+    ) -> Result<()> {
         context
             .sql
             .execute(
@@ -867,7 +871,7 @@ impl Message {
         Ok(())
     }
 
-    pub async fn get_encryption_modus(&self, context: &Context) -> Result<Option<EncryptionModus>> { 
+    pub async fn get_encryption_modus(&self, context: &Context) -> Result<Option<EncryptionModus>> {
         let encryption_modus: Option<EncryptionModus> = context
             .sql
             .query_get_value(

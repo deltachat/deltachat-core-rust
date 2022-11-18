@@ -923,7 +923,11 @@ impl ChatId {
 
     /// This sets a protection modus for the chat and enforces that messages are only send if they
     /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
-    pub async fn set_encryption_modus(self, context: &Context, modus: &EncryptionModus) -> Result<()> {
+    pub async fn set_encryption_modus(
+        self,
+        context: &Context,
+        modus: &EncryptionModus,
+    ) -> Result<()> {
         context
             .sql
             .execute(
@@ -946,11 +950,8 @@ impl ChatId {
             )
             .await?;
 
-        
-
         Ok(encryption_modus)
     }
-
 
     /// Bad evil escape hatch.
     ///
@@ -5712,18 +5713,25 @@ mod tests {
         Ok(())
     }
 
-
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_encryption_modus() -> Result<()> {
         let t = TestContext::new_alice().await;
         let contact_fiona = Contact::create(&t, "", "fiona@example.net").await?;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "Group").await?;
 
-        assert_eq!(chat_id.get_encryption_modus(&t).await?, Some(EncryptionModus::Opportunistic)); 
+        assert_eq!(
+            chat_id.get_encryption_modus(&t).await?,
+            Some(EncryptionModus::Opportunistic)
+        );
 
-        chat_id.set_encryption_modus(&t, &EncryptionModus::ForceEncrypted).await?;
+        chat_id
+            .set_encryption_modus(&t, &EncryptionModus::ForceEncrypted)
+            .await?;
 
-        assert_eq!(chat_id.get_encryption_modus(&t).await?, Some(EncryptionModus::ForceEncrypted)); 
+        assert_eq!(
+            chat_id.get_encryption_modus(&t).await?,
+            Some(EncryptionModus::ForceEncrypted)
+        );
 
         Ok(())
     }
