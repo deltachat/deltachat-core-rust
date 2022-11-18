@@ -51,6 +51,7 @@ pub enum Param {
     ErroneousE2ee = b'e',
 
     /// For Messages: force unencrypted message, a value from `ForcePlaintext` enum.
+    /// Deprecated: Use EncryptionModus::ForcePlaintext
     ForcePlaintext = b'u',
 
     /// For Messages: do not include Autocrypt header.

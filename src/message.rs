@@ -31,6 +31,7 @@ use crate::tools::{
     create_smeared_timestamp, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
     timestamp_to_str, truncate,
 };
+use crate::chat::EncryptionModus;
 
 /// Message ID, including reserved IDs.
 ///
@@ -302,6 +303,7 @@ impl Message {
                     "    m.hidden AS hidden,",
                     "    m.location_id AS location,",
                     "    c.blocked AS blocked",
+                    "    m.encryption_modus as encryption_modus",
                     " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
                     " WHERE m.id=?;"
                 ),
@@ -354,7 +356,7 @@ impl Message {
                         location_id: row.get("location")?,
                         chat_blocked: row
                             .get::<_, Option<Blocked>>("blocked")?
-                            .unwrap_or_default(),
+                            .unwrap_or_default()
                     };
                     Ok(msg)
                 },
@@ -848,8 +850,33 @@ impl Message {
     }
 
     /// Force the message to be sent in plain text.
+    /// Deprecated: use Message::set_encryption_modus(EncryptionModus::ForcePlaintext)
     pub fn force_plaintext(&mut self) {
         self.param.set_int(Param::ForcePlaintext, 1);
+    }
+
+    async fn set_encryption_modus(&mut self, context: &Context,  encryption_modus: &EncryptionModus) -> Result<()> { 
+        context
+            .sql
+            .execute(
+                "UPDATE msgs SET encryption_modus=? WHERE id=?;",
+                paramsv![encryption_modus, self.id],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_encryption_modus(&self, context: &Context) -> Result<Option<EncryptionModus>> { 
+        let encryption_modus: Option<EncryptionModus> = context
+            .sql
+            .query_get_value(
+                "SELECT encryption_modus FROM msgs WHERE id=?;",
+                paramsv![self.id],
+            )
+            .await?;
+
+        Ok(encryption_modus)
     }
 
     pub async fn update_param(&self, context: &Context) -> Result<()> {

@@ -924,27 +924,31 @@ impl ChatId {
     /// This sets a protection modus for the chat and enforces that messages are only send if they
     /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
     pub async fn set_encryption_modus(self, context: &Context, modus: &EncryptionModus) -> Result<()> {
-        let encryption_modus: u32 = context
+        context
             .sql
-            .query_get_value(
-                "SELECT encryption_modus FROM chats WHERE id=?;",
-                paramsv![self],
+            .execute(
+                "UPDATE chats SET encryption_modus=? WHERE id=?;",
+                paramsv![modus, self],
             )
-            .await??;
-        Ok(encryption_modus.unwrap_or_default())
+            .await?;
+
+        Ok(())
     }
 
     /// This sets a protection modus for the chat and enforces that messages are only send if they
     /// meet the encryption modus (ForcePlaintext, Opportunistic, ForceEncrypted, ForceVerified)
-    pub async fn get_encryption_modus(self, context: &Context) -> Result<EncryptionModus> {
-        let encryption_modus: u32 = context
+    pub async fn get_encryption_modus(self, context: &Context) -> Result<Option<EncryptionModus>> {
+        let encryption_modus: Option<EncryptionModus> = context
             .sql
             .query_get_value(
                 "SELECT encryption_modus FROM chats WHERE id=?;",
                 paramsv![self],
             )
-            .await??;
-        Ok(encryption_modus.into())
+            .await?;
+
+        
+
+        Ok(encryption_modus)
     }
 
 
@@ -5696,6 +5700,22 @@ mod tests {
             .len(),
             4
         );
+
+        Ok(())
+    }
+
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_encryption_modus() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let contact_fiona = Contact::create(&t, "", "fiona@example.net").await?;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "Group").await?;
+
+        assert_eq!(chat_id.get_encryption_modus(&t).await?, Some(EncryptionModus::Opportunistic)); 
+
+        chat_id.set_encryption_modus(&t, &EncryptionModus::ForceEncrypted).await?;
+
+        assert_eq!(chat_id.get_encryption_modus(&t).await?, Some(EncryptionModus::ForceEncrypted)); 
 
         Ok(())
     }
