@@ -681,7 +681,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
             .await;
 
         sent.payload
-            .insert_str(0, "Authentication-Results: example.org; dkim=fail");
+            .insert_str(0, "Authentication-Results: example.org; dkim=fail\n");
 
         let received = alice.recv_msg(&sent).await;
 
@@ -717,7 +717,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
         loop {
             if let Some(mut sent) = bob2.pop_sent_msg_opt(Duration::ZERO).await {
                 sent.payload
-                    .insert_str(0, "Authentication-Results: example.org; dkim=fail");
+                    .insert_str(0, "Authentication-Results: example.org; dkim=fail\n");
                 alice.recv_msg(&sent).await;
             } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
                 bob2.recv_msg(&sent).await;
