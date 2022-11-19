@@ -6,10 +6,11 @@ use anyhow::{Context as _, Result};
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;
-use crate::authres;
 use crate::authres::handle_authres;
+use crate::authres::{self, DkimResults};
 use crate::contact::addr_cmp;
 use crate::context::Context;
+use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
@@ -61,6 +62,26 @@ pub(crate) async fn prepare_decryption(
     from: &str,
     message_time: i64,
 ) -> Result<DecryptionInfo> {
+    if mail.headers.get_header(HeaderDef::ListPost).is_some() {
+        if mail.headers.get_header(HeaderDef::Autocrypt).is_some() {
+            warn!(
+                context,
+                "Ignoring autocrypt header since this is a mailing list message."
+            );
+        }
+        return Ok(DecryptionInfo {
+            from: from.to_string(),
+            autocrypt_header: None,
+            peerstate: None,
+            message_time,
+            dkim_results: DkimResults {
+                dkim_passed: false,
+                dkim_should_work: false,
+                allow_keychange: true,
+            },
+        });
+    }
+
     let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
@@ -86,7 +107,7 @@ pub(crate) async fn prepare_decryption(
     })
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct DecryptionInfo {
     /// The From address. This is the address from the unnencrypted, outer
     /// From header.

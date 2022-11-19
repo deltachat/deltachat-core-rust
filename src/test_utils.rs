@@ -428,6 +428,7 @@ impl TestContext {
         Some(SentMessage {
             payload,
             sender_msg_id: msg_id,
+            sender_context: self.ctx.clone(),
             recipients,
         })
     }
@@ -746,6 +747,7 @@ pub struct SentMessage {
     pub payload: String,
     recipients: String,
     pub sender_msg_id: MsgId,
+    sender_context: Context,
 }
 
 impl SentMessage {
@@ -764,6 +766,13 @@ impl SentMessage {
     /// The raw message payload.
     pub fn payload(&self) -> &str {
         &self.payload
+    }
+
+    // TODO use this in more places
+    pub async fn sender_message(&self) -> Message {
+        Message::load_from_db(&self.sender_context, self.sender_msg_id)
+            .await
+            .unwrap()
     }
 }
 
