@@ -1737,7 +1737,7 @@ mod tests {
         ) -> Result<String> {
             let parsed_subject = t.parse_msg(&sent).await.get_subject().unwrap();
 
-            let sent_msg = Message::load_from_db(t, sent.sender_msg_id).await?;
+            let sent_msg = sent.load_from_db().await;
             assert_eq!(parsed_subject, sent_msg.subject);
 
             Ok(parsed_subject)

@@ -768,8 +768,7 @@ impl SentMessage {
         &self.payload
     }
 
-    // TODO use this in more places
-    pub async fn sender_message(&self) -> Message {
+    pub async fn load_from_db(&self) -> Message {
         Message::load_from_db(&self.sender_context, self.sender_msg_id)
             .await
             .unwrap()

@@ -779,7 +779,7 @@ Authentication-Results: dkim=";
         let mut sent = bob
             .send_text(bob_alice_chat.id, "hellooo in the mailinglist again")
             .await;
-        assert!(sent.sender_message().await.get_showpadlock());
+        assert!(sent.load_from_db().await.get_showpadlock());
 
         // But if Bob writes to a mailing list, Alice doesn't show a padlock
         // since she can't verify the signature without accepting Bob's key:
