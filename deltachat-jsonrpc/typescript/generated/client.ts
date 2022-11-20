@@ -730,8 +730,8 @@ export class RawClient {
   }
 
 
-  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<boolean> {
-    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
+  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<null>;
   }
 
 
