@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- new config option for "manual encryption mode"
+
 ### Changes
 
 ### API-Changes
