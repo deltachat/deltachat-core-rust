@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changes
+- Disable Autocrypt & Authres-checking for mailing lists,
+  because they don't work well with mailing lists #3765
 
 ### API-Changes
 - Add Python API to send reactions #3762
