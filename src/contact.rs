@@ -1578,7 +1578,6 @@ mod tests {
 
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
-    use crate::message::Message;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{self, TestContext, TestContextManager};
 
