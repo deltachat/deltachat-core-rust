@@ -192,6 +192,12 @@ class FFIEventTracker:
             return self.account.get_message_by_id(ev.data2)
         return None
 
+    def wait_next_reactions_changed(self):
+        """wait for and return next reactions-changed message"""
+        ev = self.get_matching("DC_EVENT_REACTIONS_CHANGED")
+        assert ev.data1 > 0
+        return self.account.get_message_by_id(ev.data2)
+
     def wait_msg_delivered(self, msg):
         ev = self.get_matching("DC_EVENT_MSG_DELIVERED")
         assert ev.data1 == msg.chat.id
@@ -296,6 +302,10 @@ class EventThread(threading.Thread):
                         "ac_incoming_message",
                         dict(message=msg),
                     )
+        elif name == "DC_EVENT_REACTIONS_CHANGED":
+            assert ffi_event.data1 > 0
+            msg = account.get_message_by_id(ffi_event.data2)
+            yield "ac_reactions_changed", dict(message=msg)
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = account.get_message_by_id(ffi_event.data2)
             yield "ac_message_delivered", dict(message=msg)
