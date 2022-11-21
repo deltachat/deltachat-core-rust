@@ -116,7 +116,7 @@ pub(crate) async fn receive_imf_inner(
                     msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
                 } else {
                     return Ok(None);
-                    // We don't have an rfc724_mid, there's point in adding a trash entry
+                    // We don't have an rfc724_mid, there's no point in adding a trash entry
                 }
 
                 return Ok(Some(ReceivedMsg {
