@@ -21,7 +21,6 @@ use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::Fingerprint;
-use crate::location;
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -29,6 +28,7 @@ use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
 use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::{location, tools};
 
 /// A parsed MIME message.
 ///
@@ -46,7 +46,7 @@ pub struct MimeMessage {
 
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
-    pub from: Vec<SingleInfo>,
+    pub from: SingleInfo,
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
@@ -157,21 +157,50 @@ impl Default for SystemMessage {
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ParserError {
+    #[error("{}", _0)]
+    Malformed(anyhow::Error),
+
+    #[error("{:#}", _0)]
+    Sql(anyhow::Error),
+}
+
+pub(crate) type ParserResult<T> = std::result::Result<T, ParserError>;
+
+pub(crate) trait ParserErrorExt<T, E>
+where
+    Self: std::marker::Sized,
+{
+    fn map_err_malformed(self) -> ParserResult<T>;
+    fn map_err_sql(self) -> ParserResult<T>;
+}
+
+impl<T, E: Into<anyhow::Error>> ParserErrorExt<T, E> for Result<T, E> {
+    fn map_err_malformed(self) -> ParserResult<T> {
+        self.map_err(|e| ParserError::Malformed(e.into()))
+    }
+
+    fn map_err_sql(self) -> ParserResult<T> {
+        self.map_err(|e| ParserError::Sql(e.into()))
+    }
+}
+
 impl MimeMessage {
     pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
-        MimeMessage::from_bytes_with_partial(context, body, None).await
+        Ok(MimeMessage::from_bytes_with_partial(context, body, None).await?)
     }
 
     /// Parse a mime message.
     ///
     /// If `partial` is set, it contains the full message size in bytes
     /// and `body` contains the header only.
-    pub async fn from_bytes_with_partial(
+    pub(crate) async fn from_bytes_with_partial(
         context: &Context,
         body: &[u8],
         partial: Option<u32>,
-    ) -> Result<Self> {
-        let mail = mailparse::parse_mail(body)?;
+    ) -> ParserResult<Self> {
+        let mail = mailparse::parse_mail(body).map_err_malformed()?;
 
         let message_time = mail
             .headers
@@ -198,7 +227,7 @@ impl MimeMessage {
         );
 
         // Parse hidden headers.
-        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+        let mimetype = mail.ctype.mimetype.parse::<Mime>().map_err_malformed()?;
         if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "mixed" {
             if let Some(part) = mail.subparts.first() {
                 for field in &part.headers {
@@ -216,11 +245,14 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
+        let from = from.context("No from in message").map_err_malformed()?;
+        let mut decryption_info =
+            prepare_decryption(context, &mail, &from.addr, message_time).await?;
+
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
         let mut gossiped_addr = Default::default();
         let mut from_is_signed = false;
-        let mut decryption_info = prepare_decryption(context, &mail, &from, message_time).await?;
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
@@ -233,7 +265,7 @@ impl MimeMessage {
                     // autocrypt message.
 
                     mail_raw = raw;
-                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw).map_err_malformed()?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                         info!(context, "decrypted message mime-body:");
                         println!("{}", String::from_utf8_lossy(&mail_raw));
@@ -247,7 +279,8 @@ impl MimeMessage {
                             decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
                         gossiped_addr =
                             update_gossip_peerstates(context, message_time, &mail, gossip_headers)
-                                .await?;
+                                .await
+                                .map_err_sql()?;
                     }
 
                     // let known protected headers from the decrypted
@@ -255,7 +288,7 @@ impl MimeMessage {
 
                     // Signature was checked for original From, so we
                     // do not allow overriding it.
-                    let mut signed_from = Vec::new();
+                    let mut signed_from = None;
 
                     // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
                     // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
@@ -270,23 +303,21 @@ impl MimeMessage {
                         &mut chat_disposition_notification_to,
                         &decrypted_mail.headers,
                     );
-                    if let Some(signed_from) = signed_from.first() {
-                        if let Some(from) = from.first() {
-                            if addr_cmp(&signed_from.addr, &from.addr) {
-                                from_is_signed = true;
-                            } else {
-                                // There is a From: header in the encrypted &
-                                // signed part, but it doesn't match the outer one.
-                                // This _might_ be because the sender's mail server
-                                // replaced the sending address, e.g. in a mailing list.
-                                // Or it's because someone is doing some replay attack
-                                // - OTOH, I can't come up with an attack scenario
-                                // where this would be useful.
-                                warn!(
-                                    context,
-                                    "From header in signed part does't match the outer one"
-                                );
-                            }
+                    if let Some(signed_from) = signed_from {
+                        if addr_cmp(&signed_from.addr, &from.addr) {
+                            from_is_signed = true;
+                        } else {
+                            // There is a From: header in the encrypted &
+                            // signed part, but it doesn't match the outer one.
+                            // This _might_ be because the sender's mail server
+                            // replaced the sending address, e.g. in a mailing list.
+                            // Or it's because someone is doing some replay attack
+                            // - OTOH, I can't come up with an attack scenario
+                            // where this would be useful.
+                            warn!(
+                                context,
+                                "From header in signed part does't match the outer one"
+                            );
                         }
                     }
 
@@ -302,7 +333,10 @@ impl MimeMessage {
                         // && decryption_info.dkim_results.allow_keychange
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql, false).await?;
+                            peerstate
+                                .save_to_db(&context.sql, false)
+                                .await
+                                .map_err_sql()?;
                         }
                     }
                     (Ok(mail), HashSet::new(), false)
@@ -346,11 +380,15 @@ impl MimeMessage {
             Some(org_bytes) => {
                 parser
                     .create_stub_from_partial_download(context, org_bytes)
-                    .await?;
+                    .await
+                    .map_err_sql()?;
             }
             None => match mail {
                 Ok(mail) => {
-                    parser.parse_mime_recursive(context, &mail, false).await?;
+                    parser
+                        .parse_mime_recursive(context, &mail, false)
+                        .await
+                        .map_err_malformed()?;
                 }
                 Err(err) => {
                     let msg_body = stock_str::cant_decrypt_msg_body(context).await;
@@ -371,7 +409,7 @@ impl MimeMessage {
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context).await?;
+        parser.parse_headers(context).await.map_err_malformed()?;
 
         // Disallowing keychanges is disabled for now
         // if !decryption_info.dkim_results.allow_keychange {
@@ -389,11 +427,14 @@ impl MimeMessage {
             parser.decoded_data = mail_raw;
         }
 
-        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
+        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser)
+            .await
+            .map_err_sql()?;
         if let Some(peerstate) = decryption_info.peerstate {
             peerstate
                 .handle_fingerprint_change(context, message_time)
-                .await?;
+                .await
+                .map_err_sql()?;
         }
 
         Ok(parser)
@@ -582,21 +623,18 @@ impl MimeMessage {
         // See if an MDN is requested from the other side
         if !self.decrypting_failed && !self.parts.is_empty() {
             if let Some(ref dn_to) = self.chat_disposition_notification_to {
-                if let Some(from) = self.from.get(0) {
-                    // Check that the message is not outgoing.
-                    if !context.is_self_addr(&from.addr).await? {
-                        if from.addr.to_lowercase() == dn_to.addr.to_lowercase() {
-                            if let Some(part) = self.parts.last_mut() {
-                                part.param.set_int(Param::WantsMdn, 1);
-                            }
-                        } else {
-                            warn!(
-                                context,
-                                "{} requested a read receipt to {}, ignoring",
-                                from.addr,
-                                dn_to.addr
-                            );
+                // Check that the message is not outgoing.
+                let from = &self.from.addr;
+                if !context.is_self_addr(from).await? {
+                    if from.to_lowercase() == dn_to.addr.to_lowercase() {
+                        if let Some(part) = self.parts.last_mut() {
+                            part.param.set_int(Param::WantsMdn, 1);
                         }
+                    } else {
+                        warn!(
+                            context,
+                            "{} requested a read receipt to {}, ignoring", from, dn_to.addr
+                        );
                     }
                 }
             }
@@ -1226,7 +1264,7 @@ impl MimeMessage {
         context: &Context,
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
-        from: &mut Vec<SingleInfo>,
+        from: &mut Option<SingleInfo>,
         list_post: &mut Option<String>,
         chat_disposition_notification_to: &mut Option<SingleInfo>,
         fields: &[mailparse::MailHeader<'_>],
@@ -1255,7 +1293,7 @@ impl MimeMessage {
             *recipients = recipients_new;
         }
         let from_new = get_from(fields);
-        if !from_new.is_empty() {
+        if from_new.is_some() {
             *from = from_new;
         }
         let list_post_new = get_list_post(fields);
@@ -1800,8 +1838,9 @@ pub(crate) fn get_recipients(headers: &[MailHeader]) -> Vec<SingleInfo> {
 }
 
 /// Returned addresses are normalized and lowercased.
-pub(crate) fn get_from(headers: &[MailHeader]) -> Vec<SingleInfo> {
-    get_all_addresses_from_header(headers, |header_key| header_key == "from")
+pub(crate) fn get_from(headers: &[MailHeader]) -> Option<SingleInfo> {
+    let all = get_all_addresses_from_header(headers, |header_key| header_key == "from");
+    tools::single_value(all)
 }
 
 /// Returned addresses are normalized and lowercased.
@@ -1877,35 +1916,35 @@ mod tests {
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: g@c.de\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From:   g@c.de  \n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: Goetz C <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
         let mimemsg = MimeMessage::from_bytes(&ctx, b"From: \"Goetz C\" <g@c.de>\n\nhi")
             .await
             .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
@@ -1913,7 +1952,7 @@ mod tests {
             MimeMessage::from_bytes(&ctx, b"From: =?utf-8?q?G=C3=B6tz?= C <g@c.de>\n\nhi")
                 .await
                 .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
 
@@ -1923,7 +1962,7 @@ mod tests {
             MimeMessage::from_bytes(&ctx, b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi")
                 .await
                 .unwrap();
-        let contact = mimemsg.from.first().unwrap();
+        let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
     }
@@ -2155,14 +2194,9 @@ mod tests {
                     test1\n\
                     ";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
-            .await
-            .unwrap();
+        let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
 
-        let of = &mimeparser.from[0];
-        assert_eq!(of.addr, "hello@one.org");
-
-        assert!(mimeparser.chat_disposition_notification_to.is_none());
+        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2201,7 +2235,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_context() {
         let context = TestContext::new().await;
-        let raw = b"From: hello\n\
+        let raw = b"From: hello@example.org\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
                     Secure-Join-Group: no\n\

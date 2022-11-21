@@ -56,6 +56,8 @@ use session::Session;
 
 use self::select_folder::NewlySelected;
 
+pub(crate) const GENERATED_PREFIX: &str = "GEN_";
+
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
 pub enum ImapActionResult {
     Failed,
@@ -795,7 +797,7 @@ impl Imap {
             };
 
             // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_message_id(&headers).unwrap_or_else(create_id);
+            let message_id = prefetch_get_or_create_message_id(&headers);
 
             let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
                 Some(config) => match context.get_config(config).await? {
@@ -1278,7 +1280,7 @@ impl Imap {
                 let msg = fetch?;
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
-                        if let Some(from) = mimeparser::get_from(&headers).first() {
+                        if let Some(from) = mimeparser::get_from(&headers) {
                             if context.is_self_addr(&from.addr).await? {
                                 result.extend(mimeparser::get_recipients(&headers));
                             }
@@ -1448,7 +1450,7 @@ impl Imap {
                     .context("we checked that message has body right above, but it has vanished")?;
                 let is_seen = msg.flags().any(|flag| flag == Flag::Seen);
 
-                let rfc724_mid = if let Some(rfc724_mid) = &uid_message_ids.get(&server_uid) {
+                let rfc724_mid = if let Some(rfc724_mid) = uid_message_ids.get(&server_uid) {
                     rfc724_mid
                 } else {
                     warn!(
@@ -1456,7 +1458,7 @@ impl Imap {
                         "No Message-ID corresponding to UID {} passed in uid_messsage_ids",
                         server_uid
                     );
-                    ""
+                    continue;
                 };
                 match receive_imf_inner(
                     &context,
@@ -1754,7 +1756,7 @@ async fn should_move_out_of_spam(
     } else {
         // No chat found.
         let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+            from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
             return Ok(false);
@@ -1974,13 +1976,15 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
 }
 
 fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
-    if let Some(message_id) = headers.get_header_value(HeaderDef::XMicrosoftOriginalMessageId) {
-        crate::mimeparser::parse_message_id(&message_id).ok()
-    } else if let Some(message_id) = headers.get_header_value(HeaderDef::MessageId) {
-        crate::mimeparser::parse_message_id(&message_id).ok()
-    } else {
-        None
-    }
+    headers
+        .get_header_value(HeaderDef::XMicrosoftOriginalMessageId)
+        .or_else(|| headers.get_header_value(HeaderDef::MessageId))
+        .and_then(|msgid| mimeparser::parse_message_id(&msgid).ok())
+}
+
+pub(crate) fn prefetch_get_or_create_message_id(headers: &[mailparse::MailHeader]) -> String {
+    prefetch_get_message_id(headers)
+        .unwrap_or_else(|| format!("{}{}", GENERATED_PREFIX, create_id()))
 }
 
 /// Returns chat by prefetched headers.
@@ -2038,7 +2042,7 @@ pub(crate) async fn prefetch_should_download(
         .is_some();
 
     let (_from_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &mimeparser::get_from(headers), true).await?;
+        from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 

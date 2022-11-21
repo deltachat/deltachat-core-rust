@@ -617,10 +617,9 @@ pub async fn maybe_do_aeap_transition(
     mime_parser: &crate::mimeparser::MimeMessage,
 ) -> Result<()> {
     if let Some(peerstate) = &mut info.peerstate {
-        if let Some(from) = mime_parser.from.first() {
-            // If the from addr is different from the peerstate address we know,
-            // we may want to do an AEAP transition.
-            if !addr_cmp(&peerstate.addr, &from.addr)
+        // If the from addr is different from the peerstate address we know,
+        // we may want to do an AEAP transition.
+        if !addr_cmp(&peerstate.addr, &mime_parser.from.addr)
                 // Check if it's a chat message; we do this to avoid
                 // some accidental transitions if someone writes from multiple
                 // addresses with an MUA.
@@ -636,31 +635,30 @@ pub async fn maybe_do_aeap_transition(
                 // to the attacker's address, allowing for easier phishing.
                 && mime_parser.from_is_signed
                 && info.message_time > peerstate.last_seen
-            {
-                // Add info messages to chats with this (verified) contact
-                //
-                peerstate
-                    .handle_setup_change(
-                        context,
-                        info.message_time,
-                        PeerstateChange::Aeap(info.from.clone()),
-                    )
-                    .await?;
+        {
+            // Add info messages to chats with this (verified) contact
+            //
+            peerstate
+                .handle_setup_change(
+                    context,
+                    info.message_time,
+                    PeerstateChange::Aeap(info.from.clone()),
+                )
+                .await?;
 
-                peerstate.addr = info.from.clone();
-                let header = info.autocrypt_header.as_ref().context(
-                    "Internal error: Tried to do an AEAP transition without an autocrypt header??",
-                )?;
-                peerstate.apply_header(header, info.message_time);
-                peerstate.to_save = Some(ToSave::All);
+            peerstate.addr = info.from.clone();
+            let header = info.autocrypt_header.as_ref().context(
+                "Internal error: Tried to do an AEAP transition without an autocrypt header??",
+            )?;
+            peerstate.apply_header(header, info.message_time);
+            peerstate.to_save = Some(ToSave::All);
 
-                // We don't know whether a peerstate with this address already existed, or a
-                // new one should be created, so just try both create=false and create=true,
-                // and if this fails, create=true, one will succeed (this is a very cold path,
-                // so performance doesn't really matter).
-                peerstate.save_to_db(&context.sql, true).await?;
-                peerstate.save_to_db(&context.sql, false).await?;
-            }
+            // We don't know whether a peerstate with this address already existed, or a
+            // new one should be created, so just try both create=false and create=true,
+            // and if this fails, create=true, one will succeed (this is a very cold path,
+            // so performance doesn't really matter).
+            peerstate.save_to_db(&context.sql, true).await?;
+            peerstate.save_to_db(&context.sql, false).await?;
         }
     }
 

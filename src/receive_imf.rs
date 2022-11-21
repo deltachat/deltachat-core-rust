@@ -13,7 +13,6 @@ use regex::Regex;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
-use crate::contact;
 use crate::contact::{
     may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
 };
@@ -22,14 +21,14 @@ use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::imap::markseen_on_imap_table;
+use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -37,7 +36,8 @@ use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
-use crate::tools::{create_id, extract_grpid_from_rfc724_mid, smeared_time};
+use crate::tools::{extract_grpid_from_rfc724_mid, smeared_time};
+use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -66,11 +66,7 @@ pub async fn receive_imf(
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
-    let rfc724_mid = mail
-        .headers
-        .get_header_value(HeaderDef::MessageId)
-        .and_then(|msgid| parse_message_id(&msgid).ok())
-        .unwrap_or_else(create_id);
+    let rfc724_mid = imap::prefetch_get_or_create_message_id(&mail.headers);
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -105,10 +101,33 @@ pub(crate) async fn receive_imf_inner(
 
     let mut mime_parser =
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
-            Err(err) => {
+            Err(ParserError::Malformed(err)) => {
                 warn!(context, "receive_imf: can't parse MIME: {}", err);
-                return Ok(None);
+
+                let msg_ids;
+                if !rfc724_mid.starts_with(GENERATED_PREFIX) {
+                    let row_id = context
+                        .sql
+                        .execute(
+                            "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                            paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
+                        )
+                        .await?;
+                    msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
+                } else {
+                    return Ok(None);
+                    // We don't have an rfc724_mid, there's no point in adding a trash entry
+                }
+
+                return Ok(Some(ReceivedMsg {
+                    chat_id: DC_CHAT_ID_TRASH,
+                    state: MessageState::Undefined,
+                    sort_timestamp: 0,
+                    msg_ids,
+                    needs_delete_job: false,
+                }));
             }
+            Err(ParserError::Sql(err)) => return Err(err),
             Ok(mime_parser) => mime_parser,
         };
 
@@ -141,7 +160,6 @@ pub(crate) async fn receive_imf_inner(
             None
         };
 
-    // the function returns the number of created messages in the database
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get_header(HeaderDef::Sender).is_some();
 
@@ -154,7 +172,7 @@ pub(crate) async fn receive_imf_inner(
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await?;
+        from_field_to_contact_id(context, Some(&mime_parser.from), prevent_rename).await?;
 
     let incoming = from_id != ContactId::SELF;
 
@@ -168,7 +186,6 @@ pub(crate) async fn receive_imf_inner(
         } else {
             Origin::IncomingUnknownTo
         },
-        prevent_rename,
     )
     .await?;
 
@@ -353,28 +370,33 @@ pub(crate) async fn receive_imf_inner(
 /// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
 pub async fn from_field_to_contact_id(
     context: &Context,
-    from_address_list: &[SingleInfo],
+    from: Option<&SingleInfo>,
     prevent_rename: bool,
 ) -> Result<(ContactId, bool, Origin)> {
-    let from_ids = add_or_lookup_contacts_by_address_list(
+    let from = match from {
+        Some(f) => f,
+        None => {
+            warn!(context, "mail has an empty From header");
+            return Ok((ContactId::UNDEFINED, false, Origin::Unknown));
+        }
+    };
+
+    let display_name = if prevent_rename {
+        Some("")
+    } else {
+        from.display_name.as_deref()
+    };
+    let from_id = add_or_lookup_contact_by_addr(
         context,
-        from_address_list,
+        display_name,
+        &from.addr,
         Origin::IncomingUnknownFrom,
-        prevent_rename,
     )
     .await?;
 
-    if from_ids.contains(&ContactId::SELF) {
+    if from_id == ContactId::SELF {
         Ok((ContactId::SELF, false, Origin::OutgoingBcc))
-    } else if !from_ids.is_empty() {
-        if from_ids.len() > 1 {
-            warn!(
-                context,
-                "mail has more than one From address, only using first: {:?}", from_address_list
-            );
-        }
-        let from_id = from_ids.get(0).cloned().unwrap_or_default();
-
+    } else {
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
         if let Ok(contact) = Contact::load_from_db(context, from_id).await {
@@ -382,13 +404,6 @@ pub async fn from_field_to_contact_id(
             incoming_origin = contact.origin;
         }
         Ok((from_id, from_id_blocked, incoming_origin))
-    } else {
-        warn!(
-            context,
-            "mail has an empty From header: {:?}", from_address_list
-        );
-
-        Ok((ContactId::UNDEFINED, false, Origin::Unknown))
     }
 }
 
@@ -570,9 +585,10 @@ async fn add_parts(
                 if chat.is_protected() {
                     let s = stock_str::unknown_sender_for_chat(context).await;
                     mime_parser.repl_msg_by_error(&s);
-                } else if let Some(from) = mime_parser.from.first() {
+                } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
+                    let from = &mime_parser.from;
                     let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
                     for part in mime_parser.parts.iter_mut() {
                         part.param.set(Param::OverrideSenderDisplayname, name);
@@ -637,11 +653,9 @@ async fn add_parts(
         // if contact renaming is prevented (for mailinglists and bots),
         // we use name from From:-header as override name
         if prevent_rename {
-            if let Some(from) = mime_parser.from.first() {
-                if let Some(name) = &from.display_name {
-                    for part in mime_parser.parts.iter_mut() {
-                        part.param.set(Param::OverrideSenderDisplayname, name);
-                    }
+            if let Some(name) = &mime_parser.from.display_name {
+                for part in mime_parser.parts.iter_mut() {
+                    part.param.set(Param::OverrideSenderDisplayname, name);
                 }
             }
         }
@@ -1801,10 +1815,8 @@ async fn create_or_lookup_mailinglist(
     // a usable name for these lists is in the `From` header
     // and we can detect these lists by a unique `ListId`-suffix.
     if listid.ends_with(".list-id.mcsv.net") {
-        if let Some(from) = mime_parser.from.first() {
-            if let Some(display_name) = &from.display_name {
-                name = display_name.clone();
-            }
+        if let Some(display_name) = &mime_parser.from.display_name {
+            name = display_name.clone();
         }
     }
 
@@ -1824,18 +1836,15 @@ async fn create_or_lookup_mailinglist(
     //
     // this pattern is similar to mailchimp above, however,
     // with weaker conditions and does not overwrite existing names.
-    if name.is_empty() {
-        if let Some(from) = mime_parser.from.first() {
-            if from.addr.contains("noreply")
-                || from.addr.contains("no-reply")
-                || from.addr.starts_with("notifications@")
-                || from.addr.starts_with("newsletter@")
-                || listid.ends_with(".xt.local")
-            {
-                if let Some(display_name) = &from.display_name {
-                    name = display_name.clone();
-                }
-            }
+    if name.is_empty()
+        && (mime_parser.from.addr.contains("noreply")
+            || mime_parser.from.addr.contains("no-reply")
+            || mime_parser.from.addr.starts_with("notifications@")
+            || mime_parser.from.addr.starts_with("newsletter@")
+            || listid.ends_with(".xt.local"))
+    {
+        if let Some(display_name) = &mime_parser.from.display_name {
+            name = display_name.clone();
         }
     }
 
@@ -2233,7 +2242,6 @@ async fn add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],
     origin: Origin,
-    prevent_rename: bool,
 ) -> Result<Vec<ContactId>> {
     let mut contact_ids = HashSet::new();
     for info in address_list.iter() {
@@ -2241,11 +2249,7 @@ async fn add_or_lookup_contacts_by_address_list(
         if !may_be_valid_addr(addr) {
             continue;
         }
-        let display_name = if prevent_rename {
-            Some("")
-        } else {
-            info.display_name.as_deref()
-        };
+        let display_name = info.display_name.as_deref();
         contact_ids
             .insert(add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?);
     }
@@ -2288,7 +2292,7 @@ mod tests {
     async fn test_grpid_simple() {
         let context = TestContext::new().await;
         let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                    From: hello\n\
+                    From: hello@example.org\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <lqkjwelq123@123123>\n\
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
@@ -2303,10 +2307,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_grpid_from_multiple() {
+    async fn test_bad_from() {
         let context = TestContext::new().await;
         let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: hello\n\
+                    Subject: outer-subject\n\
+                    In-Reply-To: <lqkjwelq123@123123>\n\
+                    References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
+                    \n\
+                    hello\x00";
+        let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
+        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_grpid_from_multiple() {
+        let context = TestContext::new().await;
+        let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                    From: hello@example.org\n\
                     Subject: outer-subject\n\
                     In-Reply-To: <Gr.HcxyMARjyJy.9-qweqwe@asd.net>\n\
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
@@ -2593,8 +2611,55 @@ mod tests {
         .unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-        // Check that the message was added to the database:
-        assert!(chats.get_msg_id(0).is_ok());
+        // Check that the message is not shown to the user:
+        assert!(chats.is_empty());
+
+        // Check that the message was added to the db:
+        assert!(message::rfc724_mid_exists(context, "3924@example.com")
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    /// If there is no Message-Id header, we generate a random id.
+    /// But there is no point in adding a trash entry in the database
+    /// if the email is malformed (e.g. because `From` is missing)
+    /// with this random id we just generated.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_no_message_id_header() {
+        let t = TestContext::new_alice().await;
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        assert!(chats.get_msg_id(0).is_err());
+
+        let received = receive_imf(
+            &t,
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+              To: bob@example.com\n\
+              Subject: foo\n\
+              Chat-Version: 1.0\n\
+              Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+              \n\
+              hello\n",
+            false,
+        )
+        .await
+        .unwrap();
+        dbg!(&received);
+        assert!(received.is_none());
+
+        assert!(!t
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
+                paramsv![DC_CHAT_ID_TRASH],
+            )
+            .await
+            .unwrap());
+
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        // Check that the message is not shown to the user:
+        assert!(chats.is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
