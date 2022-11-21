@@ -156,6 +156,7 @@ def extract_defines(flags):
                 | DC_KEY_GEN
                 | DC_IMEX
                 | DC_CONNECTIVITY
+                | DC_DOWNLOAD
             )         # End of prefix matching
             _[\w_]+   # Match the suffix, e.g. _RSA2048 in DC_KEY_GEN_RSA2048
         )             # Close the capturing group, this contains

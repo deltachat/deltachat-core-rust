@@ -1237,6 +1237,66 @@ def test_send_and_receive_image(acfactory, lp, data):
     assert m == msg_in
 
 
+def test_reaction_to_partially_fetched_msg(acfactory, lp, tmpdir):
+    """See https://github.com/deltachat/deltachat-core-rust/issues/3688 "Partially downloaded
+    messages are received out of order".
+
+    If the Inbox contains X small messages followed by Y large messages followed by Z small
+    messages, Delta Chat first downloaded a batch of X+Z messages, and then a batch of Y messages.
+
+    This bug was discovered by @Simon-Laux while testing reactions PR #3644 and can be reproduced
+    with online test as follows:
+    - Bob enables download limit and goes offline.
+    - Alice sends a large message to Bob and reacts to this message with a thumbs-up.
+    - Bob goes online
+    - Bob first processes a reaction message and throws it away because there is no corresponding
+      message, then processes a partially downloaded message.
+    - As a result, Bob does not see a reaction
+    """
+    download_limit = 32768
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1_addr = ac1.get_config("addr")
+    chat = ac1.create_chat(ac2)
+    ac2.set_config("download_limit", str(download_limit))
+    ac2.stop_io()
+
+    reactions_queue = queue.Queue()
+
+    class InPlugin:
+        @account_hookimpl
+        def ac_reactions_changed(self, message):
+            reactions_queue.put(message)
+
+    ac2.add_account_plugin(InPlugin())
+
+    lp.sec("sending small+large messages from ac1 to ac2")
+    msgs = []
+    msgs.append(chat.send_text("hi"))
+    path = tmpdir.join("large")
+    with open(path, "wb") as fout:
+        fout.write(os.urandom(download_limit + 1))
+    msgs.append(chat.send_file(path.strpath))
+
+    lp.sec("sending a reaction to the large message from ac1 to ac2")
+    react_str = "\N{THUMBS UP SIGN}"
+    msgs.append(msgs[-1].send_reaction(react_str))
+
+    for m in msgs:
+        ac1._evtracker.wait_msg_delivered(m)
+    ac2.start_io()
+
+    lp.sec("wait for ac2 to receive a reaction")
+    msg2 = ac2._evtracker.wait_next_reactions_changed()
+    assert msg2.get_sender_contact().addr == ac1_addr
+    assert msg2.download_state == const.DC_DOWNLOAD_AVAILABLE
+    assert reactions_queue.get() == msg2
+    reactions = msg2.get_reactions()
+    contacts = reactions.get_contacts()
+    assert len(contacts) == 1
+    assert contacts[0].addr == ac1_addr
+    assert reactions.get_by_contact(contacts[0]) == react_str
+
+
 def test_import_export_online_all(acfactory, tmpdir, data, lp):
     (ac1,) = acfactory.get_online_accounts(1)
 

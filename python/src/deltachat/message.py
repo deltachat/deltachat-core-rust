@@ -461,6 +461,17 @@ class Message(object):
         """mark this message as seen."""
         self.account.mark_seen_messages([self.id])
 
+    #
+    # Message download state
+    #
+    @property
+    def download_state(self):
+        assert self.id > 0
+
+        # load message from db to get a fresh/current state
+        dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
+        return lib.dc_msg_get_download_state(dc_msg)
+
 
 # some code for handling DC_MSG_* view types
 
