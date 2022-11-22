@@ -172,7 +172,7 @@ pub(crate) async fn receive_imf_inner(
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, Some(&mime_parser.from), prevent_rename).await?;
+        from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await?;
 
     let incoming = from_id != ContactId::SELF;
 
@@ -370,17 +370,9 @@ pub(crate) async fn receive_imf_inner(
 /// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
 pub async fn from_field_to_contact_id(
     context: &Context,
-    from: Option<&SingleInfo>,
+    from: &SingleInfo,
     prevent_rename: bool,
 ) -> Result<(ContactId, bool, Origin)> {
-    let from = match from {
-        Some(f) => f,
-        None => {
-            warn!(context, "mail has an empty From header");
-            return Ok((ContactId::UNDEFINED, false, Origin::Unknown));
-        }
-    };
-
     let display_name = if prevent_rename {
         Some("")
     } else {

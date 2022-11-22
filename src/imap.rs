@@ -1754,9 +1754,13 @@ async fn should_move_out_of_spam(
             return Ok(false);
         }
     } else {
+        let from = match mimeparser::get_from(headers) {
+            Some(f) => f,
+            None => return Ok(false),
+        };
         // No chat found.
         let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
+            from_field_to_contact_id(context, &from, true).await?;
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
             return Ok(false);
@@ -2041,8 +2045,12 @@ pub(crate) async fn prefetch_should_download(
         .get_header_value(HeaderDef::AutocryptSetupMessage)
         .is_some();
 
+    let from = match mimeparser::get_from(headers) {
+        Some(f) => f,
+        None => return Ok(false),
+    };
     let (_from_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, mimeparser::get_from(headers).as_ref(), true).await?;
+        from_field_to_contact_id(context, &from, true).await?;
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
