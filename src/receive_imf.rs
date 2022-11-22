@@ -28,7 +28,7 @@ use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError, SystemMessage,
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -72,15 +72,13 @@ pub async fn receive_imf(
 
 /// Receive a message and add it to the database.
 ///
-/// Returns an error on recoverable errors, e.g. database errors. In this case,
-/// message parsing should be retried later.
+/// Returns an error on database failure or if the message is broken,
+/// e.g. has nonstandard MIME structure.
 ///
-/// If message itself is wrong, logs
-/// the error and returns success:
-/// - If possible, creates a database entry to prevent the message from being
-///   downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`
-/// - If the message is so wrong that we didn't even create a database entry,
-///   returns `Ok(None)`
+/// If possible, creates a database entry to prevent the message from being
+/// downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`.
+/// If the message is so wrong that we didn't even create a database entry,
+/// returns `Ok(None)`.
 ///
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
@@ -101,9 +99,8 @@ pub(crate) async fn receive_imf_inner(
 
     let mut mime_parser =
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
-            Err(ParserError::Malformed(err)) => {
+            Err(err) => {
                 warn!(context, "receive_imf: can't parse MIME: {}", err);
-
                 let msg_ids;
                 if !rfc724_mid.starts_with(GENERATED_PREFIX) {
                     let row_id = context
@@ -127,7 +124,6 @@ pub(crate) async fn receive_imf_inner(
                     needs_delete_job: false,
                 }));
             }
-            Err(ParserError::Sql(err)) => return Err(err),
             Ok(mime_parser) => mime_parser,
         };
 
@@ -2309,7 +2305,7 @@ mod tests {
                     \n\
                     hello\x00";
         let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
-        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
+        assert!(mimeparser.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

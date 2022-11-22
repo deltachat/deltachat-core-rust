@@ -7,6 +7,7 @@
 ### API-Changes
 
 ### Fixes
+- Make sure malformed messsages will never block receiving further messages anymore #3771
 
 
 ## 1.102.0

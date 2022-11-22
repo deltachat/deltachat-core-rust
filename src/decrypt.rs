@@ -13,7 +13,6 @@ use crate::context::Context;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
-use crate::mimeparser::{self, ParserErrorExt};
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -61,7 +60,7 @@ pub(crate) async fn prepare_decryption(
     mail: &ParsedMail<'_>,
     from: &str,
     message_time: i64,
-) -> mimeparser::ParserResult<DecryptionInfo> {
+) -> Result<DecryptionInfo> {
     let autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
@@ -76,8 +75,7 @@ pub(crate) async fn prepare_decryption(
         // Disallowing keychanges is disabled for now:
         true, // dkim_results.allow_keychange,
     )
-    .await
-    .map_err_sql()?;
+    .await?;
 
     Ok(DecryptionInfo {
         from: from.to_string(),
