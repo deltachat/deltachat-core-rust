@@ -405,6 +405,29 @@ def test_forward_own_message(acfactory, lp):
     assert msg_in.is_forwarded()
 
 
+def test_long_group_name(acfactory, lp):
+    """See bug https://github.com/deltachat/deltachat-core-rust/issues/3650 "Space added before long
+    group names after MIME serialization/deserialization".
+
+    When the mailadm bot creates a group with botadmin, the bot creates is as
+    "pytest-supportuser-282@x.testrun.org support group" (for example). But in the botadmin's
+    account object, the group chat is called " pytest-supportuser-282@x.testrun.org support group"
+    (with an additional space character in the beginning).
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+
+    lp.sec("ac1: creating group chat and sending a message")
+    group_name = "pytest-supportuser-282@x.testrun.org support group"
+    group = ac1.create_group_chat(group_name)
+    group.add_contact(ac2)
+    group.send_text("message")
+
+    # wait for other account to receive
+    ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
+    msg_in = ac2.get_message_by_id(ev.data2)
+    assert msg_in.chat.get_name() == group_name
+
+
 def test_send_self_message(acfactory, lp):
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
     acfactory.bring_accounts_online()
