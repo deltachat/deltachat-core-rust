@@ -1514,7 +1514,10 @@ async fn create_or_lookup_group(
 
         let grpname = mime_parser
             .get_header(HeaderDef::ChatGroupName)
-            .context("Chat-Group-Name vanished")?;
+            .context("Chat-Group-Name vanished")?
+            // W/a for "Space added before long group names after MIME serialization/deserialization
+            // #3650" issue. DC itself never creates group names with leading/trailing whitespace.
+            .trim();
         let new_chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
@@ -1622,9 +1625,15 @@ async fn apply_group_changes(
         {
             better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
             recreate_member_list = true;
-        } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
+        } else if let Some(old_name) = mime_parser
+            .get_header(HeaderDef::ChatGroupNameChanged)
+            // See create_or_lookup_group() for explanation
+            .map(|s| s.trim())
+        {
             if let Some(grpname) = mime_parser
                 .get_header(HeaderDef::ChatGroupName)
+                // See create_or_lookup_group() for explanation
+                .map(|grpname| grpname.trim())
                 .filter(|grpname| grpname.len() < 200)
             {
                 if chat_id
