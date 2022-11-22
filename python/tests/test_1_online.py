@@ -902,6 +902,34 @@ def test_dont_show_emails(acfactory, lp):
         ),
     )
     ac1.direct_imap.append(
+        "Spam",
+        """
+        From: unknown.address@junk.org, unkwnown.add@junk.org
+        Subject: subj
+        To: {}
+        Message-ID: <spam.message2@junk.org>
+        Content-Type: text/plain; charset=utf-8
+
+        Unknown & malformed message in Spam
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Spam",
+        """
+        From: alice@example.org
+        Subject: subj
+        To: {}
+        Message-ID: <spam.message3@junk.org>
+        Content-Type: text/plain; charset=utf-8
+
+        Actually interesting message in Spam
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
         "Junk",
         """
         From: unknown.address@junk.org
@@ -926,7 +954,9 @@ def test_dont_show_emails(acfactory, lp):
     ac1._evtracker.wait_idle_inbox_ready()
 
     assert msg.text == "subj – message in Sent"
-    assert len(msg.chat.get_messages()) == 1
+    chat_msgs = msg.chat.get_messages()
+    assert len(chat_msgs) == 2
+    assert any(msg.text == "subj – Actually interesting message in Spam" for msg in chat_msgs)
 
     assert not any("unknown.address" in c.get_name() for c in ac1.get_chats())
     ac1.direct_imap.select_folder("Spam")
@@ -942,7 +972,7 @@ def test_dont_show_emails(acfactory, lp):
     msg2 = ac1._evtracker.wait_next_messages_changed()
 
     assert msg2.text == "subj – message in Drafts that is moved to Sent later"
-    assert len(msg.chat.get_messages()) == 2
+    assert len(msg.chat.get_messages()) == 3
 
 
 def test_no_old_msg_is_fresh(acfactory, lp):
