@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.101.0"
+version = "1.102.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
 license = "MPL-2.0"
