@@ -5,6 +5,7 @@
 ### Changes
 
 ### API-Changes
+- Add Python API to send reactions #3762
 
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771
