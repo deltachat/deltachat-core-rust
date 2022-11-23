@@ -10,6 +10,7 @@
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771
 - strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
+- Assume all Thunderbird users prefer encryption #3774
 
 
 ## 1.102.0

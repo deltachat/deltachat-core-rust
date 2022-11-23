@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use anyhow::{Context as _, Result};
 use mailparse::ParsedMail;
 
-use crate::aheader::Aheader;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::authres;
 use crate::authres::handle_authres;
 use crate::contact::addr_cmp;
@@ -60,10 +60,17 @@ pub(crate) async fn prepare_decryption(
     mail: &ParsedMail<'_>,
     from: &str,
     message_time: i64,
+    is_thunderbird: bool,
 ) -> Result<DecryptionInfo> {
-    let autocrypt_header = Aheader::from_headers(from, &mail.headers)
+    let mut autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
+
+    if is_thunderbird {
+        if let Some(autocrypt_header) = &mut autocrypt_header {
+            autocrypt_header.prefer_encrypt = EncryptPreference::Mutual;
+        }
+    }
 
     let dkim_results = handle_authres(context, mail, from, message_time).await?;
 

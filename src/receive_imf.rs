@@ -2277,6 +2277,7 @@ mod tests {
 
     use super::*;
 
+    use crate::aheader::EncryptPreference;
     use crate::chat::get_chat_contacts;
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
@@ -5296,6 +5297,22 @@ Reply from different address
         assert_eq!(chat.typ, Chattype::Single);
         let received = bob.get_last_msg().await;
         assert_eq!(received.text, Some("Private reply".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_thunderbird_autocrypt() -> Result<()> {
+        let t = TestContext::new_bob().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let raw = include_bytes!("../test-data/message/thunderbird_with_autocrypt.eml");
+        receive_imf(&t, raw, false).await?;
+
+        let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+            .await?
+            .unwrap();
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
 
         Ok(())
     }
