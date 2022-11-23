@@ -476,7 +476,8 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
 
 fn get_kml_timestamp(utc: i64) -> String {
     // Returns a string formatted as YYYY-MM-DDTHH:MM:SSZ. The trailing `Z` indicates UTC.
-    chrono::NaiveDateTime::from_timestamp(utc, 0)
+    chrono::NaiveDateTime::from_timestamp_opt(utc, 0)
+        .unwrap()
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string()
 }

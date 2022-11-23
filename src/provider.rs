@@ -184,7 +184,9 @@ pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
 
 // returns update timestamp in seconds, UTC, compatible for comparison with time() and database times
 pub fn get_provider_update_timestamp() -> i64 {
-    NaiveDateTime::new(*PROVIDER_UPDATED, NaiveTime::from_hms(0, 0, 0)).timestamp_millis() / 1_000
+    NaiveDateTime::new(*PROVIDER_UPDATED, NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+        .timestamp_millis()
+        / 1_000
 }
 
 #[cfg(test)]
@@ -260,8 +262,8 @@ mod tests {
     #[test]
     fn test_get_provider_update_timestamp() {
         let timestamp_past = NaiveDateTime::new(
-            NaiveDate::from_ymd(2020, 9, 9),
-            NaiveTime::from_hms(0, 0, 0),
+            NaiveDate::from_ymd_opt(2020, 9, 9).unwrap(),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
         )
         .timestamp_millis()
             / 1_000;

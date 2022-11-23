@@ -113,7 +113,7 @@ pub(crate) fn truncate_by_lines(
  ******************************************************************************/
 
 pub fn timestamp_to_str(wanted: i64) -> String {
-    let ts = Local.timestamp(wanted, 0);
+    let ts = Local.timestamp_opt(wanted, 0).unwrap();
     ts.format("%Y.%m.%d %H:%M:%S").to_string()
 }
 
@@ -207,7 +207,8 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
             stock_str::bad_time_msg_body(
                 context,
                 Local
-                    .timestamp(now, 0)
+                    .timestamp_opt(now, 0)
+                    .unwrap()
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
             )
@@ -218,7 +219,9 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
             Some(
                 format!(
                     "bad-time-warning-{}",
-                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m-%d") // repeat every day
+                    chrono::NaiveDateTime::from_timestamp_opt(now, 0)
+                        .unwrap()
+                        .format("%Y-%m-%d") // repeat every day
                 )
                 .as_str(),
             ),
@@ -241,7 +244,9 @@ async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time
             Some(
                 format!(
                     "outdated-warning-{}",
-                    chrono::NaiveDateTime::from_timestamp(now, 0).format("%Y-%m") // repeat every month
+                    chrono::NaiveDateTime::from_timestamp_opt(now, 0)
+                        .unwrap()
+                        .format("%Y-%m") // repeat every month
                 )
                 .as_str(),
             ),
@@ -648,9 +653,9 @@ pub(crate) fn parse_receive_header(header: &str) -> String {
     if let Ok(date) = dateparse(&header) {
         // In tests, use the UTC timezone so that the test is reproducible
         #[cfg(test)]
-        let date_obj = chrono::Utc.timestamp(date, 0);
+        let date_obj = chrono::Utc.timestamp_opt(date, 0).unwrap();
         #[cfg(not(test))]
-        let date_obj = Local.timestamp(date, 0);
+        let date_obj = Local.timestamp_opt(date, 0).unwrap();
 
         hop_info += &format!("Date: {}", date_obj.to_rfc2822());
     };
@@ -1153,8 +1158,8 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let timestamp_now = time();
         let timestamp_future = timestamp_now + 60 * 60 * 24 * 7;
         let timestamp_past = NaiveDateTime::new(
-            NaiveDate::from_ymd(2020, 9, 1),
-            NaiveTime::from_hms(0, 0, 0),
+            NaiveDate::from_ymd_opt(2020, 9, 1).unwrap(),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
         )
         .timestamp_millis()
             / 1_000;

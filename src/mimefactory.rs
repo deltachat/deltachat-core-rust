@@ -531,7 +531,9 @@ impl<'a> MimeFactory<'a> {
             .push(Header::new("Subject".into(), encoded_subject));
 
         let date = chrono::Utc
-            .from_local_datetime(&chrono::NaiveDateTime::from_timestamp(self.timestamp, 0))
+            .from_local_datetime(
+                &chrono::NaiveDateTime::from_timestamp_opt(self.timestamp, 0).unwrap(),
+            )
             .unwrap()
             .to_rfc2822();
         headers.unprotected.push(Header::new("Date".into(), date));
@@ -1338,14 +1340,16 @@ async fn build_body_file(
     // etc.
     let filename_to_send: String = match msg.viewtype {
         Viewtype::Voice => chrono::Utc
-            .timestamp(msg.timestamp_sort, 0)
+            .timestamp_opt(msg.timestamp_sort, 0)
+            .unwrap()
             .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
             .to_string(),
         Viewtype::Image | Viewtype::Gif => format!(
             "{}.{}",
             if base_name.is_empty() {
                 chrono::Utc
-                    .timestamp(msg.timestamp_sort, 0)
+                    .timestamp_opt(msg.timestamp_sort, 0)
+                    .unwrap()
                     .format("image_%Y-%m-%d_%H-%M-%S")
                     .to_string()
             } else {
@@ -1356,7 +1360,8 @@ async fn build_body_file(
         Viewtype::Video => format!(
             "video_{}.{}",
             chrono::Utc
-                .timestamp(msg.timestamp_sort, 0)
+                .timestamp_opt(msg.timestamp_sort, 0)
+                .unwrap()
                 .format("%Y-%m-%d_%H-%M-%S"),
             &suffix
         ),
