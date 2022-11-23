@@ -4,6 +4,15 @@
 
 ### Changes
 
+### API-Changes
+
+### Fixes
+
+
+## 1.102.0
+
+### Changes
+
 - If an email has multiple From addresses, handle this as if there was
   no From address, to prevent from forgery attacks. Also, improve
   handling of emails with invalid From addresses in general #3667
