@@ -9,6 +9,7 @@
 
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771
+- strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
 
 
 ## 1.102.0
@@ -25,7 +26,6 @@
 - fix detection of "All mail", "Trash", "Junk" etc folders. #3760
 - fetch messages sequentially to fix reactions on partially downloaded messages #3688
 - Fix a bug where one malformed message blocked receiving any further messages #3769
-- strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
 
 
 ## 1.101.0
