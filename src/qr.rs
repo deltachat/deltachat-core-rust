@@ -641,7 +641,6 @@ mod tests {
     use crate::aheader::EncryptPreference;
     use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::key::DcKey;
-    use crate::peerstate::ToSave;
     use crate::securejoin::get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
     use anyhow::Result;
@@ -894,7 +893,7 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: Some(ToSave::All),
+            to_save: true,
             fingerprint_changed: false,
         };
         assert!(

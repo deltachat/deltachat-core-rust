@@ -341,7 +341,7 @@ async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 
     peerstate.verified_key = peerstate.public_key.clone();
     peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
-    peerstate.to_save = Some(peerstate::ToSave::All);
+    peerstate.to_save = true;
 
     peerstate.save_to_db(&this.sql, false).await.unwrap();
 }

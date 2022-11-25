@@ -18,7 +18,7 @@ use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
-use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
+use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::qr::check_qr;
 use crate::stock_str;
 use crate::token;
@@ -640,7 +640,7 @@ async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> 
             PeerstateVerifiedStatus::BidirectVerified,
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.to_save = Some(ToSave::All);
+            peerstate.to_save = true;
             peerstate
                 .save_to_db(&context.sql, false)
                 .await
@@ -932,7 +932,7 @@ mod tests {
             gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: Some(ToSave::All),
+            to_save: true,
             fingerprint_changed: false,
         };
         peerstate.save_to_db(&bob.ctx.sql, true).await?;
