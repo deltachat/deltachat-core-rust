@@ -893,7 +893,6 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         };
         assert!(

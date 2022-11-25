@@ -640,7 +640,6 @@ async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> 
             PeerstateVerifiedStatus::BidirectVerified,
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.to_save = true;
             peerstate.save_to_db(&context.sql).await.unwrap_or_default();
             return Ok(());
         }
@@ -929,7 +928,6 @@ mod tests {
             gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         };
         peerstate.save_to_db(&bob.ctx.sql).await?;

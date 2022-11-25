@@ -46,7 +46,6 @@ pub struct Peerstate {
     pub gossip_key_fingerprint: Option<Fingerprint>,
     pub verified_key: Option<SignedPublicKey>,
     pub verified_key_fingerprint: Option<Fingerprint>,
-    pub to_save: bool,
     pub fingerprint_changed: bool,
 }
 
@@ -63,7 +62,6 @@ impl PartialEq for Peerstate {
             && self.gossip_key_fingerprint == other.gossip_key_fingerprint
             && self.verified_key == other.verified_key
             && self.verified_key_fingerprint == other.verified_key_fingerprint
-            && self.to_save == other.to_save
             && self.fingerprint_changed == other.fingerprint_changed
     }
 }
@@ -84,7 +82,6 @@ impl fmt::Debug for Peerstate {
             .field("gossip_key_fingerprint", &self.gossip_key_fingerprint)
             .field("verified_key", &self.verified_key)
             .field("verified_key_fingerprint", &self.verified_key_fingerprint)
-            .field("to_save", &self.to_save)
             .field("fingerprint_changed", &self.fingerprint_changed)
             .finish()
     }
@@ -104,7 +101,6 @@ impl Peerstate {
             gossip_timestamp: 0,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         }
     }
@@ -130,7 +126,6 @@ impl Peerstate {
             gossip_timestamp: message_time,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         }
     }
@@ -222,7 +217,6 @@ impl Peerstate {
                         .map(|s| s.parse::<Fingerprint>())
                         .transpose()
                         .unwrap_or_default(),
-                    to_save: false,
                     fingerprint_changed: false,
                 };
 
@@ -245,7 +239,6 @@ impl Peerstate {
                 || self.public_key_fingerprint.is_none()
                 || old_public_fingerprint != self.public_key_fingerprint
             {
-                self.to_save = true;
                 if old_public_fingerprint.is_some() {
                     self.fingerprint_changed = true;
                 }
@@ -260,8 +253,6 @@ impl Peerstate {
                 || self.gossip_key_fingerprint.is_none()
                 || old_gossip_fingerprint != self.gossip_key_fingerprint
             {
-                self.to_save = true;
-
                 // Warn about gossip key change only if there is no public key obtained from
                 // Autocrypt header, which overrides gossip key.
                 if old_gossip_fingerprint.is_some() && self.public_key_fingerprint.is_none() {
@@ -274,7 +265,6 @@ impl Peerstate {
     pub fn degrade_encryption(&mut self, message_time: i64) {
         self.prefer_encrypt = EncryptPreference::Reset;
         self.last_seen = message_time;
-        self.to_save = true;
     }
 
     pub fn apply_header(&mut self, header: &Aheader, message_time: i64) {
@@ -285,7 +275,6 @@ impl Peerstate {
         if message_time > self.last_seen {
             self.last_seen = message_time;
             self.last_seen_autocrypt = message_time;
-            self.to_save = true;
             if (header.prefer_encrypt == EncryptPreference::Mutual
                 || header.prefer_encrypt == EncryptPreference::NoPreference)
                 && header.prefer_encrypt != self.prefer_encrypt
@@ -307,7 +296,6 @@ impl Peerstate {
 
         if message_time > self.gossip_timestamp {
             self.gossip_timestamp = message_time;
-            self.to_save = true;
             if self.gossip_key.as_ref() != Some(&gossip_header.public_key) {
                 self.gossip_key = Some(gossip_header.public_key.clone());
                 self.recalc_fingerprint();
@@ -384,7 +372,6 @@ impl Peerstate {
                     if self.public_key_fingerprint.is_some()
                         && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
                     {
-                        self.to_save = true;
                         self.verified_key = self.public_key.clone();
                         self.verified_key_fingerprint = self.public_key_fingerprint.clone();
                         true
@@ -396,7 +383,6 @@ impl Peerstate {
                     if self.gossip_key_fingerprint.is_some()
                         && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
                     {
-                        self.to_save = true;
                         self.verified_key = self.gossip_key.clone();
                         self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
                         true
@@ -411,9 +397,8 @@ impl Peerstate {
     }
 
     pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
-        if self.to_save {
-            sql.execute(
-                "INSERT INTO acpeerstates (
+        sql.execute(
+            "INSERT INTO acpeerstates (
                 last_seen,
                 last_seen_autocrypt,
                 prefer_encrypted,
@@ -438,23 +423,21 @@ impl Peerstate {
                   gossip_key_fingerprint = excluded.gossip_key_fingerprint,
                   verified_key = excluded.verified_key,
                   verified_key_fingerprint = excluded.verified_key_fingerprint",
-                paramsv![
-                    self.last_seen,
-                    self.last_seen_autocrypt,
-                    self.prefer_encrypt as i64,
-                    self.public_key.as_ref().map(|k| k.to_bytes()),
-                    self.gossip_timestamp,
-                    self.gossip_key.as_ref().map(|k| k.to_bytes()),
-                    self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.verified_key.as_ref().map(|k| k.to_bytes()),
-                    self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.addr,
-                ],
-            )
-            .await?;
-        }
-
+            paramsv![
+                self.last_seen,
+                self.last_seen_autocrypt,
+                self.prefer_encrypt as i64,
+                self.public_key.as_ref().map(|k| k.to_bytes()),
+                self.gossip_timestamp,
+                self.gossip_key.as_ref().map(|k| k.to_bytes()),
+                self.public_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.verified_key.as_ref().map(|k| k.to_bytes()),
+                self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
+                self.addr,
+            ],
+        )
+        .await?;
         Ok(())
     }
 
@@ -625,7 +608,6 @@ pub async fn maybe_do_aeap_transition(
                 "Internal error: Tried to do an AEAP transition without an autocrypt header??",
             )?;
             peerstate.apply_header(header, info.message_time);
-            peerstate.to_save = true;
 
             peerstate.save_to_db(&context.sql).await?;
         }
@@ -679,7 +661,7 @@ mod tests {
 
         let pub_key = alice_keypair().public;
 
-        let mut peerstate = Peerstate {
+        let peerstate = Peerstate {
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -691,7 +673,6 @@ mod tests {
             gossip_key_fingerprint: Some(pub_key.fingerprint()),
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
-            to_save: true,
             fingerprint_changed: false,
         };
 
@@ -705,8 +686,6 @@ mod tests {
             .expect("failed to load peerstate from db")
             .expect("no peerstate found in the database");
 
-        // clear to_save, as that is not persissted
-        peerstate.to_save = false;
         assert_eq!(peerstate, peerstate_new);
         let peerstate_new2 = Peerstate::from_fingerprint(&ctx.ctx, &pub_key.fingerprint())
             .await
@@ -733,7 +712,6 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         };
 
@@ -754,7 +732,7 @@ mod tests {
 
         let pub_key = alice_keypair().public;
 
-        let mut peerstate = Peerstate {
+        let peerstate = Peerstate {
             addr: addr.into(),
             last_seen: 10,
             last_seen_autocrypt: 11,
@@ -766,7 +744,6 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: true,
             fingerprint_changed: false,
         };
 
@@ -779,8 +756,6 @@ mod tests {
             .await
             .expect("failed to load peerstate from db");
 
-        // clear to_save, as that is not persissted
-        peerstate.to_save = false;
         assert_eq!(Some(peerstate), peerstate_new);
     }
 
@@ -831,7 +806,6 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: false,
             fingerprint_changed: false,
         };
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::NoPreference);
