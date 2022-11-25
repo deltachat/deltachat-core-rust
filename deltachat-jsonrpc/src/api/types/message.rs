@@ -10,8 +10,7 @@ use deltachat::message::MsgId;
 use deltachat::message::Viewtype;
 use deltachat::reaction::get_msg_reactions;
 use num_traits::cast::ToPrimitive;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
@@ -19,14 +18,14 @@ use super::contact::ContactObject;
 use super::reactions::JSONRPCReactions;
 use super::webxdc::WebxdcMessageInfo;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", tag = "variant")]
 pub enum MessageLoadResult {
     Message(MessageObject),
     LoadingError { error: String },
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Message", rename_all = "camelCase")]
 pub struct MessageObject {
     id: u32,
@@ -86,7 +85,7 @@ pub struct MessageObject {
     reactions: Option<JSONRPCReactions>,
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "kind")]
 enum MessageQuote {
     JustText {
@@ -238,7 +237,7 @@ impl MessageObject {
     }
 }
 
-#[derive(Serialize, Deserialize, TypeDef)]
+#[derive(Serialize, Deserialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Viewtype")]
 pub enum MessageViewtype {
     Unknown,
@@ -314,7 +313,7 @@ impl From<MessageViewtype> for Viewtype {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 pub enum DownloadState {
     Done,
     Available,
@@ -333,7 +332,7 @@ impl From<download::DownloadState> for DownloadState {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 pub enum SystemMessageType {
     Unknown,
     GroupNameChanged,
@@ -388,7 +387,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageNotificationInfo {
     id: u32,
@@ -446,7 +445,7 @@ impl MessageNotificationInfo {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageSearchResult {
     id: u32,
@@ -507,7 +506,7 @@ impl MessageSearchResult {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "MessageListItem", tag = "kind")]
 pub enum JSONRPCMessageListItem {
     Message {
@@ -533,7 +532,7 @@ impl From<ChatItem> for JSONRPCMessageListItem {
     }
 }
 
-#[derive(Deserialize, TypeDef)]
+#[derive(Deserialize, Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageData {
     pub text: Option<String>,
@@ -545,7 +544,7 @@ pub struct MessageData {
     pub quoted_message_id: Option<u32>,
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageReadReceipt {
     pub contact_id: u32,

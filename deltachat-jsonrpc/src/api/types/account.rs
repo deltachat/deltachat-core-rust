@@ -6,7 +6,7 @@ use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "type")]
 pub enum Account {
     #[serde(rename_all = "camelCase")]

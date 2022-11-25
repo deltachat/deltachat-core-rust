@@ -2,7 +2,7 @@ use deltachat::net::HttpResponse as CoreHttpResponse;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 pub struct HttpResponse {
     /// base64-encoded response body.
     blob: String,

@@ -2,7 +2,7 @@ use deltachat::{Event as CoreEvent, EventType as CoreEventType};
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     /// Event payload.
@@ -21,7 +21,7 @@ impl From<CoreEvent> for Event {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "type")]
 pub enum EventType {
     /// The library-user may write an informational string to the log.

@@ -2,7 +2,7 @@ use deltachat::qr::Qr;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Qr", rename_all = "camelCase")]
 #[serde(tag = "type")]
 pub enum QrObject {

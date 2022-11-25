@@ -13,7 +13,7 @@ use typescript_type_def::TypeDef;
 use super::color_int_to_hex_string;
 use super::contact::ContactObject;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FullChat {
     id: u32,
@@ -121,7 +121,7 @@ impl FullChat {
 /// - can_send
 ///
 /// used when you only need the basic metadata of a chat like type, name, profile picture
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BasicChat {
     id: u32,
@@ -166,7 +166,7 @@ impl BasicChat {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, TypeDef)]
+#[derive(Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema)]
 pub enum MuteDuration {
     NotMuted,
     Forever,
@@ -191,7 +191,7 @@ impl MuteDuration {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, TypeDef)]
+#[derive(Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "ChatVisibility")]
 pub enum JSONRPCChatVisibility {
     Normal,

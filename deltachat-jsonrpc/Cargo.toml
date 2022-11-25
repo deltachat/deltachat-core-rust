@@ -15,13 +15,14 @@ required-features = ["webserver"]
 anyhow = "1"
 deltachat = { path = ".." }
 num-traits = "0.2"
+schemars = "0.8.11"
 serde = { version = "1.0", features = ["derive"] }
 tempfile = "3.3.0"
 log = "0.4"
 async-channel = { version = "1.8.0" }
 futures = { version = "0.3.28" }
 serde_json = "1.0.96"
-yerpc = { version = "0.4.4", features = ["anyhow_expose"] }
+yerpc = { version = "0.5.1", features = ["anyhow_expose", "openrpc"] }
 typescript-type-def = { version = "0.5.5", features = ["json_value"] }
 tokio = { version = "1.28.0" }
 sanitize-filename = "0.4"

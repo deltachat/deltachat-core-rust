@@ -3,7 +3,7 @@ use num_traits::cast::ToPrimitive;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderInfo {
     pub before_login_hint: String,

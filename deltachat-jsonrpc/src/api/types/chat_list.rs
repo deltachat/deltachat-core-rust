@@ -8,13 +8,16 @@ use deltachat::{
     chatlist::Chatlist,
 };
 use num_traits::cast::ToPrimitive;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
 use super::message::MessageViewtype;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Deserialize, Serialize, TypeDef, schemars::JsonSchema)]
+pub struct ChatListEntry(pub u32, pub u32);
+
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "type")]
 pub enum ChatListItemFetchResult {
     #[serde(rename_all = "camelCase")]

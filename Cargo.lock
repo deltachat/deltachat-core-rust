@@ -1242,6 +1242,7 @@ dependencies = [
  "log",
  "num-traits",
  "sanitize-filename",
+ "schemars",
  "serde",
  "serde_json",
  "tempfile",
@@ -1513,6 +1514,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b0cf012f1230e43cd00ebb729c6bb58707ecfa8ad08b52ef3a4ccd2697fc30"
 
 [[package]]
 name = "ecdsa"
@@ -4249,6 +4256,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "schemars"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02c613288622e5f0c3fdc5dbd4db1c5fbe752746b1d1a56a0630b78fd00de44f"
+dependencies = [
+ "dyn-clone",
+ "schemars_derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "schemars_derive"
+version = "0.8.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "109da1e6b197438deb6db99952990c7f959572794b80ff93707d55a232545e7c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4366,6 +4397,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.15",
+]
+
+[[package]]
+name = "serde_derive_internals"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85bf8229e7920a9f636479437026331ce11aa132b4dde37d121944a44d6e5f3c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -5799,9 +5841,9 @@ dependencies = [
 
 [[package]]
 name = "yerpc"
-version = "0.4.4"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c26a804eaa30c1ff1a296dc6dd1a7d7c622750dafcd0d6b2ed5e3c5c3beb22"
+checksum = "30fc983d32883ecb563227a2dcdcbe8567decd9c533b5ecca7e3099e2f7d4c96"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -5811,6 +5853,7 @@ dependencies = [
  "futures",
  "futures-util",
  "log",
+ "schemars",
  "serde",
  "serde_json",
  "tokio",
@@ -5821,9 +5864,9 @@ dependencies = [
 
 [[package]]
 name = "yerpc_derive"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bd53ff9053698697b92c2535bf7ecb983fd5d546d690b7c725e5070d6d9a620"
+checksum = "6d6b8ce490e8719fe84d7d80ad4d58572b2ea9d7a83d156f6afd6ab3ad5cfb94"
 dependencies = [
  "convert_case 0.5.0",
  "darling 0.14.3",
