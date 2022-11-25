@@ -897,7 +897,7 @@ mod tests {
             fingerprint_changed: false,
         };
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),
             "failed to save peerstate"
         );
 

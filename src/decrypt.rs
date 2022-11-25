@@ -306,7 +306,7 @@ pub(crate) async fn get_autocrypt_peerstate(
             if addr_cmp(&peerstate.addr, from) {
                 if allow_change {
                     peerstate.apply_header(header, message_time);
-                    peerstate.save_to_db(&context.sql, false).await?;
+                    peerstate.save_to_db(&context.sql).await?;
                 } else {
                     info!(
                         context,
@@ -322,7 +322,7 @@ pub(crate) async fn get_autocrypt_peerstate(
             // to the database.
         } else {
             let p = Peerstate::from_header(header, message_time);
-            p.save_to_db(&context.sql, true).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = Some(p);
         }
     } else {

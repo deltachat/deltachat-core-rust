@@ -2129,7 +2129,7 @@ async fn check_verified_properties(
                             &fp,
                             PeerstateVerifiedStatus::BidirectVerified,
                         );
-                        peerstate.save_to_db(&context.sql, false).await?;
+                        peerstate.save_to_db(&context.sql).await?;
                         is_verified = true;
                     }
                 }

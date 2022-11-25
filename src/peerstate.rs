@@ -410,37 +410,34 @@ impl Peerstate {
         }
     }
 
-    pub async fn save_to_db(&self, sql: &Sql, create: bool) -> Result<()> {
-        if self.to_save || create {
+    pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
+        if self.to_save {
             sql.execute(
-                if create {
-                    "INSERT INTO acpeerstates ( \
-                         last_seen, \
-                         last_seen_autocrypt, \
-                         prefer_encrypted, \
-                         public_key, \
-                         gossip_timestamp, \
-                         gossip_key, \
-                         public_key_fingerprint, \
-                         gossip_key_fingerprint, \
-                         verified_key, \
-                         verified_key_fingerprint, \
-                         addr \
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)"
-                } else {
-                    "UPDATE acpeerstates \
-                 SET last_seen=?, \
-                 last_seen_autocrypt=?, \
-                 prefer_encrypted=?, \
-                 public_key=?, \
-                 gossip_timestamp=?, \
-                 gossip_key=?, \
-                 public_key_fingerprint=?, \
-                 gossip_key_fingerprint=?, \
-                 verified_key=?, \
-                 verified_key_fingerprint=? \
-                 WHERE addr=?"
-                },
+                "INSERT INTO acpeerstates (
+                last_seen,
+                last_seen_autocrypt,
+                prefer_encrypted,
+                public_key,
+                gossip_timestamp,
+                gossip_key,
+                public_key_fingerprint,
+                gossip_key_fingerprint,
+                verified_key,
+                verified_key_fingerprint,
+                addr)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT (addr)
+                DO UPDATE SET
+                  last_seen = excluded.last_seen,
+                  last_seen_autocrypt = excluded.last_seen_autocrypt,
+                  prefer_encrypted = excluded.prefer_encrypted,
+                  public_key = excluded.public_key,
+                  gossip_timestamp = excluded.gossip_timestamp,
+                  gossip_key = excluded.gossip_key,
+                  public_key_fingerprint = excluded.public_key_fingerprint,
+                  gossip_key_fingerprint = excluded.gossip_key_fingerprint,
+                  verified_key = excluded.verified_key,
+                  verified_key_fingerprint = excluded.verified_key_fingerprint",
                 paramsv![
                     self.last_seen,
                     self.last_seen_autocrypt,
@@ -630,12 +627,7 @@ pub async fn maybe_do_aeap_transition(
             peerstate.apply_header(header, info.message_time);
             peerstate.to_save = true;
 
-            // We don't know whether a peerstate with this address already existed, or a
-            // new one should be created, so just try both create=false and create=true,
-            // and if this fails, create=true, one will succeed (this is a very cold path,
-            // so performance doesn't really matter).
-            peerstate.save_to_db(&context.sql, true).await?;
-            peerstate.save_to_db(&context.sql, false).await?;
+            peerstate.save_to_db(&context.sql).await?;
         }
     }
 
@@ -704,7 +696,7 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),
             "failed to save to db"
         );
 
@@ -746,11 +738,11 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),
             "failed to save"
         );
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),
             "double-call with create failed"
         );
     }
@@ -779,7 +771,7 @@ mod tests {
         };
 
         assert!(
-            peerstate.save_to_db(&ctx.ctx.sql, true).await.is_ok(),
+            peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),
             "failed to save"
         );
 

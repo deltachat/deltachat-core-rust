@@ -641,10 +641,7 @@ async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> 
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = true;
-            peerstate
-                .save_to_db(&context.sql, false)
-                .await
-                .unwrap_or_default();
+            peerstate.save_to_db(&context.sql).await.unwrap_or_default();
             return Ok(());
         }
     }
@@ -935,7 +932,7 @@ mod tests {
             to_save: true,
             fingerprint_changed: false,
         };
-        peerstate.save_to_db(&bob.ctx.sql, true).await?;
+        peerstate.save_to_db(&bob.ctx.sql).await?;
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = get_securejoin_qr(&alice.ctx, None).await?;

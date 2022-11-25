@@ -310,7 +310,7 @@ impl MimeMessage {
                         // && decryption_info.dkim_results.allow_keychange
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql, false).await?;
+                            peerstate.save_to_db(&context.sql).await?;
                         }
                     }
                     (Ok(mail), HashSet::new(), false)
@@ -1586,11 +1586,11 @@ async fn update_gossip_peerstates(
         let peerstate;
         if let Some(mut p) = Peerstate::from_addr(context, &header.addr).await? {
             p.apply_gossip(&header, message_time);
-            p.save_to_db(&context.sql, false).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         } else {
             let p = Peerstate::from_gossip(&header, message_time);
-            p.save_to_db(&context.sql, true).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         };
         peerstate
