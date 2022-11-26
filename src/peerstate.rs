@@ -235,13 +235,10 @@ impl Peerstate {
             let old_public_fingerprint = self.public_key_fingerprint.take();
             self.public_key_fingerprint = Some(public_key.fingerprint());
 
-            if old_public_fingerprint.is_none()
-                || self.public_key_fingerprint.is_none()
-                || old_public_fingerprint != self.public_key_fingerprint
+            if old_public_fingerprint.is_some()
+                && old_public_fingerprint != self.public_key_fingerprint
             {
-                if old_public_fingerprint.is_some() {
-                    self.fingerprint_changed = true;
-                }
+                self.fingerprint_changed = true;
             }
         }
 
