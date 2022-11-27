@@ -371,6 +371,11 @@ class Account(object):
         dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), lib.dc_array_unref)
         yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
 
+    def get_next_fresh_message(self) -> Message:
+        """Returns the oldest fresh message or waits for a new one to arrive."""
+        msg_id = lib.dc_get_next_fresh_msg(self._dc_context)
+        return Message.from_db(self, msg_id)
+
     def create_chat(self, obj) -> Chat:
         """Create a 1:1 chat with Account, Contact or e-mail address."""
         return self.create_contact(obj).create_chat()

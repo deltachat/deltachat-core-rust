@@ -710,6 +710,7 @@ def test_send_and_receive_will_encrypt_decrypt(acfactory, lp):
     fresh_msgs = list(ac1.get_fresh_messages())
     assert len(fresh_msgs) == 1
     assert fresh_msgs[0] == msg3
+    assert ac1.get_next_fresh_message() == msg3
     msg3.mark_seen()
     assert not list(ac1.get_fresh_messages())
 
