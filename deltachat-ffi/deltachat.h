@@ -1281,6 +1281,8 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
 /**
  * Returns the ID of the fresh message of any chat.
  *
+ * If there is no such message, the function blocks until there is one.
+ *
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @return Message ID of the next fresh message. Returns 0 on error.
