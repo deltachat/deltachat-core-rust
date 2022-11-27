@@ -1279,6 +1279,16 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
 
 
 /**
+ * Returns the ID of the fresh message of any chat.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @return Message ID of the next fresh message. Returns 0 on error.
+ */
+dc_array_t*     dc_get_next_fresh_msg        (dc_context_t* context);
+
+
+/**
  * Mark all messages in a chat as _noticed_.
  * _Noticed_ messages are no longer _fresh_ and do not count as being unseen
  * but are still waiting for being marked as "seen" using dc_markseen_msgs()

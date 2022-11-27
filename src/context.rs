@@ -9,7 +9,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
@@ -205,6 +205,11 @@ pub struct InnerContext {
     pub(crate) translated_stockstrings: StockStrings,
     pub(crate) events: Events,
 
+    /// Notify about fresh messages.
+    ///
+    /// This notification is used only internally for [`InternalContext.get_next_fresh_msg()`].
+    pub(crate) notify_fresh_message: Notify,
+
     pub(crate) scheduler: RwLock<Option<Scheduler>>,
     pub(crate) ratelimit: RwLock<Ratelimit>,
 
@@ -354,6 +359,7 @@ impl Context {
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: stockstrings,
             events,
+            notify_fresh_message: Notify::new(),
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
@@ -451,9 +457,12 @@ impl Context {
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
     }
 
-    /// Emits an IncomingMsg event with specified chat and message ids
+    /// Emits an IncomingMsg event with specified chat and message ids.
+    ///
+    /// Notifies `get_next_fresh_msg()` that there might be a new fresh message.
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+        self.notify_fresh_message.notify_one();
     }
 
     /// Returns a receiver for emitted events.
@@ -749,6 +758,19 @@ impl Context {
             )
             .await?;
         Ok(list)
+    }
+
+    /// Returns oldest fresh message in unmuted and unblocked chats.
+    ///
+    /// If there are no such messages, waits until there is one.
+    pub async fn get_next_fresh_msg(&self) -> Result<MsgId> {
+        loop {
+            if let Some(msg_id) = self.get_fresh_msgs().await?.last() {
+                return Ok(*msg_id);
+            } else {
+                self.notify_fresh_message.notified().await;
+            }
+        }
     }
 
     /// Searches for messages containing the query string.

@@ -1244,6 +1244,20 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_next_fresh_msg(context: *mut dc_context_t) -> u32 {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_next_fresh_msg()");
+        return 0;
+    }
+    let ctx = &*context;
+
+    block_on(ctx.get_next_fresh_msg())
+        .log_err(ctx, "Failed to get next fresh message")
+        .unwrap_or_default()
+        .to_u32()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id: u32) {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_marknoticed_chat()");

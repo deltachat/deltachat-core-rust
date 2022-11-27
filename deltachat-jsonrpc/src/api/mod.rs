@@ -372,6 +372,15 @@ impl CommandApi {
             .collect())
     }
 
+    /// Returns the message ID of the oldest fresh message.
+    ///
+    /// If there are no such messages, waits until there is one.
+    async fn get_next_fresh_msg(&self, account_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let msg_id = ctx.get_next_fresh_msg().await?;
+        Ok(msg_id.to_u32())
+    }
+
     /// Get the number of _fresh_ messages in a chat.
     /// Typically used to implement a badge with a number in the chatlist.
     ///
