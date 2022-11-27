@@ -280,7 +280,7 @@ impl Sql {
             for addr in &addrs {
                 if let Some(ref mut peerstate) = Peerstate::from_addr(context, addr).await? {
                     peerstate.recalc_fingerprint();
-                    peerstate.save_to_db(self, false).await?;
+                    peerstate.save_to_db(self).await?;
                 }
             }
         }

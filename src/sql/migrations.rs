@@ -616,6 +616,39 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 94 {
+        sql.execute_migration(
+            // Create new `acpeerstates` table, same as before but with unique constraint.
+            //
+            // This allows to use `UPSERT` to update existing or insert a new peerstate
+            // depending on whether one exists already.
+            "CREATE TABLE new_acpeerstates (
+             id INTEGER PRIMARY KEY,
+             addr TEXT DEFAULT '' COLLATE NOCASE,
+             last_seen INTEGER DEFAULT 0,
+             last_seen_autocrypt INTEGER DEFAULT 0,
+             public_key,
+             prefer_encrypted INTEGER DEFAULT 0,
+             gossip_timestamp INTEGER DEFAULT 0,
+             gossip_key,
+             public_key_fingerprint TEXT DEFAULT '',
+             gossip_key_fingerprint TEXT DEFAULT '',
+             verified_key,
+             verified_key_fingerprint TEXT DEFAULT '',
+             UNIQUE (addr) -- Only one peerstate per address
+             );
+            INSERT OR IGNORE INTO new_acpeerstates SELECT * FROM acpeerstates;
+            DROP TABLE acpeerstates;
+            ALTER TABLE new_acpeerstates RENAME TO acpeerstates;
+            CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);
+            CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);
+            CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);
+            CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);
+            ",
+            94,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
