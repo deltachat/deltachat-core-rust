@@ -216,12 +216,12 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
-        let is_thunderbird = if let Some(user_agent) = headers.get("user-agent") {
-            info!(context, "Detected thunderbird");
-            user_agent.contains("Thunderbird")
-        } else {
-            false
-        };
+        let is_thunderbird = headers
+            .get("user-agent")
+            .map_or(false, |user_agent| user_agent.contains("Thunderbird"));
+        if is_thunderbird {
+            info!(context, "Detected Thunderbird");
+        }
 
         let from = from.context("No from in message")?;
         let mut decryption_info =
