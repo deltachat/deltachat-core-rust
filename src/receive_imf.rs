@@ -1662,6 +1662,12 @@ async fn apply_group_changes(
         }
     }
 
+    if !mime_parser.has_chat_version() {
+        // If a classical MUA user adds someone to TO/CC, then the DC user shall
+        // see this addition and have the new recipient in the member list.
+        recreate_member_list = true;
+    }
+
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
             warn!(context, "verification problem: {}", err);
@@ -5327,6 +5333,59 @@ Reply from different address
             .await?
             .unwrap();
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mua_user_adds_member() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        receive_imf(
+            &t,
+            b"From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <Gr.gggroupiddd.12345678901@example.com>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: gggroupiddd\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            false,
+        )
+        .await?
+        .unwrap();
+
+        receive_imf(
+            &t,
+            b"From: bob@example.com\n\
+                 To: alice@example.org, fiona@example.net\n\
+                 Subject: foo\n\
+                 Message-ID: <raaaaandoooooooooommmm@example.com>\n\
+                 In-Reply-To: Gr.gggroupiddd.12345678901@example.com\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            false,
+        )
+        .await?
+        .unwrap();
+
+        let (chat_id, _, _) = chat::get_chat_id_by_grpid(&t, "gggroupiddd")
+            .await?
+            .unwrap();
+        let mut actual_chat_contacts = chat::get_chat_contacts(&t, chat_id).await?;
+        actual_chat_contacts.sort();
+        let mut expected_chat_contacts = vec![
+            Contact::create(&t, "", "bob@example.com").await?,
+            Contact::create(&t, "", "fiona@example.net").await?,
+            ContactId::SELF,
+        ];
+        expected_chat_contacts.sort();
+        assert_eq!(actual_chat_contacts, expected_chat_contacts);
 
         Ok(())
     }
