@@ -466,33 +466,33 @@ async fn translated(context: &Context, id: StockMessage) -> String {
 /// Helper trait only meant to be implemented for [`String`].
 trait StockStringMods: AsRef<str> + Sized {
     /// Substitutes the first replacement value if one is present.
-    fn replace1(&self, replacement: impl AsRef<str>) -> String {
+    fn replace1(&self, replacement: &str) -> String {
         self.as_ref()
-            .replacen("%1$s", replacement.as_ref(), 1)
-            .replacen("%1$d", replacement.as_ref(), 1)
-            .replacen("%1$@", replacement.as_ref(), 1)
+            .replacen("%1$s", replacement, 1)
+            .replacen("%1$d", replacement, 1)
+            .replacen("%1$@", replacement, 1)
     }
 
     /// Substitutes the second replacement value if one is present.
     ///
     /// Be aware you probably should have also called [`StockStringMods::replace1`] if
     /// you are calling this.
-    fn replace2(&self, replacement: impl AsRef<str>) -> String {
+    fn replace2(&self, replacement: &str) -> String {
         self.as_ref()
-            .replacen("%2$s", replacement.as_ref(), 1)
-            .replacen("%2$d", replacement.as_ref(), 1)
-            .replacen("%2$@", replacement.as_ref(), 1)
+            .replacen("%2$s", replacement, 1)
+            .replacen("%2$d", replacement, 1)
+            .replacen("%2$@", replacement, 1)
     }
 
     /// Substitutes the third replacement value if one is present.
     ///
     /// Be aware you probably should have also called [`StockStringMods::replace1`] and
     /// [`StockStringMods::replace2`] if you are calling this.
-    fn replace3(&self, replacement: impl AsRef<str>) -> String {
+    fn replace3(&self, replacement: &str) -> String {
         self.as_ref()
-            .replacen("%3$s", replacement.as_ref(), 1)
-            .replacen("%3$d", replacement.as_ref(), 1)
-            .replacen("%3$@", replacement.as_ref(), 1)
+            .replacen("%3$s", replacement, 1)
+            .replacen("%3$d", replacement, 1)
+            .replacen("%3$@", replacement, 1)
     }
 }
 
@@ -551,8 +551,8 @@ pub(crate) async fn file(context: &Context) -> String {
 /// Stock string: `Group name changed from "%1$s" to "%2$s".`.
 pub(crate) async fn msg_grp_name(
     context: &Context,
-    from_group: impl AsRef<str>,
-    to_group: impl AsRef<str>,
+    from_group: &str,
+    to_group: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -565,7 +565,7 @@ pub(crate) async fn msg_grp_name(
             .await
             .replace1(from_group)
             .replace2(to_group)
-            .replace3(by_contact.get_stock_name(context).await)
+            .replace3(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -575,7 +575,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgChangedBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -585,11 +585,11 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
 /// contacts to combine with the display name.
 pub(crate) async fn msg_add_member(
     context: &Context,
-    added_member_addr: impl AsRef<str>,
+    added_member_addr: &str,
     by_contact: ContactId,
 ) -> String {
-    let addr = added_member_addr.as_ref();
-    let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+    let addr = added_member_addr;
+    let who = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
         Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
             .await
             .map(|contact| contact.get_name_n_addr())
@@ -604,7 +604,7 @@ pub(crate) async fn msg_add_member(
         translated(context, StockMessage::MsgAddMemberBy)
             .await
             .replace1(who)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -614,11 +614,11 @@ pub(crate) async fn msg_add_member(
 /// the contacts to combine with the display name.
 pub(crate) async fn msg_del_member(
     context: &Context,
-    removed_member_addr: impl AsRef<str>,
+    removed_member_addr: &str,
     by_contact: ContactId,
 ) -> String {
-    let addr = removed_member_addr.as_ref();
-    let who = match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+    let addr = removed_member_addr;
+    let who = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
         Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
             .await
             .map(|contact| contact.get_name_n_addr())
@@ -633,7 +633,7 @@ pub(crate) async fn msg_del_member(
         translated(context, StockMessage::MsgDelMemberBy)
             .await
             .replace1(who)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -644,7 +644,7 @@ pub(crate) async fn msg_group_left(context: &Context, by_contact: ContactId) -> 
     } else {
         translated(context, StockMessage::MsgGroupLeftBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -684,7 +684,7 @@ pub(crate) async fn read_rcpt(context: &Context) -> String {
 }
 
 /// Stock string: `This is a return receipt for the message "%1$s".`.
-pub(crate) async fn read_rcpt_mail_body(context: &Context, message: impl AsRef<str>) -> String {
+pub(crate) async fn read_rcpt_mail_body(context: &Context, message: &str) -> String {
     translated(context, StockMessage::ReadRcptMailBody)
         .await
         .replace1(message)
@@ -697,7 +697,7 @@ pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgDeletedBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -714,7 +714,7 @@ pub(crate) async fn secure_join_started(
     if let Ok(contact) = Contact::get_by_id(context, inviter_contact_id).await {
         translated(context, StockMessage::SecureJoinStarted)
             .await
-            .replace1(contact.get_name_n_addr())
+            .replace1(&contact.get_name_n_addr())
             .replace2(contact.get_display_name())
     } else {
         format!(
@@ -741,7 +741,7 @@ pub(crate) async fn setup_contact_qr_description(
     display_name: &str,
     addr: &str,
 ) -> String {
-    let name = if display_name == addr {
+    let name = &if display_name == addr {
         addr.to_owned()
     } else {
         format!("{} ({})", display_name, addr)
@@ -760,7 +760,7 @@ pub(crate) async fn secure_join_group_qr_description(context: &Context, chat: &C
 
 /// Stock string: `%1$s verified.`.
 pub(crate) async fn contact_verified(context: &Context, contact: &Contact) -> String {
-    let addr = contact.get_name_n_addr();
+    let addr = &contact.get_name_n_addr();
     translated(context, StockMessage::ContactVerified)
         .await
         .replace1(addr)
@@ -768,17 +768,14 @@ pub(crate) async fn contact_verified(context: &Context, contact: &Contact) -> St
 
 /// Stock string: `Cannot verify %1$s`.
 pub(crate) async fn contact_not_verified(context: &Context, contact: &Contact) -> String {
-    let addr = contact.get_name_n_addr();
+    let addr = &contact.get_name_n_addr();
     translated(context, StockMessage::ContactNotVerified)
         .await
         .replace1(addr)
 }
 
 /// Stock string: `Changed setup for %1$s`.
-pub(crate) async fn contact_setup_changed(
-    context: &Context,
-    contact_addr: impl AsRef<str>,
-) -> String {
+pub(crate) async fn contact_setup_changed(context: &Context, contact_addr: &str) -> String {
     translated(context, StockMessage::ContactSetupChanged)
         .await
         .replace1(contact_addr)
@@ -810,7 +807,7 @@ pub(crate) async fn sync_msg_body(context: &Context) -> String {
 }
 
 /// Stock string: `Cannot login as \"%1$s\". Please check...`.
-pub(crate) async fn cannot_login(context: &Context, user: impl AsRef<str>) -> String {
+pub(crate) async fn cannot_login(context: &Context, user: &str) -> String {
     translated(context, StockMessage::CannotLogin)
         .await
         .replace1(user)
@@ -828,7 +825,7 @@ pub(crate) async fn msg_location_enabled_by(context: &Context, contact: ContactI
     } else {
         translated(context, StockMessage::MsgLocationEnabledBy)
             .await
-            .replace1(contact.get_stock_name(context).await)
+            .replace1(&contact.get_stock_name(context).await)
     }
 }
 
@@ -874,17 +871,14 @@ pub(crate) async fn unknown_sender_for_chat(context: &Context) -> String {
 
 /// Stock string: `Message from %1$s`.
 // TODO: This can compute `self_name` itself instead of asking the caller to do this.
-pub(crate) async fn subject_for_new_contact(
-    context: &Context,
-    self_name: impl AsRef<str>,
-) -> String {
+pub(crate) async fn subject_for_new_contact(context: &Context, self_name: &str) -> String {
     translated(context, StockMessage::SubjectForNewContact)
         .await
         .replace1(self_name)
 }
 
 /// Stock string: `Failed to send message to %1$s.`.
-pub(crate) async fn failed_sending_to(context: &Context, name: impl AsRef<str>) -> String {
+pub(crate) async fn failed_sending_to(context: &Context, name: &str) -> String {
     translated(context, StockMessage::FailedSendingTo)
         .await
         .replace1(name)
@@ -900,14 +894,14 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s s.`.
 pub(crate) async fn msg_ephemeral_timer_enabled(
     context: &Context,
-    timer: impl AsRef<str>,
+    timer: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -918,7 +912,7 @@ pub(crate) async fn msg_ephemeral_timer_enabled(
         translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
             .await
             .replace1(timer)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -929,7 +923,7 @@ pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: Co
     } else {
         translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -940,7 +934,7 @@ pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerHourBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -951,7 +945,7 @@ pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: Conta
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDayBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -962,7 +956,7 @@ pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerWeekBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -972,14 +966,14 @@ pub(crate) async fn videochat_invitation(context: &Context) -> String {
 }
 
 /// Stock string: `You are invited to a video chat, click %1$s to join.`.
-pub(crate) async fn videochat_invite_msg_body(context: &Context, url: impl AsRef<str>) -> String {
+pub(crate) async fn videochat_invite_msg_body(context: &Context, url: &str) -> String {
     translated(context, StockMessage::VideochatInviteMsgBody)
         .await
         .replace1(url)
 }
 
 /// Stock string: `Error:\n\n“%1$s”`.
-pub(crate) async fn configuration_failed(context: &Context, details: impl AsRef<str>) -> String {
+pub(crate) async fn configuration_failed(context: &Context, details: &str) -> String {
     translated(context, StockMessage::ConfigurationFailed)
         .await
         .replace1(details)
@@ -987,7 +981,7 @@ pub(crate) async fn configuration_failed(context: &Context, details: impl AsRef<
 
 /// Stock string: `⚠️ Date or time of your device seem to be inaccurate (%1$s)...`.
 // TODO: This could compute now itself.
-pub(crate) async fn bad_time_msg_body(context: &Context, now: impl AsRef<str>) -> String {
+pub(crate) async fn bad_time_msg_body(context: &Context, now: &str) -> String {
     translated(context, StockMessage::BadTimeMsgBody)
         .await
         .replace1(now)
@@ -1010,7 +1004,7 @@ pub(crate) async fn protection_enabled(context: &Context, by_contact: ContactId)
     } else {
         translated(context, StockMessage::ProtectionEnabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -1021,7 +1015,7 @@ pub(crate) async fn protection_disabled(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::ProtectionDisabledBy)
             .await
-            .replace1(by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -1043,7 +1037,7 @@ pub(crate) async fn delete_server_turned_off(context: &Context) -> String {
 /// Stock string: `Message deletion timer is set to %1$s minutes.`.
 pub(crate) async fn msg_ephemeral_timer_minutes(
     context: &Context,
-    minutes: impl AsRef<str>,
+    minutes: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -1054,14 +1048,14 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
         translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
             .await
             .replace1(minutes)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s hours.`.
 pub(crate) async fn msg_ephemeral_timer_hours(
     context: &Context,
-    hours: impl AsRef<str>,
+    hours: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -1072,14 +1066,14 @@ pub(crate) async fn msg_ephemeral_timer_hours(
         translated(context, StockMessage::MsgEphemeralTimerHoursBy)
             .await
             .replace1(hours)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s days.`.
 pub(crate) async fn msg_ephemeral_timer_days(
     context: &Context,
-    days: impl AsRef<str>,
+    days: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -1090,14 +1084,14 @@ pub(crate) async fn msg_ephemeral_timer_days(
         translated(context, StockMessage::MsgEphemeralTimerDaysBy)
             .await
             .replace1(days)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
 /// Stock string: `Message deletion timer is set to %1$s weeks.`.
 pub(crate) async fn msg_ephemeral_timer_weeks(
     context: &Context,
-    weeks: impl AsRef<str>,
+    weeks: &str,
     by_contact: ContactId,
 ) -> String {
     if by_contact == ContactId::SELF {
@@ -1108,7 +1102,7 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
             .await
             .replace1(weeks)
-            .replace2(by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
@@ -1121,13 +1115,13 @@ pub(crate) async fn forwarded(context: &Context) -> String {
 pub(crate) async fn quota_exceeding(context: &Context, highest_usage: u64) -> String {
     translated(context, StockMessage::QuotaExceedingMsgBody)
         .await
-        .replace1(format!("{}", highest_usage))
+        .replace1(&format!("{}", highest_usage))
         .replace("%%", "%")
 }
 
 /// Stock string: `%1$s message` with placeholder replaced by human-readable size.
 pub(crate) async fn partial_download_msg_body(context: &Context, org_bytes: u32) -> String {
-    let size = format_size(org_bytes, BINARY);
+    let size = &format_size(org_bytes, BINARY);
     translated(context, StockMessage::PartialDownloadMsgBody)
         .await
         .replace1(size)
@@ -1137,7 +1131,7 @@ pub(crate) async fn partial_download_msg_body(context: &Context, org_bytes: u32)
 pub(crate) async fn download_availability(context: &Context, timestamp: i64) -> String {
     translated(context, StockMessage::DownloadAvailability)
         .await
-        .replace1(timestamp_to_str(timestamp))
+        .replace1(&timestamp_to_str(timestamp))
 }
 
 /// Stock string: `Incoming Messages`.
@@ -1152,7 +1146,7 @@ pub(crate) async fn outgoing_messages(context: &Context) -> String {
 
 /// Stock string: `Storage on %1$s`.
 /// `%1$s` will be replaced by the domain of the configured email-address.
-pub(crate) async fn storage_on_domain(context: &Context, domain: impl AsRef<str>) -> String {
+pub(crate) async fn storage_on_domain(context: &Context, domain: &str) -> String {
     translated(context, StockMessage::StorageOnDomain)
         .await
         .replace1(domain)
@@ -1190,7 +1184,7 @@ pub(crate) async fn last_msg_sent_successfully(context: &Context) -> String {
 
 /// Stock string: `Error: %1$s…`.
 /// `%1$s` will be replaced by a possibly more detailed, typically english, error description.
-pub(crate) async fn error(context: &Context, error: impl AsRef<str>) -> String {
+pub(crate) async fn error(context: &Context, error: &str) -> String {
     translated(context, StockMessage::Error)
         .await
         .replace1(error)
@@ -1208,11 +1202,7 @@ pub(crate) async fn messages(context: &Context) -> String {
 }
 
 /// Stock string: `%1$s of %2$s used`.
-pub(crate) async fn part_of_total_used(
-    context: &Context,
-    part: impl AsRef<str>,
-    total: impl AsRef<str>,
-) -> String {
+pub(crate) async fn part_of_total_used(context: &Context, part: &str, total: &str) -> String {
     translated(context, StockMessage::PartOfTotallUsed)
         .await
         .replace1(part)
@@ -1228,9 +1218,9 @@ pub(crate) async fn broadcast_list(context: &Context) -> String {
 /// Stock string: `%1$s changed their address from %2$s to %3$s`.
 pub(crate) async fn aeap_addr_changed(
     context: &Context,
-    contact_name: impl AsRef<str>,
-    old_addr: impl AsRef<str>,
-    new_addr: impl AsRef<str>,
+    contact_name: &str,
+    old_addr: &str,
+    new_addr: &str,
 ) -> String {
     translated(context, StockMessage::AeapAddrChanged)
         .await
@@ -1241,8 +1231,8 @@ pub(crate) async fn aeap_addr_changed(
 
 pub(crate) async fn aeap_explanation_and_link(
     context: &Context,
-    old_addr: impl AsRef<str>,
-    new_addr: impl AsRef<str>,
+    old_addr: &str,
+    new_addr: &str,
 ) -> String {
     translated(context, StockMessage::AeapExplanationAndLink)
         .await

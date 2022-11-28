@@ -474,7 +474,7 @@ impl Peerstate {
         let chats = Chatlist::try_load(context, 0, None, Some(contact_id)).await?;
         let msg = match &change {
             PeerstateChange::FingerprintChange => {
-                stock_str::contact_setup_changed(context, self.addr.clone()).await
+                stock_str::contact_setup_changed(context, &self.addr).await
             }
             PeerstateChange::Aeap(new_addr) => {
                 let old_contact = Contact::load_from_db(context, contact_id).await?;
