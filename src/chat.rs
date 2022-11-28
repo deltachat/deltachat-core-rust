@@ -2188,7 +2188,7 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcRoom, &instance);
     msg.text = Some(
-        stock_str::videochat_invite_msg_body(context, Message::parse_webrtc_instance(&instance).1)
+        stock_str::videochat_invite_msg_body(context, &Message::parse_webrtc_instance(&instance).1)
             .await,
     );
     send_msg(context, chat_id, &mut msg).await
@@ -3005,7 +3005,7 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
 pub async fn set_chat_profile_image(
     context: &Context,
     chat_id: ChatId,
-    new_image: impl AsRef<str>, // XXX use PathBuf
+    new_image: &str, // XXX use PathBuf
 ) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     let mut chat = Chat::load_from_db(context, chat_id).await?;
@@ -3023,13 +3023,12 @@ pub async fn set_chat_profile_image(
     let mut msg = Message::new(Viewtype::Text);
     msg.param
         .set_int(Param::Cmd, SystemMessage::GroupImageChanged as i32);
-    if new_image.as_ref().is_empty() {
+    if new_image.is_empty() {
         chat.param.remove(Param::ProfileImage);
         msg.param.remove(Param::Arg);
         msg.text = Some(stock_str::msg_grp_img_deleted(context, ContactId::SELF).await);
     } else {
-        let mut image_blob =
-            BlobObject::new_from_path(context, Path::new(new_image.as_ref())).await?;
+        let mut image_blob = BlobObject::new_from_path(context, Path::new(new_image)).await?;
         image_blob.recode_to_avatar_size(context).await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());

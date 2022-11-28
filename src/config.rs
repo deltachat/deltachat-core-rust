@@ -194,20 +194,20 @@ pub enum Config {
 
 impl Context {
     pub async fn config_exists(&self, key: Config) -> Result<bool> {
-        Ok(self.sql.get_raw_config(key).await?.is_some())
+        Ok(self.sql.get_raw_config(key.as_ref()).await?.is_some())
     }
 
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
     pub async fn get_config(&self, key: Config) -> Result<Option<String>> {
         let value = match key {
             Config::Selfavatar => {
-                let rel_path = self.sql.get_raw_config(key).await?;
+                let rel_path = self.sql.get_raw_config(key.as_ref()).await?;
                 rel_path.map(|p| get_abs_path(self, &p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
-            _ => self.sql.get_raw_config(key).await?,
+            _ => self.sql.get_raw_config(key.as_ref()).await?,
         };
 
         if value.is_some() {
@@ -297,26 +297,30 @@ impl Context {
                     Some(value) => {
                         let mut blob = BlobObject::new_from_path(self, value.as_ref()).await?;
                         blob.recode_to_avatar_size(self).await?;
-                        self.sql.set_raw_config(key, Some(blob.as_name())).await?;
+                        self.sql
+                            .set_raw_config(key.as_ref(), Some(blob.as_name()))
+                            .await?;
                     }
                     None => {
-                        self.sql.set_raw_config(key, None).await?;
+                        self.sql.set_raw_config(key.as_ref(), None).await?;
                     }
                 }
                 self.emit_event(EventType::SelfavatarChanged);
             }
             Config::DeleteDeviceAfter => {
-                let ret = self.sql.set_raw_config(key, value).await;
+                let ret = self.sql.set_raw_config(key.as_ref(), value).await;
                 // Interrupt ephemeral loop to delete old messages immediately.
                 self.interrupt_ephemeral_task().await;
                 ret?
             }
             Config::Displayname => {
                 let value = value.map(improve_single_line_input);
-                self.sql.set_raw_config(key, value.as_deref()).await?;
+                self.sql
+                    .set_raw_config(key.as_ref(), value.as_deref())
+                    .await?;
             }
             _ => {
-                self.sql.set_raw_config(key, value).await?;
+                self.sql.set_raw_config(key.as_ref(), value).await?;
             }
         }
         Ok(())

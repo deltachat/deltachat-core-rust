@@ -528,9 +528,7 @@ impl Sql {
     ///
     /// Setting `None` deletes the value.  On failure an error message
     /// will already have been logged.
-    pub async fn set_raw_config(&self, key: impl AsRef<str>, value: Option<&str>) -> Result<()> {
-        let key = key.as_ref();
-
+    pub async fn set_raw_config(&self, key: &str, value: Option<&str>) -> Result<()> {
         let mut lock = self.config_cache.write().await;
         if let Some(value) = value {
             let exists = self
@@ -564,9 +562,9 @@ impl Sql {
     }
 
     /// Get configuration options from the database.
-    pub async fn get_raw_config(&self, key: impl AsRef<str>) -> Result<Option<String>> {
+    pub async fn get_raw_config(&self, key: &str) -> Result<Option<String>> {
         let lock = self.config_cache.read().await;
-        let cached = lock.get(key.as_ref()).cloned();
+        let cached = lock.get(key).cloned();
         drop(lock);
 
         if let Some(c) = cached {
@@ -575,48 +573,42 @@ impl Sql {
 
         let mut lock = self.config_cache.write().await;
         let value = self
-            .query_get_value(
-                "SELECT value FROM config WHERE keyname=?;",
-                paramsv![key.as_ref()],
-            )
+            .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv![key])
             .await
-            .context(format!("failed to fetch raw config: {}", key.as_ref()))?;
-        lock.insert(key.as_ref().to_string(), value.clone());
+            .context(format!("failed to fetch raw config: {}", key))?;
+        lock.insert(key.to_string(), value.clone());
         drop(lock);
 
         Ok(value)
     }
 
-    pub async fn set_raw_config_int(&self, key: impl AsRef<str>, value: i32) -> Result<()> {
+    pub async fn set_raw_config_int(&self, key: &str, value: i32) -> Result<()> {
         self.set_raw_config(key, Some(&format!("{}", value))).await
     }
 
-    pub async fn get_raw_config_int(&self, key: impl AsRef<str>) -> Result<Option<i32>> {
+    pub async fn get_raw_config_int(&self, key: &str) -> Result<Option<i32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
-    pub async fn get_raw_config_bool(&self, key: impl AsRef<str>) -> Result<bool> {
+    pub async fn get_raw_config_bool(&self, key: &str) -> Result<bool> {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
         let res = self.get_raw_config_int(key).await?;
         Ok(res.unwrap_or_default() > 0)
     }
 
-    pub async fn set_raw_config_bool<T>(&self, key: T, value: bool) -> Result<()>
-    where
-        T: AsRef<str>,
-    {
+    pub async fn set_raw_config_bool(&self, key: &str, value: bool) -> Result<()> {
         let value = if value { Some("1") } else { None };
         self.set_raw_config(key, value).await
     }
 
-    pub async fn set_raw_config_int64(&self, key: impl AsRef<str>, value: i64) -> Result<()> {
+    pub async fn set_raw_config_int64(&self, key: &str, value: i64) -> Result<()> {
         self.set_raw_config(key, Some(&format!("{}", value))).await
     }
 
-    pub async fn get_raw_config_int64(&self, key: impl AsRef<str>) -> Result<Option<i64>> {
+    pub async fn get_raw_config_int64(&self, key: &str) -> Result<Option<i64>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|r| r.parse().ok()))
@@ -728,7 +720,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
             |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
-                    maybe_add_file(&mut files_in_use, row?);
+                    maybe_add_file(&mut files_in_use, &row?);
                 }
                 Ok(())
             },
@@ -819,8 +811,8 @@ fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, nam
     files_in_use.contains(name_to_check)
 }
 
-fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
-    if let Some(file) = file.as_ref().strip_prefix("$BLOBDIR/") {
+fn maybe_add_file(files_in_use: &mut HashSet<String>, file: &str) {
+    if let Some(file) = file.strip_prefix("$BLOBDIR/") {
         files_in_use.insert(file.to_string());
     }
 }

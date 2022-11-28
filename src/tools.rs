@@ -206,7 +206,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
         msg.text = Some(
             stock_str::bad_time_msg_body(
                 context,
-                Local
+                &Local
                     .timestamp(now, 0)
                     .format("%Y-%m-%d %H:%M:%S")
                     .to_string(),
@@ -319,8 +319,8 @@ pub(crate) fn extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
 }
 
 // the returned suffix is lower-case
-pub fn get_filesuffix_lc(path_filename: impl AsRef<str>) -> Option<String> {
-    Path::new(path_filename.as_ref())
+pub fn get_filesuffix_lc(path_filename: &str) -> Option<String> {
+    Path::new(path_filename)
         .extension()
         .map(|p| p.to_string_lossy().to_lowercase())
 }

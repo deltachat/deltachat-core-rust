@@ -448,7 +448,7 @@ impl Context {
         //                                [======67%=====       ]
         // =============================================================================================
 
-        let domain = tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
+        let domain = &tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
         ret += &format!("<h3>{}</h3><ul>", storage_on_domain);
         let quota = self.quota.read().await;
@@ -473,8 +473,8 @@ impl Context {
                             let messages = stock_str::messages(self).await;
                             let part_of_total_used = stock_str::part_of_total_used(
                                 self,
-                                resource.usage.to_string(),
-                                resource.limit.to_string(),
+                                &resource.usage.to_string(),
+                                &resource.limit.to_string(),
                             )
                             .await;
                             ret += &match &resource.name {
@@ -495,8 +495,8 @@ impl Context {
                                     // - the string is not longer than the other strings that way (minus title, plus units) -
                                     //   additional linebreaks on small displays are unlikely therefore
                                     // - most times, this is the only item anyway
-                                    let usage = format_size(resource.usage * 1024, BINARY);
-                                    let limit = format_size(resource.limit * 1024, BINARY);
+                                    let usage = &format_size(resource.usage * 1024, BINARY);
+                                    let limit = &format_size(resource.limit * 1024, BINARY);
                                     stock_str::part_of_total_used(self, usage, limit).await
                                 }
                             };

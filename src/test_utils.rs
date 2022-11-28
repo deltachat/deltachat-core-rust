@@ -979,7 +979,7 @@ fn print_event(event: &Event) {
 /// Logs an individual message to stdout.
 ///
 /// This includes a bunch of the message meta-data as well.
-async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
+async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
     let contact = match Contact::get_by_id(context, msg.get_from_id()).await {
         Ok(contact) => contact,
         Err(e) => {
@@ -1001,7 +1001,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let msgtext = msg.get_text();
     println!(
         "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}",
-        prefix.as_ref(),
+        prefix,
         msg.get_id(),
         if msg.get_showpadlock() { "🔒" } else { "" },
         if msg.has_location() { "📍" } else { "" },
