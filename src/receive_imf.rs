@@ -1530,19 +1530,13 @@ async fn create_or_lookup_group(
         chat_id_blocked = create_blocked;
 
         // Create initial member list.
-        chat::add_to_chat_contacts_table(context, new_chat_id, ContactId::SELF).await?;
-        if !from_id.is_special() && !chat::is_contact_in_chat(context, new_chat_id, from_id).await?
-        {
-            chat::add_to_chat_contacts_table(context, new_chat_id, from_id).await?;
+        let mut members = vec![ContactId::SELF];
+        if !from_id.is_special() {
+            members.push(from_id);
         }
-        for &to_id in to_ids.iter() {
-            info!(context, "adding to={:?} to chat id={}", to_id, new_chat_id);
-            if to_id != ContactId::SELF
-                && !chat::is_contact_in_chat(context, new_chat_id, to_id).await?
-            {
-                chat::add_to_chat_contacts_table(context, new_chat_id, to_id).await?;
-            }
-        }
+        members.extend(to_ids);
+        members.dedup();
+        chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         // once, we have protected-chats explained in UI, we can uncomment the following lines.
         // ("verified groups" did not add a message anyway)
@@ -1698,6 +1692,7 @@ async fn apply_group_changes(
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
         {
+            let mut members_to_add = vec![];
             if removed_id.is_some()
                 || !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
             {
@@ -1712,26 +1707,23 @@ async fn apply_group_changes(
                     )
                     .await?;
 
-                if removed_id != Some(ContactId::SELF) {
-                    chat::add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
-                }
+                members_to_add.push(ContactId::SELF);
             }
-            if !from_id.is_special()
-                && from_id != ContactId::SELF
-                && !chat::is_contact_in_chat(context, chat_id, from_id).await?
-                && removed_id != Some(from_id)
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
+
+            if !from_id.is_special() {
+                members_to_add.push(from_id);
             }
-            for &to_id in to_ids.iter() {
-                if to_id != ContactId::SELF
-                    && !chat::is_contact_in_chat(context, chat_id, to_id).await?
-                    && removed_id != Some(to_id)
-                {
-                    info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-                    chat::add_to_chat_contacts_table(context, chat_id, to_id).await?;
-                }
+            members_to_add.extend(to_ids);
+            if let Some(removed_id) = removed_id {
+                members_to_add.retain(|id| *id != removed_id);
             }
+            members_to_add.dedup();
+
+            info!(
+                context,
+                "adding {:?} to chat id={}", members_to_add, chat_id
+            );
+            chat::add_to_chat_contacts_table(context, chat_id, &members_to_add).await?;
             send_event_chat_modified = true;
         }
     }
@@ -1883,7 +1875,7 @@ async fn create_or_lookup_mailinglist(
             )
         })?;
 
-        chat::add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
+        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
         Ok(Some((chat_id, Blocked::Request)))
     } else {
         info!(context, "creating list forbidden by caller");
@@ -2013,9 +2005,7 @@ async fn create_adhoc_group(
         None,
     )
     .await?;
-    for &member_id in member_ids.iter() {
-        chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await?;
-    }
+    chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
 
@@ -5160,13 +5150,10 @@ Reply from different address
         chat::add_to_chat_contacts_table(
             &bob,
             group_id,
-            bob.add_or_lookup_contact(&alice1).await.id,
-        )
-        .await?;
-        chat::add_to_chat_contacts_table(
-            &bob,
-            group_id,
-            Contact::create(&bob, "", "charlie@example.org").await?,
+            &[
+                bob.add_or_lookup_contact(&alice1).await.id,
+                Contact::create(&bob, "", "charlie@example.org").await?,
+            ],
         )
         .await?;
 
@@ -5247,7 +5234,7 @@ Reply from different address
         chat::add_to_chat_contacts_table(
             &bob,
             group_id,
-            bob.add_or_lookup_contact(&alice).await.id,
+            &[bob.add_or_lookup_contact(&alice).await.id],
         )
         .await?;
 
