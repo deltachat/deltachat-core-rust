@@ -5,6 +5,9 @@
 ### Changes
 - Don't use deprecated `chrono` functions #3798
 
+- If a classical-email-user sends an email to a group and adds new recipients,
+  add the new recipients as group members #3781
+
 ### API-Changes
 
 ### Fixes
