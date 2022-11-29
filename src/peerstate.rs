@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
-use crate::chat::{self, is_contact_in_chat, Chat};
+use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
@@ -523,9 +523,7 @@ impl Peerstate {
                     let (new_contact_id, _) =
                         Contact::add_or_lookup(context, "", new_addr, Origin::IncomingUnknownFrom)
                             .await?;
-                    if !is_contact_in_chat(context, *chat_id, new_contact_id).await? {
-                        chat::add_to_chat_contacts_table(context, *chat_id, new_contact_id).await?;
-                    }
+                    chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id]).await?;
 
                     context.emit_event(EventType::ChatModified(*chat_id));
                 }

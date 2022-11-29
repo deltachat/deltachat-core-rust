@@ -2563,7 +2563,7 @@ pub async fn create_group_chat(
 
     let chat_id = ChatId::new(u32::try_from(row_id)?);
     if !is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
-        add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
+        add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
     }
 
     context.emit_msgs_changed_without_ids();
@@ -2624,19 +2624,25 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     Ok(chat_id)
 }
 
-/// Adds a contact to the `chats_contacts` table.
+/// Adds contacts to the `chats_contacts` table.
 pub(crate) async fn add_to_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,
-    contact_id: ContactId,
+    contact_ids: &[ContactId],
 ) -> Result<()> {
     context
         .sql
-        .execute(
-            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
-            paramsv![chat_id, contact_id],
-        )
+        .transaction(move |transaction| {
+            for contact_id in contact_ids {
+                transaction.execute(
+                    "INSERT OR IGNORE INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+                    paramsv![chat_id, contact_id],
+                )?;
+            }
+            Ok(())
+        })
         .await?;
+
     Ok(())
 }
 
@@ -2738,7 +2744,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         if is_contact_in_chat(context, chat_id, contact_id).await? {
             return Ok(false);
         }
-        add_to_chat_contacts_table(context, chat_id, contact_id).await?;
+        add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
     }
     if chat.typ == Chattype::Group && chat.is_promoted() {
         msg.viewtype = Viewtype::Text;

@@ -4,6 +4,7 @@
 
 ### Changes
 - Refactor: Remove the remaining AsRef<str> #3669
+- Small speedup #3780
 
 ### API-Changes
 - Add Python API to send reactions #3762

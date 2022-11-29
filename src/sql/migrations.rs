@@ -649,6 +649,17 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 95 {
+        sql.execute_migration(
+            "CREATE TABLE new_chats_contacts (chat_id INTEGER, contact_id INTEGER, UNIQUE(chat_id, contact_id));\
+            INSERT OR IGNORE INTO new_chats_contacts SELECT * FROM chats_contacts;\
+            DROP TABLE chats_contacts;\
+            ALTER TABLE new_chats_contacts RENAME TO chats_contacts;\
+            CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);\
+            CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
+            95
+        ).await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)

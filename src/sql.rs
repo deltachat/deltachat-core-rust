@@ -432,7 +432,7 @@ impl Sql {
     pub async fn transaction<G, H>(&self, callback: G) -> Result<H>
     where
         H: Send + 'static,
-        G: Send + 'static + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
+        G: Send + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
     {
         let mut conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
