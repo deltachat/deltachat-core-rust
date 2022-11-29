@@ -34,6 +34,9 @@ pub struct MessageObject {
     view_type: MessageViewtype,
     state: u32,
 
+    /// An error text, if there is one.
+    error: Option<String>,
+
     timestamp: i64,
     sort_timestamp: i64,
     received_timestamp: i64,
@@ -167,6 +170,7 @@ impl MessageObject {
                 .get_state()
                 .to_u32()
                 .ok_or_else(|| anyhow!("state conversion to number failed"))?,
+            error: message.error(),
 
             timestamp: message.get_timestamp(),
             sort_timestamp: message.get_sort_timestamp(),
