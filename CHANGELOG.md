@@ -15,6 +15,7 @@
 - strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
 - Assume all Thunderbird users prefer encryption #3774
 - refactor peerstate handling to ensure no duplicate peerstates #3776
+- Fetch messages in order of their INTERNALDATE (fixes reactions for Gmail f.e.) #3789
 
 
 ## 1.102.0
