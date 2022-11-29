@@ -2003,7 +2003,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
     // encryption_mode
     if let None = msg.encryption_modus(&context).await? {
         if let Some(encryption_mode) = chat_id.encryption_modus(&context).await? {
-            msg.set_encryption_modus(&context, encryption_mode);
+            msg.set_encryption_modus(&context, encryption_mode).await?;
         }
     }
 
