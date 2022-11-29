@@ -1355,6 +1355,10 @@ async fn lookup_chat_by_reply(
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
 
+    // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
+    // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
+    // newly created ad-hoc group.
+
     if let Some(parent) = parent {
         let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
@@ -1372,6 +1376,17 @@ async fn lookup_chat_by_reply(
 
         if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
             return Ok(None);
+        }
+
+        if parent_chat.typ == Chattype::Single
+            && !mime_parser.has_chat_version()
+            && to_ids.len() > 1
+        {
+            let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+            chat_contacts.push(ContactId::SELF);
+            if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
+                return Ok(None);
+            }
         }
 
         info!(
