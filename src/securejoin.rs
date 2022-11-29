@@ -18,7 +18,7 @@ use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
-use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus, ToSave};
+use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::qr::check_qr;
 use crate::stock_str;
 use crate::token;
@@ -640,11 +640,7 @@ async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> 
             PeerstateVerifiedStatus::BidirectVerified,
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.to_save = Some(ToSave::All);
-            peerstate
-                .save_to_db(&context.sql, false)
-                .await
-                .unwrap_or_default();
+            peerstate.save_to_db(&context.sql).await.unwrap_or_default();
             return Ok(());
         }
     }
@@ -932,10 +928,9 @@ mod tests {
             gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
             verified_key: None,
             verified_key_fingerprint: None,
-            to_save: Some(ToSave::All),
             fingerprint_changed: false,
         };
-        peerstate.save_to_db(&bob.ctx.sql, true).await?;
+        peerstate.save_to_db(&bob.ctx.sql).await?;
 
         // Step 1: Generate QR-code, ChatId(0) indicates setup-contact
         let qr = get_securejoin_qr(&alice.ctx, None).await?;

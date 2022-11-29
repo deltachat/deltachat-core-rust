@@ -120,6 +120,15 @@ $ cargo test -- --ignored
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
 - `nightly`: Enable nightly only performance and security related features.
 
+## Update Provider Data
+
+To add the updates from the
+[provider-db](https://github.com/deltachat/provider-db) to the core, run:
+
+```
+./src/provider/update.py ../provider-db/_providers/ > src/provider/data.rs
+```
+
 ## Language bindings and frontend projects
 
 Language bindings are available for:

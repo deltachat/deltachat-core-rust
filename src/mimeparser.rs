@@ -216,9 +216,16 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
+        let is_thunderbird = headers
+            .get("user-agent")
+            .map_or(false, |user_agent| user_agent.contains("Thunderbird"));
+        if is_thunderbird {
+            info!(context, "Detected Thunderbird");
+        }
+
         let from = from.context("No from in message")?;
         let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, message_time).await?;
+            prepare_decryption(context, &mail, &from.addr, message_time, is_thunderbird).await?;
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
@@ -303,7 +310,7 @@ impl MimeMessage {
                         // && decryption_info.dkim_results.allow_keychange
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql, false).await?;
+                            peerstate.save_to_db(&context.sql).await?;
                         }
                     }
                     (Ok(mail), HashSet::new(), false)
@@ -1579,11 +1586,11 @@ async fn update_gossip_peerstates(
         let peerstate;
         if let Some(mut p) = Peerstate::from_addr(context, &header.addr).await? {
             p.apply_gossip(&header, message_time);
-            p.save_to_db(&context.sql, false).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         } else {
             let p = Peerstate::from_gossip(&header, message_time);
-            p.save_to_db(&context.sql, true).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         };
         peerstate

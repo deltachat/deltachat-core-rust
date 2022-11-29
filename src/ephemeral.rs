@@ -226,13 +226,13 @@ pub(crate) async fn stock_ephemeral_timer_changed(
         Timer::Disabled => stock_str::msg_ephemeral_timer_disabled(context, from_id).await,
         Timer::Enabled { duration } => match duration {
             0..=59 => {
-                stock_str::msg_ephemeral_timer_enabled(context, timer.to_string(), from_id).await
+                stock_str::msg_ephemeral_timer_enabled(context, &timer.to_string(), from_id).await
             }
             60 => stock_str::msg_ephemeral_timer_minute(context, from_id).await,
             61..=3599 => {
                 stock_str::msg_ephemeral_timer_minutes(
                     context,
-                    format!("{}", (f64::from(duration) / 6.0).round() / 10.0),
+                    &format!("{}", (f64::from(duration) / 6.0).round() / 10.0),
                     from_id,
                 )
                 .await
@@ -241,7 +241,7 @@ pub(crate) async fn stock_ephemeral_timer_changed(
             3601..=86399 => {
                 stock_str::msg_ephemeral_timer_hours(
                     context,
-                    format!("{}", (f64::from(duration) / 360.0).round() / 10.0),
+                    &format!("{}", (f64::from(duration) / 360.0).round() / 10.0),
                     from_id,
                 )
                 .await
@@ -250,7 +250,7 @@ pub(crate) async fn stock_ephemeral_timer_changed(
             86401..=604_799 => {
                 stock_str::msg_ephemeral_timer_days(
                     context,
-                    format!("{}", (f64::from(duration) / 8640.0).round() / 10.0),
+                    &format!("{}", (f64::from(duration) / 8640.0).round() / 10.0),
                     from_id,
                 )
                 .await
@@ -259,7 +259,7 @@ pub(crate) async fn stock_ephemeral_timer_changed(
             _ => {
                 stock_str::msg_ephemeral_timer_weeks(
                     context,
-                    format!("{}", (f64::from(duration) / 60480.0).round() / 10.0),
+                    &format!("{}", (f64::from(duration) / 60480.0).round() / 10.0),
                     from_id,
                 )
                 .await

@@ -5,6 +5,8 @@
 ### Changes
 - Disable Autocrypt & Authres-checking for mailing lists,
   because they don't work well with mailing lists #3765
+- Refactor: Remove the remaining AsRef<str> #3669
+- Small speedup #3780
 
 ### API-Changes
 - Add Python API to send reactions #3762
@@ -12,6 +14,8 @@
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771
 - strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
+- Assume all Thunderbird users prefer encryption #3774
+- refactor peerstate handling to ensure no duplicate peerstates #3776
 
 
 ## 1.102.0

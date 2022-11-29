@@ -1659,7 +1659,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     let ctx = &*context;
 
     block_on(async move {
-        chat::set_chat_profile_image(ctx, ChatId::new(chat_id), to_string_lossy(image))
+        chat::set_chat_profile_image(ctx, ChatId::new(chat_id), &to_string_lossy(image))
             .await
             .map(|_| 1)
             .unwrap_or_log_default(ctx, "Failed to set profile image")

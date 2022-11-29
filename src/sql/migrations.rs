@@ -320,11 +320,11 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
     if dbversion < 67 {
         for prefix in &["", "configured_"] {
             if let Some(server_flags) = sql
-                .get_raw_config_int(format!("{}server_flags", prefix))
+                .get_raw_config_int(&format!("{}server_flags", prefix))
                 .await?
             {
                 let imap_socket_flags = server_flags & 0x700;
-                let key = format!("{}mail_security", prefix);
+                let key = &format!("{}mail_security", prefix);
                 match imap_socket_flags {
                     0x100 => sql.set_raw_config_int(key, 2).await?, // STARTTLS
                     0x200 => sql.set_raw_config_int(key, 1).await?, // SSL/TLS
@@ -332,7 +332,7 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
                     _ => sql.set_raw_config_int(key, 0).await?,
                 }
                 let smtp_socket_flags = server_flags & 0x70000;
-                let key = format!("{}send_security", prefix);
+                let key = &format!("{}send_security", prefix);
                 match smtp_socket_flags {
                     0x10000 => sql.set_raw_config_int(key, 2).await?, // STARTTLS
                     0x20000 => sql.set_raw_config_int(key, 1).await?, // SSL/TLS
@@ -615,6 +615,50 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
             93,
         )
         .await?;
+    }
+    if dbversion < 94 {
+        sql.execute_migration(
+            // Create new `acpeerstates` table, same as before but with unique constraint.
+            //
+            // This allows to use `UPSERT` to update existing or insert a new peerstate
+            // depending on whether one exists already.
+            "CREATE TABLE new_acpeerstates (
+             id INTEGER PRIMARY KEY,
+             addr TEXT DEFAULT '' COLLATE NOCASE,
+             last_seen INTEGER DEFAULT 0,
+             last_seen_autocrypt INTEGER DEFAULT 0,
+             public_key,
+             prefer_encrypted INTEGER DEFAULT 0,
+             gossip_timestamp INTEGER DEFAULT 0,
+             gossip_key,
+             public_key_fingerprint TEXT DEFAULT '',
+             gossip_key_fingerprint TEXT DEFAULT '',
+             verified_key,
+             verified_key_fingerprint TEXT DEFAULT '',
+             UNIQUE (addr) -- Only one peerstate per address
+             );
+            INSERT OR IGNORE INTO new_acpeerstates SELECT * FROM acpeerstates;
+            DROP TABLE acpeerstates;
+            ALTER TABLE new_acpeerstates RENAME TO acpeerstates;
+            CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);
+            CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);
+            CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);
+            CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);
+            ",
+            94,
+        )
+        .await?;
+    }
+    if dbversion < 95 {
+        sql.execute_migration(
+            "CREATE TABLE new_chats_contacts (chat_id INTEGER, contact_id INTEGER, UNIQUE(chat_id, contact_id));\
+            INSERT OR IGNORE INTO new_chats_contacts SELECT * FROM chats_contacts;\
+            DROP TABLE chats_contacts;\
+            ALTER TABLE new_chats_contacts RENAME TO chats_contacts;\
+            CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);\
+            CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
+            95
+        ).await?;
     }
 
     let new_version = sql

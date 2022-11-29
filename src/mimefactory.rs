@@ -429,7 +429,7 @@ impl<'a> MimeFactory<'a> {
                     }
                 }
 
-                let self_name = match context.get_config(Config::Displayname).await? {
+                let self_name = &match context.get_config(Config::Displayname).await? {
                     Some(name) => name,
                     None => context.get_config(Config::Addr).await?.unwrap_or_default(),
                 };
@@ -1259,7 +1259,7 @@ impl<'a> MimeFactory<'a> {
                 .truncated_text(32)
                 .to_string()
         };
-        let p2 = stock_str::read_rcpt_mail_body(context, p1).await;
+        let p2 = stock_str::read_rcpt_mail_body(context, &p1).await;
         let message_text = format!("{}\r\n", format_flowed(&p2));
         message = message.child(
             PartBuilder::new()

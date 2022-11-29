@@ -733,7 +733,7 @@ impl CommandApi {
         image_path: Option<String>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), image_path.unwrap_or_default())
+        chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), &image_path.unwrap_or_default())
             .await
     }
 
