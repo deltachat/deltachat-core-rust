@@ -2624,7 +2624,7 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     Ok(chat_id)
 }
 
-/// Adds a contact to the `chats_contacts` table.
+/// Adds contacts to the `chats_contacts` table.
 pub(crate) async fn add_to_chat_contacts_table(
     context: &Context,
     chat_id: ChatId,

@@ -651,10 +651,10 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
     }
     if dbversion < 95 {
         sql.execute_migration(
-            "CREATE TABLE chats_contacts_new (chat_id INTEGER, contact_id INTEGER, UNIQUE(chat_id, contact_id));\
-            INSERT OR IGNORE INTO chats_contacts_new SELECT * FROM chats_contacts;\
+            "CREATE TABLE new_chats_contacts (chat_id INTEGER, contact_id INTEGER, UNIQUE(chat_id, contact_id));\
+            INSERT OR IGNORE INTO new_chats_contacts SELECT * FROM chats_contacts;\
             DROP TABLE chats_contacts;\
-            ALTER TABLE chats_contacts_new RENAME TO chats_contacts;\
+            ALTER TABLE new_chats_contacts RENAME TO chats_contacts;\
             CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);\
             CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
             95
