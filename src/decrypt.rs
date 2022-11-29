@@ -64,9 +64,10 @@ pub(crate) async fn prepare_decryption(
 ) -> Result<DecryptionInfo> {
     if mail.headers.get_header(HeaderDef::ListPost).is_some() {
         if mail.headers.get_header(HeaderDef::Autocrypt).is_some() {
-            warn!(
+            info!(
                 context,
-                "Ignoring autocrypt header since this is a mailing list message."
+                "Ignoring autocrypt header since this is a mailing list message. \
+                NOTE: For privacy reasons, the mailing list software should remove Autocrypt headers."
             );
         }
         return Ok(DecryptionInfo {
