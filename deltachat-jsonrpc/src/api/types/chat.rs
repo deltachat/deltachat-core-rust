@@ -2,7 +2,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, bail, Result};
 use deltachat::chat::{self, get_chat_contacts, ChatVisibility};
-use deltachat::chat::{Chat, ChatId};
+use deltachat::chat::{Chat, ChatId, EncryptionModus};
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::context::Context;
@@ -208,6 +208,36 @@ impl JSONRPCChatVisibility {
             JSONRPCChatVisibility::Normal => ChatVisibility::Normal,
             JSONRPCChatVisibility::Archived => ChatVisibility::Archived,
             JSONRPCChatVisibility::Pinned => ChatVisibility::Pinned,
+        }
+    }
+}
+
+
+#[derive(Clone, Serialize, Deserialize, TypeDef)]
+#[serde(rename = "EncryptionModus")]
+pub enum JSONRPCEncryptionModus {
+    Opportunistic = 0,
+    ForcePlaintext = 1,
+    ForceEncrypted = 2,
+    ForceVerified = 3,
+}
+
+impl JSONRPCEncryptionModus {
+    pub fn into_core_type(self) -> EncryptionModus {
+        match self {
+            JSONRPCEncryptionModus::Opportunistic => EncryptionModus::Opportunistic,
+            JSONRPCEncryptionModus::ForcePlaintext => EncryptionModus::ForcePlaintext,
+            JSONRPCEncryptionModus::ForceEncrypted => EncryptionModus::ForceEncrypted,
+            JSONRPCEncryptionModus::ForceVerified => EncryptionModus::ForceVerified
+        }
+    }
+
+    pub fn from_core_type(core_encryption_modus: EncryptionModus) -> Self {
+        match core_encryption_modus {
+            EncryptionModus::Opportunistic => JSONRPCEncryptionModus::Opportunistic,
+            EncryptionModus::ForcePlaintext => JSONRPCEncryptionModus::ForcePlaintext,
+            EncryptionModus::ForceEncrypted => JSONRPCEncryptionModus::ForceEncrypted,
+            EncryptionModus::ForceVerified => JSONRPCEncryptionModus::ForceVerified
         }
     }
 }

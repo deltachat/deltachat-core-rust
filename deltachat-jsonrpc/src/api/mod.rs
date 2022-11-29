@@ -47,7 +47,7 @@ use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::types::{
-    chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
+    chat::{BasicChat, JSONRPCChatVisibility, JSONRPCEncryptionModus, MuteDuration},
     location::JsonrpcLocation,
     message::{
         JSONRPCMessageListItem, MessageNotificationInfo, MessageSearchResult, MessageViewtype,
@@ -528,6 +528,8 @@ impl CommandApi {
         ChatId::new(chat_id).get_encryption_info(&ctx).await
     }
 
+
+
     /// Get QR code (text and SVG) that will offer an Setup-Contact or Verified-Group invitation.
     /// The QR code is compatible to the OPENPGP4FPR format
     /// so that a basic fingerprint comparison also works e.g. with OpenKeychain.
@@ -555,6 +557,32 @@ impl CommandApi {
             securejoin::get_securejoin_qr(&ctx, chat).await?,
             get_securejoin_qr_svg(&ctx, chat).await?,
         ))
+    }
+
+    async fn set_chat_encryption_modus(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        encryption_modus: JSONRPCEncryptionModus
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let chat = ChatId::new(chat_id);
+        Ok(chat.set_encryption_modus(&ctx, encryption_modus.into_core_type()).await?)
+    }
+
+    async fn get_chat_encryption_modus(
+        &self,
+        account_id: u32,
+        chat_id: u32
+    ) -> Result<Option<JSONRPCEncryptionModus>> {
+        let ctx = self.get_context(account_id).await?;
+        let chat = ChatId::new(chat_id);
+        Ok(
+            match chat.encryption_modus(&ctx).await? {
+                Some(encryption_modus) => Some(JSONRPCEncryptionModus::from_core_type(encryption_modus)),
+                None => None,
+            }
+        )
     }
 
     /// Continue a Setup-Contact or Verified-Group-Invite protocol

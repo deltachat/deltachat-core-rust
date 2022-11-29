@@ -331,6 +331,16 @@ export class RawClient {
     return (this._transport.request('get_chat_securejoin_qr_code_svg', [accountId, chatId] as RPC.Params)) as Promise<[string,string]>;
   }
 
+
+  public setChatEncryptionModus(accountId: T.U32, chatId: T.U32, encryptionModus: T.EncryptionModus): Promise<null> {
+    return (this._transport.request('set_chat_encryption_modus', [accountId, chatId, encryptionModus] as RPC.Params)) as Promise<null>;
+  }
+
+
+  public getChatEncryptionModus(accountId: T.U32, chatId: T.U32): Promise<(T.EncryptionModus|null)> {
+    return (this._transport.request('get_chat_encryption_modus', [accountId, chatId] as RPC.Params)) as Promise<(T.EncryptionModus|null)>;
+  }
+
   /**
    * Continue a Setup-Contact or Verified-Group-Invite protocol
    * started on another device with `get_chat_securejoin_qr_code_svg()`.
@@ -730,8 +740,8 @@ export class RawClient {
   }
 
 
-  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<boolean> {
-    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<boolean>;
+  public deleteContact(accountId: T.U32, contactId: T.U32): Promise<null> {
+    return (this._transport.request('delete_contact', [accountId, contactId] as RPC.Params)) as Promise<null>;
   }
 
 
