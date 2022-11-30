@@ -32,7 +32,7 @@ async def main():
             message.get_snapshot() for message in fresh_messages
         ]
         fresh_message_snapshots = await asyncio.gather(*fresh_message_snapshot_tasks)
-        for snapshot in reversed(fresh_message_snapshots):
+        for snapshot in fresh_message_snapshots:
             if not snapshot.is_info:
                 await snapshot.chat.send_text(snapshot.text)
             await snapshot.message.mark_seen()
