@@ -27,12 +27,8 @@ async def main():
         await deltachat.start_io()
 
     async def process_messages():
-        fresh_messages = await account.get_fresh_messages()
-        fresh_message_snapshot_tasks = [
-            message.get_snapshot() for message in fresh_messages
-        ]
-        fresh_message_snapshots = await asyncio.gather(*fresh_message_snapshot_tasks)
-        for snapshot in fresh_message_snapshots:
+        for message in await account.get_fresh_messages_in_arrival_order():
+            snapshot = await message.get_snapshot()
             if not snapshot.is_info:
                 await snapshot.chat.send_text(snapshot.text)
             await snapshot.message.mark_seen()
