@@ -1,6 +1,7 @@
 import os
 import queue
 import sys
+import time
 from datetime import datetime, timezone
 
 import pytest
@@ -1347,6 +1348,43 @@ def test_reaction_to_partially_fetched_msg(acfactory, lp, tmpdir):
     contacts = reactions.get_contacts()
     assert len(contacts) == 1
     assert contacts[0].addr == ac1_addr
+    assert reactions.get_by_contact(contacts[0]) == react_str
+
+
+def test_reactions_for_a_reordering_move(acfactory, lp):
+    """When a batch of messages is moved from Inbox to DeltaChat folder with a single MOVE command,
+    their UIDs may be reordered (e.g. Gmail is known for that) which led to that messages were
+    processed by receive_imf in the wrong order, and, particularly, reactions were processed before
+    messages they refer to and thus dropped.
+    """
+    (ac1,) = acfactory.get_online_accounts(1)
+    ac2 = acfactory.new_online_configuring_account(mvbox_move=True)
+    acfactory.bring_accounts_online()
+    chat1 = acfactory.get_accepted_chat(ac1, ac2)
+    ac2.stop_io()
+
+    lp.sec("sending message + reaction from ac1 to ac2")
+    msg1 = chat1.send_text("hi")
+    ac1._evtracker.wait_msg_delivered(msg1)
+    # It's is sad, but messages must differ in their INTERNALDATEs to be processed in the correct
+    # order by DC, and most (if not all) mail servers provide only seconds precision.
+    time.sleep(2)
+    react_str = "\N{THUMBS UP SIGN}"
+    ac1._evtracker.wait_msg_delivered(msg1.send_reaction(react_str))
+
+    lp.sec("moving messages to ac2's DeltaChat folder in the reverse order")
+    ac2.direct_imap.connect()
+    for uid in sorted([m.uid for m in ac2.direct_imap.get_all_messages()], reverse=True):
+        ac2.direct_imap.conn.move(uid, "DeltaChat")
+
+    lp.sec("receiving messages by ac2")
+    ac2.start_io()
+    msg2 = ac2._evtracker.wait_next_reactions_changed()
+    assert msg2.text == msg1.text
+    reactions = msg2.get_reactions()
+    contacts = reactions.get_contacts()
+    assert len(contacts) == 1
+    assert contacts[0].addr == ac1.get_config("addr")
     assert reactions.get_by_contact(contacts[0]) == react_str
 
 
