@@ -64,5 +64,16 @@ class Account:
         return Chat(self.rpc, self.account_id, self.chat_id)
 
     async def get_fresh_messages(self):
+        """Return the list of fresh messages, newest messages first.
+
+        This call is intended for displaying notifications.
+        If you are writing a bot, use get_fresh_messages_in_arrival_order instead,
+        to process oldest messages first.
+        """
         fresh_msg_ids = await self.rpc.get_fresh_msgs(self.account_id)
+        return [Message(self.rpc, self.account_id, msg_id) for msg_id in fresh_msg_ids]
+
+    async def get_fresh_messages_in_arrival_order(self):
+        """Return the list of fresh messages sorted in the order of their arrival, with ascending IDs."""
+        fresh_msg_ids = sorted(await self.rpc.get_fresh_msgs(self.account_id))
         return [Message(self.rpc, self.account_id, msg_id) for msg_id in fresh_msg_ids]
