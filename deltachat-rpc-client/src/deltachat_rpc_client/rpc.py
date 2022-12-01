@@ -53,7 +53,7 @@ class Rpc:
             request = {
                 "jsonrpc": "2.0",
                 "method": attr,
-                "params": args or kwargs,
+                "params": kwargs or args,
                 "id": self.id,
             }
             data = (json.dumps(request) + "\n").encode()
