@@ -5720,16 +5720,16 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "Group").await?;
 
         assert_eq!(
-            chat_id.get_encryption_modus(&t).await?,
+            chat_id.encryption_modus(&t).await?,
             Some(EncryptionModus::Opportunistic)
         );
 
         chat_id
-            .set_encryption_modus(&t, &EncryptionModus::ForceEncrypted)
+            .set_encryption_modus(&t, EncryptionModus::ForceEncrypted)
             .await?;
 
         assert_eq!(
-            chat_id.get_encryption_modus(&t).await?,
+            chat_id.encryption_modus(&t).await?,
             Some(EncryptionModus::ForceEncrypted)
         );
 
