@@ -10,7 +10,7 @@ use crate::provider::get_provider_by_domain;
 use crate::sql::Sql;
 use crate::tools::EmailAddress;
 
-const DBVERSION: i32 = 68;
+const DBVERSION: i32 = 69;
 const VERSION_CFG: &str = "dbversion";
 const TABLES: &str = include_str!("./tables.sql");
 
@@ -613,6 +613,15 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         sql.execute_migration(
             "CREATE TABLE sending_domains(domain TEXT PRIMARY KEY, dkim_works INTEGER DEFAULT 0);",
             93,
+        )
+        .await?;
+    }
+    if dbversion < 94 {
+        sql.execute_migration(
+            r#"
+ALTER TABLE chats ADD COLUMN encryption_modus INTEGER DEFAULT 0;
+ALTER TABLE msgs ADD COLUMN encryption_modus INTEGER DEFAULT 0;"#,
+            94,
         )
         .await?;
     }

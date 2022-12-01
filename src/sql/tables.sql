@@ -38,8 +38,7 @@ CREATE TABLE chats (
     locations_last_sent INTEGER DEFAULT 0,
     created_timestamp INTEGER DEFAULT 0,
     muted_until INTEGER DEFAULT 0,
-    ephemeral_timer INTEGER,
-    encryption_modus INTEGER DEFAULT 0
+    ephemeral_timer INTEGER
 );
 CREATE INDEX chats_index1 ON chats (grpid);
 CREATE INDEX chats_index2 ON chats (archived);
@@ -93,8 +92,7 @@ CREATE TABLE msgs (
 -- deleted. It is convenient to store it here because UI
 -- needs this value to display how much time is left until
 -- the message is deleted.
-    ephemeral_timestamp INTEGER DEFAULT 0,
-    encryption_modus INTEGER DEFAULT 0
+    ephemeral_timestamp INTEGER DEFAULT 0
 );
 
 CREATE INDEX msgs_index1 ON msgs (rfc724_mid);
