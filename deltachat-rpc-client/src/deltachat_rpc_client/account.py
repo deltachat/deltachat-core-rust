@@ -39,7 +39,7 @@ class Account:
         """Return True for configured accounts."""
         return await self.rpc.is_configured(self.account_id)
 
-    async def set_config(self, key: str, value: Optional[str]):
+    async def set_config(self, key: str, value: Optional[str] = None):
         """Set the configuration value key pair."""
         await self.rpc.set_config(self.account_id, key, value)
 
@@ -51,7 +51,7 @@ class Account:
         """Configure an account."""
         await self.rpc.configure(self.account_id)
 
-    async def create_contact(self, address: str, name: Optional[str]) -> Contact:
+    async def create_contact(self, address: str, name: Optional[str] = None) -> Contact:
         """Create a contact with the given address and, optionally, a name."""
         return Contact(
             self.rpc,
