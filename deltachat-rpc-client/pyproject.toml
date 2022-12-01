@@ -12,5 +12,18 @@ dependencies = [
 dynamic = [
     "version"
 ]
+
+[tool.setuptools]
+# We declare the package not-zip-safe so that our type hints are also available
+# when checking client code that uses our (installed) package.
+# Ref:
+# https://mypy.readthedocs.io/en/stable/installed_packages.html?highlight=zip#using-installed-packages-with-mypy-pep-561
+zip-safe = false
+
+[tool.setuptools.package-data]
+deltachat_rpc_client = [
+    "py.typed"
+]
+
 [project.entry-points.pytest11]
 "deltachat_rpc_client.pytestplugin" = "deltachat_rpc_client.pytestplugin"
