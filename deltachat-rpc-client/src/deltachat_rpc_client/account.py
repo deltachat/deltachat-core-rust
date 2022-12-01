@@ -11,7 +11,7 @@ class Account:
         self.account_id = account_id
 
     def __repr__(self):
-        return "<Account id={}>".format(self.account_id)
+        return f"<Account id={self.account_id}>"
 
     async def wait_for_event(self):
         """Wait until the next event and return it."""
@@ -59,8 +59,8 @@ class Account:
             await self.rpc.create_contact(self.account_id, address, name),
         )
 
-    async def secure_join(self, qr: str) -> Chat:
-        chat_id = await self.rpc.secure_join(self.account_id, qr)
+    async def secure_join(self, qrdata: str) -> Chat:
+        chat_id = await self.rpc.secure_join(self.account_id, qrdata)
         return Chat(self.rpc, self.account_id, chat_id)
 
     async def get_fresh_messages(self):
@@ -74,6 +74,6 @@ class Account:
         return [Message(self.rpc, self.account_id, msg_id) for msg_id in fresh_msg_ids]
 
     async def get_fresh_messages_in_arrival_order(self):
-        """Return the list of fresh messages sorted in the order of their arrival, with ascending IDs."""
+        """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
         fresh_msg_ids = sorted(await self.rpc.get_fresh_msgs(self.account_id))
         return [Message(self.rpc, self.account_id, msg_id) for msg_id in fresh_msg_ids]
