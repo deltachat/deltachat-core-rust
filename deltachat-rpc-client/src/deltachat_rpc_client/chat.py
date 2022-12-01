@@ -16,7 +16,7 @@ class Chat:
         await self.rpc.delete_chat(self.account_id, self.chat_id)
 
     async def get_encryption_info(self):
-        await self.rpc.get_chat_encryption_info(self.account_id, self.chat_id)
+        return await self.rpc.get_chat_encryption_info(self.account_id, self.chat_id)
 
     async def send_text(self, text: str):
         from .message import Message
