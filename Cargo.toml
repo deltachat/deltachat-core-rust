@@ -46,7 +46,7 @@ libc = "0.2"
 log = {version = "0.4.16", optional = true }
 mailparse = "0.13"
 native-tls = "0.2"
-num_cpus = "1.13"
+num_cpus = "1.14"
 num-derive = "0.3"
 num-traits = "0.2"
 once_cell = "1.16.0"
