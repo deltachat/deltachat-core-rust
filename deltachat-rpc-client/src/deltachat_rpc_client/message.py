@@ -3,19 +3,20 @@ from typing import Optional
 
 from .chat import Chat
 from .contact import Contact
+from .rpc import Rpc
 
 
 class Message:
-    def __init__(self, rpc, account_id, msg_id):
+    def __init__(self, rpc: Rpc, account_id: int, msg_id: int) -> None:
         self.rpc = rpc
         self.account_id = account_id
         self.msg_id = msg_id
 
-    async def send_reaction(self, reactions):
+    async def send_reaction(self, reactions: str) -> "Message":
         msg_id = await self.rpc.send_reaction(self.account_id, self.msg_id, reactions)
         return Message(self.rpc, self.account_id, msg_id)
 
-    async def get_snapshot(self):
+    async def get_snapshot(self) -> "MessageSnapshot":
         message_object = await self.rpc.get_message(self.account_id, self.msg_id)
         return MessageSnapshot(
             message=self,

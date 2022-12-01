@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from typing import Any, Dict, Optional
 
 import aiohttp
 
@@ -10,16 +11,16 @@ class JsonRpcError(Exception):
 
 
 class Rpc:
-    def __init__(self, process):
+    def __init__(self, process: asyncio.Process) -> None:
         self.process = process
-        self.event_queues = {}
+        self.event_queues: Dict[int, asyncio.Queue] = {}
         self.id = 0
         self.reader_task = asyncio.create_task(self.reader_loop())
 
         # Map from request ID to `asyncio.Future` returning the response.
-        self.request_events = {}
+        self.request_events: Dict[int, asyncio.Future] = {}
 
-    async def reader_loop(self):
+    async def reader_loop(self) -> None:
         while True:
             line = await self.process.stdout.readline()
             response = json.loads(line)
@@ -36,25 +37,23 @@ class Rpc:
             else:
                 print(response)
 
-    async def wait_for_event(self, account_id):
+    async def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
         if account_id in self.event_queues:
             return await self.event_queues[account_id].get()
+        return None
 
-    def __getattr__(self, attr):
-        async def method(*args, **kwargs):
+    def __getattr__(self, attr: str):
+        async def method(*args, **kwargs) -> Any:
             self.id += 1
             request_id = self.id
 
-            params = args
-            if kwargs:
-                assert not args
-                params = kwargs
+            assert not (args and kwargs), "Mixing positional and keyword arguments"
 
             request = {
                 "jsonrpc": "2.0",
                 "method": attr,
-                "params": params,
+                "params": args or kwargs,
                 "id": self.id,
             }
             data = (json.dumps(request) + "\n").encode()
@@ -71,7 +70,7 @@ class Rpc:
         return method
 
 
-async def start_rpc_server(*args, **kwargs):
+async def start_rpc_server(*args, **kwargs) -> Rpc:
     proc = await asyncio.create_subprocess_exec(
         "deltachat-rpc-server",
         stdin=asyncio.subprocess.PIPE,
@@ -83,7 +82,7 @@ async def start_rpc_server(*args, **kwargs):
     return rpc
 
 
-async def new_online_account():
+async def new_online_account() -> dict:
     url = os.getenv("DCC_NEW_TMP_EMAIL")
     async with aiohttp.ClientSession() as session:
         async with session.post(url) as response:
