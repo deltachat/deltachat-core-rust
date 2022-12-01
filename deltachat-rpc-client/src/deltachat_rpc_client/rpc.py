@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 import os
 
 import aiohttp
@@ -60,7 +59,6 @@ class Rpc:
             }
             data = (json.dumps(request) + "\n").encode()
             self.process.stdin.write(data)
-            event = asyncio.Event()
             loop = asyncio.get_running_loop()
             fut = loop.create_future()
             self.request_events[request_id] = fut
