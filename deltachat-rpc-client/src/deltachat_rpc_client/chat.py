@@ -29,5 +29,5 @@ class Chat:
     async def leave(self):
         await self.rpc.leave_group(self.account_id, self.chat_id)
 
-    async def get_fresh_message_count() -> int:
-        await get_fresh_msg_cnt(self.account_id, self.chat_id)
+    async def get_fresh_message_count(self) -> int:
+        return await self.rpc.get_fresh_msg_cnt(self.account_id, self.chat_id)

@@ -61,7 +61,7 @@ class Account:
 
     async def secure_join(self, qr: str) -> Chat:
         chat_id = await self.rpc.secure_join(self.account_id, qr)
-        return Chat(self.rpc, self.account_id, self.chat_id)
+        return Chat(self.rpc, self.account_id, chat_id)
 
     async def get_fresh_messages(self):
         """Return the list of fresh messages, newest messages first.
