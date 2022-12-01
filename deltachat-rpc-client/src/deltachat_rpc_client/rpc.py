@@ -1,9 +1,6 @@
 import asyncio
 import json
-import os
 from typing import Any, Dict, Optional
-
-import aiohttp
 
 
 class JsonRpcError(Exception):
@@ -80,10 +77,3 @@ async def start_rpc_server(*args, **kwargs) -> Rpc:
     )
     rpc = Rpc(proc)
     return rpc
-
-
-async def new_online_account() -> dict:
-    url = os.getenv("DCC_NEW_TMP_EMAIL")
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url) as response:
-            return json.loads(await response.text())

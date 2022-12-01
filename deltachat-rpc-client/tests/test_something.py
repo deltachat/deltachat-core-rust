@@ -1,18 +1,4 @@
-import asyncio
-import os
-
 import pytest
-import pytest_asyncio
-
-import deltachat_rpc_client
-from deltachat_rpc_client import Deltachat
-
-
-@pytest_asyncio.fixture
-async def rpc(tmp_path):
-    return await deltachat_rpc_client.start_rpc_server(
-        env={**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
-    )
 
 
 @pytest.mark.asyncio
@@ -37,16 +23,10 @@ async def test_email_address_validity(rpc):
 
 
 @pytest.mark.asyncio
-async def test_online_account(rpc):
-    account_json = await deltachat_rpc_client.new_online_account()
-
-    account_id = await rpc.add_account()
-    await rpc.set_config(account_id, "addr", account_json["email"])
-    await rpc.set_config(account_id, "mail_pw", account_json["password"])
-
-    await rpc.configure(account_id)
+async def test_acfactory(acfactory):
+    account = await acfactory.new_configured_account()
     while True:
-        event = await rpc.wait_for_event(account_id)
+        event = await account.wait_for_event()
         if event["type"] == "ConfigureProgress":
             # Progress 0 indicates error.
             assert event["progress"] != 0
@@ -60,22 +40,8 @@ async def test_online_account(rpc):
 
 
 @pytest.mark.asyncio
-async def test_object_account(rpc):
-    deltachat = Deltachat(rpc)
-
-    async def create_configured_account():
-        account = await deltachat.add_account()
-        assert not await account.is_configured()
-        account_json = await deltachat_rpc_client.new_online_account()
-        await account.set_config("addr", account_json["email"])
-        await account.set_config("mail_pw", account_json["password"])
-        await account.configure()
-        assert await account.is_configured()
-        return account
-
-    alice, bob = await asyncio.gather(
-        create_configured_account(), create_configured_account()
-    )
+async def test_object_account(acfactory):
+    alice, bob = await acfactory.get_online_accounts(2)
 
     alice_contact_bob = await alice.create_contact(await bob.get_config("addr"), "Bob")
     alice_chat_bob = await alice_contact_bob.create_chat()
@@ -88,5 +54,7 @@ async def test_object_account(rpc):
             msg_id = event["msgId"]
             break
 
+    rpc = acfactory.deltachat.rpc
     message = await rpc.get_message(bob.account_id, msg_id)
+    assert message["chatId"] == chat_id
     assert message["text"] == "Hello!"
