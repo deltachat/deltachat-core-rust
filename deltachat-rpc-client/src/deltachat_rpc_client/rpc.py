@@ -11,7 +11,7 @@ class JsonRpcError(Exception):
 
 
 class Rpc:
-    def __init__(self, process: asyncio.Process) -> None:
+    def __init__(self, process: asyncio.subprocess.Process) -> None:
         self.process = process
         self.event_queues: Dict[int, asyncio.Queue] = {}
         self.id = 0
