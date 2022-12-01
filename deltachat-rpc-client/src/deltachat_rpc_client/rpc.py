@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import aiohttp
 
@@ -73,6 +74,7 @@ class Rpc:
         return method
 
 
+@asynccontextmanager
 async def start_rpc_server(*args, **kwargs):
     proc = await asyncio.create_subprocess_exec(
         "deltachat-rpc-server",
@@ -82,7 +84,10 @@ async def start_rpc_server(*args, **kwargs):
         **kwargs
     )
     rpc = Rpc(proc)
-    return rpc
+    try:
+        yield rpc
+    finally:
+        proc.terminate()
 
 
 async def new_online_account():

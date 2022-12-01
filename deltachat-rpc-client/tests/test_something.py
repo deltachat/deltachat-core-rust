@@ -10,9 +10,10 @@ from deltachat_rpc_client import Deltachat
 
 @pytest_asyncio.fixture
 async def rpc(tmp_path):
-    return await deltachat_rpc_client.start_rpc_server(
+    async with deltachat_rpc_client.start_rpc_server(
         env={**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
-    )
+    ) as rpc:
+        yield rpc
 
 
 @pytest.mark.asyncio
