@@ -68,6 +68,7 @@ class Rpc:
 
 
 async def start_rpc_server(*args, **kwargs) -> Rpc:
+    """The given arguments will be passed to asyncio.create_subprocess_exec()"""
     proc = await asyncio.create_subprocess_exec(
         "deltachat-rpc-server",
         stdin=asyncio.subprocess.PIPE,
