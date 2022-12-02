@@ -23,7 +23,7 @@ async-channel = { version = "1.6.1" }
 futures = { version = "0.3.25" }
 serde_json = "1.0.87"
 yerpc = { version = "^0.3.1", features = ["anyhow_expose"] }
-typescript-type-def = { version = "0.5.3", features = ["json_value"] }
+typescript-type-def = { version = "0.5.5", features = ["json_value"] }
 tokio = { version = "1.21.2" }
 sanitize-filename = "0.4"
 walkdir = "2.3.2"
