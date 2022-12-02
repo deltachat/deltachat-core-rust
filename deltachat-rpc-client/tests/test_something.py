@@ -2,14 +2,14 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_system_info(rpc):
+async def test_system_info(rpc) -> None:
     system_info = await rpc.get_system_info()
     assert "arch" in system_info
     assert "deltachat_core_version" in system_info
 
 
 @pytest.mark.asyncio
-async def test_email_address_validity(rpc):
+async def test_email_address_validity(rpc) -> None:
     valid_addresses = [
         "email@example.com",
         "36aa165ae3406424e0c61af17700f397cad3fe8ab83d682d0bddf3338a5dd52e@yggmail@yggmail",
@@ -23,7 +23,7 @@ async def test_email_address_validity(rpc):
 
 
 @pytest.mark.asyncio
-async def test_acfactory(acfactory):
+async def test_acfactory(acfactory) -> None:
     account = await acfactory.new_configured_account()
     while True:
         event = await account.wait_for_event()
@@ -40,7 +40,7 @@ async def test_acfactory(acfactory):
 
 
 @pytest.mark.asyncio
-async def test_object_account(acfactory):
+async def test_object_account(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
     alice_contact_bob = await alice.create_contact(await bob.get_config("addr"), "Bob")
