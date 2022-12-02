@@ -12,7 +12,10 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chat::{
+    self, add_contact_to_chat, remove_contact_from_chat, Chat, ChatId, ChatIdBlocked,
+    ProtectionStatus,
+};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
@@ -1611,9 +1614,13 @@ async fn apply_group_changes(
         .cloned()
     {
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
-        recreate_member_list = true;
         match removed_id {
             Some(contact_id) => {
+                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() {
+                    recreate_member_list = true;
+                } else {
+                    remove_contact_from_chat(context, chat_id, contact_id).await?
+                }
                 better_msg = if contact_id == from_id {
                     Some(stock_str::msg_group_left(context, from_id).await)
                 } else {
@@ -1621,7 +1628,7 @@ async fn apply_group_changes(
                 };
             }
             None => warn!(context, "removed {:?} has no contact_id", removed_addr),
-        }
+        };
     } else {
         removed_id = None;
         if let Some(added_member) = mime_parser
@@ -1629,7 +1636,18 @@ async fn apply_group_changes(
             .cloned()
         {
             better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
-            recreate_member_list = true;
+
+            if let Some(contact_id) =
+                Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?
+            {
+                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() {
+                    recreate_member_list = true;
+                } else {
+                    add_contact_to_chat(context, chat_id, contact_id).await?
+                }
+            } else {
+                recreate_member_list = true;
+            }
         } else if let Some(old_name) = mime_parser
             .get_header(HeaderDef::ChatGroupNameChanged)
             // See create_or_lookup_group() for explanation

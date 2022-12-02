@@ -57,6 +57,8 @@ pub struct MimeMessage {
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
+    /// The list post message is only set for messaging lists and is the address
+    /// where users can send messages to which will be posted in the list
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decryption_info: DecryptionInfo,
