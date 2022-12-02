@@ -870,11 +870,14 @@ async fn export_backup_iroh_inner(
     );
 
     {
-        let mut file = FileBuilder::new();
         let db_content = tokio::fs::File::open(temp_db_path).await?;
-        file.name(DBFILE_BACKUP_NAME).content_reader(db_content);
+        let file = FileBuilder::new()
+            .name(DBFILE_BACKUP_NAME)
+            .content_reader(db_content)
+            .build()
+            .await?;
 
-        dir_builder.add_file(file.build().await?);
+        dir_builder.add_file(file);
     }
 
     let read_dir: Vec<_> =
@@ -898,10 +901,12 @@ async fn export_backup_iroh_inner(
         let file_content = File::open(entry.path()).await?;
 
         {
-            let mut file = FileBuilder::new();
-            file.name(name.to_string_lossy().to_owned());
-            file.content_reader(file_content);
-            dir_builder.add_file(file.build().await?);
+            let file = FileBuilder::new()
+                .name(name.to_string_lossy().to_owned())
+                .content_reader(file_content)
+                .build()
+                .await?;
+            dir_builder.add_file(file);
         }
 
         written_files += 1;
