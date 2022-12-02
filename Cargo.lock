@@ -3330,9 +3330,9 @@ dependencies = [
 
 [[package]]
 name = "tagger"
-version = "4.3.3"
+version = "4.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77dd78fc7dd20ba3a13620ec231cef9e73ea5c7ba162f6c4e05b1d521e04b221"
+checksum = "6aaa6f5d645d1dae4cd0286e9f8bf15b75a31656348e5e106eb1a940abd34b63"
 
 [[package]]
 name = "tempfile"
