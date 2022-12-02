@@ -57,7 +57,7 @@ quick-xml = "0.23"
 r2d2 = "0.8"
 r2d2_sqlite = "0.20"
 rand = "0.8"
-regex = "1.6"
+regex = "1.7"
 rusqlite = { version = "0.27", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 rustyline = { version = "10", optional = true }
