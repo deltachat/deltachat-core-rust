@@ -1,6 +1,7 @@
 import asyncio
 import json
-from typing import Any, Dict, Optional
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, Optional
 
 
 class JsonRpcError(Exception):
@@ -20,6 +21,8 @@ class Rpc:
     async def reader_loop(self) -> None:
         while True:
             line = await self.process.stdout.readline()
+            if not line:  # EOF
+                break
             response = json.loads(line)
             if "id" in response:
                 fut = self.request_events.pop(response["id"])
@@ -67,7 +70,8 @@ class Rpc:
         return method
 
 
-async def start_rpc_server(*args, **kwargs) -> Rpc:
+@asynccontextmanager
+async def start_rpc_server(*args, **kwargs) -> AsyncGenerator:
     """The given arguments will be passed to asyncio.create_subprocess_exec()"""
     proc = await asyncio.create_subprocess_exec(
         "deltachat-rpc-server",
@@ -77,4 +81,7 @@ async def start_rpc_server(*args, **kwargs) -> Rpc:
         **kwargs
     )
     rpc = Rpc(proc)
-    return rpc
+    try:
+        yield rpc
+    finally:
+        proc.terminate()

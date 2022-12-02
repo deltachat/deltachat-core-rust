@@ -1,13 +1,14 @@
+import asyncio
 import json
 import os
-from typing import List
+from typing import AsyncGenerator, List
 
 import aiohttp
 import pytest_asyncio
 
 from .account import Account
 from .deltachat import Deltachat
-from .rpc import Rpc, start_rpc_server
+from .rpc import start_rpc_server
 
 
 async def get_temp_credentials() -> dict:
@@ -39,12 +40,13 @@ class ACFactory:
 
 
 @pytest_asyncio.fixture
-async def rpc(tmp_path) -> Rpc:
-    return await start_rpc_server(
-        env={**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
-    )
+async def rpc(tmp_path) -> AsyncGenerator:
+    env = {**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
+    async with start_rpc_server(env=env) as rpc:
+        yield rpc
+    await asyncio.sleep(0.1)  # avoid RuntimeError: Event loop is closed
 
 
 @pytest_asyncio.fixture
-async def acfactory(rpc) -> ACFactory:
-    return ACFactory(Deltachat(rpc))
+async def acfactory(rpc) -> AsyncGenerator:
+    yield ACFactory(Deltachat(rpc))
