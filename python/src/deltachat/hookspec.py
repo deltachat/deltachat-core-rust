@@ -50,6 +50,10 @@ class PerAccount:
         """Called on each outgoing message (both system and "normal")."""
 
     @account_hookspec
+    def ac_reactions_changed(self, message):
+        """Called when message reactions changed."""
+
+    @account_hookspec
     def ac_message_delivered(self, message):
         """Called when an outgoing message has been delivered to SMTP.
 

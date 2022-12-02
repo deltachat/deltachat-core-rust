@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.101.0"
+version = "1.102.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
 license = "MPL-2.0"
@@ -57,7 +57,7 @@ quick-xml = "0.23"
 r2d2 = "0.8"
 r2d2_sqlite = "0.20"
 rand = "0.8"
-regex = "1.6"
+regex = "1.7"
 rusqlite = { version = "0.27", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 rustyline = { version = "10", optional = true }
@@ -74,14 +74,14 @@ toml = "0.5"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 fast-socks5 = "0.8"
-humansize = "1"
+humansize = "2"
 qrcodegen = "1.7.0"
 tagger = "4.3.3"
 textwrap = "0.16.0"
 async-channel = "1.6.1"
 futures-lite = "1.12.0"
 tokio-stream = { version = "0.1.11", features = ["fs"] }
-reqwest = { version = "0.11.12", features = ["json"] }
+reqwest = { version = "0.11.13", features = ["json"] }
 async_zip = { version = "0.0.9", default-features = false, features = ["deflate"] }
 iroh-share = { git = "https://github.com/n0-computer/iroh", tag = "v0.1.1" }
 iroh-resolver = { git = "https://github.com/n0-computer/iroh", tag = "v0.1.1", default-features = false }

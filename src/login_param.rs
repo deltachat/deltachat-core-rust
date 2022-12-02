@@ -169,7 +169,7 @@ impl LoginParam {
     async fn from_database(context: &Context, prefix: &str) -> Result<Self> {
         let sql = &context.sql;
 
-        let key = format!("{}addr", prefix);
+        let key = &format!("{}addr", prefix);
         let addr = sql
             .get_raw_config(key)
             .await?
@@ -177,26 +177,26 @@ impl LoginParam {
             .trim()
             .to_string();
 
-        let key = format!("{}mail_server", prefix);
+        let key = &format!("{}mail_server", prefix);
         let mail_server = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}mail_port", prefix);
+        let key = &format!("{}mail_port", prefix);
         let mail_port = sql.get_raw_config_int(key).await?.unwrap_or_default();
 
-        let key = format!("{}mail_user", prefix);
+        let key = &format!("{}mail_user", prefix);
         let mail_user = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}mail_pw", prefix);
+        let key = &format!("{}mail_pw", prefix);
         let mail_pw = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}mail_security", prefix);
+        let key = &format!("{}mail_security", prefix);
         let mail_security = sql
             .get_raw_config_int(key)
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
 
-        let key = format!("{}imap_certificate_checks", prefix);
+        let key = &format!("{}imap_certificate_checks", prefix);
         let imap_certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
                 num_traits::FromPrimitive::from_i32(certificate_checks).unwrap()
@@ -204,26 +204,26 @@ impl LoginParam {
                 Default::default()
             };
 
-        let key = format!("{}send_server", prefix);
+        let key = &format!("{}send_server", prefix);
         let send_server = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}send_port", prefix);
+        let key = &format!("{}send_port", prefix);
         let send_port = sql.get_raw_config_int(key).await?.unwrap_or_default();
 
-        let key = format!("{}send_user", prefix);
+        let key = &format!("{}send_user", prefix);
         let send_user = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}send_pw", prefix);
+        let key = &format!("{}send_pw", prefix);
         let send_pw = sql.get_raw_config(key).await?.unwrap_or_default();
 
-        let key = format!("{}send_security", prefix);
+        let key = &format!("{}send_security", prefix);
         let send_security = sql
             .get_raw_config_int(key)
             .await?
             .and_then(num_traits::FromPrimitive::from_i32)
             .unwrap_or_default();
 
-        let key = format!("{}smtp_certificate_checks", prefix);
+        let key = &format!("{}smtp_certificate_checks", prefix);
         let smtp_certificate_checks =
             if let Some(certificate_checks) = sql.get_raw_config_int(key).await? {
                 num_traits::FromPrimitive::from_i32(certificate_checks).unwrap_or_default()
@@ -231,11 +231,11 @@ impl LoginParam {
                 Default::default()
             };
 
-        let key = format!("{}server_flags", prefix);
+        let key = &format!("{}server_flags", prefix);
         let server_flags = sql.get_raw_config_int(key).await?.unwrap_or_default();
         let oauth2 = matches!(server_flags & DC_LP_AUTH_FLAGS, DC_LP_AUTH_OAUTH2);
 
-        let key = format!("{}provider", prefix);
+        let key = &format!("{}provider", prefix);
         let provider = sql
             .get_raw_config(key)
             .await?
@@ -275,50 +275,50 @@ impl LoginParam {
 
         context.set_primary_self_addr(&self.addr).await?;
 
-        let key = format!("{}mail_server", prefix);
+        let key = &format!("{}mail_server", prefix);
         sql.set_raw_config(key, Some(&self.imap.server)).await?;
 
-        let key = format!("{}mail_port", prefix);
+        let key = &format!("{}mail_port", prefix);
         sql.set_raw_config_int(key, i32::from(self.imap.port))
             .await?;
 
-        let key = format!("{}mail_user", prefix);
+        let key = &format!("{}mail_user", prefix);
         sql.set_raw_config(key, Some(&self.imap.user)).await?;
 
-        let key = format!("{}mail_pw", prefix);
+        let key = &format!("{}mail_pw", prefix);
         sql.set_raw_config(key, Some(&self.imap.password)).await?;
 
-        let key = format!("{}mail_security", prefix);
+        let key = &format!("{}mail_security", prefix);
         sql.set_raw_config_int(key, self.imap.security as i32)
             .await?;
 
-        let key = format!("{}imap_certificate_checks", prefix);
+        let key = &format!("{}imap_certificate_checks", prefix);
         sql.set_raw_config_int(key, self.imap.certificate_checks as i32)
             .await?;
 
-        let key = format!("{}send_server", prefix);
+        let key = &format!("{}send_server", prefix);
         sql.set_raw_config(key, Some(&self.smtp.server)).await?;
 
-        let key = format!("{}send_port", prefix);
+        let key = &format!("{}send_port", prefix);
         sql.set_raw_config_int(key, i32::from(self.smtp.port))
             .await?;
 
-        let key = format!("{}send_user", prefix);
+        let key = &format!("{}send_user", prefix);
         sql.set_raw_config(key, Some(&self.smtp.user)).await?;
 
-        let key = format!("{}send_pw", prefix);
+        let key = &format!("{}send_pw", prefix);
         sql.set_raw_config(key, Some(&self.smtp.password)).await?;
 
-        let key = format!("{}send_security", prefix);
+        let key = &format!("{}send_security", prefix);
         sql.set_raw_config_int(key, self.smtp.security as i32)
             .await?;
 
-        let key = format!("{}smtp_certificate_checks", prefix);
+        let key = &format!("{}smtp_certificate_checks", prefix);
         sql.set_raw_config_int(key, self.smtp.certificate_checks as i32)
             .await?;
 
         // The OAuth2 flag is either set for both IMAP and SMTP or not at all.
-        let key = format!("{}server_flags", prefix);
+        let key = &format!("{}server_flags", prefix);
         let server_flags = match self.imap.oauth2 {
             true => DC_LP_AUTH_OAUTH2,
             false => DC_LP_AUTH_NORMAL,
@@ -326,7 +326,7 @@ impl LoginParam {
         sql.set_raw_config_int(key, server_flags).await?;
 
         if let Some(provider) = self.provider {
-            let key = format!("{}provider", prefix);
+            let key = &format!("{}provider", prefix);
             sql.set_raw_config(key, Some(provider.id)).await?;
         }
 

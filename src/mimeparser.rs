@@ -157,38 +157,9 @@ impl Default for SystemMessage {
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
-#[derive(Debug, thiserror::Error)]
-pub(crate) enum ParserError {
-    #[error("{}", _0)]
-    Malformed(anyhow::Error),
-
-    #[error("{:#}", _0)]
-    Sql(anyhow::Error),
-}
-
-pub(crate) type ParserResult<T> = std::result::Result<T, ParserError>;
-
-pub(crate) trait ParserErrorExt<T, E>
-where
-    Self: std::marker::Sized,
-{
-    fn map_err_malformed(self) -> ParserResult<T>;
-    fn map_err_sql(self) -> ParserResult<T>;
-}
-
-impl<T, E: Into<anyhow::Error>> ParserErrorExt<T, E> for Result<T, E> {
-    fn map_err_malformed(self) -> ParserResult<T> {
-        self.map_err(|e| ParserError::Malformed(e.into()))
-    }
-
-    fn map_err_sql(self) -> ParserResult<T> {
-        self.map_err(|e| ParserError::Sql(e.into()))
-    }
-}
-
 impl MimeMessage {
     pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
-        Ok(MimeMessage::from_bytes_with_partial(context, body, None).await?)
+        MimeMessage::from_bytes_with_partial(context, body, None).await
     }
 
     /// Parse a mime message.
@@ -199,8 +170,8 @@ impl MimeMessage {
         context: &Context,
         body: &[u8],
         partial: Option<u32>,
-    ) -> ParserResult<Self> {
-        let mail = mailparse::parse_mail(body).map_err_malformed()?;
+    ) -> Result<Self> {
+        let mail = mailparse::parse_mail(body)?;
 
         let message_time = mail
             .headers
@@ -227,7 +198,7 @@ impl MimeMessage {
         );
 
         // Parse hidden headers.
-        let mimetype = mail.ctype.mimetype.parse::<Mime>().map_err_malformed()?;
+        let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
         if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "mixed" {
             if let Some(part) = mail.subparts.first() {
                 for field in &part.headers {
@@ -245,9 +216,16 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
-        let from = from.context("No from in message").map_err_malformed()?;
+        let is_thunderbird = headers
+            .get("user-agent")
+            .map_or(false, |user_agent| user_agent.contains("Thunderbird"));
+        if is_thunderbird {
+            info!(context, "Detected Thunderbird");
+        }
+
+        let from = from.context("No from in message")?;
         let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, message_time).await?;
+            prepare_decryption(context, &mail, &from.addr, message_time, is_thunderbird).await?;
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
@@ -265,7 +243,7 @@ impl MimeMessage {
                     // autocrypt message.
 
                     mail_raw = raw;
-                    let decrypted_mail = mailparse::parse_mail(&mail_raw).map_err_malformed()?;
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                         info!(context, "decrypted message mime-body:");
                         println!("{}", String::from_utf8_lossy(&mail_raw));
@@ -279,8 +257,7 @@ impl MimeMessage {
                             decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
                         gossiped_addr =
                             update_gossip_peerstates(context, message_time, &mail, gossip_headers)
-                                .await
-                                .map_err_sql()?;
+                                .await?;
                     }
 
                     // let known protected headers from the decrypted
@@ -333,10 +310,7 @@ impl MimeMessage {
                         // && decryption_info.dkim_results.allow_keychange
                         {
                             peerstate.degrade_encryption(message_time);
-                            peerstate
-                                .save_to_db(&context.sql, false)
-                                .await
-                                .map_err_sql()?;
+                            peerstate.save_to_db(&context.sql).await?;
                         }
                     }
                     (Ok(mail), HashSet::new(), false)
@@ -380,15 +354,11 @@ impl MimeMessage {
             Some(org_bytes) => {
                 parser
                     .create_stub_from_partial_download(context, org_bytes)
-                    .await
-                    .map_err_sql()?;
+                    .await?;
             }
             None => match mail {
                 Ok(mail) => {
-                    parser
-                        .parse_mime_recursive(context, &mail, false)
-                        .await
-                        .map_err_malformed()?;
+                    parser.parse_mime_recursive(context, &mail, false).await?;
                 }
                 Err(err) => {
                     let msg_body = stock_str::cant_decrypt_msg_body(context).await;
@@ -409,7 +379,7 @@ impl MimeMessage {
         parser.maybe_remove_bad_parts();
         parser.maybe_remove_inline_mailinglist_footer();
         parser.heuristically_parse_ndn(context).await;
-        parser.parse_headers(context).await.map_err_malformed()?;
+        parser.parse_headers(context).await?;
 
         // Disallowing keychanges is disabled for now
         // if !decryption_info.dkim_results.allow_keychange {
@@ -427,14 +397,11 @@ impl MimeMessage {
             parser.decoded_data = mail_raw;
         }
 
-        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser)
-            .await
-            .map_err_sql()?;
+        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
         if let Some(peerstate) = decryption_info.peerstate {
             peerstate
                 .handle_fingerprint_change(context, message_time)
-                .await
-                .map_err_sql()?;
+                .await?;
         }
 
         Ok(parser)
@@ -1619,11 +1586,11 @@ async fn update_gossip_peerstates(
         let peerstate;
         if let Some(mut p) = Peerstate::from_addr(context, &header.addr).await? {
             p.apply_gossip(&header, message_time);
-            p.save_to_db(&context.sql, false).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         } else {
             let p = Peerstate::from_gossip(&header, message_time);
-            p.save_to_db(&context.sql, true).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = p;
         };
         peerstate
@@ -2196,7 +2163,7 @@ mod tests {
 
         let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
 
-        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
+        assert!(mimeparser.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -87,7 +87,7 @@ impl Context {
                         self,
                         // We are using Anyhow's .context() and to show the
                         // inner error, too, we need the {:#}:
-                        format!("{:#}", err),
+                        &format!("{:#}", err),
                     )
                     .await
                 )
@@ -153,7 +153,7 @@ async fn on_configure_completed(
             if !addr_cmp(&new_addr, &old_addr) {
                 let mut msg = Message::new(Viewtype::Text);
                 msg.text =
-                    Some(stock_str::aeap_explanation_and_link(context, old_addr, new_addr).await);
+                    Some(stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await);
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .ok_or_log_msg(context, "Cannot add AEAP explanation");

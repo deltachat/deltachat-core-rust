@@ -60,7 +60,7 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
             // TODO: how does this group become usable?
             let group_chat_id = state.joining_chat_id(context).await?;
             if !is_contact_in_chat(context, group_chat_id, invite.contact_id()).await? {
-                chat::add_to_chat_contacts_table(context, group_chat_id, invite.contact_id())
+                chat::add_to_chat_contacts_table(context, group_chat_id, &[invite.contact_id()])
                     .await?;
             }
             let msg = stock_str::secure_join_started(context, invite.contact_id()).await;

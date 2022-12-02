@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use anyhow::{Context as _, Result};
 use mailparse::ParsedMail;
 
-use crate::aheader::Aheader;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::authres;
 use crate::authres::handle_authres;
 use crate::contact::addr_cmp;
@@ -13,7 +13,6 @@ use crate::context::Context;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
 use crate::log::LogExt;
-use crate::mimeparser::{self, ParserErrorExt};
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -61,10 +60,17 @@ pub(crate) async fn prepare_decryption(
     mail: &ParsedMail<'_>,
     from: &str,
     message_time: i64,
-) -> mimeparser::ParserResult<DecryptionInfo> {
-    let autocrypt_header = Aheader::from_headers(from, &mail.headers)
+    is_thunderbird: bool,
+) -> Result<DecryptionInfo> {
+    let mut autocrypt_header = Aheader::from_headers(from, &mail.headers)
         .ok_or_log_msg(context, "Failed to parse Autocrypt header")
         .flatten();
+
+    if is_thunderbird {
+        if let Some(autocrypt_header) = &mut autocrypt_header {
+            autocrypt_header.prefer_encrypt = EncryptPreference::Mutual;
+        }
+    }
 
     let dkim_results = handle_authres(context, mail, from, message_time).await?;
 
@@ -76,8 +82,7 @@ pub(crate) async fn prepare_decryption(
         // Disallowing keychanges is disabled for now:
         true, // dkim_results.allow_keychange,
     )
-    .await
-    .map_err_sql()?;
+    .await?;
 
     Ok(DecryptionInfo {
         from: from.to_string(),
@@ -301,7 +306,7 @@ pub(crate) async fn get_autocrypt_peerstate(
             if addr_cmp(&peerstate.addr, from) {
                 if allow_change {
                     peerstate.apply_header(header, message_time);
-                    peerstate.save_to_db(&context.sql, false).await?;
+                    peerstate.save_to_db(&context.sql).await?;
                 } else {
                     info!(
                         context,
@@ -317,7 +322,7 @@ pub(crate) async fn get_autocrypt_peerstate(
             // to the database.
         } else {
             let p = Peerstate::from_header(header, message_time);
-            p.save_to_db(&context.sql, true).await?;
+            p.save_to_db(&context.sql).await?;
             peerstate = Some(p);
         }
     } else {

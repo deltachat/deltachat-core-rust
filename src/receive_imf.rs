@@ -28,7 +28,7 @@ use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, ParserError, SystemMessage,
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -72,15 +72,13 @@ pub async fn receive_imf(
 
 /// Receive a message and add it to the database.
 ///
-/// Returns an error on recoverable errors, e.g. database errors. In this case,
-/// message parsing should be retried later.
+/// Returns an error on database failure or if the message is broken,
+/// e.g. has nonstandard MIME structure.
 ///
-/// If message itself is wrong, logs
-/// the error and returns success:
-/// - If possible, creates a database entry to prevent the message from being
-///   downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`
-/// - If the message is so wrong that we didn't even create a database entry,
-///   returns `Ok(None)`
+/// If possible, creates a database entry to prevent the message from being
+/// downloaded again, sets `chat_id=DC_CHAT_ID_TRASH` and returns `Ok(Some(…))`.
+/// If the message is so wrong that we didn't even create a database entry,
+/// returns `Ok(None)`.
 ///
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
@@ -101,9 +99,8 @@ pub(crate) async fn receive_imf_inner(
 
     let mut mime_parser =
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
-            Err(ParserError::Malformed(err)) => {
+            Err(err) => {
                 warn!(context, "receive_imf: can't parse MIME: {}", err);
-
                 let msg_ids;
                 if !rfc724_mid.starts_with(GENERATED_PREFIX) {
                     let row_id = context
@@ -127,7 +124,6 @@ pub(crate) async fn receive_imf_inner(
                     needs_delete_job: false,
                 }));
             }
-            Err(ParserError::Sql(err)) => return Err(err),
             Ok(mime_parser) => mime_parser,
         };
 
@@ -1514,7 +1510,10 @@ async fn create_or_lookup_group(
 
         let grpname = mime_parser
             .get_header(HeaderDef::ChatGroupName)
-            .context("Chat-Group-Name vanished")?;
+            .context("Chat-Group-Name vanished")?
+            // W/a for "Space added before long group names after MIME serialization/deserialization
+            // #3650" issue. DC itself never creates group names with leading/trailing whitespace.
+            .trim();
         let new_chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Group,
@@ -1531,19 +1530,13 @@ async fn create_or_lookup_group(
         chat_id_blocked = create_blocked;
 
         // Create initial member list.
-        chat::add_to_chat_contacts_table(context, new_chat_id, ContactId::SELF).await?;
-        if !from_id.is_special() && !chat::is_contact_in_chat(context, new_chat_id, from_id).await?
-        {
-            chat::add_to_chat_contacts_table(context, new_chat_id, from_id).await?;
+        let mut members = vec![ContactId::SELF];
+        if !from_id.is_special() {
+            members.push(from_id);
         }
-        for &to_id in to_ids.iter() {
-            info!(context, "adding to={:?} to chat id={}", to_id, new_chat_id);
-            if to_id != ContactId::SELF
-                && !chat::is_contact_in_chat(context, new_chat_id, to_id).await?
-            {
-                chat::add_to_chat_contacts_table(context, new_chat_id, to_id).await?;
-            }
-        }
+        members.extend(to_ids);
+        members.dedup();
+        chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         // once, we have protected-chats explained in UI, we can uncomment the following lines.
         // ("verified groups" did not add a message anyway)
@@ -1622,9 +1615,15 @@ async fn apply_group_changes(
         {
             better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
             recreate_member_list = true;
-        } else if let Some(old_name) = mime_parser.get_header(HeaderDef::ChatGroupNameChanged) {
+        } else if let Some(old_name) = mime_parser
+            .get_header(HeaderDef::ChatGroupNameChanged)
+            // See create_or_lookup_group() for explanation
+            .map(|s| s.trim())
+        {
             if let Some(grpname) = mime_parser
                 .get_header(HeaderDef::ChatGroupName)
+                // See create_or_lookup_group() for explanation
+                .map(|grpname| grpname.trim())
                 .filter(|grpname| grpname.len() < 200)
             {
                 if chat_id
@@ -1693,6 +1692,7 @@ async fn apply_group_changes(
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
         {
+            let mut members_to_add = vec![];
             if removed_id.is_some()
                 || !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
             {
@@ -1707,26 +1707,23 @@ async fn apply_group_changes(
                     )
                     .await?;
 
-                if removed_id != Some(ContactId::SELF) {
-                    chat::add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
-                }
+                members_to_add.push(ContactId::SELF);
             }
-            if !from_id.is_special()
-                && from_id != ContactId::SELF
-                && !chat::is_contact_in_chat(context, chat_id, from_id).await?
-                && removed_id != Some(from_id)
-            {
-                chat::add_to_chat_contacts_table(context, chat_id, from_id).await?;
+
+            if !from_id.is_special() {
+                members_to_add.push(from_id);
             }
-            for &to_id in to_ids.iter() {
-                if to_id != ContactId::SELF
-                    && !chat::is_contact_in_chat(context, chat_id, to_id).await?
-                    && removed_id != Some(to_id)
-                {
-                    info!(context, "adding to={:?} to chat id={}", to_id, chat_id);
-                    chat::add_to_chat_contacts_table(context, chat_id, to_id).await?;
-                }
+            members_to_add.extend(to_ids);
+            if let Some(removed_id) = removed_id {
+                members_to_add.retain(|id| *id != removed_id);
             }
+            members_to_add.dedup();
+
+            info!(
+                context,
+                "adding {:?} to chat id={}", members_to_add, chat_id
+            );
+            chat::add_to_chat_contacts_table(context, chat_id, &members_to_add).await?;
             send_event_chat_modified = true;
         }
     }
@@ -1878,7 +1875,7 @@ async fn create_or_lookup_mailinglist(
             )
         })?;
 
-        chat::add_to_chat_contacts_table(context, chat_id, ContactId::SELF).await?;
+        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
         Ok(Some((chat_id, Blocked::Request)))
     } else {
         info!(context, "creating list forbidden by caller");
@@ -2008,9 +2005,7 @@ async fn create_adhoc_group(
         None,
     )
     .await?;
-    for &member_id in member_ids.iter() {
-        chat::add_to_chat_contacts_table(context, new_chat_id, member_id).await?;
-    }
+    chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
 
@@ -2124,7 +2119,7 @@ async fn check_verified_properties(
                             &fp,
                             PeerstateVerifiedStatus::BidirectVerified,
                         );
-                        peerstate.save_to_db(&context.sql, false).await?;
+                        peerstate.save_to_db(&context.sql).await?;
                         is_verified = true;
                     }
                 }
@@ -2272,6 +2267,7 @@ mod tests {
 
     use super::*;
 
+    use crate::aheader::EncryptPreference;
     use crate::chat::get_chat_contacts;
     use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
     use crate::chatlist::Chatlist;
@@ -2309,7 +2305,7 @@ mod tests {
                     \n\
                     hello\x00";
         let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
-        assert!(matches!(mimeparser, Err(ParserError::Malformed(_))));
+        assert!(mimeparser.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -5154,13 +5150,10 @@ Reply from different address
         chat::add_to_chat_contacts_table(
             &bob,
             group_id,
-            bob.add_or_lookup_contact(&alice1).await.id,
-        )
-        .await?;
-        chat::add_to_chat_contacts_table(
-            &bob,
-            group_id,
-            Contact::create(&bob, "", "charlie@example.org").await?,
+            &[
+                bob.add_or_lookup_contact(&alice1).await.id,
+                Contact::create(&bob, "", "charlie@example.org").await?,
+            ],
         )
         .await?;
 
@@ -5241,7 +5234,7 @@ Reply from different address
         chat::add_to_chat_contacts_table(
             &bob,
             group_id,
-            bob.add_or_lookup_contact(&alice).await.id,
+            &[bob.add_or_lookup_contact(&alice).await.id],
         )
         .await?;
 
@@ -5291,6 +5284,22 @@ Reply from different address
         assert_eq!(chat.typ, Chattype::Single);
         let received = bob.get_last_msg().await;
         assert_eq!(received.text, Some("Private reply".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_thunderbird_autocrypt() -> Result<()> {
+        let t = TestContext::new_bob().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let raw = include_bytes!("../test-data/message/thunderbird_with_autocrypt.eml");
+        receive_imf(&t, raw, false).await?;
+
+        let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+            .await?
+            .unwrap();
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
 
         Ok(())
     }

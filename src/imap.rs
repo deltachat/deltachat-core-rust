@@ -1364,7 +1364,9 @@ impl Imap {
 
     /// Fetches a list of messages by server UID.
     ///
-    /// Returns the last uid fetch successfully and the info about each downloaded message.
+    /// Returns the last UID fetched successfully and the info about each downloaded message.
+    /// If the message is incorrect or there is a failure to write a message to the database,
+    /// it is skipped and the error is logged.
     pub(crate) async fn fetch_many_msgs(
         &mut self,
         context: &Context,
@@ -1474,12 +1476,12 @@ impl Imap {
                         if let Some(m) = received_msg {
                             received_msgs.push(m);
                         }
-                        last_uid = Some(server_uid)
                     }
                     Err(err) => {
                         warn!(context, "receive_imf error: {:#}", err);
                     }
                 };
+                last_uid = Some(server_uid)
             }
         }
 

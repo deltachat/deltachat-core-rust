@@ -9,6 +9,7 @@ from typing import Optional, Union
 from . import const, props
 from .capi import ffi, lib
 from .cutil import as_dc_charpointer, from_dc_charpointer, from_optional_dc_charpointer
+from .reactions import Reactions
 
 
 class Message(object):
@@ -160,6 +161,17 @@ class Message(object):
                 self.account._dc_context, self.id, as_dc_charpointer(json_data), as_dc_charpointer(description)
             )
         )
+
+    def send_reaction(self, reaction: str):
+        """Send a reaction to message and return the resulting Message instance."""
+        msg_id = lib.dc_send_reaction(self.account._dc_context, self.id, as_dc_charpointer(reaction))
+        if msg_id == 0:
+            raise ValueError("reaction could not be send")
+        return Message.from_db(self.account, msg_id)
+
+    def get_reactions(self) -> Reactions:
+        """Get :class:`deltachat.reactions.Reactions` to the message."""
+        return Reactions.from_msg(self)
 
     def is_system_message(self):
         """return True if this message is a system/info message."""
@@ -448,6 +460,17 @@ class Message(object):
     def mark_seen(self):
         """mark this message as seen."""
         self.account.mark_seen_messages([self.id])
+
+    #
+    # Message download state
+    #
+    @property
+    def download_state(self):
+        assert self.id > 0
+
+        # load message from db to get a fresh/current state
+        dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
+        return lib.dc_msg_get_download_state(dc_msg)
 
 
 # some code for handling DC_MSG_* view types
