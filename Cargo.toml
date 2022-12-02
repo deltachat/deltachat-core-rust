@@ -78,7 +78,7 @@ humansize = "2"
 qrcodegen = "1.7.0"
 tagger = "4.3.3"
 textwrap = "0.16.0"
-async-channel = "1.6.1"
+async-channel = "1.8.0"
 futures-lite = "1.12.0"
 tokio-stream = { version = "0.1.11", features = ["fs"] }
 reqwest = { version = "0.11.13", features = ["json"] }
