@@ -76,7 +76,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 fast-socks5 = "0.8"
 humansize = "2"
 qrcodegen = "1.7.0"
-tagger = "4.3.3"
+tagger = "4.3.4"
 textwrap = "0.16.0"
 async-channel = "1.8.0"
 futures-lite = "1.12.0"
