@@ -4,6 +4,7 @@
 
 ### Changes
 - Refactor: Remove the remaining AsRef<str> #3669
+- Add more logging to `fetch_many_msgs` and refactor it #3811
 - Small speedup #3780
 - Log the reason when the message cannot be sent to the chat #3810
 
