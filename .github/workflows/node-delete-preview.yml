@@ -15,7 +15,7 @@ jobs:
       id: getid
       run: |
         export PULLREQUEST_ID=$(jq .number < $GITHUB_EVENT_PATH)
-        echo ::set-output name=prid::$PULLREQUEST_ID
+        echo "prid=$PULLREQUEST_ID" >> $GITHUB_OUTPUT
     - name: Renaming
       run: |
         # create empty file to copy it over the outdated deliverable on download.delta.chat
