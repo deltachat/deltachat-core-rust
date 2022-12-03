@@ -11,7 +11,7 @@ jobs:
     name: Build REPL example
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v3
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -26,7 +26,7 @@ jobs:
         args: --example repl --features repl,vendored
 
     - name: Upload binary
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: repl.exe
         path: 'target/debug/examples/repl.exe'
