@@ -30,7 +30,7 @@ use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
