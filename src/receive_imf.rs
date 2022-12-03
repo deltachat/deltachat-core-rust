@@ -12,10 +12,7 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::chat::{
-    self, add_contact_to_chat, remove_contact_from_chat, Chat, ChatId, ChatIdBlocked,
-    ProtectionStatus,
-};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
@@ -33,7 +30,7 @@ use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
 use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
+    parse_message_id, parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
 };
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
@@ -1616,10 +1613,20 @@ async fn apply_group_changes(
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
         match removed_id {
             Some(contact_id) => {
-                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() {
+                let mut previous_exists = false;
+                if let Some(msgid) = mime_parser.get_header(HeaderDef::InReplyTo) {
+                    if rfc724_mid_exists(context, msgid).await?.is_some() {
+                        previous_exists = true;
+                    }
+                }
+                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() || !previous_exists {
                     recreate_member_list = true;
                 } else {
-                    remove_contact_from_chat(context, chat_id, contact_id).await?
+                    chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+                    chat_id
+                        .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                        .await?;
+                    send_event_chat_modified = true;
                 }
                 better_msg = if contact_id == from_id {
                     Some(stock_str::msg_group_left(context, from_id).await)
@@ -1627,7 +1634,10 @@ async fn apply_group_changes(
                     Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
                 };
             }
-            None => warn!(context, "removed {:?} has no contact_id", removed_addr),
+            None => {
+                recreate_member_list = true;
+                warn!(context, "removed {:?} has no contact_id", removed_addr)
+            }
         };
     } else {
         removed_id = None;
@@ -1643,7 +1653,11 @@ async fn apply_group_changes(
                 if mime_parser.get_header(HeaderDef::InReplyTo).is_none() {
                     recreate_member_list = true;
                 } else {
-                    add_contact_to_chat(context, chat_id, contact_id).await?
+                    chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
+                    chat_id
+                        .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                        .await?;
+                    send_event_chat_modified = true;
                 }
             } else {
                 recreate_member_list = true;
