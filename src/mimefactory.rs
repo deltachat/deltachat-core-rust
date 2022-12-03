@@ -531,7 +531,10 @@ impl<'a> MimeFactory<'a> {
             .push(Header::new("Subject".into(), encoded_subject));
 
         let date = chrono::Utc
-            .from_local_datetime(&chrono::NaiveDateTime::from_timestamp(self.timestamp, 0))
+            .from_local_datetime(
+                &chrono::NaiveDateTime::from_timestamp_opt(self.timestamp, 0)
+                    .context("can't convert timestamp to NativeDateTime")?,
+            )
             .unwrap()
             .to_rfc2822();
         headers.unprotected.push(Header::new("Date".into(), date));
@@ -1336,17 +1339,27 @@ async fn build_body_file(
     // are normally not needed and contain timestamps, running numbers
     // etc.
     let filename_to_send: String = match msg.viewtype {
-        Viewtype::Voice => chrono::Utc
-            .timestamp(msg.timestamp_sort, 0)
-            .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", &suffix))
-            .to_string(),
+        Viewtype::Voice => format!(
+            "voice-messsage_{}.{}",
+            chrono::Utc
+                .timestamp_opt(msg.timestamp_sort, 0)
+                .single()
+                .map_or_else(
+                    || "YY-mm-dd_hh:mm:ss".to_string(),
+                    |ts| ts.format("%Y-%m-%d_%H-%M-%S").to_string()
+                ),
+            &suffix
+        ),
         Viewtype::Image | Viewtype::Gif => format!(
-            "{}.{}",
+            "image_{}.{}",
             if base_name.is_empty() {
                 chrono::Utc
-                    .timestamp(msg.timestamp_sort, 0)
-                    .format("image_%Y-%m-%d_%H-%M-%S")
-                    .to_string()
+                    .timestamp_opt(msg.timestamp_sort, 0)
+                    .single()
+                    .map_or_else(
+                        || "YY-mm-dd_hh:mm:ss".to_string(),
+                        |ts| ts.format("%Y-%m-%d_%H-%M-%S").to_string(),
+                    )
             } else {
                 base_name.to_string()
             },
@@ -1355,8 +1368,12 @@ async fn build_body_file(
         Viewtype::Video => format!(
             "video_{}.{}",
             chrono::Utc
-                .timestamp(msg.timestamp_sort, 0)
-                .format("%Y-%m-%d_%H-%M-%S"),
+                .timestamp_opt(msg.timestamp_sort, 0)
+                .single()
+                .map_or_else(
+                    || "YY-mm-dd_hh:mm:ss".to_string(),
+                    |ts| ts.format("%Y-%m-%d_%H-%M-%S").to_string()
+                ),
             &suffix
         ),
         _ => blob.as_file_name().to_string(),
