@@ -17,17 +17,24 @@ Additional arguments to `tox` are passed to pytest, e.g. `tox -- -s` does not ca
 
 ## Using in REPL
 
+Setup a development environment:
+```
+$ tox --devenv env
+$ . env/bin/activate
+```
+
 It is recommended to use IPython, because it supports using `await` directly
 from the REPL.
 
 ```
-PATH="../target/debug:$PATH" ipython
+$ pip install ipython
+$ PATH="../target/debug:$PATH" ipython
 ...
 In  [1]: from deltachat_rpc_client import *
-In  [2]: dc = Deltachat(await start_rpc_server())
-In  [3]: await dc.get_all_accounts()
-Out [3]: []
-In  [4]: alice = await dc.add_account()
-In  [5]: (await alice.get_info())["journal_mode"]
-Out [5]: 'wal'
+In  [2]: rpc_generator = start_rpc_server()
+In  [3]: rpc = await rpc_generator.__aenter__()
+In  [4]: dc = Deltachat(rpc)
+In  [5]: system_info = await dc.get_system_info()
+In  [6]: system_info["level"]
+Out [6]: 'awesome'
 ```
