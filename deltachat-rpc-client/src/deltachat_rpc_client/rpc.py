@@ -37,6 +37,11 @@ class Rpc:
             else:
                 print(response)
 
+    async def close(self) -> None:
+        """Terminate RPC server process and wait until the reader loop finishes."""
+        self.process.terminate()
+        await self.reader_task
+
     async def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
         if account_id in self.event_queues:
@@ -84,4 +89,4 @@ async def start_rpc_server(*args, **kwargs) -> AsyncGenerator:
     try:
         yield rpc
     finally:
-        proc.terminate()
+        await rpc.close()

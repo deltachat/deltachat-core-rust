@@ -44,7 +44,6 @@ async def rpc(tmp_path) -> AsyncGenerator:
     env = {**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
     async with start_rpc_server(env=env) as rpc:
         yield rpc
-    await asyncio.sleep(0.1)  # avoid RuntimeError: Event loop is closed
 
 
 @pytest_asyncio.fixture
