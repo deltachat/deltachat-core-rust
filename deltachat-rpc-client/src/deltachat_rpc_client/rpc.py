@@ -10,16 +10,16 @@ class JsonRpcError(Exception):
 class Rpc:
     def __init__(self, *args, **kwargs):
         """The given arguments will be passed to asyncio.create_subprocess_exec()"""
-        self.args = args
-        self.kwargs = kwargs
+        self._args = args
+        self._kwargs = kwargs
 
     async def start(self) -> None:
         self.process = await asyncio.create_subprocess_exec(
             "deltachat-rpc-server",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            *self.args,
-            **self.kwargs
+            *self._args,
+            **self._kwargs
         )
         self.event_queues: Dict[int, asyncio.Queue] = {}
         self.id = 0
