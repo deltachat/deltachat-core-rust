@@ -32,7 +32,10 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
-use crate::tools::{duration_to_str, get_abs_path, improve_single_line_input, time, EmailAddress};
+use crate::tools::{
+    duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
+    EmailAddress,
+};
 use crate::{chat, stock_str};
 
 /// Time during which a contact is considered as seen recently.
@@ -1486,12 +1489,12 @@ pub fn normalize_name(full_name: &str) -> String {
         return full_name.into();
     }
 
-    match full_name.as_bytes() {
+    strip_rtlo_characters(match full_name.as_bytes() {
         [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
             .get(1..full_name.len() - 1)
-            .map_or("".to_string(), |s| s.trim().into()),
-        _ => full_name.to_string(),
-    }
+            .map_or("", |s| s.trim()),
+        _ => full_name,
+    })
 }
 
 fn cat_fingerprint(
