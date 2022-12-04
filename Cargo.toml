@@ -4,7 +4,7 @@ version = "1.102.0"
 authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
 license = "MPL-2.0"
-rust-version = "1.57"
+rust-version = "1.61"
 
 [profile.dev]
 debug = 0
