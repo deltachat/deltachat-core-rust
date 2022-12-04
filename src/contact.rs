@@ -539,7 +539,7 @@ impl Contact {
             return Ok((ContactId::SELF, sth_modified));
         }
 
-        let mut name = name;
+        let mut name = strip_rtlo_characters(name);
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
@@ -554,7 +554,7 @@ impl Contact {
                 // For these kind of email addresses, sender and address often don't belong together
                 // (like hocuri <notifications@github.com>). In this example, hocuri shouldn't
                 // be saved as the displayname for notifications@github.com.
-                name = "";
+                name = "".to_string();
             }
         }
 
@@ -1293,19 +1293,17 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
     if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
-            if name.is_empty() {
-                captures
-                    .get(1)
-                    .map_or("".to_string(), |m| normalize_name(m.as_str()))
+            strip_rtlo_characters(if name.is_empty() {
+                captures.get(1).map_or("", |m| &normalize_name(m.as_str()))
             } else {
-                name.to_string()
-            },
+                name
+            }),
             captures
                 .get(2)
                 .map_or("".to_string(), |m| m.as_str().to_string()),
         )
     } else {
-        (name.to_string(), addr.to_string())
+        (strip_rtlo_characters(name), addr.to_string())
     }
 }
 
@@ -1480,7 +1478,6 @@ pub(crate) async fn update_last_seen(
 /// Normalize a name.
 ///
 /// - Remove quotes (come from some bad MUA implementations)
-/// - Trims the resulting string
 ///
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
 pub fn normalize_name(full_name: &str) -> String {
@@ -1489,12 +1486,12 @@ pub fn normalize_name(full_name: &str) -> String {
         return full_name.into();
     }
 
-    strip_rtlo_characters(match full_name.as_bytes() {
+    match full_name.as_bytes() {
         [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
             .get(1..full_name.len() - 1)
-            .map_or("", |s| s.trim()),
-        _ => full_name,
-    })
+            .map_or("".to_string(), |s| s.trim().to_string()),
+        _ => full_name.to_string(),
+    }
 }
 
 fn cat_fingerprint(
