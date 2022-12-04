@@ -1096,7 +1096,7 @@ async fn add_parts(
             param.set_int(Param::Cmd, is_system_message as i32);
         }
 
-        if let Some(path) = part.param.get(Param::File) {
+        if let Some(path) = part.param.get(Param::File).to_owned() {
             part.param.set(Param::File, strip_rtlo_characters(path));
         }
 
