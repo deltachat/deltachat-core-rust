@@ -39,7 +39,6 @@ use crate::tools::{
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input, time,
     IsNoneOrEmpty,
 };
-use crate::utils::create_safe_string;
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
 
@@ -270,6 +269,7 @@ impl ChatId {
         create_protected: ProtectionStatus,
         param: Option<String>,
     ) -> Result<Self> {
+        let grpname = strip_rtlo_characters(grpname);
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -2212,7 +2212,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     // protect all system messages againts LTRO attacks
     if msg.is_system_message() {
         if let Some(text) = &msg.text {
-            msg.text = Some(create_safe_string(text.as_ref()));
+            msg.text = Some(strip_rtlo_characters(text.as_ref()));
         }
     }
 
@@ -2220,7 +2220,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     if msg.viewtype == Viewtype::File {
         msg.param.set(
             Param::File,
-            create_safe_string(msg.param.get(Param::File).unwrap_or_default()),
+            strip_rtlo_characters(msg.param.get(Param::File).unwrap_or_default()),
         );
     }
 
@@ -2863,7 +2863,7 @@ pub async fn create_group_chat(
     protect: ProtectionStatus,
     chat_name: &str,
 ) -> Result<ChatId> {
-    let chat_name = create_safe_string(improve_single_line_input(chat_name).as_str());
+    let chat_name = strip_rtlo_characters(improve_single_line_input(chat_name).as_str());
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let grpid = create_id();

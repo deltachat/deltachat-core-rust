@@ -550,9 +550,11 @@ impl rusqlite::types::ToSql for EmailAddress {
     }
 }
 
-/// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
+/// Sanitizes user input
+/// - strip newlines
+/// - strip malicious bidi characters
 pub(crate) fn improve_single_line_input(input: &str) -> String {
-    input.replace(['\n', '\r'], " ").trim().to_string()
+    strip_rtlo_characters(input.replace(['\n', '\r'], " ").trim())
 }
 
 pub(crate) trait IsNoneOrEmpty<T> {
@@ -689,6 +691,14 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
     decompressor.write_all(buf)?;
     decompressor.flush()?;
     Ok(mem::take(decompressor.get_mut()))
+}
+
+
+const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
+/// This method strips all occurances of the RTLO Unicode character.
+/// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
+pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
+    input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
 }
 
 #[cfg(test)]

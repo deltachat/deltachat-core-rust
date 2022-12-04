@@ -37,7 +37,9 @@ use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::sql;
 use crate::stock_str;
-use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, smeared_time};
+use crate::tools::{
+    buf_compress, extract_grpid_from_rfc724_mid, smeared_time, strip_rtlo_characters,
+};
 use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -1681,7 +1683,7 @@ async fn apply_group_changes(
                         .sql
                         .execute(
                             "UPDATE chats SET name=? WHERE id=?;",
-                            paramsv![grpname.to_string(), chat_id],
+                            paramsv![strip_rtlo_characters(grpname), chat_id],
                         )
                         .await?;
                     send_event_chat_modified = true;
