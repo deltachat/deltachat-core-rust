@@ -12,8 +12,8 @@ include
 *.db
 *.db-blobs
 
+.tox
 python/.eggs
-python/.tox
 *.egg-info
 __pycache__
 python/src/deltachat/capi*.so
