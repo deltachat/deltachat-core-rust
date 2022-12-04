@@ -1079,7 +1079,7 @@ async fn add_parts(
 
     let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
-    for part in &mime_parser.parts {
+    for part in &mut mime_parser.parts {
         if part.is_reaction {
             set_msg_reaction(
                 context,
@@ -1095,6 +1095,11 @@ async fn add_parts(
         if is_system_message != SystemMessage::Unknown {
             param.set_int(Param::Cmd, is_system_message as i32);
         }
+
+        if let Some(path) = part.param.get(Param::File) {
+            part.param.set(Param::File, strip_rtlo_characters(path));
+        }
+
         if let Some(replace_msg_id) = replace_msg_id {
             let placeholder = Message::load_from_db(context, replace_msg_id).await?;
             for key in [
