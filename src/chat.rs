@@ -3962,6 +3962,45 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_member_list_on_rejoin() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
+        let claire_id = Contact::create(&alice, "", "claire@example.de").await?;
+
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foos").await?;
+        add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
+        add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
+
+        send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+        let add = alice.pop_sent_msg().await;
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&add).await;
+        let bob_chat_id = bob.get_last_msg().await.chat_id;
+        assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 3);
+
+        // remove bob from chat
+        remove_contact_from_chat(&alice, alice_chat_id, bob_id).await?;
+        let remove_bob = alice.pop_sent_msg().await;
+        bob.recv_msg(&remove_bob).await;
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+        // remove any other member
+        remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
+        alice.pop_sent_msg().await;
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+        // readd bob
+        add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
+        let add2 = alice.pop_sent_msg().await;
+        bob.recv_msg(&add2).await;
+
+        // number of memebers in chat should have updated
+        assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_leave_group() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;

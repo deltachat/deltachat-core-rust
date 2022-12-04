@@ -1613,21 +1613,20 @@ async fn apply_group_changes(
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
         match removed_id {
             Some(contact_id) => {
-                let mut previous_exists = false;
-                if let Some(msgid) = mime_parser.get_header(HeaderDef::InReplyTo) {
-                    if rfc724_mid_exists(context, msgid).await?.is_some() {
-                        previous_exists = true;
-                    }
-                }
-                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() || !previous_exists {
-                    recreate_member_list = true;
-                } else {
+                recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
+                    Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
+                    Some(_) => false,
+                    None => true,
+                };
+
+                if !recreate_member_list {
                     chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
                     chat_id
                         .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
                         .await?;
                     send_event_chat_modified = true;
                 }
+
                 better_msg = if contact_id == from_id {
                     Some(stock_str::msg_group_left(context, from_id).await)
                 } else {
@@ -1650,9 +1649,13 @@ async fn apply_group_changes(
             if let Some(contact_id) =
                 Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?
             {
-                if mime_parser.get_header(HeaderDef::InReplyTo).is_none() {
-                    recreate_member_list = true;
-                } else {
+                recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
+                    Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
+                    Some(_) => false,
+                    None => true,
+                };
+                warn!(context, "recreating: {}", recreate_member_list);
+                if !recreate_member_list {
                     chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
                     chat_id
                         .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
