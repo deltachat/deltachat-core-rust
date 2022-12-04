@@ -360,7 +360,9 @@ impl Context {
         }
 
         let chat = Chat::load_from_db(self, instance.chat_id).await?;
-        ensure!(chat.can_send(self).await?, "cannot send to {}", chat.id);
+        if let Some(reason) = chat.why_cant_send(self).await? {
+            bail!("cannot send to {}: {}", chat.id, reason);
+        }
 
         let send_now = !matches!(
             instance.state,

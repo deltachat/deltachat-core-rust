@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -78,6 +79,44 @@ pub enum ProtectionStatus {
 impl Default for ProtectionStatus {
     fn default() -> Self {
         ProtectionStatus::Unprotected
+    }
+}
+
+/// The reason why messages cannot be sent to the chat.
+///
+/// The reason is mainly for logging and displaying in debug REPL, thus not translated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CantSendReason {
+    /// Special chat.
+    SpecialChat,
+
+    /// The chat is a device chat.
+    DeviceChat,
+
+    /// The chat is a contact request, it needs to be accepted before sending a message.
+    ContactRequest,
+
+    /// Mailing list without known List-Post header.
+    ReadOnlyMailingList,
+
+    /// Not a member of the chat.
+    NotAMember,
+}
+
+impl fmt::Display for CantSendReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SpecialChat => write!(f, "the chat is a special chat"),
+            Self::DeviceChat => write!(f, "the chat is a device chat"),
+            Self::ContactRequest => write!(
+                f,
+                "contact request chat should be accepted before sending messages"
+            ),
+            Self::ReadOnlyMailingList => {
+                write!(f, "mailing list does not have a know post address")
+            }
+            Self::NotAMember => write!(f, "not a member of the chat"),
+        }
     }
 }
 
@@ -645,8 +684,11 @@ impl ChatId {
         }
 
         let chat = Chat::load_from_db(context, self).await?;
-        if !chat.can_send(context).await? {
-            bail!("Can't set a draft: Can't send");
+        if let Some(cant_send_reason) = chat.why_cant_send(context).await? {
+            bail!(
+                "Can't set a draft because chat is not writeable: {}",
+                cant_send_reason
+            );
         }
 
         // set back draft information to allow identifying the draft later on -
@@ -1082,14 +1124,33 @@ impl Chat {
         self.typ == Chattype::Mailinglist
     }
 
-    /// Returns true if user can send messages to this chat.
+    /// Returns None if user can send messages to this chat.
+    ///
+    /// Otherwise returns a reason useful for logging.
+    pub(crate) async fn why_cant_send(&self, context: &Context) -> Result<Option<CantSendReason>> {
+        use CantSendReason::*;
+
+        let reason = if self.id.is_special() {
+            Some(SpecialChat)
+        } else if self.is_device_talk() {
+            Some(DeviceChat)
+        } else if self.is_contact_request() {
+            Some(ContactRequest)
+        } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
+            Some(ReadOnlyMailingList)
+        } else if !self.is_self_in_chat(context).await? {
+            Some(NotAMember)
+        } else {
+            None
+        };
+        Ok(reason)
+    }
+
+    /// Returns true if can send to the chat.
+    ///
+    /// This function can be used by the UI to decide whether to display the input box.
     pub async fn can_send(&self, context: &Context) -> Result<bool> {
-        let cannot_send = self.id.is_special()
-            || self.is_device_talk()
-            || self.is_contact_request()
-            || (self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty())
-            || !self.is_self_in_chat(context).await?;
-        Ok(!cannot_send)
+        Ok(self.why_cant_send(context).await?.is_none())
     }
 
     /// Checks if the user is part of a chat
@@ -1255,18 +1316,13 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if !self.can_send(context).await? {
-            if self.typ == Chattype::Group
-                && !is_contact_in_chat(context, self.id, ContactId::SELF).await?
-            {
+        if let Some(reason) = self.why_cant_send(context).await? {
+            if self.typ == Chattype::Group && reason == CantSendReason::NotAMember {
                 context.emit_event(EventType::ErrorSelfNotInGroup(
                     "Cannot send message; self not in group.".into(),
                 ));
-                bail!("Cannot set message; self not in group.");
-            } else {
-                error!(context, "Cannot send to chat type #{}.", self.typ,);
-                bail!("Cannot send to chat type #{}", self.typ);
             }
+            bail!("Cannot send message to {}: {}", self.id, reason);
         }
 
         let from = context.get_primary_self_addr().await?;
@@ -1881,7 +1937,9 @@ async fn prepare_msg_common(
     change_state_to: MessageState,
 ) -> Result<MsgId> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
-    ensure!(chat.can_send(context).await?, "cannot send to {}", chat_id);
+    if let Some(reason) = chat.why_cant_send(context).await? {
+        bail!("cannot send to {}: {}", chat_id, reason);
+    }
 
     // check current MessageState for drafts (to keep msg_id) ...
     let update_msg_id = if msg.state == MessageState::OutDraft {
@@ -3059,7 +3117,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
 
     chat_id.unarchive_if_not_muted(context).await?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-        ensure!(chat.can_send(context).await?, "cannot send to {}", chat_id);
+        if let Some(reason) = chat.why_cant_send(context).await? {
+            bail!("cannot send to {}: {}", chat_id, reason);
+        }
         curr_timestamp = create_smeared_timestamps(context, msg_ids.len()).await;
         let ids = context
             .sql
@@ -4033,6 +4093,7 @@ mod tests {
         assert!(chat.is_device_talk());
         assert!(!chat.is_self_talk());
         assert!(!chat.can_send(&t).await?);
+        assert!(chat.why_cant_send(&t).await? == Some(CantSendReason::DeviceChat));
 
         assert_eq!(chat.name, stock_str::device_messages(&t).await);
         assert!(chat.get_profile_image(&t).await?.is_some());

@@ -5,6 +5,7 @@
 ### Changes
 - Refactor: Remove the remaining AsRef<str> #3669
 - Small speedup #3780
+- Log the reason when the message cannot be sent to the chat #3810
 
 ### API-Changes
 - Add Python API to send reactions #3762
