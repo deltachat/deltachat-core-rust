@@ -205,7 +205,7 @@
 - Immediately save `accounts.toml` if it was modified by a migration from absolute paths to relative paths #3943
 - Do not treat invalid email addresses as an exception #3942
 - Add timeouts to HTTP requests #3948
-
+- Protect against RTLO attacks #3479
 
 ## 1.105.0
 
@@ -291,7 +291,6 @@
 - Add connection timeout to IMAP sockets #3828
 - Disable read timeout during IMAP IDLE #3826
 - Bots automatically accept mailing lists #3831
-
 
 ## 1.102.0
 
