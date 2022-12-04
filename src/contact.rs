@@ -1293,11 +1293,15 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     static ADDR_WITH_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new("(.*)<(.*)>").unwrap());
     if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
-            strip_rtlo_characters(if name.is_empty() {
-                captures.get(1).map_or("", |m| &normalize_name(m.as_str()))
+            if name.is_empty() {
+                strip_rtlo_characters(
+                    &captures
+                        .get(1)
+                        .map_or("".to_string(), |m| normalize_name(m.as_str())),
+                )
             } else {
-                name
-            }),
+                strip_rtlo_characters(name)
+            },
             captures
                 .get(2)
                 .map_or("".to_string(), |m| m.as_str().to_string()),
