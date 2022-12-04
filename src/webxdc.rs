@@ -20,6 +20,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
+use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 use crate::{chat, EventType};
 
@@ -293,13 +294,13 @@ impl Context {
         can_info_msg: bool,
         from_id: ContactId,
     ) -> Result<StatusUpdateSerial> {
-        let update_str = update_str.trim();
+        let update_str = strip_rtlo_characters(update_str.trim());
         if update_str.is_empty() {
             bail!("create_status_update_record: empty update.");
         }
 
         let status_update_item: StatusUpdateItem =
-            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(&update_str) {
                 item
             } else {
                 bail!("create_status_update_record: no valid update item.");
@@ -351,7 +352,9 @@ impl Context {
                 .param
                 .update_timestamp(Param::WebxdcSummaryTimestamp, timestamp)?
             {
-                instance.param.set(Param::WebxdcSummary, summary);
+                instance
+                    .param
+                    .set(Param::WebxdcSummary, strip_rtlo_characters(summary));
                 param_changed = true;
             }
         }
