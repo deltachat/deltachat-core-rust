@@ -4,7 +4,7 @@ from .account import Account
 from .rpc import Rpc
 
 
-class Deltachat:
+class DeltaChat:
     """
     Delta Chat account manager.
     This is the root of the object oriented API.

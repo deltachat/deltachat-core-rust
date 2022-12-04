@@ -7,7 +7,7 @@ import aiohttp
 import pytest_asyncio
 
 from .account import Account
-from .deltachat import Deltachat
+from .deltachat import DeltaChat
 from .rpc import Rpc
 
 
@@ -20,7 +20,7 @@ async def get_temp_credentials() -> dict:
 
 
 class ACFactory:
-    def __init__(self, deltachat: Deltachat) -> None:
+    def __init__(self, deltachat: DeltaChat) -> None:
         self.deltachat = deltachat
 
     async def new_configured_account(self) -> Account:
@@ -49,4 +49,4 @@ async def rpc(tmp_path) -> AsyncGenerator:
 
 @pytest_asyncio.fixture
 async def acfactory(rpc) -> AsyncGenerator:
-    yield ACFactory(Deltachat(rpc))
+    yield ACFactory(DeltaChat(rpc))

@@ -1,5 +1,5 @@
 from .account import Account
 from .contact import Contact
-from .deltachat import Deltachat
+from .deltachat import DeltaChat
 from .message import Message
 from .rpc import Rpc
