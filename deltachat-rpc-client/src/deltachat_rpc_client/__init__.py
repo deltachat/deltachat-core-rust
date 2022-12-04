@@ -2,4 +2,4 @@ from .account import Account
 from .contact import Contact
 from .deltachat import Deltachat
 from .message import Message
-from .rpc import Rpc, start_rpc_server
+from .rpc import Rpc

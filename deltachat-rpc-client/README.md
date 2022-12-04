@@ -30,11 +30,12 @@ from the REPL.
 $ pip install ipython
 $ PATH="../target/debug:$PATH" ipython
 ...
-In  [1]: from deltachat_rpc_client import *
-In  [2]: rpc_generator = start_rpc_server()
-In  [3]: rpc = await rpc_generator.__aenter__()
-In  [4]: dc = Deltachat(rpc)
-In  [5]: system_info = await dc.get_system_info()
-In  [6]: system_info["level"]
-Out [6]: 'awesome'
+In [1]: from deltachat_rpc_client import *
+In [2]: rpc = Rpc()
+In [3]: await rpc.start()
+In [4]: dc = Deltachat(rpc)
+In [5]: system_info = await dc.get_system_info()
+In [6]: system_info["level"]
+Out[6]: 'awesome'
+In [7]: await rpc.close()
 ```

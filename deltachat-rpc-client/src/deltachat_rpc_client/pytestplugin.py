@@ -8,7 +8,7 @@ import pytest_asyncio
 
 from .account import Account
 from .deltachat import Deltachat
-from .rpc import start_rpc_server
+from .rpc import Rpc
 
 
 async def get_temp_credentials() -> dict:
@@ -42,7 +42,8 @@ class ACFactory:
 @pytest_asyncio.fixture
 async def rpc(tmp_path) -> AsyncGenerator:
     env = {**os.environ, "DC_ACCOUNTS_PATH": str(tmp_path / "accounts")}
-    async with start_rpc_server(env=env) as rpc:
+    rpc_server = Rpc(env=env)
+    async with rpc_server as rpc:
         yield rpc
 
 

@@ -1,6 +1,5 @@
 import asyncio
 import json
-from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, Optional
 
 
@@ -9,14 +8,37 @@ class JsonRpcError(Exception):
 
 
 class Rpc:
-    def __init__(self, process: asyncio.subprocess.Process) -> None:
-        self.process = process
+    def __init__(self, *args, **kwargs):
+        """The given arguments will be passed to asyncio.create_subprocess_exec()"""
+        self.args = args
+        self.kwargs = kwargs
+
+    async def start(self) -> None:
+        self.process = await asyncio.create_subprocess_exec(
+            "deltachat-rpc-server",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            *self.args,
+            **self.kwargs
+        )
         self.event_queues: Dict[int, asyncio.Queue] = {}
         self.id = 0
         self.reader_task = asyncio.create_task(self.reader_loop())
 
         # Map from request ID to `asyncio.Future` returning the response.
         self.request_events: Dict[int, asyncio.Future] = {}
+
+    async def close(self) -> None:
+        """Terminate RPC server process and wait until the reader loop finishes."""
+        self.process.terminate()
+        await self.reader_task
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
     async def reader_loop(self) -> None:
         while True:
@@ -36,11 +58,6 @@ class Rpc:
                 await self.event_queues[account_id].put(params["event"])
             else:
                 print(response)
-
-    async def close(self) -> None:
-        """Terminate RPC server process and wait until the reader loop finishes."""
-        self.process.terminate()
-        await self.reader_task
 
     async def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
@@ -73,20 +90,3 @@ class Rpc:
                 return response["result"]
 
         return method
-
-
-@asynccontextmanager
-async def start_rpc_server(*args, **kwargs) -> AsyncGenerator:
-    """The given arguments will be passed to asyncio.create_subprocess_exec()"""
-    proc = await asyncio.create_subprocess_exec(
-        "deltachat-rpc-server",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        *args,
-        **kwargs
-    )
-    rpc = Rpc(proc)
-    try:
-        yield rpc
-    finally:
-        await rpc.close()

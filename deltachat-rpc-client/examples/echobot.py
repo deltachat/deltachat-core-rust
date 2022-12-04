@@ -7,7 +7,7 @@ import deltachat_rpc_client as dc
 
 
 async def main():
-    async with dc.start_rpc_server() as rpc:
+    async with dc.Rpc() as rpc:
         deltachat = dc.Deltachat(rpc)
         system_info = await deltachat.get_system_info()
         logging.info("Running deltachat core %s", system_info["deltachat_core_version"])
