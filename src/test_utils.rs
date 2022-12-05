@@ -380,13 +380,13 @@ impl TestContext {
     /// table.  Messages are returned in the order they have been sent.
     ///
     /// Panics if there is no message or on any error.
-    pub async fn pop_sent_msg(&self) -> SentMessage {
+    pub async fn pop_sent_msg(&self) -> SentMessage<'_> {
         self.pop_sent_msg_opt(Duration::from_secs(3))
             .await
             .expect("no sent message found in jobs table")
     }
 
-    pub async fn pop_sent_msg_opt(&self, timeout: Duration) -> Option<SentMessage> {
+    pub async fn pop_sent_msg_opt(&self, timeout: Duration) -> Option<SentMessage<'_>> {
         let start = Instant::now();
         let (rowid, msg_id, payload, recipients) = loop {
             let row = self
@@ -428,7 +428,7 @@ impl TestContext {
         Some(SentMessage {
             payload,
             sender_msg_id: msg_id,
-            sender_context: self.ctx.clone(),
+            sender_context: &self.ctx,
             recipients,
         })
     }
@@ -440,7 +440,7 @@ impl TestContext {
     /// peerstates will be updated.  Later receiving the message using [recv_msg] is
     /// unlikely to be affected as the peerstate would be processed again in exactly the
     /// same way.
-    pub async fn parse_msg(&self, msg: &SentMessage) -> MimeMessage {
+    pub async fn parse_msg(&self, msg: &SentMessage<'_>) -> MimeMessage {
         MimeMessage::from_bytes(&self.ctx, msg.payload().as_bytes())
             .await
             .unwrap()
@@ -448,7 +448,7 @@ impl TestContext {
 
     /// Receive a message using the `receive_imf()` pipeline. Panics if it's not shown
     /// in the chat as exactly one message.
-    pub async fn recv_msg(&self, msg: &SentMessage) -> Message {
+    pub async fn recv_msg(&self, msg: &SentMessage<'_>) -> Message {
         let received = self
             .recv_msg_opt(msg)
             .await
@@ -477,7 +477,10 @@ impl TestContext {
 
     /// Receive a message using the `receive_imf()` pipeline. This is similar
     /// to `recv_msg()`, but doesn't assume that the message is shown in the chat.
-    pub async fn recv_msg_opt(&self, msg: &SentMessage) -> Option<crate::receive_imf::ReceivedMsg> {
+    pub async fn recv_msg_opt(
+        &self,
+        msg: &SentMessage<'_>,
+    ) -> Option<crate::receive_imf::ReceivedMsg> {
         receive_imf(self, msg.payload().as_bytes(), false)
             .await
             .unwrap()
@@ -584,7 +587,7 @@ impl TestContext {
     /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
     /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
     /// the message.
-    pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage {
+    pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage<'_> {
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(txt.to_string()));
         self.send_msg(chat_id, &mut msg).await
@@ -595,7 +598,7 @@ impl TestContext {
     /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
     /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
     /// the message.
-    pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage {
+    pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage<'_> {
         chat::prepare_msg(self, chat_id, msg).await.unwrap();
         let msg_id = chat::send_msg(self, chat_id, msg).await.unwrap();
         let res = self.pop_sent_msg().await;
@@ -743,14 +746,14 @@ impl Drop for LogSink {
 /// This is a raw message, probably in the shape DC was planning to send it but not having
 /// passed through a SMTP-IMAP pipeline.
 #[derive(Debug, Clone)]
-pub struct SentMessage {
+pub struct SentMessage<'a> {
     pub payload: String,
     recipients: String,
     pub sender_msg_id: MsgId,
-    sender_context: Context,
+    sender_context: &'a Context,
 }
 
-impl SentMessage {
+impl SentMessage<'_> {
     /// A recipient the message was destined for.
     ///
     /// If there are multiple recipients this is just a random one, so is not very useful.
@@ -769,7 +772,7 @@ impl SentMessage {
     }
 
     pub async fn load_from_db(&self) -> Message {
-        Message::load_from_db(&self.sender_context, self.sender_msg_id)
+        Message::load_from_db(self.sender_context, self.sender_msg_id)
             .await
             .unwrap()
     }

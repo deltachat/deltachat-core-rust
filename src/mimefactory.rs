@@ -1733,7 +1733,7 @@ mod tests {
         }
         async fn get_subject(
             t: &TestContext,
-            sent: crate::test_utils::SentMessage,
+            sent: crate::test_utils::SentMessage<'_>,
         ) -> Result<String> {
             let parsed_subject = t.parse_msg(&sent).await.get_subject().unwrap();
 
