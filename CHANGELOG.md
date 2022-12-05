@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changes
+- Disable Autocrypt & Authres-checking for mailing lists,
+  because they don't work well with mailing lists #3765
 - Refactor: Remove the remaining AsRef<str> #3669
 - Add more logging to `fetch_many_msgs` and refactor it #3811
 - Small speedup #3780

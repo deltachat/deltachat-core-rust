@@ -428,9 +428,7 @@ mod tests {
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = alice.pop_sent_msg().await;
-        let sent2_rfc724_mid = Message::load_from_db(&alice, sent2.sender_msg_id)
-            .await?
-            .rfc724_mid;
+        let sent2_rfc724_mid = sent2.load_from_db().await.rfc724_mid;
 
         // not downloading the status update results in an placeholder
         receive_imf_inner(

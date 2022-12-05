@@ -45,7 +45,7 @@ pub(crate) async fn handle_authres(
     compute_dkim_results(context, authres, &from_domain, message_time).await
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct DkimResults {
     /// Whether DKIM passed for this particular e-mail.
     pub dkim_passed: bool,
@@ -358,6 +358,7 @@ mod tests {
 
     use crate::aheader::EncryptPreference;
     use crate::e2ee;
+    use crate::message;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
     use crate::securejoin::get_securejoin_qr;
@@ -747,6 +748,88 @@ Authentication-Results: dkim=";
         //     .await;
         // assert_eq!(received.text.as_ref().unwrap(), "Can you read this again?");
         // assert!(received.error.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_autocrypt_in_mailinglist_ignored() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let bob_alice_chat = bob.create_chat(&alice).await;
+        let mut sent = alice.send_text(alice_bob_chat.id, "hellooo").await;
+        sent.payload
+            .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
+        bob.recv_msg(&sent).await;
+        let peerstate = Peerstate::from_addr(&bob, "alice@example.org").await?;
+        assert!(peerstate.is_none());
+
+        // Do the same without the mailing list header, this time the peerstate should be accepted
+        let sent = alice
+            .send_text(alice_bob_chat.id, "hellooo without mailing list")
+            .await;
+        bob.recv_msg(&sent).await;
+        let peerstate = Peerstate::from_addr(&bob, "alice@example.org").await?;
+        assert!(peerstate.is_some());
+
+        // This also means that Bob can now write encrypted to Alice:
+        let mut sent = bob
+            .send_text(bob_alice_chat.id, "hellooo in the mailinglist again")
+            .await;
+        assert!(sent.load_from_db().await.get_showpadlock());
+
+        // But if Bob writes to a mailing list, Alice doesn't show a padlock
+        // since she can't verify the signature without accepting Bob's key:
+        sent.payload
+            .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
+        let rcvd = alice.recv_msg(&sent).await;
+        assert!(!rcvd.get_showpadlock());
+        assert_eq!(&rcvd.text.unwrap(), "hellooo in the mailinglist again");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_authres_in_mailinglist_ignored() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Assume Bob received an email from something@example.net with
+        // correct DKIM -> `set_dkim_works()` was called
+        set_dkim_works_timestamp(&bob, "example.org", time()).await?;
+        // And Bob knows his server's authserv-id
+        bob.set_config(Config::AuthservIdCandidates, Some("example.net"))
+            .await?;
+
+        let alice_bob_chat = alice.create_chat(&bob).await;
+        let mut sent = alice.send_text(alice_bob_chat.id, "hellooo").await;
+        sent.payload
+            .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
+        sent.payload
+            .insert_str(0, "Authentication-Results: example.net; dkim=fail\n");
+        let rcvd = bob.recv_msg(&sent).await;
+        assert!(rcvd.error.is_none());
+
+        // Do the same without the mailing list header, this time the failed
+        // authres isn't ignored
+        let mut sent = alice
+            .send_text(alice_bob_chat.id, "hellooo without mailing list")
+            .await;
+        sent.payload
+            .insert_str(0, "Authentication-Results: example.net; dkim=fail\n");
+        let rcvd = bob.recv_msg(&sent).await;
+
+        // Disallowing keychanges is disabled for now:
+        // assert!(rcvd.error.unwrap().contains("DKIM failed"));
+        // The message info should contain a warning:
+        assert!(message::get_msg_info(&bob, rcvd.id)
+            .await
+            .unwrap()
+            .contains("KEYCHANGES NOT ALLOWED"));
 
         Ok(())
     }

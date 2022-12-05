@@ -1076,7 +1076,7 @@ mod tests {
         )
         .await?;
         let sent1 = alice.send_msg(chat.id, &mut alice_instance).await;
-        let alice_instance = Message::load_from_db(&alice, sent1.sender_msg_id).await?;
+        let alice_instance = sent1.load_from_db().await;
         alice
             .send_webxdc_status_update(
                 alice_instance.id,
@@ -1378,7 +1378,7 @@ mod tests {
         alice.flush_status_updates().await?;
         expect_status_update_event(&alice, alice_instance.id).await?;
         let sent2 = &alice.pop_sent_msg().await;
-        let alice_update = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
+        let alice_update = sent2.load_from_db().await;
         assert!(alice_update.hidden);
         assert_eq!(alice_update.viewtype, Viewtype::Text);
         assert_eq!(alice_update.get_filename(), None);
@@ -2197,7 +2197,7 @@ sth_for_the = "future""#
             .await?;
         alice.flush_status_updates().await?;
         let sent2 = &alice.pop_sent_msg().await;
-        let update_msg = Message::load_from_db(&alice, sent2.sender_msg_id).await?;
+        let update_msg = sent2.load_from_db().await;
         assert!(alice_instance.get_showpadlock());
         assert!(update_msg.get_showpadlock());
 
@@ -2217,7 +2217,7 @@ sth_for_the = "future""#
             .await?;
         bob.flush_status_updates().await?;
         let sent3 = bob.pop_sent_msg().await;
-        let update_msg = Message::load_from_db(&bob, sent3.sender_msg_id).await?;
+        let update_msg = sent3.load_from_db().await;
         assert!(!update_msg.get_showpadlock());
 
         Ok(())

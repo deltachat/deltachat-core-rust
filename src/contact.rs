@@ -1578,7 +1578,6 @@ mod tests {
 
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
-    use crate::message::Message;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{self, TestContext, TestContextManager};
 
@@ -2328,7 +2327,7 @@ CCCB 5AA9 F6E1 141C 9431
         let sent_msg = alice1.pop_sent_msg().await;
 
         // Message is not encrypted.
-        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        let message = sent_msg.load_from_db().await;
         assert!(!message.get_showpadlock());
 
         // Alice's second devices receives a copy of outgoing message.
@@ -2355,7 +2354,7 @@ CCCB 5AA9 F6E1 141C 9431
         let sent_msg = alice1.pop_sent_msg().await;
 
         // Second message is encrypted.
-        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        let message = sent_msg.load_from_db().await;
         assert!(message.get_showpadlock());
 
         // Alice's second devices receives a copy of second outgoing message.
@@ -2410,7 +2409,7 @@ CCCB 5AA9 F6E1 141C 9431
         let sent_msg = alice1.pop_sent_msg().await;
 
         // The message is encrypted.
-        let message = Message::load_from_db(&alice1, sent_msg.sender_msg_id).await?;
+        let message = sent_msg.load_from_db().await;
         assert!(message.get_showpadlock());
 
         // Alice's second device receives a copy of the outgoing message.
