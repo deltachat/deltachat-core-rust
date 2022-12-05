@@ -6,10 +6,12 @@ use std::{
 use anyhow::{Context as _, Result};
 
 use async_imap::Client as ImapClient;
+use async_imap::Session as ImapSession;
 
 use async_smtp::ServerAddress;
 use tokio::net::{self, TcpStream};
 
+use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::login_param::{build_tls, Socks5Config};
 
@@ -38,27 +40,54 @@ impl DerefMut for Client {
     }
 }
 
+/// Determine server capabilities.
+///
+/// If server supports ID capability, send our client ID.
+async fn determine_capabilities(
+    session: &mut ImapSession<Box<dyn SessionStream>>,
+) -> Result<Capabilities> {
+    let caps = session
+        .capabilities()
+        .await
+        .context("CAPABILITY command error")?;
+    let server_id = if caps.has_str("ID") {
+        session.id([("name", Some("Delta Chat"))]).await?
+    } else {
+        None
+    };
+    let capabilities = Capabilities {
+        can_idle: caps.has_str("IDLE"),
+        can_move: caps.has_str("MOVE"),
+        can_check_quota: caps.has_str("QUOTA"),
+        can_condstore: caps.has_str("CONDSTORE"),
+        server_id,
+    };
+    Ok(capabilities)
+}
+
 impl Client {
-    pub async fn login(self, username: &str, password: &str) -> Result<Session> {
+    pub(crate) async fn login(self, username: &str, password: &str) -> Result<Session> {
         let Client { inner, .. } = self;
-        let session = inner
+        let mut session = inner
             .login(username, password)
             .await
             .map_err(|(err, _client)| err)?;
-        Ok(Session { inner: session })
+        let capabilities = determine_capabilities(&mut session).await?;
+        Ok(Session::new(session, capabilities))
     }
 
-    pub async fn authenticate(
+    pub(crate) async fn authenticate(
         self,
         auth_type: &str,
         authenticator: impl async_imap::Authenticator,
     ) -> Result<Session> {
         let Client { inner, .. } = self;
-        let session = inner
+        let mut session = inner
             .authenticate(auth_type, authenticator)
             .await
             .map_err(|(err, _client)| err)?;
-        Ok(Session { inner: session })
+        let capabilities = determine_capabilities(&mut session).await?;
+        Ok(Session::new(session, capabilities))
     }
 
     pub async fn connect_secure(
@@ -146,7 +175,7 @@ impl Client {
         })
     }
 
-    pub async fn secure(self, domain: &str, strict_tls: bool) -> Result<Client> {
+    pub async fn secure(self, domain: &str, strict_tls: bool) -> Result<Self> {
         if self.is_secure {
             Ok(self)
         } else {

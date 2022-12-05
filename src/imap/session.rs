@@ -1,13 +1,26 @@
 use std::ops::{Deref, DerefMut};
 
+use async_imap::types::Mailbox;
 use async_imap::Session as ImapSession;
 use async_native_tls::TlsStream;
 use fast_socks5::client::Socks5Stream;
 use tokio::net::TcpStream;
 
+use super::capabilities::Capabilities;
+
 #[derive(Debug)]
 pub(crate) struct Session {
     pub(super) inner: ImapSession<Box<dyn SessionStream>>,
+
+    pub capabilities: Capabilities,
+
+    /// Selected folder name.
+    pub selected_folder: Option<String>,
+
+    /// Mailbox structure returned by IMAP server.
+    pub selected_mailbox: Option<Mailbox>,
+
+    pub selected_folder_needs_expunge: bool,
 }
 
 pub(crate) trait SessionStream:
@@ -35,8 +48,32 @@ impl DerefMut for Session {
 }
 
 impl Session {
-    pub fn idle(self) -> async_imap::extensions::idle::Handle<Box<dyn SessionStream>> {
-        let Session { inner } = self;
-        inner.idle()
+    pub(crate) fn new(
+        inner: ImapSession<Box<dyn SessionStream>>,
+        capabilities: Capabilities,
+    ) -> Self {
+        Self {
+            inner,
+            capabilities,
+            selected_folder: None,
+            selected_mailbox: None,
+            selected_folder_needs_expunge: false,
+        }
+    }
+
+    pub fn can_idle(&self) -> bool {
+        self.capabilities.can_idle
+    }
+
+    pub fn can_move(&self) -> bool {
+        self.capabilities.can_move
+    }
+
+    pub fn can_check_quota(&self) -> bool {
+        self.capabilities.can_check_quota
+    }
+
+    pub fn can_condstore(&self) -> bool {
+        self.capabilities.can_condstore
     }
 }

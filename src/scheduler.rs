@@ -166,6 +166,12 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
         .await;
 }
 
+/// Implement a single iteration of IMAP loop.
+///
+/// This function performs all IMAP operations on a single folder, selecting it if necessary and
+/// handling all the errors. In case of an error, it is logged, but not propagated upwards. If
+/// critical operation fails such as fetching new messages fails, connection is reset via
+/// `trigger_reconnect`, so a fresh one can be opened.
 async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config) -> InterruptInfo {
     let folder = match ctx.get_config(folder_config).await {
         Ok(folder) => folder,
@@ -187,18 +193,25 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     };
 
     // connect and fake idle if unable to connect
-    if let Err(err) = connection.prepare(ctx).await {
-        warn!(ctx, "imap connection failed: {}", err);
+    if let Err(err) = connection
+        .prepare(ctx)
+        .await
+        .context("prepare IMAP connection")
+    {
+        connection.trigger_reconnect(ctx);
+        warn!(ctx, "{:#}", err);
         return connection.fake_idle(ctx, Some(watch_folder)).await;
     }
 
     if folder_config == Config::ConfiguredInboxFolder {
-        if let Err(err) = connection
-            .store_seen_flags_on_imap(ctx)
-            .await
-            .context("store_seen_flags_on_imap failed")
-        {
-            warn!(ctx, "{:#}", err);
+        if let Some(session) = connection.session.as_mut() {
+            session
+                .store_seen_flags_on_imap(ctx)
+                .await
+                .context("store_seen_flags_on_imap")
+                .ok_or_log(ctx);
+        } else {
+            warn!(ctx, "No session even though we just prepared it");
         }
     }
 
@@ -208,7 +221,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
         .await
         .context("fetch_move_delete")
     {
-        connection.trigger_reconnect(ctx).await;
+        connection.trigger_reconnect(ctx);
         warn!(ctx, "{:#}", err);
         return InterruptInfo::new(false);
     }
@@ -217,12 +230,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
     // called right before `fetch_move_delete` because it is not well optimized and would
     // otherwise slow down message fetching.
-    if let Err(err) = delete_expired_imap_messages(ctx)
+    delete_expired_imap_messages(ctx)
         .await
         .context("delete_expired_imap_messages")
-    {
-        warn!(ctx, "{:#}", err);
-    }
+        .ok_or_log(ctx);
 
     // Scan additional folders only after finishing fetching the watched folder.
     //
@@ -248,7 +259,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
                     .await
                     .context("fetch_move_delete after scan_folders")
                 {
-                    connection.trigger_reconnect(ctx).await;
+                    connection.trigger_reconnect(ctx);
                     warn!(ctx, "{:#}", err);
                     return InterruptInfo::new(false);
                 }
@@ -266,18 +277,38 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
 
     connection.connectivity.set_connected(ctx).await;
 
-    // idle
-    if !connection.can_idle() {
-        return connection.fake_idle(ctx, Some(watch_folder)).await;
-    }
-
-    match connection.idle(ctx, Some(watch_folder)).await {
-        Ok(v) => v,
-        Err(err) => {
-            connection.trigger_reconnect(ctx).await;
-            warn!(ctx, "{:#}", err);
-            InterruptInfo::new(false)
+    if let Some(session) = connection.session.take() {
+        if !session.can_idle() {
+            info!(
+                ctx,
+                "IMAP session does not support IDLE, going to fake idle."
+            );
+            return connection.fake_idle(ctx, Some(watch_folder)).await;
         }
+
+        info!(ctx, "IMAP session supports IDLE, using it.");
+        match session
+            .idle(
+                ctx,
+                connection.idle_interrupt_receiver.clone(),
+                Some(watch_folder),
+            )
+            .await
+            .context("idle")
+        {
+            Ok((session, info)) => {
+                connection.session = Some(session);
+                info
+            }
+            Err(err) => {
+                connection.trigger_reconnect(ctx);
+                warn!(ctx, "{:#}", err);
+                InterruptInfo::new(false)
+            }
+        }
+    } else {
+        warn!(ctx, "No IMAP session, going to fake idle.");
+        connection.fake_idle(ctx, Some(watch_folder)).await
     }
 }
 

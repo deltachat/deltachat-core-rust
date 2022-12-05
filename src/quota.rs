@@ -8,6 +8,7 @@ use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;
 use crate::context::Context;
 use crate::imap::scan_folders::get_watched_folders;
+use crate::imap::session::Session as ImapSession;
 use crate::imap::Imap;
 use crate::job::{Action, Status};
 use crate::message::{Message, Viewtype};
@@ -49,12 +50,12 @@ pub struct QuotaInfo {
 }
 
 async fn get_unique_quota_roots_and_usage(
+    session: &mut ImapSession,
     folders: Vec<String>,
-    imap: &mut Imap,
 ) -> Result<BTreeMap<String, Vec<QuotaResource>>> {
     let mut unique_quota_roots: BTreeMap<String, Vec<QuotaResource>> = BTreeMap::new();
     for folder in folders {
-        let (quota_roots, quotas) = &imap.get_quota_roots(&folder).await?;
+        let (quota_roots, quotas) = &session.get_quota_root(&folder).await?;
         // if there are new quota roots found in this imap folder, add them to the list
         for qr_entries in quota_roots {
             for quota_root_name in &qr_entries.quota_root_names {
@@ -135,9 +136,10 @@ impl Context {
             return Ok(Status::RetryNow);
         }
 
-        let quota = if imap.can_check_quota() {
+        let session = imap.session.as_mut().context("no session")?;
+        let quota = if session.can_check_quota() {
             let folders = get_watched_folders(self).await?;
-            get_unique_quota_roots_and_usage(folders, imap).await
+            get_unique_quota_roots_and_usage(session, folders).await
         } else {
             Err(anyhow!(stock_str::not_supported_by_provider(self).await))
         };
