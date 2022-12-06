@@ -216,16 +216,9 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
-        let is_thunderbird = if let Some(user_agent) = headers.get("user-agent") {
-            info!(context, "Detected thunderbird");
-            user_agent.contains("Thunderbird")
-        } else {
-            false
-        };
-
         let from = from.context("No from in message")?;
         let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, message_time, is_thunderbird).await?;
+            prepare_decryption(context, &mail, &from.addr, message_time).await?;
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
