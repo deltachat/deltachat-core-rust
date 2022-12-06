@@ -82,12 +82,13 @@ class Account(object):
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
 
-        self._dc_context = ffi.gc(
-            lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL),
-            lib.dc_context_unref,
-        )
+        ptr = lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL)
         if self._dc_context == ffi.NULL:
             raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
+        self._dc_context = ffi.gc(
+            ptr,
+            lib.dc_context_unref,
+        )
 
         self._shutdown_event = Event()
         self._event_thread = EventThread(self)

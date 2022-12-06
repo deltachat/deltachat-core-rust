@@ -27,6 +27,7 @@
 - Assume all Thunderbird users prefer encryption #3774
 - refactor peerstate handling to ensure no duplicate peerstates #3776
 - Fetch messages in order of their INTERNALDATE (fixes reactions for Gmail f.e.) #3789
+- python: do not pass NULL to ffi.gc if the context can't be created #3818
 
 
 ## 1.102.0
