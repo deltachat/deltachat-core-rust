@@ -614,9 +614,9 @@ impl Context {
         res.insert("entered_account_settings", l.to_string());
         res.insert("used_account_settings", l2.to_string());
 
-        let server_id = self.server_id.read().await;
-        res.insert("imap_server_id", format!("{:?}", server_id));
-        drop(server_id);
+        if let Some(server_id) = &*self.server_id.read().await {
+            res.insert("imap_server_id", format!("{:?}", server_id));
+        }
 
         res.insert("secondary_addrs", secondary_addrs);
         res.insert(

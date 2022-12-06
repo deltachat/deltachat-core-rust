@@ -9,6 +9,7 @@
 - Add more logging to `fetch_many_msgs` and refactor it #3811
 - Small speedup #3780
 - Log the reason when the message cannot be sent to the chat #3810
+- Add IMAP server ID line to the context info only when it is known #3814
 
 ### API-Changes
 - Add Python API to send reactions #3762
