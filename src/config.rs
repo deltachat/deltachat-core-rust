@@ -18,7 +18,6 @@ use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
-use crate::{chat, webxdc};
 
 /// The available configuration keys.
 #[derive(
@@ -197,7 +196,7 @@ pub enum Config {
     ///
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
-    
+
     // TODO docs, deltachat.h
     /// Let the core save all events to the database. You should expose this as an advanced
     /// setting to the user. When they enable it, the core automatically adds a webxdc
@@ -336,15 +335,15 @@ impl Context {
             Config::DebugLogging => {
                 if value == Some("0") || value == Some("") || value == None {
                     if let Some(webxdc_message_id) =
-                        self.sql.get_raw_config_u32(Config::DebugLogging).await?
+                        self.sql.get_raw_config_u32(Config::DebugLogging.as_ref()).await?
                     {
                         message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
                     }
-                    self.sql.set_raw_config(key, None).await?;
+                    self.sql.set_raw_config(key.as_ref(), None).await?;
                     self.debug_logging.store(0, atomic::Ordering::Relaxed);
                 } else if self
                     .sql
-                    .get_raw_config_u32(Config::DebugLogging)
+                    .get_raw_config_u32(Config::DebugLogging.as_ref())
                     .await?
                     .unwrap_or(0)
                     == 0
@@ -360,7 +359,7 @@ impl Context {
                     );
                     let msg_id = chat::add_device_msg(self, None, Some(&mut instance)).await?;
                     self.sql
-                        .set_raw_config(key, Some(&msg_id.to_u32().to_string()))
+                        .set_raw_config(key.as_ref(), Some(&msg_id.to_u32().to_string()))
                         .await?;
                     self.debug_logging
                         .store(msg_id.to_u32(), atomic::Ordering::Relaxed);

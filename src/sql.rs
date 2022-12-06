@@ -343,7 +343,9 @@ impl Sql {
             info!(context, "Opened database {:?}.", self.dbfile);
             *self.is_encrypted.write().await = Some(passphrase_nonempty);
 
-            let debug_logging = self.get_raw_config_u32(Config::DebugLogging).await?;
+            let debug_logging = self
+                .get_raw_config_u32(Config::DebugLogging.as_ref())
+                .await?;
             context
                 .debug_logging
                 .store(debug_logging.unwrap_or(0), atomic::Ordering::Relaxed);
@@ -599,13 +601,13 @@ impl Sql {
             .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
-    pub async fn get_raw_config_bool(&self, key: &str) -> Result<bool> {
+    pub async fn get_raw_config_u32(&self, key: &str) -> Result<Option<u32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
-    pub async fn get_raw_config_bool(&self, key: impl AsRef<str>) -> Result<bool> {
+    pub async fn get_raw_config_bool(&self, key: &str) -> Result<bool> {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
         let res = self.get_raw_config_int(key).await?;

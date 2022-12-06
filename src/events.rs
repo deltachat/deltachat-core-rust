@@ -2,11 +2,9 @@
 
 use std::path::PathBuf;
 
-use async_std::channel::{self, Receiver, Sender, TrySendError};
-use async_std::path::PathBuf;
+use async_channel::{self as channel, Receiver, Sender, TrySendError};
 use num_traits::ToPrimitive;
 use serde_json::Value;
-use strum::EnumProperty;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -110,27 +108,7 @@ pub struct Event {
     pub typ: EventType,
 }
 
-impl Deref for Event {
-    type Target = EventType;
-
-    fn deref(&self) -> &EventType {
-        &self.typ
-    }
-}
-
-impl EventType {
-    /// Returns the corresponding Event ID.
-    ///
-    /// These are the IDs used in the `DC_EVENT_*` constants in `deltachat.h`.
-    pub fn as_id(&self) -> i32 {
-        self.get_str("id")
-            .expect("missing id")
-            .parse()
-            .expect("invalid id")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///
@@ -309,7 +287,7 @@ pub enum EventType {
     ///     1000=Protocol finished for this contact.
     SecurejoinInviterProgress {
         contact_id: ContactId,
-        progress: u32,
+        progress: usize,
     },
 
     /// Progress information of a secure-join handshake from the view of the joiner
@@ -322,7 +300,7 @@ pub enum EventType {
     ///     (Bob has verified alice and waits until Alice does the same for him)
     SecurejoinJoinerProgress {
         contact_id: ContactId,
-        progress: u32,
+        progress: usize,
     },
 
     /// The connectivity to the server changed.
@@ -345,12 +323,6 @@ pub enum EventType {
 }
 
 impl EventType {
-    /// Get data associated with an event object.
-    /// This is meant to be used for the FFI and serializing; Rust code
-    /// can usually just match on the EventType.
-    ///
-    /// data1 is always an int.
-    /// For events that have no number associacted with them, this returns 0.
     pub fn get_data1_int(&self) -> u32 {
         match self {
             EventType::Info(_)
@@ -365,9 +337,10 @@ impl EventType {
             | EventType::Error(_)
             | EventType::ConnectivityChanged
             | EventType::SelfavatarChanged
-            | EventType::ErrorSelfNotInGroup(_)
-            | EventType::ImexFileWritten(_) => 0,
+            | EventType::IncomingMsgBunch { .. }
+            | EventType::ErrorSelfNotInGroup(_) => 0,
             EventType::MsgsChanged { chat_id, .. }
+            | EventType::ReactionsChanged { chat_id, .. }
             | EventType::IncomingMsg { chat_id, .. }
             | EventType::MsgsNoticed(chat_id)
             | EventType::MsgDelivered { chat_id, .. }
@@ -376,25 +349,19 @@ impl EventType {
             | EventType::ChatModified(chat_id)
             | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32(),
             EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
-                let id = id.unwrap_or_default();
-                id.to_u32()
+                id.unwrap_or_default().to_u32()
             }
             EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
-                progress.to_u32().unwrap_or_default()
+                (*progress).to_u32().unwrap_or_default()
             }
+            EventType::ImexFileWritten(_) => 0,
             EventType::SecurejoinInviterProgress { contact_id, .. }
             | EventType::SecurejoinJoinerProgress { contact_id, .. } => contact_id.to_u32(),
             EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32(),
+            EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32(),
         }
     }
 
-    /// Get data associated with an event object.
-    ///
-    /// data2 sometimes is a string and sometimes an int; if it's a string or
-    /// there is no data2, this function returns `None`.
-    ///
-    /// This is meant to be used for the FFI and serializing; Rust code
-    /// can usually just `match` the EventType.
     pub fn get_data2_int(&self) -> Option<u32> {
         match self {
             EventType::Info(_)
@@ -415,15 +382,18 @@ impl EventType {
             | EventType::ImexFileWritten(_)
             | EventType::MsgsNoticed(_)
             | EventType::ConnectivityChanged
-            | EventType::SelfavatarChanged
-            | EventType::ChatModified(_) => None,
+            | EventType::WebxdcInstanceDeleted { .. }
+            | EventType::IncomingMsgBunch { .. }
+            | EventType::ChatModified(_)
+            | EventType::SelfavatarChanged => None,
             EventType::MsgsChanged { msg_id, .. }
+            | EventType::ReactionsChanged { msg_id, .. }
             | EventType::IncomingMsg { msg_id, .. }
             | EventType::MsgDelivered { msg_id, .. }
             | EventType::MsgFailed { msg_id, .. }
             | EventType::MsgRead { msg_id, .. } => Some(msg_id.to_u32()),
             EventType::SecurejoinInviterProgress { progress, .. }
-            | EventType::SecurejoinJoinerProgress { progress, .. } => Some(*progress),
+            | EventType::SecurejoinJoinerProgress { progress, .. } => (*progress).to_u32(),
             EventType::ChatEphemeralTimerModified { timer, .. } => Some(timer.to_u32()),
             EventType::WebxdcStatusUpdate {
                 status_update_serial,
@@ -432,13 +402,6 @@ impl EventType {
         }
     }
 
-    /// Get data associated with an event object.
-    ///
-    /// data2 sometimes is a string and sometimes an int; if it's an int or
-    /// there is no data2, this function returns `None`.
-    ///
-    /// This is meant to be used for the FFI and serializing; Rust code
-    /// can usually just `match` the EventType.
     pub fn get_data2_str(&self) -> Option<&str> {
         match self {
             EventType::Info(msg)
@@ -453,6 +416,7 @@ impl EventType {
             | EventType::Error(msg)
             | EventType::ErrorSelfNotInGroup(msg) => Some(msg),
             EventType::MsgsChanged { .. }
+            | EventType::ReactionsChanged { .. }
             | EventType::IncomingMsg { .. }
             | EventType::MsgsNoticed(_)
             | EventType::MsgDelivered { .. }
@@ -467,10 +431,20 @@ impl EventType {
             | EventType::ConnectivityChanged
             | EventType::SelfavatarChanged
             | EventType::WebxdcStatusUpdate { .. }
+            | EventType::WebxdcInstanceDeleted { .. }
             | EventType::ChatEphemeralTimerModified { .. } => None,
-            EventType::ConfigureProgress { comment, .. } => comment.as_deref(),
-            // Note that `PathBuf::to_str()` returns None for invalid UTF-8:
+            EventType::ConfigureProgress { comment, .. } => {
+                if let Some(comment) = comment {
+                    Some(comment)
+                } else {
+                    None
+                }
+            }
             EventType::ImexFileWritten(file) => file.to_str(),
+            EventType::IncomingMsgBunch { .. } => {
+                //serde_json::to_string(msg_ids).ok().map(|str| str.as_str())
+                Some("fix me!!")
+            }
         }
     }
 

@@ -327,8 +327,6 @@ impl Context {
             .write_status_update_inner(&instance.id, status_update_item)
             .await?;
 
-        let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
-
         if instance.viewtype == Viewtype::Webxdc {
             self.emit_event(EventType::WebxdcStatusUpdate {
                 msg_id: instance.id,

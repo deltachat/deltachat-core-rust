@@ -1286,7 +1286,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         if context.get_config(Config::DebugLogging).await? == Some(msg_id.to_u32().to_string()) {
             context
                 .sql
-                .set_raw_config(Config::DebugLogging, None)
+                .set_raw_config(Config::DebugLogging.as_ref(), None)
                 .await?;
             context.debug_logging.store(0, atomic::Ordering::Relaxed);
         }
@@ -1300,7 +1300,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         // wouldn't compile ("recursion in an `async fn`")
         context
             .sql
-            .set_raw_config(Config::LastHousekeeping, None)
+            .set_raw_config(Config::LastHousekeeping.as_ref(), None)
             .await?;
     }
 

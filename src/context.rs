@@ -232,7 +232,7 @@ pub struct InnerContext {
     /// The text of the last error logged and emitted as an event.
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
-    pub(crate) last_error: RwLock<String>,
+    pub(crate) last_error: std::sync::RwLock<String>,
 
     pub(crate) debug_logging: AtomicU32,
 }
@@ -364,7 +364,7 @@ impl Context {
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
-            last_error: RwLock::new("".to_string()),
+            last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: AtomicU32::default(),
         };
 
@@ -464,7 +464,8 @@ impl Context {
                 .as_millis() as i64;
 
             let context = self.clone();
-            async_std::task::block_on(async move {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
                 let webxdc_instance_id = MsgId::new(debug_logging as u32);
 
                 match context
