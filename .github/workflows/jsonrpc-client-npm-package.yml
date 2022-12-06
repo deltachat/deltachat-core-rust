@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           cd deltachat-jsonrpc/typescript
-          npm run build:tsc
+          npm run build
           npm pack .
           ls -lah
           mv $(find deltachat-jsonrpc-client-*) $DELTACHAT_JSONRPC_TAR_GZ
