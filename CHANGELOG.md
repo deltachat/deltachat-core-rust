@@ -8,6 +8,7 @@
 - Move format=flowed support to a separate crate #3869
 - cargo: bump quick-xml from 0.23.0 to 0.26.0 #3722
 - Add fuzzing tests #3853
+- Add mappings for some file types to Viewtype / MIME type #3881
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
