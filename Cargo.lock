@@ -929,6 +929,7 @@ dependencies = [
  "textwrap",
  "thiserror",
  "tokio",
+ "tokio-io-timeout",
  "tokio-stream",
  "tokio-tar",
  "toml",
@@ -3548,6 +3549,16 @@ dependencies = [
  "socket2",
  "tokio-macros",
  "winapi",
+]
+
+[[package]]
+name = "tokio-io-timeout"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30b74022ada614a1b4834de765f9bb43877f910cc8ce4be40e89042c9223a8bf"
+dependencies = [
+ "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]

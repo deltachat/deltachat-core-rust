@@ -10,6 +10,7 @@ use async_imap::Session as ImapSession;
 
 use async_smtp::ServerAddress;
 use tokio::net::{self, TcpStream};
+use tokio_io_timeout::TimeoutStream;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
@@ -95,9 +96,15 @@ impl Client {
         domain: &str,
         strict_tls: bool,
     ) -> Result<Self> {
-        let stream = TcpStream::connect(addr).await?;
+        let tcp_stream = TcpStream::connect(addr).await?;
+        let mut timeout_stream = TimeoutStream::new(tcp_stream);
+        timeout_stream.set_write_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        timeout_stream.set_read_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        let timeout_stream = Box::pin(timeout_stream);
+
         let tls = build_tls(strict_tls);
-        let tls_stream: Box<dyn SessionStream> = Box::new(tls.connect(domain, stream).await?);
+        let tls_stream: Box<dyn SessionStream> =
+            Box::new(tls.connect(domain, timeout_stream).await?);
         let mut client = ImapClient::new(tls_stream);
 
         let _greeting = client
@@ -112,7 +119,12 @@ impl Client {
     }
 
     pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> Result<Self> {
-        let stream: Box<dyn SessionStream> = Box::new(TcpStream::connect(addr).await?);
+        let tcp_stream = TcpStream::connect(addr).await?;
+        let mut timeout_stream = TimeoutStream::new(tcp_stream);
+        timeout_stream.set_write_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        timeout_stream.set_read_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        let timeout_stream = Box::pin(timeout_stream);
+        let stream: Box<dyn SessionStream> = Box::new(timeout_stream);
 
         let mut client = ImapClient::new(stream);
         let _greeting = client

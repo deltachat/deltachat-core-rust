@@ -1,10 +1,12 @@
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 
 use async_imap::types::Mailbox;
 use async_imap::Session as ImapSession;
 use async_native_tls::TlsStream;
 use fast_socks5::client::Socks5Stream;
 use tokio::net::TcpStream;
+use tokio_io_timeout::TimeoutStream;
 
 use super::capabilities::Capabilities;
 
@@ -29,8 +31,10 @@ pub(crate) trait SessionStream:
 }
 
 impl SessionStream for TlsStream<Box<dyn SessionStream>> {}
+impl SessionStream for TlsStream<Pin<Box<TimeoutStream<TcpStream>>>> {}
 impl SessionStream for TlsStream<TcpStream> {}
 impl SessionStream for TcpStream {}
+impl SessionStream for Pin<Box<TimeoutStream<TcpStream>>> {}
 impl SessionStream for Socks5Stream<TcpStream> {}
 
 impl Deref for Session {

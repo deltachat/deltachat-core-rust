@@ -81,6 +81,7 @@ textwrap = "0.16.0"
 async-channel = "1.8.0"
 futures-lite = "1.12.0"
 tokio-stream = { version = "0.1.11", features = ["fs"] }
+tokio-io-timeout = "1.2.0"
 reqwest = { version = "0.11.13", features = ["json"] }
 async_zip = { version = "0.0.9", default-features = false, features = ["deflate"] }
 
