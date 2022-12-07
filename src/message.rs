@@ -1186,6 +1186,11 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "m4a" => (Viewtype::Audio, "audio/m4a"),
         "mp3" => (Viewtype::Audio, "audio/mpeg"),
         "mp4" => (Viewtype::Video, "video/mp4"),
+        "ppt" => (Viewtype::File, "application/vnd.ms-powerpoint"),
+        "pptx" => (
+            Viewtype::File,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ),
         "odp" => (
             Viewtype::File,
             "application/vnd.oasis.opendocument.presentation",
@@ -1198,7 +1203,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "oga" => (Viewtype::Audio, "audio/ogg"),
         "ogg" => (Viewtype::Audio, "audio/ogg"),
         "ogv" => (Viewtype::File, "video/ogg"),
-        "opus" => (Viewtype::File, "audio/ogg"), // not supported eg. on Android 4
+        "opus" => (Viewtype::Audio, "audio/ogg"), // supported since Android 10
         "otf" => (Viewtype::File, "font/otf"),
         "pdf" => (Viewtype::File, "application/pdf"),
         "png" => (Viewtype::Image, "image/png"),
@@ -1223,8 +1228,12 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
             Viewtype::File,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ),
-        "xml" => (Viewtype::File, "application/vnd.ms-excel"),
+        "xml" => (Viewtype::File, "application/xml"),
+        "xls" => (Viewtype::File, "application/vnd.ms-excel"),
         "zip" => (Viewtype::File, "application/zip"),
+        "heif" => (Viewtype::Image, "image/heif"), // supported since Android 10
+        "heic" => (Viewtype::Image, "image/heic"), // supported since Android 10
+        "txt" => (Viewtype::File, "text/plain"),
         _ => {
             return None;
         }
