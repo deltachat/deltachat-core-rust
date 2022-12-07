@@ -83,7 +83,7 @@ class Account(object):
             db_path = db_path.encode("utf8")
 
         ptr = lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL)
-        if self._dc_context == ffi.NULL:
+        if ptr == ffi.NULL:
             raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
         self._dc_context = ffi.gc(
             ptr,
