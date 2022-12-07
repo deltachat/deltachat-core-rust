@@ -1203,7 +1203,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "oga" => (Viewtype::Audio, "audio/ogg"),
         "ogg" => (Viewtype::Audio, "audio/ogg"),
         "ogv" => (Viewtype::File, "video/ogg"),
-        "opus" => (Viewtype::Audio, "audio/ogg"), // supported since Android 10
+        "opus" => (Viewtype::File, "audio/ogg"), // supported since Android 10
         "otf" => (Viewtype::File, "font/otf"),
         "pdf" => (Viewtype::File, "application/pdf"),
         "png" => (Viewtype::Image, "image/png"),
@@ -1231,8 +1231,8 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "xml" => (Viewtype::File, "application/xml"),
         "xls" => (Viewtype::File, "application/vnd.ms-excel"),
         "zip" => (Viewtype::File, "application/zip"),
-        "heif" => (Viewtype::Image, "image/heif"), // supported since Android 10
-        "heic" => (Viewtype::Image, "image/heic"), // supported since Android 10
+        "heif" => (Viewtype::File, "image/heif"), // supported since Android 10
+        "heic" => (Viewtype::File, "image/heic"), // supported since Android 10
         "txt" => (Viewtype::File, "text/plain"),
         _ => {
             return None;
