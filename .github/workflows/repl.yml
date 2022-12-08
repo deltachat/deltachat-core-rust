@@ -20,10 +20,7 @@ jobs:
         override: true
 
     - name: build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --example repl --features repl,vendored
+      run: cargo build --example repl --features repl,vendored
 
     - name: Upload binary
       uses: actions/upload-artifact@v3
