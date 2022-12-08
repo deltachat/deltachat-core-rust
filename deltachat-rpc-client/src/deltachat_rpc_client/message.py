@@ -1,42 +1,49 @@
-from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from .chat import Chat
 from .contact import Contact
 from .rpc import Rpc
+from .utils import AttrDict
+
+if TYPE_CHECKING:
+    from .account import Account
 
 
 class Message:
-    def __init__(self, rpc: Rpc, account_id: int, msg_id: int) -> None:
-        self._rpc = rpc
-        self.account_id = account_id
-        self.msg_id = msg_id
+    """Delta Chat Message object."""
+
+    def __init__(self, account: "Account", msg_id: int) -> None:
+        self.account = account
+        self.id = msg_id
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Message):
+            return False
+        return self.id == other.id and self.account == other.account
+
+    def __ne__(self, other) -> bool:
+        return not self == other
+
+    def __repr__(self) -> str:
+        return f"<Message id={self.id} account={self.account.id}>"
+
+    @property
+    def _rpc(self) -> Rpc:
+        return self.account._rpc
 
     async def send_reaction(self, reactions: str) -> "Message":
-        msg_id = await self._rpc.send_reaction(self.account_id, self.msg_id, reactions)
-        return Message(self._rpc, self.account_id, msg_id)
+        msg_id = await self._rpc.send_reaction(self.account.id, self.id, reactions)
+        return Message(self.account, msg_id)
 
-    async def get_snapshot(self) -> "MessageSnapshot":
-        message_object = await self._rpc.get_message(self.account_id, self.msg_id)
-        return MessageSnapshot(
-            message=self,
-            chat=Chat(self._rpc, self.account_id, message_object["chatId"]),
-            sender=Contact(self._rpc, self.account_id, message_object["fromId"]),
-            text=message_object["text"],
-            error=message_object.get("error"),
-            is_info=message_object["isInfo"],
-        )
+    async def get_snapshot(self) -> AttrDict:
+        """Get a snapshot with the properties of this message."""
+        from .chat import Chat
+
+        snapshot = AttrDict(await self._rpc.get_message(self.account.id, self.id))
+        snapshot["chat"] = Chat(self.account, snapshot.chat_id)
+        snapshot["sender"] = Contact(self.account, snapshot.from_id)
+        snapshot["message"] = self
+        return snapshot
 
     async def mark_seen(self) -> None:
         """Mark the message as seen."""
-        await self._rpc.markseen_msgs(self.account_id, [self.msg_id])
-
-
-@dataclass
-class MessageSnapshot:
-    message: Message
-    chat: Chat
-    sender: Contact
-    text: str
-    error: Optional[str]
-    is_info: bool
+        await self._rpc.markseen_msgs(self.account.id, [self.id])

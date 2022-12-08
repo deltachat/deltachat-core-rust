@@ -1,5 +1,7 @@
 import pytest
 
+from deltachat_rpc_client import AttrDict, EventType, events
+
 
 @pytest.mark.asyncio
 async def test_system_info(rpc) -> None:
@@ -27,12 +29,9 @@ async def test_acfactory(acfactory) -> None:
     account = await acfactory.new_configured_account()
     while True:
         event = await account.wait_for_event()
-        if event["type"] == "ConfigureProgress":
-            # Progress 0 indicates error.
-            assert event["progress"] != 0
-
-            if event["progress"] == 1000:
-                # Success.
+        if event.type == EventType.CONFIGURE_PROGRESS:
+            assert event.progress != 0  # Progress 0 indicates error.
+            if event.progress == 1000:  # Success
                 break
         else:
             print(event)
@@ -49,12 +48,43 @@ async def test_object_account(acfactory) -> None:
 
     while True:
         event = await bob.wait_for_event()
-        if event["type"] == "IncomingMsg":
-            chat_id = event["chatId"]
-            msg_id = event["msgId"]
+        if event.type == EventType.INCOMING_MSG:
+            chat_id = event.chat_id
+            msg_id = event.msg_id
             break
 
-    rpc = acfactory.deltachat.rpc
-    message = await rpc.get_message(bob.account_id, msg_id)
-    assert message["chatId"] == chat_id
-    assert message["text"] == "Hello!"
+    message = await bob.get_message_by_id(msg_id).get_snapshot()
+    assert message.chat_id == chat_id
+    assert message.text == "Hello!"
+
+
+@pytest.mark.asyncio
+async def test_bot(acfactory) -> None:
+    async def callback(e):
+        res.append(e)
+
+    res = []
+    bot = await acfactory.new_configured_bot()
+    assert await bot.is_configured()
+    assert await bot.account.get_config("bot") == "1"
+
+    bot.add_hook(callback, events.RawEvent(EventType.INFO))
+    info_event = AttrDict(account=bot.account, type=EventType.INFO, msg="info")
+    warn_event = AttrDict(account=bot.account, type=EventType.WARNING, msg="warning")
+    await bot._on_event(info_event)
+    await bot._on_event(warn_event)
+    assert info_event in res
+    assert warn_event not in res
+    assert len(res) == 1
+
+    res = []
+    bot.add_hook(callback, events.NewMessage(r"hello"))
+    snapshot1 = AttrDict(text="hello")
+    snapshot2 = AttrDict(text="hello, world")
+    snapshot3 = AttrDict(text="hey!")
+    for snapshot in [snapshot1, snapshot2, snapshot3]:
+        await bot._on_event(snapshot, events.NewMessage)
+    assert len(res) == 2
+    assert snapshot1 in res
+    assert snapshot2 in res
+    assert snapshot3 not in res
