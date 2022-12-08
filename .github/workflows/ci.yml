@@ -26,10 +26,7 @@ jobs:
       - run: rustup component add rustfmt
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v1
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - run: cargo fmt --all -- --check
 
   run_clippy:
     runs-on: ubuntu-latest
@@ -65,10 +62,7 @@ jobs:
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v1
       - name: Rustdoc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --document-private-items --no-deps
+        run: cargo doc --document-private-items --no-deps
 
   build_and_test:
     name: Build and test
@@ -105,21 +99,13 @@ jobs:
       uses: swatinem/rust-cache@v1
 
     - name: check
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
-        args: --all --bins --examples --tests --features repl --benches
+      run: cargo check --all --bins --examples --tests --features repl --benches
 
     - name: tests
-      uses: actions-rs/cargo@v1
-      with:
-        command: test
-        args: --all
+      run: cargo test --all
 
     - name: test cargo vendor
-      uses: actions-rs/cargo@v1
-      with:
-        command: vendor
+      run: cargo vendor
 
     - name: install python
       if: ${{ matrix.python }}
@@ -133,10 +119,7 @@ jobs:
 
     - name: build C library
       if: ${{ matrix.python }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: -p deltachat_ffi --features jsonrpc
+      run: cargo build -p deltachat_ffi --features jsonrpc
 
     - name: run python tests
       if: ${{ matrix.python }}
@@ -149,10 +132,7 @@ jobs:
 
     - name: build deltachat-rpc-server
       if: ${{ matrix.python }}
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: -p deltachat-rpc-server
+      run: cargo build -p deltachat-rpc-server
 
     - name: run deltachat-rpc-client tests
       if: ${{ matrix.python }}
