@@ -114,7 +114,7 @@ class Chat:
         info = await self._rpc.get_full_chat_by_id(self.account.id, self.id)
         return AttrDict(chat=self, **info)
 
-    async def send_msg(
+    async def send_message(
         self,
         text: Optional[str] = None,
         file: Optional[str] = None,

@@ -39,10 +39,11 @@ async def test_acfactory(acfactory) -> None:
 
 
 @pytest.mark.asyncio
-async def test_object_account(acfactory) -> None:
+async def test_account(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
-    alice_contact_bob = await alice.create_contact(await bob.get_config("addr"), "Bob")
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
     alice_chat_bob = await alice_contact_bob.create_chat()
     await alice_chat_bob.send_text("Hello!")
 
@@ -56,6 +57,142 @@ async def test_object_account(acfactory) -> None:
     message = await bob.get_message_by_id(msg_id).get_snapshot()
     assert message.chat_id == chat_id
     assert message.text == "Hello!"
+    await bob.mark_seen_messages([message])
+
+    assert alice != bob
+    assert repr(alice)
+    assert (await alice.get_info()).level
+    assert await alice.get_size()
+    assert await alice.is_configured()
+    assert not await alice.get_avatar()
+    assert await alice.get_contact_by_addr(bob_addr) == alice_contact_bob
+    assert await alice.get_contacts()
+    assert await alice.get_contacts(snapshot=True)
+    assert alice.self_contact
+    assert await alice.get_chatlist()
+    assert await alice.get_chatlist(snapshot=True)
+    assert await alice.get_qr_code()
+    await alice.get_fresh_messages()
+    await alice.get_fresh_messages_in_arrival_order()
+
+    group = await alice.create_group("test group")
+    await group.add_contact(alice_contact_bob)
+    msg = await group.send_message(text="hello")
+    assert msg == await alice.get_message_by_id(msg.id)
+    assert group == await alice.get_chat_by_id(group.id)
+    await alice.delete_messages([msg])
+
+    await alice.set_config("selfstatus", "test")
+    assert await alice.get_config("selfstatus") == "test"
+    await alice.update_config(selfstatus="test2")
+    assert await alice.get_config("selfstatus") == "test2"
+
+    assert not await alice.get_blocked_contacts()
+    await alice_contact_bob.block()
+    blocked_contacts = await alice.get_blocked_contacts()
+    assert blocked_contacts
+    assert blocked_contacts[0].contact == alice_contact_bob
+
+    await bob.remove()
+    await alice.stop_io()
+
+
+@pytest.mark.asyncio
+async def test_chat(acfactory) -> None:
+    alice, bob = await acfactory.get_online_accounts(2)
+
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = await alice_contact_bob.create_chat()
+    await alice_chat_bob.send_text("Hello!")
+
+    while True:
+        event = await bob.wait_for_event()
+        if event.type == EventType.INCOMING_MSG:
+            chat_id = event.chat_id
+            msg_id = event.msg_id
+            break
+    message = await bob.get_message_by_id(msg_id).get_snapshot()
+    assert message.chat_id == chat_id
+    assert message.text == "Hello!"
+    bob_chat_alice = await bob.get_chat_by_id(chat_id)
+
+    assert alice_chat_bob != bob_chat_alice
+    assert repr(alice_chat_bob)
+    await alice_chat_bob.delete()
+    await bob_chat_alice.accept()
+    await bob_chat_alice.block()
+    bob_chat_alice = await message.contact.create_chat()
+    await bob_chat_alice.mute()
+    await bob_chat_alice.unmute()
+    await bob_chat_alice.pin()
+    await bob_chat_alice.unpin()
+    await bob_chat_alice.archive()
+    await bob_chat_alice.unarchive()
+    await bob_chat_alice.set_name("test")
+    await bob_chat_alice.set_ephemeral_timer(300)
+    await bob_chat_alice.get_encryption_info()
+
+    group = await alice.create_group("test group")
+    await group.add_contact(alice_contact_bob)
+    await group.get_qr_code()
+    assert await group.get_basic_snapshot()
+    assert await group.get_full_snapshot()
+    msg = await group.send_message(text="hi")
+    assert (await msg.get_snapshot()).text == "hi"
+    await group.forward_messages([msg])
+    await group.set_draft(text="draft")
+    assert await group.get_draft()
+    await group.remove_draft()
+    assert not await group.get_draft()
+    assert await group.get_messages()
+    await group.get_fresh_message_count()
+    await group.mark_noticed()
+    assert await group.get_contacts()
+    await group.remove_contact(alice_chat_bob)
+    await group.get_locations()
+
+
+@pytest.mark.asyncio
+async def test_contact(acfactory) -> None:
+    alice, bob = await acfactory.get_online_accounts(2)
+
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
+
+    assert alice_contact_bob == alice.get_contact_by_id(alice_contact_bob.id)
+    assert repr(alice_contact_bob)
+    await alice_contact_bob.block()
+    await alice_contact_bob.unblock()
+    await alice_contact_bob.set_name("new name")
+    await alice_contact_bob.get_encryption_info()
+    snapshot = await alice_contact_bob.get_snapshot()
+    assert snapshot.address == bob_addr
+    await alice_contact_bob.create_chat()
+
+
+@pytest.mark.asyncio
+async def test_message(acfactory) -> None:
+    alice, bob = await acfactory.get_online_accounts(2)
+
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = await alice_contact_bob.create_chat()
+    await alice_chat_bob.send_text("Hello!")
+
+    while True:
+        event = await bob.wait_for_event()
+        if event.type == EventType.INCOMING_MSG:
+            chat_id = event.chat_id
+            msg_id = event.msg_id
+            break
+
+    message = await bob.get_message_by_id(msg_id).get_snapshot()
+    assert message.chat_id == chat_id
+    assert message.text == "Hello!"
+    assert repr(message)
+    await message.mark_seen()
+    assert await message.send_reaction("😎")
 
 
 @pytest.mark.asyncio
