@@ -129,7 +129,7 @@ jobs:
 
     - name: install tox
       if: ${{ matrix.python }}
-      run: pip install tox
+      run: pip install --upgrade 'tox<4'
 
     - name: build C library
       if: ${{ matrix.python }}
