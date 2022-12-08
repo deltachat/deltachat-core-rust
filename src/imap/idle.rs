@@ -7,7 +7,10 @@ use futures_lite::FutureExt;
 use std::time::{Duration, SystemTime};
 
 use super::session::Session;
+use crate::imap::client::IMAP_TIMEOUT;
 use crate::{context::Context, scheduler::InterruptInfo};
+
+const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
 
 impl Session {
     pub async fn idle(
@@ -22,7 +25,6 @@ impl Session {
             bail!("IMAP server does not have IDLE capability");
         }
 
-        let timeout = Duration::from_secs(23 * 60);
         let mut info = Default::default();
 
         self.select_folder(context, watch_folder.as_deref()).await?;
@@ -41,7 +43,12 @@ impl Session {
             bail!("IMAP IDLE protocol failed to init/complete: {}", err);
         }
 
-        let (idle_wait, interrupt) = handle.wait_with_timeout(timeout);
+        // At this point IDLE command was sent and we received a "+ idling" response. We will now
+        // read from the stream without getting any data for up to `IDLE_TIMEOUT`. If we don't
+        // disable read timeout, we would get a timeout after `IMAP_TIMEOUT`, which is a lot
+        // shorter than `IDLE_TIMEOUT`.
+        handle.as_mut().set_read_timeout(None);
+        let (idle_wait, interrupt) = handle.wait_with_timeout(IDLE_TIMEOUT);
 
         enum Event {
             IdleResponse(IdleResponse),
@@ -90,10 +97,11 @@ impl Session {
             }
         }
 
-        let session = tokio::time::timeout(Duration::from_secs(15), handle.done())
+        let mut session = tokio::time::timeout(Duration::from_secs(15), handle.done())
             .await
             .with_context(|| format!("{}: IMAP IDLE protocol timed out", folder_name))?
             .with_context(|| format!("{}: IMAP IDLE failed", folder_name))?;
+        session.as_mut().set_read_timeout(Some(IMAP_TIMEOUT));
         self.inner = session;
 
         Ok((self, info))

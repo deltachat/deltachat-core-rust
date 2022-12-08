@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
+use std::time::Duration;
 
 use async_imap::types::Mailbox;
 use async_imap::Session as ImapSession;
@@ -28,14 +29,31 @@ pub(crate) struct Session {
 pub(crate) trait SessionStream:
     tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + Sync + std::fmt::Debug
 {
+    /// Change the read timeout on the session stream.
+    fn set_read_timeout(&mut self, timeout: Option<Duration>);
 }
 
-impl SessionStream for TlsStream<Box<dyn SessionStream>> {}
-impl SessionStream for TlsStream<Pin<Box<TimeoutStream<TcpStream>>>> {}
-impl SessionStream for TlsStream<TcpStream> {}
-impl SessionStream for TcpStream {}
-impl SessionStream for Pin<Box<TimeoutStream<TcpStream>>> {}
-impl SessionStream for Socks5Stream<TcpStream> {}
+impl SessionStream for TlsStream<Box<dyn SessionStream>> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.get_mut().set_read_timeout(timeout);
+    }
+}
+impl SessionStream for TlsStream<Pin<Box<TimeoutStream<TcpStream>>>> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.get_mut().set_read_timeout(timeout);
+    }
+}
+impl SessionStream for Pin<Box<TimeoutStream<TcpStream>>> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.as_mut().set_read_timeout_pinned(timeout);
+    }
+}
+impl SessionStream for Socks5Stream<TcpStream> {
+    fn set_read_timeout(&mut self, _timeout: Option<Duration>) {
+        // FIXME: build SOCKS streams on top of TimeoutStream, not directly TcpStream,
+        // so we can set a read timeout for them.
+    }
+}
 
 impl Deref for Session {
     type Target = ImapSession<Box<dyn SessionStream>>;

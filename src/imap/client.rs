@@ -20,7 +20,7 @@ use crate::login_param::{build_tls, Socks5Config};
 use super::session::SessionStream;
 
 /// IMAP write and read timeout in seconds.
-const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 pub(crate) struct Client {
