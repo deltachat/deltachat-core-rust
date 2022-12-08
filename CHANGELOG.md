@@ -29,6 +29,7 @@
 - Fetch messages in order of their INTERNALDATE (fixes reactions for Gmail f.e.) #3789
 - python: do not pass NULL to ffi.gc if the context can't be created #3818
 - Add read/write timeouts to IMAP sockets #3820
+- Add connection timeout to IMAP sockets #3828
 
 
 ## 1.102.0

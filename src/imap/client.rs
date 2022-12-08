@@ -10,6 +10,7 @@ use async_imap::Session as ImapSession;
 
 use async_smtp::ServerAddress;
 use tokio::net::{self, TcpStream};
+use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use super::capabilities::Capabilities;
@@ -96,7 +97,7 @@ impl Client {
         domain: &str,
         strict_tls: bool,
     ) -> Result<Self> {
-        let tcp_stream = TcpStream::connect(addr).await?;
+        let tcp_stream = timeout(IMAP_TIMEOUT, TcpStream::connect(addr)).await??;
         let mut timeout_stream = TimeoutStream::new(tcp_stream);
         timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
         timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
@@ -119,7 +120,7 @@ impl Client {
     }
 
     pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> Result<Self> {
-        let tcp_stream = TcpStream::connect(addr).await?;
+        let tcp_stream = timeout(IMAP_TIMEOUT, TcpStream::connect(addr)).await??;
         let mut timeout_stream = TimeoutStream::new(tcp_stream);
         timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
         timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
