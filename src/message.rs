@@ -1231,8 +1231,9 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "xml" => (Viewtype::File, "application/xml"),
         "xls" => (Viewtype::File, "application/vnd.ms-excel"),
         "zip" => (Viewtype::File, "application/zip"),
-        "heif" => (Viewtype::File, "image/heif"), // supported since Android 10
-        "heic" => (Viewtype::File, "image/heic"), // supported since Android 10
+        "heif" => (Viewtype::File, "image/heif"), // supported since Android 10 / iOS 11
+        "heic" => (Viewtype::File, "image/heic"), // supported since Android 10 / iOS 11
+        "avif" => (Viewtype::File, "image/avif"), // supported since Android 12 / iOS 16
         "txt" => (Viewtype::File, "text/plain"),
         _ => {
             return None;
