@@ -19,7 +19,7 @@ use crate::login_param::{build_tls, Socks5Config};
 use super::session::SessionStream;
 
 /// IMAP write and read timeout in seconds.
-const IMAP_TIMEOUT: u64 = 30;
+const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 pub(crate) struct Client {
@@ -98,8 +98,8 @@ impl Client {
     ) -> Result<Self> {
         let tcp_stream = TcpStream::connect(addr).await?;
         let mut timeout_stream = TimeoutStream::new(tcp_stream);
-        timeout_stream.set_write_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
-        timeout_stream.set_read_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
+        timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
         let timeout_stream = Box::pin(timeout_stream);
 
         let tls = build_tls(strict_tls);
@@ -121,8 +121,8 @@ impl Client {
     pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> Result<Self> {
         let tcp_stream = TcpStream::connect(addr).await?;
         let mut timeout_stream = TimeoutStream::new(tcp_stream);
-        timeout_stream.set_write_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
-        timeout_stream.set_read_timeout(Some(Duration::new(IMAP_TIMEOUT, 0)));
+        timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
+        timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
         let timeout_stream = Box::pin(timeout_stream);
         let stream: Box<dyn SessionStream> = Box::new(timeout_stream);
 
@@ -145,7 +145,7 @@ impl Client {
     ) -> Result<Self> {
         let socks5_stream: Box<dyn SessionStream> = Box::new(
             socks5_config
-                .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
+                .connect(target_addr, Some(IMAP_TIMEOUT))
                 .await?,
         );
 
@@ -171,7 +171,7 @@ impl Client {
     ) -> Result<Self> {
         let socks5_stream: Box<dyn SessionStream> = Box::new(
             socks5_config
-                .connect(target_addr, Some(Duration::from_secs(IMAP_TIMEOUT)))
+                .connect(target_addr, Some(IMAP_TIMEOUT))
                 .await?,
         );
 
