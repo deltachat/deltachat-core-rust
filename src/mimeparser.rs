@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
+use std::str;
 
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
@@ -10,17 +11,17 @@ use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
-use crate::aheader::Aheader;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::decrypt::{prepare_decryption, try_decrypt};
+use crate::decrypt::{prepare_decryption, try_decrypt, DecryptionInfo};
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::Fingerprint;
+use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -52,6 +53,7 @@ pub struct MimeMessage {
     pub from_is_signed: bool,
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
+    pub decryption_info: DecryptionInfo,
     pub decrypting_failed: bool,
 
     /// Set of valid signature fingerprints if a message is an
@@ -322,6 +324,7 @@ impl MimeMessage {
             from,
             from_is_signed,
             chat_disposition_notification_to,
+            decryption_info,
             decrypting_failed: mail.is_err(),
 
             // only non-empty if it was a valid autocrypt message
@@ -390,8 +393,8 @@ impl MimeMessage {
             parser.decoded_data = mail_raw;
         }
 
-        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
-        if let Some(peerstate) = decryption_info.peerstate {
+        crate::peerstate::maybe_do_aeap_transition(context, &mut parser).await?;
+        if let Some(peerstate) = &parser.decryption_info.peerstate {
             peerstate
                 .handle_fingerprint_change(context, message_time)
                 .await?;
@@ -950,7 +953,7 @@ impl MimeMessage {
                     &filename,
                     is_related,
                 )
-                .await;
+                .await?;
             }
             None => {
                 match mime_type.type_() {
@@ -1093,9 +1096,18 @@ impl MimeMessage {
         decoded_data: &[u8],
         filename: &str,
         is_related: bool,
-    ) {
+    ) -> Result<()> {
         if decoded_data.is_empty() {
-            return;
+            return Ok(());
+        }
+        if let Some(peerstate) = &mut self.decryption_info.peerstate {
+            if peerstate.prefer_encrypt != EncryptPreference::Mutual
+                && mime_type.type_() == mime::APPLICATION
+                && mime_type.subtype().as_str() == "pgp-keys"
+                && Self::try_set_peer_key_from_file_part(context, peerstate, decoded_data).await?
+            {
+                return Ok(());
+            }
         }
         let msg_type = if context
             .is_webxdc_file(filename, decoded_data)
@@ -1117,7 +1129,7 @@ impl MimeMessage {
                 } else {
                     self.message_kml = parsed;
                 }
-                return;
+                return Ok(());
             }
             msg_type
         } else if filename == "multi-device-sync.json" {
@@ -1130,13 +1142,13 @@ impl MimeMessage {
                     warn!(context, "failed to parse sync data: {}", err);
                 })
                 .ok();
-            return;
+            return Ok(());
         } else if filename == "status-update.json" {
             let serialized = String::from_utf8_lossy(decoded_data)
                 .parse()
                 .unwrap_or_default();
             self.webxdc_status_update = Some(serialized);
-            return;
+            return Ok(());
         } else {
             msg_type
         };
@@ -1151,7 +1163,7 @@ impl MimeMessage {
                     context,
                     "Could not add blob for mime part {}, error {}", filename, err
                 );
-                return;
+                return Ok(());
             }
         };
         info!(context, "added blobfile: {:?}", blob.as_name());
@@ -1174,6 +1186,66 @@ impl MimeMessage {
         part.is_related = is_related;
 
         self.do_add_single_part(part);
+        Ok(())
+    }
+
+    /// Returns whether a key from the attachment was set as peer's pubkey.
+    async fn try_set_peer_key_from_file_part(
+        context: &Context,
+        peerstate: &mut Peerstate,
+        decoded_data: &[u8],
+    ) -> Result<bool> {
+        let key = match str::from_utf8(decoded_data) {
+            Err(err) => {
+                warn!(context, "PGP key attachment is not a UTF-8 file: {}", err);
+                return Ok(false);
+            }
+            Ok(key) => key,
+        };
+        let key = match SignedPublicKey::from_asc(key) {
+            Err(err) => {
+                warn!(
+                    context,
+                    "PGP key attachment is not an ASCII-armored file: {}", err,
+                );
+                return Ok(false);
+            }
+            Ok((key, _)) => key,
+        };
+        if let Err(err) = key.verify() {
+            warn!(context, "attached PGP key verification failed: {}", err);
+            return Ok(false);
+        }
+        if !key.details.users.iter().any(|user| {
+            user.id
+                .id()
+                .ends_with(&(String::from("<") + &peerstate.addr + ">"))
+        }) {
+            return Ok(false);
+        }
+        if let Some(curr_key) = &peerstate.public_key {
+            if key != *curr_key && peerstate.prefer_encrypt != EncryptPreference::Reset {
+                // We don't want to break the existing Autocrypt setup. Yes, it's unlikely that a
+                // user have an Autocrypt-capable MUA and also attaches a key, but if that's the
+                // case, let 'em first disable Autocrypt and then change the key by attaching it.
+                warn!(
+                    context,
+                    "not using attached PGP key for peer '{}' because another one is already set \
+                    with prefer-encrypt={}",
+                    peerstate.addr,
+                    peerstate.prefer_encrypt,
+                );
+                return Ok(false);
+            }
+        }
+        info!(
+            context,
+            "will use attached PGP key for peer '{}' with mutual encryption", peerstate.addr,
+        );
+        peerstate.public_key = Some(key);
+        peerstate.prefer_encrypt = EncryptPreference::Mutual;
+        peerstate.save_to_db(&context.sql).await?;
+        Ok(true)
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {

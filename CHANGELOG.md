@@ -13,6 +13,7 @@
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833
+- Treat attached PGP keys as peer keys with mutual encryption preference #3832
 
 
 ## 1.103.0
