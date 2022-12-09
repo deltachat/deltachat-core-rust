@@ -12,9 +12,7 @@ if TYPE_CHECKING:
 
 
 class Account:
-    """Each account is tied to a sqlite database file which is fully managed
-    by the underlying deltachat core.
-    """
+    """Delta Chat account."""
 
     def __init__(self, manager: "DeltaChat", account_id: int) -> None:
         self.manager = manager
@@ -88,7 +86,7 @@ class Account:
         return await self.get_config("selfavatar")
 
     async def configure(self) -> None:
-        """Start configuration process."""
+        """Configure an account."""
         await self._rpc.configure(self.id)
 
     async def create_contact(
@@ -102,6 +100,7 @@ class Account:
         name is updated if specified.
 
         :param obj: email-address or contact id.
+        :param name: (optional) display name for this contact.
         """
         if isinstance(obj, int):
             obj = Contact(self, obj)
