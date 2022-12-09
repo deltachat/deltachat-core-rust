@@ -27,7 +27,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job;
-use crate::login_param::{CertificateChecks, LoginParam, ServerAddress, ServerLoginParam};
+use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
@@ -305,14 +305,8 @@ impl Imap {
             let imap_port = config.lp.port;
 
             let connection = if let Some(socks5_config) = &config.socks5_config {
-                Client::connect_insecure_socks5(
-                    &ServerAddress {
-                        host: imap_server.to_string(),
-                        port: imap_port,
-                    },
-                    socks5_config.clone(),
-                )
-                .await
+                Client::connect_insecure_socks5((imap_server, imap_port), socks5_config.clone())
+                    .await
             } else {
                 Client::connect_insecure((imap_server, imap_port)).await
             };
@@ -334,17 +328,14 @@ impl Imap {
 
             if let Some(socks5_config) = &config.socks5_config {
                 Client::connect_secure_socks5(
-                    &ServerAddress {
-                        host: imap_server.to_string(),
-                        port: imap_port,
-                    },
+                    (imap_server, imap_port),
+                    imap_server,
                     config.strict_tls,
                     socks5_config.clone(),
                 )
                 .await
             } else {
-                Client::connect_secure((imap_server, imap_port), imap_server, config.strict_tls)
-                    .await
+                Client::connect_secure(imap_server, imap_port, config.strict_tls).await
             }
         };
 

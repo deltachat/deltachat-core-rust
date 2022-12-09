@@ -48,10 +48,9 @@ impl SessionStream for Pin<Box<TimeoutStream<TcpStream>>> {
         self.as_mut().set_read_timeout_pinned(timeout);
     }
 }
-impl SessionStream for Socks5Stream<TcpStream> {
-    fn set_read_timeout(&mut self, _timeout: Option<Duration>) {
-        // FIXME: build SOCKS streams on top of TimeoutStream, not directly TcpStream,
-        // so we can set a read timeout for them.
+impl SessionStream for Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.get_socket_mut().set_read_timeout(timeout)
     }
 }
 
