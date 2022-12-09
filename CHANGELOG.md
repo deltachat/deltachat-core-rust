@@ -7,6 +7,7 @@
 ### API-Changes
 
 ### Fixes
+- Set read/write timeouts for IMAP over SOCKS5 #3833
 
 
 ## 1.103.0
