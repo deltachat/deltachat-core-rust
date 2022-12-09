@@ -13,14 +13,13 @@ use tokio::task;
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::events::EventType;
-use crate::login_param::{
-    build_tls, CertificateChecks, LoginParam, ServerLoginParam, Socks5Config,
-};
+use crate::login_param::{build_tls, CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::socks::Socks5Config;
 use crate::sql;
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 

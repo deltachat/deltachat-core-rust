@@ -27,9 +27,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::job;
-use crate::login_param::{
-    CertificateChecks, LoginParam, ServerAddress, ServerLoginParam, Socks5Config,
-};
+use crate::login_param::{CertificateChecks, LoginParam, ServerAddress, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
 use crate::oauth2::get_oauth2_access_token;
@@ -39,6 +37,7 @@ use crate::receive_imf::{
 };
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::scheduler::InterruptInfo;
+use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::create_id;

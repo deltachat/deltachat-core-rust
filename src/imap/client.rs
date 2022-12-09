@@ -15,7 +15,8 @@ use tokio_io_timeout::TimeoutStream;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
-use crate::login_param::{build_tls, Socks5Config};
+use crate::login_param::build_tls;
+use crate::socks::Socks5Config;
 
 use super::session::SessionStream;
 
