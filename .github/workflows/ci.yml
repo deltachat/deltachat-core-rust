@@ -134,6 +134,10 @@ jobs:
       if: ${{ matrix.python }}
       run: cargo build -p deltachat-rpc-server
 
+    - name: add deltachat-rpc-server to path
+      if: ${{ matrix.python }}
+      run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
+
     - name: run deltachat-rpc-client tests
       if: ${{ matrix.python }}
       env:
