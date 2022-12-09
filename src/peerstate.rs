@@ -9,7 +9,6 @@ use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, Origin};
 use crate::context::Context;
-use crate::decrypt::DecryptionInfo;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
@@ -565,10 +564,10 @@ impl Peerstate {
 /// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
 pub async fn maybe_do_aeap_transition(
     context: &Context,
-    info: &mut DecryptionInfo,
-    mime_parser: &crate::mimeparser::MimeMessage,
+    mime_parser: &mut crate::mimeparser::MimeMessage,
 ) -> Result<()> {
-    if let Some(peerstate) = &mut info.peerstate {
+    let info = &mime_parser.decryption_info;
+    if let Some(peerstate) = &info.peerstate {
         // If the from addr is different from the peerstate address we know,
         // we may want to do an AEAP transition.
         if !addr_cmp(&peerstate.addr, &mime_parser.from.addr)
@@ -588,6 +587,8 @@ pub async fn maybe_do_aeap_transition(
                 && mime_parser.from_is_signed
                 && info.message_time > peerstate.last_seen
         {
+            let info = &mut mime_parser.decryption_info;
+            let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
             // Add info messages to chats with this (verified) contact
             //
             peerstate

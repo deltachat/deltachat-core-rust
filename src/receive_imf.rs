@@ -5351,6 +5351,22 @@ Reply from different address
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
+        let t = TestContext::new_bob().await;
+        t.set_config(Config::ShowEmails, Some("2")).await?;
+
+        let raw = include_bytes!("../test-data/message/thunderbird_with_autocrypt_unencrypted.eml");
+        receive_imf(&t, raw, false).await?;
+
+        let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+            .await?
+            .unwrap();
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mua_user_adds_member() -> Result<()> {
         let t = TestContext::new_alice().await;
 
