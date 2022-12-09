@@ -867,7 +867,7 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 
 [[package]]
 name = "deltachat"
-version = "1.102.0"
+version = "1.103.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-jsonrpc"
-version = "1.102.0"
+version = "1.103.0"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -962,7 +962,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-rpc-server"
-version = "1.102.0"
+version = "1.103.0"
 dependencies = [
  "anyhow",
  "deltachat-jsonrpc",
@@ -985,7 +985,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.102.0"
+version = "1.103.0"
 dependencies = [
  "anyhow",
  "deltachat",

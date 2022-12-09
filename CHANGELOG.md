@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Changes
+
+### API-Changes
+
+### Fixes
+
+
+## 1.103.0
+
+### Changes
 - Disable Autocrypt & Authres-checking for mailing lists,
   because they don't work well with mailing lists #3765
 - Refactor: Remove the remaining AsRef<str> #3669
