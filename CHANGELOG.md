@@ -31,6 +31,7 @@
 - Add read/write timeouts to IMAP sockets #3820
 - Add connection timeout to IMAP sockets #3828
 - Disable read timeout during IMAP IDLE #3826
+- Bots automatically accept mailing lists #3831
 
 
 ## 1.102.0

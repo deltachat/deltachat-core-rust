@@ -1858,12 +1858,18 @@ async fn create_or_lookup_mailinglist(
             p.to_string()
         });
 
+        let is_bot = context.get_config(Config::Bot).await?.is_some();
+        let blocked = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
         let chat_id = ChatId::create_multiuser_record(
             context,
             Chattype::Mailinglist,
             &listid,
             &name,
-            Blocked::Request,
+            blocked,
             ProtectionStatus::Unprotected,
             param,
         )
@@ -1876,7 +1882,7 @@ async fn create_or_lookup_mailinglist(
         })?;
 
         chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
-        Ok(Some((chat_id, Blocked::Request)))
+        Ok(Some((chat_id, blocked)))
     } else {
         info!(context, "creating list forbidden by caller");
         Ok(None)
@@ -3684,6 +3690,27 @@ Hello mailinglist!\r\n"
         assert_eq!(chat.blocked, Blocked::Request);
         assert_eq!(chat.grpid, "test1.example.net");
         assert_eq!(chat.name, "Test1");
+    }
+
+    /// Tests that bots automatically accept mailing lists.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mailing_list_bot() {
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::Bot, Some("1")).await.unwrap();
+
+        receive_imf(
+            &t,
+            include_bytes!("../test-data/message/mailinglist_chat_message.eml"),
+            false,
+        )
+        .await
+        .unwrap();
+        let msg = t.get_last_msg().await;
+        let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
+        assert_eq!(chat.blocked, Blocked::Not);
+
+        // Bot should see the message as fresh and process it.
+        assert_eq!(t.get_fresh_msgs().await.unwrap().len(), 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
