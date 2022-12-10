@@ -525,7 +525,7 @@ async fn add_parts(
         }
 
         // signals wether the current user is a bot
-        let is_bot = context.get_config(Config::Bot).await?.is_some();
+        let is_bot = context.get_config_bool(Config::Bot).await?;
 
         if chat_id.is_none() {
             // try to create a group
@@ -1858,7 +1858,7 @@ async fn create_or_lookup_mailinglist(
             p.to_string()
         });
 
-        let is_bot = context.get_config(Config::Bot).await?.is_some();
+        let is_bot = context.get_config_bool(Config::Bot).await?;
         let blocked = if is_bot {
             Blocked::Not
         } else {
