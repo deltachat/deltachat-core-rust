@@ -82,3 +82,39 @@ class DownloadState(str, Enum):
     AVAILABLE = "Available"
     FAILURE = "Failure"
     IN_PROGRESS = "InProgress"
+
+
+class ViewType(str, Enum):
+    """Message view type."""
+
+    UNKNOWN = "Unknown"
+    TEXT = "Text"
+    IMAGE = "Image"
+    GIF = "Gif"
+    STICKER = "Sticker"
+    AUDIO = "Audio"
+    VOICE = "Voice"
+    VIDEO = "Video"
+    FILE = "File"
+    VIDEOCHAT_INVITATION = "VideochatInvitation"
+    WEBXDC = "Webxdc"
+
+
+class SystemMessageType(str, Enum):
+    """System message type."""
+
+    UNKNOWN = "Unknown"
+    GROUP_NAME_CHANGED = "GroupNameChanged"
+    GROUP_IMAGE_CHANGED = "GroupImageChanged"
+    MEMBER_ADDED_TO_GROUP = "MemberAddedToGroup"
+    MEMBER_REMOVED_FROM_GROUP = "MemberRemovedFromGroup"
+    AUTOCRYPT_SETUP_MESSAGE = "AutocryptSetupMessage"
+    SECUREJOIN_MESSAGE = "SecurejoinMessage"
+    LOCATION_STREAMING_ENABLED = "LocationStreamingEnabled"
+    LOCATION_ONLY = "LocationOnly"
+    CHAT_PROTECTION_ENABLED = "ChatProtectionEnabled"
+    CHAT_PROTECTION_DISABLED = "ChatProtectionDisabled"
+    WEBXDC_STATUS_UPDATE = "WebxdcStatusUpdate"
+    EPHEMERAL_TIMER_CHANGED = "EphemeralTimerChanged"
+    MULTI_DEVICE_SYNC = "MultiDeviceSync"
+    WEBXDC_INFO_MESSAGE = "WebxdcInfoMessage"
