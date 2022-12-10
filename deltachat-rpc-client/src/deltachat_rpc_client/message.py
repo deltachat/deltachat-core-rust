@@ -30,9 +30,9 @@ class Message:
     def _rpc(self) -> Rpc:
         return self.account._rpc
 
-    async def send_reaction(self, reactions: str) -> "Message":
-        msg_id = await self._rpc.send_reaction(self.account.id, self.id, reactions)
-        return Message(self.account, msg_id)
+    async def send_reaction(self, *reaction: str):
+        """Send a reaction to this message."""
+        await self._rpc.send_reaction(self.account.id, self.id, reaction)
 
     async def get_snapshot(self) -> AttrDict:
         """Get a snapshot with the properties of this message."""

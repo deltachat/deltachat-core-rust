@@ -198,9 +198,9 @@ class Account:
         if not snapshot:
             return [Chat(self, entry[0]) for entry in entries]
 
-        items = await self._rpc.get_chatlist_items_by_entries(self.id, flags, query)
+        items = await self._rpc.get_chatlist_items_by_entries(self.id, entries)
         chats = []
-        for item in items:
+        for item in items.values():
             item["chat"] = Chat(self, item["id"])
             chats.append(AttrDict(item))
         return chats

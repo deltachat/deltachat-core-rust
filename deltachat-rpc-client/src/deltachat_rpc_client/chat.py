@@ -56,13 +56,21 @@ class Chat:
         """Leave this chat."""
         await self._rpc.leave_group(self.account.id, self.id)
 
-    async def mute(self, duration: int = -1) -> None:
-        """Mute this chat, if a duration is not provided the chat is muted forever."""
-        await self._rpc.set_chat_mute_duration(self.account.id, self.id, duration)
+    async def mute(self, duration: Optional[int] = None) -> None:
+        """Mute this chat, if a duration is not provided the chat is muted forever.
+
+        :param duration: mute duration from now in seconds. Must be greater than zero.
+        """
+        if duration is not None:
+            assert duration > 0, "Invalid duration"
+            dur: Union[str, dict] = dict(Until=duration)
+        else:
+            dur = "Forever"
+        await self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
 
     async def unmute(self) -> None:
         """Unmute this chat."""
-        await self._rpc.set_chat_mute_duration(self.account.id, self.id, 0)
+        await self._rpc.set_chat_mute_duration(self.account.id, self.id, "NotMuted")
 
     async def pin(self) -> None:
         """Pin this chat."""
@@ -148,7 +156,7 @@ class Chat:
     async def forward_messages(self, messages: List[Message]) -> None:
         """Forward a list of messages to this chat."""
         msg_ids = [msg.id for msg in messages]
-        await self._rpc.markseen_msgs(self.account.id, msg_ids, self.id)
+        await self._rpc.forward_messages(self.account.id, msg_ids, self.id)
 
     async def set_draft(
         self,
@@ -165,10 +173,16 @@ class Chat:
         """Remove draft message."""
         await self._rpc.remove_draft(self.account.id, self.id)
 
-    async def get_draft(self) -> Message:
+    async def get_draft(self) -> Optional[AttrDict]:
         """Get draft message."""
-        msg = await self._rpc.get_draft(self.account.id, self.id)
-        return Message(self.account, msg["id"])
+        snapshot = await self._rpc.get_draft(self.account.id, self.id)
+        if not snapshot:
+            return None
+        snapshot = AttrDict(snapshot)
+        snapshot["chat"] = Chat(self.account, snapshot.chat_id)
+        snapshot["sender"] = Contact(self.account, snapshot.from_id)
+        snapshot["message"] = Message(self.account, snapshot.id)
+        return snapshot
 
     async def get_messages(self, flags: int = 0) -> List[Message]:
         """get the list of messages in this chat."""
