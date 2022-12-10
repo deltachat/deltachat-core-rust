@@ -1,6 +1,7 @@
 import asyncio
 import json
-from typing import Any, AsyncGenerator, Dict, Optional
+import os
+from typing import Any, Dict, Optional
 
 
 class JsonRpcError(Exception):
@@ -8,25 +9,35 @@ class JsonRpcError(Exception):
 
 
 class Rpc:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, accounts_dir: Optional[str] = None, **kwargs):
         """The given arguments will be passed to asyncio.create_subprocess_exec()"""
-        self._args = args
+        if accounts_dir:
+            kwargs["env"] = {
+                **kwargs.get("env", os.environ),
+                "DC_ACCOUNTS_PATH": os.path.abspath(
+                    os.path.expanduser(str(accounts_dir))
+                ),
+            }
+
         self._kwargs = kwargs
+        self.process: asyncio.subprocess.Process
+        self.id: int
+        self.event_queues: Dict[int, asyncio.Queue]
+        # Map from request ID to `asyncio.Future` returning the response.
+        self.request_events: Dict[int, asyncio.Future]
+        self.reader_task: asyncio.Task
 
     async def start(self) -> None:
         self.process = await asyncio.create_subprocess_exec(
             "deltachat-rpc-server",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            *self._args,
             **self._kwargs
         )
-        self.event_queues: Dict[int, asyncio.Queue] = {}
         self.id = 0
+        self.event_queues = {}
+        self.request_events = {}
         self.reader_task = asyncio.create_task(self.reader_loop())
-
-        # Map from request ID to `asyncio.Future` returning the response.
-        self.request_events: Dict[int, asyncio.Future] = {}
 
     async def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
@@ -42,7 +53,7 @@ class Rpc:
 
     async def reader_loop(self) -> None:
         while True:
-            line = await self.process.stdout.readline()
+            line = await self.process.stdout.readline()  # noqa
             if not line:  # EOF
                 break
             response = json.loads(line)
@@ -79,7 +90,7 @@ class Rpc:
                 "id": self.id,
             }
             data = (json.dumps(request) + "\n").encode()
-            self.process.stdin.write(data)
+            self.process.stdin.write(data)  # noqa
             loop = asyncio.get_running_loop()
             fut = loop.create_future()
             self.request_events[request_id] = fut
