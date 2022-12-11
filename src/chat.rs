@@ -3996,7 +3996,7 @@ mod tests {
         let add2 = alice.pop_sent_msg().await;
         bob.recv_msg(&add2).await;
 
-        // number of memebers in chat should have updated
+        // number of members in chat should have updated
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
         Ok(())
     }
