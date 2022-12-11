@@ -25,14 +25,15 @@ async def log_error(event):
     logging.error(event.msg)
 
 
-@hooks.on(events.NewMessage(r".+", func=lambda msg: not msg.text.startswith("/")))
-async def echo(msg):
-    await msg.chat.send_text(msg.text)
+@hooks.on(events.NewMessage(func=lambda e: not e.command))
+async def echo(event):
+    if event.text or event.file:
+        await event.chat.send_message(text=event.text, file=event.file)
 
 
-@hooks.on(events.NewMessage(r"/help"))
-async def help_command(msg):
-    await msg.chat.send_text("Send me any text message and I will echo it back")
+@hooks.on(events.NewMessage(command="/help"))
+async def help_command(event):
+    await event.chat.send_text("Send me any message and I will echo it back")
 
 
 async def main():

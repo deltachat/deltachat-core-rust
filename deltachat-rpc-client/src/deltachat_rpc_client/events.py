@@ -91,8 +91,15 @@ class RawEvent(EventFilter):
 class NewMessage(EventFilter):
     """Matches whenever a new message arrives.
 
-    Warning: registering a handler for this event or any subclass will cause the messages
+    Warning: registering a handler for this event will cause the messages
     to be marked as read. Its usage is mainly intended for bots.
+
+    :param pattern: if set, this Pattern will be used to filter the message by its text
+                    content.
+    :param command: If set, only match messages with the given command (ex. /help).
+    :param is_info: If set to True only match info/system messages, if set to False
+                    only match messages that are not info/system messages. If omitted
+                    info/system messages as well as normal messages will be matched.
     """
 
     def __init__(
@@ -103,9 +110,15 @@ class NewMessage(EventFilter):
             Callable[[str], bool],
             re.Pattern,
         ] = None,
+        command: Optional[str] = None,
+        is_info: Optional[bool] = None,
         func: Optional[Callable[[AttrDict], bool]] = None,
     ) -> None:
         super().__init__(func=func)
+        self.is_info = is_info
+        if command is not None and not isinstance(command, str):
+            raise TypeError("Invalid command")
+        self.command = command
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
         if isinstance(pattern, re.Pattern):
@@ -119,11 +132,20 @@ class NewMessage(EventFilter):
         return hash((self.pattern, self.func))
 
     def __eq__(self, other) -> bool:
-        if type(other) is self.__class__:  # noqa
-            return (self.pattern, self.func) == (other.pattern, other.func)
+        if isinstance(other, NewMessage):
+            return (self.pattern, self.command, self.is_info, self.func) == (
+                other.pattern,
+                other.command,
+                other.is_info,
+                other.func,
+            )
         return False
 
     async def filter(self, event: AttrDict) -> bool:
+        if self.is_info is not None and self.is_info != event.is_info:
+            return False
+        if self.command and self.command != event.command:
+            return False
         if self.pattern:
             match = self.pattern(event.text)
             if inspect.isawaitable(match):
@@ -131,10 +153,6 @@ class NewMessage(EventFilter):
             if not match:
                 return False
         return await super()._call_func(event)
-
-
-class NewInfoMessage(NewMessage):
-    """Matches whenever a new info/system message arrives."""
 
 
 class HookCollection:

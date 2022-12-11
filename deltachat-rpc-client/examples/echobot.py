@@ -17,8 +17,8 @@ async def log_event(event):
 
 
 @hooks.on(events.NewMessage)
-async def echo(msg):
-    await msg.chat.send_text(msg.text)
+async def echo(event):
+    await event.chat.send_text(event.text)
 
 
 if __name__ == "__main__":

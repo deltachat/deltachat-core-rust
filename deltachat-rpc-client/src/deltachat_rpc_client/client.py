@@ -4,8 +4,8 @@ from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Type, Union
 
 from deltachat_rpc_client.account import Account
 
-from .const import EventType
-from .events import EventFilter, NewInfoMessage, NewMessage, RawEvent
+from .const import COMMAND_PREFIX, EventType
+from .events import EventFilter, NewMessage, RawEvent
 from .utils import AttrDict
 
 
@@ -79,16 +79,48 @@ class Client:
                     self.logger.exception(ex)
 
     def _should_process_messages(self) -> bool:
-        return any(issubclass(filter_type, NewMessage) for filter_type in self._hooks)
+        return NewMessage in self._hooks
+
+    async def _parse_command(self, snapshot: AttrDict) -> None:
+        cmds = [
+            hook[1].command
+            for hook in self._hooks.get(NewMessage, [])
+            if hook[1].command
+        ]
+        parts = snapshot.text.split(maxsplit=1)
+        payload = parts[1] if len(parts) > 1 else ""
+        cmd = parts.pop(0)
+
+        if "@" in cmd:
+            suffix = "@" + (await self.account.self_contact.get_snapshot()).address
+            if cmd.endswith(suffix):
+                cmd = cmd[: -len(suffix)]
+            else:
+                return
+
+        parts = cmd.split("_")
+        _payload = payload
+        while parts:
+            _cmd = "_".join(parts)
+            if _cmd in cmds:
+                break
+            _payload = (parts.pop() + " " + _payload).rstrip()
+
+        if parts:
+            cmd = _cmd
+            payload = _payload
+
+        snapshot["command"] = cmd
+        snapshot["payload"] = payload
 
     async def _process_messages(self) -> None:
         if self._should_process_messages():
             for message in await self.account.get_fresh_messages_in_arrival_order():
                 snapshot = await message.get_snapshot()
-                if snapshot.is_info:
-                    await self._on_event(snapshot, NewInfoMessage)
-                else:
-                    await self._on_event(snapshot, NewMessage)
+                snapshot["command"], snapshot["payload"] = "", ""
+                if not snapshot.is_info and snapshot.text.startswith(COMMAND_PREFIX):
+                    await self._parse_command(snapshot)
+                await self._on_event(snapshot, NewMessage)
                 await snapshot.message.mark_seen()
 
 

@@ -235,12 +235,21 @@ async def test_bot(acfactory) -> None:
 
     res = []
     bot.add_hook(callback, events.NewMessage(r"hello"))
-    snapshot1 = AttrDict(text="hello")
-    snapshot2 = AttrDict(text="hello, world")
-    snapshot3 = AttrDict(text="hey!")
+    bot.add_hook(callback, events.NewMessage(command="/help"))
+    snapshot1 = AttrDict(text="hello", command=None)
+    snapshot2 = AttrDict(text="hello, world", command=None)
+    snapshot3 = AttrDict(text="hey!", command=None)
     for snapshot in [snapshot1, snapshot2, snapshot3]:
         await bot._on_event(snapshot, events.NewMessage)
     assert len(res) == 2
     assert snapshot1 in res
     assert snapshot2 in res
     assert snapshot3 not in res
+
+    res = []
+    bot.remove_hook(callback, events.NewMessage(r"hello"))
+    snapshot4 = AttrDict(command="/help")
+    await bot._on_event(snapshot, events.NewMessage)
+    await bot._on_event(snapshot4, events.NewMessage)
+    assert len(res) == 1
+    assert snapshot4 in res
