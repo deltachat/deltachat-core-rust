@@ -3565,8 +3565,7 @@ mod tests {
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::Contact;
     use crate::receive_imf::receive_imf;
-
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
@@ -3963,18 +3962,20 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sync_member_list_on_rejoin() -> Result<()> {
-        let alice = TestContext::new_alice().await;
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
 
         let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
         let claire_id = Contact::create(&alice, "", "claire@example.de").await?;
 
-        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foos").await?;
+        let alice_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "foos").await?;
         add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
         add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
 
         send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
         let add = alice.pop_sent_msg().await;
-        let bob = TestContext::new_bob().await;
+        let bob = tcm.bob().await;
         bob.recv_msg(&add).await;
         let bob_chat_id = bob.get_last_msg().await.chat_id;
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 3);

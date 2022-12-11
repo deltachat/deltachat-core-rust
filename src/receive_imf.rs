@@ -1601,7 +1601,12 @@ async fn apply_group_changes(
         return Ok(None);
     }
 
-    let mut recreate_member_list = false;
+    let mut recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
+        Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
+        Some(_) => false,
+        None => true,
+    };
+
     let mut send_event_chat_modified = false;
 
     let mut better_msg = None;
@@ -1613,12 +1618,6 @@ async fn apply_group_changes(
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
         match removed_id {
             Some(contact_id) => {
-                recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
-                    Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-                    Some(_) => false,
-                    None => true,
-                };
-
                 if !recreate_member_list {
                     chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
                     chat_id
@@ -1646,24 +1645,19 @@ async fn apply_group_changes(
         {
             better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
 
-            if let Some(contact_id) =
-                Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?
-            {
-                recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
-                    Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-                    Some(_) => false,
-                    None => true,
-                };
-                warn!(context, "recreating: {}", recreate_member_list);
-                if !recreate_member_list {
+            warn!(context, "recreating: {}", recreate_member_list);
+            if !recreate_member_list {
+                if let Some(contact_id) =
+                    Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?
+                {
                     chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
                     chat_id
                         .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
                         .await?;
                     send_event_chat_modified = true;
+                } else {
+                    recreate_member_list = true;
                 }
-            } else {
-                recreate_member_list = true;
             }
         } else if let Some(old_name) = mime_parser
             .get_header(HeaderDef::ChatGroupNameChanged)
