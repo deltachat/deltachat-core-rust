@@ -2738,7 +2738,7 @@ pub(crate) async fn remove_from_chat_contacts_table(
 }
 
 /// Adds a contact to the chat.
-/// If the group is promoted, also send out a system message to all group members
+/// If the group is promoted, also sends out a system message to all group members
 pub async fn add_contact_to_chat(
     context: &Context,
     chat_id: ChatId,
