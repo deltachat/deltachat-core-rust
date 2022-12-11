@@ -1293,7 +1293,7 @@ impl Chat {
         self.param.get_bool(Param::Unpromoted).unwrap_or_default()
     }
 
-    /// Returns wheter the chat is promoted which means that a message has been
+    /// Returns whether the chat is promoted which means that a message has been
     /// send to it and it not only exists on the users device.
     pub fn is_promoted(&self) -> bool {
         !self.is_unpromoted()
