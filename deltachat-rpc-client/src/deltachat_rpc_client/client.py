@@ -1,6 +1,17 @@
 """Event loop implementations offering high level event handling/hooking."""
+import inspect
 import logging
-from typing import Callable, Dict, Iterable, Optional, Set, Tuple, Type, Union
+from typing import (
+    Callable,
+    Coroutine,
+    Dict,
+    Iterable,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
 from deltachat_rpc_client.account import Account
 
@@ -56,6 +67,18 @@ class Client:
         self.logger.debug("Account configured")
 
     async def run_forever(self) -> None:
+        """Process events forever."""
+        await self.run_until(lambda _: False)
+
+    async def run_until(
+        self, func: Callable[[AttrDict], Union[bool, Coroutine]]
+    ) -> AttrDict:
+        """Process events until the given callable evaluates to True.
+
+        The callable should accept an AttrDict object representing the
+        last processed event. The event is returned when the callable
+        evaluates to True.
+        """
         self.logger.debug("Listening to incoming events...")
         if await self.is_configured():
             await self.account.start_io()
@@ -67,6 +90,12 @@ class Client:
             await self._on_event(event)
             if event.type == EventType.INCOMING_MSG:
                 await self._process_messages()
+
+            stop = func(event)
+            if inspect.isawaitable(stop):
+                stop = await stop
+            if stop:
+                return event
 
     async def _on_event(
         self, event: AttrDict, filter_type: Type[EventFilter] = RawEvent
