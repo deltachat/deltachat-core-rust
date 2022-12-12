@@ -637,7 +637,11 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
              verified_key_fingerprint TEXT DEFAULT '',
              UNIQUE (addr) -- Only one peerstate per address
              );
-            INSERT OR IGNORE INTO new_acpeerstates SELECT * FROM acpeerstates;
+            INSERT OR IGNORE INTO new_acpeerstates SELECT
+                id, addr, last_seen, last_seen_autocrypt, public_key, prefer_encrypted,
+                gossip_timestamp, gossip_key, public_key_fingerprint,
+                gossip_key_fingerprint, verified_key, verified_key_fingerprint
+            FROM acpeerstates;
             DROP TABLE acpeerstates;
             ALTER TABLE new_acpeerstates RENAME TO acpeerstates;
             CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);
@@ -652,7 +656,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
     if dbversion < 95 {
         sql.execute_migration(
             "CREATE TABLE new_chats_contacts (chat_id INTEGER, contact_id INTEGER, UNIQUE(chat_id, contact_id));\
-            INSERT OR IGNORE INTO new_chats_contacts SELECT * FROM chats_contacts;\
+            INSERT OR IGNORE INTO new_chats_contacts SELECT chat_id, contact_id FROM chats_contacts;\
             DROP TABLE chats_contacts;\
             ALTER TABLE new_chats_contacts RENAME TO chats_contacts;\
             CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);\
