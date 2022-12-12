@@ -3307,11 +3307,10 @@ pub unsafe extern "C" fn dc_is_webxdc_updating(
     msg_id: u32,
 ) -> libc::c_int {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_get_blocked_contacts()");
+        eprintln!("ignoring careless call to dc_is_webxdc_updating()");
         return 0;
     }
     let ctx = &*context;
-
     block_on(async move {
         webxdc::get_busy_webxdc_instances(ctx)
             .await

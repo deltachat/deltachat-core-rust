@@ -314,12 +314,12 @@ pub enum EventType {
         status_update_serial: StatusUpdateSerial,
     },
 
-    /// Inform that a message containing a webxdc instance has been deleted
+    /// Informs that a message containing a webxdc instance has been deleted
     WebxdcInstanceDeleted {
         msg_id: MsgId,
     },
 
-    /// Inform that the webxdc changed its update sending state
+    /// Informs that the webxdc changed its update sending state
     WebxdcUpdateStateChanged {
         msg_id: MsgId,
         is_sending: bool,

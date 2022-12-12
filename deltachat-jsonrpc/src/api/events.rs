@@ -281,8 +281,6 @@ pub enum JSONRPCEventType {
     WebxdcInstanceDeleted {
         msg_id: u32,
     },
-    WebxdcBusyUpdating,
-    WebxdcUpToDate,
     WebxdcUpdateStateChanged,
 }
 
