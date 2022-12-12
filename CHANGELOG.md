@@ -6,6 +6,9 @@
 - Don't use deprecated `chrono` functions #3798
 - Document accounts manager #3837
 
+- If a classical-email-user sends an email to a group and adds new recipients,
+  add the new recipients as group members #3781
+
 ### API-Changes
 
 ### Fixes

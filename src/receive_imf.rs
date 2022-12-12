@@ -1352,9 +1352,6 @@ async fn lookup_chat_by_reply(
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
-    // If this was a private message just to self, it was probably a private reply.
-    // It should not go into the group then, but into the private chat.
-
     if let Some(parent) = parent {
         let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
@@ -1370,8 +1367,24 @@ async fn lookup_chat_by_reply(
             return Ok(None);
         }
 
+        // If this was a private message just to self, it was probably a private reply.
+        // It should not go into the group then, but into the private chat.
         if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
             return Ok(None);
+        }
+
+        // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
+        // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
+        // newly created ad-hoc group.
+        if parent_chat.typ == Chattype::Single
+            && !mime_parser.has_chat_version()
+            && to_ids.len() > 1
+        {
+            let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+            chat_contacts.push(ContactId::SELF);
+            if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
+                return Ok(None);
+            }
         }
 
         info!(
@@ -1660,6 +1673,12 @@ async fn apply_group_changes(
                 }
             }
         }
+    }
+
+    if !mime_parser.has_chat_version() {
+        // If a classical MUA user adds someone to TO/CC, then the DC user shall
+        // see this addition and have the new recipient in the member list.
+        recreate_member_list = true;
     }
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
@@ -5327,6 +5346,150 @@ Reply from different address
             .await?
             .unwrap();
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mua_user_adds_member() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        receive_imf(
+            &t,
+            b"From: alice@example.org\n\
+                 To: bob@example.com\n\
+                 Subject: foo\n\
+                 Message-ID: <Gr.gggroupiddd.12345678901@example.com>\n\
+                 Chat-Version: 1.0\n\
+                 Chat-Group-ID: gggroupiddd\n\
+                 Chat-Group-Name: foo\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            false,
+        )
+        .await?
+        .unwrap();
+
+        receive_imf(
+            &t,
+            b"From: bob@example.com\n\
+                 To: alice@example.org, fiona@example.net\n\
+                 Subject: foo\n\
+                 Message-ID: <raaaaandoooooooooommmm@example.com>\n\
+                 In-Reply-To: Gr.gggroupiddd.12345678901@example.com\n\
+                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+                 \n\
+                 hello\n",
+            false,
+        )
+        .await?
+        .unwrap();
+
+        let (chat_id, _, _) = chat::get_chat_id_by_grpid(&t, "gggroupiddd")
+            .await?
+            .unwrap();
+        let mut actual_chat_contacts = chat::get_chat_contacts(&t, chat_id).await?;
+        actual_chat_contacts.sort();
+        let mut expected_chat_contacts = vec![
+            Contact::create(&t, "", "bob@example.com").await?,
+            Contact::create(&t, "", "fiona@example.net").await?,
+            ContactId::SELF,
+        ];
+        expected_chat_contacts.sort();
+        assert_eq!(actual_chat_contacts, expected_chat_contacts);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mua_user_adds_recipient_to_single_chat() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice sends a 1:1 message to Bob, creating a 1:1 chat.
+        let msg = receive_imf(
+            &alice,
+            b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+            From: alice@example.org\r\n\
+            To: <bob@example.net>\r\n\
+            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
+            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+            Chat-Version: 1.0\r\n\
+            \r\n\
+            tst\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        let single_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+        assert_eq!(single_chat.typ, Chattype::Single);
+
+        // Bob uses a classical MUA to answer in the 1:1 chat.
+        let msg2 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:31:39 +0000\r\n\
+            Message-ID: <bobs_private_answer@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_eq!(msg2.chat_id, single_chat.id);
+
+        // Bob uses a classical MUA to answer again, this time adding a recipient.
+        // This message should go to a newly created ad-hoc group.
+        let msg3 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
+            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_ne!(msg3.chat_id, single_chat.id);
+        let group_chat = Chat::load_from_db(&alice, msg3.chat_id).await?;
+        assert_eq!(group_chat.typ, Chattype::Group);
+        assert_eq!(
+            chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+            3
+        );
+
+        // Bob uses a classical MUA to answer once more, adding another recipient.
+        // This new recipient should also be added to the group.
+        let msg4 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>, <fiona@example.net>\r\n\
+            Date: Mon, 12 Dec 2022 14:33:39 +0000\r\n\
+            Message-ID: <69573857-542f-0fx3-55da-1289be5e0efe@example.net>\r\n\
+            In-Reply-To: <bobs_answer_to_two_recipients@example.net>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_eq!(msg4.chat_id, group_chat.id);
+        assert_eq!(
+            chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+            4
+        );
+        let fiona = Contact::lookup_id_by_addr(&alice, "fiona@example.net", Origin::IncomingTo)
+            .await?
+            .unwrap();
+        assert!(chat::is_contact_in_chat(&alice, group_chat.id, fiona).await?);
 
         Ok(())
     }
