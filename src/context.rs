@@ -705,6 +705,12 @@ impl Context {
                 .await?
                 .unwrap_or_default(),
         );
+        res.insert(
+            "authserv_id_candidates_origin",
+            self.get_config(Config::AuthservIdCandidatesOrigin)
+                .await?
+                .unwrap_or_default(),
+        );
 
         let elapsed = self.creation_time.elapsed();
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));

@@ -190,6 +190,10 @@ pub enum Config {
     ///
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
+
+    /// How sure we are that AuthservIdCandidates are the correct authserv-ids of our server.
+    /// This contains a value of [`crate::authres::AuthservIdCandidatesOrigin`].
+    AuthservIdCandidatesOrigin,
 }
 
 impl Context {

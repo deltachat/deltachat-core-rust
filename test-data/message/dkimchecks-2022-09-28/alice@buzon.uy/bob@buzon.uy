@@ -1,0 +1,9 @@
+Authentication-Results: mail.buzon.uy;
+	dkim=pass (2048-bit key; secure) header.d=buzon.uy header.i=@buzon.uy header.b="AyOucyBM";
+	dkim-atps=neutral
+From: <bob@buzon.uy>
+To: <alice@buzon.uy>
+
+This is actually not a realworld message, but a handwritten one. It is needed for test_realworld_authentication_results() to pass for buzon.
+
+Unfortunately, we don't know if buzon.uy actually adds Authentication-Results for emails that come from other buzon.uy accounts. So, we don't know if Authentication-Results checking works with buzon.uy.

@@ -5,14 +5,18 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt;
 
+use anyhow::Context as _;
 use anyhow::Result;
 use mailparse::MailHeaderMap;
 use mailparse::ParsedMail;
+use num_traits::FromPrimitive;
+use num_traits::ToPrimitive;
 use once_cell::sync::Lazy;
 
 use crate::config::Config;
 use crate::context::Context;
 use crate::headerdef::HeaderDef;
+use crate::tools;
 use crate::tools::time;
 use crate::tools::EmailAddress;
 
@@ -31,8 +35,8 @@ pub(crate) async fn handle_authres(
     from: &str,
     message_time: i64,
 ) -> Result<DkimResults> {
-    let from_domain = match EmailAddress::new(from) {
-        Ok(email) => email.domain,
+    let from = match EmailAddress::new(from) {
+        Ok(email) => email,
         Err(e) => {
             // This email is invalid, but don't return an error, we still want to
             // add a stub to the database so that it's not downloaded again
@@ -40,9 +44,9 @@ pub(crate) async fn handle_authres(
         }
     };
 
-    let authres = parse_authres_headers(&mail.get_headers(), &from_domain);
-    update_authservid_candidates(context, &authres).await?;
-    compute_dkim_results(context, authres, &from_domain, message_time).await
+    let authres = parse_authres_headers(&mail.get_headers(), &from.domain);
+    update_authservid_candidates(context, &authres, &from).await?;
+    compute_dkim_results(context, authres, &from.domain, message_time).await
 }
 
 #[derive(Debug)]
@@ -163,6 +167,16 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
     DkimResult::Nothing
 }
 
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, PartialOrd)]
+#[repr(i32)]
+pub(crate) enum AuthservIdCandidatesOrigin {
+    None = 0,
+    /// We just used the authserv-ids from an incoming email.
+    /// They might TODO docs
+    UnknownSender = 10,
+    SameDomainSender = 20,
+}
+
 /// ## About authserv-ids
 ///
 /// After having checked DKIM, our email server adds an Authentication-Results header.
@@ -193,19 +207,41 @@ fn parse_one_authres_header(header_value: &str, from_domain: &str) -> DkimResult
 async fn update_authservid_candidates(
     context: &Context,
     authres: &ParsedAuthresHeaders,
+    from: &EmailAddress,
 ) -> Result<()> {
     let mut new_ids: BTreeSet<&str> = authres
         .iter()
         .map(|(authserv_id, _dkim_passed)| authserv_id.as_str())
         .collect();
     if new_ids.is_empty() {
-        // The incoming message doesn't contain any authentication results, maybe it's a
+        // The incoming message doesn't contain any Authentication-Results, maybe it's a
         // self-sent or a mailer-daemon message
+        return Ok(());
+    }
+
+    let old_origin = get_authservid_condidates_origin(context).await?;
+
+    let self_addr = tools::EmailAddress::new(&context.get_primary_self_addr().await?)?;
+
+    // If we get an email from another account on the same domain as ours, then we can
+    // assume that the Authentication-Results in there were added by our server.
+    // So, the authserv-id in there most probably is the one of our server, i.e. it's
+    // the one we want to remember.
+    // We have the `&& from.local != self_addr.local` because many servers, e.g. GMail,
+    // don't add Authentication-Results for self-sent emails.
+    let new_origin = if from.domain == self_addr.domain && from.local != self_addr.local {
+        AuthservIdCandidatesOrigin::SameDomainSender
+    } else {
+        AuthservIdCandidatesOrigin::UnknownSender
+    };
+
+    if old_origin > new_origin {
         return Ok(());
     }
 
     let old_config = context.get_config(Config::AuthservIdCandidates).await?;
     let old_ids = parse_authservid_candidates_config(&old_config);
+
     let intersection: BTreeSet<&str> = old_ids.intersection(&new_ids).copied().collect();
     if !intersection.is_empty() {
         new_ids = intersection;
@@ -223,6 +259,17 @@ async fn update_authservid_candidates(
         // reset our expectation which DKIMs work.
         clear_dkim_works(context).await?
     }
+
+    if old_origin != new_origin {
+        let new_origin_i32 = new_origin.to_i32().context("not a valid i32??")?;
+        context
+            .set_config(
+                Config::AuthservIdCandidatesOrigin,
+                Some(&new_origin_i32.to_string()),
+            )
+            .await?;
+    }
+
     Ok(())
 }
 
@@ -246,14 +293,33 @@ async fn compute_dkim_results(
     let ids_config = context.get_config(Config::AuthservIdCandidates).await?;
     let ids = parse_authservid_candidates_config(&ids_config);
 
-    // Remove all foreign authentication results
+    let origin = get_authservid_condidates_origin(context).await?;
+
+    // Remove all foreign Authentication-Results
     authres.retain(|(authserv_id, _dkim_passed)| ids.contains(authserv_id.as_str()));
 
     if authres.is_empty() {
-        // If the authentication results are empty, then our provider doesn't add them
-        // and an attacker could just add their own Authentication-Results, making us
-        // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
-        dkim_passed = true;
+        match origin {
+            AuthservIdCandidatesOrigin::None | AuthservIdCandidatesOrigin::UnknownSender => {
+                // If the Authentication-results are empty, then our provider doesn't add them
+                // and an attacker could just add their own Authentication-Results, making us
+                // think that DKIM passed. So, in this case, we can as well assume that DKIM passed.
+                dkim_passed = true;
+            }
+
+            AuthservIdCandidatesOrigin::SameDomainSender => {
+                // We know that usually our provider adds Authentication-Results,
+                // and we are quite certain that we know the correct authserv-id.
+                //
+                // Some providers like buzon.uy, disroot.org, yandex.ru, mailo.com, and
+                // riseup.net only add Authentication-Results if DKIM/SPF passed.
+                // So, probably DKIM failed, and therefore no Authentication-Results
+                // were added. And since we probably know the correct authserv-id,
+                // we can acutally assume that an attacher couldn't just add their own
+                // Authentication-Results.
+                dkim_passed = false;
+            }
+        };
     } else {
         for (_authserv_id, current_dkim_passed) in authres {
             match current_dkim_passed {
@@ -344,6 +410,15 @@ fn parse_authservid_candidates_config(config: &Option<String>) -> BTreeSet<&str>
         .as_deref()
         .map(|c| c.split_whitespace().collect())
         .unwrap_or_default()
+}
+
+async fn get_authservid_condidates_origin(context: &Context) -> Result<AuthservIdCandidatesOrigin> {
+    AuthservIdCandidatesOrigin::from_i32(
+        context
+            .get_config_int(Config::AuthservIdCandidatesOrigin)
+            .await?,
+    )
+    .context("Invalid AuthservIdCandidatesOrigin config")
 }
 
 #[cfg(test)]
@@ -486,25 +561,60 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
     async fn test_update_authservid_candidates() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        update_authservid_candidates_test(&t, &["mx3.messagingengine.com"]).await;
+        update_authservid_candidates_test(&t, &["mx3.messagingengine.com"], "a@b.c").await;
         let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx3.messagingengine.com");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::UnknownSender);
 
         // "mx4.messagingengine.com" seems to be the new authserv-id, DC should accept it
-        update_authservid_candidates_test(&t, &["mx4.messagingengine.com"]).await;
+        update_authservid_candidates_test(&t, &["mx4.messagingengine.com"], "a@b.c").await;
         let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::UnknownSender);
 
         // A message without any Authentication-Results headers shouldn't remove all
         // candidates since it could be a mailer-daemon message or so
-        update_authservid_candidates_test(&t, &[]).await;
+        update_authservid_candidates_test(&t, &[], "a@b.c").await;
         let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::UnknownSender);
 
-        update_authservid_candidates_test(&t, &["mx4.messagingengine.com", "someotherdomain.com"])
-            .await;
+        update_authservid_candidates_test(
+            &t,
+            &["mx4.messagingengine.com", "someotherdomain.com"],
+            "a@b.c",
+        )
+        .await;
         let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
         assert_eq!(candidates, "mx4.messagingengine.com");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::UnknownSender);
+
+        // We get an email from another example.org user
+        update_authservid_candidates_test(&t, &["mx.example.org"], "friend@example.org").await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx.example.org");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::SameDomainSender);
+
+        // "mx4.messagingengine.com" comes from another domain while "mx.example.org" came
+        // from an example.org address -> the latter is more trustworthy
+        update_authservid_candidates_test(&t, &["mx4.messagingengine.com"], "a@b.c").await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx.example.org");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::SameDomainSender);
+
+        // Another email from an example.org user, seems like example.org changed their
+        // authserv-id
+        update_authservid_candidates_test(&t, &["mx2.example.org"], "friend@example.org").await;
+        let candidates = t.get_config(Config::AuthservIdCandidates).await?.unwrap();
+        assert_eq!(candidates, "mx2.example.org");
+        let origin = get_authservid_condidates_origin(&t).await?;
+        assert_eq!(origin, AuthservIdCandidatesOrigin::SameDomainSender);
 
         Ok(())
     }
@@ -514,12 +624,18 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
     /// update_authservid_candidates() only looks at the keys of its
     /// `authentication_results` parameter. So, this function takes `incoming_ids`
     /// and adds some AuthenticationResults to get the HashMap we need.
-    async fn update_authservid_candidates_test(context: &Context, incoming_ids: &[&str]) {
+    async fn update_authservid_candidates_test(
+        context: &Context,
+        incoming_ids: &[&str],
+        from_addr: &str,
+    ) {
         let v = incoming_ids
             .iter()
             .map(|id| (id.to_string(), DkimResult::Passed))
             .collect();
-        update_authservid_candidates(context, &v).await.unwrap()
+        update_authservid_candidates(context, &v, &EmailAddress::new(from_addr).unwrap())
+            .await
+            .unwrap()
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -551,6 +667,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
                 "outlook.com",
                 "gmx.de",
                 "testrun.org",
+                "buzon.uy",
             ]
             .contains(&self_domain.as_str());
 
@@ -614,11 +731,17 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
                 if res.dkim_passed != expected_result {
                     if authres_parsing_works {
+                        println!();
                         println!(
-                            "!!!!!! FAILURE Receiving {:?}, order {:#?} wrong result: !!!!!!",
+                            "!!!!!! FAILURE Receiving {:?}, wrong result: !!!!!!",
                             entry.path(),
+                        );
+                        println!(
+                            "order: {:#?}",
                             dir.iter().map(|e| e.file_name()).collect::<Vec<_>>()
                         );
+                        println!("Info: {:#?}", t.get_info().await?);
+                        println!();
                         test_failed = true;
                     }
                     println!("From {}: {}", from_domain, res.dkim_passed);
@@ -632,7 +755,7 @@ Authentication-Results: box.hispanilandia.net; spf=pass smtp.mailfrom=adbenitez@
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_handle_authres() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         // Even if the format is wrong and parsing fails, handle_authres() shouldn't
         // return an Err because this would prevent the message from being added
