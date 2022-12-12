@@ -1138,6 +1138,14 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
+    pub async fn get_verifier(context: &Context, contact_id: &ContactId) -> Result<Option<String>> {
+        let contact = Contact::load_from_db(context, *contact_id).await?;
+
+        Ok(Peerstate::from_addr(context, contact.get_addr())
+            .await?
+            .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
+    }
+
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {
         if !context.sql.is_open().await {
             return Ok(0);
@@ -2299,6 +2307,12 @@ alice@example.org:
 bob@example.net:
 CCCB 5AA9 F6E1 141C 9431
 65F1 DB18 B18C BCF7 0487"
+        );
+
+        // If contact was verified by `self` the verifier is the contact itself to reflect that.
+        assert_eq!(
+            Contact::get_verifier(&alice, &contact_bob_id).await?,
+            Some("bob@example.net".to_owned())
         );
 
         Ok(())

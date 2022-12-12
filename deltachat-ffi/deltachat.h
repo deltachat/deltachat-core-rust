@@ -4735,6 +4735,23 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
 int             dc_contact_is_verified       (dc_contact_t* contact);
 
 
+
+/**
+ * Return the person that verified a contact
+ *
+ * The UI may use this in addition to a chackmark showing the verification status
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 
+ *    A string containing the verifieers address. If this is the same address as the contact,
+ *    we verified the contct ourself. If it is an empty string, we don't have verifier 
+ *    information or the contact is not verified.
+ */
+char*           dc_contact_verifier       (dc_contact_t* contact);
+
+
+
 /**
  * @class dc_provider_t
  *

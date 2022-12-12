@@ -2138,13 +2138,14 @@ async fn check_verified_properties(
                     || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                         && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
                 {
-                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr,);
+                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr);
                     let fp = peerstate.gossip_key_fingerprint.clone();
                     if let Some(fp) = fp {
                         peerstate.set_verified(
                             PeerstateKeyType::GossipKey,
                             &fp,
                             PeerstateVerifiedStatus::BidirectVerified,
+                            contact.get_addr().to_owned(),
                         );
                         peerstate.save_to_db(&context.sql).await?;
                         is_verified = true;

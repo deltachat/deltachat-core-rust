@@ -896,6 +896,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
         assert!(
             peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),

@@ -3562,6 +3562,7 @@ mod tests {
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::Contact;
     use crate::receive_imf::receive_imf;
+
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

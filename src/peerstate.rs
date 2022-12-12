@@ -48,6 +48,7 @@ pub struct Peerstate {
     pub verified_key: Option<SignedPublicKey>,
     pub verified_key_fingerprint: Option<Fingerprint>,
     pub fingerprint_changed: bool,
+    pub verifier: Option<String>,
 }
 
 impl PartialEq for Peerstate {
@@ -103,9 +104,13 @@ impl Peerstate {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         }
     }
 
+    /// Create peerstate from gossip
+    /// Params:
+    /// verifier: The person from who sent the message containing the gossip
     pub fn from_gossip(gossip_header: &Aheader, message_time: i64) -> Self {
         Peerstate {
             addr: gossip_header.addr.clone(),
@@ -119,7 +124,6 @@ impl Peerstate {
             // learn encryption preferences of other members immediately and don't send unencrypted
             // messages to a group where everyone prefers encryption.
             prefer_encrypt: gossip_header.prefer_encrypt,
-
             public_key: None,
             public_key_fingerprint: None,
             gossip_key: Some(gossip_header.public_key.clone()),
@@ -128,13 +132,14 @@ impl Peerstate {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         }
     }
 
     pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates \
                      WHERE addr=? COLLATE NOCASE LIMIT 1;";
         Self::from_stmt(context, query, paramsv![addr]).await
@@ -146,7 +151,7 @@ impl Peerstate {
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? \
                      OR gossip_key_fingerprint=? \
@@ -162,7 +167,7 @@ impl Peerstate {
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates  \
                      WHERE verified_key_fingerprint=? \
                      OR addr=? COLLATE NOCASE \
@@ -219,6 +224,7 @@ impl Peerstate {
                         .transpose()
                         .unwrap_or_default(),
                     fingerprint_changed: false,
+                    verifier: row.get("verifier")?,
                 };
 
                 Ok(res)
@@ -358,11 +364,17 @@ impl Peerstate {
         }
     }
 
+    /// Set this peerstate to verified
+    /// Make sure to call `self.save_to_db` to save these changes
+    /// Params:
+    /// verifier: The address, which verifies the given contact
+    /// Return wheter the value of the key has been changed
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
         fingerprint: &Fingerprint,
         verified: PeerstateVerifiedStatus,
+        verifier: String,
     ) -> bool {
         if verified == PeerstateVerifiedStatus::BidirectVerified {
             match which_key {
@@ -372,6 +384,7 @@ impl Peerstate {
                     {
                         self.verified_key = self.public_key.clone();
                         self.verified_key_fingerprint = self.public_key_fingerprint.clone();
+                        self.verifier = Some(verifier);
                         true
                     } else {
                         false
@@ -383,6 +396,7 @@ impl Peerstate {
                     {
                         self.verified_key = self.gossip_key.clone();
                         self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
+                        self.verifier = Some(verifier);
                         true
                     } else {
                         false
@@ -395,6 +409,7 @@ impl Peerstate {
     }
 
     pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
+        println!("hi");
         sql.execute(
             "INSERT INTO acpeerstates (
                 last_seen,
@@ -407,8 +422,9 @@ impl Peerstate {
                 gossip_key_fingerprint,
                 verified_key,
                 verified_key_fingerprint,
-                addr)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                addr,
+                verifier)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT (addr)
                 DO UPDATE SET
                   last_seen = excluded.last_seen,
@@ -420,7 +436,8 @@ impl Peerstate {
                   public_key_fingerprint = excluded.public_key_fingerprint,
                   gossip_key_fingerprint = excluded.gossip_key_fingerprint,
                   verified_key = excluded.verified_key,
-                  verified_key_fingerprint = excluded.verified_key_fingerprint",
+                  verified_key_fingerprint = excluded.verified_key_fingerprint,
+                  verifier = excluded.verifier",
             paramsv![
                 self.last_seen,
                 self.last_seen_autocrypt,
@@ -433,6 +450,7 @@ impl Peerstate {
                 self.verified_key.as_ref().map(|k| k.to_bytes()),
                 self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
                 self.addr,
+                self.verifier,
             ],
         )
         .await?;
@@ -445,6 +463,10 @@ impl Peerstate {
         } else {
             false
         }
+    }
+
+    pub fn get_verifier(&self) -> Option<&String> {
+        self.verifier.as_ref()
     }
 
     /// Add an info message to all the chats with this contact, informing about
@@ -672,6 +694,7 @@ mod tests {
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -711,6 +734,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -743,6 +767,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -805,6 +830,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         peerstate.apply_header(&header, 100);

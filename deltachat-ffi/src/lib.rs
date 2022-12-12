@@ -3963,6 +3963,20 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
         .unwrap_or_default() as libc::c_int
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_verifier(contact: *mut dc_contact_t) -> *mut libc::c_char {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_verifier()");
+        return "".strdup();
+    }
+    let ffi_contact = &*contact;
+    let ctx = &*ffi_contact.context;
+    block_on(Contact::get_verifier(ctx, &ffi_contact.contact.get_id()))
+        .log_err(ctx, "failed to get verifier")
+        .unwrap_or_default()
+        .strdup()
+}
+
 // dc_lot_t
 
 pub type dc_lot_t = lot::Lot;
