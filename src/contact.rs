@@ -2307,13 +2307,6 @@ bob@example.net:
 CCCB 5AA9 F6E1 141C 9431
 65F1 DB18 B18C BCF7 0487"
         );
-
-        // If we verified the contact ourselves, verifier addr == contact addr
-        assert_eq!(
-            Contact::get_verifier(&alice, &contact_bob_id).await?,
-            Some("bob@example.net".to_owned())
-        );
-
         Ok(())
     }
 
