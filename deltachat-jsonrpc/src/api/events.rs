@@ -384,8 +384,6 @@ impl From<EventType> for JSONRPCEventType {
             EventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
-            EventType::WebxdcStatusUpdate { .. } => WebxdcStatusUpdate,
-            EventType::WebxdcInstanceDeleted { .. } => WebxdcInstanceDeleted,
             EventType::WebxdcUpdateStateChanged { .. } => WebxdcUpdateStateChanged,
         }
     }
