@@ -142,14 +142,14 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     msg_out = chat1.send_text("hello")
     assert msg_out.is_encrypted()
 
-    lp.sec("ac2: read message and check it's a verified chat")
+    lp.sec("ac2: read message and check that it's a verified chat")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.text == "hello"
     assert msg.chat.is_protected()
     assert msg.is_encrypted()
 
-    lp.sec("ac2: Check that we ourselves are the verifiers")
-    # If we verified the contact ourselves, verifier addr == contact addr
+    lp.sec("ac2: Check that ac2 verified ac1")
+    # If we verified the contact ourselves then verifier addr == contact addr
     ac2_ac1_contact = ac2.get_contacts()[0]
     assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
 
@@ -174,7 +174,7 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     assert msg.is_system_message()
     assert not msg.error
 
-    lp.sec("ac2: Check that the verifiers are correct")
+    lp.sec("ac2: Check that ac1 verified ac3 for ac2")
     ac2_ac1_contact = ac2.get_contacts()[0]
     assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
     ac2_ac3_contact = ac2.get_contacts()[1]

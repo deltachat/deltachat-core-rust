@@ -27,6 +27,7 @@
 - Use relative paths in `accounts.toml` #3838
 
 ### API-Changes
+- Add ffi function to retrieve `verified by` information #3786
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833

@@ -108,9 +108,6 @@ impl Peerstate {
         }
     }
 
-    /// Create peerstate from gossip
-    /// Params:
-    /// verifier: The person from who sent the message containing the gossip
     pub fn from_gossip(gossip_header: &Aheader, message_time: i64) -> Self {
         Peerstate {
             addr: gossip_header.addr.clone(),
@@ -368,7 +365,7 @@ impl Peerstate {
     /// Make sure to call `self.save_to_db` to save these changes
     /// Params:
     /// verifier: The address, which verifies the given contact
-    /// Return wheter the value of the key has been changed
+    /// Return wheter the key  has been changed
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
@@ -409,7 +406,6 @@ impl Peerstate {
     }
 
     pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
-        println!("hi");
         sql.execute(
             "INSERT INTO acpeerstates (
                 last_seen,
