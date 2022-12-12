@@ -1,5 +1,7 @@
 //! # Account manager module.
 
+#![warn(missing_docs)]
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -265,12 +267,14 @@ impl Accounts {
         true
     }
 
+    /// Starts background tasks such as IMAP and SMTP loops for all accounts.
     pub async fn start_io(&self) {
         for account in self.accounts.values() {
             account.start_io().await;
         }
     }
 
+    /// Stops background tasks for all accounts.
     pub async fn stop_io(&self) {
         // Sending an event here wakes up event loop even
         // if there are no accounts.
@@ -280,12 +284,14 @@ impl Accounts {
         }
     }
 
+    /// Notifies all accounts that the network may have become available.
     pub async fn maybe_network(&self) {
         for account in self.accounts.values() {
             account.maybe_network().await;
         }
     }
 
+    /// Notifies all accounts that the network connection may have been lost.
     pub async fn maybe_network_lost(&self) {
         for account in self.accounts.values() {
             account.maybe_network_lost().await;
@@ -303,7 +309,10 @@ impl Accounts {
     }
 }
 
+/// Configuration file name.
 pub const CONFIG_NAME: &str = "accounts.toml";
+
+/// Database file name.
 pub const DB_NAME: &str = "dc.db";
 
 /// Account manager configuration file.
@@ -325,6 +334,7 @@ struct InnerConfig {
 }
 
 impl Config {
+    /// Creates a new configuration file in the given account manager directory.
     pub async fn new(dir: &Path) -> Result<Self> {
         let inner = InnerConfig {
             accounts: Vec::new(),
@@ -432,14 +442,17 @@ impl Config {
         self.sync().await
     }
 
+    /// Returns configuration file section for the given account ID.
     fn get_account(&self, id: u32) -> Option<AccountConfig> {
         self.inner.accounts.iter().find(|e| e.id == id).cloned()
     }
 
+    /// Returns the ID of selected account.
     pub fn get_selected_account(&self) -> u32 {
         self.inner.selected_account
     }
 
+    /// Changes selected account ID.
     pub async fn select_account(&mut self, id: u32) -> Result<()> {
         {
             ensure!(

@@ -4,6 +4,7 @@
 
 ### Changes
 - Don't use deprecated `chrono` functions #3798
+- Document accounts manager #3837
 
 ### API-Changes
 
