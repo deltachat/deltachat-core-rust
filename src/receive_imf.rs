@@ -5355,7 +5355,6 @@ Reply from different address
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mua_user_adds_member() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await?;
 
         receive_imf(
             &t,
@@ -5401,6 +5400,98 @@ Reply from different address
         ];
         expected_chat_contacts.sort();
         assert_eq!(actual_chat_contacts, expected_chat_contacts);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mua_user_adds_recipient_to_single_chat() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        // Alice sends a 1:1 message to Bob, creating a 1:1 chat.
+        let msg = receive_imf(
+            &alice,
+            b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+            From: alice@example.org\r\n\
+            To: <bob@example.net>\r\n\
+            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
+            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+            Chat-Version: 1.0\r\n\
+            \r\n\
+            tst\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        let single_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+        assert_eq!(single_chat.typ, Chattype::Single);
+
+        // Bob uses a classical MUA to answer in the 1:1 chat.
+        let msg2 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:31:39 +0000\r\n\
+            Message-ID: <bobs_private_answer@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_eq!(msg2.chat_id, single_chat.id);
+
+        // Bob uses a classical MUA to answer again, this time adding a recipient.
+        // This message should go to a newly created ad-hoc group.
+        let msg3 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
+            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_ne!(msg3.chat_id, single_chat.id);
+        let group_chat = Chat::load_from_db(&alice, msg3.chat_id).await?;
+        assert_eq!(group_chat.typ, Chattype::Group);
+        assert_eq!(
+            chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+            3
+        );
+
+        // Bob uses a classical MUA to answer once more, adding another recipient.
+        // This new recipient should also be added to the group.
+        let msg4 = receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>, <fiona@example.net>\r\n\
+            Date: Mon, 12 Dec 2022 14:33:39 +0000\r\n\
+            Message-ID: <69573857-542f-0fx3-55da-1289be5e0efe@example.net>\r\n\
+            In-Reply-To: <bobs_answer_to_two_recipients@example.net>\r\n\
+            \r\n\
+            Hi back!\r\n",
+            false,
+        )
+        .await?
+        .unwrap();
+        assert_eq!(msg4.chat_id, group_chat.id);
+        assert_eq!(
+            chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+            4
+        );
+        let fiona = Contact::lookup_id_by_addr(&alice, "fiona@example.net", Origin::IncomingTo)
+            .await?
+            .unwrap();
+        assert!(chat::is_contact_in_chat(&alice, group_chat.id, fiona).await?);
 
         Ok(())
     }
