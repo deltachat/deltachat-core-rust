@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Don't use deprecated `chrono` functions #3798
 
 ### API-Changes
 
