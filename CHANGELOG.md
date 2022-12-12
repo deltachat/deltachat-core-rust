@@ -9,6 +9,7 @@
   add the new recipients as group members #3781
 - Remove `pytest-async` plugin #3846
 - Only send the message about ephemeral timer change if the chat is promoted #3847
+- Use relative paths in `accounts.toml` #3838
 
 ### API-Changes
 

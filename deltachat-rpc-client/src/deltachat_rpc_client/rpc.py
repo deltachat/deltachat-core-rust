@@ -14,9 +14,7 @@ class Rpc:
         if accounts_dir:
             kwargs["env"] = {
                 **kwargs.get("env", os.environ),
-                "DC_ACCOUNTS_PATH": os.path.abspath(
-                    os.path.expanduser(str(accounts_dir))
-                ),
+                "DC_ACCOUNTS_PATH": str(accounts_dir),
             }
 
         self._kwargs = kwargs
