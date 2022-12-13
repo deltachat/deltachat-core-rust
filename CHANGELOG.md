@@ -8,6 +8,7 @@
 
 - If a classical-email-user sends an email to a group and adds new recipients,
   add the new recipients as group members #3781
+- Remove `pytest-async` plugin #3846
 
 ### API-Changes
 
