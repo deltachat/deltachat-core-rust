@@ -1,5 +1,7 @@
 //! # Key-value configuration management.
 
+#![allow(missing_docs)]
+
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};

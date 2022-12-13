@@ -1,5 +1,7 @@
 //! Handle plain text together with some attributes.
 
+#![allow(missing_docs)]
+
 use crate::simplify::split_lines;
 use once_cell::sync::Lazy;
 

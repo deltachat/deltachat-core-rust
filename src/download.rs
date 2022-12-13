@@ -1,5 +1,7 @@
 //! # Download large messages manually.
 
+#![allow(missing_docs)]
+
 use anyhow::{anyhow, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};

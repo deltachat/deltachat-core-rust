@@ -1,5 +1,7 @@
 //! # Chat module.
 
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;

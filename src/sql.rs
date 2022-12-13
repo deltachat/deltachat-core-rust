@@ -1,5 +1,7 @@
 //! # SQLite wrapper.
 
+#![allow(missing_docs)]
+
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;

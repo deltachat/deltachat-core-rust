@@ -1,5 +1,7 @@
 //! # Message summary for chatlist.
 
+#![allow(missing_docs)]
+
 use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::{Contact, ContactId};

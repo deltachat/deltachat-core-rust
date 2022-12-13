@@ -6,6 +6,7 @@
     unused,
     clippy::correctness,
     missing_debug_implementations,
+    missing_docs,
     clippy::all,
     clippy::indexing_slicing,
     clippy::wildcard_imports,
@@ -34,6 +35,7 @@ extern crate rusqlite;
 #[macro_use]
 extern crate strum_macros;
 
+#[allow(missing_docs)]
 pub trait ToSql: rusqlite::ToSql + Send + Sync {}
 
 impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}

@@ -1,6 +1,8 @@
 //! Some tools and enhancements to the used libraries, there should be
 //! no references to Context and other "larger" entities here.
 
+#![allow(missing_docs)]
+
 use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;

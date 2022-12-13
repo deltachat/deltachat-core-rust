@@ -1,4 +1,7 @@
 //! # Constants.
+
+#![allow(missing_docs)]
+
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};

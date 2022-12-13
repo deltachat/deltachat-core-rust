@@ -1,5 +1,7 @@
 //! # Import/export module.
 
+#![allow(missing_docs)]
+
 use std::any::Any;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

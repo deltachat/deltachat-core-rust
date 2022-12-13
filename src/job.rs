@@ -2,6 +2,9 @@
 //!
 //! This module implements a job queue maintained in the SQLite database
 //! and job types.
+
+#![allow(missing_docs)]
+
 use std::fmt;
 
 use anyhow::{Context as _, Result};

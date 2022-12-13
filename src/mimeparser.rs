@@ -1,5 +1,7 @@
 //! # MIME message parsing module.
 
+#![allow(missing_docs)]
+
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;

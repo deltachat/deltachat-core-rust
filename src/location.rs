@@ -1,4 +1,7 @@
 //! Location handling.
+
+#![allow(missing_docs)]
+
 use std::convert::TryFrom;
 use std::time::Duration;
 

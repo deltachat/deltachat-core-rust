@@ -1,5 +1,7 @@
 //! Cryptographic key module.
 
+#![allow(missing_docs)]
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;

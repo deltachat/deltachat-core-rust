@@ -1,5 +1,7 @@
 //! Contacts module
 
+#![allow(missing_docs)]
+
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::convert::{TryFrom, TryInto};

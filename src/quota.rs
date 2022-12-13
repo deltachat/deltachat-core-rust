@@ -1,5 +1,7 @@
 //! # Support for IMAP QUOTA extension.
 
+#![allow(missing_docs)]
+
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
 use std::collections::BTreeMap;

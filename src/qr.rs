@@ -1,5 +1,7 @@
 //! # QR code module.
 
+#![allow(missing_docs)]
+
 mod dclogin_scheme;
 pub use dclogin_scheme::LoginOptions;
 

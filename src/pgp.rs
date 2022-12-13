@@ -1,5 +1,7 @@
 //! OpenPGP helper module using [rPGP facilities](https://github.com/rpgp/rpgp).
 
+#![allow(missing_docs)]
+
 use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;

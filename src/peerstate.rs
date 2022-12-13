@@ -1,5 +1,7 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module.
 
+#![allow(missing_docs)]
+
 use std::collections::HashSet;
 use std::fmt;
 

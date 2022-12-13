@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 

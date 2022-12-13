@@ -1,5 +1,7 @@
 //! Context module.
 
+#![allow(missing_docs)]
+
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;

@@ -1,5 +1,7 @@
 //! Module to work with translatable stock strings.
 
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

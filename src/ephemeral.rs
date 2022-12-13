@@ -62,6 +62,8 @@
 //! the database entries which are expired either according to their
 //! ephemeral message timers or global `delete_server_after` setting.
 
+#![allow(missing_docs)]
+
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;

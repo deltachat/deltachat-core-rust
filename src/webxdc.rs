@@ -1,5 +1,7 @@
 //! # Handle webxdc messages.
 
+#![allow(missing_docs)]
+
 use std::convert::TryFrom;
 use std::path::Path;
 

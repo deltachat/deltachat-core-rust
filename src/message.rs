@@ -1,5 +1,7 @@
 //! # Messages and their identifiers.
 
+#![allow(missing_docs)]
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 

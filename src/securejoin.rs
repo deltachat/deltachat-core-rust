@@ -1,5 +1,7 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol).
 
+#![allow(missing_docs)]
+
 use std::convert::TryFrom;
 
 use anyhow::{bail, Context as _, Error, Result};

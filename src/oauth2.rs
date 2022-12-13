@@ -1,5 +1,7 @@
 //! OAuth 2 module.
 
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 
 use anyhow::Result;

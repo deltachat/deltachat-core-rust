@@ -1,5 +1,7 @@
 //! # Chat list module.
 
+#![allow(missing_docs)]
+
 use anyhow::{ensure, Context as _, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};

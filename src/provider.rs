@@ -1,5 +1,7 @@
 //! [Provider database](https://providers.delta.chat/) module.
 
+#![allow(missing_docs)]
+
 mod data;
 
 use crate::config::Config;

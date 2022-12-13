@@ -1,5 +1,7 @@
 //! Internet Message Format reception pipeline.
 
+#![allow(missing_docs)]
+
 use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;

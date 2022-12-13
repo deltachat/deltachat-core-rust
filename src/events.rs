@@ -1,5 +1,7 @@
 //! # Events specification.
 
+#![allow(missing_docs)]
+
 use std::path::PathBuf;
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
