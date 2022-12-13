@@ -90,6 +90,7 @@
 - Add Python API to send reactions #3762
 - jsonrpc: add message errors to MessageObject #3788
 - jsonrpc: Add async Python client #3734
+- add `debug_logging` setting #3296
 
 ### Fixes
 - Make sure malformed messsages will never block receiving further messages anymore #3771
