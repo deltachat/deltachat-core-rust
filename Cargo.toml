@@ -139,6 +139,10 @@ harness = false
 name = "get_chatlist"
 harness = false
 
+[[bench]]
+name = "send_events"
+harness = false
+
 [features]
 default = ["vendored"]
 internals = []

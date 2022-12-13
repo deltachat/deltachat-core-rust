@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic;
 
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
@@ -1375,13 +1376,26 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
                 paramsv![msg.rfc724_mid],
             )
             .await?;
+
+        if context.get_config(Config::DebugLogging).await? == Some(msg_id.to_u32().to_string()) {
+            context
+                .sql
+                .set_raw_config(Config::DebugLogging.as_ref(), None)
+                .await?;
+            context.debug_logging.store(0, atomic::Ordering::Relaxed);
+        }
     }
 
     if !msg_ids.is_empty() {
         context.emit_msgs_changed_without_ids();
 
         // Run housekeeping to delete unused blobs.
-        context.set_config(Config::LastHousekeeping, None).await?;
+        // We need to use set_raw_config() here since with set_config() it
+        // wouldn't compile ("recursion in an `async fn`")
+        context
+            .sql
+            .set_raw_config(Config::LastHousekeeping.as_ref(), None)
+            .await?;
     }
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.

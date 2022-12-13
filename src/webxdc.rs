@@ -143,16 +143,16 @@ struct StatusUpdates {
 /// Update items as sent on the wire and as stored in the database.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct StatusUpdateItem {
-    payload: Value,
+    pub(crate) payload: Value,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    info: Option<String>,
+    pub(crate) info: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    document: Option<String>,
+    pub(crate) document: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    summary: Option<String>,
+    pub(crate) summary: Option<String>,
 }
 
 /// Update items as passed to the UIs.
@@ -348,15 +348,9 @@ impl Context {
             self.emit_msgs_changed(instance.chat_id, instance.id);
         }
 
-        let rowid = self
-            .sql
-            .insert(
-                "INSERT INTO msgs_status_updates (msg_id, update_item) VALUES(?, ?);",
-                paramsv![instance.id, serde_json::to_string(&status_update_item)?],
-            )
+        let status_update_serial = self
+            .write_status_update_inner(&instance.id, status_update_item)
             .await?;
-
-        let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
 
         if instance.viewtype == Viewtype::Webxdc {
             self.emit_event(EventType::WebxdcStatusUpdate {
@@ -365,6 +359,22 @@ impl Context {
             });
         }
 
+        Ok(status_update_serial)
+    }
+
+    pub(crate) async fn write_status_update_inner(
+        &self,
+        instance_id: &MsgId,
+        status_update_item: StatusUpdateItem,
+    ) -> Result<StatusUpdateSerial> {
+        let rowid = self
+            .sql
+            .insert(
+                "INSERT INTO msgs_status_updates (msg_id, update_item) VALUES(?, ?);",
+                paramsv![instance_id, serde_json::to_string(&status_update_item)?],
+            )
+            .await?;
+        let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
         Ok(status_update_serial)
     }
 

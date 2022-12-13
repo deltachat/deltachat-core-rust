@@ -5,6 +5,8 @@
 use std::path::PathBuf;
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
+use num_traits::ToPrimitive;
+use serde_json::Value;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -108,7 +110,7 @@ pub struct Event {
     pub typ: EventType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///
@@ -320,4 +322,156 @@ pub enum EventType {
     WebxdcInstanceDeleted {
         msg_id: MsgId,
     },
+}
+
+impl EventType {
+    pub fn get_data1_int(&self) -> u32 {
+        match self {
+            EventType::Info(_)
+            | EventType::SmtpConnected(_)
+            | EventType::ImapConnected(_)
+            | EventType::SmtpMessageSent(_)
+            | EventType::ImapMessageDeleted(_)
+            | EventType::ImapMessageMoved(_)
+            | EventType::NewBlobFile(_)
+            | EventType::DeletedBlobFile(_)
+            | EventType::Warning(_)
+            | EventType::Error(_)
+            | EventType::ConnectivityChanged
+            | EventType::SelfavatarChanged
+            | EventType::IncomingMsgBunch { .. }
+            | EventType::ErrorSelfNotInGroup(_) => 0,
+            EventType::MsgsChanged { chat_id, .. }
+            | EventType::ReactionsChanged { chat_id, .. }
+            | EventType::IncomingMsg { chat_id, .. }
+            | EventType::MsgsNoticed(chat_id)
+            | EventType::MsgDelivered { chat_id, .. }
+            | EventType::MsgFailed { chat_id, .. }
+            | EventType::MsgRead { chat_id, .. }
+            | EventType::ChatModified(chat_id)
+            | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32(),
+            EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
+                id.unwrap_or_default().to_u32()
+            }
+            EventType::ConfigureProgress { progress, .. } | EventType::ImexProgress(progress) => {
+                (*progress).to_u32().unwrap_or_default()
+            }
+            EventType::ImexFileWritten(_) => 0,
+            EventType::SecurejoinInviterProgress { contact_id, .. }
+            | EventType::SecurejoinJoinerProgress { contact_id, .. } => contact_id.to_u32(),
+            EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32(),
+            EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32(),
+        }
+    }
+
+    pub fn get_data2_int(&self) -> Option<u32> {
+        match self {
+            EventType::Info(_)
+            | EventType::SmtpConnected(_)
+            | EventType::ImapConnected(_)
+            | EventType::SmtpMessageSent(_)
+            | EventType::ImapMessageDeleted(_)
+            | EventType::ImapMessageMoved(_)
+            | EventType::NewBlobFile(_)
+            | EventType::DeletedBlobFile(_)
+            | EventType::Warning(_)
+            | EventType::Error(_)
+            | EventType::ErrorSelfNotInGroup(_)
+            | EventType::ContactsChanged(_)
+            | EventType::LocationChanged(_)
+            | EventType::ConfigureProgress { .. }
+            | EventType::ImexProgress(_)
+            | EventType::ImexFileWritten(_)
+            | EventType::MsgsNoticed(_)
+            | EventType::ConnectivityChanged
+            | EventType::WebxdcInstanceDeleted { .. }
+            | EventType::IncomingMsgBunch { .. }
+            | EventType::ChatModified(_)
+            | EventType::SelfavatarChanged => None,
+            EventType::MsgsChanged { msg_id, .. }
+            | EventType::ReactionsChanged { msg_id, .. }
+            | EventType::IncomingMsg { msg_id, .. }
+            | EventType::MsgDelivered { msg_id, .. }
+            | EventType::MsgFailed { msg_id, .. }
+            | EventType::MsgRead { msg_id, .. } => Some(msg_id.to_u32()),
+            EventType::SecurejoinInviterProgress { progress, .. }
+            | EventType::SecurejoinJoinerProgress { progress, .. } => (*progress).to_u32(),
+            EventType::ChatEphemeralTimerModified { timer, .. } => Some(timer.to_u32()),
+            EventType::WebxdcStatusUpdate {
+                status_update_serial,
+                ..
+            } => Some(status_update_serial.to_u32()),
+        }
+    }
+
+    pub fn get_data2_str(&self) -> Option<&str> {
+        match self {
+            EventType::Info(msg)
+            | EventType::SmtpConnected(msg)
+            | EventType::ImapConnected(msg)
+            | EventType::SmtpMessageSent(msg)
+            | EventType::ImapMessageDeleted(msg)
+            | EventType::ImapMessageMoved(msg)
+            | EventType::NewBlobFile(msg)
+            | EventType::DeletedBlobFile(msg)
+            | EventType::Warning(msg)
+            | EventType::Error(msg)
+            | EventType::ErrorSelfNotInGroup(msg) => Some(msg),
+            EventType::MsgsChanged { .. }
+            | EventType::ReactionsChanged { .. }
+            | EventType::IncomingMsg { .. }
+            | EventType::MsgsNoticed(_)
+            | EventType::MsgDelivered { .. }
+            | EventType::MsgFailed { .. }
+            | EventType::MsgRead { .. }
+            | EventType::ChatModified(_)
+            | EventType::ContactsChanged(_)
+            | EventType::LocationChanged(_)
+            | EventType::ImexProgress(_)
+            | EventType::SecurejoinInviterProgress { .. }
+            | EventType::SecurejoinJoinerProgress { .. }
+            | EventType::ConnectivityChanged
+            | EventType::SelfavatarChanged
+            | EventType::WebxdcStatusUpdate { .. }
+            | EventType::WebxdcInstanceDeleted { .. }
+            | EventType::ChatEphemeralTimerModified { .. } => None,
+            EventType::ConfigureProgress { comment, .. } => {
+                if let Some(comment) = comment {
+                    Some(comment)
+                } else {
+                    None
+                }
+            }
+            EventType::ImexFileWritten(file) => file.to_str(),
+            EventType::IncomingMsgBunch { .. } => {
+                //serde_json::to_string(msg_ids).ok().map(|str| str.as_str())
+                Some("fix me!!")
+            }
+        }
+    }
+
+    pub fn to_json(&self, timestamp: Option<i64>) -> Value {
+        let mut tree: serde_json::Map<String, Value> = serde_json::Map::new();
+
+        tree.insert("event_type".to_string(), Value::String(self.to_string()));
+
+        let data1 = Value::Number(self.get_data1_int().into());
+
+        let data2 = if let Some(number) = self.get_data2_int() {
+            Value::Number(number.into())
+        } else if let Some(string) = self.get_data2_str() {
+            Value::String(string.to_string())
+        } else {
+            Value::Null
+        };
+
+        tree.insert("data1".to_string(), data1);
+        tree.insert("data2".to_string(), data2);
+
+        if let Some(ts) = timestamp {
+            tree.insert("ts".to_string(), Value::Number(ts.into()));
+        }
+
+        Value::Object(tree)
+    }
 }

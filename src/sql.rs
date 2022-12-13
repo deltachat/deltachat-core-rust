@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic;
 use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
@@ -343,6 +344,14 @@ impl Sql {
         } else {
             info!(context, "Opened database {:?}.", self.dbfile);
             *self.is_encrypted.write().await = Some(passphrase_nonempty);
+
+            let debug_logging = self
+                .get_raw_config_u32(Config::DebugLogging.as_ref())
+                .await?;
+            context
+                .debug_logging
+                .store(debug_logging.unwrap_or(0), atomic::Ordering::Relaxed);
+
             Ok(())
         }
     }
@@ -589,6 +598,12 @@ impl Sql {
     }
 
     pub async fn get_raw_config_int(&self, key: &str) -> Result<Option<i32>> {
+        self.get_raw_config(key)
+            .await
+            .map(|s| s.and_then(|s| s.parse().ok()))
+    }
+
+    pub async fn get_raw_config_u32(&self, key: &str) -> Result<Option<u32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))

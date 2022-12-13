@@ -1,16 +1,21 @@
 //! # Key-value configuration management.
 
 #![allow(missing_docs)]
+use std::sync::atomic;
 
 use anyhow::{ensure, Context as _, Result};
-use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
+
+use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
+
+use crate::chat;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
@@ -192,6 +197,13 @@ pub enum Config {
     ///
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
+
+    // TODO docs, deltachat.h
+    /// Let the core save all events to the database. You should expose this as an advanced
+    /// setting to the user. When they enable it, the core automatically adds a webxdc
+    /// message to the device chat where the user can see the log messages.
+    #[strum(props(default = "0"))]
+    DebugLogging,
 }
 
 impl Context {
@@ -320,6 +332,39 @@ impl Context {
                 self.sql
                     .set_raw_config(key.as_ref(), value.as_deref())
                     .await?;
+            }
+            Config::DebugLogging => {
+                if value == Some("0") || value == Some("") || value == None {
+                    if let Some(webxdc_message_id) =
+                        self.sql.get_raw_config_u32(Config::DebugLogging.as_ref()).await?
+                    {
+                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
+                    }
+                    self.sql.set_raw_config(key.as_ref(), None).await?;
+                    self.debug_logging.store(0, atomic::Ordering::Relaxed);
+                } else if self
+                    .sql
+                    .get_raw_config_u32(Config::DebugLogging.as_ref())
+                    .await?
+                    .unwrap_or(0)
+                    == 0
+                {
+                    // the unbundled version lives at https://github.com/webxdc/webxdc_logging
+                    let data: &[u8] = include_bytes!("../assets/webxdc_logging.xdc");
+
+                    let file = BlobObject::create(self, "webxdc_debug_logging.xdc", data).await?;
+                    let mut instance = Message::new(Viewtype::Webxdc);
+                    instance.set_file(
+                        file.to_abs_path().to_str().context("Non-UTF-8 blob file")?,
+                        None,
+                    );
+                    let msg_id = chat::add_device_msg(self, None, Some(&mut instance)).await?;
+                    self.sql
+                        .set_raw_config(key.as_ref(), Some(&msg_id.to_u32().to_string()))
+                        .await?;
+                    self.debug_logging
+                        .store(msg_id.to_u32(), atomic::Ordering::Relaxed);
+                }
             }
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;

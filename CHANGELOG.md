@@ -58,6 +58,7 @@
 - Remove `pytest-async` plugin #3846
 - Only send the message about ephemeral timer change if the chat is promoted #3847
 - Use relative paths in `accounts.toml` #3838
+- add `debug_logging` setting #3296
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833

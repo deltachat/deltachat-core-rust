@@ -8,6 +8,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
+use std::sync::atomic::{self, AtomicU32};
 
 use anyhow::{ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -27,6 +28,7 @@ use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::tools::{duration_to_str, time};
+use crate::webxdc::StatusUpdateItem;
 
 /// Builder for the [`Context`].
 ///
@@ -233,6 +235,9 @@ pub struct InnerContext {
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
     pub(crate) last_error: std::sync::RwLock<String>,
+
+    /// The message Id of the current debuglogging-webxdc
+    pub(crate) debug_logging: AtomicU32,
 }
 
 /// The state of ongoing process.
@@ -363,6 +368,7 @@ impl Context {
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
+            debug_logging: AtomicU32::default(),
         };
 
         let ctx = Context {
@@ -436,8 +442,62 @@ impl Context {
     pub fn emit_event(&self, event: EventType) {
         self.events.emit(Event {
             id: self.id,
-            typ: event,
+            typ: event.clone(),
         });
+
+        // `task::block_on()` below is not how async is meant to be used
+        // since `emit_event()` is often called from an async context.
+        // This could generally lead to deadlocks, so we make sure to only
+        // call it if `debug_logging` is on. It's not that much of a problem
+        // since most of the things we do in the `async` block - esp. the
+        // database access - is blocking anyway.
+        //
+        // A better solution would be to make `emit_event()` async or to
+        // create a debug_logger background loop.
+        //
+        // Alternatively, we could use `task::spawn()`; this would be
+        // non-deterministic, so that the logs might get out of order, and
+        // it could make e.g. backups fail since it could still run in the
+        // background while trying to move/close the database.
+        let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
+        if debug_logging > 0 {
+            let time = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+
+            let context = self.clone();
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async move {
+                let webxdc_instance_id = MsgId::new(debug_logging as u32);
+
+                match context
+                    .write_status_update_inner(
+                        &webxdc_instance_id,
+                        StatusUpdateItem {
+                            payload: event.to_json(Some(time)),
+                            info: None,
+                            summary: None,
+                            document: None,
+                        },
+                    )
+                    .await
+                {
+                    Err(err) => {
+                        eprintln!("Can't log event to webxdc status update: {:#}", err);
+                    }
+                    Ok(serial) => {
+                        context.events.emit(Event {
+                            id: context.id,
+                            typ: EventType::WebxdcStatusUpdate {
+                                msg_id: webxdc_instance_id,
+                                status_update_serial: serial,
+                            },
+                        });
+                    }
+                }
+            });
+        }
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)
@@ -706,6 +766,11 @@ impl Context {
             self.get_config(Config::AuthservIdCandidates)
                 .await?
                 .unwrap_or_default(),
+        );
+
+        res.insert(
+            "debug_logging",
+            self.get_config_int(Config::DebugLogging).await?.to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();
