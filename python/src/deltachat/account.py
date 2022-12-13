@@ -616,8 +616,6 @@ class Account(object):
             assert addr and password, "you must specify email and password once to configure this database/account"
             self.set_config("addr", addr)
             self.set_config("mail_pw", password)
-            self.set_config("mvbox_move", "0")
-            self.set_config("sentbox_watch", "0")
             self.set_config("bot", "1")
             configtracker = self.configure()
             configtracker.wait_finish()
