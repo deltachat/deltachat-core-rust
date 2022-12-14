@@ -399,6 +399,7 @@ impl Message {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
+    /// If message is an image or gif, set Param::Width and Param::Height
     pub(crate) async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
         if self.viewtype.has_file() {
             let file_param = self.param.get_path(Param::File, context)?;
