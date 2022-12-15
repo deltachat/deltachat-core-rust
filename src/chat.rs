@@ -806,6 +806,19 @@ impl ChatId {
             .unwrap_or_default())
     }
 
+    /// Returns true if the chat is not promoted.
+    pub(crate) async fn is_unpromoted(self, context: &Context) -> Result<bool> {
+        let param = self.get_param(context).await?;
+        let unpromoted = param.get_bool(Param::Unpromoted).unwrap_or_default();
+        Ok(unpromoted)
+    }
+
+    /// Returns true if the chat is promoted.
+    pub(crate) async fn is_promoted(self, context: &Context) -> Result<bool> {
+        let promoted = !self.is_unpromoted(context).await?;
+        Ok(promoted)
+    }
+
     // Returns true if chat is a saved messages chat.
     pub async fn is_self_talk(self, context: &Context) -> Result<bool> {
         Ok(self.get_param(context).await?.exists(Param::Selftalk))
@@ -1277,7 +1290,7 @@ impl Chat {
     }
 
     pub fn is_unpromoted(&self) -> bool {
-        self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+        self.param.get_bool(Param::Unpromoted).unwrap_or_default()
     }
 
     pub fn is_promoted(&self) -> bool {
