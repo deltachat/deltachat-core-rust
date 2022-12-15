@@ -579,8 +579,8 @@ impl Message {
 
     pub fn has_deviating_timestamp(&self) -> bool {
         let cnv_to_local = gm2local_offset();
-        let sort_timestamp = self.get_sort_timestamp() as i64 + cnv_to_local;
-        let send_timestamp = self.get_timestamp() as i64 + cnv_to_local;
+        let sort_timestamp = self.get_sort_timestamp() + cnv_to_local;
+        let send_timestamp = self.get_timestamp() + cnv_to_local;
 
         sort_timestamp / 86400 != send_timestamp / 86400
     }

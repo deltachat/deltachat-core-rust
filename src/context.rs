@@ -528,10 +528,10 @@ impl Context {
         let l2 = LoginParam::load_configured_params(self).await?;
         let secondary_addrs = self.get_secondary_self_addrs().await?.join(", ");
         let displayname = self.get_config(Config::Displayname).await?;
-        let chats = get_chat_cnt(self).await? as usize;
-        let unblocked_msgs = message::get_unblocked_msg_cnt(self).await as usize;
-        let request_msgs = message::get_request_msg_cnt(self).await as usize;
-        let contacts = Contact::get_real_cnt(self).await? as usize;
+        let chats = get_chat_cnt(self).await?;
+        let unblocked_msgs = message::get_unblocked_msg_cnt(self).await;
+        let request_msgs = message::get_request_msg_cnt(self).await;
+        let contacts = Contact::get_real_cnt(self).await?;
         let is_configured = self.get_config_int(Config::Configured).await?;
         let socks5_enabled = self.get_config_int(Config::Socks5Enabled).await?;
         let dbversion = self

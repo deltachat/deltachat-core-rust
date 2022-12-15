@@ -20,7 +20,7 @@ struct Dehtml {
     /// increased at each `<div>` and decreased at each `</div>`. This way we know when the quote ends.
     /// If this is > `0`, then we are inside a `<div name="quote">`
     divs_since_quote_div: u32,
-    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    /// Everything between `<div name="quote">` and `<div name="quoted-content">` is usually metadata
     /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
     divs_since_quoted_content_div: u32,
     /// All-Inkl just puts the quote into `<blockquote> </blockquote>`. This count is
@@ -42,7 +42,7 @@ impl Dehtml {
     }
     fn get_add_text(&self) -> AddText {
         if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {
-            AddText::No // Everything between <div name="quoted"> and <div name="quoted_content"> is metadata which we don't want
+            AddText::No // Everything between `<div name="quoted">` and `<div name="quoted_content">` is metadata which we don't want
         } else {
             self.add_text
         }

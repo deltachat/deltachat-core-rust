@@ -768,7 +768,7 @@ impl ChatId {
                 paramsv![self],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     }
 
     pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize> {
@@ -793,7 +793,7 @@ impl ChatId {
                 paramsv![MessageState::InFresh, self],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     }
 
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
@@ -1474,7 +1474,7 @@ impl Chat {
                         new_rfc724_mid,
                         self.id,
                         ContactId::SELF,
-                        to_id as i32,
+                        to_id,
                         timestamp,
                         msg.viewtype,
                         msg.state,
@@ -1522,7 +1522,7 @@ impl Chat {
                         new_rfc724_mid,
                         self.id,
                         ContactId::SELF,
-                        to_id as i32,
+                        to_id,
                         timestamp,
                         msg.viewtype,
                         msg.state,
@@ -3261,7 +3261,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
                 paramsv![],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     } else {
         Ok(0)
     }

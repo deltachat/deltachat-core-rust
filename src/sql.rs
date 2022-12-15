@@ -236,13 +236,13 @@ impl Sql {
                 // When auto_vacuum is INCREMENTAL, it is possible to
                 // use PRAGMA incremental_vacuum to return unused
                 // database pages to the filesystem.
-                conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
+                conn.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
 
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
-                conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+                conn.pragma_update(None, "journal_mode", "WAL".to_string())?;
 
                 // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
+                conn.pragma_update(None, "synchronous", "NORMAL".to_string())?;
                 Ok(())
             })?;
         }
@@ -459,7 +459,7 @@ impl Sql {
         let conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
             let mut exists = false;
-            conn.pragma(None, "table_info", &name.to_string(), |_row| {
+            conn.pragma(None, "table_info", name.to_string(), |_row| {
                 // will only be executed if the info was found
                 exists = true;
                 Ok(())
@@ -476,7 +476,7 @@ impl Sql {
             let mut exists = false;
             // `PRAGMA table_info` returns one row per column,
             // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-            conn.pragma(None, "table_info", &table_name.to_string(), |row| {
+            conn.pragma(None, "table_info", table_name.to_string(), |row| {
                 let curr_name: String = row.get(1)?;
                 if col_name == curr_name {
                     exists = true;

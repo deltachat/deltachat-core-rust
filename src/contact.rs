@@ -855,7 +855,7 @@ impl Contact {
                 paramsv![ContactId::LAST_SPECIAL],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     }
 
     /// Get blocked contacts.
