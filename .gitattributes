@@ -4,7 +4,7 @@
 
 # This directory contains email messages verbatim, and changing CRLF to
 # LF will corrupt them.
-test-data/* text=false
+test-data/** text=false
 
 # binary files should be detected by git, however, to be sure, you can add them here explicitly
 *.png  binary
