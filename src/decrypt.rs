@@ -31,7 +31,7 @@ pub async fn try_decrypt(
     decryption_info: &DecryptionInfo,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     // Possibly perform decryption
-    let public_keyring_for_validate = keyring_from_peerstate(&decryption_info.peerstate);
+    let public_keyring_for_validate = keyring_from_peerstate(decryption_info.peerstate.as_ref());
 
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
@@ -251,7 +251,7 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 ///
 /// Returns `None` if the part is not a Multipart/Signed part, otherwise retruns the set of key
 /// fingerprints for which there is a valid signature.
-fn validate_detached_signature(
+pub(crate) fn validate_detached_signature(
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
@@ -272,9 +272,9 @@ fn validate_detached_signature(
     }
 }
 
-fn keyring_from_peerstate(peerstate: &Option<Peerstate>) -> Keyring<SignedPublicKey> {
+pub(crate) fn keyring_from_peerstate(peerstate: Option<&Peerstate>) -> Keyring<SignedPublicKey> {
     let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
-    if let Some(ref peerstate) = *peerstate {
+    if let Some(peerstate) = peerstate {
         if let Some(key) = &peerstate.public_key {
             public_keyring_for_validate.add(key.clone());
         } else if let Some(key) = &peerstate.gossip_key {

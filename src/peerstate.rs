@@ -806,7 +806,6 @@ mod tests {
             verified_key_fingerprint: None,
             fingerprint_changed: false,
         };
-        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::NoPreference);
 
         peerstate.apply_header(&header, 100);
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);

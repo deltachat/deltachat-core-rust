@@ -19,6 +19,7 @@
 - Fix cargo clippy and doc errors after Rust update to 1.66 #3850
 - Don't send GroupNameChanged message if the group name doesn't change in terms of
   improve_single_line_input() #3852
+- Prefer encryption for the peer if the message is encrypted or signed with the known key #3849
 
 
 ## 1.103.0

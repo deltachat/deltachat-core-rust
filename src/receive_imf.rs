@@ -5359,7 +5359,13 @@ Reply from different address
 
         let raw = include_bytes!("../test-data/message/thunderbird_with_autocrypt_unencrypted.eml");
         receive_imf(&t, raw, false).await?;
+        let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+            .await?
+            .unwrap();
+        assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
 
+        let raw = include_bytes!("../test-data/message/thunderbird_signed_unencrypted.eml");
+        receive_imf(&t, raw, false).await?;
         let peerstate = Peerstate::from_addr(&t, "alice@example.org")
             .await?
             .unwrap();
