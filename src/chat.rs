@@ -1144,6 +1144,8 @@ impl Chat {
         Ok(chat)
     }
 
+
+    /// Returns wheter this message should go into the `saved messages` chat
     pub fn is_self_talk(&self) -> bool {
         self.param.exists(Param::Selftalk)
     }
