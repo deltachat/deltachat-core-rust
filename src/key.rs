@@ -74,7 +74,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 
     /// Serialise the key to a base64 string.
     fn to_base64(&self) -> String {
-        base64::encode(&DcKey::to_bytes(self))
+        base64::encode(DcKey::to_bytes(self))
     }
 
     /// Serialise the key to ASCII-armored representation.

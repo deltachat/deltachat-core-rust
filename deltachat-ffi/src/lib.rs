@@ -2182,7 +2182,7 @@ pub unsafe extern "C" fn dc_imex(
         eprintln!("ignoring careless call to dc_imex()");
         return;
     }
-    let what = match imex::ImexMode::from_i32(what_raw as i32) {
+    let what = match imex::ImexMode::from_i32(what_raw) {
         Some(what) => what,
         None => {
             eprintln!("ignoring invalid argument {} to dc_imex", what_raw);
@@ -2253,10 +2253,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     msg_id: u32,
     setup_code: *const libc::c_char,
 ) -> libc::c_int {
-    if context.is_null()
-        || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32
-        || setup_code.is_null()
-    {
+    if context.is_null() || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL || setup_code.is_null() {
         eprintln!("ignoring careless call to dc_continue_key_transfer()");
         return 0;
     }
@@ -2447,15 +2444,9 @@ pub unsafe extern "C" fn dc_get_locations(
     };
 
     block_on(async move {
-        let res = location::get_range(
-            ctx,
-            chat_id,
-            contact_id,
-            timestamp_begin as i64,
-            timestamp_end as i64,
-        )
-        .await
-        .unwrap_or_log_default(ctx, "Failed get_locations");
+        let res = location::get_range(ctx, chat_id, contact_id, timestamp_begin, timestamp_end)
+            .await
+            .unwrap_or_log_default(ctx, "Failed get_locations");
         Box::into_raw(Box::new(dc_array_t::from(res)))
     })
 }
@@ -2702,7 +2693,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     }
     let ffi_list = &*chatlist;
     let ctx = &*ffi_list.context;
-    match ffi_list.list.get_chat_id(index as usize) {
+    match ffi_list.list.get_chat_id(index) {
         Ok(chat_id) => chat_id.to_u32(),
         Err(err) => {
             warn!(ctx, "get_chat_id failed: {}", err);
@@ -2722,7 +2713,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     }
     let ffi_list = &*chatlist;
     let ctx = &*ffi_list.context;
-    match ffi_list.list.get_msg_id(index as usize) {
+    match ffi_list.list.get_msg_id(index) {
         Ok(msg_id) => msg_id.map_or(0, |msg_id| msg_id.to_u32()),
         Err(err) => {
             warn!(ctx, "get_msg_id failed: {}", err);
@@ -2753,7 +2744,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
     block_on(async move {
         let summary = ffi_list
             .list
-            .get_summary(ctx, index as usize, maybe_chat)
+            .get_summary(ctx, index, maybe_chat)
             .await
             .log_err(ctx, "get_summary failed")
             .unwrap_or_default();

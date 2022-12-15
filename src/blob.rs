@@ -746,7 +746,7 @@ mod tests {
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
         tokio::task::block_in_place(move || {
-            let img = image::open(&avatar_blob).unwrap();
+            let img = image::open(avatar_blob).unwrap();
             assert!(img.width() > 130);
             assert_eq!(img.width(), img.height());
         });
