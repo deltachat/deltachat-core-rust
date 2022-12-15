@@ -4763,11 +4763,11 @@ char*           dc_contact_verifier       (dc_contact_t* contact);
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
-char*           dc_contact_verifier_id      (dc_contact_t* contact);
+int            dc_contact_get_verifier_id      (dc_contact_t* contact);
 
 
 /**
- * Return the person that verified a contact
+ * Return the address that verified a contact
  * 
  * @memberof dc_contact_t
  * @param contact The contact object.
