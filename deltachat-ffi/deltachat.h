@@ -4748,7 +4748,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *    we verified the contact ourself. If it is an empty string, we don't have verifier 
  *    information or the contact is not verified.
  */
-char*           dc_contact_verifier       (dc_contact_t* contact);
+char*           dc_contact_get_verifier       (dc_contact_t* contact);
 
 
 /**
@@ -4764,19 +4764,6 @@ char*           dc_contact_verifier       (dc_contact_t* contact);
  *    the contact is not verified.
  */
 int            dc_contact_get_verifier_id      (dc_contact_t* contact);
-
-
-/**
- * Return the address that verified a contact
- * 
- * @memberof dc_contact_t
- * @param contact The contact object.
- * @return 
- *    A string containing the verifiers address. If this is the same address as the contacts,
- *    we verified the contact ourself. If it is an empty string, we don't have verifier 
- *    information or the contact is not verified.
- */
-char*           dc_contact_get_verifier       (dc_contact_t* contact);
 
 
 /**

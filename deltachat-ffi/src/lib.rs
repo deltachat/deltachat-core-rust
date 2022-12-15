@@ -3980,7 +3980,7 @@ pub unsafe extern "C" fn dc_contact_get_verifier(contact: *mut dc_contact_t) -> 
 #[no_mangle]
 pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) -> libc::c_int {
     if contact.is_null() {
-        eprintln!("ignoring careless call to dc_contact_verifier()");
+        eprintln!("ignoring careless call to dc_contact_get_verifier_id()");
         return 0 as libc::c_int;
     }
     let ffi_contact = &*contact;
