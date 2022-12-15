@@ -1635,10 +1635,13 @@ impl MimeMessage {
 }
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
+/// Params:
+/// from: The address which sent the message currently beeing parsed
 ///
 /// Returns the set of mail recipient addresses for which valid gossip headers were found.
 async fn update_gossip_peerstates(
     context: &Context,
+    _from: &str,
     message_time: i64,
     from: &str,
     recipients: &[SingleInfo],

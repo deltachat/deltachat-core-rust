@@ -1140,9 +1140,22 @@ impl Contact {
 
     pub async fn get_verifier(context: &Context, contact_id: &ContactId) -> Result<Option<String>> {
         let contact = Contact::load_from_db(context, *contact_id).await?;
+
         Ok(Peerstate::from_addr(context, contact.get_addr())
             .await?
             .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
+    }
+
+    pub async fn get_verifier_id(
+        context: &Context,
+        contact_id: &ContactId,
+    ) -> Result<Option<ContactId>> {
+        let verifier_addr = Contact::get_verifier(context, contact_id).await?;
+        if let Some(addr) = verifier_addr {
+            Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {

@@ -411,16 +411,13 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if mark_peer_as_verified(
-                context,
-                &fingerprint,
-                Contact::load_from_db(context, contact_id)
-                    .await?
-                    .get_addr()
-                    .to_owned(),
-            )
-            .await
-            .is_err()
+            let contact_addr = Contact::load_from_db(context, contact_id)
+                .await?
+                .get_addr()
+                .to_owned();
+            if mark_peer_as_verified(context, &fingerprint, contact_addr)
+                .await
+                .is_err()
             {
                 could_not_establish_secure_connection(
                     context,
@@ -541,7 +538,7 @@ pub(crate) async fn handle_securejoin_handshake(
 ///
 /// - if we see the self-sent-message vg-member-added/vc-contact-confirm,
 ///   we know that we're an inviter-observer.
-///   the inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
+///   The inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
 ///   before sending vg-member-added/vc-contact-confirm - so, if we observe vg-member-added/vc-contact-confirm,
 ///   we can mark the peer as verified as well.
 ///
