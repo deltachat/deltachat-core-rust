@@ -4763,7 +4763,7 @@ char*           dc_contact_verifier       (dc_contact_t* contact);
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
-char*           dc_contact_verifier       (dc_contact_t* contact);
+char*           dc_contact_verifier_id      (dc_contact_t* contact);
 
 
 /**
