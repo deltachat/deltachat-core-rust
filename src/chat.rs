@@ -3052,7 +3052,11 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                     paramsv![new_name.to_string(), chat_id],
                 )
                 .await?;
-            if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast {
+            if chat.is_promoted()
+                && !chat.is_mailing_list()
+                && chat.typ != Chattype::Broadcast
+                && improve_single_line_input(&chat.name) != new_name
+            {
                 msg.viewtype = Viewtype::Text;
                 msg.text = Some(
                     stock_str::msg_grp_name(context, &chat.name, &new_name, ContactId::SELF).await,
