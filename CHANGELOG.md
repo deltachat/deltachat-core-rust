@@ -17,6 +17,8 @@
 - Treat attached PGP keys as peer keys with mutual encryption preference #3832
 - fix migration of old databases #3842
 - Fix cargo clippy and doc errors after Rust update to 1.66 #3850
+- Don't send GroupNameChanged message if the group name doesn't change in terms of
+  improve_single_line_input() #3852
 
 
 ## 1.103.0
