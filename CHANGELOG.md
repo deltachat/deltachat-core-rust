@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Validate signatures in try_decrypt() even if the message isn't encrypted #3859
 
 ### API-Changes
 

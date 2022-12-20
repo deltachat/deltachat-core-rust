@@ -18,18 +18,17 @@ use crate::peerstate::Peerstate;
 use crate::pgp;
 
 /// Tries to decrypt a message, but only if it is structured as an
-/// Autocrypt message.
+/// Autocrypt message, otherwise just validates signatures.
 ///
-/// Returns decrypted body and a set of valid signature fingerprints
-/// if successful.
+/// If successful and the message is encrypted or signed, returns \[decrypted\] body, a set of valid
+/// signature fingerprints and whether the message is encrypted.
 ///
-/// If the message is wrongly signed, this will still return the decrypted
-/// message but the HashSet will be empty.
+/// If the message is wrongly signed, HashSet will be empty.
 pub async fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
     decryption_info: &DecryptionInfo,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>, bool)>> {
     // Possibly perform decryption
     let public_keyring_for_validate = keyring_from_peerstate(decryption_info.peerstate.as_ref());
 
@@ -38,8 +37,10 @@ pub async fn try_decrypt(
         .or_else(|| get_attachment_mime(mail))
     {
         None => {
-            // not an autocrypt mime message, abort and ignore
-            return Ok(None);
+            return Ok(
+                validate_detached_signature(mail, &public_keyring_for_validate)?
+                    .map(|(raw, fprints)| (raw, fprints, false)),
+            )
         }
         Some(res) => res,
     };
@@ -48,12 +49,13 @@ pub async fn try_decrypt(
         .await
         .context("failed to get own keyring")?;
 
-    decrypt_part(
+    Ok(decrypt_part(
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
     )
-    .await
+    .await?
+    .map(|(raw, fprints)| (raw, fprints, true)))
 }
 
 pub(crate) async fn prepare_decryption(
@@ -251,7 +253,7 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 ///
 /// Returns `None` if the part is not a Multipart/Signed part, otherwise retruns the set of key
 /// fingerprints for which there is a valid signature.
-pub(crate) fn validate_detached_signature(
+fn validate_detached_signature(
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
@@ -262,10 +264,11 @@ pub(crate) fn validate_detached_signature(
     if let [first_part, second_part] = &mail.subparts[..] {
         // First part is the content, second part is the signature.
         let content = first_part.raw_bytes;
-        let signature = second_part.get_body_raw()?;
-        let ret_valid_signatures =
-            pgp::pk_validate(content, &signature, public_keyring_for_validate)?;
-
+        let ret_valid_signatures = match second_part.get_body_raw() {
+            Ok(signature) => pgp::pk_validate(content, &signature, public_keyring_for_validate)
+                .unwrap_or_default(),
+            Err(_) => Default::default(),
+        };
         Ok(Some((content.to_vec(), ret_valid_signatures)))
     } else {
         Ok(None)
