@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Changes
+
+### API-Changes
+
+### Fixes
+
+
+## 1.104.0
+
+### Changes
 - Don't use deprecated `chrono` functions #3798
 - Document accounts manager #3837
 - If a classical-email-user sends an email to a group and adds new recipients,
@@ -19,7 +28,7 @@
 - fix migration of old databases #3842
 - Fix cargo clippy and doc errors after Rust update to 1.66 #3850
 - Don't send GroupNameChanged message if the group name doesn't change in terms of
-  improve_single_line_input() #3852
+  `improve_single_line_input()` #3852
 - Prefer encryption for the peer if the message is encrypted or signed with the known key #3849
 
 
