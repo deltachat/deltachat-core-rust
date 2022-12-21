@@ -85,9 +85,7 @@ class ACFactory:
             group=group,
         )
 
-        event = await to_client.run_until(lambda e: e.type == EventType.INCOMING_MSG)
-        msg = await to_client.account.get_message_by_id(event.msg_id)
-        return await msg.get_snapshot()
+        return await to_client.run_until(lambda e: e.type == EventType.INCOMING_MSG)
 
 
 @pytest_asyncio.fixture

@@ -15,9 +15,21 @@ from typing import (
 
 from deltachat_rpc_client.account import Account
 
-from .const import COMMAND_PREFIX, EventType
-from .events import EventFilter, NewMessage, RawEvent
-from .utils import AttrDict
+from ._utils import (
+    AttrDict,
+    parse_system_add_remove,
+    parse_system_image_changed,
+    parse_system_title_changed,
+)
+from .const import COMMAND_PREFIX, EventType, SystemMessageType
+from .events import (
+    EventFilter,
+    GroupImageChanged,
+    GroupNameChanged,
+    MemberListChanged,
+    NewMessage,
+    RawEvent,
+)
 
 
 class Client:
@@ -32,6 +44,7 @@ class Client:
         self.account = account
         self.logger = logger or logging
         self._hooks: Dict[type, Set[tuple]] = {}
+        self._should_process_messages = 0
         self.add_hooks(hooks or [])
 
     def add_hooks(
@@ -47,12 +60,24 @@ class Client:
         if isinstance(event, type):
             event = event()
         assert isinstance(event, EventFilter)
+        self._should_process_messages += int(
+            isinstance(
+                event,
+                (NewMessage, MemberListChanged, GroupImageChanged, GroupNameChanged),
+            )
+        )
         self._hooks.setdefault(type(event), set()).add((hook, event))
 
     def remove_hook(self, hook: Callable, event: Union[type, EventFilter]) -> None:
         """Unregister hook from the given event filter."""
         if isinstance(event, type):
             event = event()
+        self._should_process_messages -= int(
+            isinstance(
+                event,
+                (NewMessage, MemberListChanged, GroupImageChanged, GroupNameChanged),
+            )
+        )
         self._hooks.get(type(event), set()).remove((hook, event))
 
     async def is_configured(self) -> bool:
@@ -107,16 +132,13 @@ class Client:
                 except Exception as ex:
                     self.logger.exception(ex)
 
-    def _should_process_messages(self) -> bool:
-        return NewMessage in self._hooks
-
-    async def _parse_command(self, snapshot: AttrDict) -> None:
+    async def _parse_command(self, event: AttrDict) -> None:
         cmds = [
             hook[1].command
             for hook in self._hooks.get(NewMessage, [])
             if hook[1].command
         ]
-        parts = snapshot.text.split(maxsplit=1)
+        parts = event.message_snapshot.text.split(maxsplit=1)
         payload = parts[1] if len(parts) > 1 else ""
         cmd = parts.pop(0)
 
@@ -139,17 +161,53 @@ class Client:
             cmd = _cmd
             payload = _payload
 
-        snapshot["command"] = cmd
-        snapshot["payload"] = payload
+        event["command"], event["payload"] = cmd, payload
+
+    async def _on_new_msg(self, snapshot: AttrDict) -> None:
+        event = AttrDict(command="", payload="", message_snapshot=snapshot)
+        if not snapshot.is_info and snapshot.text.startswith(COMMAND_PREFIX):
+            await self._parse_command(event)
+        await self._on_event(event, NewMessage)
+
+    async def _handle_info_msg(self, snapshot: AttrDict) -> None:
+        event = AttrDict(message_snapshot=snapshot)
+
+        img_changed = parse_system_image_changed(snapshot.text)
+        if img_changed:
+            _, event["image_deleted"] = img_changed
+            await self._on_event(event, GroupImageChanged)
+            return
+
+        title_changed = parse_system_title_changed(snapshot.text)
+        if title_changed:
+            _, event["old_name"] = title_changed
+            await self._on_event(event, GroupNameChanged)
+            return
+
+        members_changed = parse_system_add_remove(snapshot.text)
+        if members_changed:
+            action, event["member"], _ = members_changed
+            event["member_added"] = action == "added"
+            await self._on_event(event, MemberListChanged)
+            return
+
+        self.logger.warning(
+            "ignoring unsupported system message id=%s text=%s",
+            snapshot.id,
+            snapshot.text,
+        )
 
     async def _process_messages(self) -> None:
-        if self._should_process_messages():
+        if self._should_process_messages:
             for message in await self.account.get_fresh_messages_in_arrival_order():
                 snapshot = await message.get_snapshot()
-                snapshot["command"], snapshot["payload"] = "", ""
-                if not snapshot.is_info and snapshot.text.startswith(COMMAND_PREFIX):
-                    await self._parse_command(snapshot)
-                await self._on_event(snapshot, NewMessage)
+                await self._on_new_msg(snapshot)
+                if (
+                    snapshot.is_info
+                    and snapshot.system_message_type
+                    != SystemMessageType.WEBXDC_INFO_MESSAGE
+                ):
+                    await self._handle_info_msg(snapshot)
                 await snapshot.message.mark_seen()
 
 

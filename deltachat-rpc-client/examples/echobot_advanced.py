@@ -25,15 +25,34 @@ async def log_error(event):
     logging.error(event.msg)
 
 
+@hooks.on(events.MemberListChanged)
+async def on_memberlist_changed(event):
+    logging.info(
+        "member %s was %s", event.member, "added" if event.member_added else "removed"
+    )
+
+
+@hooks.on(events.GroupImageChanged)
+async def on_group_image_changed(event):
+    logging.info("group image %s", "deleted" if event.image_deleted else "changed")
+
+
+@hooks.on(events.GroupNameChanged)
+async def on_group_name_changed(event):
+    logging.info("group name changed, old name: %s", event.old_name)
+
+
 @hooks.on(events.NewMessage(func=lambda e: not e.command))
 async def echo(event):
-    if event.text or event.file:
-        await event.chat.send_message(text=event.text, file=event.file)
+    snapshot = event.message_snapshot
+    if snapshot.text or snapshot.file:
+        await snapshot.chat.send_message(text=snapshot.text, file=snapshot.file)
 
 
 @hooks.on(events.NewMessage(command="/help"))
 async def help_command(event):
-    await event.chat.send_text("Send me any message and I will echo it back")
+    snapshot = event.message_snapshot
+    await snapshot.chat.send_text("Send me any message and I will echo it back")
 
 
 async def main():

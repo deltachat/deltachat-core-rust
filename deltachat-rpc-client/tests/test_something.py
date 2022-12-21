@@ -218,12 +218,6 @@ async def test_message(acfactory) -> None:
 
 @pytest.mark.asyncio
 async def test_bot(acfactory) -> None:
-    def track(key):
-        async def wrapper(e):
-            mock.hook(e[key])
-
-        return wrapper
-
     mock = MagicMock()
     user = (await acfactory.get_online_accounts(1))[0]
     bot = await acfactory.new_configured_bot()
@@ -231,26 +225,28 @@ async def test_bot(acfactory) -> None:
     assert await bot.is_configured()
     assert await bot.account.get_config("bot") == "1"
 
-    hook = track("msg_id"), events.RawEvent(EventType.INCOMING_MSG)
+    hook = lambda e: mock.hook(e.msg_id), events.RawEvent(EventType.INCOMING_MSG)
     bot.add_hook(*hook)
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="Hello!"
     )
-    mock.hook.assert_called_once_with(event.id)
+    mock.hook.assert_called_once_with(event.msg_id)
     bot.remove_hook(*hook)
 
+    track = lambda e: mock.hook(e.message_snapshot.id)
+
     mock.hook.reset_mock()
-    hook = track("id"), events.NewMessage(r"hello")
+    hook = track, events.NewMessage(r"hello")
     bot.add_hook(*hook)
-    bot.add_hook(track("id"), events.NewMessage(command="/help"))
+    bot.add_hook(track, events.NewMessage(command="/help"))
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="hello"
     )
-    mock.hook.assert_called_with(event.id)
+    mock.hook.assert_called_with(event.msg_id)
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="hello!"
     )
-    mock.hook.assert_called_with(event.id)
+    mock.hook.assert_called_with(event.msg_id)
     await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
     assert len(mock.hook.mock_calls) == 2
     bot.remove_hook(*hook)
@@ -260,4 +256,4 @@ async def test_bot(acfactory) -> None:
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="/help"
     )
-    mock.hook.assert_called_once_with(event.id)
+    mock.hook.assert_called_once_with(event.msg_id)

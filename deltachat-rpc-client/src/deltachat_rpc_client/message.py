@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
+from ._utils import AttrDict
 from .contact import Contact
 from .rpc import Rpc
-from .utils import AttrDict
 
 if TYPE_CHECKING:
     from .account import Account
