@@ -1,13 +1,11 @@
 import json
 import os
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Optional
 
 import aiohttp
 import pytest_asyncio
 
-from .account import Account
-from .client import Bot
-from .deltachat import DeltaChat
+from . import Account, AttrDict, Bot, Client, DeltaChat, EventType, Message
 from .rpc import Rpc
 
 
@@ -50,6 +48,44 @@ class ACFactory:
         for account in accounts:
             await account.start_io()
         return accounts
+
+    async def send_message(
+        self,
+        to_account: Account,
+        from_account: Optional[Account] = None,
+        text: Optional[str] = None,
+        file: Optional[str] = None,
+        group: Optional[str] = None,
+    ) -> Message:
+        if not from_account:
+            from_account = (await self.get_online_accounts(1))[0]
+        to_contact = await from_account.create_contact(
+            await to_account.get_config("addr")
+        )
+        if group:
+            to_chat = await from_account.create_group(group)
+            await to_chat.add_contact(to_contact)
+        else:
+            to_chat = await to_contact.create_chat()
+        return await to_chat.send_message(text=text, file=file)
+
+    async def process_message(
+        self,
+        to_client: Client,
+        from_account: Optional[Account] = None,
+        text: Optional[str] = None,
+        file: Optional[str] = None,
+        group: Optional[str] = None,
+    ) -> AttrDict:
+        await self.send_message(
+            to_account=to_client.account,
+            from_account=from_account,
+            text=text,
+            file=file,
+            group=group,
+        )
+
+        return await to_client.run_until(lambda e: e.type == EventType.INCOMING_MSG)
 
 
 @pytest_asyncio.fixture

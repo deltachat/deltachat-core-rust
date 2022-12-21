@@ -2,11 +2,11 @@ import calendar
 from datetime import datetime
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
+from ._utils import AttrDict
 from .const import ChatVisibility
 from .contact import Contact
 from .message import Message
 from .rpc import Rpc
-from .utils import AttrDict
 
 if TYPE_CHECKING:
     from .account import Account

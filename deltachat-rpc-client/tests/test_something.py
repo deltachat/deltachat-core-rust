@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
-from deltachat_rpc_client import AttrDict, EventType, events
+from deltachat_rpc_client import EventType, events
 from deltachat_rpc_client.rpc import JsonRpcError
 
 
@@ -216,31 +218,42 @@ async def test_message(acfactory) -> None:
 
 @pytest.mark.asyncio
 async def test_bot(acfactory) -> None:
-    async def callback(e):
-        res.append(e)
-
-    res = []
+    mock = MagicMock()
+    user = (await acfactory.get_online_accounts(1))[0]
     bot = await acfactory.new_configured_bot()
+
     assert await bot.is_configured()
     assert await bot.account.get_config("bot") == "1"
 
-    bot.add_hook(callback, events.RawEvent(EventType.INFO))
-    info_event = AttrDict(account=bot.account, type=EventType.INFO, msg="info")
-    warn_event = AttrDict(account=bot.account, type=EventType.WARNING, msg="warning")
-    await bot._on_event(info_event)
-    await bot._on_event(warn_event)
-    assert info_event in res
-    assert warn_event not in res
-    assert len(res) == 1
+    hook = lambda e: mock.hook(e.msg_id), events.RawEvent(EventType.INCOMING_MSG)
+    bot.add_hook(*hook)
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="Hello!"
+    )
+    mock.hook.assert_called_once_with(event.msg_id)
+    bot.remove_hook(*hook)
 
-    res = []
-    bot.add_hook(callback, events.NewMessage(r"hello"))
-    snapshot1 = AttrDict(text="hello")
-    snapshot2 = AttrDict(text="hello, world")
-    snapshot3 = AttrDict(text="hey!")
-    for snapshot in [snapshot1, snapshot2, snapshot3]:
-        await bot._on_event(snapshot, events.NewMessage)
-    assert len(res) == 2
-    assert snapshot1 in res
-    assert snapshot2 in res
-    assert snapshot3 not in res
+    track = lambda e: mock.hook(e.message_snapshot.id)
+
+    mock.hook.reset_mock()
+    hook = track, events.NewMessage(r"hello")
+    bot.add_hook(*hook)
+    bot.add_hook(track, events.NewMessage(command="/help"))
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="hello"
+    )
+    mock.hook.assert_called_with(event.msg_id)
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="hello!"
+    )
+    mock.hook.assert_called_with(event.msg_id)
+    await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
+    assert len(mock.hook.mock_calls) == 2
+    bot.remove_hook(*hook)
+
+    mock.hook.reset_mock()
+    await acfactory.process_message(from_account=user, to_client=bot, text="hello")
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="/help"
+    )
+    mock.hook.assert_called_once_with(event.msg_id)

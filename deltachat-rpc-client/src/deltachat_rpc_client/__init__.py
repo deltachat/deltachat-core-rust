@@ -1,4 +1,5 @@
 """Delta Chat asynchronous high-level API"""
+from ._utils import AttrDict, run_bot_cli, run_client_cli
 from .account import Account
 from .chat import Chat
 from .client import Bot, Client
@@ -7,4 +8,3 @@ from .contact import Contact
 from .deltachat import DeltaChat
 from .message import Message
 from .rpc import Rpc
-from .utils import AttrDict, run_bot_cli, run_client_cli

@@ -1,8 +1,8 @@
 from typing import Dict, List
 
+from ._utils import AttrDict
 from .account import Account
 from .rpc import Rpc
-from .utils import AttrDict
 
 
 class DeltaChat:
