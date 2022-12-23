@@ -8,6 +8,7 @@
 ### API-Changes
 
 ### Fixes
+- Do not add an error if the message is encrypted but not signed #3860
 
 
 ## 1.104.0

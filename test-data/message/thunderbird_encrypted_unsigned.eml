@@ -1,0 +1,44 @@
+Message-ID: <1e87b947-d7be-1ebd-e374-e22ebaa5e00a@example.net>
+Date: Fri, 23 Dec 2022 13:00:00 +0000
+MIME-Version: 1.0
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101
+ Thunderbird/102.6.1
+Content-Language: en-US
+To: Alice <alice@example.org>
+From: Bob <bob@example.net>
+Subject: ...
+Content-Type: multipart/encrypted;
+ protocol="application/pgp-encrypted";
+ boundary="------------LXsQ1GfDj60OyJAdRFaJ9eSx"
+
+This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+--------------LXsQ1GfDj60OyJAdRFaJ9eSx
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--------------LXsQ1GfDj60OyJAdRFaJ9eSx
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+-----BEGIN PGP MESSAGE-----
+
+wV4D5tq63hTeebASAQdAgKVFSZ8p8RyNRongu8xc0qnEl54jbOTjrow1rYHECFUw
+44bDFHvaSjFYMFcFmumYZQ+hFcjaoIEv78Wx6GmEGTFzFcs8mBKUGbRDFeLJebbU
+0sE8AcETwB3nrhR4WvUYlmqt87EAJfigMYX3Cmod0Pz9cFPdE13NIoOotZXEcxHq
+aGefenHJUYF1/FX9iuGRMt/qo41stlSJ6Z575mxUKnHexJVnvoDgFLTwS2dGTNlt
+0VBk7NOeaCmbxm8u4uJ3kt2vPG7ViYsSvHMGdYciIkGMsyHpJPzrOHzyoXZuuea1
+t8QTZym3FhHH9gbTRCnfnIX60G1Qu9hSMRAQandA6J2to9IahmlahFP9XoUin3fK
+ikeCHoNs9kTFFXarU0q99O6byhQqwSehoMhx4BLEFXvMp49jD9LzHUGJmR3Pdcqb
+lBgU9mPYWflfiQ8wj2Awyj94+YR3ovaOuc75LE+JylJ9BLk3axZou2HI6hDCoZJg
+XQkF46JMPV4NArOtPxP1N5/Gvo9TGvH7H4LdMhsI1Wc8Lfiks6UdcGXUblAlEfcN
+rQfywPIH4n+H8cTqk1v2ON3OsD9sFluggWUHEWLP3Eqtr1RO2YQURv+N+pcqvLyq
+kPIP9JQ5rfSMjbRNBmN5RReflomYcq9Dt8iobMWXt2fokiyJueaRwZSst2d/pG6H
+oYqzzxM7DXnxaJvZELGwJ2tGlQPL5JtSZL+jgL+Zd7+Z7czuRLLoVqf0Q6tgQPKE
+s8cpgxVDW0hp5T3ukNvL03SxK+v+dqBPFLd9FYcxMA==
+=Wl0m
+-----END PGP MESSAGE-----
+
+--------------LXsQ1GfDj60OyJAdRFaJ9eSx--

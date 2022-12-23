@@ -3075,6 +3075,26 @@ async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
     Ok(())
 }
 
+/// Alice receives an encrypted, but unsigned message.
+///
+/// Test that the message is displayed without any errors,
+/// but also without a padlock.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_thunderbird_unsigned() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    alice.set_config(Config::ShowEmails, Some("2")).await?;
+
+    // Alice receives an unsigned message from Bob.
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_unsigned.eml");
+    receive_imf(&alice, raw, false).await?;
+
+    let msg = alice.get_last_msg().await;
+    assert!(!msg.get_showpadlock());
+    assert!(msg.error().is_none());
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mua_user_adds_member() -> Result<()> {
     let t = TestContext::new_alice().await;
