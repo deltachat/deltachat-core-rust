@@ -18,10 +18,7 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::decrypt::{
-    keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
-    DecryptionInfo,
-};
+use crate::decrypt::{prepare_decryption, try_decrypt, DecryptionInfo};
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -67,8 +64,6 @@ pub struct MimeMessage {
     /// If a message is not encrypted or the signature is not valid,
     /// this set is empty.
     pub signatures: HashSet<Fingerprint>,
-    /// Whether the message is encrypted in a domestic (not Autocrypt) sense
-    pub encrypted: bool,
     /// The set of mail recipient addresses for which gossip headers were applied, regardless of
     /// whether they modified any peerstates.
     pub gossiped_addr: HashSet<String>,
@@ -235,96 +230,99 @@ impl MimeMessage {
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
-        // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
-        let (mail, signatures, encrypted) = match try_decrypt(context, &mail, &decryption_info)
-            .await
-        {
-            Ok(Some((raw, signatures))) => {
-                // Encrypted, but maybe unsigned message. Only if
-                // `signatures` set is non-empty, it is a valid
-                // autocrypt message.
+        let (mail, mut signatures, encrypted) =
+            match try_decrypt(context, &mail, &decryption_info).await {
+                Ok(Some((raw, signatures, encrypted))) => {
+                    // Only if `encrypted` and `signatures` set is non-empty, it is a valid
+                    // autocrypt message.
 
-                mail_raw = raw;
-                let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                    info!(context, "decrypted message mime-body:");
-                    println!("{}", String::from_utf8_lossy(&mail_raw));
-                }
+                    mail_raw = raw;
+                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                        info!(context, "decrypted message mime-body:");
+                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                    }
 
-                // Handle any gossip headers if the mail was encrypted.  See section
-                // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-                // but only if the mail was correctly signed:
-                if !signatures.is_empty() {
-                    let gossip_headers = decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                    gossiped_addr = update_gossip_peerstates(
-                        context,
-                        message_time,
-                        &from.addr,
-                        &mail,
-                        gossip_headers,
-                    )
-                    .await?;
-                }
+                    if encrypted {
+                        // Handle any gossip headers if the mail was encrypted.  See section
+                        // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+                        // but only if the mail was correctly signed:
+                        if !signatures.is_empty() {
+                            let gossip_headers =
+                                decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
+                            gossiped_addr = update_gossip_peerstates(
+                                context,
+                                message_time,
+                                &from.addr,
+                                &mail,
+                                gossip_headers,
+                            )
+                            .await?;
+                        }
 
-                // let known protected headers from the decrypted
-                // part override the unencrypted top-level
+                        // let known protected headers from the decrypted
+                        // part override the unencrypted top-level
 
-                // Signature was checked for original From, so we
-                // do not allow overriding it.
-                let mut signed_from = None;
+                        // Signature was checked for original From, so we
+                        // do not allow overriding it.
+                        let mut signed_from = None;
 
-                // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
-                // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                headers.remove("subject");
+                        // We do not want to allow unencrypted subject in encrypted emails because the
+                        // user might falsely think that the subject is safe.
+                        // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+                        headers.remove("subject");
 
-                MimeMessage::merge_headers(
-                    context,
-                    &mut headers,
-                    &mut recipients,
-                    &mut signed_from,
-                    &mut list_post,
-                    &mut chat_disposition_notification_to,
-                    &decrypted_mail.headers,
-                );
-                if let Some(signed_from) = signed_from {
-                    if addr_cmp(&signed_from.addr, &from.addr) {
-                        from_is_signed = true;
-                    } else {
-                        // There is a From: header in the encrypted &
-                        // signed part, but it doesn't match the outer one.
-                        // This _might_ be because the sender's mail server
-                        // replaced the sending address, e.g. in a mailing list.
-                        // Or it's because someone is doing some replay attack
-                        // - OTOH, I can't come up with an attack scenario
-                        // where this would be useful.
-                        warn!(
+                        MimeMessage::merge_headers(
                             context,
-                            "From header in signed part does't match the outer one",
+                            &mut headers,
+                            &mut recipients,
+                            &mut signed_from,
+                            &mut list_post,
+                            &mut chat_disposition_notification_to,
+                            &decrypted_mail.headers,
                         );
+                        if let Some(signed_from) = signed_from {
+                            if addr_cmp(&signed_from.addr, &from.addr) {
+                                from_is_signed = true;
+                            } else {
+                                // There is a From: header in the encrypted &
+                                // signed part, but it doesn't match the outer one.
+                                // This _might_ be because the sender's mail server
+                                // replaced the sending address, e.g. in a mailing list.
+                                // Or it's because someone is doing some replay attack
+                                // - OTOH, I can't come up with an attack scenario
+                                // where this would be useful.
+                                warn!(
+                                    context,
+                                    "From header in signed part does't match the outer one",
+                                );
+                            }
+                        }
                     }
+                    (Ok(decrypted_mail), signatures, encrypted)
                 }
+                Ok(None) => (Ok(mail), HashSet::new(), false),
+                Err(err) => {
+                    warn!(context, "decryption failed: {}", err);
+                    (Err(err), HashSet::new(), true)
+                }
+            };
 
-                (Ok(decrypted_mail), signatures, true)
-            }
-            Ok(None) => {
-                // Message was not encrypted.
-                // If it is not a read receipt, degrade encryption.
-                if let Some(peerstate) = &mut decryption_info.peerstate {
-                    if message_time > peerstate.last_seen_autocrypt
-                        && mail.ctype.mimetype != "multipart/report"
-                    // Disallowing keychanges is disabled for now:
-                    // && decryption_info.dkim_results.allow_keychange
-                    {
-                        peerstate.degrade_encryption(message_time);
-                    }
+        if signatures.is_empty() {
+            // If it is not a read receipt, degrade encryption.
+            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, &mail) {
+                if message_time > peerstate.last_seen_autocrypt
+                    && mail.ctype.mimetype != "multipart/report"
+                // Disallowing keychanges is disabled for now:
+                // && decryption_info.dkim_results.allow_keychange
+                {
+                    peerstate.degrade_encryption(message_time);
                 }
-                (Ok(mail), HashSet::new(), false)
             }
-            Err(err) => {
-                warn!(context, "decryption failed: {}", err);
-                (Err(err), HashSet::new(), true)
-            }
-        };
+        }
+        if !encrypted {
+            signatures.clear();
+        }
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
@@ -339,7 +337,6 @@ impl MimeMessage {
 
             // only non-empty if it was a valid autocrypt message
             signatures,
-            encrypted,
             gossiped_addr,
             is_forwarded: false,
             mdn_reports: Vec::new(),
@@ -868,26 +865,6 @@ impl MimeMessage {
                         .parse_mime_recursive(context, first, is_related)
                         .await?;
                 }
-                if let Some(peerstate) = &mut self.decryption_info.peerstate {
-                    let keyring = keyring_from_peerstate(Some(peerstate));
-                    match validate_detached_signature(mail, &keyring) {
-                        Ok(Some((_, fprints))) => {
-                            if fprints.is_empty() {
-                                warn!(context, "signed message is not signed with a known key");
-                            } else if peerstate.prefer_encrypt != EncryptPreference::Mutual {
-                                info!(
-                                    context,
-                                    "message is signed with the known key, setting \
-                                    prefer-encrypt=mutual for '{}'",
-                                    peerstate.addr,
-                                );
-                                Self::upgrade_to_mutual_encryption(context, peerstate).await?;
-                            }
-                        }
-                        Ok(None) => warn!(context, "not a 'multipart/signed' part??"),
-                        Err(err) => warn!(context, "signed message validation failed: {}", err),
-                    }
-                }
             }
             (mime::MULTIPART, "report") => {
                 /* RFC 6522: the first part is for humans, the second for machines */
@@ -963,17 +940,6 @@ impl MimeMessage {
         }
 
         Ok(any_part_added)
-    }
-
-    async fn upgrade_to_mutual_encryption(
-        context: &Context,
-        peerstate: &mut Peerstate,
-    ) -> Result<()> {
-        if peerstate.public_key.is_none() {
-            peerstate.public_key = peerstate.gossip_key.take();
-        }
-        peerstate.prefer_encrypt = EncryptPreference::Mutual;
-        peerstate.save_to_db(&context.sql).await
     }
 
     /// Returns true if any part was added, false otherwise.
@@ -1153,13 +1119,7 @@ impl MimeMessage {
             if peerstate.prefer_encrypt != EncryptPreference::Mutual
                 && mime_type.type_() == mime::APPLICATION
                 && mime_type.subtype().as_str() == "pgp-keys"
-                && Self::try_set_peer_key_from_file_part(
-                    context,
-                    peerstate,
-                    decoded_data,
-                    self.encrypted,
-                )
-                .await?
+                && Self::try_set_peer_key_from_file_part(context, peerstate, decoded_data).await?
             {
                 return Ok(());
             }
@@ -1249,7 +1209,6 @@ impl MimeMessage {
         context: &Context,
         peerstate: &mut Peerstate,
         decoded_data: &[u8],
-        mail_is_encrypted: bool,
     ) -> Result<bool> {
         let key = match str::from_utf8(decoded_data) {
             Err(err) => {
@@ -1295,22 +1254,12 @@ impl MimeMessage {
             }
         }
         peerstate.public_key = Some(key);
-        if mail_is_encrypted {
-            info!(
-                context,
-                "using attached PGP key for peer '{}' with prefer-encrypt=mutual as the mail is \
-                encrypted",
-                peerstate.addr,
-            );
-            peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.save_to_db(&context.sql).await?;
-        } else {
-            info!(
-                context,
-                "using attached PGP key for peer '{}'", peerstate.addr,
-            );
-            peerstate.prefer_encrypt = EncryptPreference::NoPreference;
-        }
+        info!(
+            context,
+            "using attached PGP key for peer '{}' with prefer-encrypt=mutual", peerstate.addr,
+        );
+        peerstate.prefer_encrypt = EncryptPreference::Mutual;
+        peerstate.save_to_db(&context.sql).await?;
         Ok(true)
     }
 
