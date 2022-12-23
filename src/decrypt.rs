@@ -53,8 +53,7 @@ pub async fn try_decrypt(
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
-    )
-    .await?
+    )?
     .map(|(raw, fprints)| (raw, fprints, true)))
 }
 
@@ -206,7 +205,7 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail
 }
 
 /// Returns Ok(None) if nothing encrypted was found.
-async fn decrypt_part(
+fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
