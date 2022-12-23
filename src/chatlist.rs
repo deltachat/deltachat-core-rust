@@ -92,8 +92,6 @@ impl Chatlist {
         let flag_no_specials = 0 != listflags & DC_GCL_NO_SPECIALS;
         let flag_add_alldone_hint = 0 != listflags & DC_GCL_ADD_ALLDONE_HINT;
 
-        let mut add_archived_link_item = false;
-
         let process_row = |row: &rusqlite::Row| {
             let chat_id: ChatId = row.get(0)?;
             let msg_id: Option<MsgId> = row.get(1)?;
@@ -123,7 +121,7 @@ impl Chatlist {
         //
         // The query shows messages from blocked contacts in
         // groups. Otherwise it would be hard to follow conversations.
-        let mut ids = if let Some(query_contact_id) = query_contact_id {
+        let ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
             context.sql.query_map(
                 "SELECT c.id, m.id
@@ -216,8 +214,10 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
-            let ids = context.sql.query_map(
-                "SELECT c.id, m.id
+            let mut add_archived_link_item =
+                !flag_no_specials && get_archived_cnt(context).await? > 0;
+            let mut ids = context.sql.query_map(
+                "SELECT c.id, m.id, c.archived
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -233,21 +233,33 @@ impl Chatlist {
                  GROUP BY c.id
                  ORDER BY c.id=?5 DESC, c.archived=?6 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 paramsv![MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
-                process_row,
-                process_rows,
+                |row: &rusqlite::Row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let msg_id: Option<MsgId> = row.get(1)?;
+                    let visibility: ChatVisibility = row.get(2)?;
+                    Ok((chat_id, msg_id, visibility))
+                },
+                |rows: rusqlite::MappedRows<_>| {
+                    let mut ret = Vec::new();
+                    for row in rows {
+                        let (chat_id, msg_id, visibility): (ChatId, Option<MsgId>, ChatVisibility) = row?;
+                        if add_archived_link_item && visibility == ChatVisibility::Normal {
+                            ret.push((DC_CHAT_ID_ARCHIVED_LINK, None));
+                            add_archived_link_item = false;
+                        }
+                        ret.push((chat_id, msg_id));
+                    }
+                    Ok(ret)
+                },
             ).await?;
-            if !flag_no_specials {
-                add_archived_link_item = true;
+            if add_archived_link_item {
+                if ids.is_empty() && flag_add_alldone_hint {
+                    ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
+                }
+                ids.push((DC_CHAT_ID_ARCHIVED_LINK, None));
             }
             ids
         };
-
-        if add_archived_link_item && get_archived_cnt(context).await? > 0 {
-            if ids.is_empty() && flag_add_alldone_hint {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
-            }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK, None));
-        }
 
         Ok(Chatlist { ids })
     }
