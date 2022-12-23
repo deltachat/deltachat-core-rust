@@ -215,7 +215,7 @@ async fn decrypt_part(
 
     if has_decrypted_pgp_armor(&data) {
         let (plain, ret_valid_signatures) =
-            pgp::pk_decrypt(data, private_keyring, &public_keyring_for_validate).await?;
+            pgp::pk_decrypt(data, private_keyring, &public_keyring_for_validate)?;
 
         // Check for detached signatures.
         // If decrypted part is a multipart/signed, then there is a detached signature.
