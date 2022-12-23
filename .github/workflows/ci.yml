@@ -25,7 +25,7 @@ jobs:
           override: true
       - run: rustup component add rustfmt
       - name: Cache rust cargo artifacts
-        uses: swatinem/rust-cache@v1
+        uses: swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
 
   run_clippy:
@@ -38,7 +38,7 @@ jobs:
             components: clippy
             override: true
       - name: Cache rust cargo artifacts
-        uses: swatinem/rust-cache@v1
+        uses: swatinem/rust-cache@v2
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -60,7 +60,7 @@ jobs:
           components: rust-docs
           override: true
       - name: Cache rust cargo artifacts
-        uses: swatinem/rust-cache@v1
+        uses: swatinem/rust-cache@v2
       - name: Rustdoc
         run: cargo doc --document-private-items --no-deps
 
@@ -96,7 +96,7 @@ jobs:
         override: true
 
     - name: Cache rust cargo artifacts
-      uses: swatinem/rust-cache@v1
+      uses: swatinem/rust-cache@v2
 
     - name: check
       run: cargo check --all --bins --examples --tests --features repl --benches
