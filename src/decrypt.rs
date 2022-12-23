@@ -51,7 +51,7 @@ pub async fn try_decrypt(
 
     Ok(decrypt_part(
         encrypted_data_part,
-        private_keyring,
+        &private_keyring,
         public_keyring_for_validate,
     )?
     .map(|(raw, fprints)| (raw, fprints, true)))
@@ -207,7 +207,7 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail
 /// Returns Ok(None) if nothing encrypted was found.
 fn decrypt_part(
     mail: &ParsedMail<'_>,
-    private_keyring: Keyring<SignedSecretKey>,
+    private_keyring: &Keyring<SignedSecretKey>,
     public_keyring_for_validate: Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let data = mail.get_body_raw()?;

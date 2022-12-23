@@ -267,7 +267,7 @@ pub async fn pk_encrypt(
 #[allow(clippy::implicit_hasher)]
 pub fn pk_decrypt(
     ctext: Vec<u8>,
-    private_keys_for_decryption: Keyring<SignedSecretKey>,
+    private_keys_for_decryption: &Keyring<SignedSecretKey>,
     public_keys_for_validation: &Keyring<SignedPublicKey>,
 ) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
     let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
@@ -511,7 +511,7 @@ mod tests {
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
@@ -525,7 +525,7 @@ mod tests {
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
@@ -540,7 +540,7 @@ mod tests {
         let empty_keyring = Keyring::new();
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            keyring,
+            &keyring,
             &empty_keyring,
         )
         .unwrap();
@@ -557,7 +557,7 @@ mod tests {
         sig_check_keyring.add(KEYS.bob_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
@@ -572,7 +572,7 @@ mod tests {
         let sig_check_keyring = Keyring::new();
         let (plain, valid_signatures) = pk_decrypt(
             ctext_unsigned().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
         .unwrap();
