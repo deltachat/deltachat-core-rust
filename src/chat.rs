@@ -782,17 +782,35 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = context
-            .sql
-            .count(
-                "SELECT COUNT(*)
+        let count = if self.is_archived_link() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(DISTINCT(m.chat_id))
+                    FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10
+                    and m.hidden=0
+                    AND m.chat_id>9
+                    AND c.blocked=0
+                    AND c.archived=1
+                    ",
+                    paramsv![],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![MessageState::InFresh, self],
-            )
-            .await?;
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?
+        };
         Ok(count)
     }
 
