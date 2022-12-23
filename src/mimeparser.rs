@@ -1641,7 +1641,6 @@ impl MimeMessage {
 /// Returns the set of mail recipient addresses for which valid gossip headers were found.
 async fn update_gossip_peerstates(
     context: &Context,
-    _from: &str,
     message_time: i64,
     from: &str,
     recipients: &[SingleInfo],
