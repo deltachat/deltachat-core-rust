@@ -38,7 +38,7 @@ pub async fn try_decrypt(
     {
         None => {
             return Ok(
-                validate_detached_signature(mail, &public_keyring_for_validate)?
+                validate_detached_signature(mail, &public_keyring_for_validate)
                     .map(|(raw, fprints)| (raw, fprints, false)),
             )
         }
@@ -221,7 +221,7 @@ async fn decrypt_part(
         // If decrypted part is a multipart/signed, then there is a detached signature.
         let decrypted_part = mailparse::parse_mail(&plain)?;
         if let Some((content, valid_detached_signatures)) =
-            validate_detached_signature(&decrypted_part, &public_keyring_for_validate)?
+            validate_detached_signature(&decrypted_part, &public_keyring_for_validate)
         {
             return Ok(Some((content, valid_detached_signatures)));
         } else {
@@ -256,9 +256,9 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 fn validate_detached_signature(
     mail: &ParsedMail<'_>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
+) -> Option<(Vec<u8>, HashSet<Fingerprint>)> {
     if mail.ctype.mimetype != "multipart/signed" {
-        return Ok(None);
+        return None;
     }
 
     if let [first_part, second_part] = &mail.subparts[..] {
@@ -269,9 +269,9 @@ fn validate_detached_signature(
                 .unwrap_or_default(),
             Err(_) => Default::default(),
         };
-        Ok(Some((content.to_vec(), ret_valid_signatures)))
+        Some((content.to_vec(), ret_valid_signatures))
     } else {
-        Ok(None)
+        None
     }
 }
 
