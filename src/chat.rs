@@ -1216,6 +1216,10 @@ impl Chat {
             if !image_rel.is_empty() {
                 return Ok(Some(get_abs_path(context, image_rel)));
             }
+        } else if self.id.is_archived_link() {
+            if let Ok(image_rel) = get_archive_icon(context).await {
+                return Ok(Some(get_abs_path(context, image_rel)));
+            }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id).await?;
             if let Some(contact_id) = contacts.first() {
@@ -1704,6 +1708,21 @@ pub(crate) async fn get_broadcast_icon(context: &Context) -> Result<String> {
     context
         .sql
         .set_raw_config("icon-broadcast", Some(&icon))
+        .await?;
+    Ok(icon)
+}
+
+pub(crate) async fn get_archive_icon(context: &Context) -> Result<String> {
+    if let Some(icon) = context.sql.get_raw_config("icon-archive").await? {
+        return Ok(icon);
+    }
+
+    let icon = include_bytes!("../assets/icon-archive.png");
+    let blob = BlobObject::create(context, "icon-archive.png", icon).await?;
+    let icon = blob.as_name().to_string();
+    context
+        .sql
+        .set_raw_config("icon-archive", Some(&icon))
         .await?;
     Ok(icon)
 }
