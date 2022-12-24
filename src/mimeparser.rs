@@ -23,7 +23,8 @@ use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
+use crate::keyring::Keyring;
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -220,6 +221,9 @@ impl MimeMessage {
         headers.remove("chat-verified");
 
         let from = from.context("No from in message")?;
+        let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
+            .await
+            .context("failed to get own keyring")?;
         let mut decryption_info =
             prepare_decryption(context, &mail, &from.addr, message_time).await?;
 
@@ -231,7 +235,7 @@ impl MimeMessage {
         hop_info += &decryption_info.dkim_results.to_string();
 
         let (mail, mut signatures, encrypted) =
-            match try_decrypt(context, &mail, &decryption_info).await {
+            match try_decrypt(context, &mail, &private_keyring, &decryption_info) {
                 Ok(Some((raw, signatures, encrypted))) => {
                     // Only if `encrypted` and `signatures` set is non-empty, it is a valid
                     // autocrypt message.

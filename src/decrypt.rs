@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use mailparse::ParsedMail;
 
 use crate::aheader::Aheader;
@@ -24,9 +24,10 @@ use crate::pgp;
 /// signature fingerprints and whether the message is encrypted.
 ///
 /// If the message is wrongly signed, HashSet will be empty.
-pub async fn try_decrypt(
+pub fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
+    private_keyring: &Keyring<SignedSecretKey>,
     decryption_info: &DecryptionInfo,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>, bool)>> {
     // Possibly perform decryption
@@ -45,13 +46,10 @@ pub async fn try_decrypt(
         Some(res) => res,
     };
     info!(context, "Detected Autocrypt-mime message");
-    let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
-        .await
-        .context("failed to get own keyring")?;
 
     Ok(decrypt_part(
         encrypted_data_part,
-        &private_keyring,
+        private_keyring,
         public_keyring_for_validate,
     )?
     .map(|(raw, fprints)| (raw, fprints, true)))
