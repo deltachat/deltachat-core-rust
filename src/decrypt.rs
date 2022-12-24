@@ -17,43 +17,32 @@ use crate::log::LogExt;
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
-/// Tries to decrypt a message, but only if it is structured as an
-/// Autocrypt message, otherwise just validates signatures.
+/// Tries to decrypt a message, but only if it is structured as an Autocrypt message.
 ///
-/// If successful and the message is encrypted or signed, returns \[decrypted\] body, a set of valid
-/// signature fingerprints and whether the message is encrypted.
+/// If successful and the message is encrypted, returns decrypted body and a set of valid
+/// signature fingerprints.
 ///
 /// If the message is wrongly signed, HashSet will be empty.
-#[allow(clippy::type_complexity)]
 pub fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
     private_keyring: &Keyring<SignedSecretKey>,
-    decryption_info: &DecryptionInfo,
-) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>, bool)>> {
-    // Possibly perform decryption
-    let public_keyring_for_validate = keyring_from_peerstate(decryption_info.peerstate.as_ref());
-
+    public_keyring_for_validate: &Keyring<SignedPublicKey>,
+) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
         .or_else(|| get_attachment_mime(mail))
     {
-        None => {
-            return Ok(
-                validate_detached_signature(mail, &public_keyring_for_validate)
-                    .map(|(raw, fprints)| (raw, fprints, false)),
-            )
-        }
+        None => return Ok(None),
         Some(res) => res,
     };
     info!(context, "Detected Autocrypt-mime message");
 
-    Ok(decrypt_part(
+    decrypt_part(
         encrypted_data_part,
         private_keyring,
         public_keyring_for_validate,
-    )?
-    .map(|(raw, fprints)| (raw, fprints, true)))
+    )
 }
 
 pub(crate) async fn prepare_decryption(
@@ -207,27 +196,14 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail
 fn decrypt_part(
     mail: &ParsedMail<'_>,
     private_keyring: &Keyring<SignedSecretKey>,
-    public_keyring_for_validate: Keyring<SignedPublicKey>,
+    public_keyring_for_validate: &Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let data = mail.get_body_raw()?;
 
     if has_decrypted_pgp_armor(&data) {
         let (plain, ret_valid_signatures) =
-            pgp::pk_decrypt(data, private_keyring, &public_keyring_for_validate)?;
-
-        // Check for detached signatures.
-        // If decrypted part is a multipart/signed, then there is a detached signature.
-        let decrypted_part = mailparse::parse_mail(&plain)?;
-        if let Some((content, valid_detached_signatures)) =
-            validate_detached_signature(&decrypted_part, &public_keyring_for_validate)
-        {
-            return Ok(Some((content, valid_detached_signatures)));
-        } else {
-            // If the message was wrongly or not signed, still return the plain text.
-            // The caller has to check if the signatures set is empty then.
-
-            return Ok(Some((plain, ret_valid_signatures)));
-        }
+            pgp::pk_decrypt(data, private_keyring, public_keyring_for_validate)?;
+        return Ok(Some((plain, ret_valid_signatures)));
     }
 
     Ok(None)
@@ -249,12 +225,14 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 
 /// Validates signatures of Multipart/Signed message part, as defined in RFC 1847.
 ///
-/// Returns `None` if the part is not a Multipart/Signed part, otherwise retruns the set of key
+/// Returns the signed part and the set of key
 /// fingerprints for which there is a valid signature.
-fn validate_detached_signature(
-    mail: &ParsedMail<'_>,
+///
+/// Returns None if the message is not Multipart/Signed or doesn't contain necessary parts.
+pub(crate) fn validate_detached_signature<'a, 'b>(
+    mail: &'a ParsedMail<'b>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
-) -> Option<(Vec<u8>, HashSet<Fingerprint>)> {
+) -> Option<(&'a ParsedMail<'b>, HashSet<Fingerprint>)> {
     if mail.ctype.mimetype != "multipart/signed" {
         return None;
     }
@@ -267,7 +245,7 @@ fn validate_detached_signature(
                 .unwrap_or_default(),
             Err(_) => Default::default(),
         };
-        Some((content.to_vec(), ret_valid_signatures))
+        Some((first_part, ret_valid_signatures))
     } else {
         None
     }
