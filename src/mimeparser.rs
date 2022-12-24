@@ -18,7 +18,10 @@ use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::decrypt::{prepare_decryption, try_decrypt, DecryptionInfo};
+use crate::decrypt::{
+    keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
+    DecryptionInfo,
+};
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::format_flowed::unformat_flowed;
@@ -234,87 +237,88 @@ impl MimeMessage {
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
+        let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
         let (mail, mut signatures, encrypted) =
-            match try_decrypt(context, &mail, &private_keyring, &decryption_info) {
-                Ok(Some((raw, signatures, encrypted))) => {
-                    // Only if `encrypted` and `signatures` set is non-empty, it is a valid
-                    // autocrypt message.
-
+            match try_decrypt(context, &mail, &private_keyring, &public_keyring) {
+                Ok(Some((raw, signatures))) => {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                         info!(context, "decrypted message mime-body:");
                         println!("{}", String::from_utf8_lossy(&mail_raw));
                     }
-
-                    if encrypted {
-                        // Handle any gossip headers if the mail was encrypted.  See section
-                        // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-                        // but only if the mail was correctly signed:
-                        if !signatures.is_empty() {
-                            let gossip_headers =
-                                decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                            gossiped_addr = update_gossip_peerstates(
-                                context,
-                                message_time,
-                                &from.addr,
-                                &mail,
-                                gossip_headers,
-                            )
-                            .await?;
-                        }
-
-                        // let known protected headers from the decrypted
-                        // part override the unencrypted top-level
-
-                        // Signature was checked for original From, so we
-                        // do not allow overriding it.
-                        let mut signed_from = None;
-
-                        // We do not want to allow unencrypted subject in encrypted emails because the
-                        // user might falsely think that the subject is safe.
-                        // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                        headers.remove("subject");
-
-                        MimeMessage::merge_headers(
-                            context,
-                            &mut headers,
-                            &mut recipients,
-                            &mut signed_from,
-                            &mut list_post,
-                            &mut chat_disposition_notification_to,
-                            &decrypted_mail.headers,
-                        );
-                        if let Some(signed_from) = signed_from {
-                            if addr_cmp(&signed_from.addr, &from.addr) {
-                                from_is_signed = true;
-                            } else {
-                                // There is a From: header in the encrypted &
-                                // signed part, but it doesn't match the outer one.
-                                // This _might_ be because the sender's mail server
-                                // replaced the sending address, e.g. in a mailing list.
-                                // Or it's because someone is doing some replay attack
-                                // - OTOH, I can't come up with an attack scenario
-                                // where this would be useful.
-                                warn!(
-                                    context,
-                                    "From header in signed part does't match the outer one",
-                                );
-                            }
-                        }
-                    }
-                    (Ok(decrypted_mail), signatures, encrypted)
+                    (Ok(decrypted_mail), signatures, true)
                 }
                 Ok(None) => (Ok(mail), HashSet::new(), false),
                 Err(err) => {
                     warn!(context, "decryption failed: {}", err);
-                    (Err(err), HashSet::new(), true)
+                    (Err(err), HashSet::new(), false)
                 }
             };
+        let mail = mail.as_ref().map(|mail| {
+            let (content, signatures_detached) = validate_detached_signature(mail, &public_keyring)
+                .unwrap_or((mail, Default::default()));
+            signatures.extend(signatures_detached);
+            content
+        });
+        if let (Ok(mail), true) = (mail, encrypted) {
+            // Handle any gossip headers if the mail was encrypted.  See section
+            // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+            // but only if the mail was correctly signed:
+            if !signatures.is_empty() {
+                let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
+                gossiped_addr = update_gossip_peerstates(
+                    context,
+                    message_time,
+                    &from.addr,
+                    &recipients,
+                    gossip_headers,
+                )
+                .await?;
+            }
 
+            // let known protected headers from the decrypted
+            // part override the unencrypted top-level
+
+            // Signature was checked for original From, so we
+            // do not allow overriding it.
+            let mut signed_from = None;
+
+            // We do not want to allow unencrypted subject in encrypted emails because the
+            // user might falsely think that the subject is safe.
+            // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+            headers.remove("subject");
+
+            MimeMessage::merge_headers(
+                context,
+                &mut headers,
+                &mut recipients,
+                &mut signed_from,
+                &mut list_post,
+                &mut chat_disposition_notification_to,
+                &mail.headers,
+            );
+            if let Some(signed_from) = signed_from {
+                if addr_cmp(&signed_from.addr, &from.addr) {
+                    from_is_signed = true;
+                } else {
+                    // There is a From: header in the encrypted &
+                    // signed part, but it doesn't match the outer one.
+                    // This _might_ be because the sender's mail server
+                    // replaced the sending address, e.g. in a mailing list.
+                    // Or it's because someone is doing some replay attack
+                    // - OTOH, I can't come up with an attack scenario
+                    // where this would be useful.
+                    warn!(
+                        context,
+                        "From header in signed part does't match the outer one",
+                    );
+                }
+            }
+        }
         if signatures.is_empty() {
             // If it is not a read receipt, degrade encryption.
-            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, &mail) {
+            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
                 if message_time > peerstate.last_seen_autocrypt
                     && mail.ctype.mimetype != "multipart/report"
                 // Disallowing keychanges is disabled for now:
@@ -366,7 +370,7 @@ impl MimeMessage {
             }
             None => match mail {
                 Ok(mail) => {
-                    parser.parse_mime_recursive(context, &mail, false).await?;
+                    parser.parse_mime_recursive(context, mail, false).await?;
                 }
                 Err(err) => {
                     let msg_body = stock_str::cant_decrypt_msg_body(context).await;
@@ -1637,7 +1641,7 @@ async fn update_gossip_peerstates(
     context: &Context,
     message_time: i64,
     from: &str,
-    mail: &mailparse::ParsedMail<'_>,
+    recipients: &[SingleInfo],
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
@@ -1652,7 +1656,7 @@ async fn update_gossip_peerstates(
             }
         };
 
-        if !get_recipients(&mail.headers)
+        if !recipients
             .iter()
             .any(|info| addr_cmp(&info.addr, &header.addr))
         {

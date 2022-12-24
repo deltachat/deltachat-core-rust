@@ -4,6 +4,7 @@
 
 ### Changes
 - Validate signatures in try_decrypt() even if the message isn't encrypted #3859
+- Don't parse the message again after detached signatures validation #3862
 
 ### API-Changes
 
