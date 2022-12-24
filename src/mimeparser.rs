@@ -2020,7 +2020,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_crash() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -2032,7 +2032,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_rfc724_mid_exists() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -2046,7 +2046,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_rfc724_mid_not_exists() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -2252,7 +2252,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_parent_timestamp() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"From: foo@example.org\n\
                     Content-Type: text/plain\n\
                     Chat-Version: 1.0\n\
@@ -2285,7 +2285,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_context() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"From: hello@example.org\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
@@ -2337,7 +2337,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_avatars() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
         let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
@@ -2378,7 +2378,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_videochat() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/videochat_invitation.eml");
         let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
@@ -2400,7 +2400,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_message_kml() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Chat-Version: 1.0\n\
 From: foo <foo@example.org>\n\
 To: bar <bar@example.org>\n\
@@ -2445,7 +2445,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_mdn() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2495,7 +2495,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
     /// multipart MIME messages.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_multiple_mdns() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2571,7 +2571,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_mdn_with_additional_message_ids() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2626,7 +2626,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_inline_attachment() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -2666,7 +2666,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_hide_html_without_content() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -2715,7 +2715,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_inline_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"Message-ID: <foobar@example.org>
 From: foo <foo@example.org>
 Subject: example
@@ -2761,7 +2761,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_thunderbird_html_embedded_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"To: Alice <alice@example.org>
 From: Bob <bob@example.org>
 Subject: Test subject
@@ -2834,7 +2834,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
     // Outlook specifies filename in the "name" attribute of Content-Type
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_outlook_html_embedded_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"From: Anonymous <anonymous@example.org>
 To: Anonymous <anonymous@example.org>
 Subject: Delta Chat is great stuff!
@@ -2973,7 +2973,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_format_flowed_quote() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: swipe-to-reply
 MIME-Version: 1.0
@@ -3009,7 +3009,7 @@ Reply
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_quote_without_reply() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: swipe-to-reply
 MIME-Version: 1.0
@@ -3041,7 +3041,7 @@ From: alice <alice@example.org>
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_quote_top_posting() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: top posting
 MIME-Version: 1.0
@@ -3072,7 +3072,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_attachment_quote() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/quote_attach.eml");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -3090,7 +3090,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote_div() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/gmx-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
         assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
@@ -3100,7 +3100,7 @@ On 2020-10-25, Bob wrote:
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_allinkl_blockquote() {
         // all-inkl.com puts quotes into `<blockquote> </blockquote>`.
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/allinkl-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
         assert!(mimeparser.parts[0].msg.starts_with("It's 1.0."));
@@ -3145,7 +3145,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
@@ -3157,7 +3157,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_plain_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3169,7 +3169,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
@@ -3184,7 +3184,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3196,7 +3196,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3208,7 +3208,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_large_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
         static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_DESIRED_TEXT_LEN
@@ -3229,7 +3229,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_x_microsoft_original_message_id() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let message = MimeMessage::from_bytes(&t, b"Date: Wed, 17 Feb 2021 15:45:15 +0000\n\
                 Chat-Version: 1.0\n\
                 Message-ID: <DBAPR03MB1180CE51A1BFE265BD018D4790869@DBAPR03MB6691.eurprd03.prod.outlook.com>\n\

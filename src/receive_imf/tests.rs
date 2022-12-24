@@ -13,7 +13,7 @@ use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_grpid_simple() {
-    let context = TestContext::new().await;
+    let context = TestContext::new_alice().await;
     let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: hello@example.org\n\
                     Subject: outer-subject\n\
@@ -31,7 +31,7 @@ async fn test_grpid_simple() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_bad_from() {
-    let context = TestContext::new().await;
+    let context = TestContext::new_alice().await;
     let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: hello\n\
                     Subject: outer-subject\n\
@@ -45,7 +45,7 @@ async fn test_bad_from() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_grpid_from_multiple() {
-    let context = TestContext::new().await;
+    let context = TestContext::new_alice().await;
     let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                     From: hello@example.org\n\
                     Subject: outer-subject\n\
