@@ -9,6 +9,7 @@
 
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860
+- Do not strip leading spaces from message lines #3867
 
 
 ## 1.104.0

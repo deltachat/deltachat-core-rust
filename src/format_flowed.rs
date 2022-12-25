@@ -28,6 +28,10 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
 
     for c in line.chars() {
         if c == ' ' {
+            if buffer.is_empty() {
+                // Space stuffing, see RFC 3676
+                buffer.push(' ');
+            }
             buffer.push(c);
             after_space = true;
         } else if c == '>' {
@@ -66,16 +70,18 @@ pub(crate) fn format_flowed(text: &str) -> String {
             result += "\r\n";
         }
 
-        let line_no_prefix = line.strip_prefix('>');
+        let line_no_prefix = line
+            .strip_prefix('>')
+            .map(|line| line.strip_prefix(' ').unwrap_or(line));
         let is_quote = line_no_prefix.is_some();
-        let line = line_no_prefix.unwrap_or(line).trim();
+        let line = line_no_prefix.unwrap_or(line).trim_end();
         let prefix = if is_quote { "> " } else { "" };
 
         if prefix.len() + line.len() > 78 {
             result += &format_line_flowed(line, prefix);
         } else {
             result += prefix;
-            if prefix.is_empty() && line.starts_with('>') {
+            if prefix.is_empty() && (line.starts_with('>') || line.starts_with(' ')) {
                 // Space stuffing, see RFC 3676
                 result.push(' ');
             }
@@ -142,6 +148,7 @@ pub fn unformat_flowed(text: &str, delsp: bool) -> String {
 mod tests {
     use super::*;
     use crate::test_utils::TestContext;
+    use anyhow::Result;
 
     #[test]
     fn test_format_flowed() {
@@ -170,6 +177,13 @@ mod tests {
                         > To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
                         > client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
+
+        // Test space stuffing of spaces.
+        let text = " Foo bar baz";
+        assert_eq!(format_flowed(text), "  Foo bar baz");
+
+        let text = "   Foo bar baz";
+        assert_eq!(format_flowed(text), "    Foo bar baz");
     }
 
     #[test]
@@ -179,6 +193,10 @@ mod tests {
         let expected =
             "this is a very long message that should be wrapped using format=flowed and \
                         unwrapped on the receiver";
+        assert_eq!(unformat_flowed(text, false), expected);
+
+        let text = "  Foo bar";
+        let expected = " Foo bar";
         assert_eq!(unformat_flowed(text, false), expected);
     }
 
@@ -204,7 +222,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_send_quotes() -> anyhow::Result<()> {
+    async fn test_send_quotes() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let chat = alice.create_chat(&bob).await;
@@ -220,6 +238,32 @@ mod tests {
         assert_eq!(received.text.as_deref(), Some("> Second quote"));
         assert!(received.quoted_text().is_none());
         assert!(received.quoted_message(&bob).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_format_flowed_round_trip() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+
+        let text = "  Foo bar";
+        let sent = alice.send_text(chat.id, text).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(text));
+
+        let text = "Foo                         bar                                                             baz";
+        let sent = alice.send_text(chat.id, text).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(text));
+
+        let python_program = "\
+def hello():
+    return 'Hello, world!'";
+        let sent = alice.send_text(chat.id, python_program).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(python_program));
 
         Ok(())
     }
