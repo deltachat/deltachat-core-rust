@@ -368,9 +368,9 @@ impl Peerstate {
     /// Make sure to call `self.save_to_db` to save these changes
     /// Params:
     /// verifier:
-    ///   The address, which verifies the given contact
-    ///   If we ourselves verify the contact, use that contacts address
-    /// Returns wheter the value of the key has been changed
+    ///   The address which verifies the given contact
+    ///   If we are verifying the contact, use that contacts address
+    /// Returns whether the value of the key has changed
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
@@ -411,7 +411,6 @@ impl Peerstate {
     }
 
     pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
-        println!("hi");
         sql.execute(
             "INSERT INTO acpeerstates (
                 last_seen,

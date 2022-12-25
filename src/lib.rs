@@ -24,7 +24,7 @@
     clippy::bool_to_int_with_if,
     // This lint can be re-enabled once we don't target
     // Rust 1.56 anymore:
-    clippy::collapsible_str_replace
+    clippy::collapsible_else_if
 )]
 
 #[macro_use]
