@@ -3990,7 +3990,7 @@ pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) 
         .unwrap_or_default()
         .unwrap_or_default();
 
-    return contact_id.to_u32() as libc::c_int;
+    contact_id.to_u32() as libc::c_int
 }
 // dc_lot_t
 
