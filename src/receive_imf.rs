@@ -5,7 +5,6 @@
 use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;
-use std::sync::atomic;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use mailparse::{parse_mail, SingleInfo};
