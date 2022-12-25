@@ -847,7 +847,7 @@ mod tests {
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let file = t.get_blobdir().join(name);
         tokio::fs::write(&file, bytes).await?;
-        let mut instance = Message::new(Viewtype::File);
+        let mut instance = Message::new(Viewtype::Webxdc);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
     }
@@ -2424,6 +2424,40 @@ sth_for_the = "future""#
             .evtracker
             .get_matching(|evt| matches!(evt, EventType::WebxdcInstanceDeleted { .. }))
             .await;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn change_logging_webxdc() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat_id = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
+
+        assert_eq!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", paramsv![],)
+                .await?,
+            0
+        );
+        alice.send_text(chat_id, "hi").await;
+
+        send_webxdc_instance(&alice, chat_id).await?;
+        warn!(alice, "hi was geht");
+        alice.emit_event(EventType::Info("hi".to_string()));
+        alice
+            .evtracker
+            .get_matching(|ev| match *ev {
+                EventType::WebxdcStatusUpdate { .. } => true,
+                _ => false,
+            })
+            .await;
+        assert!(
+            alice
+                .sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", paramsv![],)
+                .await?
+                > 0
+        );
         Ok(())
     }
 }

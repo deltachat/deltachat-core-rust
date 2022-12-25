@@ -7,6 +7,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -1144,7 +1145,6 @@ impl Chat {
         Ok(chat)
     }
 
-
     /// Returns wheter this message should go into the `saved messages` chat
     pub fn is_self_talk(&self) -> bool {
         self.param.exists(Param::Selftalk)
@@ -1452,7 +1452,6 @@ impl Chat {
         }
 
         // add independent location to database
-
         if msg.param.exists(Param::SetLatitude) {
             if let Ok(row_id) = context
                 .sql
@@ -2057,6 +2056,30 @@ pub async fn is_contact_in_chat(
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
+
+    // replace logging webxdc
+    if chat_id.is_self_talk(context).await? && msg.get_viewtype() == Viewtype::Webxdc {
+        if let Ok(Some(file)) = msg.param.get_path(Param::File, context) {
+            if let Some(file_name) = file.file_name() {
+                if file_name == "minimal.xdc" {
+                    info!(context, "replacing logging webxdc");
+                    let msg_id = msg.get_id();
+                    warn!(context, "msg_id: {msg_id}:?");
+                    context
+                        .sql
+                        .set_raw_config(
+                            Config::DebugLogging.as_ref(),
+                            Some(&msg_id.to_u32().to_string()),
+                        )
+                        .await?;
+                    context
+                        .debug_logging
+                        .store(msg_id.to_u32(), atomic::Ordering::Relaxed);
+                }
+            }
+        }
+    }
+
     if chat_id.is_unset() {
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {

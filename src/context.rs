@@ -6,9 +6,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use std::sync::atomic::{self, AtomicU32};
 
 use anyhow::{ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -440,10 +440,7 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
-        self.events.emit(Event {
-            id: self.id,
-            typ: event.clone(),
-        });
+        let event_clone = event.clone();
 
         // `task::block_on()` below is not how async is meant to be used
         // since `emit_event()` is often called from an async context.
@@ -460,12 +457,12 @@ impl Context {
         // it could make e.g. backups fail since it could still run in the
         // background while trying to move/close the database.
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
+        println!("Sending event! <> {debug_logging}?");
         if debug_logging > 0 {
             let time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as i64;
-
             let context = self.clone();
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async move {
@@ -497,7 +494,11 @@ impl Context {
                     }
                 }
             });
-        }
+        };
+        self.events.emit(Event {
+            id: self.id,
+            typ: event_clone,
+        });
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)
