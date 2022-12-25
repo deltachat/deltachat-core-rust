@@ -2,7 +2,6 @@
 name = "deltachat-jsonrpc"
 version = "1.104.0"
 description = "DeltaChat JSON-RPC API"
-authors = ["Delta Chat Developers (ML) <delta@codespeak.net>"]
 edition = "2021"
 default-run = "deltachat-jsonrpc-server"
 license = "MPL-2.0"
