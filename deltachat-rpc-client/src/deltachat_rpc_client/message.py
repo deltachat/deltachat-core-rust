@@ -1,5 +1,5 @@
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from ._utils import AttrDict
 from .contact import Contact
@@ -49,10 +49,14 @@ class Message:
         """Mark the message as seen."""
         await self._rpc.markseen_msgs(self.account.id, [self.id])
 
-    async def send_webxdc_status_update(self, update: dict, description: str) -> None:
+    async def send_webxdc_status_update(
+        self, update: Union[dict, str], description: str
+    ) -> None:
         """Send a webxdc status update. This message must be a webxdc."""
+        if not isinstance(update, str):
+            update = json.dumps(update)
         await self._rpc.send_webxdc_status_update(
-            self.account.id, self.id, json.dumps(update), description
+            self.account.id, self.id, update, description
         )
 
     async def get_webxdc_status_updates(self, last_known_serial: int = 0) -> list:
