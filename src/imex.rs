@@ -350,7 +350,7 @@ async fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
 fn normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
-        if ('0'..='9').contains(&c) {
+        if c.is_ascii_digit() {
             out.push(c);
             if let 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 = out.len() {
                 out += "-"

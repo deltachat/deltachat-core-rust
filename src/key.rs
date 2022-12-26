@@ -387,7 +387,7 @@ impl std::str::FromStr for Fingerprint {
         let hex_repr: String = input
             .to_uppercase()
             .chars()
-            .filter(|&c| ('0'..='9').contains(&c) || ('A'..='F').contains(&c))
+            .filter(|&c| c.is_ascii_hexdigit())
             .collect();
         let v: Vec<u8> = hex::decode(&hex_repr)?;
         ensure!(v.len() == 20, "wrong fingerprint length: {}", hex_repr);
