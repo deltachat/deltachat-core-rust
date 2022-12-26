@@ -212,7 +212,7 @@ class Account:
         """
         return Chat(self, await self._rpc.create_group_chat(self.id, name, protect))
 
-    async def get_chat_by_id(self, chat_id: int) -> Chat:
+    def get_chat_by_id(self, chat_id: int) -> Chat:
         """Return the Chat instance with the given ID."""
         return Chat(self, chat_id)
 
@@ -237,7 +237,7 @@ class Account:
         """
         return await self._rpc.get_chat_securejoin_qr_code_svg(self.id, None)
 
-    async def get_message_by_id(self, msg_id: int) -> Message:
+    def get_message_by_id(self, msg_id: int) -> Message:
         """Return the Message instance with the given ID."""
         return Message(self, msg_id)
 

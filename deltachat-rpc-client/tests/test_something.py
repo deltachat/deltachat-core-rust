@@ -57,7 +57,7 @@ async def test_account(acfactory) -> None:
             msg_id = event.msg_id
             break
 
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
@@ -82,8 +82,8 @@ async def test_account(acfactory) -> None:
     group = await alice.create_group("test group")
     await group.add_contact(alice_contact_bob)
     group_msg = await group.send_message(text="hello")
-    assert group_msg == await alice.get_message_by_id(group_msg.id)
-    assert group == await alice.get_chat_by_id(group.id)
+    assert group_msg == alice.get_message_by_id(group_msg.id)
+    assert group == alice.get_chat_by_id(group.id)
     await alice.delete_messages([group_msg])
 
     await alice.set_config("selfstatus", "test")
@@ -116,11 +116,11 @@ async def test_chat(acfactory) -> None:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
-    bob_chat_alice = await bob.get_chat_by_id(chat_id)
+    bob_chat_alice = bob.get_chat_by_id(chat_id)
 
     assert alice_chat_bob != bob_chat_alice
     assert repr(alice_chat_bob)
@@ -201,7 +201,7 @@ async def test_message(acfactory) -> None:
             msg_id = event.msg_id
             break
 
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
