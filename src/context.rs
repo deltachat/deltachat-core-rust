@@ -236,7 +236,7 @@ pub struct InnerContext {
     /// `last_error` should be used to avoid races with the event thread.
     pub(crate) last_error: std::sync::RwLock<String>,
 
-    /// The message Id of the current debuglogging-webxdc
+    /// The message Id of the current debuglogging webxdc
     pub(crate) debug_logging: AtomicU32,
 }
 

@@ -1920,7 +1920,6 @@ pub async fn prepare_msg(context: &Context, chat_id: ChatId, msg: &mut Message) 
     Ok(msg_id)
 }
 
-/// Check the message if it is viable to send out
 async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
@@ -2094,7 +2093,6 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
             }
         }
     }
-
     msg_id
 }
 
@@ -3481,8 +3479,6 @@ pub async fn add_device_msg_with_importance(
                 ],
             )
             .await?;
-
-        msg_id = MsgId::new(u32::try_from(row_id)?);
 
         if msg.viewtype == Viewtype::Webxdc {}
     }
