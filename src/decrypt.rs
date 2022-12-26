@@ -24,6 +24,7 @@ use crate::pgp;
 /// signature fingerprints and whether the message is encrypted.
 ///
 /// If the message is wrongly signed, HashSet will be empty.
+#[allow(clippy::type_complexity)]
 pub fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
