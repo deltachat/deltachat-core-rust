@@ -2056,7 +2056,6 @@ pub async fn is_contact_in_chat(
 //   the caller can get it from msg.chat_id.  Forwards would need to
 //   be fixed for this somehow too.
 pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-
     if chat_id.is_unset() {
         let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
@@ -2074,15 +2073,13 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
     }
 
     let msg_id = send_msg_inner(context, chat_id, msg).await;
-    
-    // replace logging webxdc
-    if chat_id.is_self_talk(context).await? && msg.get_viewtype() == Viewtype::Webxdc {
+
+    if msg.get_viewtype() == Viewtype::Webxdc && chat_id.is_self_talk(context).await?  {
         if let Ok(Some(file)) = msg.param.get_path(Param::File, context) {
             if let Some(file_name) = file.file_name() {
-                if file_name == "minimal.xdc" {
+                if file_name == "debug_logging.xdc" {
                     info!(context, "replacing logging webxdc");
                     let msg_id = msg.get_id();
-                    warn!(context, "msg_id: {msg_id}:?");
                     context
                         .sql
                         .set_raw_config(
@@ -2097,6 +2094,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
             }
         }
     }
+
     msg_id
 }
 

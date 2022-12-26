@@ -440,8 +440,10 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
-        let event_clone = event.clone();
-
+        self.events.emit(Event {
+            id: self.id,
+            typ: event.clone(),
+        });
         // We use `task::spawn()` which could mix up the order of events in the db and
         // could make e.g. backups fail since it could still run in the
         // background while trying to move/close the database.
@@ -482,10 +484,6 @@ impl Context {
                 }
             });
         };
-        self.events.emit(Event {
-            id: self.id,
-            typ: event_clone,
-        });
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)

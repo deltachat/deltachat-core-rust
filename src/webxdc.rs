@@ -847,7 +847,7 @@ mod tests {
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
         let file = t.get_blobdir().join(name);
         tokio::fs::write(&file, bytes).await?;
-        let mut instance = Message::new(Viewtype::Webxdc);
+        let mut instance = Message::new(Viewtype::File);
         instance.set_file(file.to_str().unwrap(), None);
         Ok(instance)
     }
@@ -2441,7 +2441,13 @@ sth_for_the = "future""#
         );
         alice.send_text(chat_id, "hi").await;
 
-        send_webxdc_instance(&alice, chat_id).await?;
+        let mut instance = create_webxdc_instance(
+            &alice,
+            "debug_logging.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        send_msg(&alice, chat_id, &mut instance).await?;
         alice.emit_event(EventType::Info("hi".to_string()));
         alice
             .evtracker
