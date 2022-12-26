@@ -2451,10 +2451,7 @@ sth_for_the = "future""#
         alice.emit_event(EventType::Info("hi".to_string()));
         alice
             .evtracker
-            .get_matching(|ev| match *ev {
-                EventType::WebxdcStatusUpdate { .. } => true,
-                _ => false,
-            })
+            .get_matching(|ev| matches!(*ev, EventType::WebxdcStatusUpdate { .. }))
             .await;
         assert!(
             alice
