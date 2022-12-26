@@ -2074,7 +2074,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
 
     let msg_id = send_msg_inner(context, chat_id, msg).await;
 
-    if msg.get_viewtype() == Viewtype::Webxdc && chat_id.is_self_talk(context).await?  {
+    if msg.get_viewtype() == Viewtype::Webxdc && chat_id.is_self_talk(context).await? {
         if let Ok(Some(file)) = msg.param.get_path(Param::File, context) {
             if let Some(file_name) = file.file_name() {
                 if file_name == "debug_logging.xdc" {
