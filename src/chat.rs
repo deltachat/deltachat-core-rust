@@ -3480,7 +3480,7 @@ pub async fn add_device_msg_with_importance(
             )
             .await?;
 
-        if msg.viewtype == Viewtype::Webxdc {}
+        msg_id = MsgId::new(u32::try_from(row_id)?);
     }
 
     if let Some(label) = label {

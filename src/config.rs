@@ -330,7 +330,7 @@ impl Context {
                     .await?;
             }
             Config::DebugLogging => {
-                if value == Some("0") || value == Some("") || value == None {
+                if value == Some("0") || value == Some("") || value.is_none() {
                     if let Some(webxdc_message_id) = self
                         .sql
                         .get_raw_config_u32(Config::DebugLogging.as_ref())

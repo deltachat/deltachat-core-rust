@@ -455,7 +455,7 @@ impl Context {
                 .as_millis() as i64;
             let context = self.clone();
             tokio::spawn(async move {
-                let webxdc_instance_id = MsgId::new(debug_logging as u32);
+                let webxdc_instance_id = MsgId::new(debug_logging);
 
                 match context
                     .write_status_update_inner(
