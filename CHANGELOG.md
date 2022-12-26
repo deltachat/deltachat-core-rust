@@ -8,6 +8,7 @@
 - Move format=flowed support to a separate crate #3869
 
 ### API-Changes
+- jsonrpc: add python API for webxdc updates #3872
 
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860
