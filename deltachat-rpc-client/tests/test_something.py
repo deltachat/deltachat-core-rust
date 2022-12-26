@@ -174,7 +174,7 @@ async def test_contact(acfactory) -> None:
     bob_addr = await bob.get_config("addr")
     alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
 
-    assert alice_contact_bob == await alice.get_contact_by_id(alice_contact_bob.id)
+    assert alice_contact_bob == alice.get_contact_by_id(alice_contact_bob.id)
     assert repr(alice_contact_bob)
     await alice_contact_bob.block()
     await alice_contact_bob.unblock()

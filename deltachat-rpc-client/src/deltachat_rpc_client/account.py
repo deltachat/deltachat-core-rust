@@ -108,7 +108,7 @@ class Account:
             obj = (await obj.get_snapshot()).address
         return Contact(self, await self._rpc.create_contact(self.id, obj, name))
 
-    async def get_contact_by_id(self, contact_id: int) -> Contact:
+    def get_contact_by_id(self, contact_id: int) -> Contact:
         """Return Contact instance for the given contact ID."""
         return Contact(self, contact_id)
 
