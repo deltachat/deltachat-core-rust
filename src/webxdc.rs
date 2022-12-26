@@ -2442,7 +2442,6 @@ sth_for_the = "future""#
         alice.send_text(chat_id, "hi").await;
 
         send_webxdc_instance(&alice, chat_id).await?;
-        warn!(alice, "hi was geht");
         alice.emit_event(EventType::Info("hi".to_string()));
         alice
             .evtracker

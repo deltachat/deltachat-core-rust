@@ -442,30 +442,17 @@ impl Context {
     pub fn emit_event(&self, event: EventType) {
         let event_clone = event.clone();
 
-        // `task::block_on()` below is not how async is meant to be used
-        // since `emit_event()` is often called from an async context.
-        // This could generally lead to deadlocks, so we make sure to only
-        // call it if `debug_logging` is on. It's not that much of a problem
-        // since most of the things we do in the `async` block - esp. the
-        // database access - is blocking anyway.
-        //
-        // A better solution would be to make `emit_event()` async or to
-        // create a debug_logger background loop.
-        //
-        // Alternatively, we could use `task::spawn()`; this would be
-        // non-deterministic, so that the logs might get out of order, and
-        // it could make e.g. backups fail since it could still run in the
+        // We use `task::spawn()` which could mix up the order of events in the db and
+        // could make e.g. backups fail since it could still run in the
         // background while trying to move/close the database.
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
-        println!("Sending event! <> {debug_logging}?");
         if debug_logging > 0 {
             let time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis() as i64;
             let context = self.clone();
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
+            tokio::spawn(async move {
                 let webxdc_instance_id = MsgId::new(debug_logging as u32);
 
                 match context
