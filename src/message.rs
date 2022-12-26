@@ -2340,4 +2340,51 @@ mod tests {
         );
         assert_eq!(Viewtype::Webxdc, Viewtype::from_i32(80).unwrap());
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_quotes() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+
+        let sent = alice.send_text(chat.id, "> First quote").await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some("> First quote"));
+        assert!(received.quoted_text().is_none());
+        assert!(received.quoted_message(&bob).await?.is_none());
+
+        let sent = alice.send_text(chat.id, "> Second quote").await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some("> Second quote"));
+        assert!(received.quoted_text().is_none());
+        assert!(received.quoted_message(&bob).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_format_flowed_round_trip() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat = alice.create_chat(&bob).await;
+
+        let text = "  Foo bar";
+        let sent = alice.send_text(chat.id, text).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(text));
+
+        let text = "Foo                         bar                                                             baz";
+        let sent = alice.send_text(chat.id, text).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(text));
+
+        let python_program = "\
+def hello():
+    return 'Hello, world!'";
+        let sent = alice.send_text(chat.id, python_program).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(python_program));
+
+        Ok(())
+    }
 }

@@ -5,6 +5,7 @@
 ### Changes
 - Validate signatures in try_decrypt() even if the message isn't encrypted #3859
 - Don't parse the message again after detached signatures validation #3862
+- Move format=flowed support to a separate crate #3869
 
 ### API-Changes
 

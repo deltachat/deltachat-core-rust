@@ -62,7 +62,7 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
 ///
 /// RFC 2646 technique is used to insert soft line breaks, so DelSp
 /// SHOULD be set to "no" when sending.
-pub(crate) fn format_flowed(text: &str) -> String {
+pub fn format_flowed(text: &str) -> String {
     let mut result = String::new();
 
     for line in text.split('\n') {
@@ -147,8 +147,6 @@ pub fn unformat_flowed(text: &str, delsp: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::TestContext;
-    use anyhow::Result;
 
     #[test]
     fn test_format_flowed() {
@@ -219,52 +217,5 @@ mod tests {
             "> this is a very long quote that should be wrapped using format=flowed and \r\n\
             > unwrapped on the receiver";
         assert_eq!(format_flowed_quote(quote), expected);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_send_quotes() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
-        let chat = alice.create_chat(&bob).await;
-
-        let sent = alice.send_text(chat.id, "> First quote").await;
-        let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some("> First quote"));
-        assert!(received.quoted_text().is_none());
-        assert!(received.quoted_message(&bob).await?.is_none());
-
-        let sent = alice.send_text(chat.id, "> Second quote").await;
-        let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some("> Second quote"));
-        assert!(received.quoted_text().is_none());
-        assert!(received.quoted_message(&bob).await?.is_none());
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_format_flowed_round_trip() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
-        let chat = alice.create_chat(&bob).await;
-
-        let text = "  Foo bar";
-        let sent = alice.send_text(chat.id, text).await;
-        let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(text));
-
-        let text = "Foo                         bar                                                             baz";
-        let sent = alice.send_text(chat.id, text).await;
-        let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(text));
-
-        let python_program = "\
-def hello():
-    return 'Hello, world!'";
-        let sent = alice.send_text(chat.id, python_program).await;
-        let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(python_program));
-
-        Ok(())
     }
 }

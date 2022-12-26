@@ -887,6 +887,7 @@ dependencies = [
  "encoded-words",
  "escaper",
  "fast-socks5",
+ "format-flowed",
  "futures",
  "futures-lite",
  "hex",
@@ -1444,6 +1445,10 @@ checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
 dependencies = [
  "percent-encoding",
 ]
+
+[[package]]
+name = "format-flowed"
+version = "1.0.0"
 
 [[package]]
 name = "futures"

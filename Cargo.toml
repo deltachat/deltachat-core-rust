@@ -19,6 +19,7 @@ panic = 'abort'
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
+format-flowed = { path = "./format-flowed" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1"
@@ -99,7 +100,8 @@ members = [
   "deltachat-ffi",
   "deltachat_derive",
   "deltachat-jsonrpc",
-  "deltachat-rpc-server"
+  "deltachat-rpc-server",
+  "format-flowed",
 ]
 
 [[example]]

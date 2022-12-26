@@ -9,6 +9,7 @@ use std::str;
 
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
+use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
@@ -24,7 +25,6 @@ use crate::decrypt::{
 };
 use crate::dehtml::dehtml;
 use crate::events::EventType;
-use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;

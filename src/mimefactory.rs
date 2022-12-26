@@ -4,6 +4,7 @@ use std::convert::TryInto;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use chrono::TimeZone;
+use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
 
@@ -15,7 +16,6 @@ use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::html::new_html_mimepart;
 use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
