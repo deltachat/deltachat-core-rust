@@ -14,7 +14,7 @@
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860
 - Do not strip leading spaces from message lines #3867
-
+- Don't always rebuild group member lists #3872
 
 ## 1.104.0
 

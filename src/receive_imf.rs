@@ -1603,9 +1603,7 @@ async fn apply_group_changes(
 
     let mut recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
         Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-        Some(_) => {
-            !is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-        }
+        Some(_) => !is_contact_in_chat(context, chat_id, ContactId::SELF).await?,
         None => true,
     };
 
