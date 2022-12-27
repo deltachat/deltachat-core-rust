@@ -106,7 +106,12 @@ class TestGroupStressTests:
         msg = ac2._evtracker.wait_next_incoming_message()
 
         lp.sec("ac1: removing ac3")
+        ac1._evtracker.consume_events()
         chat.remove_contact(ac3)
+
+        # Ensure the message is not pending,
+        # so we will reference it in the In-Reply-To.
+        ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
 
         lp.sec("ac1: adding ac2 back")
         # Group is promoted, message is sent automatically
