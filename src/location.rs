@@ -109,7 +109,7 @@ impl Kml {
         let mut buf = Vec::new();
 
         loop {
-            match reader.read_event(&mut buf).with_context(|| {
+            match reader.read_event_into(&mut buf).with_context(|| {
                 format!(
                     "location parsing error at position {}",
                     reader.buffer_position()
@@ -117,7 +117,7 @@ impl Kml {
             })? {
                 quick_xml::events::Event::Start(ref e) => kml.starttag_cb(e, &reader),
                 quick_xml::events::Event::End(ref e) => kml.endtag_cb(e),
-                quick_xml::events::Event::Text(ref e) => kml.text_cb(e, &reader),
+                quick_xml::events::Event::Text(ref e) => kml.text_cb(e),
                 quick_xml::events::Event::Eof => break,
                 _ => (),
             }
@@ -127,9 +127,9 @@ impl Kml {
         Ok(kml)
     }
 
-    fn text_cb<B: std::io::BufRead>(&mut self, event: &BytesText, reader: &quick_xml::Reader<B>) {
+    fn text_cb(&mut self, event: &BytesText) {
         if self.tag.contains(KmlTag::WHEN) || self.tag.contains(KmlTag::COORDINATES) {
-            let val = event.unescape_and_decode(reader).unwrap_or_default();
+            let val = event.unescape().unwrap_or_default();
 
             let val = val.replace(['\n', '\r', '\t', ' '], "");
 
@@ -158,7 +158,9 @@ impl Kml {
     }
 
     fn endtag_cb(&mut self, event: &BytesEnd) {
-        let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+        let tag = String::from_utf8_lossy(event.name().as_ref())
+            .trim()
+            .to_lowercase();
 
         if tag == "placemark" {
             if self.tag.contains(KmlTag::PLACEMARK)
@@ -178,14 +180,20 @@ impl Kml {
         event: &BytesStart,
         reader: &quick_xml::Reader<B>,
     ) {
-        let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+        let tag = String::from_utf8_lossy(event.name().as_ref())
+            .trim()
+            .to_lowercase();
         if tag == "document" {
-            if let Some(addr) = event
-                .attributes()
-                .filter_map(|a| a.ok())
-                .find(|attr| String::from_utf8_lossy(attr.key).trim().to_lowercase() == "addr")
-            {
-                self.addr = addr.unescape_and_decode_value(reader).ok();
+            if let Some(addr) = event.attributes().filter_map(|a| a.ok()).find(|attr| {
+                String::from_utf8_lossy(attr.key.as_ref())
+                    .trim()
+                    .to_lowercase()
+                    == "addr"
+            }) {
+                self.addr = addr
+                    .decode_and_unescape_value(reader)
+                    .ok()
+                    .map(|a| a.into_owned());
             }
         } else if tag == "placemark" {
             self.tag = KmlTag::PLACEMARK;
@@ -203,12 +211,17 @@ impl Kml {
             self.tag = KmlTag::PLACEMARK | KmlTag::POINT | KmlTag::COORDINATES;
             if let Some(acc) = event.attributes().find(|attr| {
                 attr.as_ref()
-                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "accuracy")
+                    .map(|a| {
+                        String::from_utf8_lossy(a.key.as_ref())
+                            .trim()
+                            .to_lowercase()
+                            == "accuracy"
+                    })
                     .unwrap_or_default()
             }) {
                 let v = acc
                     .unwrap()
-                    .unescape_and_decode_value(reader)
+                    .decode_and_unescape_value(reader)
                     .unwrap_or_default();
 
                 self.curr.accuracy = v.trim().parse().unwrap_or_default();
