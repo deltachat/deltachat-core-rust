@@ -1138,7 +1138,7 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
-    /// Return the address that verified the given 
+    /// Return the address that verified the given contact
     pub async fn get_verifier_addr(
         context: &Context,
         contact_id: &ContactId,
@@ -1162,6 +1162,7 @@ impl Contact {
         }
     }
 
+    /// Return the ContactId that verified the given contact
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {
         if !context.sql.is_open().await {
             return Ok(0);

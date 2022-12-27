@@ -465,6 +465,7 @@ impl Peerstate {
         }
     }
 
+    /// Returns the address that verified the contact
     pub fn get_verifier(&self) -> Option<&str> {
         self.verifier.as_deref()
     }
