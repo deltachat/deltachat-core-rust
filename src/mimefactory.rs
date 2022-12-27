@@ -799,6 +799,7 @@ impl<'a> MimeFactory<'a> {
         })
     }
 
+    /// Returns MIME part with a `message.kml` attachment.
     fn get_message_kml_part(&self) -> Option<PartBuilder> {
         let latitude = self.msg.param.get_float(Param::SetLatitude)?;
         let longitude = self.msg.param.get_float(Param::SetLongitude)?;
@@ -818,6 +819,7 @@ impl<'a> MimeFactory<'a> {
         Some(part)
     }
 
+    /// Returns MIME part with a `location.kml` attachment.
     async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder> {
         let (kml_content, last_added_location_id) =
             location::get_kml(context, self.msg.chat_id).await?;

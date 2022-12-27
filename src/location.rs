@@ -1,7 +1,5 @@
 //! Location handling.
 
-#![allow(missing_docs)]
-
 use std::convert::TryFrom;
 use std::time::Duration;
 
@@ -20,32 +18,63 @@ use crate::mimeparser::SystemMessage;
 use crate::stock_str;
 use crate::tools::{duration_to_str, time};
 
-/// Location record
+/// Location record.
 #[derive(Debug, Clone, Default)]
 pub struct Location {
+    /// Row ID of the location.
     pub location_id: u32,
+
+    /// Location latitude.
     pub latitude: f64,
+
+    /// Location longitude.
     pub longitude: f64,
+
+    /// Nonstandard `accuracy` attribute of the `coordinates` tag.
     pub accuracy: f64,
+
+    /// Location timestamp in seconds.
     pub timestamp: i64,
+
+    /// Contact ID.
     pub contact_id: ContactId,
+
+    /// Message ID.
     pub msg_id: u32,
+
+    /// Chat ID.
     pub chat_id: ChatId,
+
+    /// A marker string, such as an emoji, to be displayed on top of the location.
     pub marker: Option<String>,
+
+    /// Whether location is independent, i.e. not part of the path.
     pub independent: u32,
 }
 
 impl Location {
+    /// Creates a new empty location.
     pub fn new() -> Self {
         Default::default()
     }
 }
 
+/// KML document.
+///
+/// See <https://www.ogc.org/standards/kml/> for the standard and
+/// <https://developers.google.com/kml> for documentation.
 #[derive(Debug, Clone, Default)]
 pub struct Kml {
+    /// Nonstandard `addr` attribute of the `Document` tag storing the user email address.
     pub addr: Option<String>,
+
+    /// Placemarks.
     pub locations: Vec<Location>,
+
+    /// Currently parsed XML tag.
     tag: KmlTag,
+
+    /// Currently parsed placemark.
     pub curr: Location,
 }
 
@@ -62,10 +91,12 @@ bitflags! {
 }
 
 impl Kml {
+    /// Creates a new empty KML document.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Parses a KML document.
     pub fn parse(to_parse: &[u8]) -> Result<Self> {
         ensure!(to_parse.len() <= 1024 * 1024, "kml-file is too large");
 
@@ -259,6 +290,7 @@ pub async fn is_sending_locations_to_chat(
     Ok(exists)
 }
 
+/// Sets current location of the user device.
 pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
     if latitude == 0.0 && longitude == 0.0 {
         return true;
@@ -306,6 +338,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
     continue_streaming
 }
 
+/// Searches for locations in the given time range, optionally filtering by chat and contact IDs.
 pub async fn get_range(
     context: &Context,
     chat_id: Option<ChatId>,
@@ -396,6 +429,7 @@ pub async fn delete_all(context: &Context) -> Result<()> {
     Ok(())
 }
 
+/// Returns `location.kml` contents.
 pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)> {
     let mut last_added_location_id = 0;
 
@@ -481,6 +515,7 @@ fn get_kml_timestamp(utc: i64) -> String {
         .to_string()
 }
 
+/// Returns a KML document containing a single location with the given timestamp and coordinates.
 pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
@@ -498,6 +533,7 @@ pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String 
     )
 }
 
+/// Sets the timestamp of the last time location was sent in the chat.
 pub async fn set_kml_sent_timestamp(
     context: &Context,
     chat_id: ChatId,
@@ -513,6 +549,7 @@ pub async fn set_kml_sent_timestamp(
     Ok(())
 }
 
+/// Sets the location of the message.
 pub async fn set_msg_location_id(context: &Context, msg_id: MsgId, location_id: u32) -> Result<()> {
     context
         .sql
