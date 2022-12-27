@@ -1645,7 +1645,6 @@ async fn apply_group_changes(
         {
             better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
 
-            warn!(context, "recreating: {}", recreate_member_list);
             if !recreate_member_list {
                 if let Some(contact_id) =
                     Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?

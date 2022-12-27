@@ -1770,7 +1770,6 @@ pub(crate) async fn rfc724_mid_exists(
             },
         )
         .await?;
-    warn!(context, "rfc_724_mid: {:?} is found: {:?}", rfc724_mid, res);
 
     Ok(res)
 }
