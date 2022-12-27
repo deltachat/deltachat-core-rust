@@ -1,7 +1,5 @@
 //! # Download large messages manually.
 
-#![allow(missing_docs)]
-
 use anyhow::{anyhow, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
@@ -33,6 +31,7 @@ const MIN_DOWNLOAD_LIMIT: u32 = 32768;
 /// `MIN_DELETE_SERVER_AFTER` increases the timeout in this case.
 pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 
+/// Download state of the message.
 #[derive(
     Debug,
     Display,
@@ -49,9 +48,16 @@ pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 )]
 #[repr(u32)]
 pub enum DownloadState {
+    /// Message is fully downloaded.
     Done = 0,
+
+    /// Message is partially downloaded and can be fully downloaded at request.
     Available = 10,
+
+    /// Failed to fully download the message.
     Failure = 20,
+
+    /// Full download of the message is in progress.
     InProgress = 1000,
 }
 
