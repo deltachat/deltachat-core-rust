@@ -9,6 +9,7 @@
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
+- Add ffi functions to retrieve `verified by` information #3786
 
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860
@@ -25,8 +26,6 @@
 - Remove `pytest-async` plugin #3846
 - Only send the message about ephemeral timer change if the chat is promoted #3847
 - Use relative paths in `accounts.toml` #3838
-
-### API-Changes
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833

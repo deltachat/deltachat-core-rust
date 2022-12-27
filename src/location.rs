@@ -100,11 +100,7 @@ impl Kml {
         if self.tag.contains(KmlTag::WHEN) || self.tag.contains(KmlTag::COORDINATES) {
             let val = event.unescape_and_decode(reader).unwrap_or_default();
 
-            let val = val
-                .replace('\n', "")
-                .replace('\r', "")
-                .replace('\t', "")
-                .replace(' ', "");
+            let val = val.replace(['\n', '\r', '\t', ' '], "");
 
             if self.tag.contains(KmlTag::WHEN) && val.len() >= 19 {
                 // YYYY-MM-DDTHH:MM:SSZ

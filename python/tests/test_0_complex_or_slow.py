@@ -123,6 +123,7 @@ class TestGroupStressTests:
 
 def test_qr_verified_group_and_chatting(acfactory, lp):
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+    ac1_addr = ac1.get_self_contact().addr
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")
     chat1 = ac1.create_group_chat("hello", verified=True)
     assert chat1.is_protected()
@@ -141,11 +142,16 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     msg_out = chat1.send_text("hello")
     assert msg_out.is_encrypted()
 
-    lp.sec("ac2: read message and check it's verified chat")
+    lp.sec("ac2: read message and check that it's a verified chat")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.text == "hello"
     assert msg.chat.is_protected()
     assert msg.is_encrypted()
+
+    lp.sec("ac2: Check that ac2 verified ac1")
+    # If we verified the contact ourselves then verifier addr == contact addr
+    ac2_ac1_contact = ac2.get_contacts()[0]
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
 
     lp.sec("ac2: send message and let ac1 read it")
     chat2.send_text("world")
@@ -167,6 +173,12 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     assert msg.is_encrypted()
     assert msg.is_system_message()
     assert not msg.error
+
+    lp.sec("ac2: Check that ac1 verified ac3 for ac2")
+    ac2_ac1_contact = ac2.get_contacts()[0]
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
+    ac2_ac3_contact = ac2.get_contacts()[1]
+    assert ac2.get_self_contact().get_verifier(ac2_ac3_contact) == ac1_addr
 
     lp.sec("ac2: send message and let ac3 read it")
     chat2.send_text("hi")

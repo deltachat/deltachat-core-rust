@@ -411,7 +411,14 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
+            let contact_addr = Contact::load_from_db(context, contact_id)
+                .await?
+                .get_addr()
+                .to_owned();
+            if mark_peer_as_verified(context, &fingerprint, contact_addr)
+                .await
+                .is_err()
+            {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -531,7 +538,7 @@ pub(crate) async fn handle_securejoin_handshake(
 ///
 /// - if we see the self-sent-message vg-member-added/vc-contact-confirm,
 ///   we know that we're an inviter-observer.
-///   the inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
+///   The inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
 ///   before sending vg-member-added/vc-contact-confirm - so, if we observe vg-member-added/vc-contact-confirm,
 ///   we can mark the peer as verified as well.
 ///
@@ -586,7 +593,17 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
+            if mark_peer_as_verified(
+                context,
+                &fingerprint,
+                Contact::load_from_db(context, contact_id)
+                    .await?
+                    .get_addr()
+                    .to_owned(),
+            )
+            .await
+            .is_err()
+            {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -634,12 +651,17 @@ async fn could_not_establish_secure_connection(
     Ok(())
 }
 
-async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
+async fn mark_peer_as_verified(
+    context: &Context,
+    fingerprint: &Fingerprint,
+    verifier: String,
+) -> Result<(), Error> {
     if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await? {
         if peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,
             PeerstateVerifiedStatus::BidirectVerified,
+            verifier,
         ) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.save_to_db(&context.sql).await.unwrap_or_default();
@@ -931,6 +953,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
         peerstate.save_to_db(&bob.ctx.sql).await?;
 

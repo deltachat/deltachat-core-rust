@@ -244,6 +244,7 @@ impl TestContext {
     ///
     /// This is a shortcut which automatically calls [`TestContext::configure_alice`] after
     /// creating the context.
+    /// alice-email: alice@example.org
     pub async fn new_alice() -> Self {
         Self::builder().configure_alice().build().await
     }

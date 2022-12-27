@@ -1138,6 +1138,31 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
+    /// Return the address that verified the given contact
+    pub async fn get_verifier_addr(
+        context: &Context,
+        contact_id: &ContactId,
+    ) -> Result<Option<String>> {
+        let contact = Contact::load_from_db(context, *contact_id).await?;
+
+        Ok(Peerstate::from_addr(context, contact.get_addr())
+            .await?
+            .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
+    }
+
+    pub async fn get_verifier_id(
+        context: &Context,
+        contact_id: &ContactId,
+    ) -> Result<Option<ContactId>> {
+        let verifier_addr = Contact::get_verifier_addr(context, contact_id).await?;
+        if let Some(addr) = verifier_addr {
+            Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Return the ContactId that verified the given contact
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {
         if !context.sql.is_open().await {
             return Ok(0);
@@ -2300,7 +2325,6 @@ bob@example.net:
 CCCB 5AA9 F6E1 141C 9431
 65F1 DB18 B18C BCF7 0487"
         );
-
         Ok(())
     }
 
