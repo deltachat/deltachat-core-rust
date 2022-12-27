@@ -48,6 +48,7 @@ pub struct Peerstate {
     pub verified_key: Option<SignedPublicKey>,
     pub verified_key_fingerprint: Option<Fingerprint>,
     pub fingerprint_changed: bool,
+    /// The address that verified this contact
     pub verifier: Option<String>,
 }
 
@@ -109,8 +110,6 @@ impl Peerstate {
     }
 
     /// Create peerstate from gossip
-    /// Params:
-    /// verifier: The person from who sent the message containing the gossip
     pub fn from_gossip(gossip_header: &Aheader, message_time: i64) -> Self {
         Peerstate {
             addr: gossip_header.addr.clone(),

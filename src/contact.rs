@@ -1138,7 +1138,11 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
-    pub async fn get_verifier(context: &Context, contact_id: &ContactId) -> Result<Option<String>> {
+    /// Return the address that verified the given 
+    pub async fn get_verifier_addr(
+        context: &Context,
+        contact_id: &ContactId,
+    ) -> Result<Option<String>> {
         let contact = Contact::load_from_db(context, *contact_id).await?;
 
         Ok(Peerstate::from_addr(context, contact.get_addr())
@@ -1150,7 +1154,7 @@ impl Contact {
         context: &Context,
         contact_id: &ContactId,
     ) -> Result<Option<ContactId>> {
-        let verifier_addr = Contact::get_verifier(context, contact_id).await?;
+        let verifier_addr = Contact::get_verifier_addr(context, contact_id).await?;
         if let Some(addr) = verifier_addr {
             Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
         } else {
