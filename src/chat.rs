@@ -3984,12 +3984,10 @@ mod tests {
         remove_contact_from_chat(&alice, alice_chat_id, bob_id).await?;
         let remove_bob = alice.pop_sent_msg().await;
         bob.recv_msg(&remove_bob).await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
         // remove any other member
         remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
         alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
         // readd bob
         add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;

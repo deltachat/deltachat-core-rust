@@ -12,7 +12,7 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chat::{self, is_contact_in_chat, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
@@ -1603,7 +1603,9 @@ async fn apply_group_changes(
 
     let mut recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
         Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-        Some(_) => false,
+        Some(_) => {
+            !is_contact_in_chat(context, chat_id, ContactId::SELF).await?
+        }
         None => true,
     };
 
