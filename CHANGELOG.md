@@ -7,6 +7,7 @@
 - Don't parse the message again after detached signatures validation #3862
 - Move format=flowed support to a separate crate #3869
 - cargo: bump quick-xml from 0.23.0 to 0.26.0 #3722
+- Add fuzzing tests #3853
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872

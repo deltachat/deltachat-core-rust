@@ -115,6 +115,29 @@ use the `--ignored` argument to the test binary (not to cargo itself):
 $ cargo test -- --ignored
 ```
 
+### Fuzzing
+
+Install [`cargo-bolero`](https://github.com/camshaft/bolero) with
+```sh
+$ cargo install cargo-bolero
+```
+
+Run fuzzing tests with
+```sh
+$ cd fuzz
+$ cargo bolero test fuzz_mailparse --release=false -s NONE
+```
+
+Corpus is created at `fuzz/fuzz_targets/corpus`,
+you can add initial inputs there.
+For `fuzz_mailparse` target corpus can be populated with
+`../test-data/message/*.eml`.
+
+To run with AFL instead of libFuzzer:
+```sh
+$ cargo bolero test fuzz_format_flowed --release=false -e afl -s NONE
+```
+
 ## Features
 
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
