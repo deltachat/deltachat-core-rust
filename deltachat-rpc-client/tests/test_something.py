@@ -205,6 +205,7 @@ async def test_message(acfactory) -> None:
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
+    assert not snapshot.is_bot
     assert repr(message)
 
     with pytest.raises(JsonRpcError):  # chat is not accepted
@@ -214,6 +215,31 @@ async def test_message(acfactory) -> None:
 
     await message.mark_seen()
     await message.send_reaction("😎")
+
+
+@pytest.mark.asyncio
+async def test_is_bot(acfactory) -> None:
+    """Test that we can recognize messages submitted by bots."""
+    alice, bob = await acfactory.get_online_accounts(2)
+
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = await alice_contact_bob.create_chat()
+    await alice_chat_bob.send_text("Hello!")
+
+    # Alice becomes a bot.
+    await alice.set_config("bot")
+
+    while True:
+        event = await bob.wait_for_event()
+        if event.type == EventType.INCOMING_MSG:
+            msg_id = event.msg_id
+            message = bob.get_message_by_id(msg_id)
+            snapshot = await message.get_snapshot()
+            assert snapshot.chat_id == event.chat_id
+            assert snapshot.text == "Hello!"
+            assert snapshot.is_bot
+            break
 
 
 @pytest.mark.asyncio

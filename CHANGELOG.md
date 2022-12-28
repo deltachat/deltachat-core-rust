@@ -10,6 +10,7 @@
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
+- jsonrpc: add API to check if the message is sent by a bot #3877
 - Add ffi functions to retrieve `verified by` information #3786
 
 ### Fixes
