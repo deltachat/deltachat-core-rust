@@ -247,6 +247,7 @@ async def test_bot(acfactory) -> None:
     mock = MagicMock()
     user = (await acfactory.get_online_accounts(1))[0]
     bot = await acfactory.new_configured_bot()
+    bot2 = await acfactory.new_configured_bot()
 
     assert await bot.is_configured()
     assert await bot.account.get_config("bot") == "1"
@@ -256,6 +257,7 @@ async def test_bot(acfactory) -> None:
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="Hello!"
     )
+    assert not event.is_bot
     mock.hook.assert_called_once_with(event.msg_id)
     bot.remove_hook(*hook)
 
@@ -273,6 +275,10 @@ async def test_bot(acfactory) -> None:
         from_account=user, to_client=bot, text="hello!"
     )
     mock.hook.assert_called_with(event.msg_id)
+    await acfactory.process_message(
+        from_account=bot2.account, to_client=bot, text="hello"
+    )
+    assert len(mock.hook.mock_calls) == 2  # bot messages are ignored between bots
     await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
     assert len(mock.hook.mock_calls) == 2
     bot.remove_hook(*hook)
