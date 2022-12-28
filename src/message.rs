@@ -2390,6 +2390,11 @@ mod tests {
         let received = bob.recv_msg(&sent).await;
         assert_eq!(received.text.as_deref(), Some(text));
 
+        let text = "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > A";
+        let sent = alice.send_text(chat.id, text).await;
+        let received = bob.recv_msg(&sent).await;
+        assert_eq!(received.text.as_deref(), Some(text));
+
         let python_program = "\
 def hello():
     return 'Hello, world!'";

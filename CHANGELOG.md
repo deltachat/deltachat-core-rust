@@ -26,6 +26,7 @@
 - Fix STARTTLS connection and add a test for it #3907
 - Trigger reconnection when failing to fetch existing messages #3911
 - Do not retry fetching existing messages after failure, prevents infinite reconnection loop #3913
+- Ensure format=flowed formatting is always reversible on the receiver side #3880
 
 
 ## 1.104.0
