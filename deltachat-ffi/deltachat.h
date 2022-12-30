@@ -4763,7 +4763,7 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
-int            dc_contact_get_verifier_id      (dc_contact_t* contact);
+uint32_t       dc_contact_get_verifier_id      (dc_contact_t* contact);
 
 
 /**
