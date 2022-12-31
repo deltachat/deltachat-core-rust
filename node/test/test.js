@@ -121,7 +121,7 @@ describe('JSON RPC', function () {
     const promises = {}
     dc.startJsonRpcHandler((msg) => {
       const response = JSON.parse(msg)
-      promises[response.id](response)
+      if (response.hasOwnProperty('id')) promises[response.id](response)
       delete promises[response.id]
     })
     const call = (request) => {
