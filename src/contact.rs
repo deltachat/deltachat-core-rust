@@ -1,7 +1,5 @@
 //! Contacts module
 
-#![allow(missing_docs)]
-
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::convert::{TryFrom, TryInto};
@@ -48,12 +46,18 @@ const SEEN_RECENTLY_SECONDS: i64 = 600;
 pub struct ContactId(u32);
 
 impl ContactId {
+    /// Undefined contact. Used as a placeholder for trashed messages.
     pub const UNDEFINED: ContactId = ContactId::new(0);
+
     /// The owner of the account.
     ///
     /// The email-address is set by `set_config` using "addr".
     pub const SELF: ContactId = ContactId::new(1);
+
+    /// ID of the contact for info messages.
     pub const INFO: ContactId = ContactId::new(2);
+
+    /// ID of the contact for device messages.
     pub const DEVICE: ContactId = ContactId::new(5);
     const LAST_SPECIAL: ContactId = ContactId::new(9);
 
@@ -177,6 +181,8 @@ pub struct Contact {
 )]
 #[repr(u32)]
 pub enum Origin {
+    /// Unknown origin. Can be used as a minimum origin to specify that the caller does not care
+    /// about origin of the contact.
     Unknown = 0,
 
     /// The contact is a mailing list address, needed to unblock mailing lists
@@ -257,12 +263,13 @@ pub(crate) enum Modifier {
     Created,
 }
 
+/// Verification status of the contact.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 pub enum VerifiedStatus {
     /// Contact is not verified.
     Unverified = 0,
-    // TODO: is this a thing?
+    /// SELF has verified the fingerprint of a contact. Currently unused.
     Verified = 1,
     /// SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
     BidirectVerified = 2,
@@ -275,6 +282,7 @@ impl Default for VerifiedStatus {
 }
 
 impl Contact {
+    /// Loads a contact snapshot from the database.
     pub async fn load_from_db(context: &Context, contact_id: ContactId) -> Result<Self> {
         let mut contact = context
             .sql
@@ -847,6 +855,7 @@ impl Contact {
         Ok(())
     }
 
+    /// Returns number of blocked contacts.
     pub async fn get_blocked_cnt(context: &Context) -> Result<usize> {
         let count = context
             .sql
@@ -1138,7 +1147,7 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
-    /// Return the address that verified the given contact
+    /// Returns the address that verified the given contact.
     pub async fn get_verifier_addr(
         context: &Context,
         contact_id: &ContactId,
@@ -1150,6 +1159,7 @@ impl Contact {
             .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
     }
 
+    /// Returns the ContactId that verified the given contact.
     pub async fn get_verifier_id(
         context: &Context,
         contact_id: &ContactId,
@@ -1162,7 +1172,7 @@ impl Contact {
         }
     }
 
-    /// Return the ContactId that verified the given contact
+    /// Returns the number of real (i.e. non-special) contacts in the database.
     pub async fn get_real_cnt(context: &Context) -> Result<usize> {
         if !context.sql.is_open().await {
             return Ok(0);
@@ -1178,6 +1188,7 @@ impl Contact {
         Ok(count)
     }
 
+    /// Returns true if a contact with this ID exists.
     pub async fn real_exists_by_id(context: &Context, contact_id: ContactId) -> Result<bool> {
         if contact_id.is_special() {
             return Ok(false);
@@ -1193,6 +1204,7 @@ impl Contact {
         Ok(exists)
     }
 
+    /// Updates the origin of the contact, but only if new origin is higher than the current one.
     pub async fn scaleup_origin_by_id(
         context: &Context,
         contact_id: ContactId,
@@ -1453,6 +1465,7 @@ fn cat_fingerprint(
     }
 }
 
+/// Compares two email addresses, normalizing them beforehand.
 pub fn addr_cmp(addr1: &str, addr2: &str) -> bool {
     let norm1 = addr_normalize(addr1).to_lowercase();
     let norm2 = addr_normalize(addr2).to_lowercase();
