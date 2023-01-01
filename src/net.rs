@@ -7,7 +7,11 @@ use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
-/// Returns a TCP connection with read/write timeouts set.
+/// Returns a TCP connection stream with read/write timeouts set
+/// and Nagle's algorithm disabled with `TCP_NODELAY`.
+///
+/// `TCP_NODELAY` ensures writing to the stream always results in immediate sending of the packet
+/// to the network, which is important to reduce the latency of interactive protocols such as IMAP.
 pub(crate) async fn connect_tcp(
     addr: impl ToSocketAddrs,
     timeout_val: Duration,
@@ -16,6 +20,9 @@ pub(crate) async fn connect_tcp(
         .await
         .context("connection timeout")?
         .context("connection failure")?;
+
+    // Disable Nagle's algorithm.
+    tcp_stream.set_nodelay(true)?;
 
     let mut timeout_stream = TimeoutStream::new(tcp_stream);
     timeout_stream.set_write_timeout(Some(timeout_val));
