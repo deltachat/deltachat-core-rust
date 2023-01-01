@@ -4,10 +4,10 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
 
-use anyhow::{Context as _, Result};
+use crate::net::connect_tcp;
+use anyhow::Result;
 pub use async_smtp::ServerAddress;
 use tokio::net::{self, TcpStream};
-use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
@@ -59,14 +59,7 @@ impl Socks5Config {
         target_addr: impl net::ToSocketAddrs,
         timeout_val: Duration,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream = timeout(timeout_val, TcpStream::connect(target_addr))
-            .await
-            .context("connection timeout")?
-            .context("connection failure")?;
-        let mut timeout_stream = TimeoutStream::new(tcp_stream);
-        timeout_stream.set_write_timeout(Some(timeout_val));
-        timeout_stream.set_read_timeout(Some(timeout_val));
-        let timeout_stream = Box::pin(timeout_stream);
+        let tcp_stream = connect_tcp(target_addr, timeout_val).await?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {
@@ -78,8 +71,7 @@ impl Socks5Config {
             None
         };
         let socks_stream =
-            Socks5Stream::use_stream(timeout_stream, authentication_method, Config::default())
-                .await?;
+            Socks5Stream::use_stream(tcp_stream, authentication_method, Config::default()).await?;
 
         Ok(socks_stream)
     }
