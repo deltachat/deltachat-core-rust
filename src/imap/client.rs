@@ -8,14 +8,12 @@ use anyhow::{Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
 
-use tokio::io::BufWriter;
-use tokio::net::{self, TcpStream};
-use tokio::time::timeout;
-use tokio_io_timeout::TimeoutStream;
+use tokio::net;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::login_param::build_tls;
+use crate::net::connect_buffered;
 use crate::socks::Socks5Config;
 
 use super::session::SessionStream;
@@ -94,15 +92,7 @@ impl Client {
     }
 
     pub async fn connect_secure(hostname: &str, port: u16, strict_tls: bool) -> Result<Self> {
-        let tcp_stream = timeout(IMAP_TIMEOUT, TcpStream::connect((hostname, port))).await??;
-        tcp_stream.set_nodelay(true)?;
-
-        let mut timeout_stream = TimeoutStream::new(tcp_stream);
-        timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
-        timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
-        let timeout_stream = Box::pin(timeout_stream);
-
-        let buffered_stream = BufWriter::new(timeout_stream);
+        let buffered_stream = connect_buffered((hostname, port), IMAP_TIMEOUT).await?;
 
         let tls = build_tls(strict_tls);
         let tls_stream: Box<dyn SessionStream> =
@@ -121,15 +111,7 @@ impl Client {
     }
 
     pub async fn connect_insecure(addr: impl net::ToSocketAddrs) -> Result<Self> {
-        let tcp_stream = timeout(IMAP_TIMEOUT, TcpStream::connect(addr)).await??;
-        tcp_stream.set_nodelay(true)?;
-
-        let mut timeout_stream = TimeoutStream::new(tcp_stream);
-        timeout_stream.set_write_timeout(Some(IMAP_TIMEOUT));
-        timeout_stream.set_read_timeout(Some(IMAP_TIMEOUT));
-        let timeout_stream = Box::pin(timeout_stream);
-
-        let buffered_stream = BufWriter::new(timeout_stream);
+        let buffered_stream = connect_buffered(addr, IMAP_TIMEOUT).await?;
 
         let stream: Box<dyn SessionStream> = Box::new(buffered_stream);
 
