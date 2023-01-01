@@ -582,7 +582,7 @@ async fn try_imap_one_param(
             info!(context, "failure: {}", err);
             return Err(ConfigurationError {
                 config: inf,
-                msg: err.to_string(),
+                msg: format!("{:#}", err),
             });
         }
         Ok(imap) => imap,
@@ -593,7 +593,7 @@ async fn try_imap_one_param(
             info!(context, "failure: {}", err);
             Err(ConfigurationError {
                 config: inf,
-                msg: err.to_string(),
+                msg: format!("{:#}", err),
             })
         }
         Ok(()) => {
@@ -634,7 +634,7 @@ async fn try_smtp_one_param(
         info!(context, "failure: {}", err);
         Err(ConfigurationError {
             config: inf,
-            msg: err.to_string(),
+            msg: format!("{:#}", err),
         })
     } else {
         info!(context, "success: {}", inf);
