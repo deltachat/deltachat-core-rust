@@ -214,10 +214,8 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
-            let mut add_archived_link_item =
-                !flag_no_specials && get_archived_cnt(context).await? > 0;
             let mut ids = context.sql.query_map(
-                "SELECT c.id, m.id, c.archived
+                "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -233,30 +231,14 @@ impl Chatlist {
                  GROUP BY c.id
                  ORDER BY c.id=?5 DESC, c.archived=?6 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 paramsv![MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
-                |row: &rusqlite::Row| {
-                    let chat_id: ChatId = row.get(0)?;
-                    let msg_id: Option<MsgId> = row.get(1)?;
-                    let visibility: ChatVisibility = row.get(2)?;
-                    Ok((chat_id, msg_id, visibility))
-                },
-                |rows: rusqlite::MappedRows<_>| {
-                    let mut ret = Vec::new();
-                    for row in rows {
-                        let (chat_id, msg_id, visibility): (ChatId, Option<MsgId>, ChatVisibility) = row?;
-                        if add_archived_link_item && visibility == ChatVisibility::Normal {
-                            ret.push((DC_CHAT_ID_ARCHIVED_LINK, None));
-                            add_archived_link_item = false;
-                        }
-                        ret.push((chat_id, msg_id));
-                    }
-                    Ok(ret)
-                },
+                process_row,
+                process_rows,
             ).await?;
-            if add_archived_link_item {
+            if !flag_no_specials && get_archived_cnt(context).await? > 0 {
                 if ids.is_empty() && flag_add_alldone_hint {
                     ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
                 }
-                ids.push((DC_CHAT_ID_ARCHIVED_LINK, None));
+                ids.insert(0, (DC_CHAT_ID_ARCHIVED_LINK, None));
             }
             ids
         };
