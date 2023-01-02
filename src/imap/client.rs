@@ -102,7 +102,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
 
         Ok(Client { inner: client })
     }
@@ -115,22 +115,36 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
 
         Ok(Client { inner: client })
     }
 
     pub async fn connect_starttls(hostname: &str, port: u16, strict_tls: bool) -> Result<Self> {
         let tcp_stream = connect_tcp((hostname, port), IMAP_TIMEOUT).await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(hostname, tcp_stream).await?;
-        let buffered_stream = BufWriter::new(tls_stream);
-        let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
+
+        // Run STARTTLS command and convert the client back into a stream.
+        let session_stream: Box<dyn SessionStream> = Box::new(tcp_stream);
         let mut client = ImapClient::new(session_stream);
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
+        client
+            .run_command_and_check_ok("STARTTLS", None)
+            .await
+            .context("STARTTLS command failed")?;
+        let tcp_stream = client.into_inner();
+
+        let tls = build_tls(strict_tls);
+        let tls_stream = tls
+            .connect(hostname, tcp_stream)
+            .await
+            .context("STARTTLS upgrade failed")?;
+
+        let buffered_stream = BufWriter::new(tls_stream);
+        let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
+        let client = ImapClient::new(session_stream);
 
         Ok(Client { inner: client })
     }
@@ -150,7 +164,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
 
         Ok(Client { inner: client })
     }
@@ -166,7 +180,7 @@ impl Client {
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
 
         Ok(Client { inner: client })
     }
@@ -180,15 +194,28 @@ impl Client {
         let socks5_stream = socks5_config
             .connect((hostname, port), IMAP_TIMEOUT)
             .await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(hostname, socks5_stream).await?;
-        let buffered_stream = BufWriter::new(tls_stream);
-        let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
+
+        // Run STARTTLS command and convert the client back into a stream.
+        let session_stream: Box<dyn SessionStream> = Box::new(socks5_stream);
         let mut client = ImapClient::new(session_stream);
         let _greeting = client
             .read_response()
             .await
-            .context("failed to read greeting")?;
+            .context("failed to read greeting")??;
+        client
+            .run_command_and_check_ok("STARTTLS", None)
+            .await
+            .context("STARTTLS command failed")?;
+        let socks5_stream = client.into_inner();
+
+        let tls = build_tls(strict_tls);
+        let tls_stream = tls
+            .connect(hostname, socks5_stream)
+            .await
+            .context("STARTTLS upgrade failed")?;
+        let buffered_stream = BufWriter::new(tls_stream);
+        let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
+        let client = ImapClient::new(session_stream);
 
         Ok(Client { inner: client })
     }
