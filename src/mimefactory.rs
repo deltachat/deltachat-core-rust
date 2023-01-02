@@ -722,9 +722,11 @@ impl<'a> MimeFactory<'a> {
             ));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                info!(context, "mimefactory: outgoing message mime:");
-                let raw_message = message.clone().build().as_string();
-                println!("{}", raw_message);
+                info!(
+                    context,
+                    "mimefactory: unencrypted message mime-body:\n{}",
+                    message.clone().build().as_string(),
+                );
             }
 
             let encrypted = encrypt_helper
@@ -781,6 +783,14 @@ impl<'a> MimeFactory<'a> {
             .unprotected
             .into_iter()
             .fold(outer_message, |message, header| message.header(header));
+
+        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+            info!(
+                context,
+                "mimefactory: outgoing message mime-body:\n{}",
+                outer_message.clone().build().as_string(),
+            );
+        }
 
         let MimeFactory {
             last_added_location_id,

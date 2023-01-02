@@ -244,8 +244,11 @@ impl MimeMessage {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "decrypted message mime-body:");
-                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                        info!(
+                            context,
+                            "decrypted message mime-body:\n{}",
+                            String::from_utf8_lossy(&mail_raw),
+                        );
                     }
                     (Ok(decrypted_mail), signatures, true)
                 }
