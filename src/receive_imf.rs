@@ -94,9 +94,12 @@ pub(crate) async fn receive_imf_inner(
 ) -> Result<Option<ReceivedMsg>> {
     info!(context, "Receiving message, seen={}...", seen);
 
-    if std::env::var(crate::DCC_MIME_DEBUG).unwrap_or_default() == "2" {
-        info!(context, "receive_imf: incoming message mime-body:");
-        println!("{}", String::from_utf8_lossy(imf_raw));
+    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+        info!(
+            context,
+            "receive_imf: incoming message mime-body:\n{}",
+            String::from_utf8_lossy(imf_raw),
+        );
     }
 
     let mut mime_parser =
