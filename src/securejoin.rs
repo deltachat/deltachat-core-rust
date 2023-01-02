@@ -579,36 +579,98 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let fingerprint: Fingerprint =
-                match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
-                    Some(fp) => fp.parse()?,
+            let addr = Contact::load_from_db(context, contact_id)
+                .await?
+                .get_addr()
+                .to_string();
+            if mime_message.gossiped_addr.contains(&addr) {
+                let mut peerstate = match Peerstate::from_addr(context, &addr).await? {
+                    Some(p) => p,
                     None => {
                         could_not_establish_secure_connection(
-                        context,
-                        contact_id,
-                        info_chat_id(context, contact_id).await?,
-                        "Fingerprint not provided, please update Delta Chat on all your devices.",
-                    )
-                    .await?;
+                            context,
+                            contact_id,
+                            info_chat_id(context, contact_id).await?,
+                            &format!("No peerstate in db for '{}' at step {}", &addr, step),
+                        )
+                        .await?;
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-            if mark_peer_as_verified(
-                context,
-                &fingerprint,
-                Contact::load_from_db(context, contact_id)
-                    .await?
-                    .get_addr()
-                    .to_owned(),
-            )
-            .await
-            .is_err()
+                let fingerprint = match peerstate.gossip_key_fingerprint.clone() {
+                    Some(fp) => fp,
+                    None => {
+                        could_not_establish_secure_connection(
+                            context,
+                            contact_id,
+                            info_chat_id(context, contact_id).await?,
+                            &format!(
+                                "No gossip key fingerprint in db for '{}' at step {}",
+                                &addr, step,
+                            ),
+                        )
+                        .await?;
+                        return Ok(HandshakeMessage::Ignore);
+                    }
+                };
+                if peerstate.set_verified(
+                    PeerstateKeyType::GossipKey,
+                    &fingerprint,
+                    PeerstateVerifiedStatus::BidirectVerified,
+                    addr,
+                ) {
+                    peerstate.prefer_encrypt = EncryptPreference::Mutual;
+                    peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+                } else {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_id,
+                        info_chat_id(context, contact_id).await?,
+                        &format!(
+                            "Could not mark peer as verified for fingerprint {} at step {}",
+                            fingerprint.hex(),
+                            step,
+                        ),
+                    )
+                    .await?;
+                    return Ok(HandshakeMessage::Ignore);
+                }
+            } else if let Some(fingerprint) =
+                mime_message.get_header(HeaderDef::SecureJoinFingerprint)
             {
+                // FIXME: Old versions of DC send this header instead of gossips. Remove this
+                // eventually.
+                let fingerprint = fingerprint.parse()?;
+                if mark_peer_as_verified(
+                    context,
+                    &fingerprint,
+                    Contact::load_from_db(context, contact_id)
+                        .await?
+                        .get_addr()
+                        .to_owned(),
+                )
+                .await
+                .is_err()
+                {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_id,
+                        info_chat_id(context, contact_id).await?,
+                        format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                    )
+                    .await?;
+                    return Ok(HandshakeMessage::Ignore);
+                }
+            } else {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
                     info_chat_id(context, contact_id).await?,
-                    format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                    &format!(
+                        "No gossip header for '{}' at step {}, please update Delta Chat on all \
+                        your devices.",
+                        &addr, step,
+                    ),
                 )
                 .await?;
                 return Ok(HandshakeMessage::Ignore);

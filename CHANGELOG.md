@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+### Fixes
+- Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object
+
 
 ## 1.106.0
 
