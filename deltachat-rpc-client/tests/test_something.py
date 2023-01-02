@@ -42,6 +42,16 @@ async def test_acfactory(acfactory) -> None:
 
 
 @pytest.mark.asyncio
+async def test_configure_starttls(acfactory) -> None:
+    account = await acfactory.new_preconfigured_account()
+
+    # Use STARTTLS
+    await account.set_config("mail_security", "2")
+    await account.configure()
+    assert await account.is_configured()
+
+
+@pytest.mark.asyncio
 async def test_account(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 

@@ -27,12 +27,17 @@ class ACFactory:
     async def get_unconfigured_bot(self) -> Bot:
         return Bot(await self.get_unconfigured_account())
 
-    async def new_configured_account(self) -> Account:
+    async def new_preconfigured_account(self) -> Account:
+        """Make a new account with configuration options set, but configuration not started."""
         credentials = await get_temp_credentials()
         account = await self.get_unconfigured_account()
-        assert not await account.is_configured()
         await account.set_config("addr", credentials["email"])
         await account.set_config("mail_pw", credentials["password"])
+        assert not await account.is_configured()
+        return account
+
+    async def new_configured_account(self) -> Account:
+        account = await self.new_preconfigured_account()
         await account.configure()
         assert await account.is_configured()
         return account
