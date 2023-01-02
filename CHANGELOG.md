@@ -19,6 +19,7 @@
 - Do not add an error if the message is encrypted but not signed #3860
 - Do not strip leading spaces from message lines #3867
 - Fix uncaught exception in JSON-RPC tests #3884
+- Fix STARTTLS connection and add a test for it #3907
 
 
 ## 1.104.0
