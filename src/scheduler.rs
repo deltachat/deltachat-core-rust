@@ -143,6 +143,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                             if !fetched_existing_msgs {
                                 if let Err(err) = connection.fetch_existing_msgs(&ctx).await {
                                     warn!(ctx, "Failed to fetch existing messages: {:#}", err);
+                                    connection.trigger_reconnect(&ctx);
                                 }
                             }
                         }

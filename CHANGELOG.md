@@ -20,6 +20,7 @@
 - Do not strip leading spaces from message lines #3867
 - Fix uncaught exception in JSON-RPC tests #3884
 - Fix STARTTLS connection and add a test for it #3907
+- Trigger reconnection when failing to fetch existing messages #3911
 
 
 ## 1.104.0
