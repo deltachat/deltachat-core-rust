@@ -677,7 +677,10 @@ impl Imap {
             return Ok(false);
         }
 
-        let new_emails = self.select_with_uidvalidity(context, folder).await?;
+        let new_emails = self
+            .select_with_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to select folder {}", folder))?;
 
         if !new_emails && !fetch_existing_msgs {
             info!(context, "No new emails in folder {}", folder);
@@ -837,9 +840,15 @@ impl Imap {
         }
         self.prepare(context).await.context("could not connect")?;
 
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder).await;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder).await;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder).await;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder)
+            .await
+            .context("failed to get recipients from the sentbox")?;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder)
+            .await
+            .context("failed to ge recipients from the movebox")?;
+        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder)
+            .await
+            .context("failed to get recipients from the inbox")?;
 
         if context.get_config_bool(Config::FetchExistingMsgs).await? {
             for config in &[
@@ -848,6 +857,10 @@ impl Imap {
                 Config::ConfiguredSentboxFolder,
             ] {
                 if let Some(folder) = context.get_config(*config).await? {
+                    info!(
+                        context,
+                        "Fetching existing messages from folder \"{}\"", folder
+                    );
                     self.fetch_new_messages(context, &folder, false, true)
                         .await
                         .context("could not fetch existing messages")?;
@@ -856,9 +869,6 @@ impl Imap {
         }
 
         info!(context, "Done fetching existing messages.");
-        context
-            .set_config_bool(Config::FetchedExistingMsgs, true)
-            .await?;
         Ok(())
     }
 }
@@ -1207,8 +1217,10 @@ impl Imap {
     /// Prefetch all messages greater than or equal to `uid_next`. Returns a list of fetch results
     /// in the order of ascending delivery time to the server (INTERNALDATE).
     async fn prefetch(&mut self, uid_next: u32) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
-        let session = self.session.as_mut();
-        let session = session.context("fetch_after(): IMAP No Connection established")?;
+        let session = self
+            .session
+            .as_mut()
+            .context("no IMAP connection established")?;
 
         // fetch messages with larger UID than the last one seen
         let set = format!("{}:*", uid_next);
@@ -1233,7 +1245,6 @@ impl Imap {
                 }
             }
         }
-        drop(list);
 
         Ok(msgs.into_iter().map(|((_, uid), msg)| (uid, msg)).collect())
     }
@@ -2306,49 +2317,58 @@ impl std::fmt::Display for UidRange {
         }
     }
 }
-async fn add_all_recipients_as_contacts(context: &Context, imap: &mut Imap, folder: Config) {
-    let mailbox = if let Ok(Some(m)) = context.get_config(folder).await {
+async fn add_all_recipients_as_contacts(
+    context: &Context,
+    imap: &mut Imap,
+    folder: Config,
+) -> Result<()> {
+    let mailbox = if let Some(m) = context.get_config(folder).await? {
         m
     } else {
-        return;
+        info!(
+            context,
+            "Folder {} is not configured, skipping fetching contacts from it.", folder
+        );
+        return Ok(());
     };
-    if let Err(e) = imap.select_with_uidvalidity(context, &mailbox).await {
-        // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-        warn!(context, "Could not select {}: {:#}", mailbox, e);
-        return;
-    }
-    match imap.get_all_recipients(context).await {
-        Ok(contacts) => {
-            let mut any_modified = false;
-            for contact in contacts {
-                let display_name_normalized = contact
-                    .display_name
-                    .as_ref()
-                    .map(|s| normalize_name(s))
-                    .unwrap_or_default();
+    imap.select_with_uidvalidity(context, &mailbox)
+        .await
+        .with_context(|| format!("could not select {}", mailbox))?;
 
-                match Contact::add_or_lookup(
-                    context,
-                    &display_name_normalized,
-                    &contact.addr,
-                    Origin::OutgoingTo,
-                )
-                .await
-                {
-                    Ok((_, modified)) => {
-                        if modified != Modifier::None {
-                            any_modified = true;
-                        }
-                    }
-                    Err(e) => warn!(context, "Could not add recipient: {}", e),
+    let contacts = imap
+        .get_all_recipients(context)
+        .await
+        .context("could not get recipients")?;
+
+    let mut any_modified = false;
+    for contact in contacts {
+        let display_name_normalized = contact
+            .display_name
+            .as_ref()
+            .map(|s| normalize_name(s))
+            .unwrap_or_default();
+
+        match Contact::add_or_lookup(
+            context,
+            &display_name_normalized,
+            &contact.addr,
+            Origin::OutgoingTo,
+        )
+        .await
+        {
+            Ok((_, modified)) => {
+                if modified != Modifier::None {
+                    any_modified = true;
                 }
             }
-            if any_modified {
-                context.emit_event(EventType::ContactsChanged(None));
-            }
+            Err(e) => warn!(context, "Could not add recipient: {}", e),
         }
-        Err(e) => warn!(context, "Could not add recipients: {}", e),
-    };
+    }
+    if any_modified {
+        context.emit_event(EventType::ContactsChanged(None));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

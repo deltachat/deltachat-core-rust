@@ -21,6 +21,7 @@
 - Fix uncaught exception in JSON-RPC tests #3884
 - Fix STARTTLS connection and add a test for it #3907
 - Trigger reconnection when failing to fetch existing messages #3911
+- Do not retry fetching existing messages after failure, prevents infinite reconnection loop #3913
 
 
 ## 1.104.0
