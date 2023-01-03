@@ -297,6 +297,7 @@ impl Imap {
 
         let oauth2 = self.config.lp.oauth2;
 
+        info!(context, "Connecting to IMAP server");
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
@@ -346,6 +347,7 @@ impl Imap {
         let imap_pw: &str = config.lp.password.as_ref();
 
         let login_res = if oauth2 {
+            info!(context, "Logging into IMAP server with OAuth 2");
             let addr: &str = config.addr.as_ref();
 
             let token = get_oauth2_access_token(context, addr, imap_pw, true)
@@ -357,6 +359,7 @@ impl Imap {
             };
             client.authenticate("XOAUTH2", auth).await
         } else {
+            info!(context, "Logging into IMAP server with LOGIN");
             client.login(imap_user, imap_pw).await
         };
 
@@ -372,6 +375,7 @@ impl Imap {
                     "IMAP-LOGIN as {}",
                     self.config.lp.user
                 )));
+                info!(context, "Successfully logged into IMAP server");
                 Ok(())
             }
 
@@ -379,7 +383,7 @@ impl Imap {
                 let imap_user = self.config.lp.user.to_owned();
                 let message = stock_str::cannot_login(context, &imap_user).await;
 
-                warn!(context, "{} ({})", message, err);
+                warn!(context, "{} ({:#})", message, err);
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
@@ -387,7 +391,7 @@ impl Imap {
                     && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
                     if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
-                        warn!(context, "{}", e);
+                        warn!(context, "{:#}", e);
                     }
                     drop(lock);
 
@@ -397,13 +401,13 @@ impl Imap {
                         chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
                             .await
                     {
-                        warn!(context, "{}", e);
+                        warn!(context, "{:#}", e);
                     }
                 } else {
                     self.login_failed_once = true;
                 }
 
-                Err(format_err!("{}\n\n{}", message, err))
+                Err(format_err!("{}\n\n{:#}", message, err))
             }
         }
     }
@@ -846,7 +850,7 @@ impl Imap {
                 if let Some(folder) = context.get_config(*config).await? {
                     self.fetch_new_messages(context, &folder, false, true)
                         .await
-                        .context("could not fetch messages")?;
+                        .context("could not fetch existing messages")?;
                 }
             }
         }
