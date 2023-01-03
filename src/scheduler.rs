@@ -198,8 +198,8 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
         .await
         .context("prepare IMAP connection")
     {
-        connection.trigger_reconnect(ctx);
         warn!(ctx, "{:#}", err);
+        connection.trigger_reconnect(ctx);
         return connection.fake_idle(ctx, Some(watch_folder)).await;
     }
 
