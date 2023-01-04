@@ -1,7 +1,7 @@
 //! # Key-value configuration management.
 
 #![allow(missing_docs)]
-use std::sync::atomic;
+
 
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
@@ -12,7 +12,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
-use crate::message::{self, MsgId};
+
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};

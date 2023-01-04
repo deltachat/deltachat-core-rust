@@ -46,7 +46,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                 context.events.emit(Event {
                     id: context.id,
                     typ: EventType::WebxdcStatusUpdate {
-                        msg_id: msg_id,
+                        msg_id,
                         status_update_serial: serial,
                     },
                 });

@@ -2019,7 +2019,7 @@ async fn prepare_msg_common(
             create_smeared_timestamp(context).await,
         )
         .await?;
-    maybe_set_logging_xdc(context, &msg, chat_id).await?;
+    maybe_set_logging_xdc(context, msg, chat_id).await?;
     msg.chat_id = chat_id;
 
     Ok(msg.id)
