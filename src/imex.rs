@@ -656,7 +656,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    error!(context, "set_self_key: {}", err);
+                    info!(context, "set_self_key: {}", err);
                     continue;
                 }
             }
