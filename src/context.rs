@@ -383,7 +383,7 @@ impl Context {
         let mut lock = self.inner.scheduler.write().await;
         if lock.is_none() {
             match Scheduler::start(self.clone()).await {
-                Err(err) => error!(self, "Failed to start IO: {}", err),
+                Err(err) => error!(self, "Failed to start IO: {:#}", err),
                 Ok(scheduler) => *lock = Some(scheduler),
             }
         }
@@ -499,7 +499,7 @@ impl Context {
         match &*s {
             RunningState::Running { cancel_sender } => {
                 if let Err(err) = cancel_sender.send(()).await {
-                    warn!(self, "could not cancel ongoing: {:?}", err);
+                    warn!(self, "could not cancel ongoing: {:#}", err);
                 }
                 info!(self, "Signaling the ongoing process to stop ASAP.",);
                 *s = RunningState::ShallStop;

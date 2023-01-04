@@ -251,7 +251,7 @@ impl MimeMessage {
                 }
                 Ok(None) => (Ok(mail), HashSet::new(), false),
                 Err(err) => {
-                    warn!(context, "decryption failed: {}", err);
+                    warn!(context, "decryption failed: {:#}", err);
                     (Err(err), HashSet::new(), false)
                 }
             };
@@ -380,7 +380,7 @@ impl MimeMessage {
                         typ: Viewtype::Text,
                         msg_raw: Some(txt.clone()),
                         msg: txt,
-                        error: Some(format!("Decrypting failed: {}", err)),
+                        error: Some(format!("Decrypting failed: {:#}", err)),
                         ..Default::default()
                     };
                     parser.parts.push(part);
@@ -680,7 +680,7 @@ impl MimeMessage {
                     Err(err) => {
                         warn!(
                             context,
-                            "Could not save decoded avatar to blob file: {}", err
+                            "Could not save decoded avatar to blob file: {:#}", err
                         );
                         None
                     }
@@ -987,7 +987,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1007,7 +1007,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1139,7 +1139,7 @@ impl MimeMessage {
             if filename.starts_with("location") || filename.starts_with("message") {
                 let parsed = location::Kml::parse(decoded_data)
                     .map_err(|err| {
-                        warn!(context, "failed to parse kml part: {}", err);
+                        warn!(context, "failed to parse kml part: {:#}", err);
                     })
                     .ok();
                 if filename.starts_with("location") {
@@ -1157,7 +1157,7 @@ impl MimeMessage {
             self.sync_items = context
                 .parse_sync_items(serialized)
                 .map_err(|err| {
-                    warn!(context, "failed to parse sync data: {}", err);
+                    warn!(context, "failed to parse sync data: {:#}", err);
                 })
                 .ok();
             return Ok(());
@@ -1179,7 +1179,7 @@ impl MimeMessage {
             Err(err) => {
                 error!(
                     context,
-                    "Could not add blob for mime part {}, error {}", filename, err
+                    "Could not add blob for mime part {}, error {:#}", filename, err
                 );
                 return Ok(());
             }
@@ -1224,7 +1224,7 @@ impl MimeMessage {
             Err(err) => {
                 warn!(
                     context,
-                    "PGP key attachment is not an ASCII-armored file: {}", err,
+                    "PGP key attachment is not an ASCII-armored file: {:#}", err
                 );
                 return Ok(false);
             }

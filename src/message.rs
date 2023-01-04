@@ -1687,7 +1687,7 @@ pub async fn get_unblocked_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "get_unblocked_msg_cnt() failed. {}", err);
+            error!(context, "get_unblocked_msg_cnt() failed. {:#}", err);
             0
         }
     }
@@ -1707,7 +1707,7 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "get_request_msg_cnt() failed. {}", err);
+            error!(context, "get_request_msg_cnt() failed. {:#}", err);
             0
         }
     }

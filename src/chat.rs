@@ -1129,7 +1129,7 @@ impl Chat {
                         }
                     }
                     Err(err) => {
-                        error!(context, "faild to load contacts for {}: {:?}", chat.id, err);
+                        error!(context, "faild to load contacts for {}: {:#}", chat.id, err);
                     }
                 }
                 chat.name = chat_name;
@@ -2146,7 +2146,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
     let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
         Ok(attach_selfavatar) => attach_selfavatar,
         Err(err) => {
-            warn!(context, "job: cannot get selfavatar-state: {}", err);
+            warn!(context, "job: cannot get selfavatar-state: {:#}", err);
             false
         }
     };
@@ -2208,27 +2208,27 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     if 0 != rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
-            error!(context, "Failed to set kml sent_timestamp: {:?}", err);
+            error!(context, "Failed to set kml sent_timestamp: {:#}", err);
         }
         if !msg.hidden {
             if let Err(err) =
                 location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
                     .await
             {
-                error!(context, "Failed to set msg_location_id: {:?}", err);
+                error!(context, "Failed to set msg_location_id: {:#}", err);
             }
         }
     }
 
     if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
         if let Err(err) = context.delete_sync_ids(sync_ids).await {
-            error!(context, "Failed to delete sync ids: {:?}", err);
+            error!(context, "Failed to delete sync ids: {:#}", err);
         }
     }
 
     if attach_selfavatar {
         if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()).await {
-            error!(context, "Failed to set selfavatar timestamp: {:?}", err);
+            error!(context, "Failed to set selfavatar timestamp: {:#}", err);
         }
     }
 

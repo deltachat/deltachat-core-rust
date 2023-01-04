@@ -250,7 +250,7 @@ impl MsgId {
         if !rawmime.is_empty() {
             match HtmlMsgParser::from_bytes(context, &rawmime).await {
                 Err(err) => {
-                    warn!(context, "get_html: parser error: {}", err);
+                    warn!(context, "get_html: parser error: {:#}", err);
                     Ok(None)
                 }
                 Ok(parser) => Ok(Some(parser.html)),

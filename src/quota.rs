@@ -134,7 +134,7 @@ impl Context {
     /// Called in response to `Action::UpdateRecentQuota`.
     pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<Status> {
         if let Err(err) = imap.prepare(self).await {
-            warn!(self, "could not connect: {:?}", err);
+            warn!(self, "could not connect: {:#}", err);
             return Ok(Status::RetryNow);
         }
 
@@ -162,7 +162,7 @@ impl Context {
                         self.set_config(Config::QuotaExceeding, None).await?;
                     }
                 }
-                Err(err) => warn!(self, "cannot get highest quota usage: {:?}", err),
+                Err(err) => warn!(self, "cannot get highest quota usage: {:#}", err),
             }
         }
 

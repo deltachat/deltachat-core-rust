@@ -132,7 +132,7 @@ impl Job {
     /// Called in response to `Action::DownloadMsg`.
     pub(crate) async fn download_msg(&self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
-            warn!(context, "download: could not connect: {:?}", err);
+            warn!(context, "download: could not connect: {:#}", err);
             return Status::RetryNow;
         }
 

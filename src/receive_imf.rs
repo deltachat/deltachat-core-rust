@@ -102,7 +102,7 @@ pub(crate) async fn receive_imf_inner(
     let mut mime_parser =
         match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
             Err(err) => {
-                warn!(context, "receive_imf: can't parse MIME: {}", err);
+                warn!(context, "receive_imf: can't parse MIME: {:#}", err);
                 let msg_ids;
                 if !rfc724_mid.starts_with(GENERATED_PREFIX) {
                     let row_id = context
@@ -253,7 +253,7 @@ pub(crate) async fn receive_imf_inner(
         if from_id == ContactId::SELF {
             if mime_parser.was_encrypted() {
                 if let Err(err) = context.execute_sync_items(sync_items).await {
-                    warn!(context, "receive_imf cannot execute sync items: {}", err);
+                    warn!(context, "receive_imf cannot execute sync items: {:#}", err);
                 }
             } else {
                 warn!(context, "sync items are not encrypted.");
@@ -268,7 +268,7 @@ pub(crate) async fn receive_imf_inner(
             .receive_status_update(from_id, insert_msg_id, status_update)
             .await
         {
-            warn!(context, "receive_imf cannot update status: {}", err);
+            warn!(context, "receive_imf cannot update status: {:#}", err);
         }
     }
 
@@ -290,7 +290,10 @@ pub(crate) async fn receive_imf_inner(
                     context.emit_event(EventType::ChatModified(chat_id));
                 }
                 Err(err) => {
-                    warn!(context, "receive_imf cannot update profile image: {}", err);
+                    warn!(
+                        context,
+                        "receive_imf cannot update profile image: {:#}", err
+                    );
                 }
             };
         }
@@ -317,7 +320,7 @@ pub(crate) async fn receive_imf_inner(
         )
         .await
         {
-            warn!(context, "cannot update contact status: {}", err);
+            warn!(context, "cannot update contact status: {:#}", err);
         }
     }
 
@@ -495,7 +498,7 @@ async fn add_parts(
                     securejoin_seen = false;
                 }
                 Err(err) => {
-                    warn!(context, "Error in Secure-Join message handling: {}", err);
+                    warn!(context, "Error in Secure-Join message handling: {:#}", err);
                     chat_id = Some(DC_CHAT_ID_TRASH);
                     securejoin_seen = true;
                 }
@@ -730,7 +733,7 @@ async fn add_parts(
                     chat_id = None;
                 }
                 Err(err) => {
-                    warn!(context, "Error in Secure-Join watching: {}", err);
+                    warn!(context, "Error in Secure-Join watching: {:#}", err);
                     chat_id = Some(DC_CHAT_ID_TRASH);
                 }
             }
@@ -870,7 +873,7 @@ async fn add_parts(
             Err(err) => {
                 warn!(
                     context,
-                    "can't parse ephemeral timer \"{}\": {}", value, err
+                    "can't parse ephemeral timer \"{}\": {:#}", value, err
                 );
                 EphemeralTimer::Disabled
             }
@@ -926,7 +929,7 @@ async fn add_parts(
             {
                 warn!(
                     context,
-                    "failed to modify timer for chat {}: {}", chat_id, err
+                    "failed to modify timer for chat {}: {:#}", chat_id, err
                 );
             } else {
                 info!(
@@ -975,7 +978,7 @@ async fn add_parts(
         if chat.is_protected() || new_status.is_some() {
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
-                warn!(context, "verification problem: {}", err);
+                warn!(context, "verification problem: {:#}", err);
                 let s = format!("{}. See 'Info' for more details", err);
                 mime_parser.repl_msg_by_error(&s);
             } else {
@@ -1487,7 +1490,7 @@ async fn create_or_lookup_group(
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
-            warn!(context, "verification problem: {}", err);
+            warn!(context, "verification problem: {:#}", err);
             let s = format!("{}. See 'Info' for more details", err);
             mime_parser.repl_msg_by_error(&s);
         }
@@ -1685,7 +1688,7 @@ async fn apply_group_changes(
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
-            warn!(context, "verification problem: {}", err);
+            warn!(context, "verification problem: {:#}", err);
             let s = format!("{}. See 'Info' for more details", err);
             mime_parser.repl_msg_by_error(&s);
         }

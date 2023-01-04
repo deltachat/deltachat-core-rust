@@ -157,7 +157,7 @@ impl Job {
     /// Synchronizes UIDs for all folders.
     async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:?}", err);
+            warn!(context, "could not connect: {:#}", err);
             return Status::RetryLater;
         }
 
@@ -246,7 +246,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     time_offset
                 );
                 job.save(context).await.unwrap_or_else(|err| {
-                    error!(context, "failed to save job: {}", err);
+                    error!(context, "failed to save job: {:#}", err);
                 });
             } else {
                 info!(
@@ -254,7 +254,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     "remove job {} as it exhausted {} retries", job, JOB_RETRIES
                 );
                 job.delete(context).await.unwrap_or_else(|err| {
-                    error!(context, "failed to delete job: {}", err);
+                    error!(context, "failed to delete job: {:#}", err);
                 });
             }
         }
@@ -269,7 +269,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
             }
 
             job.delete(context).await.unwrap_or_else(|err| {
-                error!(context, "failed to delete job: {}", err);
+                error!(context, "failed to delete job: {:#}", err);
             });
         }
     }
@@ -403,7 +403,7 @@ LIMIT 1;
             Ok(job) => return Ok(job),
             Err(err) => {
                 // Remove invalid job from the DB
-                info!(context, "cleaning up job, because of {}", err);
+                info!(context, "cleaning up job, because of {:#}", err);
 
                 // TODO: improve by only doing a single query
                 let id = context
