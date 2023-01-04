@@ -18,7 +18,7 @@ pub struct DebugEventLogData {
     pub event: EventType,
 }
 
-/// This loop should be send all log events by `Context::emit_event()` and forward them to the responsible
+/// This loop should be send all log events by `Context::emit_event()` to forward them to the responsible
 /// webxdc.
 pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLogData>) {
     while let Ok(DebugEventLogData {
@@ -73,6 +73,7 @@ pub async fn maybe_set_logging_xdc(
     Ok(())
 }
 
+/// Set message as new logging webxdc if filename and chat_id fit
 pub async fn maybe_set_logging_xdc_inner(
     context: &Context,
     viewtype: Viewtype,
@@ -93,7 +94,8 @@ pub async fn maybe_set_logging_xdc_inner(
 }
 
 /// Set the webxdc contained in the msg as the current logging xdc on the context
-async fn set_xdc_on_context(context: &Context, id: Option<u32>) {
+/// Also save it to the database
+pub async fn set_xdc_on_context(context: &Context, id: Option<u32>) {
     if context
         .sql
         .set_raw_config(

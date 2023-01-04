@@ -439,14 +439,14 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
-        self.events.emit(Event {
-            id: self.id,
-            typ: event.clone(),
-        });
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
         if debug_logging > 0 {
-            self.send_log_event(event);
+            self.send_log_event(event.clone());
         };
+        self.events.emit(Event {
+            id: self.id,
+            typ: event,
+        });
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)

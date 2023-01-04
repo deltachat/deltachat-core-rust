@@ -1120,7 +1120,6 @@ async fn add_parts(
         }
 
         let mut txt_raw = "".to_string();
-
         let mut stmt = conn.prepare_cached(
             r#"
 INSERT INTO msgs
@@ -1234,7 +1233,6 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         let row_id = conn.last_insert_rowid();
 
         drop(stmt);
-
         created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);

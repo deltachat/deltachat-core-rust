@@ -482,7 +482,7 @@ impl Scheduler {
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
         let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
         let (location_interrupt_send, location_interrupt_recv) = channel::bounded(1);
-        let (debug_logging_send, debug_logging_recv) = channel::bounded(1);
+        let (debug_logging_send, debug_logging_recv) = channel::unbounded();
 
         let inbox_handle = {
             let ctx = ctx.clone();

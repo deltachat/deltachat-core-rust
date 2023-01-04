@@ -2,7 +2,6 @@
 
 #![allow(missing_docs)]
 
-
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
@@ -12,11 +11,9 @@ use crate::constants::DC_VERSION_STR;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
-
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
-
 /// The available configuration keys.
 #[derive(
     Debug,
@@ -196,6 +193,7 @@ pub enum Config {
     AuthservIdCandidates,
 
     /// Let the core save all events to the database.
+    /// This value is used internally to remember the msgid of the logging xdc
     #[strum(props(default = "0"))]
     DebugLogging,
 }
