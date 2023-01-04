@@ -1,4 +1,4 @@
-use std::sync::atomic;
+use std::{path::PathBuf, sync::atomic};
 
 use crate::{
     chat::ChatId,
@@ -61,11 +61,30 @@ pub async fn maybe_set_logging_xdc(
     msg: &Message,
     chat_id: ChatId,
 ) -> anyhow::Result<()> {
-    if msg.get_viewtype() == Viewtype::Webxdc && chat_id.is_self_talk(context).await? {
-        if let Ok(Some(file)) = msg.param.get_path(Param::File, context) {
+    maybe_set_logging_xdc_inner(
+        context,
+        msg.get_viewtype(),
+        chat_id,
+        msg.param.get_path(Param::File, context),
+        msg.get_id(),
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn maybe_set_logging_xdc_inner(
+    context: &Context,
+    viewtype: Viewtype,
+    chat_id: ChatId,
+    file: anyhow::Result<Option<PathBuf>>,
+    msg_id: MsgId,
+) -> anyhow::Result<()> {
+    if viewtype == Viewtype::Webxdc && chat_id.is_self_talk(context).await? {
+        if let Ok(Some(file)) = file {
             if let Some(file_name) = file.file_name() {
                 if file_name == "debug_logging.xdc" {
-                    set_xdc_on_context(context, Some(msg.get_id().to_u32())).await;
+                    set_xdc_on_context(context, Some(msg_id.to_u32())).await;
                 }
             }
         }

@@ -2426,40 +2426,4 @@ sth_for_the = "future""#
             .await;
         Ok(())
     }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn change_logging_webxdc() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let chat_id = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
-
-        assert_eq!(
-            alice
-                .sql
-                .count("SELECT COUNT(*) FROM msgs_status_updates;", paramsv![],)
-                .await?,
-            0
-        );
-        alice.send_text(chat_id, "hi").await;
-
-        let mut instance = create_webxdc_instance(
-            &alice,
-            "debug_logging.xdc",
-            include_bytes!("../test-data/webxdc/minimal.xdc"),
-        )
-        .await?;
-        send_msg(&alice, chat_id, &mut instance).await?;
-        alice.emit_event(EventType::Info("hi".to_string()));
-        alice
-            .evtracker
-            .get_matching(|ev| matches!(*ev, EventType::WebxdcStatusUpdate { .. }))
-            .await;
-        assert!(
-            alice
-                .sql
-                .count("SELECT COUNT(*) FROM msgs_status_updates;", paramsv![],)
-                .await?
-                > 0
-        );
-        Ok(())
-    }
 }

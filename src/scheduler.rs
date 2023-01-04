@@ -95,8 +95,8 @@ impl Context {
         }
     }
 
-    pub(crate) async fn send_log_event(&self, event: EventType) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
+    pub(crate) fn send_log_event(&self, event: EventType) {
+        if let Some(scheduler) = &*self.scheduler.blocking_read() {
             let time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -675,6 +675,7 @@ impl Scheduler {
         self.ephemeral_handle.abort();
         self.location_handle.abort();
         self.recently_seen_loop.abort();
+        self.debug_logging_handle.abort();
     }
 }
 

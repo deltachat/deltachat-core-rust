@@ -18,7 +18,6 @@ use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::debug_logging::DebugEventLogData;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -238,7 +237,6 @@ pub struct InnerContext {
 
     /// The message Id of the current debuglogging webxdc
     pub(crate) debug_logging: AtomicU32,
-    debug_logging_send: Sender<DebugEventLogData>,
 }
 
 /// The state of ongoing process.
@@ -370,7 +368,6 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: AtomicU32::default(),
-            debug_logging_send: 
         };
 
         let ctx = Context {
@@ -448,10 +445,7 @@ impl Context {
         });
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
         if debug_logging > 0 {
-            let ctx = self.clone();
-            tokio::spawn(async move {
-                ctx.send_log_event(event).await;
-            });
+            self.send_log_event(event);
         };
     }
 
