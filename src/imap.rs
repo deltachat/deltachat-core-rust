@@ -554,7 +554,10 @@ impl Imap {
         folder: &str,
     ) -> Result<bool> {
         let session = self.session.as_mut().context("no session")?;
-        let newly_selected = session.select_or_create_folder(context, folder).await?;
+        let newly_selected = session
+            .select_or_create_folder(context, folder)
+            .await
+            .with_context(|| format!("failed to select or create folder {}", folder))?;
         let mailbox = session
             .selected_mailbox
             .as_mut()
@@ -564,8 +567,12 @@ impl Imap {
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
-        let old_uid_validity = get_uidvalidity(context, folder).await?;
-        let old_uid_next = get_uid_next(context, folder).await?;
+        let old_uid_validity = get_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID validity for folder {}", folder))?;
+        let old_uid_next = get_uid_next(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID NEXT for folder {}", folder))?;
 
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
