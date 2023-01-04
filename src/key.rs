@@ -30,17 +30,13 @@ pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
 pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
-    type KeyType: Serialize + Deserializable + KeyTrait + Clone;
-
     /// Create a key from some bytes.
-    fn from_slice(bytes: &[u8]) -> Result<Self::KeyType> {
-        Ok(<Self::KeyType as Deserializable>::from_bytes(Cursor::new(
-            bytes,
-        ))?)
+    fn from_slice(bytes: &[u8]) -> Result<Self> {
+        Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
     }
 
     /// Create a key from a base64 string.
-    fn from_base64(data: &str) -> Result<Self::KeyType> {
+    fn from_base64(data: &str) -> Result<Self> {
         // strip newlines and other whitespace
         let cleaned: String = data.split_whitespace().collect();
         let bytes = base64::decode(cleaned.as_bytes())?;
@@ -51,15 +47,15 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     ///
     /// Returns the key and a map of any headers which might have been set in
     /// the ASCII-armored representation.
-    fn from_asc(data: &str) -> Result<(Self::KeyType, BTreeMap<String, String>)> {
+    fn from_asc(data: &str) -> Result<(Self, BTreeMap<String, String>)> {
         let bytes = data.as_bytes();
-        Self::KeyType::from_armor_single(Cursor::new(bytes)).context("rPGP error")
+        Self::from_armor_single(Cursor::new(bytes)).context("rPGP error")
     }
 
     /// Load the users' default key from the database.
     fn load_self<'a>(
         context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>>;
 
     /// Serialise the key as bytes.
     fn to_bytes(&self) -> Vec<u8> {
@@ -92,11 +88,9 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 }
 
 impl DcKey for SignedPublicKey {
-    type KeyType = SignedPublicKey;
-
     fn load_self<'a>(
         context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>> {
         Box::pin(async move {
             let addr = context.get_primary_self_addr().await?;
             match context
@@ -143,11 +137,9 @@ impl DcKey for SignedPublicKey {
 }
 
 impl DcKey for SignedSecretKey {
-    type KeyType = SignedSecretKey;
-
     fn load_self<'a>(
         context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self::KeyType>> + 'a + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>> {
         Box::pin(async move {
             match context
                 .sql
