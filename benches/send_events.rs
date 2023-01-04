@@ -28,11 +28,10 @@ async fn send_events_benchmark(context: &Context) {
 fn criterion_benchmark(c: &mut Criterion) {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    let id = 100;
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let context = rt.block_on(async {
-        Context::new(&dbfile, id, Events::new(), StockStrings::new())
+        Context::new(&dbfile, 100, Events::new(), StockStrings::new())
             .await
             .expect("failed to create context")
     });

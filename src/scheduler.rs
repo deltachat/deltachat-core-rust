@@ -1,3 +1,6 @@
+use std::sync::atomic;
+use std::time::SystemTime;
+
 use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use futures::try_join;
@@ -7,15 +10,17 @@ use tokio::task;
 use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
+use crate::debug_logging::{debug_logging_loop, DebugEventLogData};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::imap::Imap;
-use crate::job;
 use crate::location;
 use crate::log::LogExt;
+use crate::message::MsgId;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
 use crate::tools::time;
 use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
+use crate::{job, EventType};
 
 use self::connectivity::ConnectivityStore;
 
@@ -36,7 +41,8 @@ pub(crate) struct Scheduler {
     ephemeral_interrupt_send: Sender<()>,
     location_handle: task::JoinHandle<()>,
     location_interrupt_send: Sender<()>,
-
+    debug_logging_handle: task::JoinHandle<()>,
+    debug_logging_send: Sender<DebugEventLogData>,
     recently_seen_loop: RecentlySeenLoop,
 }
 
@@ -86,6 +92,25 @@ impl Context {
     pub(crate) async fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
         if let Some(scheduler) = &*self.scheduler.read().await {
             scheduler.interrupt_recently_seen(contact_id, timestamp);
+        }
+    }
+
+    pub(crate) async fn send_log_event(&self, event: EventType) {
+        if let Some(scheduler) = &*self.scheduler.read().await {
+            let time = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+
+            let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
+
+            let event_data = DebugEventLogData {
+                time,
+                msg_id: MsgId::new(debug_logging),
+                event,
+            };
+
+            scheduler.send_debug_logging_event(event_data);
         }
     }
 }
@@ -457,6 +482,7 @@ impl Scheduler {
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
         let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
         let (location_interrupt_send, location_interrupt_recv) = channel::bounded(1);
+        let (debug_logging_send, debug_logging_recv) = channel::bounded(1);
 
         let inbox_handle = {
             let ctx = ctx.clone();
@@ -528,6 +554,11 @@ impl Scheduler {
             })
         };
 
+        let debug_logging_handle = {
+            let ctx = ctx.clone();
+            task::spawn(async move { debug_logging_loop(&ctx, debug_logging_recv).await })
+        };
+
         let recently_seen_loop = RecentlySeenLoop::new(ctx.clone());
 
         let res = Self {
@@ -543,6 +574,8 @@ impl Scheduler {
             ephemeral_interrupt_send,
             location_handle,
             location_interrupt_send,
+            debug_logging_handle,
+            debug_logging_send,
             recently_seen_loop,
         };
 
@@ -600,6 +633,10 @@ impl Scheduler {
 
     fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
         self.recently_seen_loop.interrupt(contact_id, timestamp);
+    }
+
+    fn send_debug_logging_event(&self, event_data: DebugEventLogData) {
+        self.debug_logging_send.try_send(event_data).ok();
     }
 
     /// Halt the scheduler.

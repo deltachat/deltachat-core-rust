@@ -195,9 +195,7 @@ pub enum Config {
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
 
-    /// Let the core save all events to the database. You should expose this as an advanced
-    /// setting to the user. Enabling happens with posting a webxdc called `debug_logging` to
-    /// saved messages. When disabled, the logging webxdc gets deleted.
+    /// Let the core save all events to the database.
     #[strum(props(default = "0"))]
     DebugLogging,
 }
@@ -328,19 +326,6 @@ impl Context {
                 self.sql
                     .set_raw_config(key.as_ref(), value.as_deref())
                     .await?;
-            }
-            Config::DebugLogging => {
-                if value == Some("0") || value == Some("") || value.is_none() {
-                    if let Some(webxdc_message_id) = self
-                        .sql
-                        .get_raw_config_u32(Config::DebugLogging.as_ref())
-                        .await?
-                    {
-                        message::delete_msgs(self, &[MsgId::new(webxdc_message_id)]).await?;
-                    }
-                    self.sql.set_raw_config(key.as_ref(), None).await?;
-                    self.debug_logging.store(0, atomic::Ordering::Relaxed);
-                }
             }
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;

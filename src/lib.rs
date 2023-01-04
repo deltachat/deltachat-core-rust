@@ -106,6 +106,7 @@ pub mod plaintext;
 mod ratelimit;
 pub mod summary;
 
+mod debug_logging;
 pub mod receive_imf;
 pub mod tools;
 

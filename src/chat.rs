@@ -7,7 +7,6 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::atomic;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -24,6 +23,7 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
+use crate::debug_logging::maybe_set_logging_xdc;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
@@ -1495,7 +1495,6 @@ impl Chat {
         };
 
         // add message to the database
-
         if let Some(update_msg_id) = update_msg_id {
             context
                 .sql
@@ -1983,6 +1982,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     Ok(())
 }
 
+/// Prepares a message to be send out
 async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
@@ -2019,6 +2019,7 @@ async fn prepare_msg_common(
             create_smeared_timestamp(context).await,
         )
         .await?;
+    maybe_set_logging_xdc(context, &msg, chat_id).await?;
     msg.chat_id = chat_id;
 
     Ok(msg.id)
@@ -2070,30 +2071,7 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
         }
         return send_msg_inner(context, chat_id, msg).await;
     }
-
-    let msg_id = send_msg_inner(context, chat_id, msg).await;
-
-    if msg.get_viewtype() == Viewtype::Webxdc && chat_id.is_self_talk(context).await? {
-        if let Ok(Some(file)) = msg.param.get_path(Param::File, context) {
-            if let Some(file_name) = file.file_name() {
-                if file_name == "debug_logging.xdc" {
-                    info!(context, "replacing logging webxdc");
-                    let msg_id = msg.get_id();
-                    context
-                        .sql
-                        .set_raw_config(
-                            Config::DebugLogging.as_ref(),
-                            Some(&msg_id.to_u32().to_string()),
-                        )
-                        .await?;
-                    context
-                        .debug_logging
-                        .store(msg_id.to_u32(), atomic::Ordering::Relaxed);
-                }
-            }
-        }
-    }
-    msg_id
+    send_msg_inner(context, chat_id, msg).await
 }
 
 /// Tries to send a message synchronously.
@@ -3304,6 +3282,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                     context.interrupt_smtp(InterruptInfo::new(false)).await;
                 }
             }
+            maybe_set_logging_xdc(context, &msg, chat_id).await?;
+
             created_chats.push(chat_id);
             created_msgs.push(new_msg_id);
         }

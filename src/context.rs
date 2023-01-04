@@ -18,6 +18,7 @@ use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
+use crate::debug_logging::DebugEventLogData;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -28,7 +29,6 @@ use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::tools::{duration_to_str, time};
-use crate::webxdc::StatusUpdateItem;
 
 /// Builder for the [`Context`].
 ///
@@ -238,6 +238,7 @@ pub struct InnerContext {
 
     /// The message Id of the current debuglogging webxdc
     pub(crate) debug_logging: AtomicU32,
+    debug_logging_send: Sender<DebugEventLogData>,
 }
 
 /// The state of ongoing process.
@@ -369,6 +370,7 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: AtomicU32::default(),
+            debug_logging_send: 
         };
 
         let ctx = Context {
@@ -444,44 +446,11 @@ impl Context {
             id: self.id,
             typ: event.clone(),
         });
-        // We use `task::spawn()` which could mix up the order of events in the db and
-        // could make e.g. backups fail since it could still run in the
-        // background while trying to move/close the database.
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
         if debug_logging > 0 {
-            let time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-            let context = self.clone();
+            let ctx = self.clone();
             tokio::spawn(async move {
-                let webxdc_instance_id = MsgId::new(debug_logging);
-
-                match context
-                    .write_status_update_inner(
-                        &webxdc_instance_id,
-                        StatusUpdateItem {
-                            payload: event.to_json(Some(time)),
-                            info: None,
-                            summary: None,
-                            document: None,
-                        },
-                    )
-                    .await
-                {
-                    Err(err) => {
-                        eprintln!("Can't log event to webxdc status update: {:#}", err);
-                    }
-                    Ok(serial) => {
-                        context.events.emit(Event {
-                            id: context.id,
-                            typ: EventType::WebxdcStatusUpdate {
-                                msg_id: webxdc_instance_id,
-                                status_update_serial: serial,
-                            },
-                        });
-                    }
-                }
+                ctx.send_log_event(event).await;
             });
         };
     }
