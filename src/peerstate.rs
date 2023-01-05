@@ -17,7 +17,7 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Error, Result};
 use num_traits::FromPrimitive;
 
 #[derive(Debug)]
@@ -369,43 +369,48 @@ impl Peerstate {
     /// verifier:
     ///   The address which verifies the given contact
     ///   If we are verifying the contact, use that contacts address
-    /// Returns whether the value of the key has changed
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
-        fingerprint: &Fingerprint,
+        fingerprint: Fingerprint,
         verified: PeerstateVerifiedStatus,
         verifier: String,
-    ) -> bool {
+    ) -> Result<()> {
         if verified == PeerstateVerifiedStatus::BidirectVerified {
             match which_key {
                 PeerstateKeyType::PublicKey => {
                     if self.public_key_fingerprint.is_some()
-                        && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
+                        && self.public_key_fingerprint.as_ref().unwrap() == &fingerprint
                     {
                         self.verified_key = self.public_key.clone();
-                        self.verified_key_fingerprint = self.public_key_fingerprint.clone();
+                        self.verified_key_fingerprint = Some(fingerprint);
                         self.verifier = Some(verifier);
-                        true
+                        Ok(())
                     } else {
-                        false
+                        Err(Error::msg(format!(
+                            "{} is not peer's public key fingerprint",
+                            fingerprint,
+                        )))
                     }
                 }
                 PeerstateKeyType::GossipKey => {
                     if self.gossip_key_fingerprint.is_some()
-                        && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
+                        && self.gossip_key_fingerprint.as_ref().unwrap() == &fingerprint
                     {
                         self.verified_key = self.gossip_key.clone();
-                        self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
+                        self.verified_key_fingerprint = Some(fingerprint);
                         self.verifier = Some(verifier);
-                        true
+                        Ok(())
                     } else {
-                        false
+                        Err(Error::msg(format!(
+                            "{} is not peer's gossip key fingerprint",
+                            fingerprint,
+                        )))
                     }
                 }
             }
         } else {
-            false
+            Err(Error::msg("BidirectVerified required"))
         }
     }
 

@@ -415,7 +415,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?
                 .get_addr()
                 .to_owned();
-            if mark_peer_as_verified(context, &fingerprint, contact_addr)
+            if mark_peer_as_verified(context, fingerprint.clone(), contact_addr)
                 .await
                 .is_err()
             {
@@ -613,28 +613,23 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                if peerstate.set_verified(
+                if let Err(err) = peerstate.set_verified(
                     PeerstateKeyType::GossipKey,
-                    &fingerprint,
+                    fingerprint,
                     PeerstateVerifiedStatus::BidirectVerified,
                     addr,
                 ) {
-                    peerstate.prefer_encrypt = EncryptPreference::Mutual;
-                    peerstate.save_to_db(&context.sql).await.unwrap_or_default();
-                } else {
                     could_not_establish_secure_connection(
                         context,
                         contact_id,
                         info_chat_id(context, contact_id).await?,
-                        &format!(
-                            "Could not mark peer as verified for fingerprint {} at step {}",
-                            fingerprint.hex(),
-                            step,
-                        ),
+                        &format!("Could not mark peer as verified at step {}: {}", step, err),
                     )
                     .await?;
                     return Ok(HandshakeMessage::Ignore);
                 }
+                peerstate.prefer_encrypt = EncryptPreference::Mutual;
+                peerstate.save_to_db(&context.sql).await.unwrap_or_default();
             } else if let Some(fingerprint) =
                 mime_message.get_header(HeaderDef::SecureJoinFingerprint)
             {
@@ -643,7 +638,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 let fingerprint = fingerprint.parse()?;
                 if mark_peer_as_verified(
                     context,
-                    &fingerprint,
+                    fingerprint,
                     Contact::load_from_db(context, contact_id)
                         .await?
                         .get_addr()
@@ -715,25 +710,25 @@ async fn could_not_establish_secure_connection(
 
 async fn mark_peer_as_verified(
     context: &Context,
-    fingerprint: &Fingerprint,
+    fingerprint: Fingerprint,
     verifier: String,
 ) -> Result<(), Error> {
-    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await? {
-        if peerstate.set_verified(
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, &fingerprint).await? {
+        if let Err(err) = peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,
             PeerstateVerifiedStatus::BidirectVerified,
             verifier,
         ) {
-            peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.save_to_db(&context.sql).await.unwrap_or_default();
-            return Ok(());
+            error!(context, "Could not mark peer as verified: {}", err);
+            return Err(err);
         }
+        peerstate.prefer_encrypt = EncryptPreference::Mutual;
+        peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+        Ok(())
+    } else {
+        bail!("no peerstate in db for fingerprint {}", fingerprint.hex());
     }
-    bail!(
-        "could not mark peer as verified for fingerprint {}",
-        fingerprint.hex()
-    );
 }
 
 /* ******************************************************************************

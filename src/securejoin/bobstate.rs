@@ -368,7 +368,7 @@ impl BobState {
         }
         mark_peer_as_verified(
             context,
-            self.invite.fingerprint(),
+            self.invite.fingerprint().clone(),
             mime_message.from.addr.to_string(),
         )
         .await?;

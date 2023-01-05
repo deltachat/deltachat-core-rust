@@ -2178,10 +2178,10 @@ async fn check_verified_properties(
                     if let Some(fp) = fp {
                         peerstate.set_verified(
                             PeerstateKeyType::GossipKey,
-                            &fp,
+                            fp,
                             PeerstateVerifiedStatus::BidirectVerified,
                             contact.get_addr().to_owned(),
-                        );
+                        )?;
                         peerstate.save_to_db(&context.sql).await?;
                         is_verified = true;
                     }
