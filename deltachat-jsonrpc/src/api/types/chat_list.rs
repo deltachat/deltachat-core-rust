@@ -48,12 +48,10 @@ pub enum ChatListItemFetchResult {
         dm_chat_contact: Option<u32>,
         was_seen_recently: bool,
     },
-    ArchiveLink,
     #[serde(rename_all = "camelCase")]
-    Error {
-        id: u32,
-        error: String,
-    },
+    ArchiveLink { fresh_message_counter: usize },
+    #[serde(rename_all = "camelCase")]
+    Error { id: u32, error: String },
 }
 
 pub(crate) async fn get_chat_list_item_by_id(
@@ -66,8 +64,12 @@ pub(crate) async fn get_chat_list_item_by_id(
         _ => Some(MsgId::new(entry.1)),
     };
 
+    let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
+
     if chat_id.is_archived_link() {
-        return Ok(ChatListItemFetchResult::ArchiveLink);
+        return Ok(ChatListItemFetchResult::ArchiveLink {
+            fresh_message_counter,
+        });
     }
 
     let chat = Chat::load_from_db(ctx, chat_id).await?;
@@ -111,7 +113,6 @@ pub(crate) async fn get_chat_list_item_by_id(
         (None, false)
     };
 
-    let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
     let color = color_int_to_hex_string(chat.get_color(ctx).await?);
 
     Ok(ChatListItemFetchResult::ChatListItem {
