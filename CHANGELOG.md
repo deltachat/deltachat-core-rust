@@ -10,6 +10,8 @@
 - Add fuzzing tests #3853
 - Add mappings for some file types to Viewtype / MIME type #3881
 - Buffer IMAP client writes #3888
+- move `DC_CHAT_ID_ARCHIVED_LINK` to the top of chat lists
+  and make `dc_get_fresh_msg_cnt()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3918
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
