@@ -11,6 +11,7 @@ import { mkdtempSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { Context } from '../dist/context'
 chai.use(chaiAsPromised)
+chai.config.truncateThreshold = 0; // Do not truncate assertion errors.
 
 async function createTempUser(url) {
   const fetch = require('node-fetch')
@@ -121,7 +122,7 @@ describe('JSON RPC', function () {
     const promises = {}
     dc.startJsonRpcHandler((msg) => {
       const response = JSON.parse(msg)
-      promises[response.id](response)
+      if (response.hasOwnProperty('id')) promises[response.id](response)
       delete promises[response.id]
     })
     const call = (request) => {

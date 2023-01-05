@@ -6,6 +6,12 @@
 - Validate signatures in try_decrypt() even if the message isn't encrypted #3859
 - Don't parse the message again after detached signatures validation #3862
 - Move format=flowed support to a separate crate #3869
+- cargo: bump quick-xml from 0.23.0 to 0.26.0 #3722
+- Add fuzzing tests #3853
+- Add mappings for some file types to Viewtype / MIME type #3881
+- Buffer IMAP client writes #3888
+- move `DC_CHAT_ID_ARCHIVED_LINK` to the top of chat lists
+  and make `dc_get_fresh_msg_cnt()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3918
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
@@ -15,6 +21,10 @@
 - Do not add an error if the message is encrypted but not signed #3860
 - Do not strip leading spaces from message lines #3867
 - Don't always rebuild group member lists #3872
+- Fix uncaught exception in JSON-RPC tests #3884
+- Fix STARTTLS connection and add a test for it #3907
+- Trigger reconnection when failing to fetch existing messages #3911
+- Do not retry fetching existing messages after failure, prevents infinite reconnection loop #3913
 
 ## 1.104.0
 

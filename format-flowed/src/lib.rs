@@ -182,6 +182,12 @@ mod tests {
 
         let text = "   Foo bar baz";
         assert_eq!(format_flowed(text), "    Foo bar baz");
+
+        let text =
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA AAAAAA";
+        let expected =
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA \r\nAAAAAA";
+        assert_eq!(format_flowed(text), expected);
     }
 
     #[test]

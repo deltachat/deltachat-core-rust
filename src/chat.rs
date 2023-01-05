@@ -782,17 +782,35 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = context
-            .sql
-            .count(
-                "SELECT COUNT(*)
+        let count = if self.is_archived_link() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(DISTINCT(m.chat_id))
+                    FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10
+                    and m.hidden=0
+                    AND m.chat_id>9
+                    AND c.blocked=0
+                    AND c.archived=1
+                    ",
+                    paramsv![],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![MessageState::InFresh, self],
-            )
-            .await?;
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?
+        };
         Ok(count)
     }
 
@@ -1214,6 +1232,10 @@ impl Chat {
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
+                return Ok(Some(get_abs_path(context, image_rel)));
+            }
+        } else if self.id.is_archived_link() {
+            if let Ok(image_rel) = get_archive_icon(context).await {
                 return Ok(Some(get_abs_path(context, image_rel)));
             }
         } else if self.typ == Chattype::Single {
@@ -1706,6 +1728,21 @@ pub(crate) async fn get_broadcast_icon(context: &Context) -> Result<String> {
     context
         .sql
         .set_raw_config("icon-broadcast", Some(&icon))
+        .await?;
+    Ok(icon)
+}
+
+pub(crate) async fn get_archive_icon(context: &Context) -> Result<String> {
+    if let Some(icon) = context.sql.get_raw_config("icon-archive").await? {
+        return Ok(icon);
+    }
+
+    let icon = include_bytes!("../assets/icon-archive.png");
+    let blob = BlobObject::create(context, "icon-archive.png", icon).await?;
+    let icon = blob.as_name().to_string();
+    context
+        .sql
+        .set_raw_config("icon-archive", Some(&icon))
         .await?;
     Ok(icon)
 }

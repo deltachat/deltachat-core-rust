@@ -1,13 +1,13 @@
 //! # Simplify incoming plaintext.
 
-// protect lines starting with `--` against being treated as a footer.
-// for that, we insert a ZERO WIDTH SPACE (ZWSP, 0x200B);
-// this should be invisible on most systems and there is no need to unescape it again
-// (which won't be done by non-deltas anyway)
-//
-// this escapes a bit more than actually needed by delta (eg. also lines as "-- footer"),
-// but for non-delta-compatibility, that seems to be better.
-// (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
+/// Protects lines starting with `--` against being treated as a footer.
+/// for that, we insert a ZERO WIDTH SPACE (ZWSP, 0x200B);
+/// this should be invisible on most systems and there is no need to unescape it again
+/// (which won't be done by non-deltas anyway).
+///
+/// This escapes a bit more than actually needed by delta (e.g. also lines as "-- footer"),
+/// but for non-delta-compatibility, that seems to be better.
+/// (to be only compatible with delta, only "[\r\n|\n]-- {0,2}[\r\n|\n]" needs to be replaced)
 pub fn escape_message_footer_marks(text: &str) -> String {
     if let Some(text) = text.strip_prefix("--") {
         "-\u{200B}-".to_string() + &text.replace("\n--", "\n-\u{200B}-")
@@ -74,6 +74,7 @@ pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
 /// Simplified text and some additional information gained from the input.
 #[derive(Debug, Default)]
 pub(crate) struct SimplifiedText {
+    /// The text itself.
     pub text: String,
 
     /// True if the message is forwarded.

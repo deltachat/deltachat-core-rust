@@ -141,8 +141,19 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     match ctx.get_config_bool(Config::FetchedExistingMsgs).await {
                         Ok(fetched_existing_msgs) => {
                             if !fetched_existing_msgs {
+                                // Consider it done even if we fail.
+                                //
+                                // This operation is not critical enough to retry,
+                                // especially if the error is persistent.
+                                if let Err(err) =
+                                    ctx.set_config_bool(Config::FetchedExistingMsgs, true).await
+                                {
+                                    warn!(ctx, "Can't set Config::FetchedExistingMsgs: {:#}", err);
+                                }
+
                                 if let Err(err) = connection.fetch_existing_msgs(&ctx).await {
                                     warn!(ctx, "Failed to fetch existing messages: {:#}", err);
+                                    connection.trigger_reconnect(&ctx);
                                 }
                             }
                         }
@@ -198,8 +209,8 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
         .await
         .context("prepare IMAP connection")
     {
-        connection.trigger_reconnect(ctx);
         warn!(ctx, "{:#}", err);
+        connection.trigger_reconnect(ctx);
         return connection.fake_idle(ctx, Some(watch_folder)).await;
     }
 

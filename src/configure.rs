@@ -579,10 +579,10 @@ async fn try_imap_one_param(
 
     let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r) {
         Err(err) => {
-            info!(context, "failure: {}", err);
+            info!(context, "failure: {:#}", err);
             return Err(ConfigurationError {
                 config: inf,
-                msg: err.to_string(),
+                msg: format!("{:#}", err),
             });
         }
         Ok(imap) => imap,
@@ -590,10 +590,10 @@ async fn try_imap_one_param(
 
     match imap.connect(context).await {
         Err(err) => {
-            info!(context, "failure: {}", err);
+            info!(context, "failure: {:#}", err);
             Err(ConfigurationError {
                 config: inf,
-                msg: err.to_string(),
+                msg: format!("{:#}", err),
             })
         }
         Ok(()) => {
@@ -634,7 +634,7 @@ async fn try_smtp_one_param(
         info!(context, "failure: {}", err);
         Err(ConfigurationError {
             config: inf,
-            msg: err.to_string(),
+            msg: format!("{:#}", err),
         })
     } else {
         info!(context, "success: {}", inf);

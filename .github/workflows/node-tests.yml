@@ -59,6 +59,7 @@ jobs:
           npm run test
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          NODE_OPTIONS: '--force-node-api-uncaught-exceptions-policy=true'
       - name: Run tests on Windows, except lint
         timeout-minutes: 10
         if: runner.os == 'Windows'
@@ -67,3 +68,4 @@ jobs:
           npm run test:mocha
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          NODE_OPTIONS: '--force-node-api-uncaught-exceptions-policy=true'

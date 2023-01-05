@@ -1168,6 +1168,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "3gp" => (Viewtype::Video, "video/3gpp"),
         "aac" => (Viewtype::Audio, "audio/aac"),
         "avi" => (Viewtype::Video, "video/x-msvideo"),
+        "avif" => (Viewtype::File, "image/avif"), // supported since Android 12 / iOS 16
         "doc" => (Viewtype::File, "application/msword"),
         "docx" => (
             Viewtype::File,
@@ -1176,6 +1177,8 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "epub" => (Viewtype::File, "application/epub+zip"),
         "flac" => (Viewtype::Audio, "audio/flac"),
         "gif" => (Viewtype::Gif, "image/gif"),
+        "heic" => (Viewtype::File, "image/heic"), // supported since Android 10 / iOS 11
+        "heif" => (Viewtype::File, "image/heif"), // supported since Android 10 / iOS 11
         "html" => (Viewtype::File, "text/html"),
         "htm" => (Viewtype::File, "text/html"),
         "ico" => (Viewtype::File, "image/vnd.microsoft.icon"),
@@ -1200,10 +1203,15 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "oga" => (Viewtype::Audio, "audio/ogg"),
         "ogg" => (Viewtype::Audio, "audio/ogg"),
         "ogv" => (Viewtype::File, "video/ogg"),
-        "opus" => (Viewtype::File, "audio/ogg"), // not supported eg. on Android 4
+        "opus" => (Viewtype::File, "audio/ogg"), // supported since Android 10
         "otf" => (Viewtype::File, "font/otf"),
         "pdf" => (Viewtype::File, "application/pdf"),
         "png" => (Viewtype::Image, "image/png"),
+        "ppt" => (Viewtype::File, "application/vnd.ms-powerpoint"),
+        "pptx" => (
+            Viewtype::File,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ),
         "rar" => (Viewtype::File, "application/vnd.rar"),
         "rtf" => (Viewtype::File, "application/rtf"),
         "spx" => (Viewtype::File, "audio/ogg"), // Ogg Speex Profile
@@ -1212,6 +1220,7 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "tiff" => (Viewtype::File, "image/tiff"),
         "tif" => (Viewtype::File, "image/tiff"),
         "ttf" => (Viewtype::File, "font/ttf"),
+        "txt" => (Viewtype::File, "text/plain"),
         "vcard" => (Viewtype::File, "text/vcard"),
         "vcf" => (Viewtype::File, "text/vcard"),
         "wav" => (Viewtype::File, "audio/wav"),
@@ -1221,11 +1230,12 @@ pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
         "wmv" => (Viewtype::Video, "video/x-ms-wmv"),
         "xdc" => (Viewtype::Webxdc, "application/webxdc+zip"),
         "xhtml" => (Viewtype::File, "application/xhtml+xml"),
+        "xls" => (Viewtype::File, "application/vnd.ms-excel"),
         "xlsx" => (
             Viewtype::File,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ),
-        "xml" => (Viewtype::File, "application/vnd.ms-excel"),
+        "xml" => (Viewtype::File, "application/xml"),
         "zip" => (Viewtype::File, "application/zip"),
         _ => {
             return None;

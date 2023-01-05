@@ -100,6 +100,7 @@ mod dehtml;
 mod authres;
 mod color;
 pub mod html;
+mod net;
 pub mod plaintext;
 mod ratelimit;
 pub mod summary;
@@ -117,3 +118,6 @@ pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
 mod test_utils;
 #[cfg(test)]
 mod tests;
+
+#[cfg(fuzzing)]
+pub mod fuzzing;

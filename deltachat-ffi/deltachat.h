@@ -1227,7 +1227,11 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
  * Get the number of _fresh_ messages in a chat.
  * Typically used to implement a badge with a number in the chatlist.
  *
- * If the specified chat is muted,
+ * As muted archived chats are not unarchived automatically,
+ * a similar information is needed for the @ref dc_get_chatlist() "archive link" as well:
+ * here, the number of archived chats containing fresh messages is returned.
+ *
+ * If the specified chat is muted or the @ref dc_get_chatlist() "archive link",
  * the UI should show the badge counter "less obtrusive",
  * e.g. using "gray" instead of "red" color.
  *
@@ -4763,7 +4767,7 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
-int            dc_contact_get_verifier_id      (dc_contact_t* contact);
+uint32_t       dc_contact_get_verifier_id      (dc_contact_t* contact);
 
 
 /**
