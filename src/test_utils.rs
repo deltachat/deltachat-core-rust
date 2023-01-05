@@ -21,7 +21,7 @@ use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
+use crate::constants::{DC_GCL_NO_SPECIALS, DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::{Event, EventType, Events};
@@ -502,7 +502,7 @@ impl TestContext {
 
     /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
-        let chats = Chatlist::try_load(&self.ctx, 0, None, None)
+        let chats = Chatlist::try_load(&self.ctx, DC_GCL_NO_SPECIALS, None, None)
             .await
             .expect("failed to load chatlist");
         // 0 is correct in the next line (as opposed to `chats.len() - 1`, which would be the last element):
