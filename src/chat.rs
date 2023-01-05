@@ -2431,31 +2431,63 @@ pub(crate) async fn marknoticed_chat_if_older_than(
 }
 
 /// Marks all messages in the chat as noticed.
+/// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     // the additional SELECT statement may speed up things as no write-blocking is needed.
-    let exists = context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
-            paramsv![MessageState::InFresh, chat_id],
-        )
-        .await?;
-    if !exists {
-        return Ok(());
-    }
+    if chat_id.is_archived_link() {
+        let chat_ids_in_archive = context
+            .sql
+            .query_map(
+                "SELECT DISTINCT(m.chat_id) FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.blocked=0 AND c.archived=1",
+                paramsv![],
+                |row| row.get::<_, ChatId>(0),
+                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+            )
+            .await?;
+        if chat_ids_in_archive.is_empty() {
+            return Ok(());
+        }
 
-    context
-        .sql
-        .execute(
-            "UPDATE msgs
-            SET state=?
-          WHERE state=?
-            AND hidden=0
-            AND chat_id=?;",
-            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
-        )
-        .await?;
+        context
+            .sql
+            .execute(
+                &format!(
+                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id IN ({});",
+                    sql::repeat_vars(chat_ids_in_archive.len())
+                ),
+                rusqlite::params_from_iter(&chat_ids_in_archive),
+            )
+            .await?;
+        for chat_id_in_archive in chat_ids_in_archive {
+            context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
+        }
+    } else {
+        let exists = context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+                paramsv![MessageState::InFresh, chat_id],
+            )
+            .await?;
+        if !exists {
+            return Ok(());
+        }
+
+        context
+            .sql
+            .execute(
+                "UPDATE msgs
+                SET state=?
+              WHERE state=?
+                AND hidden=0
+                AND chat_id=?;",
+                paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
+            )
+            .await?;
+    }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
 
