@@ -526,7 +526,7 @@ static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
-// hermes.radio.md: ac.hermes.radio, ac1.hermes.radio, ac2.hermes.radio, ac3.hermes.radio, ac4.hermes.radio, ac5.hermes.radio, ac6.hermes.radio, ac7.hermes.radio, ac8.hermes.radio, ac9.hermes.radio, ac10.hermes.radio, ac11.hermes.radio, ac12.hermes.radio, ac13.hermes.radio, ac14.hermes.radio, ac15.hermes.radio, ka.hermes.radio, ka1.hermes.radio, ka2.hermes.radio, ka3.hermes.radio, ka4.hermes.radio, ka5.hermes.radio, ka6.hermes.radio, ka7.hermes.radio, ka8.hermes.radio, ka9.hermes.radio, ka10.hermes.radio, ka11.hermes.radio, ka12.hermes.radio, ka13.hermes.radio, ka14.hermes.radio, ka15.hermes.radio, hermes.radio
+// hermes.radio.md: ac.hermes.radio, ac1.hermes.radio, ac2.hermes.radio, ac3.hermes.radio, ac4.hermes.radio, ac5.hermes.radio, ac6.hermes.radio, ac7.hermes.radio, ac8.hermes.radio, ac9.hermes.radio, ac10.hermes.radio, ac11.hermes.radio, ac12.hermes.radio, ac13.hermes.radio, ac14.hermes.radio, ac15.hermes.radio, ka.hermes.radio, ka1.hermes.radio, ka2.hermes.radio, ka3.hermes.radio, ka4.hermes.radio, ka5.hermes.radio, ka6.hermes.radio, ka7.hermes.radio, ka8.hermes.radio, ka9.hermes.radio, ka10.hermes.radio, ka11.hermes.radio, ka12.hermes.radio, ka13.hermes.radio, ka14.hermes.radio, ka15.hermes.radio, ec.hermes.radio, ec1.hermes.radio, ec2.hermes.radio, ec3.hermes.radio, ec4.hermes.radio, ec5.hermes.radio, ec6.hermes.radio, ec7.hermes.radio, ec8.hermes.radio, ec9.hermes.radio, ec10.hermes.radio, ec11.hermes.radio, ec12.hermes.radio, ec13.hermes.radio, ec14.hermes.radio, ec15.hermes.radio, hermes.radio
 static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
     id: "hermes.radio",
     status: Status::Ok,
@@ -902,6 +902,35 @@ static P_NAVER: Lazy<Provider> = Lazy::new(|| Provider {
     oauth2_authorizer: None,
 });
 
+// nubo.coop.md: nubo.coop
+static P_NUBO_COOP: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "nubo.coop",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/nubo-coop",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "mail.nubo.coop",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "mail.nubo.coop",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
 // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com, outlook.de
 static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
     id: "outlook.com",
@@ -922,6 +951,35 @@ static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
             socket: Starttls,
             hostname: "smtp.office365.com",
             port: 587,
+            username_pattern: Email,
+        },
+    ],
+    config_defaults: None,
+    strict_tls: true,
+    max_smtp_rcpt_to: None,
+    oauth2_authorizer: None,
+});
+
+// ouvaton.coop.md: ouvaton.org
+static P_OUVATON_COOP: Lazy<Provider> = Lazy::new(|| Provider {
+    id: "ouvaton.coop",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/ouvaton-coop",
+    server: vec![
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "imap.ouvaton.coop",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "smtp.ouvaton.coop",
+            port: 465,
             username_pattern: Email,
         },
     ],
@@ -1659,6 +1717,22 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("ka13.hermes.radio", &*P_HERMES_RADIO),
         ("ka14.hermes.radio", &*P_HERMES_RADIO),
         ("ka15.hermes.radio", &*P_HERMES_RADIO),
+        ("ec.hermes.radio", &*P_HERMES_RADIO),
+        ("ec1.hermes.radio", &*P_HERMES_RADIO),
+        ("ec2.hermes.radio", &*P_HERMES_RADIO),
+        ("ec3.hermes.radio", &*P_HERMES_RADIO),
+        ("ec4.hermes.radio", &*P_HERMES_RADIO),
+        ("ec5.hermes.radio", &*P_HERMES_RADIO),
+        ("ec6.hermes.radio", &*P_HERMES_RADIO),
+        ("ec7.hermes.radio", &*P_HERMES_RADIO),
+        ("ec8.hermes.radio", &*P_HERMES_RADIO),
+        ("ec9.hermes.radio", &*P_HERMES_RADIO),
+        ("ec10.hermes.radio", &*P_HERMES_RADIO),
+        ("ec11.hermes.radio", &*P_HERMES_RADIO),
+        ("ec12.hermes.radio", &*P_HERMES_RADIO),
+        ("ec13.hermes.radio", &*P_HERMES_RADIO),
+        ("ec14.hermes.radio", &*P_HERMES_RADIO),
+        ("ec15.hermes.radio", &*P_HERMES_RADIO),
         ("hermes.radio", &*P_HERMES_RADIO),
         ("hey.com", &*P_HEY_COM),
         ("i.ua", &*P_I_UA),
@@ -1681,12 +1755,14 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
         ("naver.com", &*P_NAVER),
+        ("nubo.coop", &*P_NUBO_COOP),
         ("hotmail.com", &*P_OUTLOOK_COM),
         ("outlook.com", &*P_OUTLOOK_COM),
         ("office365.com", &*P_OUTLOOK_COM),
         ("outlook.com.tr", &*P_OUTLOOK_COM),
         ("live.com", &*P_OUTLOOK_COM),
         ("outlook.de", &*P_OUTLOOK_COM),
+        ("ouvaton.org", &*P_OUVATON_COOP),
         ("posteo.de", &*P_POSTEO),
         ("posteo.af", &*P_POSTEO),
         ("posteo.at", &*P_POSTEO),
@@ -1861,7 +1937,9 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("mailo.com", &*P_MAILO_COM),
         ("nauta.cu", &*P_NAUTA_CU),
         ("naver", &*P_NAVER),
+        ("nubo.coop", &*P_NUBO_COOP),
         ("outlook.com", &*P_OUTLOOK_COM),
+        ("ouvaton.coop", &*P_OUVATON_COOP),
         ("posteo", &*P_POSTEO),
         ("protonmail", &*P_PROTONMAIL),
         ("qq", &*P_QQ),
@@ -1891,4 +1969,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2022, 7, 5).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd(2023, 1, 6));
