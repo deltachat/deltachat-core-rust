@@ -1889,7 +1889,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
 
     use super::*;
 
@@ -2376,8 +2376,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_format_flowed_round_trip() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
         let chat = alice.create_chat(&bob).await;
 
         let text = "  Foo bar";
