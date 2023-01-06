@@ -5811,7 +5811,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 (int) The progress as:
  *     300=vg-/vc-request received, typically shown as "bob@addr joins".
  *     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
- *     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
+ *     800=contact added to chat, shown as "bob@addr securely joined GROUP". Only for the verified-group-protocol.
  *     1000=Protocol finished for this contact.
  */
 #define DC_EVENT_SECUREJOIN_INVITER_PROGRESS      2060

@@ -455,6 +455,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     None => bail!("Chat {} not found", &field_grpid),
                 }
+                inviter_progress!(context, contact_id, 800);
+                inviter_progress!(context, contact_id, 1000);
             } else {
                 // Alice -> Bob
                 secure_connection_established(
@@ -503,9 +505,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
                 if join_vg {
-                    // Responsible for showing "$Bob securely joined $group" message
-                    inviter_progress!(context, contact_id, 800);
-                    inviter_progress!(context, contact_id, 1000);
                     let field_grpid = mime_message
                         .get_header(HeaderDef::SecureJoinGroup)
                         .map(|s| s.as_str())
@@ -670,6 +669,12 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
+            if step.as_str() == "vg-member-added" {
+                inviter_progress!(context, contact_id, 800);
+            }
+            if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
+                inviter_progress!(context, contact_id, 1000);
+            }
             Ok(if step.as_str() == "vg-member-added" {
                 HandshakeMessage::Propagate
             } else {
@@ -768,6 +773,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::{Chattype, DC_GCM_ADDDAYMARKER};
     use crate::contact::ContactAddress;
+    use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
