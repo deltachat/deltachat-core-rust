@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- Pipeline SMTP commands #3924
+
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
 - fix verifier-by addr was empty string intead of None #3961
