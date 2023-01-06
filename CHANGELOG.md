@@ -17,6 +17,7 @@
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
+- jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
 - Add ffi functions to retrieve `verified by` information #3786
 
 ### Fixes
