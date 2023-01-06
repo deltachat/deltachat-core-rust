@@ -277,6 +277,12 @@ async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time
 /// - for INCOMING messages, the ID is taken from the Chat-Group-ID-header or from the Message-ID in the In-Reply-To: or References:-Header
 /// - the group-id should be a string with the characters [a-zA-Z0-9\-_]
 pub(crate) fn create_id() -> String {
+    const URL_SAFE_ENGINE: base64::engine::fast_portable::FastPortable =
+        base64::engine::fast_portable::FastPortable::from(
+            &base64::alphabet::URL_SAFE,
+            base64::engine::fast_portable::NO_PAD,
+        );
+
     // ThreadRng implements CryptoRng trait and is supposed to be cryptographically secure.
     let mut rng = thread_rng();
 
@@ -285,7 +291,7 @@ pub(crate) fn create_id() -> String {
     rng.fill(&mut arr[..]);
 
     // Take 11 base64 characters containing 66 random bits.
-    base64::encode_config(arr, base64::URL_SAFE)
+    base64::encode_engine(arr, &URL_SAFE_ENGINE)
         .chars()
         .take(11)
         .collect()
