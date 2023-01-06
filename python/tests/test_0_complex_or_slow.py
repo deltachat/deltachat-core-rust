@@ -521,6 +521,9 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
     lp.sec("ac2: sending message")
+    # Message can be sent only after a receipt of "vg-member-added" message. Just wait for
+    # "Member Me (<addr>) added by <addr>." message.
+    ac2._evtracker.wait_next_incoming_message()
     msg_out = chat2.send_text("hello")
 
     lp.sec("ac1: receiving message")
