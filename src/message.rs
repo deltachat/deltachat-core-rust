@@ -1,7 +1,5 @@
 //! # Messages and their identifiers.
 
-#![allow(missing_docs)]
-
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -237,11 +235,18 @@ impl Default for MessengerMessage {
 /// If you want an update, you have to recreate the object.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Message {
+    /// Message ID.
     pub(crate) id: MsgId,
+
+    /// `From:` contact ID.
     pub(crate) from_id: ContactId,
+
+    /// ID of the first contact in the `To:` header.
     pub(crate) to_id: ContactId,
     pub(crate) chat_id: ChatId,
     pub(crate) viewtype: Viewtype,
+
+    /// State of the message.
     pub(crate) state: MessageState,
     pub(crate) download_state: DownloadState,
     pub(crate) hidden: bool,
@@ -263,6 +268,7 @@ pub struct Message {
 }
 
 impl Message {
+    /// Creates a new message with given view type.
     pub fn new(viewtype: Viewtype) -> Self {
         Message {
             viewtype,
@@ -270,6 +276,7 @@ impl Message {
         }
     }
 
+    /// Loads message with given ID from the database.
     pub async fn load_from_db(context: &Context, id: MsgId) -> Result<Message> {
         ensure!(
             !id.is_special(),
@@ -366,6 +373,12 @@ impl Message {
         Ok(msg)
     }
 
+    /// Returns the MIME type of an attached file if it exists.
+    ///
+    /// If the MIME type is not known, the function guesses the MIME type
+    /// from the extension. `application/octet-stream` is used as a fallback
+    /// if MIME type is not known, but `None` is only returned if no file
+    /// is attached.
     pub fn get_filemime(&self) -> Option<String> {
         if let Some(m) = self.param.get(Param::MimeType) {
             return Some(m.to_string());
@@ -380,11 +393,12 @@ impl Message {
         None
     }
 
+    /// Returns the full path to the file associated with a message.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
-    pub async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
         if self.viewtype.has_file() {
             let file_param = self.param.get_path(Param::File, context)?;
             if let Some(path_and_filename) = file_param {
@@ -442,6 +456,8 @@ impl Message {
         self.param.set_float(Param::SetLongitude, longitude);
     }
 
+    /// Returns the message timestamp for display in the UI
+    /// as a unix timestamp in seconds.
     pub fn get_timestamp(&self) -> i64 {
         if 0 != self.timestamp_sent {
             self.timestamp_sent
@@ -450,10 +466,12 @@ impl Message {
         }
     }
 
+    /// Returns the message ID.
     pub fn get_id(&self) -> MsgId {
         self.id
     }
 
+    /// Returns the ID of the contact who wrote the message.
     pub fn get_from_id(&self) -> ContactId {
         self.from_id
     }
@@ -463,30 +481,40 @@ impl Message {
         self.chat_id
     }
 
+    /// Returns the type of the message.
     pub fn get_viewtype(&self) -> Viewtype {
         self.viewtype
     }
 
+    /// Returns the state of the message.
     pub fn get_state(&self) -> MessageState {
         self.state
     }
 
+    /// Returns the message receive time as a unix timestamp in seconds.
     pub fn get_received_timestamp(&self) -> i64 {
         self.timestamp_rcvd
     }
 
+    /// Returns the timestamp of the message for sorting.
     pub fn get_sort_timestamp(&self) -> i64 {
         self.timestamp_sort
     }
 
+    /// Returns the text of the message.
     pub fn get_text(&self) -> Option<String> {
         self.text.as_ref().map(|s| s.to_string())
     }
 
+    /// Returns message subject.
     pub fn get_subject(&self) -> &str {
         &self.subject
     }
 
+    /// Returns base file name without the path.
+    /// The base file name includes the extension.
+    ///
+    /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
         self.param
             .get(Param::File)
@@ -503,18 +531,22 @@ impl Message {
         }
     }
 
+    /// Returns width of associated image or video file.
     pub fn get_width(&self) -> i32 {
         self.param.get_int(Param::Width).unwrap_or_default()
     }
 
+    /// Returns height of associated image or video file.
     pub fn get_height(&self) -> i32 {
         self.param.get_int(Param::Height).unwrap_or_default()
     }
 
+    /// Returns duration of associated audio or video file.
     pub fn get_duration(&self) -> i32 {
         self.param.get_int(Param::Duration).unwrap_or_default()
     }
 
+    /// Returns true if padlock indicating message encryption should be displayed in the UI.
     pub fn get_showpadlock(&self) -> bool {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
@@ -524,10 +556,12 @@ impl Message {
         self.param.get_bool(Param::Bot).unwrap_or_default()
     }
 
+    /// Return the ephemeral timer duration for a message.
     pub fn get_ephemeral_timer(&self) -> EphemeralTimer {
         self.ephemeral_timer
     }
 
+    /// Returns the timestamp of the epehemeral message removal.
     pub fn get_ephemeral_timestamp(&self) -> i64 {
         self.ephemeral_timestamp
     }
@@ -565,6 +599,7 @@ impl Message {
     //   C-data in the Java code (i.e. a `long` storing a C pointer)
     // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show
     //   the same display name over all messages from the same sender.
+    /// Returns the name that should be shown over the message instead of the contact display ame.
     pub fn get_override_sender_name(&self) -> Option<String> {
         self.param
             .get(Param::OverrideSenderDisplayname)
@@ -573,11 +608,15 @@ impl Message {
 
     // Exposing this function over the ffi instead of get_override_sender_name() would mean that at least Android Java code has
     // to handle raw C-data (as it is done for msg_get_summary())
-    pub fn get_sender_name(&self, contact: &Contact) -> String {
+    pub(crate) fn get_sender_name(&self, contact: &Contact) -> String {
         self.get_override_sender_name()
             .unwrap_or_else(|| contact.get_display_name().to_string())
     }
 
+    /// Returns true if a message has a deviating timestamp.
+    ///
+    /// A message has a deviating timestamp when it is sent on
+    /// another day as received/sorted by.
     pub fn has_deviating_timestamp(&self) -> bool {
         let cnv_to_local = gm2local_offset();
         let sort_timestamp = self.get_sort_timestamp() + cnv_to_local;
@@ -586,14 +625,18 @@ impl Message {
         sort_timestamp / 86400 != send_timestamp / 86400
     }
 
+    /// Returns true if the message was successfully delivered to the outgoing server or even
+    /// received a read receipt.
     pub fn is_sent(&self) -> bool {
         self.state >= MessageState::OutDelivered
     }
 
+    /// Returns true if the message is a forwarded message.
     pub fn is_forwarded(&self) -> bool {
         0 != self.param.get_int(Param::Forwarded).unwrap_or_default()
     }
 
+    /// Returns true if the message is an informational message.
     pub fn is_info(&self) -> bool {
         let cmd = self.param.get_cmd();
         self.from_id == ContactId::INFO
@@ -601,10 +644,12 @@ impl Message {
             || cmd != SystemMessage::Unknown && cmd != SystemMessage::AutocryptSetupMessage
     }
 
+    /// Returns the type of an informational message.
     pub fn get_info_type(&self) -> SystemMessage {
         self.param.get_cmd()
     }
 
+    /// Returns true if the message is a system message.
     pub fn is_system_message(&self) -> bool {
         let cmd = self.param.get_cmd();
         cmd != SystemMessage::Unknown
@@ -622,6 +667,7 @@ impl Message {
         self.viewtype.has_file() && self.state == MessageState::OutPreparing
     }
 
+    /// Returns true if the message is an Autocrypt Setup Message.
     pub fn is_setupmessage(&self) -> bool {
         if self.viewtype != Viewtype::File {
             return false;
@@ -630,6 +676,9 @@ impl Message {
         self.param.get_cmd() == SystemMessage::AutocryptSetupMessage
     }
 
+    /// Returns the first characters of the setup code.
+    ///
+    /// This is used to pre-fill the first entry field of the setup code.
     pub async fn get_setupcodebegin(&self, context: &Context) -> Option<String> {
         if !self.is_setupmessage() {
             return None;
@@ -650,7 +699,7 @@ impl Message {
 
     // add room to a webrtc_instance as defined by the corresponding config-value;
     // the result may still be prefixed by the type
-    pub fn create_webrtc_instance(instance: &str, room: &str) -> String {
+    pub(crate) fn create_webrtc_instance(instance: &str, room: &str) -> String {
         let (videochat_type, mut url) = Message::parse_webrtc_instance(instance);
 
         // make sure, there is a scheme in the url
@@ -707,6 +756,7 @@ impl Message {
         }
     }
 
+    /// Returns videochat URL if the message is a videochat invitation.
     pub fn get_videochat_url(&self) -> Option<String> {
         if self.viewtype == Viewtype::VideochatInvitation {
             if let Some(instance) = self.param.get(Param::WebrtcRoom) {
@@ -716,6 +766,7 @@ impl Message {
         None
     }
 
+    /// Returns videochat type if the message is a videochat invitation.
     pub fn get_videochat_type(&self) -> Option<VideochatType> {
         if self.viewtype == Viewtype::VideochatInvitation {
             if let Some(instance) = self.param.get(Param::WebrtcRoom) {
@@ -725,10 +776,16 @@ impl Message {
         None
     }
 
+    /// Sets or unsets message text.
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
     }
 
+    /// Sets the file associated with a message.
+    ///
+    /// This function does not use the file or check if it exists,
+    /// the file will only be used when the message is prepared
+    /// for sending.
     pub fn set_file(&mut self, file: impl ToString, filemime: Option<&str>) {
         self.param.set(Param::File, file);
         if let Some(filemime) = filemime {
@@ -746,11 +803,13 @@ impl Message {
         }
     }
 
+    /// Sets the dimensions of associated image or video file.
     pub fn set_dimension(&mut self, width: i32, height: i32) {
         self.param.set_int(Param::Width, width);
         self.param.set_int(Param::Height, height);
     }
 
+    /// Sets the duration of associated audio or video file.
     pub fn set_duration(&mut self, duration: i32) {
         self.param.set_int(Param::Duration, duration);
     }
@@ -760,6 +819,8 @@ impl Message {
         self.param.set_int(Param::Reaction, 1);
     }
 
+    /// Changes the message width, height or duration,
+    /// and stores it into the database.
     pub async fn latefiling_mediasize(
         &mut self,
         context: &Context,
@@ -824,10 +885,12 @@ impl Message {
         Ok(())
     }
 
+    /// Returns quoted message text, if any.
     pub fn quoted_text(&self) -> Option<String> {
         self.param.get(Param::Quote).map(|s| s.to_string())
     }
 
+    /// Returns quoted message, if any.
     pub async fn quoted_message(&self, context: &Context) -> Result<Option<Message>> {
         if self.param.get(Param::Quote).is_some() && !self.is_forwarded() {
             return self.parent(context).await;
@@ -835,6 +898,10 @@ impl Message {
         Ok(None)
     }
 
+    /// Returns parent message according to the `In-Reply-To` header
+    /// if it exists in the database and is not trashed.
+    ///
+    /// `References` header is not taken into account.
     pub async fn parent(&self, context: &Context) -> Result<Option<Message>> {
         if let Some(in_reply_to) = &self.in_reply_to {
             if let Some(msg_id) = rfc724_mid_exists(context, in_reply_to).await? {
@@ -855,6 +922,7 @@ impl Message {
         self.param.set_int(Param::ForcePlaintext, 1);
     }
 
+    /// Updates `param` column of the message in the database without changing other columns.
     pub async fn update_param(&self, context: &Context) -> Result<()> {
         context
             .sql
@@ -894,6 +962,9 @@ impl Message {
     }
 }
 
+/// State of the message.
+/// For incoming messages, stores the information on whether the message was read or not.
+/// For outgoing message, the message could be pending, already delivered or confirmed.
 #[derive(
     Debug,
     Clone,
@@ -911,6 +982,7 @@ impl Message {
 )]
 #[repr(u32)]
 pub enum MessageState {
+    /// Undefined message state.
     Undefined = 0,
 
     /// Incoming *fresh* message. Fresh messages are neither noticed
@@ -981,6 +1053,7 @@ impl std::fmt::Display for MessageState {
 }
 
 impl MessageState {
+    /// Returns true if the message can transition to `OutFailed` state from the current state.
     pub fn can_fail(self) -> bool {
         use MessageState::*;
         matches!(
@@ -988,6 +1061,8 @@ impl MessageState {
             OutPreparing | OutPending | OutDelivered | OutMdnRcvd // OutMdnRcvd can still fail because it could be a group message and only some recipients failed.
         )
     }
+
+    /// Returns true for any outgoing message states.
     pub fn is_outgoing(self) -> bool {
         use MessageState::*;
         matches!(
@@ -997,6 +1072,7 @@ impl MessageState {
     }
 }
 
+/// Returns detailed message information in a multi-line text form.
 pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let rawtxt: Option<String> = context
@@ -1161,7 +1237,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     Ok(ret)
 }
 
-pub fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     let extension: &str = &path.extension()?.to_str()?.to_lowercase();
     let info = match extension {
         // before using viewtype other than Viewtype::File,
@@ -1274,6 +1350,9 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
     Ok(headers)
 }
 
+/// Deletes requested messages
+/// by moving them to the trash chat
+/// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     for msg_id in msg_ids.iter() {
         let msg = Message::load_from_db(context, *msg_id).await?;
@@ -1321,6 +1400,7 @@ async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> 
     Ok(())
 }
 
+/// Marks requested messages as seen.
 pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()> {
     if msg_ids.is_empty() {
         return Ok(());
@@ -1453,7 +1533,8 @@ pub(crate) async fn update_msg_state(
 
 // Context functions to work with messages
 
-pub async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
+/// Returns true if given message ID exists in the database and is not trashed.
+pub(crate) async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
     if msg_id.is_special() {
         return Ok(false);
     }
@@ -1470,7 +1551,7 @@ pub async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
     }
 }
 
-pub async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
+pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
@@ -1716,6 +1797,20 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
     }
 }
 
+/// Estimates the number of messages that will be deleted
+/// by the options `delete_device_after` or `delete_server_after`.
+/// This is typically used to show the estimated impact to the user
+/// before actually enabling deletion of old messages.
+///
+/// If `from_server` is true,
+/// estimate deletion count for server,
+/// otherwise estimate deletion count for device.
+///
+/// Count messages older than the given number of `seconds`.
+///
+/// Returns the number of messages that are older than the given number of seconds.
+/// This includes e-mails downloaded due to the `show_emails` option.
+/// Messages in the "saved messages" folder are not counted as they will not be deleted automatically.
 pub async fn estimate_deletion_cnt(
     context: &Context,
     from_server: bool,
@@ -1804,6 +1899,7 @@ pub(crate) async fn rfc724_mid_exists(
 )]
 #[repr(u32)]
 pub enum Viewtype {
+    /// Unknown message type.
     Unknown = 0,
 
     /// Text message.
