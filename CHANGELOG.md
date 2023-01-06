@@ -19,6 +19,7 @@
 - jsonrpc: add python API for webxdc updates #3872
 - jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
 - Add ffi functions to retrieve `verified by` information #3786
+- resultify `Message::get_filebytes()` #3925
 
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860

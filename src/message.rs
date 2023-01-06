@@ -494,11 +494,12 @@ impl Message {
             .map(|name| name.to_string_lossy().to_string())
     }
 
-    pub async fn get_filebytes(&self, context: &Context) -> u64 {
-        match self.param.get_path(Param::File, context) {
-            Ok(Some(path)) => get_filebytes(context, &path).await,
-            Ok(None) => 0,
-            Err(_) => 0,
+    /// Returns the size of the file in bytes, if applicable.
+    pub async fn get_filebytes(&self, context: &Context) -> Result<Option<u64>> {
+        if let Some(path) = self.param.get_path(Param::File, context)? {
+            Ok(Some(get_filebytes(context, &path).await?))
+        } else {
+            Ok(None)
         }
     }
 
@@ -1102,7 +1103,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
 
     if let Some(path) = msg.get_file(context) {
-        let bytes = get_filebytes(context, &path).await;
+        let bytes = get_filebytes(context, &path).await?;
         ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
 

@@ -1432,7 +1432,7 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
 async fn is_file_size_okay(context: &Context, msg: &Message) -> Result<bool> {
     match msg.param.get_path(Param::File, context)? {
         Some(path) => {
-            let bytes = get_filebytes(context, &path).await;
+            let bytes = get_filebytes(context, &path).await?;
             Ok(bytes <= UPPER_LIMIT_FILE_SIZE)
         }
         None => Ok(false),

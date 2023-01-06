@@ -5202,7 +5202,7 @@ mod tests {
         assert_eq!(msg.get_filename(), Some(filename.to_string()));
         assert_eq!(msg.get_width(), w);
         assert_eq!(msg.get_height(), h);
-        assert!(msg.get_filebytes(&bob).await > 250);
+        assert!(msg.get_filebytes(&bob).await?.unwrap() > 250);
 
         Ok(())
     }

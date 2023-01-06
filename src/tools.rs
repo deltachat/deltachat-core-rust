@@ -364,12 +364,10 @@ pub(crate) fn get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf
     }
 }
 
-pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> u64 {
+pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
     let path_abs = get_abs_path(context, &path);
-    match fs::metadata(&path_abs).await {
-        Ok(meta) => meta.len(),
-        Err(_err) => 0,
-    }
+    let meta = fs::metadata(&path_abs).await?;
+    Ok(meta.len())
 }
 
 pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
@@ -1055,7 +1053,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             .is_ok());
         assert!(file_exist!(context, "$BLOBDIR/foobar"));
         assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
-        assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await, 7);
+        assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await.unwrap(), 7);
 
         let abs_path = context
             .get_blobdir()

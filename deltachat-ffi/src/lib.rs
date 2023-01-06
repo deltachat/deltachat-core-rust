@@ -3309,6 +3309,8 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     let ctx = &*ffi_msg.context;
 
     block_on(ffi_msg.message.get_filebytes(ctx))
+        .unwrap_or_log_default(ctx, "Cannot get file size")
+        .unwrap_or_default()
 }
 
 #[no_mangle]
