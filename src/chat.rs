@@ -2431,31 +2431,63 @@ pub(crate) async fn marknoticed_chat_if_older_than(
 }
 
 /// Marks all messages in the chat as noticed.
+/// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     // the additional SELECT statement may speed up things as no write-blocking is needed.
-    let exists = context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
-            paramsv![MessageState::InFresh, chat_id],
-        )
-        .await?;
-    if !exists {
-        return Ok(());
-    }
+    if chat_id.is_archived_link() {
+        let chat_ids_in_archive = context
+            .sql
+            .query_map(
+                "SELECT DISTINCT(m.chat_id) FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.blocked=0 AND c.archived=1",
+                paramsv![],
+                |row| row.get::<_, ChatId>(0),
+                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+            )
+            .await?;
+        if chat_ids_in_archive.is_empty() {
+            return Ok(());
+        }
 
-    context
-        .sql
-        .execute(
-            "UPDATE msgs
-            SET state=?
-          WHERE state=?
-            AND hidden=0
-            AND chat_id=?;",
-            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
-        )
-        .await?;
+        context
+            .sql
+            .execute(
+                &format!(
+                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id IN ({});",
+                    sql::repeat_vars(chat_ids_in_archive.len())
+                ),
+                rusqlite::params_from_iter(&chat_ids_in_archive),
+            )
+            .await?;
+        for chat_id_in_archive in chat_ids_in_archive {
+            context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
+        }
+    } else {
+        let exists = context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+                paramsv![MessageState::InFresh, chat_id],
+            )
+            .await?;
+        if !exists {
+            return Ok(());
+        }
+
+        context
+            .sql
+            .execute(
+                "UPDATE msgs
+                SET state=?
+              WHERE state=?
+                AND hidden=0
+                AND chat_id=?;",
+                paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
+            )
+            .await?;
+    }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
 
@@ -4456,6 +4488,91 @@ mod tests {
         set_muted(&t, chat_id, MuteDuration::NotMuted).await?;
         send_text_msg(&t, chat_id, "out2".to_string()).await?;
         assert_eq!(get_archived_cnt(&t).await?, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archive_fresh_msgs() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        async fn msg_from(t: &TestContext, name: &str, num: u32) -> Result<()> {
+            receive_imf(
+                t,
+                format!(
+                    "From: {}@example.net\n\
+                     To: alice@example.org\n\
+                     Message-ID: <{}@example.org>\n\
+                     Chat-Version: 1.0\n\
+                     Date: Sun, 22 Mar 2022 19:37:57 +0000\n\
+                     \n\
+                     hello\n",
+                    name, num
+                )
+                .as_bytes(),
+                false,
+            )
+            .await?;
+            Ok(())
+        }
+
+        // receive some messages in archived+muted chats
+        msg_from(&t, "bob", 1).await?;
+        let bob_chat_id = t.get_last_msg().await.get_chat_id();
+        bob_chat_id.accept(&t).await?;
+        set_muted(&t, bob_chat_id, MuteDuration::Forever).await?;
+        bob_chat_id
+            .set_visibility(&t, ChatVisibility::Archived)
+            .await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
+
+        msg_from(&t, "bob", 2).await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        msg_from(&t, "bob", 3).await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        msg_from(&t, "claire", 4).await?;
+        let claire_chat_id = t.get_last_msg().await.get_chat_id();
+        claire_chat_id.accept(&t).await?;
+        set_muted(&t, claire_chat_id, MuteDuration::Forever).await?;
+        claire_chat_id
+            .set_visibility(&t, ChatVisibility::Archived)
+            .await?;
+        msg_from(&t, "claire", 5).await?;
+        msg_from(&t, "claire", 6).await?;
+        msg_from(&t, "claire", 7).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 3);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+
+        // mark one of the archived+muted chats as noticed: check that the archive-link counter is changed as well
+        marknoticed_chat(&t, claire_chat_id).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        // receive some more messages
+        msg_from(&t, "claire", 8).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        msg_from(&t, "dave", 9).await?;
+        let dave_chat_id = t.get_last_msg().await.get_chat_id();
+        dave_chat_id.accept(&t).await?;
+        assert_eq!(dave_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
+
+        // mark the archived-link as noticed: check that the real chats are noticed as well
+        marknoticed_chat(&t, DC_CHAT_ID_ARCHIVED_LINK).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(dave_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
 
         Ok(())
     }

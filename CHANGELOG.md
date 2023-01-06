@@ -12,6 +12,7 @@
 - Buffer IMAP client writes #3888
 - move `DC_CHAT_ID_ARCHIVED_LINK` to the top of chat lists
   and make `dc_get_fresh_msg_cnt()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3918
+- make `dc_marknoticed_chat()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3919
 - Update provider database
 
 ### API-Changes
