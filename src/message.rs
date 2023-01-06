@@ -586,7 +586,7 @@ impl Message {
     }
 
     pub fn is_sent(&self) -> bool {
-        self.state as i32 >= MessageState::OutDelivered as i32
+        self.state >= MessageState::OutDelivered
     }
 
     pub fn is_forwarded(&self) -> bool {
@@ -899,6 +899,8 @@ impl Message {
     Copy,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
     FromPrimitive,
     ToPrimitive,
     ToSql,
