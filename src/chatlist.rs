@@ -369,29 +369,22 @@ pub async fn get_chatlistitem_for_chat(
 ) -> Result<(ChatId, Option<MsgId>)> {
     // Similar result as normal chatlist, only one item though and:
     // archived and blocked chats are included
-    context
+    let msg_id = context
         .sql
         .query_row(
-            "SELECT c.id, m.id
-                FROM chats c
-                LEFT JOIN msgs m
-                    ON c.id=m.chat_id
-                    AND m.id=(
-                            SELECT id
-                                FROM msgs
-                            WHERE chat_id=c.id
-                                AND (hidden=0 OR state=?1)
-                                ORDER BY timestamp DESC, id DESC LIMIT 1)
-                WHERE c.id=?2
-                GROUP BY c.id",
+            "SELECT id
+                FROM msgs
+                WHERE chat_id=?2
+                AND (hidden=0 OR state=?1)
+                ORDER BY timestamp DESC, id DESC LIMIT 1",
             paramsv![MessageState::OutDraft, chat_id],
             |row: &rusqlite::Row| {
-                let chat_id: ChatId = row.get(0)?;
-                let msg_id: Option<MsgId> = row.get(1)?;
-                Ok((chat_id, msg_id))
+                let msg_id: Option<MsgId> = row.get(0)?;
+                Ok(msg_id)
             },
         )
-        .await
+        .await?;
+    Ok((chat_id, msg_id))
 }
 
 #[cfg(test)]
