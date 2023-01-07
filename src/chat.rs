@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
+use crate::chatlist::Chatlist;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
@@ -878,6 +879,124 @@ impl ChatId {
             .query_get_value("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?", (self,))
             .await?;
         Ok(timestamp)
+    }
+
+    /// Returns a list of active similar chat IDs sorted by similarity metric.
+    ///
+    /// Jaccard similarity coefficient is used to estimate similarity of chat member sets.
+    ///
+    /// Chat is considered active if something was posted there within the last 42 days.
+    pub async fn get_similar_chat_ids(self, context: &Context) -> Result<Vec<(ChatId, f64)>> {
+        // Count number of common members in this and other chats.
+        let intersection: Vec<(ChatId, f64)> = context
+            .sql
+            .query_map(
+                "SELECT y.chat_id, SUM(x.contact_id = y.contact_id)
+                 FROM chats_contacts as x
+                 JOIN chats_contacts as y
+                 WHERE x.contact_id > 9
+                   AND y.contact_id > 9
+                   AND x.chat_id=?
+                   AND y.chat_id<>x.chat_id
+                 GROUP BY y.chat_id",
+                (self,),
+                |row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let intersection: f64 = row.get(1)?;
+                    Ok((chat_id, intersection))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+            .context("failed to calculate member set intersections")?;
+
+        let chat_size: HashMap<ChatId, f64> = context
+            .sql
+            .query_map(
+                "SELECT chat_id, count(*) AS n
+                 FROM chats_contacts where contact_id > 9
+                 GROUP BY chat_id",
+                (),
+                |row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let size: f64 = row.get(1)?;
+                    Ok((chat_id, size))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<HashMap<ChatId, f64>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+            .context("failed to count chat member sizes")?;
+
+        let our_chat_size = chat_size.get(&self).copied().unwrap_or_default();
+        let mut chats_with_metrics = Vec::new();
+        for (chat_id, intersection_size) in intersection {
+            if intersection_size > 0.0 {
+                let other_chat_size = chat_size.get(&chat_id).copied().unwrap_or_default();
+                let union_size = our_chat_size + other_chat_size - intersection_size;
+                let metric = intersection_size / union_size;
+                chats_with_metrics.push((chat_id, metric))
+            }
+        }
+        chats_with_metrics.sort_unstable_by(|(chat_id1, metric1), (chat_id2, metric2)| {
+            metric2
+                .partial_cmp(metric1)
+                .unwrap_or(chat_id2.cmp(chat_id1))
+        });
+
+        // Select up to five similar active chats.
+        let mut res = Vec::new();
+        let now = time();
+        for (chat_id, metric) in chats_with_metrics {
+            if let Some(chat_timestamp) = chat_id.get_timestamp(context).await? {
+                if now > chat_timestamp + 42 * 24 * 3600 {
+                    // Chat was inactive for 42 days, skip.
+                    continue;
+                }
+            }
+
+            if metric < 0.1 {
+                // Chat is unrelated.
+                break;
+            }
+
+            let chat = Chat::load_from_db(context, chat_id).await?;
+            if chat.typ != Chattype::Group {
+                continue;
+            }
+
+            match chat.visibility {
+                ChatVisibility::Normal | ChatVisibility::Pinned => {}
+                ChatVisibility::Archived => continue,
+            }
+
+            res.push((chat_id, metric));
+            if res.len() >= 5 {
+                break;
+            }
+        }
+
+        Ok(res)
+    }
+
+    /// Returns similar chats as a [`Chatlist`].
+    ///
+    /// [`Chatlist`]: crate::chatlist::Chatlist
+    pub async fn get_similar_chatlist(self, context: &Context) -> Result<Chatlist> {
+        let chat_ids: Vec<ChatId> = self
+            .get_similar_chat_ids(context)
+            .await
+            .context("failed to get similar chat IDs")?
+            .into_iter()
+            .map(|(chat_id, _metric)| chat_id)
+            .collect();
+        let chatlist = Chatlist::from_chat_ids(context, &chat_ids).await?;
+        Ok(chatlist)
     }
 
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {

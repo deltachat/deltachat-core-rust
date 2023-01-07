@@ -805,15 +805,30 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "chatinfo" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
+            let sel_chat_id = sel_chat.as_ref().unwrap().get_id();
 
-            let contacts =
-                chat::get_chat_contacts(&context, sel_chat.as_ref().unwrap().get_id()).await?;
+            let contacts = chat::get_chat_contacts(&context, sel_chat_id).await?;
             println!("Memberlist:");
 
             log_contactlist(&context, &contacts).await?;
+            println!("{} contacts", contacts.len());
+
+            let similar_chats = sel_chat_id.get_similar_chat_ids(&context).await?;
+            if !similar_chats.is_empty() {
+                println!("Similar chats: ");
+                for (similar_chat_id, metric) in similar_chats {
+                    let similar_chat = Chat::load_from_db(&context, similar_chat_id).await?;
+                    println!(
+                        "{} (#{}) {:.1}",
+                        similar_chat.name,
+                        similar_chat_id,
+                        100.0 * metric
+                    );
+                }
+            }
+
             println!(
-                "{} contacts\nLocation streaming: {}",
-                contacts.len(),
+                "Location streaming: {}",
                 location::is_sending_locations_to_chat(
                     &context,
                     Some(sel_chat.as_ref().unwrap().get_id())
