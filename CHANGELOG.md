@@ -18,6 +18,8 @@
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
 - jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
+- jsonrpc: add `get_chatlist_entry_by_chat` method #3929
+- jsonrpc: second field of chat list entry is now an `Option<u32>`, before it was just `u32` #3929
 - Add ffi functions to retrieve `verified by` information #3786
 
 ### Fixes
