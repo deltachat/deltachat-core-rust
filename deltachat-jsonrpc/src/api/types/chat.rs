@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use deltachat::chat::{self, get_chat_contacts, ChatVisibility};
 use deltachat::chat::{Chat, ChatId};
 use deltachat::constants::Chattype;
@@ -53,7 +53,9 @@ impl FullChat {
             contacts.push(
                 ContactObject::try_from_dc_contact(
                     context,
-                    Contact::load_from_db(context, *contact_id).await?,
+                    Contact::load_from_db(context, *contact_id)
+                        .await
+                        .context("failed to load contact")?,
                 )
                 .await?,
             )
@@ -73,7 +75,8 @@ impl FullChat {
         let was_seen_recently = if chat.get_type() == Chattype::Single {
             match contact_ids.get(0) {
                 Some(contact) => Contact::load_from_db(context, *contact)
-                    .await?
+                    .await
+                    .context("failed to load contact for was_seen_recently")?
                     .was_seen_recently(),
                 None => false,
             }
