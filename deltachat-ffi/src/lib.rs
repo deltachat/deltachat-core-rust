@@ -1243,6 +1243,30 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_get_similar_chatlist(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> *mut dc_chatlist_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_similar_chatlist()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+
+    let chat_id = ChatId::new(chat_id);
+    match block_on(chat_id.get_similar_chatlist(ctx))
+        .context("failed to get similar chatlist")
+        .log_err(ctx)
+    {
+        Ok(list) => {
+            let ffi_list = ChatlistWrapper { context, list };
+            Box::into_raw(Box::new(ffi_list))
+        }
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_estimate_deletion_cnt(
     context: *mut dc_context_t,
     from_server: libc::c_int,
