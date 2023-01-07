@@ -375,7 +375,7 @@ pub async fn get_chatlistitem_for_chat(
     // archived and blocked chats are included
     let msg_id = context
         .sql
-        .query_row(
+        .query_row_optional(
             "SELECT id
                 FROM msgs
                 WHERE chat_id=?2
@@ -383,7 +383,7 @@ pub async fn get_chatlistitem_for_chat(
                 ORDER BY timestamp DESC, id DESC LIMIT 1",
             paramsv![MessageState::OutDraft, chat_id],
             |row: &rusqlite::Row| {
-                let msg_id: Option<MsgId> = row.get(0)?;
+                let msg_id: MsgId = row.get(0)?;
                 Ok(msg_id)
             },
         )
