@@ -41,7 +41,6 @@ pub mod types;
 use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
-use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
 use types::http::HttpResponse;
 use types::message::MessageData;
@@ -549,7 +548,7 @@ impl CommandApi {
         list_flags: Option<u32>,
         query_string: Option<String>,
         query_contact_id: Option<u32>,
-    ) -> Result<Vec<ChatListEntry>> {
+    ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
         let list = Chatlist::try_load(
             &ctx,
@@ -558,12 +557,9 @@ impl CommandApi {
             query_contact_id.map(ContactId::new),
         )
         .await?;
-        let mut l: Vec<ChatListEntry> = Vec::with_capacity(list.len());
+        let mut l: Vec<u32> = Vec::with_capacity(list.len());
         for i in 0..list.len() {
-            l.push(ChatListEntry(
-                list.get_chat_id(i)?.to_u32(),
-                list.get_msg_id(i)?.unwrap_or_default().to_u32(),
-            ));
+            l.push(list.get_chat_id(i)?.to_u32());
         }
         Ok(l)
     }
@@ -571,19 +567,18 @@ impl CommandApi {
     async fn get_chatlist_items_by_entries(
         &self,
         account_id: u32,
-        entries: Vec<ChatListEntry>,
+        entries: Vec<u32>,
     ) -> Result<HashMap<u32, ChatListItemFetchResult>> {
-        // todo custom json deserializer for ChatListEntry?
         let ctx = self.get_context(account_id).await?;
         let mut result: HashMap<u32, ChatListItemFetchResult> =
             HashMap::with_capacity(entries.len());
-        for entry in entries.iter() {
+        for &entry in entries.iter() {
             result.insert(
-                entry.0,
+                entry,
                 match get_chat_list_item_by_id(&ctx, entry).await {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
-                        id: entry.0,
+                        id: entry,
                         error: format!("{err:#}"),
                     },
                 },

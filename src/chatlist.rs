@@ -362,6 +362,25 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
     Ok(count)
 }
 
+/// Gets the last message of a chat, the message that would also be displayed in the ChatList
+/// Used for passing to `deltachat::chatlist::Chatlist::get_summary2`
+pub async fn get_last_message_for_chat(
+    context: &Context,
+    chat_id: ChatId,
+) -> Result<Option<MsgId>> {
+    context
+        .sql
+        .query_get_value(
+            "SELECT id
+                FROM msgs
+                WHERE chat_id=?2
+                AND (hidden=0 OR state=?1)
+                ORDER BY timestamp DESC, id DESC LIMIT 1",
+            (MessageState::OutDraft, chat_id),
+        )
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
