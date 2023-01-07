@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use deltachat::chat::{Chat, ChatId};
 use deltachat::chatlist::get_chatlistitem_for_chat;
 use deltachat::constants::*;
 use deltachat::contact::{Contact, ContactId};
@@ -6,11 +7,8 @@ use deltachat::{
     chat::{get_chat_contacts, ChatVisibility},
     chatlist::Chatlist,
 };
-use deltachat::{
-    chat::{Chat, ChatId},
-};
 use num_traits::cast::ToPrimitive;
-use serde::{Serialize};
+use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
@@ -57,14 +55,14 @@ pub(crate) async fn get_chat_list_item_by_id(
 ) -> Result<ChatListItemFetchResult> {
     let chat_id = ChatId::new(entry);
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
-    
+
     if chat_id.is_archived_link() {
         return Ok(ChatListItemFetchResult::ArchiveLink {
             fresh_message_counter,
         });
     }
 
-    let (_, last_msgid) = get_chatlistitem_for_chat(&ctx, chat_id).await?;
+    let (_, last_msgid) = get_chatlistitem_for_chat(ctx, chat_id).await?;
 
     let chat = Chat::load_from_db(ctx, chat_id).await.context("chat:")?;
     let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
