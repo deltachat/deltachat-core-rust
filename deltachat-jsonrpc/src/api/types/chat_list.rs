@@ -56,16 +56,15 @@ pub(crate) async fn get_chat_list_item_by_id(
     entry: u32,
 ) -> Result<ChatListItemFetchResult> {
     let chat_id = ChatId::new(entry);
-
-    let (_, last_msgid) = get_chatlistitem_for_chat(&ctx, chat_id).await?;
-
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
-
+    
     if chat_id.is_archived_link() {
         return Ok(ChatListItemFetchResult::ArchiveLink {
             fresh_message_counter,
         });
     }
+
+    let (_, last_msgid) = get_chatlistitem_for_chat(&ctx, chat_id).await?;
 
     let chat = Chat::load_from_db(ctx, chat_id).await.context("chat:")?;
     let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
