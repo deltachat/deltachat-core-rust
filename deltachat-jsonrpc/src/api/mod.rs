@@ -4,7 +4,7 @@ use deltachat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
         remove_contact_from_chat, Chat, ChatId, ChatItem, ProtectionStatus,
     },
-    chatlist::Chatlist,
+    chatlist::{get_chatlistitem_for_chat, Chatlist},
     config::Config,
     constants::DC_MSG_ID_DAYMARKER,
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
@@ -439,10 +439,25 @@ impl CommandApi {
         for i in 0..list.len() {
             l.push(ChatListEntry(
                 list.get_chat_id(i)?.to_u32(),
-                list.get_msg_id(i)?.unwrap_or_default().to_u32(),
+                list.get_msg_id(i)?.map(|msg_id| msg_id.to_u32()),
             ));
         }
         Ok(l)
+    }
+
+    /// Get a chat list entry for a specific chat,
+    /// you should prefer using `get_chatlist_entries` unless you need this function for your virtual list needs like desktop
+    async fn get_chatlist_entry_by_chat(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+    ) -> Result<ChatListEntry> {
+        let ctx = self.get_context(account_id).await?;
+        let (chat_id, message_id) = get_chatlistitem_for_chat(&ctx, ChatId::new(chat_id)).await?;
+        Ok(ChatListEntry(
+            chat_id.to_u32(),
+            message_id.map(|msg_id| msg_id.to_u32()),
+        ))
     }
 
     async fn get_chatlist_items_by_entries(

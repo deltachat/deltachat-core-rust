@@ -16,7 +16,7 @@ use typescript_type_def::TypeDef;
 use super::color_int_to_hex_string;
 
 #[derive(Deserialize, Serialize, TypeDef)]
-pub struct ChatListEntry(pub u32, pub u32);
+pub struct ChatListEntry(pub u32, pub Option<u32>);
 
 #[derive(Serialize, TypeDef)]
 #[serde(tag = "type")]
@@ -59,10 +59,7 @@ pub(crate) async fn get_chat_list_item_by_id(
     entry: &ChatListEntry,
 ) -> Result<ChatListItemFetchResult> {
     let chat_id = ChatId::new(entry.0);
-    let last_msgid = match entry.1 {
-        0 => None,
-        _ => Some(MsgId::new(entry.1)),
-    };
+    let last_msgid = entry.1.map(|msg_id| MsgId::new(msg_id));
 
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
 
