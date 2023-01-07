@@ -366,6 +366,31 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
     Ok(count)
 }
 
+/// Returns a single chatlistitem (chatId and messageid), used by desktop to partially update the chatlist on specific events
+pub async fn get_chatlistitem_for_chat(
+    context: &Context,
+    chat_id: ChatId,
+) -> Result<(ChatId, Option<MsgId>)> {
+    // Similar result as normal chatlist, only one item though and:
+    // archived and blocked chats are included
+    let msg_id = context
+        .sql
+        .query_row(
+            "SELECT id
+                FROM msgs
+                WHERE chat_id=?2
+                AND (hidden=0 OR state=?1)
+                ORDER BY timestamp DESC, id DESC LIMIT 1",
+            paramsv![MessageState::OutDraft, chat_id],
+            |row: &rusqlite::Row| {
+                let msg_id: Option<MsgId> = row.get(0)?;
+                Ok(msg_id)
+            },
+        )
+        .await?;
+    Ok((chat_id, msg_id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
