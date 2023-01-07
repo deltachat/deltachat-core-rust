@@ -871,6 +871,15 @@ impl ChatId {
         Ok(count)
     }
 
+    /// Returns timestamp of the latest message in the chat.
+    pub(crate) async fn get_timestamp(self, context: &Context) -> Result<Option<i64>> {
+        let timestamp = context
+            .sql
+            .query_get_value("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?", (self,))
+            .await?;
+        Ok(timestamp)
+    }
+
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
         let res: Option<String> = context
             .sql
@@ -2575,14 +2584,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     chat_id: ChatId,
     timestamp: i64,
 ) -> Result<()> {
-    if let Some(chat_timestamp) = context
-        .sql
-        .query_get_value(
-            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
-            (chat_id,),
-        )
-        .await?
-    {
+    if let Some(chat_timestamp) = chat_id.get_timestamp(context).await? {
         if timestamp > chat_timestamp {
             marknoticed_chat(context, chat_id).await?;
         }
