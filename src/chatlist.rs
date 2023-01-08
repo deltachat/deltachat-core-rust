@@ -366,14 +366,13 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
     Ok(count)
 }
 
-/// Returns a single chatlistitem (chatId and messageid), used by desktop to partially update the chatlist on specific events
-pub async fn get_chatlistitem_for_chat(
+/// Gets the last message of a chat, the message that would also be displayed in the ChatList
+/// Used for passing to `deltachat::chatlist::Chatlist::get_summary2`
+pub async fn get_last_message_for_chat(
     context: &Context,
     chat_id: ChatId,
-) -> Result<(ChatId, Option<MsgId>)> {
-    // Similar result as normal chatlist, only one item though and:
-    // archived and blocked chats are included
-    let msg_id = context
+) -> Result<Option<MsgId>> {
+    context
         .sql
         .query_row_optional(
             "SELECT id
@@ -387,8 +386,7 @@ pub async fn get_chatlistitem_for_chat(
                 Ok(msg_id)
             },
         )
-        .await?;
-    Ok((chat_id, msg_id))
+        .await
 }
 
 #[cfg(test)]

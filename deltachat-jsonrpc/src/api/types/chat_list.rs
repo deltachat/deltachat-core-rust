@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use deltachat::chat::{Chat, ChatId};
-use deltachat::chatlist::get_chatlistitem_for_chat;
+use deltachat::chatlist::get_last_message_for_chat;
 use deltachat::constants::*;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::{
@@ -62,7 +62,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         });
     }
 
-    let (_, last_msgid) = get_chatlistitem_for_chat(ctx, chat_id).await?;
+    let last_msgid = get_last_message_for_chat(ctx, chat_id).await?;
 
     let chat = Chat::load_from_db(ctx, chat_id).await.context("chat:")?;
     let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
