@@ -1740,14 +1740,37 @@ impl Session {
     /// If this returns `true`, this means that new emails arrived and you should
     /// fetch again, even if you just fetched.
     fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
+        use async_imap::imap_proto::Response;
+        use async_imap::imap_proto::ResponseCode;
+        use UnsolicitedResponse::*;
+
         let mut unsolicited_exists = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
-            if let UnsolicitedResponse::Exists(_) = response {
-                info!(
-                    context,
-                    "Need to fetch again, got unsolicited EXISTS {:?}", response
-                );
-                unsolicited_exists = true;
+            match response {
+                Exists(_) => {
+                    info!(
+                        context,
+                        "Need to fetch again, got unsolicited EXISTS {:?}", response
+                    );
+                    unsolicited_exists = true;
+                }
+
+                // We are not interested in the following responses and they are are
+                // sent quite frequently, so, we ignore them without logging them
+                Expunge(_) | Recent(_) => {}
+                Other(response_data)
+                    if matches!(
+                        response_data.parsed(),
+                        Response::Fetch { .. }
+                            | Response::Done {
+                                code: Some(ResponseCode::CopyUid(_, _, _)),
+                                ..
+                            }
+                    ) => {}
+
+                _ => {
+                    info!(context, "ignoring unsolicited response {:?}", response)
+                }
             }
         }
         Ok(unsolicited_exists)
