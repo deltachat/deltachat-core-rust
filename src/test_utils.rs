@@ -529,7 +529,11 @@ impl TestContext {
         let (contact_id, modified) =
             Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
                 .await
-                .unwrap();
+                .expect("add_or_lookup")
+                .expect(&format!(
+                    "contact with address {:?} cannot be created",
+                    &addr
+                ));
         match modified {
             Modifier::None => (),
             Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),

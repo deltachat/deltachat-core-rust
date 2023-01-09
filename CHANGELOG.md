@@ -10,6 +10,8 @@
 ### Fixes
 - fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
 - Immediately save `accounts.toml` if it was modified by a migration from absolute paths to relative paths #3943
+- Do not treat invalid email addresses as an exception #3942
+
 
 ## 1.105.0
 

@@ -170,7 +170,16 @@ pub(crate) async fn receive_imf_inner(
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
     let (from_id, _from_id_blocked, incoming_origin) =
-        from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await?;
+        match from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await? {
+            Some(contact_id_res) => contact_id_res,
+            None => {
+                warn!(
+                    context,
+                    "receive_imf: From field does not contain an acceptable address"
+                );
+                return Ok(None);
+            }
+        };
 
     let incoming = from_id != ContactId::SELF;
 
@@ -373,22 +382,28 @@ pub async fn from_field_to_contact_id(
     context: &Context,
     from: &SingleInfo,
     prevent_rename: bool,
-) -> Result<(ContactId, bool, Origin)> {
+) -> Result<Option<(ContactId, bool, Origin)>> {
     let display_name = if prevent_rename {
         Some("")
     } else {
         from.display_name.as_deref()
     };
-    let from_id = add_or_lookup_contact_by_addr(
+    let from_id = if let Some(from_id) = add_or_lookup_contact_by_addr(
         context,
         display_name,
         &from.addr,
         Origin::IncomingUnknownFrom,
     )
-    .await?;
+    .await
+    .context("add_or_lookup_contact_by_addr")?
+    {
+        from_id
+    } else {
+        return Ok(None);
+    };
 
     if from_id == ContactId::SELF {
-        Ok((ContactId::SELF, false, Origin::OutgoingBcc))
+        Ok(Some((ContactId::SELF, false, Origin::OutgoingBcc)))
     } else {
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
@@ -396,7 +411,7 @@ pub async fn from_field_to_contact_id(
             from_id_blocked = contact.blocked;
             incoming_origin = contact.origin;
         }
-        Ok((from_id, from_id_blocked, incoming_origin))
+        Ok(Some((from_id, from_id_blocked, incoming_origin)))
     }
 }
 
@@ -1928,8 +1943,11 @@ async fn apply_mailinglist_changes(
         }
         let listid = &chat.grpid;
 
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+        let contact_id =
+            match Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await? {
+                Some((contact_id, _)) => contact_id,
+                None => return Ok(()),
+            };
         let mut contact = Contact::load_from_db(context, contact_id).await?;
         if contact.param.get(Param::ListId) != Some(listid) {
             contact.param.set(Param::ListId, listid);
@@ -2268,28 +2286,39 @@ async fn add_or_lookup_contacts_by_address_list(
             continue;
         }
         let display_name = info.display_name.as_deref();
-        contact_ids
-            .insert(add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?);
+        if let Some(contact_id) =
+            add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?
+        {
+            contact_ids.insert(contact_id);
+        } else {
+            warn!(context, "Contact with address {:?} cannot exist.", addr);
+        }
     }
 
     Ok(contact_ids.into_iter().collect::<Vec<ContactId>>())
 }
 
 /// Add contacts to database on receiving messages.
+///
+/// Returns `None` if the address can't be a valid email address.
 async fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name: Option<&str>,
     addr: &str,
     origin: Origin,
-) -> Result<ContactId> {
+) -> Result<Option<ContactId>> {
     if context.is_self_addr(addr).await? {
-        return Ok(ContactId::SELF);
+        return Ok(Some(ContactId::SELF));
     }
     let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
-    let (row_id, _modified) =
-        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
-    Ok(row_id)
+    if let Some((contact_id, _modified)) =
+        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?
+    {
+        Ok(Some(contact_id))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

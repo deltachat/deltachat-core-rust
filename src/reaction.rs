@@ -368,6 +368,7 @@ Can we chat at 1pm pacific, today?"
 
         let bob_id = Contact::add_or_lookup(&alice, "", "bob@example.net", Origin::ManuallyCreated)
             .await?
+            .unwrap()
             .0;
         let bob_reaction = reactions.get(bob_id);
         assert!(bob_reaction.is_empty()); // Bob has not reacted to message yet.

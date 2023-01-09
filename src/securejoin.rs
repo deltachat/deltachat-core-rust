@@ -1006,7 +1006,8 @@ mod tests {
             "bob@example.net",
             Origin::ManuallyCreated,
         )
-        .await?;
+        .await?
+        .unwrap();
         let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await?,

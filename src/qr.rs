@@ -221,10 +221,15 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         .context("Can't load peerstate")?;
 
     if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
-        let contact_id = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
+        let (contact_id, _) = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
             .await
-            .map(|(id, _)| id)
-            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?;
+            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?
+            .with_context(|| {
+                format!(
+                    "do not want to lookup contact for invalid address {:?}",
+                    addr
+                )
+            })?;
 
         if let (Some(grpid), Some(grpname)) = (grpid, grpname) {
             if context
@@ -287,10 +292,13 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         }
     } else if let Some(addr) = addr {
         if let Some(peerstate) = peerstate {
-            let contact_id =
+            let (contact_id, _) =
                 Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
                     .await
-                    .map(|(id, _)| id)?;
+                    .context("add_or_lookup")?
+                    .with_context(|| {
+                        format!("Not looking up contact for address {:?}", &peerstate.addr)
+                    })?;
             let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
                 .await
                 .context("Failed to create (new) chat for contact")?;
@@ -620,7 +628,9 @@ impl Qr {
         draft: Option<String>,
     ) -> Result<Self> {
         let (contact_id, _) =
-            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan).await?;
+            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+                .await?
+                .context("QR code does not contain a valid address")?;
         Ok(Qr::Addr { contact_id, draft })
     }
 }

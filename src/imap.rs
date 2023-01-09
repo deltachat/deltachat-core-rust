@@ -1737,7 +1737,19 @@ async fn should_move_out_of_spam(
         };
         // No chat found.
         let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, &from, true).await?;
+            match from_field_to_contact_id(context, &from, true)
+                .await
+                .context("from_field_to_contact_id")?
+            {
+                Some(res) => res,
+                None => {
+                    warn!(
+                        context,
+                        "Contact with From address {:?} cannot exist, not moving out of spam", from
+                    );
+                    return Ok(false);
+                }
+            };
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
             return Ok(false);
@@ -2027,7 +2039,10 @@ pub(crate) async fn prefetch_should_download(
         None => return Ok(false),
     };
     let (_from_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &from, true).await?;
+        match from_field_to_contact_id(context, &from, true).await? {
+            Some(res) => res,
+            None => return Ok(false),
+        };
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
@@ -2347,14 +2362,14 @@ async fn add_all_recipients_as_contacts(
         .await
         .with_context(|| format!("could not select {}", mailbox))?;
 
-    let contacts = imap
+    let recipients = imap
         .get_all_recipients(context)
         .await
         .context("could not get recipients")?;
 
     let mut any_modified = false;
-    for contact in contacts {
-        let display_name_normalized = contact
+    for recipient in recipients {
+        let display_name_normalized = recipient
             .display_name
             .as_ref()
             .map(|s| normalize_name(s))
@@ -2363,17 +2378,20 @@ async fn add_all_recipients_as_contacts(
         match Contact::add_or_lookup(
             context,
             &display_name_normalized,
-            &contact.addr,
+            &recipient.addr,
             Origin::OutgoingTo,
         )
-        .await
+        .await?
         {
-            Ok((_, modified)) => {
+            Some((_, modified)) => {
                 if modified != Modifier::None {
                     any_modified = true;
                 }
             }
-            Err(e) => warn!(context, "Could not add recipient: {}", e),
+            None => warn!(
+                context,
+                "Could not add contact for recipient with address {:?}", recipient.addr
+            ),
         }
     }
     if any_modified {

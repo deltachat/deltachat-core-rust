@@ -942,6 +942,20 @@ def test_dont_show_emails(acfactory, lp):
     ac1.direct_imap.append(
         "Spam",
         """
+        From: delta<address: inbox@nhroy.com>
+        Subject: subj
+        To: {}
+        Message-ID: <spam.message99@junk.org>
+        Content-Type: text/plain; charset=utf-8
+
+        Unknown & malformed message in Spam
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Spam",
+        """
         From: alice@example.org
         Subject: subj
         To: {}

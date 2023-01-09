@@ -1821,6 +1821,7 @@ mod tests {
             Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
                 .await
                 .unwrap()
+                .unwrap()
                 .0;
 
         let chat_id = ChatId::create_for_contact(&t, contact_id).await.unwrap();

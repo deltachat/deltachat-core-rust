@@ -429,6 +429,7 @@ async fn test_escaped_recipients() {
         Contact::add_or_lookup(&t, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
             .await
             .unwrap()
+            .unwrap()
             .0;
 
     receive_imf(
@@ -470,6 +471,7 @@ async fn test_cc_to_contact() {
     let carl_contact_id =
         Contact::add_or_lookup(&t, "garabage", "carl@host.tld", Origin::IncomingUnknownFrom)
             .await
+            .unwrap()
             .unwrap()
             .0;
 
@@ -2058,6 +2060,7 @@ async fn test_duplicate_message() -> Result<()> {
         Origin::IncomingUnknownFrom,
     )
     .await?
+    .unwrap()
     .0;
 
     let first_message = b"Received: from [127.0.0.1]
@@ -2111,6 +2114,7 @@ async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
     t.set_config(Config::ShowEmails, Some("2")).await?;
     let bob_id = Contact::add_or_lookup(&t, "", "bob@example.net", Origin::IncomingUnknownCc)
         .await?
+        .unwrap()
         .0;
     let bob = Contact::load_from_db(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "");
@@ -2529,7 +2533,8 @@ Second thread."#;
         "fiona@example.net",
         Origin::IncomingUnknownTo,
     )
-    .await?;
+    .await?
+    .unwrap();
 
     chat::add_contact_to_chat(&alice, alice_first_msg.chat_id, alice_fiona_contact_id).await?;
     let alice_first_invite = alice.pop_sent_msg().await;

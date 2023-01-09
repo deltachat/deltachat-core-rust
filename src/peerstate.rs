@@ -542,14 +542,17 @@ impl Peerstate {
                 if (chat.typ == Chattype::Group && chat.is_protected())
                     || chat.typ == Chattype::Broadcast
                 {
-                    chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
-
-                    let (new_contact_id, _) =
+                    if let Some((new_contact_id, _)) =
                         Contact::add_or_lookup(context, "", new_addr, Origin::IncomingUnknownFrom)
+                            .await?
+                    {
+                        chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
                             .await?;
-                    chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id]).await?;
+                        chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id])
+                            .await?;
 
-                    context.emit_event(EventType::ChatModified(*chat_id));
+                        context.emit_event(EventType::ChatModified(*chat_id));
+                    }
                 }
             }
 
