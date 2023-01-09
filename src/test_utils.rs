@@ -14,6 +14,7 @@ use chat::ChatItem;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
 
@@ -263,7 +264,6 @@ impl TestContext {
         Self::builder().configure_fiona().build().await
     }
 
-    #[allow(dead_code)]
     /// Print current chat state.
     pub async fn print_chats(&self) {
         println!("\n========== Chats of {}: ==========", self.name());
@@ -699,6 +699,16 @@ impl Deref for TestContext {
 
     fn deref(&self) -> &Context {
         &self.ctx
+    }
+}
+
+impl Drop for TestContext {
+    fn drop(&mut self) {
+        task::block_in_place(move || {
+            Handle::current().block_on(async move {
+                self.print_chats().await;
+            });
+        });
     }
 }
 
