@@ -7,7 +7,7 @@
 ### API-Changes
 
 ### Fixes
-
+- fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
 
 ## 1.105.0
 
