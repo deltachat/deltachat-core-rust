@@ -14,6 +14,7 @@ use chat::ChatItem;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
 
@@ -263,7 +264,6 @@ impl TestContext {
         Self::builder().configure_fiona().build().await
     }
 
-    #[allow(dead_code)]
     /// Print current chat state.
     pub async fn print_chats(&self) {
         println!("\n========== Chats of {}: ==========", self.name());
@@ -702,6 +702,19 @@ impl Deref for TestContext {
     }
 }
 
+impl Drop for TestContext {
+    fn drop(&mut self) {
+        task::block_in_place(move || {
+            if let Ok(handle) = Handle::try_current() {
+                // Print the chats if runtime still exists.
+                handle.block_on(async move {
+                    self.print_chats().await;
+                });
+            }
+        });
+    }
+}
+
 pub enum LogEvent {
     /// Logged event.
     Event(Event),
@@ -1078,5 +1091,13 @@ mod tests {
         alice.ctx.emit_event(EventType::Info("hello".into()));
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Both fail");
+    }
+
+    /// Checks that dropping the `TestContext` after the runtime does not panic,
+    /// e.g. that `TestContext::drop` does not assume the runtime still exists.
+    #[test]
+    fn test_new_test_context() {
+        let runtime = tokio::runtime::Runtime::new().expect("unable to create tokio runtime");
+        runtime.block_on(TestContext::new());
     }
 }
