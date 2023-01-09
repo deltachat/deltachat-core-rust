@@ -829,7 +829,7 @@ impl Imap {
             .iter()
             .flat_map(|m| m.msg_ids.clone())
             .collect();
-        if msg_ids.len() > 0 {
+        if !msg_ids.is_empty() {
             context.emit_event(EventType::IncomingMsgBunch { msg_ids });
         }
 
