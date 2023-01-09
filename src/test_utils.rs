@@ -705,9 +705,12 @@ impl Deref for TestContext {
 impl Drop for TestContext {
     fn drop(&mut self) {
         task::block_in_place(move || {
-            Handle::current().block_on(async move {
-                self.print_chats().await;
-            });
+            if let Ok(handle) = Handle::try_current() {
+                // Print the chats if runtime still exists.
+                handle.block_on(async move {
+                    self.print_chats().await;
+                });
+            }
         });
     }
 }
