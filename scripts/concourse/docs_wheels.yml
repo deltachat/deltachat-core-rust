@@ -104,9 +104,6 @@ jobs:
       outputs:
         - name: py-docs
           path: ./python/doc/_build/
-        # Source packages
-        - name: py-dist
-          path: ./python/.docker-tox/dist/
         # Binary wheels
         - name: py-wheels
           path: ./python/.docker-tox/wheelhouse/
@@ -145,7 +142,6 @@ jobs:
     config:
       inputs:
         - name: py-wheels
-        - name: py-dist
       image_resource:
         type: registry-image
         source:
@@ -162,7 +158,6 @@ jobs:
           devpi use https://m.devpi.net/dc/master
           devpi login ((devpi.login)) --password ((devpi.password))
           devpi upload py-wheels/*manylinux201*
-          devpi upload py-dist/*
 
 - name: python-aarch64
   plan:
