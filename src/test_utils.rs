@@ -1089,4 +1089,12 @@ mod tests {
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Both fail");
     }
+
+    /// Checks that dropping the `TestContext` after the runtime does not panic,
+    /// e.g. that `TestContext::drop` does not assume the runtime still exists.
+    #[test]
+    fn test_new_test_context() {
+        let runtime = tokio::runtime::Runtime::new().expect("unable to create tokio runtime");
+        runtime.block_on(TestContext::new());
+    }
 }
