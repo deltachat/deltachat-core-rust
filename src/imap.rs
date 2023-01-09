@@ -1742,15 +1742,12 @@ impl Session {
     fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
         let mut unsolicited_exists = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
-            match response {
-                UnsolicitedResponse::Exists(_) => {
-                    info!(
-                        context,
-                        "Need to fetch again, got unsolicited EXISTS {:?}", response
-                    );
-                    unsolicited_exists = true;
-                }
-                _ => info!(context, "ignoring unsolicited response {:?}", response),
+            if let UnsolicitedResponse::Exists(_) = response {
+                info!(
+                    context,
+                    "Need to fetch again, got unsolicited EXISTS {:?}", response
+                );
+                unsolicited_exists = true;
             }
         }
         Ok(unsolicited_exists)
