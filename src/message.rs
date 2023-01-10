@@ -150,6 +150,9 @@ WHERE id=?;
             chat_id,
             msg_id: self,
         });
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
         Ok(())
     }
 
@@ -1581,10 +1584,15 @@ pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str
             )
             .await
         {
-            Ok(_) => context.emit_event(EventType::MsgFailed {
-                chat_id: msg.chat_id,
-                msg_id,
-            }),
+            Ok(_) => {
+                context.emit_event(EventType::MsgFailed {
+                    chat_id: msg.chat_id,
+                    msg_id,
+                });
+                context.emit_event(EventType::UIChatListItemChanged {
+                    chat_id: Some(msg.chat_id),
+                });
+            }
             Err(e) => {
                 warn!(context, "{:?}", e);
             }

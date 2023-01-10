@@ -1592,6 +1592,9 @@ impl MimeMessage {
                 {
                     Ok(Some((chat_id, msg_id))) => {
                         context.emit_event(EventType::MsgRead { chat_id, msg_id });
+                        context.emit_event(EventType::UIChatListItemChanged {
+                            chat_id: Some(chat_id),
+                        });
                     }
                     Ok(None) => {}
                     Err(err) => {
