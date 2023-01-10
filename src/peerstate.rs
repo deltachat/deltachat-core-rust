@@ -588,6 +588,8 @@ impl Peerstate {
             .await?;
         }
 
+        context.emit_event(EventType::UIChatListChanged);
+        context.emit_event(EventType::UIChatListItemChanged { chat_id: None });
         Ok(())
     }
 

@@ -224,6 +224,9 @@ impl BobState {
         let chat_id = self.joining_chat_id(context).await?;
         chat::add_info_msg(context, chat_id, &msg, time()).await?;
         context.emit_event(EventType::ChatModified(chat_id));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
         Ok(())
     }
 }

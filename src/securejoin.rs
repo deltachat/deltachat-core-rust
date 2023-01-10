@@ -694,6 +694,9 @@ async fn secure_connection_established(
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
     context.emit_event(EventType::ChatModified(chat_id));
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
     Ok(())
 }
 

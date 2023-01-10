@@ -266,6 +266,9 @@ pub async fn send_locations_to_chat(
         chat::add_info_msg(context, chat_id, &stock_str, now).await?;
     }
     context.emit_event(EventType::ChatModified(chat_id));
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
     if 0 != seconds {
         context.interrupt_location().await;
     }
@@ -764,6 +767,9 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
             let stock_str = stock_str::msg_location_disabled(context).await;
             chat::add_info_msg(context, chat_id, &stock_str, now).await?;
             context.emit_event(EventType::ChatModified(chat_id));
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(chat_id),
+            });
         }
     }
 

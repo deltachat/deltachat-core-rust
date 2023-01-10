@@ -648,9 +648,11 @@ impl Contact {
                             Ok(count) => {
                                 if count > 0 {
                                     // Chat name updated
-                                    context.emit_event(EventType::ChatModified(ChatId::new(
-                                        chat_id.try_into()?,
-                                    )));
+                                    let chat_id = ChatId::new(chat_id.try_into()?);
+                                    context.emit_event(EventType::ChatModified(chat_id));
+                                    context.emit_event(EventType::UIChatListItemChanged {
+                                        chat_id: Some(chat_id),
+                                    });
                                 }
                             }
                         }

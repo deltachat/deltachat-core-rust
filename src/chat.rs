@@ -348,6 +348,7 @@ impl ChatId {
             Chattype::Mailinglist => {
                 if self.set_blocked(context, Blocked::Yes).await? {
                     context.emit_event(EventType::ChatModified(self));
+                    context.emit_event(EventType::UIChatListChanged);
                 }
             }
         }
@@ -388,6 +389,9 @@ impl ChatId {
 
         if self.set_blocked(context, Blocked::Not).await? {
             context.emit_event(EventType::ChatModified(self));
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(self),
+            });
         }
 
         Ok(())
@@ -437,6 +441,9 @@ impl ChatId {
             .await?;
 
         context.emit_event(EventType::ChatModified(self));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(self),
+        });
 
         // make sure, the receivers will get all keys
         self.reset_gossiped_timestamp(context).await?;
@@ -3004,6 +3011,9 @@ pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuratio
         .await
         .context(format!("Failed to set mute duration for {}", chat_id))?;
     context.emit_event(EventType::ChatModified(chat_id));
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
     Ok(())
 }
 
@@ -3153,6 +3163,9 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                 context.emit_msgs_changed(chat_id, msg.id);
             }
             context.emit_event(EventType::ChatModified(chat_id));
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(chat_id),
+            });
             success = true;
         }
     }
@@ -3207,6 +3220,9 @@ pub async fn set_chat_profile_image(
         context.emit_msgs_changed(chat_id, msg.id);
     }
     context.emit_event(EventType::ChatModified(chat_id));
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
     Ok(())
 }
 
