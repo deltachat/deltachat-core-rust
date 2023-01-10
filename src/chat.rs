@@ -2479,7 +2479,13 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
             .await?;
         for chat_id_in_archive in chat_ids_in_archive {
             context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(chat_id_in_archive),
+            });
         }
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(DC_CHAT_ID_ARCHIVED_LINK),
+        });
     } else {
         let exists = context
             .sql
@@ -2506,6 +2512,9 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
     }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
 
     Ok(())
 }
@@ -2574,6 +2583,7 @@ pub(crate) async fn mark_old_messages_as_noticed(
 
     for c in changed_chats {
         context.emit_event(EventType::MsgsNoticed(c));
+        context.emit_event(EventType::UIChatListItemChanged { chat_id: Some(c) });
     }
 
     Ok(())

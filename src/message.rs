@@ -1519,6 +1519,9 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
 
     for updated_chat_id in updated_chat_ids {
         context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(updated_chat_id),
+        });
     }
 
     Ok(())

@@ -1180,6 +1180,9 @@ impl Imap {
             .with_context(|| format!("failed to set MODSEQ for folder {}", folder))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(updated_chat_id),
+            });
         }
 
         Ok(())
