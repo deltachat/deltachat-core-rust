@@ -281,6 +281,18 @@ pub enum JSONRPCEventType {
     WebxdcInstanceDeleted {
         msg_id: u32,
     },
+
+    /// Inform UI that Order (and content as in chat ids) of the chatlist changed.
+    ///
+    /// Sometimes this is emitted together with `UIChatListItemChanged` such as on IncomingMessage.
+    UIChatListChanged,
+
+    /// Inform UI that a single chat list item changed and needs to be rerendered
+    /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
+    #[serde(rename_all = "camelCase")]
+    UIChatListItemChanged {
+        chat_id: Option<u32>,
+    },
 }
 
 impl From<EventType> for JSONRPCEventType {
@@ -381,6 +393,10 @@ impl From<EventType> for JSONRPCEventType {
             EventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
+            EventType::UIChatListItemChanged { chat_id } => UIChatListItemChanged {
+                chat_id: chat_id.map(|id| id.to_u32()),
+            },
+            EventType::UIChatListChanged => UIChatListChanged,
         }
     }
 }
