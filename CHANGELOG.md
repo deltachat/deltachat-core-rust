@@ -8,7 +8,9 @@
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object
 - Remove `attach_selfavatar` config #3951
-
+- BREAKING: jsonrpc:
+  - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
+  - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
 
 ## 1.106.0
 
@@ -40,9 +42,6 @@
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
 - jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
-- BREAKING: jsonrpc:
-  - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
-  - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
 - Add ffi functions to retrieve `verified by` information #3786
 - resultify `Message::get_filebytes()` #3925
 

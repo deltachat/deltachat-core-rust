@@ -449,13 +449,13 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let mut result: HashMap<u32, ChatListItemFetchResult> =
             HashMap::with_capacity(entries.len());
-        for entry in entries.iter() {
+        for &entry in entries.iter() {
             result.insert(
-                *entry,
-                match get_chat_list_item_by_id(&ctx, *entry).await {
+                entry,
+                match get_chat_list_item_by_id(&ctx, entry).await {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
-                        id: *entry,
+                        id: entry,
                         error: format!("{:?}", err),
                     },
                 },

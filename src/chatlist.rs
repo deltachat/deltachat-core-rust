@@ -315,7 +315,7 @@ impl Chatlist {
         let (lastmsg, lastcontact) = if let Some(lastmsg_id) = lastmsg_id {
             let lastmsg = Message::load_from_db(context, lastmsg_id)
                 .await
-                .context("loading message failed:")?;
+                .context("loading message failed")?;
             if lastmsg.from_id == ContactId::SELF {
                 (Some(lastmsg), None)
             } else {
@@ -323,7 +323,7 @@ impl Chatlist {
                     Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                         let lastcontact = Contact::load_from_db(context, lastmsg.from_id)
                             .await
-                            .context("loading contact failed:")?;
+                            .context("loading contact failed")?;
                         (Some(lastmsg), Some(lastcontact))
                     }
                     Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
@@ -374,17 +374,13 @@ pub async fn get_last_message_for_chat(
 ) -> Result<Option<MsgId>> {
     context
         .sql
-        .query_row_optional(
+        .query_get_value(
             "SELECT id
                 FROM msgs
                 WHERE chat_id=?2
                 AND (hidden=0 OR state=?1)
                 ORDER BY timestamp DESC, id DESC LIMIT 1",
             paramsv![MessageState::OutDraft, chat_id],
-            |row: &rusqlite::Row| {
-                let msg_id: MsgId = row.get(0)?;
-                Ok(msg_id)
-            },
         )
         .await
 }

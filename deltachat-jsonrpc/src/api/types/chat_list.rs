@@ -64,10 +64,10 @@ pub(crate) async fn get_chat_list_item_by_id(
 
     let last_msgid = get_last_message_for_chat(ctx, chat_id).await?;
 
-    let chat = Chat::load_from_db(ctx, chat_id).await.context("chat:")?;
+    let chat = Chat::load_from_db(ctx, chat_id).await.context("chat")?;
     let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
         .await
-        .context("summary:")?;
+        .context("summary")?;
 
     let summary_text1 = summary.prefix.map_or_else(String::new, |s| s.to_string());
     let summary_text2 = summary.text.to_owned();
@@ -96,7 +96,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         let was_seen_recently = match contact {
             Some(contact) => Contact::load_from_db(ctx, *contact)
                 .await
-                .context("contact:")?
+                .context("contact")?
                 .was_seen_recently(),
             None => false,
         };
