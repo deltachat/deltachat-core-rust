@@ -3975,13 +3975,10 @@ pub unsafe extern "C" fn dc_contact_get_verifier_addr(
     }
     let ffi_contact = &*contact;
     let ctx = &*ffi_contact.context;
-    block_on(Contact::get_verifier_addr(
-        ctx,
-        &ffi_contact.contact.get_id(),
-    ))
-    .log_err(ctx, "failed to get verifier for contact")
-    .unwrap_or_default()
-    .strdup()
+    block_on(ffi_contact.contact.get_verifier_addr(ctx))
+        .log_err(ctx, "failed to get verifier for contact")
+        .unwrap_or_default()
+        .strdup()
 }
 
 #[no_mangle]
@@ -3992,12 +3989,12 @@ pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) 
     }
     let ffi_contact = &*contact;
     let ctx = &*ffi_contact.context;
-    let contact_id = block_on(Contact::get_verifier_id(ctx, &ffi_contact.contact.get_id()))
+    let verifier_contact_id = block_on(ffi_contact.contact.get_verifier_id(ctx))
         .log_err(ctx, "failed to get verifier")
         .unwrap_or_default()
         .unwrap_or_default();
 
-    contact_id.to_u32()
+    verifier_contact_id.to_u32()
 }
 // dc_lot_t
 
