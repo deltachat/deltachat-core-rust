@@ -1,11 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.106.0
 
 ### Changes
 - Only send IncomingMsgBunch if there are more than 0 new messages #3941
-
-### API-Changes
 
 ### Fixes
 - fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
