@@ -698,9 +698,11 @@ impl Imap {
         let old_uid_next = get_uid_next(context, folder).await?;
 
         let msgs = if fetch_existing_msgs {
-            self.prefetch_existing_msgs().await?
+            self.prefetch_existing_msgs()
+                .await
+                .context("prefetch_existing_msgs")?
         } else {
-            self.prefetch(old_uid_next).await?
+            self.prefetch(old_uid_next).await.context("prefetch")?
         };
         let read_cnt = msgs.len();
 
@@ -763,7 +765,7 @@ impl Imap {
                     fetch_response.flags(),
                     show_emails,
                 )
-                .await?
+                .await.context("prefetch_should_download")?
             {
                 match download_limit {
                     Some(download_limit) => uids_fetch.push((
@@ -799,7 +801,8 @@ impl Imap {
                         fetch_partially,
                         fetch_existing_msgs,
                     )
-                    .await?;
+                    .await
+                    .context("fetch_many_msgs")?;
                 received_msgs.extend(received_msgs_in_batch);
                 largest_uid_fetched = max(
                     largest_uid_fetched,
