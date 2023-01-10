@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Changes
-- Only send IncomingMsgBunch if there are more than 0 new messages # 
+- Only send IncomingMsgBunch if there are more than 0 new messages #3941
 
 ### API-Changes
 
