@@ -1,6 +1,7 @@
 //! End-to-end decryption support.
 
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use anyhow::Result;
 use mailparse::ParsedMail;
@@ -13,7 +14,6 @@ use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
-use crate::log::LogExt;
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -72,9 +72,25 @@ pub(crate) async fn prepare_decryption(
         });
     }
 
-    let autocrypt_header = Aheader::from_headers(from, &mail.headers)
-        .ok_or_log_msg(context, "Failed to parse Autocrypt header")
-        .flatten();
+    let autocrypt_header =
+        if let Some(autocrypt_header_value) = mail.headers.get_header_value(HeaderDef::Autocrypt) {
+            match Aheader::from_str(&autocrypt_header_value) {
+                Ok(header) if addr_cmp(&header.addr, from) => Some(header),
+                Ok(header) => {
+                    warn!(
+                        context,
+                        "Autocrypt header address {:?} is not {:?}.", header.addr, from
+                    );
+                    None
+                }
+                Err(err) => {
+                    warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
     let dkim_results = handle_authres(context, mail, from, message_time).await?;
 
