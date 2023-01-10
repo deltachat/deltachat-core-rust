@@ -251,6 +251,10 @@ impl ChatId {
             }
         };
         context.emit_msgs_changed_without_ids();
+        context.emit_event(EventType::UIChatListChanged);
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
         Ok(chat_id)
     }
 
@@ -527,6 +531,10 @@ impl ChatId {
             .await?;
 
         context.emit_msgs_changed_without_ids();
+        context.emit_event(EventType::UIChatListChanged);
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(self),
+        });
 
         Ok(())
     }
@@ -582,6 +590,7 @@ impl ChatId {
             .await?;
 
         context.emit_msgs_changed_without_ids();
+        context.emit_event(EventType::UIChatListChanged);
 
         context.set_config(Config::LastHousekeeping, None).await?;
         context.interrupt_inbox(InterruptInfo::new(false)).await;
@@ -2709,6 +2718,10 @@ pub async fn create_group_chat(
     }
 
     context.emit_msgs_changed_without_ids();
+    context.emit_event(EventType::UIChatListChanged);
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
 
     if protect == ProtectionStatus::Protected {
         // this part is to stay compatible to verified groups,
@@ -2763,6 +2776,10 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     let chat_id = ChatId::new(u32::try_from(row_id)?);
 
     context.emit_msgs_changed_without_ids();
+    context.emit_event(EventType::UIChatListChanged);
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(chat_id),
+    });
     Ok(chat_id)
 }
 
@@ -3326,6 +3343,10 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             context.emit_event(EventType::MsgsChanged {
                 chat_id: msg.chat_id,
                 msg_id: msg.id,
+            });
+            // note(treefit): only matters if it's the last message, maybe we should not update the state at all above
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(msg.chat_id),
             });
             if create_send_msg_job(context, msg.id).await?.is_some() {
                 context.interrupt_smtp(InterruptInfo::new(false)).await;

@@ -116,6 +116,9 @@ impl MsgId {
             chat_id: msg.chat_id,
             msg_id: self,
         });
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(msg.chat_id),
+        });
         Ok(())
     }
 }

@@ -1354,8 +1354,12 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+    let mut affected_chat_ids = Vec::with_capacity(1);
     for msg_id in msg_ids.iter() {
         let msg = Message::load_from_db(context, *msg_id).await?;
+        if affected_chat_ids.contains(&msg.chat_id) {
+            affected_chat_ids.push(msg.chat_id);
+        }
         if msg.location_id > 0 {
             delete_poi_location(context, msg.location_id).await?;
         }
@@ -1379,6 +1383,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     if !msg_ids.is_empty() {
         context.emit_msgs_changed_without_ids();
+        context.emit_event(EventType::UIChatListChanged);
+        for chat_id in affected_chat_ids {
+            context.emit_event(EventType::UIChatListItemChanged {
+                chat_id: Some(chat_id),
+            });
+        }
 
         // Run housekeeping to delete unused blobs.
         context.set_config(Config::LastHousekeeping, None).await?;

@@ -451,11 +451,19 @@ impl Context {
     /// Emits a MsgsChanged event with specified chat and message ids
     pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
+        self.emit_event(EventType::UIChatListChanged);
+        self.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
     }
 
     /// Emits an IncomingMsg event with specified chat and message ids
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
+        self.emit_event(EventType::UIChatListChanged);
+        self.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
     }
 
     /// Returns a receiver for emitted events.
