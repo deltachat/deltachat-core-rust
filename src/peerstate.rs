@@ -9,7 +9,7 @@ use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
-use crate::contact::{addr_cmp, Contact, Origin};
+use crate::contact::{addr_cmp, Contact, ContactAddress, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -542,16 +542,30 @@ impl Peerstate {
                 if (chat.typ == Chattype::Group && chat.is_protected())
                     || chat.typ == Chattype::Broadcast
                 {
-                    if let Some((new_contact_id, _)) =
-                        Contact::add_or_lookup(context, "", new_addr, Origin::IncomingUnknownFrom)
-                            .await?
-                    {
-                        chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
+                    match ContactAddress::new(new_addr) {
+                        Ok(new_addr) => {
+                            let (new_contact_id, _) = Contact::add_or_lookup(
+                                context,
+                                "",
+                                new_addr,
+                                Origin::IncomingUnknownFrom,
+                            )
                             .await?;
-                        chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id])
-                            .await?;
+                            chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
+                                .await?;
+                            chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id])
+                                .await?;
 
-                        context.emit_event(EventType::ChatModified(*chat_id));
+                            context.emit_event(EventType::ChatModified(*chat_id));
+                        }
+                        Err(err) => {
+                            warn!(
+                                context,
+                                "New address {:?} is not vaild, not doing AEAP: {:#}.",
+                                new_addr,
+                                err
+                            )
+                        }
                     }
                 }
             }

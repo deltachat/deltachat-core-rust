@@ -3629,7 +3629,7 @@ mod tests {
 
     use crate::chatlist::{get_archived_cnt, Chatlist};
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
-    use crate::contact::Contact;
+    use crate::contact::{Contact, ContactAddress};
     use crate::receive_imf::receive_imf;
 
     use crate::test_utils::TestContext;
@@ -4692,10 +4692,13 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         assert!(!shall_attach_selfavatar(&t, chat_id).await?);
 
-        let (contact_id, _) =
-            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::IncomingUnknownTo)
-                .await?
-                .unwrap();
+        let (contact_id, _) = Contact::add_or_lookup(
+            &t,
+            "",
+            ContactAddress::new("foo@bar.org")?,
+            Origin::IncomingUnknownTo,
+        )
+        .await?;
         add_contact_to_chat(&t, chat_id, contact_id).await?;
         assert!(!shall_attach_selfavatar(&t, chat_id).await?);
         t.set_config(Config::Selfavatar, None).await?; // setting to None also forces re-sending
@@ -4941,10 +4944,8 @@ mod tests {
         alice.set_config(Config::ShowEmails, Some("2")).await?;
         bob.set_config(Config::ShowEmails, Some("2")).await?;
 
-        let (contact_id, _) =
-            Contact::add_or_lookup(&alice, "", "bob@example.net", Origin::ManuallyCreated)
-                .await?
-                .unwrap();
+        let alice_bob_contact = alice.add_or_lookup_contact(&bob).await;
+        let contact_id = alice_bob_contact.id;
         let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
         let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await?;
 
@@ -5654,10 +5655,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_for_contact_with_blocked() -> Result<()> {
         let t = TestContext::new().await;
-        let (contact_id, _) =
-            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::ManuallyCreated)
-                .await?
-                .unwrap();
+        let (contact_id, _) = Contact::add_or_lookup(
+            &t,
+            "",
+            ContactAddress::new("foo@bar.org")?,
+            Origin::ManuallyCreated,
+        )
+        .await?;
 
         // create a blocked chat
         let chat_id_orig =

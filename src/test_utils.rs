@@ -23,7 +23,7 @@ use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
 use crate::constants::{DC_GCL_NO_SPECIALS, DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
-use crate::contact::{Contact, ContactId, Modifier, Origin};
+use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
@@ -523,14 +523,14 @@ impl TestContext {
             .await
             .unwrap_or_default()
             .unwrap_or_default();
-        let addr = other.ctx.get_primary_self_addr().await.unwrap();
+        let primary_self_addr = other.ctx.get_primary_self_addr().await.unwrap();
+        let addr = ContactAddress::new(&primary_self_addr).unwrap();
         // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
         // origin when creating this contact.
         let (contact_id, modified) =
-            Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
+            Contact::add_or_lookup(self, &name, addr, Origin::MailinglistAddress)
                 .await
-                .expect("add_or_lookup")
-                .unwrap_or_else(|| panic!("contact with address {:?} cannot be created", &addr));
+                .expect("add_or_lookup");
         match modified {
             Modifier::None => (),
             Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),

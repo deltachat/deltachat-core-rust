@@ -1490,7 +1490,7 @@ mod tests {
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
-    use crate::contact::Origin;
+    use crate::contact::{ContactAddress, Origin};
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
@@ -1817,12 +1817,15 @@ mod tests {
     }
 
     async fn first_subject_str(t: TestContext) -> String {
-        let contact_id =
-            Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
-                .await
-                .unwrap()
-                .unwrap()
-                .0;
+        let contact_id = Contact::add_or_lookup(
+            &t,
+            "Dave",
+            ContactAddress::new("dave@example.com").unwrap(),
+            Origin::ManuallyCreated,
+        )
+        .await
+        .unwrap()
+        .0;
 
         let chat_id = ChatId::create_for_contact(&t, contact_id).await.unwrap();
 

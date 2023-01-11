@@ -14,7 +14,9 @@ use std::collections::BTreeMap;
 use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::{addr_normalize, may_be_valid_addr, Contact, ContactId, Origin};
+use crate::contact::{
+    addr_normalize, may_be_valid_addr, Contact, ContactAddress, ContactId, Origin,
+};
 use crate::context::Context;
 use crate::key::Fingerprint;
 use crate::message::Message;
@@ -221,19 +223,14 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         .context("Can't load peerstate")?;
 
     if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
+        let addr = ContactAddress::new(addr)?;
         let (contact_id, _) = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
             .await
-            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?
-            .with_context(|| {
-                format!(
-                    "do not want to lookup contact for invalid address {:?}",
-                    addr
-                )
-            })?;
+            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?;
 
         if let (Some(grpid), Some(grpname)) = (grpid, grpname) {
             if context
-                .is_self_addr(addr)
+                .is_self_addr(&addr)
                 .await
                 .with_context(|| format!("can't check if address {:?} is our address", addr))?
             {
@@ -266,7 +263,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
                     authcode,
                 })
             }
-        } else if context.is_self_addr(addr).await? {
+        } else if context.is_self_addr(&addr).await? {
             if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
                 Ok(Qr::WithdrawVerifyContact {
                     contact_id,
@@ -292,13 +289,11 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         }
     } else if let Some(addr) = addr {
         if let Some(peerstate) = peerstate {
+            let peerstate_addr = ContactAddress::new(&peerstate.addr)?;
             let (contact_id, _) =
-                Contact::add_or_lookup(context, &name, &peerstate.addr, Origin::UnhandledQrScan)
+                Contact::add_or_lookup(context, &name, peerstate_addr, Origin::UnhandledQrScan)
                     .await
-                    .context("add_or_lookup")?
-                    .with_context(|| {
-                        format!("Not looking up contact for address {:?}", &peerstate.addr)
-                    })?;
+                    .context("add_or_lookup")?;
             let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
                 .await
                 .context("Failed to create (new) chat for contact")?;
@@ -538,11 +533,11 @@ async fn decode_mailto(context: &Context, qr: &str) -> Result<Qr> {
     };
 
     let addr = normalize_address(addr)?;
-    let name = "".to_string();
+    let name = "";
     Qr::from_address(
         context,
         name,
-        addr,
+        &addr,
         if draft.is_empty() { None } else { Some(draft) },
     )
     .await
@@ -562,8 +557,8 @@ async fn decode_smtp(context: &Context, qr: &str) -> Result<Qr> {
     };
 
     let addr = normalize_address(addr)?;
-    let name = "".to_string();
-    Qr::from_address(context, name, addr, None).await
+    let name = "";
+    Qr::from_address(context, name, &addr, None).await
 }
 
 /// Extract address for the matmsg scheme.
@@ -587,8 +582,8 @@ async fn decode_matmsg(context: &Context, qr: &str) -> Result<Qr> {
     };
 
     let addr = normalize_address(addr)?;
-    let name = "".to_string();
-    Qr::from_address(context, name, addr, None).await
+    let name = "";
+    Qr::from_address(context, name, &addr, None).await
 }
 
 static VCARD_NAME_RE: Lazy<regex::Regex> =
@@ -617,20 +612,19 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
         bail!("Bad e-mail address");
     };
 
-    Qr::from_address(context, name, addr, None).await
+    Qr::from_address(context, &name, &addr, None).await
 }
 
 impl Qr {
     pub async fn from_address(
         context: &Context,
-        name: String,
-        addr: String,
+        name: &str,
+        addr: &str,
         draft: Option<String>,
     ) -> Result<Self> {
+        let addr = ContactAddress::new(addr)?;
         let (contact_id, _) =
-            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
-                .await?
-                .context("QR code does not contain a valid address")?;
+            Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan).await?;
         Ok(Qr::Addr { contact_id, draft })
     }
 }

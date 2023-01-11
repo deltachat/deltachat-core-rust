@@ -16,7 +16,7 @@ use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
-    may_be_valid_addr, normalize_name, Contact, ContactId, Origin, VerifiedStatus,
+    may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin, VerifiedStatus,
 };
 use crate::context::Context;
 use crate::download::DownloadState;
@@ -378,6 +378,8 @@ pub(crate) async fn receive_imf_inner(
 /// Also returns whether it is blocked or not and its origin.
 ///
 /// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
+///
+/// Returns `None` if From field does not contain a valid contact address.
 pub async fn from_field_to_contact_id(
     context: &Context,
     from: &SingleInfo,
@@ -388,19 +390,24 @@ pub async fn from_field_to_contact_id(
     } else {
         from.display_name.as_deref()
     };
-    let from_id = if let Some(from_id) = add_or_lookup_contact_by_addr(
+    let from_addr = match ContactAddress::new(&from.addr) {
+        Ok(from_addr) => from_addr,
+        Err(err) => {
+            warn!(
+                context,
+                "Cannot create a contact for the given From field: {:#}.", err
+            );
+            return Ok(None);
+        }
+    };
+
+    let from_id = add_or_lookup_contact_by_addr(
         context,
         display_name,
-        &from.addr,
+        from_addr,
         Origin::IncomingUnknownFrom,
     )
-    .await
-    .context("add_or_lookup_contact_by_addr")?
-    {
-        from_id
-    } else {
-        return Ok(None);
-    };
+    .await?;
 
     if from_id == ContactId::SELF {
         Ok(Some((ContactId::SELF, false, Origin::OutgoingBcc)))
@@ -1943,11 +1950,15 @@ async fn apply_mailinglist_changes(
         }
         let listid = &chat.grpid;
 
-        let contact_id =
-            match Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await? {
-                Some((contact_id, _)) => contact_id,
-                None => return Ok(()),
-            };
+        let list_post = match ContactAddress::new(list_post) {
+            Ok(list_post) => list_post,
+            Err(err) => {
+                warn!(context, "Invalid List-Post: {:#}.", err);
+                return Ok(());
+            }
+        };
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
         let mut contact = Contact::load_from_db(context, contact_id).await?;
         if contact.param.get(Param::ListId) != Some(listid) {
             contact.param.set(Param::ListId, listid);
@@ -1955,7 +1966,7 @@ async fn apply_mailinglist_changes(
         }
 
         if let Some(old_list_post) = chat.param.get(Param::ListPost) {
-            if list_post != old_list_post {
+            if list_post.as_ref() != old_list_post {
                 // Apparently the mailing list is using a different List-Post header in each message.
                 // Make the mailing list read-only because we would't know which message the user wants to reply to.
                 chat.param.remove(Param::ListPost);
@@ -2286,9 +2297,9 @@ async fn add_or_lookup_contacts_by_address_list(
             continue;
         }
         let display_name = info.display_name.as_deref();
-        if let Some(contact_id) =
-            add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?
-        {
+        if let Ok(addr) = ContactAddress::new(addr) {
+            let contact_id =
+                add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?;
             contact_ids.insert(contact_id);
         } else {
             warn!(context, "Contact with address {:?} cannot exist.", addr);
@@ -2299,26 +2310,20 @@ async fn add_or_lookup_contacts_by_address_list(
 }
 
 /// Add contacts to database on receiving messages.
-///
-/// Returns `None` if the address can't be a valid email address.
 async fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name: Option<&str>,
-    addr: &str,
+    addr: ContactAddress<'_>,
     origin: Origin,
-) -> Result<Option<ContactId>> {
-    if context.is_self_addr(addr).await? {
-        return Ok(Some(ContactId::SELF));
+) -> Result<ContactId> {
+    if context.is_self_addr(&addr).await? {
+        return Ok(ContactId::SELF);
     }
     let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
-    if let Some((contact_id, _modified)) =
-        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?
-    {
-        Ok(Some(contact_id))
-    } else {
-        Ok(None)
-    }
+    let (contact_id, _modified) =
+        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
+    Ok(contact_id)
 }
 
 #[cfg(test)]

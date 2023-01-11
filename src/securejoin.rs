@@ -710,6 +710,7 @@ mod tests {
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::{Chattype, DC_GCM_ADDDAYMARKER};
+    use crate::contact::ContactAddress;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
@@ -1003,11 +1004,10 @@ mod tests {
         let (contact_bob_id, _modified) = Contact::add_or_lookup(
             &alice.ctx,
             "Bob",
-            "bob@example.net",
+            ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
-        .await?
-        .unwrap();
+        .await?;
         let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await?,
