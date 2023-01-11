@@ -22,7 +22,7 @@ use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
 };
-use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
+use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -2375,23 +2375,23 @@ async fn add_all_recipients_as_contacts(
             .map(|s| normalize_name(s))
             .unwrap_or_default();
 
-        match Contact::add_or_lookup(
-            context,
-            &display_name_normalized,
-            &recipient.addr,
-            Origin::OutgoingTo,
-        )
-        .await?
-        {
-            Some((_, modified)) => {
+        match ContactAddress::new(&recipient.addr) {
+            Err(err) => warn!(
+                context,
+                "Could not add contact for recipient with address {:?}: {:#}", recipient.addr, err
+            ),
+            Ok(recipient_addr) => {
+                let (_, modified) = Contact::add_or_lookup(
+                    context,
+                    &display_name_normalized,
+                    recipient_addr,
+                    Origin::OutgoingTo,
+                )
+                .await?;
                 if modified != Modifier::None {
                     any_modified = true;
                 }
             }
-            None => warn!(
-                context,
-                "Could not add contact for recipient with address {:?}", recipient.addr
-            ),
         }
     }
     if any_modified {
