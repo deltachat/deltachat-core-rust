@@ -16,7 +16,7 @@ pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
 }
 
 pub async fn read_url_inner(context: &Context, url: &str) -> anyhow::Result<String> {
-    let client = reqwest::Client::new();
+    let client = crate::http::get_client()?;
     let mut url = url.to_string();
 
     // Follow up to 10 http-redirects

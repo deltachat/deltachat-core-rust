@@ -381,7 +381,7 @@ struct CreateAccountErrorResponse {
 #[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
-    let response = reqwest::Client::new().post(url_str).send().await?;
+    let response = crate::http::get_client()?.post(url_str).send().await?;
     let response_status = response.status();
     let response_text = response.text().await.with_context(|| {
         format!(
