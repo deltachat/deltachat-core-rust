@@ -2375,23 +2375,28 @@ async fn add_all_recipients_as_contacts(
             .map(|s| normalize_name(s))
             .unwrap_or_default();
 
-        match ContactAddress::new(&recipient.addr) {
-            Err(err) => warn!(
-                context,
-                "Could not add contact for recipient with address {:?}: {:#}", recipient.addr, err
-            ),
-            Ok(recipient_addr) => {
-                let (_, modified) = Contact::add_or_lookup(
+        let recipient_addr = match ContactAddress::new(&recipient.addr) {
+            Err(err) => {
+                warn!(
                     context,
-                    &display_name_normalized,
-                    recipient_addr,
-                    Origin::OutgoingTo,
-                )
-                .await?;
-                if modified != Modifier::None {
-                    any_modified = true;
-                }
+                    "Could not add contact for recipient with address {:?}: {:#}",
+                    recipient.addr,
+                    err
+                );
+                continue;
             }
+            Ok(recipient_addr) => recipient_addr,
+        };
+
+        let (_, modified) = Contact::add_or_lookup(
+            context,
+            &display_name_normalized,
+            recipient_addr,
+            Origin::OutgoingTo,
+        )
+        .await?;
+        if modified != Modifier::None {
+            any_modified = true;
         }
     }
     if any_modified {
