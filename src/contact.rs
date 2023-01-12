@@ -1192,24 +1192,16 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
-    /// Returns the address that verified the given contact.
-    pub async fn get_verifier_addr(
-        context: &Context,
-        contact_id: &ContactId,
-    ) -> Result<Option<String>> {
-        let contact = Contact::load_from_db(context, *contact_id).await?;
-
-        Ok(Peerstate::from_addr(context, contact.get_addr())
+    /// Returns the address that verified the contact.
+    pub async fn get_verifier_addr(&self, context: &Context) -> Result<Option<String>> {
+        Ok(Peerstate::from_addr(context, self.get_addr())
             .await?
             .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
     }
 
-    /// Returns the ContactId that verified the given contact.
-    pub async fn get_verifier_id(
-        context: &Context,
-        contact_id: &ContactId,
-    ) -> Result<Option<ContactId>> {
-        let verifier_addr = Contact::get_verifier_addr(context, contact_id).await?;
+    /// Returns the ContactId that verified the contact.
+    pub async fn get_verifier_id(&self, context: &Context) -> Result<Option<ContactId>> {
+        let verifier_addr = self.get_verifier_addr(context).await?;
         if let Some(addr) = verifier_addr {
             Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
         } else {

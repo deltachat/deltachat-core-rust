@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### API-Changes
+- jsonrpc: add verified-by information to `Contact`-Object
+
 ## 1.106.0
 
 ### Changes
