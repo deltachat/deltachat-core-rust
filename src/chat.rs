@@ -1145,7 +1145,7 @@ impl Chat {
         Ok(chat)
     }
 
-    /// Returns wheter this message should go into the `saved messages` chat
+    /// Returns wheter this is the `saved messages` chat
     pub fn is_self_talk(&self) -> bool {
         self.param.exists(Param::Selftalk)
     }
@@ -1983,6 +1983,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
 }
 
 /// Prepares a message to be send out
+/// - Check if chat can be send to
 async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,

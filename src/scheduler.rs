@@ -1,5 +1,4 @@
 use std::sync::atomic;
-use std::time::SystemTime;
 
 use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -95,23 +94,19 @@ impl Context {
         }
     }
 
-    pub(crate) fn send_log_event(&self, event: EventType) {
-        if let Some(scheduler) = &*self.scheduler.blocking_read() {
-            let time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as i64;
-
+    pub(crate) fn send_log_event(&self, event: EventType) -> anyhow::Result<()> {
+        if let Some(scheduler) = &*self.scheduler.try_read()? {
             let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
 
             let event_data = DebugEventLogData {
-                time,
+                time: time(),
                 msg_id: MsgId::new(debug_logging),
                 event,
             };
 
             scheduler.send_debug_logging_event(event_data);
         }
+        Ok(())
     }
 }
 
@@ -482,7 +477,7 @@ impl Scheduler {
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
         let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
         let (location_interrupt_send, location_interrupt_recv) = channel::bounded(1);
-        let (debug_logging_send, debug_logging_recv) = channel::unbounded();
+        let (debug_logging_send, debug_logging_recv) = channel::bounded(1000);
 
         let inbox_handle = {
             let ctx = ctx.clone();

@@ -14,6 +14,7 @@ use crate::events::EventType;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
+
 /// The available configuration keys.
 #[derive(
     Debug,

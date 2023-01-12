@@ -441,7 +441,7 @@ impl Context {
     pub fn emit_event(&self, event: EventType) {
         let debug_logging = self.debug_logging.load(atomic::Ordering::Relaxed);
         if debug_logging > 0 {
-            self.send_log_event(event.clone());
+            self.send_log_event(event.clone()).ok();
         };
         self.events.emit(Event {
             id: self.id,
