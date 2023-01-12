@@ -1,7 +1,5 @@
 //! # Handle webxdc messages.
 
-#![allow(missing_docs)]
-
 use std::convert::TryFrom;
 use std::path::Path;
 
@@ -31,6 +29,7 @@ use crate::{chat, EventType};
 /// In the future, that may be useful to avoid new Webxdc being loaded on old Delta Chats.
 const WEBXDC_API_VERSION: u32 = 1;
 
+/// Suffix used to recognize webxdc files.
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
@@ -55,20 +54,44 @@ const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 #[derive(Debug, Deserialize)]
 #[non_exhaustive]
 struct WebxdcManifest {
+    /// Webxdc name, used on icons or page titles.
     name: Option<String>,
+
+    /// Minimum API version required to run this webxdc.
     min_api: Option<u32>,
+
+    /// Optional URL of webxdc source code.
     source_code_url: Option<String>,
+
+    /// If the webxdc requests network access.
     request_internet_access: Option<bool>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
 #[derive(Debug, Serialize)]
 pub struct WebxdcInfo {
+    /// The name of the app.
+    /// Defaults to filename if not set in the manifest.
     pub name: String,
+
+    /// Filename of the app icon.
     pub icon: String,
+
+    /// If the webxdc represents a document and allows to edit it,
+    /// this is the document name.
+    /// Otherwise an empty string.
     pub document: String,
+
+    /// Short description of the webxdc state.
+    /// For example, "7 votes".
     pub summary: String,
+
+    /// URL of webxdc source code or an empty string.
     pub source_code_url: String,
+
+    /// If the webxdc is allowed to access the network.
+    /// It should request access, be encrypted
+    /// and sent to self for this.
     pub internet_access: bool,
 }
 
