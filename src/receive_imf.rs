@@ -290,7 +290,7 @@ pub(crate) async fn receive_imf_inner(
                 .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
                 .await?
         {
-            match contact::set_profile_image(
+            if let Err(err) = contact::set_profile_image(
                 context,
                 from_id,
                 avatar_action,
@@ -298,15 +298,10 @@ pub(crate) async fn receive_imf_inner(
             )
             .await
             {
-                Ok(()) => {
-                    context.emit_event(EventType::ChatModified(chat_id));
-                }
-                Err(err) => {
-                    warn!(
-                        context,
-                        "receive_imf cannot update profile image: {:#}", err
-                    );
-                }
+                warn!(
+                    context,
+                    "receive_imf cannot update profile image: {:#}", err
+                );
             };
         }
     }
