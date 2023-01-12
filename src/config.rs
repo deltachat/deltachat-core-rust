@@ -292,9 +292,6 @@ impl Context {
                 self.sql
                     .execute("UPDATE contacts SET selfavatar_sent=0;", paramsv![])
                     .await?;
-                self.sql
-                    .set_raw_config_bool("attach_selfavatar", true)
-                    .await?;
                 match value {
                     Some(value) => {
                         let mut blob = BlobObject::new_from_path(self, value.as_ref()).await?;

@@ -7,6 +7,7 @@
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object
+- Remove `attach_selfavatar` config #3951
 
 
 ## 1.106.0

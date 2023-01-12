@@ -76,6 +76,7 @@ pub struct MimeFactory<'a> {
     /// and must be deleted if the message is actually queued for sending.
     sync_ids_to_delete: Option<String>,
 
+    /// True if the avatar should be attached.
     attach_selfavatar: bool,
 }
 

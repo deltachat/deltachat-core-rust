@@ -2902,14 +2902,12 @@ pub(crate) async fn add_contact_to_chat_ex(
     Ok(true)
 }
 
+/// Returns true if an avatar should be attached in the given chat.
+///
+/// This function does not check if the avatar is set.
+/// If avatar is not set and this function returns `true`,
+/// a `Chat-User-Avatar: 0` header should be sent to reset the avatar.
 pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool> {
-    // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
-    // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
-    // it can be removed after some time.
-    if !context.sql.get_raw_config_bool("attach_selfavatar").await? {
-        return Ok(false);
-    }
-
     let timestamp_some_days_ago = time() - DC_RESEND_USER_AVATAR_DAYS * 24 * 60 * 60;
     let needs_attach = context
         .sql
@@ -4700,12 +4698,13 @@ mod tests {
         )
         .await?;
         add_contact_to_chat(&t, chat_id, contact_id).await?;
-        assert!(!shall_attach_selfavatar(&t, chat_id).await?);
-        t.set_config(Config::Selfavatar, None).await?; // setting to None also forces re-sending
         assert!(shall_attach_selfavatar(&t, chat_id).await?);
 
         chat_id.set_selfavatar_timestamp(&t, time()).await?;
         assert!(!shall_attach_selfavatar(&t, chat_id).await?);
+
+        t.set_config(Config::Selfavatar, None).await?; // setting to None also forces re-sending
+        assert!(shall_attach_selfavatar(&t, chat_id).await?);
         Ok(())
     }
 
