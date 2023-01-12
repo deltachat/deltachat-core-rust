@@ -67,6 +67,7 @@ jobs:
   build_and_test:
     name: Build and test
     strategy:
+      fail-fast: false
       matrix:
         include:
           # Currently used Rust version.
