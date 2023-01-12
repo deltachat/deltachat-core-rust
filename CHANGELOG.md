@@ -9,6 +9,7 @@
 
 ### Changes
 - Only send IncomingMsgBunch if there are more than 0 new messages #3941
+- add debug logging support for webxdcs #3296
 
 ### Fixes
 - fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
@@ -58,7 +59,6 @@
 - Remove `pytest-async` plugin #3846
 - Only send the message about ephemeral timer change if the chat is promoted #3847
 - Use relative paths in `accounts.toml` #3838
-- add debug logging support for webxdcs #3296
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833
