@@ -4,6 +4,8 @@
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+- Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
+  unread messages increases #3959
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object

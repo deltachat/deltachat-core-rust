@@ -1235,7 +1235,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         replace_msg_id.delete_from_db(context).await?;
     }
 
-    chat_id.unarchive_if_not_muted(context).await?;
+    chat_id.unarchive_if_not_muted(context, state).await?;
 
     info!(
         context,
