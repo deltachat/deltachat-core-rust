@@ -2261,6 +2261,39 @@ def test_aeap_flow_verified(acfactory, lp):
     assert ac1new.get_config("addr") in [contact.addr for contact in msg_in_2.chat.get_contacts()]
 
 
+def test_archived_muted_chat(acfactory, lp):
+    """If an archived and muted chat receives a new message, DC_EVENT_MSGS_CHANGED for
+    DC_CHAT_ID_ARCHIVED_LINK must be generated if the chat had only seen messages previously.
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: send message to ac2")
+    chat.send_text("message0")
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == "message0"
+    msg2.mark_seen()
+
+    chat2 = msg2.chat
+    chat2.archive()
+    chat2.mute()
+
+    lp.sec("ac1: send another message to ac2")
+    chat.send_text("message1")
+
+    lp.sec("wait for ac2 to receive DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK")
+    while 1:
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data1 == const.DC_CHAT_ID_ARCHIVED_LINK:
+            assert ev.data2 == 0
+            archive = ac2.get_chat_by_id(const.DC_CHAT_ID_ARCHIVED_LINK)
+            assert archive.count_fresh_messages() == 1
+            assert chat2.count_fresh_messages() == 1
+            break
+
+
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
