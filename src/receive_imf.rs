@@ -356,11 +356,7 @@ pub(crate) async fn receive_imf_inner(
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
-            if incoming && fresh {
-                context.emit_incoming_msg(chat_id, *msg_id);
-            } else {
-                context.emit_msgs_changed(chat_id, *msg_id);
-            };
+            chat_id.emit_msg_event(context, *msg_id, incoming && fresh);
         }
     }
 
