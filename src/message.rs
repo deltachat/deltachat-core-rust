@@ -1180,7 +1180,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
 
     if let Some(path) = msg.get_file(context) {
         let bytes = get_filebytes(context, &path).await?;
-        ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
+        ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
     }
 
     if msg.viewtype != Viewtype::Text {
