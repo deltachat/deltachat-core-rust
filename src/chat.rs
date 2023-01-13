@@ -545,6 +545,16 @@ impl ChatId {
         Ok(())
     }
 
+    /// Emits an appropriate event for a message. `important` is whether a notification should be
+    /// shown.
+    pub(crate) fn emit_msg_event(self, context: &Context, msg_id: MsgId, important: bool) {
+        if important {
+            context.emit_incoming_msg(self, msg_id);
+        } else {
+            context.emit_msgs_changed(self, msg_id);
+        }
+    }
+
     /// Deletes a chat.
     pub async fn delete(self, context: &Context) -> Result<()> {
         ensure!(
@@ -3469,11 +3479,7 @@ pub async fn add_device_msg_with_importance(
     }
 
     if !msg_id.is_unset() {
-        if important {
-            context.emit_incoming_msg(chat_id, msg_id);
-        } else {
-            context.emit_msgs_changed(chat_id, msg_id);
-        }
+        chat_id.emit_msg_event(context, msg_id, important);
     }
 
     Ok(msg_id)
