@@ -1983,7 +1983,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
 }
 
 /// Prepares a message to be send out
-/// - Check if chat can be send to
+/// - Checks if chat can be sent to
 async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
