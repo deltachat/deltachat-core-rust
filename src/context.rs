@@ -236,7 +236,7 @@ pub struct InnerContext {
     /// `last_error` should be used to avoid races with the event thread.
     pub(crate) last_error: std::sync::RwLock<String>,
 
-    /// The message id of the current debuglogging webxdc
+    /// If debug logging is enabled, this contains all neccesary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
 }
 
