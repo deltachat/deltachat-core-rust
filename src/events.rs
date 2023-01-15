@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
+use serde::Serialize;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -108,7 +109,7 @@ pub struct Event {
     pub typ: EventType,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///

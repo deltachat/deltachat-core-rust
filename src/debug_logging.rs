@@ -8,6 +8,7 @@ use crate::{
     Event, EventType,
 };
 use async_channel::{self as channel, Receiver};
+use serde_json::json;
 /// Forward log messages to logging webxdc
 use std::path::PathBuf;
 use tokio::task;
@@ -32,7 +33,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
             .write_status_update_inner(
                 &msg_id,
                 StatusUpdateItem {
-                    payload: event.to_json(Some(time)),
+                    payload: json!(event),
                     info: None,
                     summary: None,
                     document: None,
