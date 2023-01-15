@@ -12,11 +12,13 @@ use std::time::{Duration, Instant, SystemTime};
 use anyhow::{ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use tokio::sync::{Mutex, RwLock};
+use tokio::task;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
+use crate::debug_logging::DebugEventLogData;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -233,6 +235,20 @@ pub struct InnerContext {
     /// If the ui wants to display an error after a failure,
     /// `last_error` should be used to avoid races with the event thread.
     pub(crate) last_error: std::sync::RwLock<String>,
+
+    /// The message id of the current debuglogging webxdc
+    pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
+}
+
+#[derive(Debug)]
+pub(crate) struct DebugLogging {
+    /// The message containing the logging xdc
+    pub(crate) msg_id: MsgId,
+    /// Handle to the background task responisble for sending
+    pub(crate) loop_handle: task::JoinHandle<()>,
+    /// Channel that log events should be send to
+    /// A background loop will receive and handle them
+    pub(crate) sender: Sender<DebugEventLogData>,
 }
 
 /// The state of ongoing process.
@@ -363,6 +379,7 @@ impl Context {
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
+            debug_logging: RwLock::new(None),
         };
 
         let ctx = Context {
@@ -397,7 +414,11 @@ impl Context {
         // to terminate on receiving the next event and then call stop_io()
         // which will emit the below event(s)
         info!(self, "stopping IO");
-
+        self.debug_logging
+            .read()
+            .await
+            .as_ref()
+            .and_then(|debug_logging| Some(debug_logging.loop_handle.abort()));
         if let Some(scheduler) = self.inner.scheduler.write().await.take() {
             scheduler.stop(self).await;
         }
@@ -434,10 +455,39 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
+        if self
+            .debug_logging
+            .try_read()
+            .ok()
+            .map(|inner| inner.is_some())
+            == Some(true)
+        {
+            self.send_log_event(event.clone()).ok();
+        };
         self.events.emit(Event {
             id: self.id,
             typ: event,
         });
+    }
+
+    pub(crate) fn send_log_event(&self, event: EventType) -> anyhow::Result<()> {
+        if let Ok(lock) = self.debug_logging.try_read() {
+            if let Some(DebugLogging {
+                msg_id: xdc_id,
+                sender,
+                ..
+            }) = &*lock
+            {
+                let event_data = DebugEventLogData {
+                    time: time(),
+                    msg_id: *xdc_id,
+                    event,
+                };
+
+                sender.try_send(event_data).ok();
+            }
+        }
+        Ok(())
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)
@@ -706,6 +756,11 @@ impl Context {
             self.get_config(Config::AuthservIdCandidates)
                 .await?
                 .unwrap_or_default(),
+        );
+
+        res.insert(
+            "debug_logging",
+            self.get_config_int(Config::DebugLogging).await?.to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();

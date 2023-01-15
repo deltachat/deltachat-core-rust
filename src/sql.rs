@@ -19,7 +19,7 @@ use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
 use crate::ephemeral::start_ephemeral_timers;
 use crate::log::LogExt;
-use crate::message::{Message, Viewtype};
+use crate::message::{Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
@@ -343,6 +343,16 @@ impl Sql {
         } else {
             info!(context, "Opened database {:?}.", self.dbfile);
             *self.is_encrypted.write().await = Some(passphrase_nonempty);
+
+            if let Some(xdc_id) = self
+                .get_raw_config_u32(Config::DebugLogging.as_ref())
+                .await?
+            {
+                if let Some(debug_logging) = &mut *context.debug_logging.write().await {
+                    debug_logging.msg_id = MsgId::new(xdc_id)
+                }
+            }
+
             Ok(())
         }
     }
@@ -589,6 +599,12 @@ impl Sql {
     }
 
     pub async fn get_raw_config_int(&self, key: &str) -> Result<Option<i32>> {
+        self.get_raw_config(key)
+            .await
+            .map(|s| s.and_then(|s| s.parse().ok()))
+    }
+
+    pub async fn get_raw_config_u32(&self, key: &str) -> Result<Option<u32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))
