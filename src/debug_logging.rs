@@ -33,7 +33,10 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
             .write_status_update_inner(
                 &msg_id,
                 StatusUpdateItem {
-                    payload: json!(event),
+                    payload: json!({
+                        "event": event,
+                        "time": time,
+                    }),
                     info: None,
                     summary: None,
                     document: None,
