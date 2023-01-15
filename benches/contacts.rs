@@ -14,7 +14,7 @@ async fn address_book_benchmark(n: u32, read_count: u32) {
         .unwrap();
 
     let book = (0..n)
-        .map(|i| format!("Name {}\naddr{}@example.org\n", i, i))
+        .map(|i| format!("Name {i}\naddr{i}@example.org\n"))
         .collect::<Vec<String>>()
         .join("");
 

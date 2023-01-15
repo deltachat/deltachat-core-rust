@@ -414,11 +414,9 @@ impl Context {
         // to terminate on receiving the next event and then call stop_io()
         // which will emit the below event(s)
         info!(self, "stopping IO");
-        self.debug_logging
-            .read()
-            .await
-            .as_ref()
-            .and_then(|debug_logging| Some(debug_logging.loop_handle.abort()));
+        if let Some(debug_logging) = self.debug_logging.read().await.as_ref() {
+            debug_logging.loop_handle.abort();
+        }
         if let Some(scheduler) = self.inner.scheduler.write().await.take() {
             scheduler.stop(self).await;
         }

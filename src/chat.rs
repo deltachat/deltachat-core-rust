@@ -1625,7 +1625,7 @@ impl Chat {
                 .await?;
             msg.id = MsgId::new(u32::try_from(raw_id)?);
 
-            maybe_set_logging_xdc(context, &msg, self.id).await?;
+            maybe_set_logging_xdc(context, msg, self.id).await?;
         }
         context.interrupt_ephemeral_task().await;
         Ok(msg.id)
