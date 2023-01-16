@@ -4,6 +4,7 @@
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+- fix verifier-by addr was empty string intead of None
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object
