@@ -7,6 +7,7 @@
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
+- Protect against RTLO attacks #3479
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
@@ -206,7 +207,6 @@
 - Immediately save `accounts.toml` if it was modified by a migration from absolute paths to relative paths #3943
 - Do not treat invalid email addresses as an exception #3942
 - Add timeouts to HTTP requests #3948
-- Protect against RTLO attacks #3479
 
 ## 1.105.0
 
