@@ -1,6 +1,7 @@
 //! # Events specification.
 
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
 use serde::Serialize;
@@ -16,6 +17,11 @@ use crate::webxdc::StatusUpdateSerial;
 pub struct Events {
     receiver: Receiver<Event>,
     sender: Sender<Event>,
+
+    /// The text of the last error logged and emitted as an event.
+    /// If the ui wants to display an error after a failure,
+    /// `last_error` should be used to avoid races with the event thread.
+    pub(crate) last_error: Arc<RwLock<String>>,
 }
 
 impl Default for Events {
@@ -29,7 +35,11 @@ impl Events {
     pub fn new() -> Self {
         let (sender, receiver) = channel::bounded(1_000);
 
-        Self { receiver, sender }
+        Self {
+            receiver,
+            sender,
+            last_error: Arc::new(RwLock::new("".to_string())),
+        }
     }
 
     /// Emits an event.

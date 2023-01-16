@@ -233,12 +233,6 @@ pub struct InnerContext {
 
     creation_time: SystemTime,
 
-    /// The text of the last error logged and emitted as an event.
-    /// If the ui wants to display an error after a failure,
-    /// `last_error` should be used to avoid races with the event thread.
-    pub(crate) last_error: std::sync::RwLock<String>,
-
-    /// If debug logging is enabled, this contains all necessary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
 }
 
@@ -382,7 +376,6 @@ impl Context {
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
-            last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: RwLock::new(None),
         };
 
