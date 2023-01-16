@@ -1634,6 +1634,8 @@ def test_add_remove_member_remote_events(acfactory, lp):
     ev = in_list.get()
     assert ev.action == "chat-modified"
     ev = in_list.get()
+    assert ev.action == "chat-modified"
+    ev = in_list.get()
     assert ev.action == "added"
     assert ev.message.get_sender_contact().addr == ac1_addr
     assert ev.contact.addr == ac3_addr
