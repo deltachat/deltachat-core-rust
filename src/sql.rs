@@ -17,6 +17,7 @@ use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
+use crate::debug_logging::set_debug_logging_xdc;
 use crate::ephemeral::start_ephemeral_timers;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
@@ -344,13 +345,12 @@ impl Sql {
             info!(context, "Opened database {:?}.", self.dbfile);
             *self.is_encrypted.write().await = Some(passphrase_nonempty);
 
+            // setup debug logging if there is an entry containing its id
             if let Some(xdc_id) = self
                 .get_raw_config_u32(Config::DebugLogging.as_ref())
                 .await?
             {
-                if let Some(debug_logging) = &mut *context.debug_logging.write().await {
-                    debug_logging.msg_id = MsgId::new(xdc_id)
-                }
+                set_debug_logging_xdc(context, Some(MsgId::new(xdc_id))).await?;
             }
 
             Ok(())

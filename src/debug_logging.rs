@@ -1,3 +1,4 @@
+//! Forward log messages to logging webxdc 
 use crate::{
     chat::ChatId,
     config::Config,
@@ -9,7 +10,6 @@ use crate::{
 };
 use async_channel::{self as channel, Receiver};
 use serde_json::json;
-/// Forward log messages to logging webxdc
 use std::path::PathBuf;
 use tokio::task;
 
