@@ -1,5 +1,7 @@
 //! # Chat list module.
 
+#![allow(missing_docs)]
+
 use anyhow::{ensure, Context as _, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
@@ -90,8 +92,6 @@ impl Chatlist {
         let flag_no_specials = 0 != listflags & DC_GCL_NO_SPECIALS;
         let flag_add_alldone_hint = 0 != listflags & DC_GCL_ADD_ALLDONE_HINT;
 
-        let mut add_archived_link_item = false;
-
         let process_row = |row: &rusqlite::Row| {
             let chat_id: ChatId = row.get(0)?;
             let msg_id: Option<MsgId> = row.get(1)?;
@@ -121,7 +121,7 @@ impl Chatlist {
         //
         // The query shows messages from blocked contacts in
         // groups. Otherwise it would be hard to follow conversations.
-        let mut ids = if let Some(query_contact_id) = query_contact_id {
+        let ids = if let Some(query_contact_id) = query_contact_id {
             // show chats shared with a given contact
             context.sql.query_map(
                 "SELECT c.id, m.id
@@ -214,7 +214,7 @@ impl Chatlist {
             } else {
                 ChatId::new(0)
             };
-            let ids = context.sql.query_map(
+            let mut ids = context.sql.query_map(
                 "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
@@ -234,18 +234,14 @@ impl Chatlist {
                 process_row,
                 process_rows,
             ).await?;
-            if !flag_no_specials {
-                add_archived_link_item = true;
+            if !flag_no_specials && get_archived_cnt(context).await? > 0 {
+                if ids.is_empty() && flag_add_alldone_hint {
+                    ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
+                }
+                ids.insert(0, (DC_CHAT_ID_ARCHIVED_LINK, None));
             }
             ids
         };
-
-        if add_archived_link_item && get_archived_cnt(context).await? > 0 {
-            if ids.is_empty() && flag_add_alldone_hint {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
-            }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK, None));
-        }
 
         Ok(Chatlist { ids })
     }

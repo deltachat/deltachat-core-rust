@@ -12,7 +12,7 @@ describe("online tests", function () {
   let accountId1: number, accountId2: number;
 
   before(async function () {
-    this.timeout(12000);
+    this.timeout(60000);
     if (!process.env.DCC_NEW_TMP_EMAIL) {
       if (process.env.COVERAGE && !process.env.COVERAGE_OFFLINE) {
         console.error(

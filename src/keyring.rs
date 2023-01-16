@@ -19,7 +19,7 @@ where
 
 impl<T> Keyring<T>
 where
-    T: DcKey<KeyType = T>,
+    T: DcKey,
 {
     /// New empty keyring.
     pub fn new() -> Keyring<T> {

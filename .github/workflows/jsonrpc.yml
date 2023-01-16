@@ -19,13 +19,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 16.x
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - name: Add Rust cache
-        uses: Swatinem/rust-cache@v1.3.0
+        uses: Swatinem/rust-cache@v2
       - name: npm install
         run: |
           cd deltachat-jsonrpc/typescript

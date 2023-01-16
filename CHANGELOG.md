@@ -2,16 +2,78 @@
 
 ## Unreleased
 
+### Fixes
+- Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+
+### API-Changes
+- jsonrpc: add verified-by information to `Contact`-Object
+- Remove `attach_selfavatar` config #3951
+- `DC_EVENT_WEBXDC_UPDATE_STATE_CHANGED` is emitted when webxdc update state changes #3320
+
+## 1.106.0
+
+### Changes
+- Only send IncomingMsgBunch if there are more than 0 new messages #3941
+
+### Fixes
+- fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
+- Immediately save `accounts.toml` if it was modified by a migration from absolute paths to relative paths #3943
+- Do not treat invalid email addresses as an exception #3942
+- Add timeouts to HTTP requests #3948
+
+
+## 1.105.0
+
+### Changes
+- Validate signatures in try_decrypt() even if the message isn't encrypted #3859
+- Don't parse the message again after detached signatures validation #3862
+- Move format=flowed support to a separate crate #3869
+- cargo: bump quick-xml from 0.23.0 to 0.26.0 #3722
+- Add fuzzing tests #3853
+- Add mappings for some file types to Viewtype / MIME type #3881
+- Buffer IMAP client writes #3888
+- move `DC_CHAT_ID_ARCHIVED_LINK` to the top of chat lists
+  and make `dc_get_fresh_msg_cnt()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3918
+- make `dc_marknoticed_chat()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3919
+- Update provider database
+
+### API-Changes
+- jsonrpc: add python API for webxdc updates #3872
+- jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
+- Add ffi functions to retrieve `verified by` information #3786
+- resultify `Message::get_filebytes()` #3925
+
+### Fixes
+- Do not add an error if the message is encrypted but not signed #3860
+- Do not strip leading spaces from message lines #3867
+- Fix uncaught exception in JSON-RPC tests #3884
+- Fix STARTTLS connection and add a test for it #3907
+- Trigger reconnection when failing to fetch existing messages #3911
+- Do not retry fetching existing messages after failure, prevents infinite reconnection loop #3913
+- Ensure format=flowed formatting is always reversible on the receiver side #3880
+
+
+## 1.104.0
+
 ### Changes
 - Don't use deprecated `chrono` functions #3798
 - Document accounts manager #3837
 - If a classical-email-user sends an email to a group and adds new recipients,
   add the new recipients as group members #3781
-- `DC_EVENT_WEBXDC_UPDATE_STATE_CHANGED` is emitted when update state changes #3320
+
 ### API-Changes
+- Remove `pytest-async` plugin #3846
+- Only send the message about ephemeral timer change if the chat is promoted #3847
+- Use relative paths in `accounts.toml` #3838
 
 ### Fixes
 - Set read/write timeouts for IMAP over SOCKS5 #3833
+- Treat attached PGP keys as peer keys with mutual encryption preference #3832
+- fix migration of old databases #3842
+- Fix cargo clippy and doc errors after Rust update to 1.66 #3850
+- Don't send GroupNameChanged message if the group name doesn't change in terms of
+  `improve_single_line_input()` #3852
+- Prefer encryption for the peer if the message is encrypted or signed with the known key #3849
 
 
 ## 1.103.0

@@ -105,7 +105,7 @@ impl MessageObject {
 
         let sender_contact = Contact::load_from_db(context, message.get_from_id()).await?;
         let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
-        let file_bytes = message.get_filebytes(context).await;
+        let file_bytes = message.get_filebytes(context).await?.unwrap_or_default();
         let override_sender_name = message.get_override_sender_name();
 
         let webxdc_info = if message.get_viewtype() == Viewtype::Webxdc {

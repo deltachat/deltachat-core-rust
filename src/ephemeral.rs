@@ -62,6 +62,8 @@
 //! the database entries which are expired either according to their
 //! ephemeral message timers or global `delete_server_after` setting.
 
+#![allow(missing_docs)]
+
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -203,14 +205,17 @@ impl ChatId {
             return Ok(());
         }
         self.inner_set_ephemeral_timer(context, timer).await?;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
-        msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
-        if let Err(err) = send_msg(context, self, &mut msg).await {
-            error!(
-                context,
-                "Failed to send a message about ephemeral message timer change: {:?}", err
-            );
+
+        if self.is_promoted(context).await? {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
+            msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
+            if let Err(err) = send_msg(context, self, &mut msg).await {
+                error!(
+                    context,
+                    "Failed to send a message about ephemeral message timer change: {:?}", err
+                );
+            }
         }
         Ok(())
     }
@@ -628,7 +633,7 @@ mod tests {
     use crate::test_utils::TestContext;
     use crate::tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::{
-        chat::{self, Chat, ChatItem},
+        chat::{self, create_group_chat, send_text_msg, Chat, ChatItem, ProtectionStatus},
         tools::IsNoneOrEmpty,
     };
 
@@ -789,6 +794,42 @@ mod tests {
             chat_bob.get_ephemeral_timer(&bob.ctx).await?,
             Timer::Disabled
         );
+
+        Ok(())
+    }
+
+    /// Test that enabling ephemeral timer in unpromoted group does not send a message.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_ephemeral_unpromoted() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group name").await?;
+
+        // Group is unpromoted, the timer can be changed without sending a message.
+        assert!(chat_id.is_unpromoted(&alice).await?);
+        chat_id
+            .set_ephemeral_timer(&alice, Timer::Enabled { duration: 60 })
+            .await?;
+        let sent = alice.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_none());
+        assert_eq!(
+            chat_id.get_ephemeral_timer(&alice).await?,
+            Timer::Enabled { duration: 60 }
+        );
+
+        // Promote the group.
+        send_text_msg(&alice, chat_id, "hi!".to_string()).await?;
+        assert!(chat_id.is_promoted(&alice).await?);
+        let sent = alice.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_some());
+
+        chat_id
+            .set_ephemeral_timer(&alice.ctx, Timer::Disabled)
+            .await?;
+        let sent = alice.pop_sent_msg_opt(Duration::from_secs(1)).await;
+        assert!(sent.is_some());
+        assert_eq!(chat_id.get_ephemeral_timer(&alice).await?, Timer::Disabled);
 
         Ok(())
     }

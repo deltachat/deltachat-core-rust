@@ -1,7 +1,5 @@
 //! # Account manager module.
 
-#![warn(missing_docs)]
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -66,7 +64,7 @@ impl Accounts {
         let events = Events::new();
         let stockstrings = StockStrings::new();
         let accounts = config
-            .load_accounts(&events, &stockstrings)
+            .load_accounts(&events, &stockstrings, &dir)
             .await
             .context("failed to load accounts")?;
 
@@ -109,10 +107,11 @@ impl Accounts {
     ///
     /// Returns account ID.
     pub async fn add_account(&mut self) -> Result<u32> {
-        let account_config = self.config.new_account(&self.dir).await?;
+        let account_config = self.config.new_account().await?;
+        let dbfile = account_config.dbfile(&self.dir);
 
         let ctx = Context::new(
-            &account_config.dbfile(),
+            &dbfile,
             account_config.id,
             self.events.clone(),
             self.stockstrings.clone(),
@@ -125,10 +124,10 @@ impl Accounts {
 
     /// Adds a new closed account.
     pub async fn add_closed_account(&mut self) -> Result<u32> {
-        let account_config = self.config.new_account(&self.dir).await?;
+        let account_config = self.config.new_account().await?;
 
         let ctx = Context::new_closed(
-            &account_config.dbfile(),
+            &account_config.dbfile(&self.dir),
             account_config.id,
             self.events.clone(),
             self.stockstrings.clone(),
@@ -149,6 +148,8 @@ impl Accounts {
         drop(ctx);
 
         if let Some(cfg) = self.config.get_account(id) {
+            let account_path = self.dir.join(cfg.dir);
+
             // Spend up to 1 minute trying to remove the files.
             // Files may remain locked up to 30 seconds due to r2d2 bug:
             // https://github.com/sfackler/r2d2/issues/99
@@ -156,7 +157,7 @@ impl Accounts {
             loop {
                 counter += 1;
 
-                if let Err(err) = fs::remove_dir_all(&cfg.dir)
+                if let Err(err) = fs::remove_dir_all(&account_path)
                     .await
                     .context("failed to remove account data")
                 {
@@ -189,16 +190,16 @@ impl Accounts {
         // create new account
         let account_config = self
             .config
-            .new_account(&self.dir)
+            .new_account()
             .await
             .context("failed to create new account")?;
 
-        let new_dbfile = account_config.dbfile();
+        let new_dbfile = account_config.dbfile(&self.dir);
         let new_blobdir = Context::derive_blobdir(&new_dbfile);
         let new_walfile = Context::derive_walfile(&new_dbfile);
 
         let res = {
-            fs::create_dir_all(&account_config.dir)
+            fs::create_dir_all(self.dir.join(&account_config.dir))
                 .await
                 .context("failed to create dir")?;
             fs::rename(&dbfile, &new_dbfile)
@@ -360,10 +361,26 @@ impl Config {
 
     /// Read a configuration from the given file into memory.
     pub async fn from_file(file: PathBuf) -> Result<Self> {
+        let dir = file.parent().context("can't get config file directory")?;
         let bytes = fs::read(&file).await.context("failed to read file")?;
-        let inner: InnerConfig = toml::from_slice(&bytes).context("failed to parse config")?;
+        let mut inner: InnerConfig = toml::from_slice(&bytes).context("failed to parse config")?;
 
-        Ok(Config { file, inner })
+        // Previous versions of the core stored absolute paths in account config.
+        // Convert them to relative paths.
+        let mut modified = false;
+        for account in &mut inner.accounts {
+            if let Ok(new_dir) = account.dir.strip_prefix(dir) {
+                account.dir = new_dir.to_path_buf();
+                modified = true;
+            }
+        }
+
+        let config = Self { file, inner };
+        if modified {
+            config.sync().await?;
+        }
+
+        Ok(config)
     }
 
     /// Loads all accounts defined in the configuration file.
@@ -374,12 +391,13 @@ impl Config {
         &self,
         events: &Events,
         stockstrings: &StockStrings,
+        dir: &Path,
     ) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
 
         for account_config in &self.inner.accounts {
             let ctx = Context::new(
-                &account_config.dbfile(),
+                &account_config.dbfile(dir),
                 account_config.id,
                 events.clone(),
                 stockstrings.clone(),
@@ -388,7 +406,7 @@ impl Config {
             .with_context(|| {
                 format!(
                     "failed to create context from file {:?}",
-                    account_config.dbfile()
+                    account_config.dbfile(dir)
                 )
             })?;
 
@@ -398,12 +416,12 @@ impl Config {
         Ok(accounts)
     }
 
-    /// Create a new account in the given root directory.
-    async fn new_account(&mut self, dir: &Path) -> Result<AccountConfig> {
+    /// Creates a new account in the account manager directory.
+    async fn new_account(&mut self) -> Result<AccountConfig> {
         let id = {
             let id = self.inner.next_id;
             let uuid = Uuid::new_v4();
-            let target_dir = dir.join(uuid.to_string());
+            let target_dir = PathBuf::from(uuid.to_string());
 
             self.inner.accounts.push(AccountConfig {
                 id,
@@ -475,14 +493,16 @@ struct AccountConfig {
     /// Unique id.
     pub id: u32,
     /// Root directory for all data for this account.
+    ///
+    /// The path is relative to the account manager directory.
     pub dir: std::path::PathBuf,
     pub uuid: Uuid,
 }
 
 impl AccountConfig {
     /// Get the canoncial dbfile name for this configuration.
-    pub fn dbfile(&self) -> std::path::PathBuf {
-        self.dir.join(DB_NAME)
+    pub fn dbfile(&self, accounts_dir: &Path) -> std::path::PathBuf {
+        accounts_dir.join(&self.dir).join(DB_NAME)
     }
 }
 

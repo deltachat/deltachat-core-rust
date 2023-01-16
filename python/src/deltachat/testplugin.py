@@ -176,7 +176,7 @@ class TestProcess:
                 try:
                     yield self._configlist[index]
                 except IndexError:
-                    res = requests.post(liveconfig_opt)
+                    res = requests.post(liveconfig_opt, timeout=60)
                     if res.status_code != 200:
                         pytest.fail("newtmpuser count={} code={}: '{}'".format(index, res.status_code, res.text))
                     d = res.json()

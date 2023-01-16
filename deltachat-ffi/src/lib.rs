@@ -2189,7 +2189,7 @@ pub unsafe extern "C" fn dc_imex(
         eprintln!("ignoring careless call to dc_imex()");
         return;
     }
-    let what = match imex::ImexMode::from_i32(what_raw as i32) {
+    let what = match imex::ImexMode::from_i32(what_raw) {
         Some(what) => what,
         None => {
             eprintln!("ignoring invalid argument {} to dc_imex", what_raw);
@@ -2260,10 +2260,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     msg_id: u32,
     setup_code: *const libc::c_char,
 ) -> libc::c_int {
-    if context.is_null()
-        || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL as u32
-        || setup_code.is_null()
-    {
+    if context.is_null() || msg_id <= constants::DC_MSG_ID_LAST_SPECIAL || setup_code.is_null() {
         eprintln!("ignoring careless call to dc_continue_key_transfer()");
         return 0;
     }
@@ -2454,15 +2451,9 @@ pub unsafe extern "C" fn dc_get_locations(
     };
 
     block_on(async move {
-        let res = location::get_range(
-            ctx,
-            chat_id,
-            contact_id,
-            timestamp_begin as i64,
-            timestamp_end as i64,
-        )
-        .await
-        .unwrap_or_log_default(ctx, "Failed get_locations");
+        let res = location::get_range(ctx, chat_id, contact_id, timestamp_begin, timestamp_end)
+            .await
+            .unwrap_or_log_default(ctx, "Failed get_locations");
         Box::into_raw(Box::new(dc_array_t::from(res)))
     })
 }
@@ -2709,7 +2700,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     }
     let ffi_list = &*chatlist;
     let ctx = &*ffi_list.context;
-    match ffi_list.list.get_chat_id(index as usize) {
+    match ffi_list.list.get_chat_id(index) {
         Ok(chat_id) => chat_id.to_u32(),
         Err(err) => {
             warn!(ctx, "get_chat_id failed: {}", err);
@@ -2729,7 +2720,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     }
     let ffi_list = &*chatlist;
     let ctx = &*ffi_list.context;
-    match ffi_list.list.get_msg_id(index as usize) {
+    match ffi_list.list.get_msg_id(index) {
         Ok(msg_id) => msg_id.map_or(0, |msg_id| msg_id.to_u32()),
         Err(err) => {
             warn!(ctx, "get_msg_id failed: {}", err);
@@ -2760,7 +2751,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
     block_on(async move {
         let summary = ffi_list
             .list
-            .get_summary(ctx, index as usize, maybe_chat)
+            .get_summary(ctx, index, maybe_chat)
             .await
             .log_err(ctx, "get_summary failed")
             .unwrap_or_default();
@@ -3343,6 +3334,8 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     let ctx = &*ffi_msg.context;
 
     block_on(ffi_msg.message.get_filebytes(ctx))
+        .unwrap_or_log_default(ctx, "Cannot get file size")
+        .unwrap_or_default()
 }
 
 #[no_mangle]
@@ -3997,6 +3990,37 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
         .unwrap_or_default() as libc::c_int
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_verifier_addr(
+    contact: *mut dc_contact_t,
+) -> *mut libc::c_char {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_get_verifier_addr()");
+        return "".strdup();
+    }
+    let ffi_contact = &*contact;
+    let ctx = &*ffi_contact.context;
+    block_on(ffi_contact.contact.get_verifier_addr(ctx))
+        .log_err(ctx, "failed to get verifier for contact")
+        .unwrap_or_default()
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) -> u32 {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_get_verifier_id()");
+        return 0;
+    }
+    let ffi_contact = &*contact;
+    let ctx = &*ffi_contact.context;
+    let verifier_contact_id = block_on(ffi_contact.contact.get_verifier_id(ctx))
+        .log_err(ctx, "failed to get verifier")
+        .unwrap_or_default()
+        .unwrap_or_default();
+
+    verifier_contact_id.to_u32()
+}
 // dc_lot_t
 
 pub type dc_lot_t = lot::Lot;

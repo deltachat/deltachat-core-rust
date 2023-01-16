@@ -1,5 +1,7 @@
 //! OpenPGP helper module using [rPGP facilities](https://github.com/rpgp/rpgp).
 
+#![allow(missing_docs)]
+
 use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;
@@ -263,23 +265,20 @@ pub async fn pk_encrypt(
 /// of all keys from the `public_keys_for_validation` keyring that
 /// have valid signatures there.
 #[allow(clippy::implicit_hasher)]
-pub async fn pk_decrypt(
+pub fn pk_decrypt(
     ctext: Vec<u8>,
-    private_keys_for_decryption: Keyring<SignedSecretKey>,
+    private_keys_for_decryption: &Keyring<SignedSecretKey>,
     public_keys_for_validation: &Keyring<SignedPublicKey>,
 ) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
     let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
 
-    let msgs = tokio::task::spawn_blocking(move || {
-        let cursor = Cursor::new(ctext);
-        let (msg, _) = Message::from_armor_single(cursor)?;
+    let cursor = Cursor::new(ctext);
+    let (msg, _) = Message::from_armor_single(cursor)?;
 
-        let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
+    let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
 
-        let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
-        decryptor.collect::<pgp::errors::Result<Vec<_>>>()
-    })
-    .await??;
+    let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
+    let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
 
     if let Some(msg) = msgs.into_iter().next() {
         // get_content() will decompress the message if needed,
@@ -512,10 +511,9 @@ mod tests {
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
-        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
@@ -527,10 +525,9 @@ mod tests {
         sig_check_keyring.add(KEYS.alice_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
-        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 1);
@@ -543,10 +540,9 @@ mod tests {
         let empty_keyring = Keyring::new();
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            keyring,
+            &keyring,
             &empty_keyring,
         )
-        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
@@ -561,10 +557,9 @@ mod tests {
         sig_check_keyring.add(KEYS.bob_public.clone());
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
-        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
@@ -577,10 +572,9 @@ mod tests {
         let sig_check_keyring = Keyring::new();
         let (plain, valid_signatures) = pk_decrypt(
             ctext_unsigned().await.as_bytes().to_vec(),
-            decrypt_keyring,
+            &decrypt_keyring,
             &sig_check_keyring,
         )
-        .await
         .unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);

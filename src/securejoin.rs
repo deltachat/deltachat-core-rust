@@ -1,5 +1,7 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol).
 
+#![allow(missing_docs)]
+
 use std::convert::TryFrom;
 
 use anyhow::{bail, Context as _, Error, Result};
@@ -409,7 +411,14 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
+            let contact_addr = Contact::load_from_db(context, contact_id)
+                .await?
+                .get_addr()
+                .to_owned();
+            if mark_peer_as_verified(context, fingerprint.clone(), contact_addr)
+                .await
+                .is_err()
+            {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -446,6 +455,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     None => bail!("Chat {} not found", &field_grpid),
                 }
+                inviter_progress!(context, contact_id, 800);
+                inviter_progress!(context, contact_id, 1000);
             } else {
                 // Alice -> Bob
                 secure_connection_established(
@@ -494,9 +505,6 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
                 if join_vg {
-                    // Responsible for showing "$Bob securely joined $group" message
-                    inviter_progress!(context, contact_id, 800);
-                    inviter_progress!(context, contact_id, 1000);
                     let field_grpid = mime_message
                         .get_header(HeaderDef::SecureJoinGroup)
                         .map(|s| s.as_str())
@@ -529,7 +537,7 @@ pub(crate) async fn handle_securejoin_handshake(
 ///
 /// - if we see the self-sent-message vg-member-added/vc-contact-confirm,
 ///   we know that we're an inviter-observer.
-///   the inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
+///   The inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
 ///   before sending vg-member-added/vc-contact-confirm - so, if we observe vg-member-added/vc-contact-confirm,
 ///   we can mark the peer as verified as well.
 ///
@@ -570,29 +578,102 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let fingerprint: Fingerprint =
-                match mime_message.get_header(HeaderDef::SecureJoinFingerprint) {
-                    Some(fp) => fp.parse()?,
+            let addr = Contact::load_from_db(context, contact_id)
+                .await?
+                .get_addr()
+                .to_string();
+            if mime_message.gossiped_addr.contains(&addr) {
+                let mut peerstate = match Peerstate::from_addr(context, &addr).await? {
+                    Some(p) => p,
                     None => {
                         could_not_establish_secure_connection(
-                        context,
-                        contact_id,
-                        info_chat_id(context, contact_id).await?,
-                        "Fingerprint not provided, please update Delta Chat on all your devices.",
-                    )
-                    .await?;
+                            context,
+                            contact_id,
+                            info_chat_id(context, contact_id).await?,
+                            &format!("No peerstate in db for '{}' at step {}", &addr, step),
+                        )
+                        .await?;
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-            if mark_peer_as_verified(context, &fingerprint).await.is_err() {
+                let fingerprint = match peerstate.gossip_key_fingerprint.clone() {
+                    Some(fp) => fp,
+                    None => {
+                        could_not_establish_secure_connection(
+                            context,
+                            contact_id,
+                            info_chat_id(context, contact_id).await?,
+                            &format!(
+                                "No gossip key fingerprint in db for '{}' at step {}",
+                                &addr, step,
+                            ),
+                        )
+                        .await?;
+                        return Ok(HandshakeMessage::Ignore);
+                    }
+                };
+                if let Err(err) = peerstate.set_verified(
+                    PeerstateKeyType::GossipKey,
+                    fingerprint,
+                    PeerstateVerifiedStatus::BidirectVerified,
+                    addr,
+                ) {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_id,
+                        info_chat_id(context, contact_id).await?,
+                        &format!("Could not mark peer as verified at step {}: {}", step, err),
+                    )
+                    .await?;
+                    return Ok(HandshakeMessage::Ignore);
+                }
+                peerstate.prefer_encrypt = EncryptPreference::Mutual;
+                peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+            } else if let Some(fingerprint) =
+                mime_message.get_header(HeaderDef::SecureJoinFingerprint)
+            {
+                // FIXME: Old versions of DC send this header instead of gossips. Remove this
+                // eventually.
+                let fingerprint = fingerprint.parse()?;
+                if mark_peer_as_verified(
+                    context,
+                    fingerprint,
+                    Contact::load_from_db(context, contact_id)
+                        .await?
+                        .get_addr()
+                        .to_owned(),
+                )
+                .await
+                .is_err()
+                {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_id,
+                        info_chat_id(context, contact_id).await?,
+                        format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                    )
+                    .await?;
+                    return Ok(HandshakeMessage::Ignore);
+                }
+            } else {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
                     info_chat_id(context, contact_id).await?,
-                    format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                    &format!(
+                        "No gossip header for '{}' at step {}, please update Delta Chat on all \
+                        your devices.",
+                        &addr, step,
+                    ),
                 )
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
+            }
+            if step.as_str() == "vg-member-added" {
+                inviter_progress!(context, contact_id, 800);
+            }
+            if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
+                inviter_progress!(context, contact_id, 1000);
             }
             Ok(if step.as_str() == "vg-member-added" {
                 HandshakeMessage::Propagate
@@ -632,22 +713,27 @@ async fn could_not_establish_secure_connection(
     Ok(())
 }
 
-async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
-    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await? {
-        if peerstate.set_verified(
+async fn mark_peer_as_verified(
+    context: &Context,
+    fingerprint: Fingerprint,
+    verifier: String,
+) -> Result<(), Error> {
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, &fingerprint).await? {
+        if let Err(err) = peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,
             PeerstateVerifiedStatus::BidirectVerified,
+            verifier,
         ) {
-            peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.save_to_db(&context.sql).await.unwrap_or_default();
-            return Ok(());
+            error!(context, "Could not mark peer as verified: {}", err);
+            return Err(err);
         }
+        peerstate.prefer_encrypt = EncryptPreference::Mutual;
+        peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+        Ok(())
+    } else {
+        bail!("no peerstate in db for fingerprint {}", fingerprint.hex());
     }
-    bail!(
-        "could not mark peer as verified for fingerprint {}",
-        fingerprint.hex()
-    );
 }
 
 /* ******************************************************************************
@@ -686,6 +772,8 @@ mod tests {
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
     use crate::constants::{Chattype, DC_GCM_ADDDAYMARKER};
+    use crate::contact::ContactAddress;
+    use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
@@ -929,6 +1017,7 @@ mod tests {
             verified_key: None,
             verified_key_fingerprint: None,
             fingerprint_changed: false,
+            verifier: None,
         };
         peerstate.save_to_db(&bob.ctx.sql).await?;
 
@@ -978,7 +1067,7 @@ mod tests {
         let (contact_bob_id, _modified) = Contact::add_or_lookup(
             &alice.ctx,
             "Bob",
-            "bob@example.net",
+            ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?;

@@ -1,26 +1,33 @@
 //! # MIME message parsing module.
 
+#![allow(missing_docs)]
+
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
+use std::str;
 
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
+use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
 
-use crate::aheader::Aheader;
+use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
-use crate::decrypt::{prepare_decryption, try_decrypt};
+use crate::decrypt::{
+    keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
+    DecryptionInfo,
+};
 use crate::dehtml::dehtml;
 use crate::events::EventType;
-use crate::format_flowed::unformat_flowed;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::Fingerprint;
+use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
+use crate::keyring::Keyring;
 use crate::message::{self, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -52,6 +59,7 @@ pub struct MimeMessage {
     pub from_is_signed: bool,
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
+    pub decryption_info: DecryptionInfo,
     pub decrypting_failed: bool,
 
     /// Set of valid signature fingerprints if a message is an
@@ -60,7 +68,6 @@ pub struct MimeMessage {
     /// If a message is not encrypted or the signature is not valid,
     /// this set is empty.
     pub signatures: HashSet<Fingerprint>,
-
     /// The set of mail recipient addresses for which gossip headers were applied, regardless of
     /// whether they modified any peerstates.
     pub gossiped_addr: HashSet<String>,
@@ -216,16 +223,12 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
 
-        let is_thunderbird = headers
-            .get("user-agent")
-            .map_or(false, |user_agent| user_agent.contains("Thunderbird"));
-        if is_thunderbird {
-            info!(context, "Detected Thunderbird");
-        }
-
         let from = from.context("No from in message")?;
+        let private_keyring: Keyring<SignedSecretKey> = Keyring::new_self(context)
+            .await
+            .context("failed to get own keyring")?;
         let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, message_time, is_thunderbird).await?;
+            prepare_decryption(context, &mail, &from.addr, message_time).await?;
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
@@ -234,92 +237,103 @@ impl MimeMessage {
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
-        // `signatures` is non-empty exactly if the message was encrypted and correctly signed.
-        let (mail, signatures, warn_empty_signature) =
-            match try_decrypt(context, &mail, &decryption_info).await {
+        let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
+        let (mail, mut signatures, encrypted) =
+            match try_decrypt(context, &mail, &private_keyring, &public_keyring) {
                 Ok(Some((raw, signatures))) => {
-                    // Encrypted, but maybe unsigned message. Only if
-                    // `signatures` set is non-empty, it is a valid
-                    // autocrypt message.
-
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "decrypted message mime-body:");
-                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                        info!(
+                            context,
+                            "decrypted message mime-body:\n{}",
+                            String::from_utf8_lossy(&mail_raw),
+                        );
                     }
-
-                    // Handle any gossip headers if the mail was encrypted.  See section
-                    // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-                    // but only if the mail was correctly signed:
-                    if !signatures.is_empty() {
-                        let gossip_headers =
-                            decrypted_mail.headers.get_all_values("Autocrypt-Gossip");
-                        gossiped_addr =
-                            update_gossip_peerstates(context, message_time, &mail, gossip_headers)
-                                .await?;
-                    }
-
-                    // let known protected headers from the decrypted
-                    // part override the unencrypted top-level
-
-                    // Signature was checked for original From, so we
-                    // do not allow overriding it.
-                    let mut signed_from = None;
-
-                    // We do not want to allow unencrypted subject in encrypted emails because the user might falsely think that the subject is safe.
-                    // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                    headers.remove("subject");
-
-                    MimeMessage::merge_headers(
-                        context,
-                        &mut headers,
-                        &mut recipients,
-                        &mut signed_from,
-                        &mut list_post,
-                        &mut chat_disposition_notification_to,
-                        &decrypted_mail.headers,
-                    );
-                    if let Some(signed_from) = signed_from {
-                        if addr_cmp(&signed_from.addr, &from.addr) {
-                            from_is_signed = true;
-                        } else {
-                            // There is a From: header in the encrypted &
-                            // signed part, but it doesn't match the outer one.
-                            // This _might_ be because the sender's mail server
-                            // replaced the sending address, e.g. in a mailing list.
-                            // Or it's because someone is doing some replay attack
-                            // - OTOH, I can't come up with an attack scenario
-                            // where this would be useful.
-                            warn!(
-                                context,
-                                "From header in signed part does't match the outer one"
-                            );
-                        }
-                    }
-
                     (Ok(decrypted_mail), signatures, true)
                 }
-                Ok(None) => {
-                    // Message was not encrypted.
-                    // If it is not a read receipt, degrade encryption.
-                    if let Some(peerstate) = &mut decryption_info.peerstate {
-                        if message_time > peerstate.last_seen_autocrypt
-                            && mail.ctype.mimetype != "multipart/report"
-                        // Disallowing keychanges is disabled for now:
-                        // && decryption_info.dkim_results.allow_keychange
-                        {
-                            peerstate.degrade_encryption(message_time);
-                            peerstate.save_to_db(&context.sql).await?;
-                        }
-                    }
-                    (Ok(mail), HashSet::new(), false)
-                }
+                Ok(None) => (Ok(mail), HashSet::new(), false),
                 Err(err) => {
-                    warn!(context, "decryption failed: {}", err);
-                    (Err(err), HashSet::new(), true)
+                    warn!(context, "decryption failed: {:#}", err);
+                    (Err(err), HashSet::new(), false)
                 }
             };
+        let mail = mail.as_ref().map(|mail| {
+            let (content, signatures_detached) = validate_detached_signature(mail, &public_keyring)
+                .unwrap_or((mail, Default::default()));
+            signatures.extend(signatures_detached);
+            content
+        });
+        if let (Ok(mail), true) = (mail, encrypted) {
+            // Handle any gossip headers if the mail was encrypted.  See section
+            // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+            // but only if the mail was correctly signed:
+            if !signatures.is_empty() {
+                let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
+                gossiped_addr = update_gossip_peerstates(
+                    context,
+                    message_time,
+                    &from.addr,
+                    &recipients,
+                    gossip_headers,
+                )
+                .await?;
+            }
+
+            // let known protected headers from the decrypted
+            // part override the unencrypted top-level
+
+            // Signature was checked for original From, so we
+            // do not allow overriding it.
+            let mut signed_from = None;
+
+            // We do not want to allow unencrypted subject in encrypted emails because the
+            // user might falsely think that the subject is safe.
+            // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+            headers.remove("subject");
+
+            MimeMessage::merge_headers(
+                context,
+                &mut headers,
+                &mut recipients,
+                &mut signed_from,
+                &mut list_post,
+                &mut chat_disposition_notification_to,
+                &mail.headers,
+            );
+            if let Some(signed_from) = signed_from {
+                if addr_cmp(&signed_from.addr, &from.addr) {
+                    from_is_signed = true;
+                } else {
+                    // There is a From: header in the encrypted &
+                    // signed part, but it doesn't match the outer one.
+                    // This _might_ be because the sender's mail server
+                    // replaced the sending address, e.g. in a mailing list.
+                    // Or it's because someone is doing some replay attack
+                    // - OTOH, I can't come up with an attack scenario
+                    // where this would be useful.
+                    warn!(
+                        context,
+                        "From header in signed part does't match the outer one",
+                    );
+                }
+            }
+        }
+        if signatures.is_empty() {
+            // If it is not a read receipt, degrade encryption.
+            if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
+                if message_time > peerstate.last_seen_autocrypt
+                    && mail.ctype.mimetype != "multipart/report"
+                // Disallowing keychanges is disabled for now:
+                // && decryption_info.dkim_results.allow_keychange
+                {
+                    peerstate.degrade_encryption(message_time);
+                }
+            }
+        }
+        if !encrypted {
+            signatures.clear();
+        }
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
@@ -329,6 +343,7 @@ impl MimeMessage {
             from,
             from_is_signed,
             chat_disposition_notification_to,
+            decryption_info,
             decrypting_failed: mail.is_err(),
 
             // only non-empty if it was a valid autocrypt message
@@ -358,7 +373,7 @@ impl MimeMessage {
             }
             None => match mail {
                 Ok(mail) => {
-                    parser.parse_mime_recursive(context, &mail, false).await?;
+                    parser.parse_mime_recursive(context, mail, false).await?;
                 }
                 Err(err) => {
                     let msg_body = stock_str::cant_decrypt_msg_body(context).await;
@@ -368,7 +383,7 @@ impl MimeMessage {
                         typ: Viewtype::Text,
                         msg_raw: Some(txt.clone()),
                         msg: txt,
-                        error: Some(format!("Decrypting failed: {}", err)),
+                        error: Some(format!("Decrypting failed: {:#}", err)),
                         ..Default::default()
                     };
                     parser.parts.push(part);
@@ -387,21 +402,23 @@ impl MimeMessage {
         //         part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
         //     }
         // }
-        if warn_empty_signature && parser.signatures.is_empty() {
-            for part in parser.parts.iter_mut() {
-                part.error = Some("No valid signature".to_string());
-            }
-        }
 
         if parser.is_mime_modified {
             parser.decoded_data = mail_raw;
         }
 
-        crate::peerstate::maybe_do_aeap_transition(context, &mut decryption_info, &parser).await?;
-        if let Some(peerstate) = decryption_info.peerstate {
+        crate::peerstate::maybe_do_aeap_transition(context, &mut parser).await?;
+        if let Some(peerstate) = &parser.decryption_info.peerstate {
             peerstate
                 .handle_fingerprint_change(context, message_time)
                 .await?;
+            // When peerstate is set to Mutual, it's saved immediately to not lose that fact in case
+            // of an error. Otherwise we don't save peerstate until get here to reduce the number of
+            // calls to save_to_db() and not to degrade encryption if a mail wasn't parsed
+            // successfully.
+            if peerstate.prefer_encrypt != EncryptPreference::Mutual {
+                peerstate.save_to_db(&context.sql).await?;
+            }
         }
 
         Ok(parser)
@@ -666,7 +683,7 @@ impl MimeMessage {
                     Err(err) => {
                         warn!(
                             context,
-                            "Could not save decoded avatar to blob file: {}", err
+                            "Could not save decoded avatar to blob file: {:#}", err
                         );
                         None
                     }
@@ -957,7 +974,7 @@ impl MimeMessage {
                     &filename,
                     is_related,
                 )
-                .await;
+                .await?;
             }
             None => {
                 match mime_type.type_() {
@@ -973,7 +990,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -993,7 +1010,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1100,9 +1117,18 @@ impl MimeMessage {
         decoded_data: &[u8],
         filename: &str,
         is_related: bool,
-    ) {
+    ) -> Result<()> {
         if decoded_data.is_empty() {
-            return;
+            return Ok(());
+        }
+        if let Some(peerstate) = &mut self.decryption_info.peerstate {
+            if peerstate.prefer_encrypt != EncryptPreference::Mutual
+                && mime_type.type_() == mime::APPLICATION
+                && mime_type.subtype().as_str() == "pgp-keys"
+                && Self::try_set_peer_key_from_file_part(context, peerstate, decoded_data).await?
+            {
+                return Ok(());
+            }
         }
         let msg_type = if context
             .is_webxdc_file(filename, decoded_data)
@@ -1116,7 +1142,7 @@ impl MimeMessage {
             if filename.starts_with("location") || filename.starts_with("message") {
                 let parsed = location::Kml::parse(decoded_data)
                     .map_err(|err| {
-                        warn!(context, "failed to parse kml part: {}", err);
+                        warn!(context, "failed to parse kml part: {:#}", err);
                     })
                     .ok();
                 if filename.starts_with("location") {
@@ -1124,7 +1150,7 @@ impl MimeMessage {
                 } else {
                     self.message_kml = parsed;
                 }
-                return;
+                return Ok(());
             }
             msg_type
         } else if filename == "multi-device-sync.json" {
@@ -1134,16 +1160,16 @@ impl MimeMessage {
             self.sync_items = context
                 .parse_sync_items(serialized)
                 .map_err(|err| {
-                    warn!(context, "failed to parse sync data: {}", err);
+                    warn!(context, "failed to parse sync data: {:#}", err);
                 })
                 .ok();
-            return;
+            return Ok(());
         } else if filename == "status-update.json" {
             let serialized = String::from_utf8_lossy(decoded_data)
                 .parse()
                 .unwrap_or_default();
             self.webxdc_status_update = Some(serialized);
-            return;
+            return Ok(());
         } else {
             msg_type
         };
@@ -1156,9 +1182,9 @@ impl MimeMessage {
             Err(err) => {
                 error!(
                     context,
-                    "Could not add blob for mime part {}, error {}", filename, err
+                    "Could not add blob for mime part {}, error {:#}", filename, err
                 );
-                return;
+                return Ok(());
             }
         };
         info!(context, "added blobfile: {:?}", blob.as_name());
@@ -1181,6 +1207,66 @@ impl MimeMessage {
         part.is_related = is_related;
 
         self.do_add_single_part(part);
+        Ok(())
+    }
+
+    /// Returns whether a key from the attachment was set as peer's pubkey.
+    async fn try_set_peer_key_from_file_part(
+        context: &Context,
+        peerstate: &mut Peerstate,
+        decoded_data: &[u8],
+    ) -> Result<bool> {
+        let key = match str::from_utf8(decoded_data) {
+            Err(err) => {
+                warn!(context, "PGP key attachment is not a UTF-8 file: {}", err);
+                return Ok(false);
+            }
+            Ok(key) => key,
+        };
+        let key = match SignedPublicKey::from_asc(key) {
+            Err(err) => {
+                warn!(
+                    context,
+                    "PGP key attachment is not an ASCII-armored file: {:#}", err
+                );
+                return Ok(false);
+            }
+            Ok((key, _)) => key,
+        };
+        if let Err(err) = key.verify() {
+            warn!(context, "attached PGP key verification failed: {}", err);
+            return Ok(false);
+        }
+        if !key.details.users.iter().any(|user| {
+            user.id
+                .id()
+                .ends_with(&(String::from("<") + &peerstate.addr + ">"))
+        }) {
+            return Ok(false);
+        }
+        if let Some(curr_key) = &peerstate.public_key {
+            if key != *curr_key && peerstate.prefer_encrypt != EncryptPreference::Reset {
+                // We don't want to break the existing Autocrypt setup. Yes, it's unlikely that a
+                // user have an Autocrypt-capable MUA and also attaches a key, but if that's the
+                // case, let 'em first disable Autocrypt and then change the key by attaching it.
+                warn!(
+                    context,
+                    "not using attached PGP key for peer '{}' because another one is already set \
+                    with prefer-encrypt={}",
+                    peerstate.addr,
+                    peerstate.prefer_encrypt,
+                );
+                return Ok(false);
+            }
+        }
+        peerstate.public_key = Some(key);
+        info!(
+            context,
+            "using attached PGP key for peer '{}' with prefer-encrypt=mutual", peerstate.addr,
+        );
+        peerstate.prefer_encrypt = EncryptPreference::Mutual;
+        peerstate.save_to_db(&context.sql).await?;
+        Ok(true)
     }
 
     fn do_add_single_part(&mut self, mut part: Part) {
@@ -1552,12 +1638,15 @@ impl MimeMessage {
 }
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
+/// Params:
+/// from: The address which sent the message currently beeing parsed
 ///
 /// Returns the set of mail recipient addresses for which valid gossip headers were found.
 async fn update_gossip_peerstates(
     context: &Context,
     message_time: i64,
-    mail: &mailparse::ParsedMail<'_>,
+    from: &str,
+    recipients: &[SingleInfo],
     gossip_headers: Vec<String>,
 ) -> Result<HashSet<String>> {
     // XXX split the parsing from the modification part
@@ -1572,13 +1661,21 @@ async fn update_gossip_peerstates(
             }
         };
 
-        if !get_recipients(&mail.headers)
+        if !recipients
             .iter()
-            .any(|info| info.addr == header.addr.to_lowercase())
+            .any(|info| addr_cmp(&info.addr, &header.addr))
         {
             warn!(
                 context,
                 "Ignoring gossiped \"{}\" as the address is not in To/Cc list.", &header.addr,
+            );
+            continue;
+        }
+        if addr_cmp(from, &header.addr) {
+            // Non-standard, but anyway we can't update the cached peerstate here.
+            warn!(
+                context,
+                "Ignoring gossiped \"{}\" as it equals the From address", &header.addr,
             );
             continue;
         }
@@ -1936,7 +2033,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_crash() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -1948,7 +2045,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_rfc724_mid_exists() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -1962,7 +2059,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_rfc724_mid_not_exists() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -2168,7 +2265,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_parent_timestamp() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"From: foo@example.org\n\
                     Content-Type: text/plain\n\
                     Chat-Version: 1.0\n\
@@ -2201,7 +2298,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_context() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"From: hello@example.org\n\
                     Content-Type: multipart/mixed; boundary=\"==break==\";\n\
                     Subject: outer-subject\n\
@@ -2253,7 +2350,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_avatars() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
         let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
@@ -2294,7 +2391,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_with_videochat() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/videochat_invitation.eml");
         let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
@@ -2316,7 +2413,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mimeparser_message_kml() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Chat-Version: 1.0\n\
 From: foo <foo@example.org>\n\
 To: bar <bar@example.org>\n\
@@ -2361,7 +2458,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_mdn() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2411,7 +2508,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
     /// multipart MIME messages.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_multiple_mdns() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2487,7 +2584,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_mdn_with_additional_message_ids() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = b"Subject: =?utf-8?q?Chat=3A_Message_opened?=\n\
 Date: Mon, 10 Jan 2020 00:00:00 +0000\n\
 Chat-Version: 1.0\n\
@@ -2542,7 +2639,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_parse_inline_attachment() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -2582,7 +2679,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_hide_html_without_content() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = br#"Date: Thu, 13 Feb 2020 22:41:20 +0000 (UTC)
 From: sender@example.com
 To: receiver@example.com
@@ -2631,7 +2728,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_inline_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"Message-ID: <foobar@example.org>
 From: foo <foo@example.org>
 Subject: example
@@ -2677,7 +2774,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_thunderbird_html_embedded_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br#"To: Alice <alice@example.org>
 From: Bob <bob@example.org>
 Subject: Test subject
@@ -2750,7 +2847,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
     // Outlook specifies filename in the "name" attribute of Content-Type
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_outlook_html_embedded_image() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"From: Anonymous <anonymous@example.org>
 To: Anonymous <anonymous@example.org>
 Subject: Delta Chat is great stuff!
@@ -2889,7 +2986,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_format_flowed_quote() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: swipe-to-reply
 MIME-Version: 1.0
@@ -2925,7 +3022,7 @@ Reply
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_quote_without_reply() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: swipe-to-reply
 MIME-Version: 1.0
@@ -2957,7 +3054,7 @@ From: alice <alice@example.org>
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn parse_quote_top_posting() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = br##"Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 Subject: Re: top posting
 MIME-Version: 1.0
@@ -2988,7 +3085,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_attachment_quote() {
-        let context = TestContext::new().await;
+        let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/quote_attach.eml");
         let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
             .await
@@ -3006,7 +3103,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote_div() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/gmx-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
         assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
@@ -3016,7 +3113,7 @@ On 2020-10-25, Bob wrote:
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_allinkl_blockquote() {
         // all-inkl.com puts quotes into `<blockquote> </blockquote>`.
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/allinkl-quote.eml");
         let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
         assert!(mimeparser.parts[0].msg.starts_with("It's 1.0."));
@@ -3051,7 +3148,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
         assert_eq!(msg.chat_blocked, Blocked::Request);
         assert_eq!(msg.state, MessageState::InFresh);
-        assert_eq!(msg.get_filebytes(&t).await, 2115);
+        assert_eq!(msg.get_filebytes(&t).await.unwrap().unwrap(), 2115);
         assert!(msg.get_file(&t).is_some());
         assert_eq!(msg.get_filename().unwrap(), "avatar64x64.png");
         assert_eq!(msg.get_width(), 64);
@@ -3061,7 +3158,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
@@ -3073,7 +3170,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_plain_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3085,7 +3182,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
@@ -3100,7 +3197,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_alt_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3112,7 +3209,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_html() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
         let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
         assert!(mimeparser.is_mime_modified);
@@ -3124,7 +3221,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_mime_modified_large_plain() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
 
         static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
         static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_DESIRED_TEXT_LEN
@@ -3145,7 +3242,7 @@ On 2020-10-25, Bob wrote:
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_x_microsoft_original_message_id() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_alice().await;
         let message = MimeMessage::from_bytes(&t, b"Date: Wed, 17 Feb 2021 15:45:15 +0000\n\
                 Chat-Version: 1.0\n\
                 Message-ID: <DBAPR03MB1180CE51A1BFE265BD018D4790869@DBAPR03MB6691.eurprd03.prod.outlook.com>\n\

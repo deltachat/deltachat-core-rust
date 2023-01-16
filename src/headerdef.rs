@@ -1,5 +1,7 @@
 //! # List of email headers.
 
+#![allow(missing_docs)]
+
 use mailparse::{MailHeader, MailHeaderMap};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, IntoStaticStr)]

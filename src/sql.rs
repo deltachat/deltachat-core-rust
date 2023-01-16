@@ -1,5 +1,7 @@
 //! # SQLite wrapper.
 
+#![allow(missing_docs)]
+
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;
@@ -235,13 +237,13 @@ impl Sql {
                 // When auto_vacuum is INCREMENTAL, it is possible to
                 // use PRAGMA incremental_vacuum to return unused
                 // database pages to the filesystem.
-                conn.pragma_update(None, "auto_vacuum", &"INCREMENTAL".to_string())?;
+                conn.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
 
                 // journal_mode is persisted, it is sufficient to change it only for one handle.
-                conn.pragma_update(None, "journal_mode", &"WAL".to_string())?;
+                conn.pragma_update(None, "journal_mode", "WAL".to_string())?;
 
                 // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                conn.pragma_update(None, "synchronous", &"NORMAL".to_string())?;
+                conn.pragma_update(None, "synchronous", "NORMAL".to_string())?;
                 Ok(())
             })?;
         }
@@ -477,7 +479,7 @@ impl Sql {
         let conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
             let mut exists = false;
-            conn.pragma(None, "table_info", &name.to_string(), |_row| {
+            conn.pragma(None, "table_info", name.to_string(), |_row| {
                 // will only be executed if the info was found
                 exists = true;
                 Ok(())
@@ -494,7 +496,7 @@ impl Sql {
             let mut exists = false;
             // `PRAGMA table_info` returns one row per column,
             // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
-            conn.pragma(None, "table_info", &table_name.to_string(), |row| {
+            conn.pragma(None, "table_info", table_name.to_string(), |row| {
                 let curr_name: String = row.get(1)?;
                 if col_name == curr_name {
                     exists = true;
@@ -644,26 +646,26 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
-            "Housekeeping: cannot remove unusued files: {}", err
+            "Housekeeping: cannot remove unusued files: {:#}", err
         );
     }
 
     if let Err(err) = start_ephemeral_timers(context).await {
         warn!(
             context,
-            "Housekeeping: cannot start ephemeral timers: {}", err
+            "Housekeeping: cannot start ephemeral timers: {:#}", err
         );
     }
 
     if let Err(err) = prune_tombstones(&context.sql).await {
         warn!(
             context,
-            "Housekeeping: Cannot prune message tombstones: {}", err
+            "Housekeeping: Cannot prune message tombstones: {:#}", err
         );
     }
 
     if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {}", err)
+        warn!(context, "Failed to deduplicate peerstates: {:#}", err)
     }
 
     context.schedule_quota_update().await?;

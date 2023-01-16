@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
-from deltachat_rpc_client import AttrDict, EventType, events
+from deltachat_rpc_client import EventType, events
 from deltachat_rpc_client.rpc import JsonRpcError
 
 
@@ -40,6 +42,16 @@ async def test_acfactory(acfactory) -> None:
 
 
 @pytest.mark.asyncio
+async def test_configure_starttls(acfactory) -> None:
+    account = await acfactory.new_preconfigured_account()
+
+    # Use STARTTLS
+    await account.set_config("mail_security", "2")
+    await account.configure()
+    assert await account.is_configured()
+
+
+@pytest.mark.asyncio
 async def test_account(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
@@ -55,7 +67,7 @@ async def test_account(acfactory) -> None:
             msg_id = event.msg_id
             break
 
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
@@ -80,8 +92,8 @@ async def test_account(acfactory) -> None:
     group = await alice.create_group("test group")
     await group.add_contact(alice_contact_bob)
     group_msg = await group.send_message(text="hello")
-    assert group_msg == await alice.get_message_by_id(group_msg.id)
-    assert group == await alice.get_chat_by_id(group.id)
+    assert group_msg == alice.get_message_by_id(group_msg.id)
+    assert group == alice.get_chat_by_id(group.id)
     await alice.delete_messages([group_msg])
 
     await alice.set_config("selfstatus", "test")
@@ -114,11 +126,11 @@ async def test_chat(acfactory) -> None:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
-    bob_chat_alice = await bob.get_chat_by_id(chat_id)
+    bob_chat_alice = bob.get_chat_by_id(chat_id)
 
     assert alice_chat_bob != bob_chat_alice
     assert repr(alice_chat_bob)
@@ -172,7 +184,7 @@ async def test_contact(acfactory) -> None:
     bob_addr = await bob.get_config("addr")
     alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
 
-    assert alice_contact_bob == await alice.get_contact_by_id(alice_contact_bob.id)
+    assert alice_contact_bob == alice.get_contact_by_id(alice_contact_bob.id)
     assert repr(alice_contact_bob)
     await alice_contact_bob.block()
     await alice_contact_bob.unblock()
@@ -199,7 +211,7 @@ async def test_message(acfactory) -> None:
             msg_id = event.msg_id
             break
 
-    message = await bob.get_message_by_id(msg_id)
+    message = bob.get_message_by_id(msg_id)
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
@@ -216,31 +228,42 @@ async def test_message(acfactory) -> None:
 
 @pytest.mark.asyncio
 async def test_bot(acfactory) -> None:
-    async def callback(e):
-        res.append(e)
-
-    res = []
+    mock = MagicMock()
+    user = (await acfactory.get_online_accounts(1))[0]
     bot = await acfactory.new_configured_bot()
+
     assert await bot.is_configured()
     assert await bot.account.get_config("bot") == "1"
 
-    bot.add_hook(callback, events.RawEvent(EventType.INFO))
-    info_event = AttrDict(account=bot.account, type=EventType.INFO, msg="info")
-    warn_event = AttrDict(account=bot.account, type=EventType.WARNING, msg="warning")
-    await bot._on_event(info_event)
-    await bot._on_event(warn_event)
-    assert info_event in res
-    assert warn_event not in res
-    assert len(res) == 1
+    hook = lambda e: mock.hook(e.msg_id), events.RawEvent(EventType.INCOMING_MSG)
+    bot.add_hook(*hook)
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="Hello!"
+    )
+    mock.hook.assert_called_once_with(event.msg_id)
+    bot.remove_hook(*hook)
 
-    res = []
-    bot.add_hook(callback, events.NewMessage(r"hello"))
-    snapshot1 = AttrDict(text="hello")
-    snapshot2 = AttrDict(text="hello, world")
-    snapshot3 = AttrDict(text="hey!")
-    for snapshot in [snapshot1, snapshot2, snapshot3]:
-        await bot._on_event(snapshot, events.NewMessage)
-    assert len(res) == 2
-    assert snapshot1 in res
-    assert snapshot2 in res
-    assert snapshot3 not in res
+    track = lambda e: mock.hook(e.message_snapshot.id)
+
+    mock.hook.reset_mock()
+    hook = track, events.NewMessage(r"hello")
+    bot.add_hook(*hook)
+    bot.add_hook(track, events.NewMessage(command="/help"))
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="hello"
+    )
+    mock.hook.assert_called_with(event.msg_id)
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="hello!"
+    )
+    mock.hook.assert_called_with(event.msg_id)
+    await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
+    assert len(mock.hook.mock_calls) == 2
+    bot.remove_hook(*hook)
+
+    mock.hook.reset_mock()
+    await acfactory.process_message(from_account=user, to_client=bot, text="hello")
+    event = await acfactory.process_message(
+        from_account=user, to_client=bot, text="/help"
+    )
+    mock.hook.assert_called_once_with(event.msg_id)

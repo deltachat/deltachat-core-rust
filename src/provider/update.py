@@ -190,6 +190,6 @@ if __name__ == "__main__":
 
     now = datetime.datetime.utcnow()
     out_all += "pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> = "\
-               "Lazy::new(|| chrono::NaiveDate::from_ymd("+str(now.year)+", "+str(now.month)+", "+str(now.day)+"));\n"
+               "Lazy::new(|| chrono::NaiveDate::from_ymd_opt("+str(now.year)+", "+str(now.month)+", "+str(now.day)+").unwrap());\n"
 
     print(out_all)

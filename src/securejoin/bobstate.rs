@@ -326,7 +326,7 @@ impl BobState {
     ///
     /// This deviates from the protocol by also sending a confirmation message in response
     /// to the *vc-contact-confirm* message.  This has no specific value to the protocol and
-    /// is only done out of symmerty with *vg-member-added* handling.
+    /// is only done out of symmetry with *vg-member-added* handling.
     async fn step_contact_confirm(
         &mut self,
         context: &Context,
@@ -366,7 +366,12 @@ impl BobState {
                 "Contact confirm message not encrypted",
             )));
         }
-        mark_peer_as_verified(context, self.invite.fingerprint()).await?;
+        mark_peer_as_verified(
+            context,
+            self.invite.fingerprint().clone(),
+            mime_message.from.addr.to_string(),
+        )
+        .await?;
         Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
             .await?;
         context.emit_event(EventType::ContactsChanged(None));

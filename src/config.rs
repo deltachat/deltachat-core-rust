@@ -1,5 +1,7 @@
 //! # Key-value configuration management.
 
+#![allow(missing_docs)]
+
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
@@ -202,7 +204,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_raw_config(key.as_ref()).await?;
-                rel_path.map(|p| get_abs_path(self, &p).to_string_lossy().into_owned())
+                rel_path.map(|p| get_abs_path(self, p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
@@ -289,9 +291,6 @@ impl Context {
             Config::Selfavatar => {
                 self.sql
                     .execute("UPDATE contacts SET selfavatar_sent=0;", paramsv![])
-                    .await?;
-                self.sql
-                    .set_raw_config_bool("attach_selfavatar", true)
                     .await?;
                 match value {
                     Some(value) => {

@@ -1,5 +1,7 @@
 //! # Chat module.
 
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -766,7 +768,7 @@ impl ChatId {
                 paramsv![self],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     }
 
     pub async fn get_fresh_msg_cnt(self, context: &Context) -> Result<usize> {
@@ -780,18 +782,36 @@ impl ChatId {
         // the times are average, no matter if there are fresh messages or not -
         // and have to be multiplied by the number of items shown at once on the chatlist,
         // so savings up to 2 seconds are possible on older devices - newer ones will feel "snappier" :)
-        let count = context
-            .sql
-            .count(
-                "SELECT COUNT(*)
+        let count = if self.is_archived_link() {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(DISTINCT(m.chat_id))
+                    FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10
+                    and m.hidden=0
+                    AND m.chat_id>9
+                    AND c.blocked=0
+                    AND c.archived=1
+                    ",
+                    paramsv![],
+                )
+                .await?
+        } else {
+            context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
                 FROM msgs
                 WHERE state=?
                 AND hidden=0
                 AND chat_id=?;",
-                paramsv![MessageState::InFresh, self],
-            )
-            .await?;
-        Ok(count as usize)
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?
+        };
+        Ok(count)
     }
 
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
@@ -802,6 +822,19 @@ impl ChatId {
         Ok(res
             .map(|s| s.parse().unwrap_or_default())
             .unwrap_or_default())
+    }
+
+    /// Returns true if the chat is not promoted.
+    pub(crate) async fn is_unpromoted(self, context: &Context) -> Result<bool> {
+        let param = self.get_param(context).await?;
+        let unpromoted = param.get_bool(Param::Unpromoted).unwrap_or_default();
+        Ok(unpromoted)
+    }
+
+    /// Returns true if the chat is promoted.
+    pub(crate) async fn is_promoted(self, context: &Context) -> Result<bool> {
+        let promoted = !self.is_unpromoted(context).await?;
+        Ok(promoted)
     }
 
     // Returns true if chat is a saved messages chat.
@@ -1096,7 +1129,7 @@ impl Chat {
                         }
                     }
                     Err(err) => {
-                        error!(context, "faild to load contacts for {}: {:?}", chat.id, err);
+                        error!(context, "faild to load contacts for {}: {:#}", chat.id, err);
                     }
                 }
                 chat.name = chat_name;
@@ -1201,6 +1234,10 @@ impl Chat {
             if !image_rel.is_empty() {
                 return Ok(Some(get_abs_path(context, image_rel)));
             }
+        } else if self.id.is_archived_link() {
+            if let Ok(image_rel) = get_archive_icon(context).await {
+                return Ok(Some(get_abs_path(context, image_rel)));
+            }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id).await?;
             if let Some(contact_id) = contacts.first() {
@@ -1275,7 +1312,7 @@ impl Chat {
     }
 
     pub fn is_unpromoted(&self) -> bool {
-        self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+        self.param.get_bool(Param::Unpromoted).unwrap_or_default()
     }
 
     pub fn is_promoted(&self) -> bool {
@@ -1472,7 +1509,7 @@ impl Chat {
                         new_rfc724_mid,
                         self.id,
                         ContactId::SELF,
-                        to_id as i32,
+                        to_id,
                         timestamp,
                         msg.viewtype,
                         msg.state,
@@ -1520,7 +1557,7 @@ impl Chat {
                         new_rfc724_mid,
                         self.id,
                         ContactId::SELF,
-                        to_id as i32,
+                        to_id,
                         timestamp,
                         msg.viewtype,
                         msg.state,
@@ -1689,6 +1726,21 @@ pub(crate) async fn get_broadcast_icon(context: &Context) -> Result<String> {
     context
         .sql
         .set_raw_config("icon-broadcast", Some(&icon))
+        .await?;
+    Ok(icon)
+}
+
+pub(crate) async fn get_archive_icon(context: &Context) -> Result<String> {
+    if let Some(icon) = context.sql.get_raw_config("icon-archive").await? {
+        return Ok(icon);
+    }
+
+    let icon = include_bytes!("../assets/icon-archive.png");
+    let blob = BlobObject::create(context, "icon-archive.png", icon).await?;
+    let icon = blob.as_name().to_string();
+    context
+        .sql
+        .set_raw_config("icon-archive", Some(&icon))
         .await?;
     Ok(icon)
 }
@@ -2094,7 +2146,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
     let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
         Ok(attach_selfavatar) => attach_selfavatar,
         Err(err) => {
-            warn!(context, "job: cannot get selfavatar-state: {}", err);
+            warn!(context, "job: cannot get selfavatar-state: {:#}", err);
             false
         }
     };
@@ -2156,27 +2208,27 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
 
     if 0 != rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
-            error!(context, "Failed to set kml sent_timestamp: {:?}", err);
+            error!(context, "Failed to set kml sent_timestamp: {:#}", err);
         }
         if !msg.hidden {
             if let Err(err) =
                 location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
                     .await
             {
-                error!(context, "Failed to set msg_location_id: {:?}", err);
+                error!(context, "Failed to set msg_location_id: {:#}", err);
             }
         }
     }
 
     if let Some(sync_ids) = rendered_msg.sync_ids_to_delete {
         if let Err(err) = context.delete_sync_ids(sync_ids).await {
-            error!(context, "Failed to delete sync ids: {:?}", err);
+            error!(context, "Failed to delete sync ids: {:#}", err);
         }
     }
 
     if attach_selfavatar {
         if let Err(err) = msg.chat_id.set_selfavatar_timestamp(context, time()).await {
-            error!(context, "Failed to set selfavatar timestamp: {:?}", err);
+            error!(context, "Failed to set selfavatar timestamp: {:#}", err);
         }
     }
 
@@ -2379,31 +2431,63 @@ pub(crate) async fn marknoticed_chat_if_older_than(
 }
 
 /// Marks all messages in the chat as noticed.
+/// If the given chat-id is the archive-link, marks all messages in all archived chats as noticed.
 pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> {
     // "WHERE" below uses the index `(state, hidden, chat_id)`, see get_fresh_msg_cnt() for reasoning
     // the additional SELECT statement may speed up things as no write-blocking is needed.
-    let exists = context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
-            paramsv![MessageState::InFresh, chat_id],
-        )
-        .await?;
-    if !exists {
-        return Ok(());
-    }
+    if chat_id.is_archived_link() {
+        let chat_ids_in_archive = context
+            .sql
+            .query_map(
+                "SELECT DISTINCT(m.chat_id) FROM msgs m
+                    LEFT JOIN chats c ON m.chat_id=c.id
+                    WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.blocked=0 AND c.archived=1",
+                paramsv![],
+                |row| row.get::<_, ChatId>(0),
+                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+            )
+            .await?;
+        if chat_ids_in_archive.is_empty() {
+            return Ok(());
+        }
 
-    context
-        .sql
-        .execute(
-            "UPDATE msgs
-            SET state=?
-          WHERE state=?
-            AND hidden=0
-            AND chat_id=?;",
-            paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
-        )
-        .await?;
+        context
+            .sql
+            .execute(
+                &format!(
+                    "UPDATE msgs SET state=13 WHERE state=10 AND hidden=0 AND chat_id IN ({});",
+                    sql::repeat_vars(chat_ids_in_archive.len())
+                ),
+                rusqlite::params_from_iter(&chat_ids_in_archive),
+            )
+            .await?;
+        for chat_id_in_archive in chat_ids_in_archive {
+            context.emit_event(EventType::MsgsNoticed(chat_id_in_archive));
+        }
+    } else {
+        let exists = context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM msgs WHERE state=? AND hidden=0 AND chat_id=?;",
+                paramsv![MessageState::InFresh, chat_id],
+            )
+            .await?;
+        if !exists {
+            return Ok(());
+        }
+
+        context
+            .sql
+            .execute(
+                "UPDATE msgs
+                SET state=?
+              WHERE state=?
+                AND hidden=0
+                AND chat_id=?;",
+                paramsv![MessageState::InNoticed, MessageState::InFresh, chat_id],
+            )
+            .await?;
+    }
 
     context.emit_event(EventType::MsgsNoticed(chat_id));
 
@@ -2818,14 +2902,12 @@ pub(crate) async fn add_contact_to_chat_ex(
     Ok(true)
 }
 
+/// Returns true if an avatar should be attached in the given chat.
+///
+/// This function does not check if the avatar is set.
+/// If avatar is not set and this function returns `true`,
+/// a `Chat-User-Avatar: 0` header should be sent to reset the avatar.
 pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) -> Result<bool> {
-    // versions before 12/2019 already allowed to set selfavatar, however, it was never sent to others.
-    // to avoid sending out previously set selfavatars unexpectedly we added this additional check.
-    // it can be removed after some time.
-    if !context.sql.get_raw_config_bool("attach_selfavatar").await? {
-        return Ok(false);
-    }
-
     let timestamp_some_days_ago = time() - DC_RESEND_USER_AVATAR_DAYS * 24 * 60 * 60;
     let needs_attach = context
         .sql
@@ -3037,7 +3119,11 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                     paramsv![new_name.to_string(), chat_id],
                 )
                 .await?;
-            if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast {
+            if chat.is_promoted()
+                && !chat.is_mailing_list()
+                && chat.typ != Chattype::Broadcast
+                && improve_single_line_input(&chat.name) != new_name
+            {
                 msg.viewtype = Viewtype::Text;
                 msg.text = Some(
                     stock_str::msg_grp_name(context, &chat.name, &new_name, ContactId::SELF).await,
@@ -3259,7 +3345,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
                 paramsv![],
             )
             .await?;
-        Ok(count as usize)
+        Ok(count)
     } else {
         Ok(0)
     }
@@ -3541,8 +3627,9 @@ mod tests {
 
     use crate::chatlist::{get_archived_cnt, Chatlist};
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
-    use crate::contact::Contact;
+    use crate::contact::{Contact, ContactAddress};
     use crate::receive_imf::receive_imf;
+
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -4403,6 +4490,91 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_archive_fresh_msgs() -> Result<()> {
+        let t = TestContext::new_alice().await;
+
+        async fn msg_from(t: &TestContext, name: &str, num: u32) -> Result<()> {
+            receive_imf(
+                t,
+                format!(
+                    "From: {}@example.net\n\
+                     To: alice@example.org\n\
+                     Message-ID: <{}@example.org>\n\
+                     Chat-Version: 1.0\n\
+                     Date: Sun, 22 Mar 2022 19:37:57 +0000\n\
+                     \n\
+                     hello\n",
+                    name, num
+                )
+                .as_bytes(),
+                false,
+            )
+            .await?;
+            Ok(())
+        }
+
+        // receive some messages in archived+muted chats
+        msg_from(&t, "bob", 1).await?;
+        let bob_chat_id = t.get_last_msg().await.get_chat_id();
+        bob_chat_id.accept(&t).await?;
+        set_muted(&t, bob_chat_id, MuteDuration::Forever).await?;
+        bob_chat_id
+            .set_visibility(&t, ChatVisibility::Archived)
+            .await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
+
+        msg_from(&t, "bob", 2).await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        msg_from(&t, "bob", 3).await?;
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        msg_from(&t, "claire", 4).await?;
+        let claire_chat_id = t.get_last_msg().await.get_chat_id();
+        claire_chat_id.accept(&t).await?;
+        set_muted(&t, claire_chat_id, MuteDuration::Forever).await?;
+        claire_chat_id
+            .set_visibility(&t, ChatVisibility::Archived)
+            .await?;
+        msg_from(&t, "claire", 5).await?;
+        msg_from(&t, "claire", 6).await?;
+        msg_from(&t, "claire", 7).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 3);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+
+        // mark one of the archived+muted chats as noticed: check that the archive-link counter is changed as well
+        marknoticed_chat(&t, claire_chat_id).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 1);
+
+        // receive some more messages
+        msg_from(&t, "claire", 8).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 0);
+
+        msg_from(&t, "dave", 9).await?;
+        let dave_chat_id = t.get_last_msg().await.get_chat_id();
+        dave_chat_id.accept(&t).await?;
+        assert_eq!(dave_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 2);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
+
+        // mark the archived-link as noticed: check that the real chats are noticed as well
+        marknoticed_chat(&t, DC_CHAT_ID_ARCHIVED_LINK).await?;
+        assert_eq!(bob_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(claire_chat_id.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(dave_chat_id.get_fresh_msg_cnt(&t).await?, 1);
+        assert_eq!(DC_CHAT_ID_ARCHIVED_LINK.get_fresh_msg_cnt(&t).await?, 0);
+        assert_eq!(t.get_fresh_msgs().await?.len(), 1);
+
+        Ok(())
+    }
+
     async fn get_chats_from_chat_list(ctx: &Context, listflags: usize) -> Vec<ChatId> {
         let chatlist = Chatlist::try_load(ctx, listflags, None, None)
             .await
@@ -4518,15 +4690,21 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
         assert!(!shall_attach_selfavatar(&t, chat_id).await?);
 
-        let (contact_id, _) =
-            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::IncomingUnknownTo).await?;
+        let (contact_id, _) = Contact::add_or_lookup(
+            &t,
+            "",
+            ContactAddress::new("foo@bar.org")?,
+            Origin::IncomingUnknownTo,
+        )
+        .await?;
         add_contact_to_chat(&t, chat_id, contact_id).await?;
-        assert!(!shall_attach_selfavatar(&t, chat_id).await?);
-        t.set_config(Config::Selfavatar, None).await?; // setting to None also forces re-sending
         assert!(shall_attach_selfavatar(&t, chat_id).await?);
 
         chat_id.set_selfavatar_timestamp(&t, time()).await?;
         assert!(!shall_attach_selfavatar(&t, chat_id).await?);
+
+        t.set_config(Config::Selfavatar, None).await?; // setting to None also forces re-sending
+        assert!(shall_attach_selfavatar(&t, chat_id).await?);
         Ok(())
     }
 
@@ -4765,8 +4943,8 @@ mod tests {
         alice.set_config(Config::ShowEmails, Some("2")).await?;
         bob.set_config(Config::ShowEmails, Some("2")).await?;
 
-        let (contact_id, _) =
-            Contact::add_or_lookup(&alice, "", "bob@example.net", Origin::ManuallyCreated).await?;
+        let alice_bob_contact = alice.add_or_lookup_contact(&bob).await;
+        let contact_id = alice_bob_contact.id;
         let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
         let alice_chat = Chat::load_from_db(&alice, alice_chat_id).await?;
 
@@ -5028,7 +5206,7 @@ mod tests {
         assert_eq!(msg.get_filename(), Some(filename.to_string()));
         assert_eq!(msg.get_width(), w);
         assert_eq!(msg.get_height(), h);
-        assert!(msg.get_filebytes(&bob).await > 250);
+        assert!(msg.get_filebytes(&bob).await?.unwrap() > 250);
 
         Ok(())
     }
@@ -5476,8 +5654,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_for_contact_with_blocked() -> Result<()> {
         let t = TestContext::new().await;
-        let (contact_id, _) =
-            Contact::add_or_lookup(&t, "", "foo@bar.org", Origin::ManuallyCreated).await?;
+        let (contact_id, _) = Contact::add_or_lookup(
+            &t,
+            "",
+            ContactAddress::new("foo@bar.org")?,
+            Origin::ManuallyCreated,
+        )
+        .await?;
 
         // create a blocked chat
         let chat_id_orig =

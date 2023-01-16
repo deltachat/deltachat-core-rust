@@ -4,6 +4,7 @@ use std::convert::TryInto;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use chrono::TimeZone;
+use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
 
@@ -15,7 +16,6 @@ use crate::contact::Contact;
 use crate::context::{get_version_str, Context};
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
-use crate::format_flowed::{format_flowed, format_flowed_quote};
 use crate::html::new_html_mimepart;
 use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
@@ -76,6 +76,7 @@ pub struct MimeFactory<'a> {
     /// and must be deleted if the message is actually queued for sending.
     sync_ids_to_delete: Option<String>,
 
+    /// True if the avatar should be attached.
     attach_selfavatar: bool,
 }
 
@@ -689,7 +690,9 @@ impl<'a> MimeFactory<'a> {
                 .fold(message, |message, header| message.header(header));
 
             // Add gossip headers in chats with multiple recipients
-            if peerstates.len() > 1 && self.should_do_gossip(context).await? {
+            if (peerstates.len() > 1 || context.get_config_bool(Config::BccSelf).await?)
+                && self.should_do_gossip(context).await?
+            {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if peerstate.peek_key(min_verified).is_some() {
                         if let Some(header) = peerstate.render_gossip_header(min_verified) {
@@ -722,9 +725,11 @@ impl<'a> MimeFactory<'a> {
             ));
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                info!(context, "mimefactory: outgoing message mime:");
-                let raw_message = message.clone().build().as_string();
-                println!("{}", raw_message);
+                info!(
+                    context,
+                    "mimefactory: unencrypted message mime-body:\n{}",
+                    message.clone().build().as_string(),
+                );
             }
 
             let encrypted = encrypt_helper
@@ -782,6 +787,14 @@ impl<'a> MimeFactory<'a> {
             .into_iter()
             .fold(outer_message, |message, header| message.header(header));
 
+        if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+            info!(
+                context,
+                "mimefactory: outgoing message mime-body:\n{}",
+                outer_message.clone().build().as_string(),
+            );
+        }
+
         let MimeFactory {
             last_added_location_id,
             ..
@@ -799,6 +812,7 @@ impl<'a> MimeFactory<'a> {
         })
     }
 
+    /// Returns MIME part with a `message.kml` attachment.
     fn get_message_kml_part(&self) -> Option<PartBuilder> {
         let latitude = self.msg.param.get_float(Param::SetLatitude)?;
         let longitude = self.msg.param.get_float(Param::SetLongitude)?;
@@ -818,6 +832,7 @@ impl<'a> MimeFactory<'a> {
         Some(part)
     }
 
+    /// Returns MIME part with a `location.kml` attachment.
     async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder> {
         let (kml_content, last_added_location_id) =
             location::get_kml(context, self.msg.chat_id).await?;
@@ -902,6 +917,17 @@ impl<'a> MimeFactory<'a> {
                         headers.protected.push(Header::new(
                             "Secure-Join".to_string(),
                             "vg-member-added".to_string(),
+                        ));
+                        // FIXME: Old clients require Secure-Join-Fingerprint header. Remove this
+                        // eventually.
+                        let fingerprint = Peerstate::from_addr(context, email_to_add)
+                            .await?
+                            .context("No peerstate found in db")?
+                            .public_key_fingerprint
+                            .context("No public key fingerprint in db for the member to add")?;
+                        headers.protected.push(Header::new(
+                            "Secure-Join-Fingerprint".into(),
+                            fingerprint.hex(),
                         ));
                     }
                 }
@@ -1430,7 +1456,7 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
 async fn is_file_size_okay(context: &Context, msg: &Message) -> Result<bool> {
     match msg.param.get_path(Param::File, context)? {
         Some(path) => {
-            let bytes = get_filebytes(context, &path).await;
+            let bytes = get_filebytes(context, &path).await?;
             Ok(bytes <= UPPER_LIMIT_FILE_SIZE)
         }
         None => Ok(false),
@@ -1488,7 +1514,7 @@ mod tests {
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
-    use crate::contact::Origin;
+    use crate::contact::{ContactAddress, Origin};
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
@@ -1815,11 +1841,15 @@ mod tests {
     }
 
     async fn first_subject_str(t: TestContext) -> String {
-        let contact_id =
-            Contact::add_or_lookup(&t, "Dave", "dave@example.com", Origin::ManuallyCreated)
-                .await
-                .unwrap()
-                .0;
+        let contact_id = Contact::add_or_lookup(
+            &t,
+            "Dave",
+            ContactAddress::new("dave@example.com").unwrap(),
+            Origin::ManuallyCreated,
+        )
+        .await
+        .unwrap()
+        .0;
 
         let chat_id = ChatId::create_for_contact(&t, contact_id).await.unwrap();
 

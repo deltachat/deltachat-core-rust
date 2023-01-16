@@ -20,7 +20,7 @@ struct Dehtml {
     /// increased at each `<div>` and decreased at each `</div>`. This way we know when the quote ends.
     /// If this is > `0`, then we are inside a `<div name="quote">`
     divs_since_quote_div: u32,
-    /// Everything between <div name="quote"> and <div name="quoted-content"> is usually metadata
+    /// Everything between `<div name="quote">` and `<div name="quoted-content">` is usually metadata
     /// If this is > `0`, then we are inside a `<div name="quoted-content">`.
     divs_since_quoted_content_div: u32,
     /// All-Inkl just puts the quote into `<blockquote> </blockquote>`. This count is
@@ -42,7 +42,7 @@ impl Dehtml {
     }
     fn get_add_text(&self) -> AddText {
         if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {
-            AddText::No // Everything between <div name="quoted"> and <div name="quoted_content"> is metadata which we don't want
+            AddText::No // Everything between `<div name="quoted">` and `<div name="quoted_content">` is metadata which we don't want
         } else {
             self.add_text
         }
@@ -88,18 +88,30 @@ fn dehtml_quick_xml(buf: &str) -> String {
     let mut buf = Vec::new();
 
     loop {
-        match reader.read_event(&mut buf) {
+        match reader.read_event_into(&mut buf) {
             Ok(quick_xml::events::Event::Start(ref e)) => {
                 dehtml_starttag_cb(e, &mut dehtml, &reader)
             }
             Ok(quick_xml::events::Event::End(ref e)) => dehtml_endtag_cb(e, &mut dehtml),
             Ok(quick_xml::events::Event::Text(ref e)) => dehtml_text_cb(e, &mut dehtml),
-            Ok(quick_xml::events::Event::CData(e)) => dehtml_text_cb(&e.escape(), &mut dehtml),
+            Ok(quick_xml::events::Event::CData(e)) => match e.escape() {
+                Ok(e) => dehtml_text_cb(&e, &mut dehtml),
+                Err(e) => {
+                    eprintln!(
+                        "CDATA escape error at position {}: {:?}",
+                        reader.buffer_position(),
+                        e,
+                    );
+                }
+            },
             Ok(quick_xml::events::Event::Empty(ref e)) => {
                 // Handle empty tags as a start tag immediately followed by end tag.
                 // For example, `<p/>` is treated as `<p></p>`.
                 dehtml_starttag_cb(e, &mut dehtml, &reader);
-                dehtml_endtag_cb(&BytesEnd::borrowed(e.name()), &mut dehtml);
+                dehtml_endtag_cb(
+                    &BytesEnd::new(String::from_utf8_lossy(e.name().as_ref())),
+                    &mut dehtml,
+                );
             }
             Err(e) => {
                 eprintln!(
@@ -121,7 +133,7 @@ fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
     if dehtml.get_add_text() == AddText::YesPreserveLineEnds
         || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
-        let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
+        let last_added = escaper::decode_html_buf_sloppy(event as &[_]).unwrap_or_default();
 
         if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
@@ -135,7 +147,9 @@ fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
 }
 
 fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+    let tag = String::from_utf8_lossy(event.name().as_ref())
+        .trim()
+        .to_lowercase();
 
     match tag.as_str() {
         "p" | "table" | "td" | "style" | "script" | "title" | "pre" => {
@@ -176,7 +190,9 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     dehtml: &mut Dehtml,
     reader: &quick_xml::Reader<B>,
 ) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+    let tag = String::from_utf8_lossy(event.name().as_ref())
+        .trim()
+        .to_lowercase();
 
     match tag.as_str() {
         "p" | "table" | "td" => {
@@ -206,10 +222,15 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             if let Some(href) = event
                 .html_attributes()
                 .filter_map(|attr| attr.ok())
-                .find(|attr| String::from_utf8_lossy(attr.key).trim().to_lowercase() == "href")
+                .find(|attr| {
+                    String::from_utf8_lossy(attr.key.as_ref())
+                        .trim()
+                        .to_lowercase()
+                        == "href"
+                })
             {
                 let href = href
-                    .unescape_and_decode_value(reader)
+                    .decode_and_unescape_value(reader)
                     .unwrap_or_default()
                     .to_lowercase();
 
@@ -258,7 +279,7 @@ fn maybe_push_tag(
 fn tag_contains_attr(event: &BytesStart, reader: &Reader<impl BufRead>, name: &str) -> bool {
     event.attributes().any(|r| {
         r.map(|a| {
-            a.unescape_and_decode_value(reader)
+            a.decode_and_unescape_value(reader)
                 .map(|v| v == name)
                 .unwrap_or(false)
         })

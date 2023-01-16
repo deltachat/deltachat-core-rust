@@ -17,6 +17,8 @@ def _camel_to_snake(name: str) -> str:
 
 
 def _to_attrdict(obj):
+    if isinstance(obj, AttrDict):
+        return obj
     if isinstance(obj, dict):
         return AttrDict(obj)
     if isinstance(obj, list):
@@ -112,3 +114,64 @@ async def _run_cli(
                 client.configure(email=args.email, password=args.password)
             )
         await client.run_forever()
+
+
+def extract_addr(text: str) -> str:
+    """extract email address from the given text."""
+    match = re.match(r".*\((.+@.+)\)", text)
+    if match:
+        text = match.group(1)
+    text = text.rstrip(".")
+    return text.strip()
+
+
+def parse_system_image_changed(text: str) -> Optional[Tuple[str, bool]]:
+    """return image changed/deleted info from parsing the given system message text."""
+    text = text.lower()
+    match = re.match(r"group image (changed|deleted) by (.+).", text)
+    if match:
+        action, actor = match.groups()
+        return (extract_addr(actor), action == "deleted")
+    return None
+
+
+def parse_system_title_changed(text: str) -> Optional[Tuple[str, str]]:
+    text = text.lower()
+    match = re.match(r'group name changed from "(.+)" to ".+" by (.+).', text)
+    if match:
+        old_title, actor = match.groups()
+        return (extract_addr(actor), old_title)
+    return None
+
+
+def parse_system_add_remove(text: str) -> Optional[Tuple[str, str, str]]:
+    """return add/remove info from parsing the given system message text.
+
+    returns a (action, affected, actor) tuple.
+    """
+    # You removed member a@b.
+    # You added member a@b.
+    # Member Me (x@y) removed by a@b.
+    # Member x@y added by a@b
+    # Member With space (tmp1@x.org) removed by tmp2@x.org.
+    # Member With space (tmp1@x.org) removed by Another member (tmp2@x.org).",
+    # Group left by some one (tmp1@x.org).
+    # Group left by tmp1@x.org.
+    text = text.lower()
+
+    match = re.match(r"member (.+) (removed|added) by (.+)", text)
+    if match:
+        affected, action, actor = match.groups()
+        return action, extract_addr(affected), extract_addr(actor)
+
+    match = re.match(r"you (removed|added) member (.+)", text)
+    if match:
+        action, affected = match.groups()
+        return action, extract_addr(affected), "me"
+
+    if text.startswith("group left by "):
+        addr = extract_addr(text[13:])
+        if addr:
+            return "removed", addr, addr
+
+    return None

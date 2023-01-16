@@ -1,5 +1,7 @@
 //! # Import/export module.
 
+#![allow(missing_docs)]
+
 use std::any::Any;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -348,7 +350,7 @@ async fn decrypt_setup_file<T: std::io::Read + std::io::Seek>(
 fn normalize_setup_code(s: &str) -> String {
     let mut out = String::new();
     for c in s.chars() {
-        if ('0'..='9').contains(&c) {
+        if c.is_ascii_digit() {
             out.push(c);
             if let 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 = out.len() {
                 out += "-"
@@ -654,7 +656,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    error!(context, "set_self_key: {}", err);
+                    info!(context, "set_self_key: {}", err);
                     continue;
                 }
             }

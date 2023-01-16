@@ -88,7 +88,7 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
         lp.indent(dir.strpath + os.sep + name)
     lp.sec("importing into existing account")
     ac2.import_self_keys(dir.strpath)
-    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*", check_error=False)
+    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*")
     assert key_id2 == key_id
 
 
@@ -932,6 +932,20 @@ def test_dont_show_emails(acfactory, lp):
         Subject: subj
         To: {}
         Message-ID: <spam.message2@junk.org>
+        Content-Type: text/plain; charset=utf-8
+
+        Unknown & malformed message in Spam
+    """.format(
+            ac1.get_config("configured_addr")
+        ),
+    )
+    ac1.direct_imap.append(
+        "Spam",
+        """
+        From: delta<address: inbox@nhroy.com>
+        Subject: subj
+        To: {}
+        Message-ID: <spam.message99@junk.org>
         Content-Type: text/plain; charset=utf-8
 
         Unknown & malformed message in Spam

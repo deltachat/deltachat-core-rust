@@ -30,7 +30,14 @@ class FFIEvent:
         self.data2 = data2
 
     def __str__(self):
-        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
+        if self.name == "DC_EVENT_INFO":
+            return "INFO {data2}".format(data2=self.data2)
+        elif self.name == "DC_EVENT_WARNING":
+            return "WARNING {data2}".format(data2=self.data2)
+        elif self.name == "DC_EVENT_ERROR":
+            return "ERROR {data2}".format(data2=self.data2)
+        else:
+            return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
 class FFIEventLogger:

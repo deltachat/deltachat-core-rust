@@ -6,6 +6,7 @@
     unused,
     clippy::correctness,
     missing_debug_implementations,
+    missing_docs,
     clippy::all,
     clippy::indexing_slicing,
     clippy::wildcard_imports,
@@ -14,15 +15,13 @@
     clippy::unused_async
 )]
 #![allow(
+    clippy::uninlined_format_args,
     clippy::match_bool,
     clippy::mixed_read_write_in_expression,
     clippy::bool_assert_comparison,
     clippy::manual_split_once,
     clippy::format_push_string,
-    clippy::bool_to_int_with_if,
-    // This lint can be re-enabled once we don't target
-    // Rust 1.56 anymore:
-    clippy::collapsible_str_replace
+    clippy::bool_to_int_with_if
 )]
 
 #[macro_use]
@@ -34,6 +33,7 @@ extern crate rusqlite;
 #[macro_use]
 extern crate strum_macros;
 
+#[allow(missing_docs)]
 pub trait ToSql: rusqlite::ToSql + Send + Sync {}
 
 impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
@@ -66,12 +66,12 @@ mod decrypt;
 pub mod download;
 mod e2ee;
 pub mod ephemeral;
+mod http;
 mod imap;
 pub mod imex;
 mod scheduler;
 #[macro_use]
 mod job;
-mod format_flowed;
 pub mod key;
 mod keyring;
 pub mod location;
@@ -101,6 +101,7 @@ mod dehtml;
 mod authres;
 mod color;
 pub mod html;
+mod net;
 pub mod plaintext;
 mod ratelimit;
 pub mod summary;
@@ -118,3 +119,6 @@ pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
 mod test_utils;
 #[cfg(test)]
 mod tests;
+
+#[cfg(fuzzing)]
+pub mod fuzzing;

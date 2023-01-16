@@ -31,6 +31,7 @@ const MIN_DOWNLOAD_LIMIT: u32 = 32768;
 /// `MIN_DELETE_SERVER_AFTER` increases the timeout in this case.
 pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 
+/// Download state of the message.
 #[derive(
     Debug,
     Display,
@@ -47,9 +48,16 @@ pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 )]
 #[repr(u32)]
 pub enum DownloadState {
+    /// Message is fully downloaded.
     Done = 0,
+
+    /// Message is partially downloaded and can be fully downloaded at request.
     Available = 10,
+
+    /// Failed to fully download the message.
     Failure = 20,
+
+    /// Full download of the message is in progress.
     InProgress = 1000,
 }
 
@@ -124,7 +132,7 @@ impl Job {
     /// Called in response to `Action::DownloadMsg`.
     pub(crate) async fn download_msg(&self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
-            warn!(context, "download: could not connect: {:?}", err);
+            warn!(context, "download: could not connect: {:#}", err);
             return Status::RetryNow;
         }
 

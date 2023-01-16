@@ -1,5 +1,7 @@
 //! # Logging.
 
+#![allow(missing_docs)]
+
 use crate::context::Context;
 
 #[macro_export]

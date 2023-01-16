@@ -52,6 +52,8 @@ pub struct Summary {
 }
 
 impl Summary {
+    /// Constucts chatlist summary
+    /// from the provided message, chat and message author contact snapshots.
     pub async fn new(
         context: &Context,
         msg: &Message,

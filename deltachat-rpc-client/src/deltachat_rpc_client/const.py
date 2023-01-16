@@ -1,5 +1,7 @@
 from enum import Enum, IntEnum
 
+COMMAND_PREFIX = "/"
+
 
 class ContactFlag(IntEnum):
     VERIFIED_ONLY = 0x01

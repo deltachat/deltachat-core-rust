@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
+from ._utils import AttrDict
 from .chat import Chat
 from .const import ChatlistFlag, ContactFlag, SpecialContactId
 from .contact import Contact
 from .message import Message
 from .rpc import Rpc
-from .utils import AttrDict
 
 if TYPE_CHECKING:
     from .deltachat import DeltaChat
@@ -108,7 +108,7 @@ class Account:
             obj = (await obj.get_snapshot()).address
         return Contact(self, await self._rpc.create_contact(self.id, obj, name))
 
-    async def get_contact_by_id(self, contact_id: int) -> Contact:
+    def get_contact_by_id(self, contact_id: int) -> Contact:
         """Return Contact instance for the given contact ID."""
         return Contact(self, contact_id)
 
@@ -212,7 +212,7 @@ class Account:
         """
         return Chat(self, await self._rpc.create_group_chat(self.id, name, protect))
 
-    async def get_chat_by_id(self, chat_id: int) -> Chat:
+    def get_chat_by_id(self, chat_id: int) -> Chat:
         """Return the Chat instance with the given ID."""
         return Chat(self, chat_id)
 
@@ -237,7 +237,7 @@ class Account:
         """
         return await self._rpc.get_chat_securejoin_qr_code_svg(self.id, None)
 
-    async def get_message_by_id(self, msg_id: int) -> Message:
+    def get_message_by_id(self, msg_id: int) -> Message:
         """Return the Message instance with the given ID."""
         return Message(self, msg_id)
 

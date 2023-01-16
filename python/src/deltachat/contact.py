@@ -75,6 +75,10 @@ class Contact(object):
         """Return True if the contact is verified."""
         return lib.dc_contact_is_verified(self._dc_contact)
 
+    def get_verifier(self, contact):
+        """Return the address of the contact that verified the contact"""
+        return from_dc_charpointer(lib.dc_contact_get_verifier_addr(contact._dc_contact))
+
     def get_profile_image(self) -> Optional[str]:
         """Get contact profile image.
 

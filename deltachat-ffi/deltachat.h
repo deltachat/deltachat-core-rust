@@ -1237,7 +1237,11 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
  * Get the number of _fresh_ messages in a chat.
  * Typically used to implement a badge with a number in the chatlist.
  *
- * If the specified chat is muted,
+ * As muted archived chats are not unarchived automatically,
+ * a similar information is needed for the @ref dc_get_chatlist() "archive link" as well:
+ * here, the number of archived chats containing fresh messages is returned.
+ *
+ * If the specified chat is muted or the @ref dc_get_chatlist() "archive link",
  * the UI should show the badge counter "less obtrusive",
  * e.g. using "gray" instead of "red" color.
  *
@@ -4745,6 +4749,37 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
 int             dc_contact_is_verified       (dc_contact_t* contact);
 
 
+
+/**
+ * Return the address that verified a contact
+ *
+ * The UI may use this in addition to a checkmark showing the verification status
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 
+ *    A string containing the verifiers address. If it is the same address as the contact itself,
+ *    we verified the contact ourself. If it is an empty string, we don't have verifier 
+ *    information or the contact is not verified.
+ */
+char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
+
+
+/**
+ * Return the `ContactId` that verified a contact
+ *
+ * The UI may use this in addition to a checkmark showing the verification status
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 
+ *    The `ContactId` of the verifiers address. If it is the same address as the contact itself,
+ *    we verified the contact ourself. If it is 0, we don't have verifier information or 
+ *    the contact is not verified.
+ */
+uint32_t       dc_contact_get_verifier_id      (dc_contact_t* contact);
+
+
 /**
  * @class dc_provider_t
  *
@@ -5786,7 +5821,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 (int) The progress as:
  *     300=vg-/vc-request received, typically shown as "bob@addr joins".
  *     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
- *     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
+ *     800=contact added to chat, shown as "bob@addr securely joined GROUP". Only for the verified-group-protocol.
  *     1000=Protocol finished for this contact.
  */
 #define DC_EVENT_SECUREJOIN_INVITER_PROGRESS      2060

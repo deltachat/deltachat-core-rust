@@ -1,5 +1,7 @@
 //! OAuth 2 module.
 
+#![allow(missing_docs)]
+
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -156,7 +158,7 @@ pub async fn get_oauth2_access_token(
         }
 
         // ... and POST
-        let client = reqwest::Client::new();
+        let client = crate::http::get_client()?;
 
         let response: Response = match client.post(post_url).form(&post_param).send().await {
             Ok(resp) => match resp.json().await {
@@ -282,7 +284,14 @@ impl Oauth2 {
         //   "verified_email": true,
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
-        let response = match reqwest::get(userinfo_url).await {
+        let client = match crate::http::get_client() {
+            Ok(cl) => cl,
+            Err(err) => {
+                warn!(context, "failed to get HTTP client: {}", err);
+                return None;
+            }
+        };
+        let response = match client.get(userinfo_url).send().await {
             Ok(response) => response,
             Err(err) => {
                 warn!(context, "failed to get userinfo: {}", err);

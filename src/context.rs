@@ -1,5 +1,7 @@
 //! Context module.
 
+#![allow(missing_docs)]
+
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
@@ -381,7 +383,7 @@ impl Context {
         let mut lock = self.inner.scheduler.write().await;
         if lock.is_none() {
             match Scheduler::start(self.clone()).await {
-                Err(err) => error!(self, "Failed to start IO: {}", err),
+                Err(err) => error!(self, "Failed to start IO: {:#}", err),
                 Ok(scheduler) => *lock = Some(scheduler),
             }
         }
@@ -497,7 +499,7 @@ impl Context {
         match &*s {
             RunningState::Running { cancel_sender } => {
                 if let Err(err) = cancel_sender.send(()).await {
-                    warn!(self, "could not cancel ongoing: {:?}", err);
+                    warn!(self, "could not cancel ongoing: {:#}", err);
                 }
                 info!(self, "Signaling the ongoing process to stop ASAP.",);
                 *s = RunningState::ShallStop;
@@ -526,10 +528,10 @@ impl Context {
         let l2 = LoginParam::load_configured_params(self).await?;
         let secondary_addrs = self.get_secondary_self_addrs().await?.join(", ");
         let displayname = self.get_config(Config::Displayname).await?;
-        let chats = get_chat_cnt(self).await? as usize;
-        let unblocked_msgs = message::get_unblocked_msg_cnt(self).await as usize;
-        let request_msgs = message::get_request_msg_cnt(self).await as usize;
-        let contacts = Contact::get_real_cnt(self).await? as usize;
+        let chats = get_chat_cnt(self).await?;
+        let unblocked_msgs = message::get_unblocked_msg_cnt(self).await;
+        let request_msgs = message::get_request_msg_cnt(self).await;
+        let contacts = Contact::get_real_cnt(self).await?;
         let is_configured = self.get_config_int(Config::Configured).await?;
         let socks5_enabled = self.get_config_int(Config::Socks5Enabled).await?;
         let dbversion = self
