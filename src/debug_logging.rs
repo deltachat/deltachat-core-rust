@@ -1,4 +1,4 @@
-//! Forward log messages to logging webxdc 
+//! Forward log messages to logging webxdc
 use crate::{
     chat::ChatId,
     config::Config,
