@@ -1385,8 +1385,8 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             .as_ref()
             .map(|dl| dl.msg_id);
 
-        if let Some(other_id) = logging_xdc_id {
-            if other_id == *msg_id {
+        if let Some(id) = logging_xdc_id {
+            if id == *msg_id {
                 set_debug_logging_xdc(context, None).await?;
             }
         }
