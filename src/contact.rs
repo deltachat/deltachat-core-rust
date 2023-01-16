@@ -1354,6 +1354,7 @@ WHERE type=? AND id IN (
         }
     }
 
+    context.emit_event(EventType::UIChatListChanged);
     Ok(())
 }
 

@@ -348,10 +348,10 @@ impl ChatId {
             Chattype::Mailinglist => {
                 if self.set_blocked(context, Blocked::Yes).await? {
                     context.emit_event(EventType::ChatModified(self));
-                    context.emit_event(EventType::UIChatListChanged);
                 }
             }
         }
+        context.emit_event(EventType::UIChatListChanged);
 
         Ok(())
     }
@@ -359,6 +359,7 @@ impl ChatId {
     /// Unblocks the chat.
     pub async fn unblock(self, context: &Context) -> Result<()> {
         self.set_blocked(context, Blocked::Not).await?;
+        context.emit_event(EventType::UIChatListChanged);
         Ok(())
     }
 
@@ -607,6 +608,7 @@ impl ChatId {
             msg.text = Some(stock_str::self_deleted_msg_body(context).await);
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
+        context.emit_event(EventType::UIChatListChanged);
 
         Ok(())
     }
