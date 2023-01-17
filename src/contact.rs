@@ -2628,4 +2628,27 @@ Hi."#;
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_verified_by_none() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
+        assert!(contact.get_verifier_addr(&alice).await?.is_none());
+        assert!(contact.get_verifier_id(&alice).await?.is_none());
+
+        // Receive a message from Bob to create a peerstate.
+        let chat = bob.create_chat(&alice).await;
+        let sent_msg = bob.send_text(chat.id, "moin").await;
+        alice.recv_msg(&sent_msg).await;
+
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
+        assert!(contact.get_verifier_addr(&alice).await?.is_none());
+        assert!(contact.get_verifier_id(&alice).await?.is_none());
+
+        Ok(())
+    }
 }

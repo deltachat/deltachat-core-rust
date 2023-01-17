@@ -3,7 +3,6 @@
 #![allow(missing_docs)]
 
 use std::collections::HashSet;
-use std::fmt;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
@@ -35,6 +34,7 @@ pub enum PeerstateVerifiedStatus {
 }
 
 /// Peerstate represents the state of an Autocrypt peer.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Peerstate {
     pub addr: String,
     pub last_seen: i64,
@@ -50,44 +50,6 @@ pub struct Peerstate {
     pub fingerprint_changed: bool,
     /// The address that verified this contact
     pub verifier: Option<String>,
-}
-
-impl PartialEq for Peerstate {
-    fn eq(&self, other: &Peerstate) -> bool {
-        self.addr == other.addr
-            && self.last_seen == other.last_seen
-            && self.last_seen_autocrypt == other.last_seen_autocrypt
-            && self.prefer_encrypt == other.prefer_encrypt
-            && self.public_key == other.public_key
-            && self.public_key_fingerprint == other.public_key_fingerprint
-            && self.gossip_key == other.gossip_key
-            && self.gossip_timestamp == other.gossip_timestamp
-            && self.gossip_key_fingerprint == other.gossip_key_fingerprint
-            && self.verified_key == other.verified_key
-            && self.verified_key_fingerprint == other.verified_key_fingerprint
-            && self.fingerprint_changed == other.fingerprint_changed
-    }
-}
-
-impl Eq for Peerstate {}
-
-impl fmt::Debug for Peerstate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Peerstate")
-            .field("addr", &self.addr)
-            .field("last_seen", &self.last_seen)
-            .field("last_seen_autocrypt", &self.last_seen_autocrypt)
-            .field("prefer_encrypt", &self.prefer_encrypt)
-            .field("public_key", &self.public_key)
-            .field("public_key_fingerprint", &self.public_key_fingerprint)
-            .field("gossip_key", &self.gossip_key)
-            .field("gossip_timestamp", &self.gossip_timestamp)
-            .field("gossip_key_fingerprint", &self.gossip_key_fingerprint)
-            .field("verified_key", &self.verified_key)
-            .field("verified_key_fingerprint", &self.verified_key_fingerprint)
-            .field("fingerprint_changed", &self.fingerprint_changed)
-            .finish()
-    }
 }
 
 impl Peerstate {
@@ -458,7 +420,7 @@ impl Peerstate {
                 self.verified_key.as_ref().map(|k| k.to_bytes()),
                 self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
                 self.addr,
-                self.verifier,
+                self.verifier.as_deref().unwrap_or(""),
             ],
         )
         .await?;

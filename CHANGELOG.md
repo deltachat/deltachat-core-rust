@@ -7,6 +7,7 @@
 - fix verifier-by addr was empty string intead of None #3961
 - Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
   unread messages increases #3959
+- Fix Peerstate comparison #3962
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object
