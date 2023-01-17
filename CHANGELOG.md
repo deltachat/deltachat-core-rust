@@ -4,6 +4,7 @@
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+- fix verifier-by addr was empty string intead of None #3961
 - Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
   unread messages increases #3959
 

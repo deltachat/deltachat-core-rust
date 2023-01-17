@@ -223,7 +223,10 @@ impl Peerstate {
                         .transpose()
                         .unwrap_or_default(),
                     fingerprint_changed: false,
-                    verifier: row.get("verifier")?,
+                    verifier: {
+                        let verifier: Option<String> = row.get("verifier")?;
+                        verifier.filter(|verifier| !verifier.is_empty())
+                    },
                 };
 
                 Ok(res)
