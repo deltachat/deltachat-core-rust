@@ -531,18 +531,62 @@ impl ChatId {
         Ok(())
     }
 
-    // Unarchives a chat that is archived and not muted.
-    // Needed when a message is added to a chat so that the chat gets a normal visibility again.
-    // Sending an appropriate event is up to the caller.
-    pub async fn unarchive_if_not_muted(self, context: &Context) -> Result<()> {
+    /// Unarchives a chat that is archived and not muted.
+    /// Needed after a message is added to a chat so that the chat gets a normal visibility again.
+    /// `msg_state` is the state of the message. Matters only for incoming messages currently. For
+    /// multiple outgoing messages the function may be called once with MessageState::Undefined.
+    /// Sending an appropriate event is up to the caller.
+    /// Also emits DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived
+    /// chats with unread messages increases (which is possible if the chat is muted).
+    pub async fn unarchive_if_not_muted(
+        self,
+        context: &Context,
+        msg_state: MessageState,
+    ) -> Result<()> {
+        if msg_state != MessageState::InFresh {
+            context.sql.execute(
+                "UPDATE chats SET archived=0 WHERE id=? AND NOT(muted_until=-1 OR muted_until>?)",
+                paramsv![self, time()],
+            ).await?;
+            return Ok(());
+        }
+        let chat = Chat::load_from_db(context, self).await?;
+        if chat.visibility != ChatVisibility::Archived {
+            return Ok(());
+        }
+        if chat.is_muted() {
+            let unread_cnt = context
+                .sql
+                .count(
+                    "SELECT COUNT(*)
+                FROM msgs
+                WHERE state=?
+                AND hidden=0
+                AND chat_id=?",
+                    paramsv![MessageState::InFresh, self],
+                )
+                .await?;
+            if unread_cnt == 1 {
+                // Added the first unread message in the chat.
+                context.emit_msgs_changed(DC_CHAT_ID_ARCHIVED_LINK, MsgId::new(0));
+            }
+            return Ok(());
+        }
         context
             .sql
-            .execute(
-                "UPDATE chats SET archived=0 WHERE id=? AND archived=1 AND NOT(muted_until=-1 OR muted_until>?)",
-                paramsv![self, time()],
-            )
+            .execute("UPDATE chats SET archived=0 WHERE id=?", paramsv![self])
             .await?;
         Ok(())
+    }
+
+    /// Emits an appropriate event for a message. `important` is whether a notification should be
+    /// shown.
+    pub(crate) fn emit_msg_event(self, context: &Context, msg_id: MsgId, important: bool) {
+        if important {
+            context.emit_incoming_msg(self, msg_id);
+        } else {
+            context.emit_msgs_changed(self, msg_id);
+        }
     }
 
     /// Deletes a chat.
@@ -2009,7 +2053,9 @@ async fn prepare_msg_common(
     msg.state = change_state_to;
 
     prepare_msg_blob(context, msg).await?;
-    chat_id.unarchive_if_not_muted(context).await?;
+    if !msg.hidden {
+        chat_id.unarchive_if_not_muted(context, msg.state).await?;
+    }
     msg.id = chat
         .prepare_msg_raw(
             context,
@@ -3201,7 +3247,9 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     let mut created_msgs: Vec<MsgId> = Vec::new();
     let mut curr_timestamp: i64;
 
-    chat_id.unarchive_if_not_muted(context).await?;
+    chat_id
+        .unarchive_if_not_muted(context, MessageState::Undefined)
+        .await?;
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
         if let Some(reason) = chat.why_cant_send(context).await? {
             bail!("cannot send to {}: {}", chat_id, reason);
@@ -3404,7 +3452,6 @@ pub async fn add_device_msg_with_importance(
         let rfc724_mid = create_outgoing_rfc724_mid(None, "@device");
         msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
-        chat_id.unarchive_if_not_muted(context).await?;
 
         let timestamp_sent = create_smeared_timestamp(context).await;
 
@@ -3424,6 +3471,7 @@ pub async fn add_device_msg_with_importance(
             }
         }
 
+        let state = MessageState::InFresh;
         let row_id = context
             .sql
             .insert(
@@ -3447,7 +3495,7 @@ pub async fn add_device_msg_with_importance(
                     timestamp_sent,
                     timestamp_sent, // timestamp_sent equals timestamp_rcvd
                     msg.viewtype,
-                    MessageState::InFresh,
+                    state,
                     msg.text.as_ref().cloned().unwrap_or_default(),
                     msg.param.to_string(),
                     rfc724_mid,
@@ -3456,6 +3504,9 @@ pub async fn add_device_msg_with_importance(
             .await?;
 
         msg_id = MsgId::new(u32::try_from(row_id)?);
+        if !msg.hidden {
+            chat_id.unarchive_if_not_muted(context, state).await?;
+        }
     }
 
     if let Some(label) = label {
@@ -3469,11 +3520,7 @@ pub async fn add_device_msg_with_importance(
     }
 
     if !msg_id.is_unset() {
-        if important {
-            context.emit_incoming_msg(chat_id, msg_id);
-        } else {
-            context.emit_msgs_changed(chat_id, msg_id);
-        }
+        chat_id.emit_msg_event(context, msg_id, important);
     }
 
     Ok(msg_id)
