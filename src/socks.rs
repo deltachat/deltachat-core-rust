@@ -7,12 +7,14 @@ use std::time::Duration;
 use crate::net::connect_tcp;
 use anyhow::Result;
 pub use async_smtp::ServerAddress;
-use tokio::net::{self, TcpStream};
+use tokio::net::TcpStream;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
 use fast_socks5::client::{Config, Socks5Stream};
+use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
+use fast_socks5::Socks5Command;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Socks5Config {
@@ -56,10 +58,11 @@ impl Socks5Config {
 
     pub async fn connect(
         &self,
-        target_addr: impl net::ToSocketAddrs,
+        target_host: &str,
+        target_port: u16,
         timeout_val: Duration,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream = connect_tcp(target_addr, timeout_val).await?;
+        let tcp_stream = connect_tcp((self.host.clone(), self.port), timeout_val).await?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {
@@ -70,8 +73,12 @@ impl Socks5Config {
         } else {
             None
         };
-        let socks_stream =
+        let mut socks_stream =
             Socks5Stream::use_stream(tcp_stream, authentication_method, Config::default()).await?;
+        let target_addr = (target_host, target_port).to_target_addr()?;
+        socks_stream
+            .request(Socks5Command::TCPConnect, target_addr)
+            .await?;
 
         Ok(socks_stream)
     }

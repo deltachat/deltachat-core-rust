@@ -9,6 +9,7 @@
   unread messages increases #3959
 - Fix Peerstate comparison #3962
 - Log SOCKS5 configuration for IMAP like already done for SMTP #3964
+- Fix SOCKS5 usage for IMAP #3965
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object

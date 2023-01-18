@@ -124,8 +124,7 @@ impl Client {
         let tcp_stream = connect_tcp((hostname, port), IMAP_TIMEOUT).await?;
 
         // Run STARTTLS command and convert the client back into a stream.
-        let session_stream: Box<dyn SessionStream> = Box::new(tcp_stream);
-        let mut client = ImapClient::new(session_stream);
+        let mut client = ImapClient::new(tcp_stream);
         let _greeting = client
             .read_response()
             .await
@@ -155,7 +154,7 @@ impl Client {
         strict_tls: bool,
         socks5_config: Socks5Config,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config.connect((domain, port), IMAP_TIMEOUT).await?;
+        let socks5_stream = socks5_config.connect(domain, port, IMAP_TIMEOUT).await?;
         let tls = build_tls(strict_tls);
         let tls_stream = tls.connect(domain, socks5_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
@@ -170,10 +169,11 @@ impl Client {
     }
 
     pub async fn connect_insecure_socks5(
-        target_addr: impl ToSocketAddrs,
+        domain: &str,
+        port: u16,
         socks5_config: Socks5Config,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config.connect(target_addr, IMAP_TIMEOUT).await?;
+        let socks5_stream = socks5_config.connect(domain, port, IMAP_TIMEOUT).await?;
         let buffered_stream = BufWriter::new(socks5_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
@@ -191,13 +191,10 @@ impl Client {
         socks5_config: Socks5Config,
         strict_tls: bool,
     ) -> Result<Self> {
-        let socks5_stream = socks5_config
-            .connect((hostname, port), IMAP_TIMEOUT)
-            .await?;
+        let socks5_stream = socks5_config.connect(hostname, port, IMAP_TIMEOUT).await?;
 
         // Run STARTTLS command and convert the client back into a stream.
-        let session_stream: Box<dyn SessionStream> = Box::new(socks5_stream);
-        let mut client = ImapClient::new(session_stream);
+        let mut client = ImapClient::new(socks5_stream);
         let _greeting = client
             .read_response()
             .await

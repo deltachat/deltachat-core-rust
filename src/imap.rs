@@ -315,7 +315,7 @@ impl Imap {
                     )
                     .await
                 } else {
-                    Client::connect_insecure_socks5((imap_server, imap_port), socks5_config.clone())
+                    Client::connect_insecure_socks5(imap_server, imap_port, socks5_config.clone())
                         .await
                 }
             } else if config.lp.security == Socket::Starttls {
