@@ -138,6 +138,16 @@ pub struct Provider {
 
     /// Type of OAuth 2 authorization if provider supports it.
     pub oauth2_authorizer: Option<Oauth2Authorizer>,
+
+    /// Options with good defaults.
+    pub opt: ProviderOptions,
+}
+
+/// Provider options with good defaults.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ProviderOptions {
+    /// Move messages to the Trash folder instead of marking them "\Deleted".
+    pub delete_to_trash: bool,
 }
 
 /// Get resolver to query MX records.

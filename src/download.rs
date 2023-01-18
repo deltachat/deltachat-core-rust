@@ -138,7 +138,7 @@ impl Job {
             context
                 .sql
                 .query_row_optional(
-                    "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target!=''",
+                    "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target=folder",
                     paramsv![msg.rfc724_mid],
                     |row| {
                         let server_uid: u32 = row.get(0)?;

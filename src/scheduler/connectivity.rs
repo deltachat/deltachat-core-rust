@@ -1,18 +1,18 @@
 use core::fmt;
-use std::{ops::Deref, sync::Arc};
+use std::{iter::once, ops::Deref, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use humansize::{format_size, BINARY};
 use tokio::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
-use crate::imap::scan_folders::get_watched_folder_configs;
+use crate::imap::{scan_folders::get_watched_folder_configs, FolderMeaning};
 use crate::quota::{
     QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
 };
 use crate::tools::time;
-use crate::{config::Config, scheduler::Scheduler, stock_str, tools};
 use crate::{context::Context, log::LogExt};
+use crate::{scheduler::Scheduler, stock_str, tools};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
@@ -157,17 +157,14 @@ impl ConnectivityStore {
 /// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
 pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Option<Scheduler>>) {
-    let [inbox, mvbox, sentbox] = match &*scheduler {
-        Some(Scheduler {
-            inbox,
-            mvbox,
-            sentbox,
-            ..
-        }) => [
-            inbox.state.connectivity.clone(),
-            mvbox.state.connectivity.clone(),
-            sentbox.state.connectivity.clone(),
-        ],
+    let (inbox, oboxes) = match &*scheduler {
+        Some(Scheduler { inbox, oboxes, .. }) => (
+            inbox.conn_state.state.connectivity.clone(),
+            oboxes
+                .iter()
+                .map(|b| b.conn_state.state.connectivity.clone())
+                .collect::<Vec<_>>(),
+        ),
         None => return,
     };
     drop(scheduler);
@@ -185,7 +182,7 @@ pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Option<Sched
     }
     drop(connectivity_lock);
 
-    for state in &[&mvbox, &sentbox] {
+    for state in oboxes {
         let mut connectivity_lock = state.0.lock().await;
         if *connectivity_lock == DetailedConnectivity::Connected {
             *connectivity_lock = DetailedConnectivity::InterruptingIdle;
@@ -202,17 +199,11 @@ pub(crate) async fn maybe_network_lost(
     context: &Context,
     scheduler: RwLockReadGuard<'_, Option<Scheduler>>,
 ) {
-    let stores = match &*scheduler {
-        Some(Scheduler {
-            inbox,
-            mvbox,
-            sentbox,
-            ..
-        }) => [
-            inbox.state.connectivity.clone(),
-            mvbox.state.connectivity.clone(),
-            sentbox.state.connectivity.clone(),
-        ],
+    let stores: Vec<_> = match &*scheduler {
+        Some(sched) => sched
+            .boxes()
+            .map(|b| b.conn_state.state.connectivity.clone())
+            .collect(),
         None => return,
     };
     drop(scheduler);
@@ -260,14 +251,9 @@ impl Context {
     pub async fn get_connectivity(&self) -> Connectivity {
         let lock = self.scheduler.read().await;
         let stores: Vec<_> = match &*lock {
-            Some(Scheduler {
-                inbox,
-                mvbox,
-                sentbox,
-                ..
-            }) => [&inbox.state, &mvbox.state, &sentbox.state]
-                .iter()
-                .map(|state| state.connectivity.clone())
+            Some(sched) => sched
+                .boxes()
+                .map(|b| b.conn_state.state.connectivity.clone())
                 .collect(),
             None => return Connectivity::NotConnected,
         };
@@ -348,28 +334,12 @@ impl Context {
 
         let lock = self.scheduler.read().await;
         let (folders_states, smtp) = match &*lock {
-            Some(Scheduler {
-                inbox,
-                mvbox,
-                sentbox,
-                smtp,
-                ..
-            }) => (
-                [
-                    (
-                        Config::ConfiguredInboxFolder,
-                        inbox.state.connectivity.clone(),
-                    ),
-                    (
-                        Config::ConfiguredMvboxFolder,
-                        mvbox.state.connectivity.clone(),
-                    ),
-                    (
-                        Config::ConfiguredSentboxFolder,
-                        sentbox.state.connectivity.clone(),
-                    ),
-                ],
-                smtp.state.connectivity.clone(),
+            Some(sched) => (
+                sched
+                    .boxes()
+                    .map(|b| (b.meaning, b.conn_state.state.connectivity.clone()))
+                    .collect::<Vec<_>>(),
+                sched.smtp.state.connectivity.clone(),
             ),
             None => {
                 return Err(anyhow!("Not started"));
@@ -390,8 +360,8 @@ impl Context {
         for (folder, state) in &folders_states {
             let mut folder_added = false;
 
-            if watched_folders.contains(folder) {
-                let f = self.get_config(*folder).await.ok_or_log(self).flatten();
+            if let Some(config) = folder.to_config().filter(|c| watched_folders.contains(c)) {
+                let f = self.get_config(config).await.ok_or_log(self).flatten();
 
                 if let Some(foldername) = f {
                     let detailed = &state.get_detailed().await;
@@ -407,7 +377,7 @@ impl Context {
                 }
             }
 
-            if !folder_added && folder == &Config::ConfiguredInboxFolder {
+            if !folder_added && folder == &FolderMeaning::Inbox {
                 let detailed = &state.get_detailed().await;
                 if let DetailedConnectivity::Error(_) = detailed {
                     // On the inbox thread, we also do some other things like scan_folders and run jobs
@@ -535,14 +505,10 @@ impl Context {
     pub async fn all_work_done(&self) -> bool {
         let lock = self.scheduler.read().await;
         let stores: Vec<_> = match &*lock {
-            Some(Scheduler {
-                inbox,
-                mvbox,
-                sentbox,
-                smtp,
-                ..
-            }) => [&inbox.state, &mvbox.state, &sentbox.state, &smtp.state]
-                .iter()
+            Some(sched) => sched
+                .boxes()
+                .map(|b| &b.conn_state.state)
+                .chain(once(&sched.smtp.state))
                 .map(|state| state.connectivity.clone())
                 .collect(),
             None => return false,

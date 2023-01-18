@@ -1954,6 +1954,7 @@ def test_immediate_autodelete(acfactory, lp):
     assert msg.text == "hello"
 
     lp.sec("ac2: wait for close/expunge on autodelete")
+    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
     ac2._evtracker.get_info_contains("close/expunge succeeded")
 
     lp.sec("ac2: check that message was autodeleted on server")
@@ -1989,6 +1990,34 @@ def test_delete_multiple_messages(acfactory, lp):
     ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
 
     ac2._evtracker.get_info_contains("close/expunge succeeded")
+
+    lp.sec("ac2: test that only one message is left")
+    ac2.direct_imap.select_config_folder("inbox")
+    assert len(ac2.direct_imap.get_all_messages()) == 1
+
+
+def test_trash_multiple_messages(acfactory, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac2.set_config("delete_to_trash", "1")
+    chat12 = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: sending 3 messages")
+    texts = ["first", "second", "third"]
+    for text in texts:
+        chat12.send_text(text)
+
+    lp.sec("ac2: waiting for all messages on the other side")
+    to_delete = []
+    for text in texts:
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg.text in texts
+        if text != "second":
+            to_delete.append(msg)
+
+    lp.sec("ac2: deleting all messages except second")
+    assert len(to_delete) == len(texts) - 1
+    ac2.delete_messages(to_delete)
+    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     lp.sec("ac2: test that only one message is left")
     ac2.direct_imap.select_config_folder("inbox")

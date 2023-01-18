@@ -7,7 +7,7 @@ use futures_lite::FutureExt;
 
 use super::session::Session;
 use super::Imap;
-use crate::imap::client::IMAP_TIMEOUT;
+use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
 use crate::{context::Context, scheduler::InterruptInfo};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
@@ -113,6 +113,7 @@ impl Imap {
         &mut self,
         context: &Context,
         watch_folder: Option<String>,
+        folder_meaning: FolderMeaning,
     ) -> InterruptInfo {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
@@ -173,7 +174,7 @@ impl Imap {
                     // will have already fetched the messages so perform_*_fetch
                     // will not find any new.
                     match self
-                        .fetch_new_messages(context, &watch_folder, false, false)
+                        .fetch_new_messages(context, &watch_folder, folder_meaning, false)
                         .await
                     {
                         Ok(res) => {

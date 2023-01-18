@@ -9,6 +9,8 @@
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
+- Fix a problem with Gmail where (auto-)deleted messages would get archived instead of deleted.
+  Move them to the Trash folder for Gmail which auto-deletes trashed messages in 30 days #3972
 
 ### API-Changes
 

@@ -342,11 +342,12 @@ pub(crate) async fn receive_imf_inner(
         if received_msg.needs_delete_job
             || (delete_server_after == Some(0) && is_partial_download.is_none())
         {
+            let target = context.get_delete_msgs_target().await?;
             context
                 .sql
                 .execute(
-                    "UPDATE imap SET target='' WHERE rfc724_mid=?",
-                    paramsv![rfc724_mid],
+                    "UPDATE imap SET target=? WHERE rfc724_mid=?",
+                    paramsv![target, rfc724_mid],
                 )
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
