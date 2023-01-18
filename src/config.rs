@@ -1,5 +1,7 @@
 //! # Key-value configuration management.
 
+use std::str::FromStr;
+
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
@@ -173,6 +175,10 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DeleteDeviceAfter,
 
+    /// Move messages to the Trash folder instead of marking them "\Deleted". Overrides
+    /// `ProviderOptions::delete_to_trash`.
+    DeleteToTrash,
+
     /// Save raw MIME messages with headers in the database if true.
     SaveMimeHeaders,
 
@@ -226,6 +232,9 @@ pub enum Config {
 
     /// Configured "Sent" folder.
     ConfiguredSentboxFolder,
+
+    /// Configured "Trash" folder.
+    ConfiguredTrashFolder,
 
     /// Unix timestamp of the last successful configuration.
     ConfiguredTimestamp,
@@ -327,30 +336,37 @@ impl Context {
         }
     }
 
-    /// Returns 32-bit signed integer configuration value for the given key.
-    pub async fn get_config_int(&self, key: Config) -> Result<i32> {
+    /// Returns Some(T) if a value for the given key exists and was successfully parsed.
+    /// Returns None if could not parse.
+    pub async fn get_config_parsed<T: FromStr>(&self, key: Config) -> Result<Option<T>> {
         self.get_config(key)
             .await
-            .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
+            .map(|s: Option<String>| s.and_then(|s| s.parse().ok()))
+    }
+
+    /// Returns 32-bit signed integer configuration value for the given key.
+    pub async fn get_config_int(&self, key: Config) -> Result<i32> {
+        Ok(self.get_config_parsed(key).await?.unwrap_or_default())
     }
 
     /// Returns 64-bit signed integer configuration value for the given key.
     pub async fn get_config_i64(&self, key: Config) -> Result<i64> {
-        self.get_config(key)
-            .await
-            .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
+        Ok(self.get_config_parsed(key).await?.unwrap_or_default())
     }
 
     /// Returns 64-bit unsigned integer configuration value for the given key.
     pub async fn get_config_u64(&self, key: Config) -> Result<u64> {
-        self.get_config(key)
-            .await
-            .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
+        Ok(self.get_config_parsed(key).await?.unwrap_or_default())
+    }
+
+    /// Returns boolean configuration value (if any) for the given key.
+    pub async fn get_config_bool_opt(&self, key: Config) -> Result<Option<bool>> {
+        Ok(self.get_config_parsed::<i32>(key).await?.map(|x| x != 0))
     }
 
     /// Returns boolean configuration value for the given key.
     pub async fn get_config_bool(&self, key: Config) -> Result<bool> {
-        Ok(self.get_config_int(key).await? != 0)
+        Ok(self.get_config_bool_opt(key).await?.unwrap_or_default())
     }
 
     /// Returns true if movebox ("DeltaChat" folder) should be watched.
@@ -550,7 +566,6 @@ fn get_config_keys_string() -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use std::string::ToString;
 
     use num_traits::FromPrimitive;

@@ -201,7 +201,7 @@ pub const BALANCED_IMAGE_SIZE: u32 = 1280;
 pub const WORSE_IMAGE_SIZE: u32 = 640;
 
 // this value can be increased if the folder configuration is changed and must be redone on next program start
-pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
+pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 4;
 
 #[cfg(test)]
 mod tests {
