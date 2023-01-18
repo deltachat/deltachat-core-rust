@@ -8,6 +8,7 @@
 - Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
   unread messages increases #3959
 - Fix Peerstate comparison #3962
+- Log SOCKS5 configuration for IMAP like already done for SMTP #3964
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object

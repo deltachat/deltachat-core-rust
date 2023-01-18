@@ -565,13 +565,18 @@ async fn try_imap_one_param(
     provider_strict_tls: bool,
 ) -> Result<Imap, ConfigurationError> {
     let inf = format!(
-        "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
+        "imap: {}@{}:{} security={} certificate_checks={} oauth2={} socks5_config={}",
         param.user,
         param.server,
         param.port,
         param.security,
         param.certificate_checks,
-        param.oauth2
+        param.oauth2,
+        if let Some(socks5_config) = socks5_config {
+            socks5_config.to_string()
+        } else {
+            "None".to_string()
+        }
     );
     info!(context, "Trying: {}", inf);
 
