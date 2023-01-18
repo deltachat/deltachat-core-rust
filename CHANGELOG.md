@@ -10,6 +10,7 @@
 - Fix Peerstate comparison #3962
 - Log SOCKS5 configuration for IMAP like already done for SMTP #3964
 - Fix SOCKS5 usage for IMAP #3965
+- Exit from recently seen loop on interrupt channel errors to avoid busy looping #3966
 
 ### API-Changes
 - jsonrpc: add verified-by information to `Contact`-Object

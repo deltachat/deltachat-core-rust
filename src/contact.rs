@@ -1612,6 +1612,9 @@ impl RecentlySeenLoop {
                             context,
                             "Error receiving an interruption in recently seen loop: {}", err
                         );
+                        // Maybe the sender side is closed.
+                        // Terminate the loop to avoid looping indefinitely.
+                        return;
                     }
                     Ok(Ok(RecentlySeenInterrupt {
                         contact_id,
