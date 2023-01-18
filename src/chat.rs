@@ -544,10 +544,14 @@ impl ChatId {
         msg_state: MessageState,
     ) -> Result<()> {
         if msg_state != MessageState::InFresh {
-            context.sql.execute(
-                "UPDATE chats SET archived=0 WHERE id=? AND NOT(muted_until=-1 OR muted_until>?)",
-                paramsv![self, time()],
-            ).await?;
+            context
+                .sql
+                .execute(
+                    "UPDATE chats SET archived=0 WHERE id=? AND archived=1 \
+                AND NOT(muted_until=-1 OR muted_until>?)",
+                    paramsv![self, time()],
+                )
+                .await?;
             return Ok(());
         }
         let chat = Chat::load_from_db(context, self).await?;
@@ -4688,6 +4692,46 @@ mod tests {
         // check if chat order changed back
         let chatlist = get_chats_from_chat_list(&t, DC_GCL_NO_SPECIALS).await;
         assert_eq!(chatlist, vec![chat_id3, chat_id2, chat_id1]);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_pinned_after_new_msgs() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat_id = alice.create_chat(&bob).await.id;
+        let bob_chat_id = bob.create_chat(&alice).await.id;
+
+        assert!(alice_chat_id
+            .set_visibility(&alice, ChatVisibility::Pinned)
+            .await
+            .is_ok());
+        assert_eq!(
+            Chat::load_from_db(&alice, alice_chat_id)
+                .await?
+                .get_visibility(),
+            ChatVisibility::Pinned,
+        );
+
+        send_text_msg(&alice, alice_chat_id, "hi!".into()).await?;
+        assert_eq!(
+            Chat::load_from_db(&alice, alice_chat_id)
+                .await?
+                .get_visibility(),
+            ChatVisibility::Pinned,
+        );
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("hi!".into()));
+        let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert_eq!(msg.chat_id, alice_chat_id);
+        assert_eq!(
+            Chat::load_from_db(&alice, alice_chat_id)
+                .await?
+                .get_visibility(),
+            ChatVisibility::Pinned,
+        );
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
