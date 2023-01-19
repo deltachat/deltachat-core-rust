@@ -30,7 +30,16 @@ async fn lookup_host_with_cache(
     load_cache: bool,
 ) -> Result<Vec<SocketAddr>> {
     let now = time();
-    let mut resolved_addrs: Vec<SocketAddr> = lookup_host((hostname, port)).await?.collect();
+    let mut resolved_addrs: Vec<SocketAddr> = match lookup_host((hostname, port)).await {
+        Ok(res) => res.collect(),
+        Err(err) => {
+            warn!(
+                context,
+                "DNS resolution for {}:{} failed: {:#}.", hostname, port, err
+            );
+            Vec::new()
+        }
+    };
 
     for (i, addr) in resolved_addrs.iter().enumerate() {
         info!(context, "Resolved {}:{} into {}.", hostname, port, &addr);
