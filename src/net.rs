@@ -129,7 +129,11 @@ async fn lookup_host_with_cache(
 /// to the network, which is important to reduce the latency of interactive protocols such as IMAP.
 ///
 /// If `load_cache` is true, may use cached DNS results.
-/// Use this only if the connection is going to be protected with TLS.
+/// Because the cache may be poisoned with incorrect results by networks hijacking DNS requests,
+/// this option should only be used when connection is authenticated,
+/// for example using TLS.
+/// If TLS is not used or invalid TLS certificates are allowed,
+/// this option should be disabled.
 pub(crate) async fn connect_tcp(
     context: &Context,
     host: &str,
