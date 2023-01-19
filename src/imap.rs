@@ -308,6 +308,7 @@ impl Imap {
             if let Some(socks5_config) = &config.socks5_config {
                 if config.lp.security == Socket::Starttls {
                     Client::connect_starttls_socks5(
+                        context,
                         imap_server,
                         imap_port,
                         socks5_config.clone(),
@@ -315,13 +316,18 @@ impl Imap {
                     )
                     .await
                 } else {
-                    Client::connect_insecure_socks5(imap_server, imap_port, socks5_config.clone())
-                        .await
+                    Client::connect_insecure_socks5(
+                        context,
+                        imap_server,
+                        imap_port,
+                        socks5_config.clone(),
+                    )
+                    .await
                 }
             } else if config.lp.security == Socket::Starttls {
-                Client::connect_starttls(imap_server, imap_port, config.strict_tls).await
+                Client::connect_starttls(context, imap_server, imap_port, config.strict_tls).await
             } else {
-                Client::connect_insecure((imap_server, imap_port)).await
+                Client::connect_insecure(context, imap_server, imap_port).await
             }
         } else {
             let config = &self.config;
@@ -330,6 +336,7 @@ impl Imap {
 
             if let Some(socks5_config) = &config.socks5_config {
                 Client::connect_secure_socks5(
+                    context,
                     imap_server,
                     imap_port,
                     config.strict_tls,
@@ -337,7 +344,7 @@ impl Imap {
                 )
                 .await
             } else {
-                Client::connect_secure(imap_server, imap_port, config.strict_tls).await
+                Client::connect_secure(context, imap_server, imap_port, config.strict_tls).await
             }
         };
 

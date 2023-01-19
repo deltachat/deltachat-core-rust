@@ -58,11 +58,12 @@ impl Socks5Config {
 
     pub async fn connect(
         &self,
+        context: &Context,
         target_host: &str,
         target_port: u16,
         timeout_val: Duration,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream = connect_tcp((self.host.clone(), self.port), timeout_val).await?;
+        let tcp_stream = connect_tcp(context, &self.host, self.port, timeout_val).await?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {
