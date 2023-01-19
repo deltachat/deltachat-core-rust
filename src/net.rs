@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::time::Duration;
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Error, Result};
 use tokio::net::{lookup_host, TcpStream};
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
@@ -119,6 +119,7 @@ pub(crate) async fn connect_tcp(
     load_cache: bool,
 ) -> Result<Pin<Box<TimeoutStream<TcpStream>>>> {
     let mut tcp_stream = None;
+    let mut last_error = None;
 
     for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
         match connect_tcp_inner(resolved_addr, timeout_val).await {
@@ -131,12 +132,17 @@ pub(crate) async fn connect_tcp(
                     context,
                     "Failed to connect to {}: {:#}.", resolved_addr, err
                 );
+                last_error = Some(err);
             }
         }
     }
 
-    let tcp_stream =
-        tcp_stream.with_context(|| format!("failed to connect to {}:{}", host, port))?;
+    let tcp_stream = match tcp_stream {
+        Some(tcp_stream) => tcp_stream,
+        None => {
+            return Err(last_error.unwrap_or_else(|| Error::msg("no DNS resolution results")));
+        }
+    };
 
     // Disable Nagle's algorithm.
     tcp_stream.set_nodelay(true)?;
