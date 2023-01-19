@@ -36,7 +36,8 @@ register_global_plugin(events)
 
 def run_cmdline(argv=None, account_plugins=None):
     """Run a simple default command line app, registering the specified
-    account plugins."""
+    account plugins.
+    """
     import argparse
 
     if argv is None:

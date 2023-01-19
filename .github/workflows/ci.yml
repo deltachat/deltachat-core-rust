@@ -144,7 +144,7 @@ jobs:
       env:
         DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       working-directory: deltachat-rpc-client
-      run: tox -e py3
+      run: tox -e py3,lint
 
     - name: install pypy
       if: ${{ matrix.python }}

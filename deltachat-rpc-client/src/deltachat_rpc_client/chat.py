@@ -63,7 +63,7 @@ class Chat:
         """
         if duration is not None:
             assert duration > 0, "Invalid duration"
-            dur: Union[str, dict] = dict(Until=duration)
+            dur: Union[str, dict] = {"Until": duration}
         else:
             dur = "Forever"
         await self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
@@ -74,27 +74,19 @@ class Chat:
 
     async def pin(self) -> None:
         """Pin this chat."""
-        await self._rpc.set_chat_visibility(
-            self.account.id, self.id, ChatVisibility.PINNED
-        )
+        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.PINNED)
 
     async def unpin(self) -> None:
         """Unpin this chat."""
-        await self._rpc.set_chat_visibility(
-            self.account.id, self.id, ChatVisibility.NORMAL
-        )
+        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
 
     async def archive(self) -> None:
         """Archive this chat."""
-        await self._rpc.set_chat_visibility(
-            self.account.id, self.id, ChatVisibility.ARCHIVED
-        )
+        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.ARCHIVED)
 
     async def unarchive(self) -> None:
         """Unarchive this chat."""
-        await self._rpc.set_chat_visibility(
-            self.account.id, self.id, ChatVisibility.NORMAL
-        )
+        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
 
     async def set_name(self, name: str) -> None:
         """Set name of this chat."""
@@ -133,9 +125,7 @@ class Chat:
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
 
-        msg_id, _ = await self._rpc.misc_send_msg(
-            self.account.id, self.id, text, file, location, quoted_msg
-        )
+        msg_id, _ = await self._rpc.misc_send_msg(self.account.id, self.id, text, file, location, quoted_msg)
         return Message(self.account, msg_id)
 
     async def send_text(self, text: str) -> Message:
@@ -241,23 +231,17 @@ class Chat:
         timestamp_to: Optional[datetime] = None,
     ) -> List[AttrDict]:
         """Get list of location snapshots for the given contact in the given timespan."""
-        time_from = (
-            calendar.timegm(timestamp_from.utctimetuple()) if timestamp_from else 0
-        )
+        time_from = calendar.timegm(timestamp_from.utctimetuple()) if timestamp_from else 0
         time_to = calendar.timegm(timestamp_to.utctimetuple()) if timestamp_to else 0
         contact_id = contact.id if contact else 0
 
-        result = await self._rpc.get_locations(
-            self.account.id, self.id, contact_id, time_from, time_to
-        )
+        result = await self._rpc.get_locations(self.account.id, self.id, contact_id, time_from, time_to)
         locations = []
         contacts: Dict[int, Contact] = {}
         for loc in result:
             loc = AttrDict(loc)
             loc["chat"] = self
-            loc["contact"] = contacts.setdefault(
-                loc.contact_id, Contact(self.account, loc.contact_id)
-            )
+            loc["contact"] = contacts.setdefault(loc.contact_id, Contact(self.account, loc.contact_id))
             loc["message"] = Message(self.account, loc.msg_id)
             locations.append(loc)
         return locations

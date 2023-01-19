@@ -1,4 +1,4 @@
-""" Account class implementation. """
+"""Account class implementation."""
 
 from __future__ import print_function
 
@@ -39,7 +39,7 @@ def get_core_info():
             ffi.gc(
                 lib.dc_context_new(as_dc_charpointer(""), as_dc_charpointer(path.name), ffi.NULL),
                 lib.dc_context_unref,
-            )
+            ),
         )
 
 
@@ -172,10 +172,7 @@ class Account(object):
         namebytes = name.encode("utf8")
         if isinstance(value, (int, bool)):
             value = str(int(value))
-        if value is not None:
-            valuebytes = value.encode("utf8")
-        else:
-            valuebytes = ffi.NULL
+        valuebytes = value.encode("utf8") if value is not None else ffi.NULL
         lib.dc_set_config(self._dc_context, namebytes, valuebytes)
 
     def get_config(self, name: str) -> str:
@@ -225,9 +222,10 @@ class Account(object):
         return bool(lib.dc_is_configured(self._dc_context))
 
     def is_open(self) -> bool:
-        """Determine if account is open
+        """Determine if account is open.
 
-        :returns True if account is open."""
+        :returns True if account is open.
+        """
         return bool(lib.dc_context_is_open(self._dc_context))
 
     def set_avatar(self, img_path: Optional[str]) -> None:
@@ -543,7 +541,7 @@ class Account(object):
         return from_dc_charpointer(res)
 
     def check_qr(self, qr):
-        """check qr code and return :class:`ScannedQRCode` instance representing the result"""
+        """check qr code and return :class:`ScannedQRCode` instance representing the result."""
         res = ffi.gc(lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), lib.dc_lot_unref)
         lot = DCLot(res)
         if lot.state() == const.DC_QR_ERROR:
@@ -662,7 +660,7 @@ class Account(object):
         return lib.dc_all_work_done(self._dc_context)
 
     def start_io(self):
-        """start this account's IO scheduling (Rust-core async scheduler)
+        """start this account's IO scheduling (Rust-core async scheduler).
 
         If this account is not configured an Exception is raised.
         You need to call account.configure() and account.wait_configure_finish()
@@ -705,12 +703,10 @@ class Account(object):
         """
         lib.dc_maybe_network(self._dc_context)
 
-    def configure(self, reconfigure: bool = False) -> ConfigureTracker:
+    def configure(self) -> ConfigureTracker:
         """Start configuration process and return a Configtracker instance
         on which you can block with wait_finish() to get a True/False success
         value for the configuration process.
-
-        :param reconfigure: deprecated, doesn't need to be checked anymore.
         """
         if not self.get_config("addr") or not self.get_config("mail_pw"):
             raise MissingCredentials("addr or mail_pwd not set in config")
@@ -733,7 +729,8 @@ class Account(object):
 
     def shutdown(self) -> None:
         """shutdown and destroy account (stop callback thread, close and remove
-        underlying dc_context)."""
+        underlying dc_context).
+        """
         if self._dc_context is None:
             return
 

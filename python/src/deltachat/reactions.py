@@ -1,4 +1,4 @@
-""" The Reactions object. """
+"""The Reactions object."""
 
 from .capi import ffi, lib
 from .cutil import from_dc_charpointer, iter_array

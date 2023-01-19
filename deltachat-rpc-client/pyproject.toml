@@ -27,3 +27,13 @@ deltachat_rpc_client = [
 
 [project.entry-points.pytest11]
 "deltachat_rpc_client.pytestplugin" = "deltachat_rpc_client.pytestplugin"
+
+[tool.black]
+line-length = 120
+
+[tool.ruff]
+select = ["E", "F", "W", "N", "YTT", "B", "C4", "ISC", "ICN", "PT", "RET", "SIM", "TID", "ARG", "DTZ", "ERA", "PLC", "PLE", "PLW", "PIE", "COM"]
+line-length = 120
+
+[tool.isort]
+profile = "black"

@@ -6,14 +6,14 @@ from deltachat_rpc_client import EventType, events
 from deltachat_rpc_client.rpc import JsonRpcError
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_system_info(rpc) -> None:
     system_info = await rpc.get_system_info()
     assert "arch" in system_info
     assert "deltachat_core_version" in system_info
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_email_address_validity(rpc) -> None:
     valid_addresses = [
         "email@example.com",
@@ -27,7 +27,7 @@ async def test_email_address_validity(rpc) -> None:
         assert not await rpc.check_email_validity(addr)
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_acfactory(acfactory) -> None:
     account = await acfactory.new_configured_account()
     while True:
@@ -41,7 +41,7 @@ async def test_acfactory(acfactory) -> None:
     print("Successful configuration")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_configure_starttls(acfactory) -> None:
     account = await acfactory.new_preconfigured_account()
 
@@ -51,7 +51,7 @@ async def test_configure_starttls(acfactory) -> None:
     assert await account.is_configured()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_account(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
@@ -111,7 +111,7 @@ async def test_account(acfactory) -> None:
     await alice.stop_io()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_chat(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
@@ -177,7 +177,7 @@ async def test_chat(acfactory) -> None:
     await group.get_locations()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_contact(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
@@ -195,7 +195,7 @@ async def test_contact(acfactory) -> None:
     await alice_contact_bob.create_chat()
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_message(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
@@ -226,7 +226,7 @@ async def test_message(acfactory) -> None:
     await message.send_reaction("😎")
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_bot(acfactory) -> None:
     mock = MagicMock()
     user = (await acfactory.get_online_accounts(1))[0]
@@ -237,25 +237,20 @@ async def test_bot(acfactory) -> None:
 
     hook = lambda e: mock.hook(e.msg_id), events.RawEvent(EventType.INCOMING_MSG)
     bot.add_hook(*hook)
-    event = await acfactory.process_message(
-        from_account=user, to_client=bot, text="Hello!"
-    )
+    event = await acfactory.process_message(from_account=user, to_client=bot, text="Hello!")
     mock.hook.assert_called_once_with(event.msg_id)
     bot.remove_hook(*hook)
 
-    track = lambda e: mock.hook(e.message_snapshot.id)
+    def track(e):
+        mock.hook(e.message_snapshot.id)
 
     mock.hook.reset_mock()
     hook = track, events.NewMessage(r"hello")
     bot.add_hook(*hook)
     bot.add_hook(track, events.NewMessage(command="/help"))
-    event = await acfactory.process_message(
-        from_account=user, to_client=bot, text="hello"
-    )
+    event = await acfactory.process_message(from_account=user, to_client=bot, text="hello")
     mock.hook.assert_called_with(event.msg_id)
-    event = await acfactory.process_message(
-        from_account=user, to_client=bot, text="hello!"
-    )
+    event = await acfactory.process_message(from_account=user, to_client=bot, text="hello!")
     mock.hook.assert_called_with(event.msg_id)
     await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
     assert len(mock.hook.mock_calls) == 2
@@ -263,7 +258,5 @@ async def test_bot(acfactory) -> None:
 
     mock.hook.reset_mock()
     await acfactory.process_message(from_account=user, to_client=bot, text="hello")
-    event = await acfactory.process_message(
-        from_account=user, to_client=bot, text="/help"
-    )
+    event = await acfactory.process_message(from_account=user, to_client=bot, text="/help")
     mock.hook.assert_called_once_with(event.msg_id)

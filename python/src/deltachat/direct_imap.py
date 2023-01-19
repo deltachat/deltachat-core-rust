@@ -79,15 +79,17 @@ class DirectImap:
 
     def select_config_folder(self, config_name: str):
         """Return info about selected folder if it is
-        configured, otherwise None."""
+        configured, otherwise None.
+        """
         if "_" not in config_name:
             config_name = "configured_{}_folder".format(config_name)
         foldername = self.account.get_config(config_name)
         if foldername:
             return self.select_folder(foldername)
+        return None
 
     def list_folders(self) -> List[str]:
-        """return list of all existing folder names"""
+        """return list of all existing folder names."""
         assert not self._idling
         return [folder.name for folder in self.conn.folder.list()]
 
@@ -103,7 +105,7 @@ class DirectImap:
 
     def get_all_messages(self) -> List[MailMessage]:
         assert not self._idling
-        return [mail for mail in self.conn.fetch()]
+        return list(self.conn.fetch())
 
     def get_unread_messages(self) -> List[str]:
         assert not self._idling
@@ -221,5 +223,4 @@ class IdleManager:
 
     def done(self):
         """send idle-done to server if we are currently in idle mode."""
-        res = self.direct_imap.conn.idle.stop()
-        return res
+        return self.direct_imap.conn.idle.stop()

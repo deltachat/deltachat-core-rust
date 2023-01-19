@@ -1,4 +1,4 @@
-""" Chat and Location related API. """
+"""Chat and Location related API."""
 
 import calendar
 import json
@@ -37,7 +37,7 @@ class Chat(object):
         return self.id == getattr(other, "id", None) and self.account._dc_context == other.account._dc_context
 
     def __ne__(self, other) -> bool:
-        return not (self == other)
+        return not self == other
 
     def __repr__(self) -> str:
         return "<Chat id={} name={}>".format(self.id, self.get_name())
@@ -74,19 +74,19 @@ class Chat(object):
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_GROUP
 
     def is_single(self) -> bool:
-        """Return True if this chat is a single/direct chat, False otherwise"""
+        """Return True if this chat is a single/direct chat, False otherwise."""
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_SINGLE
 
     def is_mailinglist(self) -> bool:
-        """Return True if this chat is a mailing list, False otherwise"""
+        """Return True if this chat is a mailing list, False otherwise."""
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_MAILINGLIST
 
     def is_broadcast(self) -> bool:
-        """Return True if this chat is a broadcast list, False otherwise"""
+        """Return True if this chat is a broadcast list, False otherwise."""
         return lib.dc_chat_get_type(self._dc_chat) == const.DC_CHAT_TYPE_BROADCAST
 
     def is_multiuser(self) -> bool:
-        """Return True if this chat is a multi-user chat (group, mailing list or broadcast), False otherwise"""
+        """Return True if this chat is a multi-user chat (group, mailing list or broadcast), False otherwise."""
         return lib.dc_chat_get_type(self._dc_chat) in (
             const.DC_CHAT_TYPE_GROUP,
             const.DC_CHAT_TYPE_MAILINGLIST,
@@ -94,11 +94,11 @@ class Chat(object):
         )
 
     def is_self_talk(self) -> bool:
-        """Return True if this chat is the self-chat (a.k.a. "Saved Messages"), False otherwise"""
+        """Return True if this chat is the self-chat (a.k.a. "Saved Messages"), False otherwise."""
         return bool(lib.dc_chat_is_self_talk(self._dc_chat))
 
     def is_device_talk(self) -> bool:
-        """Returns True if this chat is the "Device Messages" chat, False otherwise"""
+        """Returns True if this chat is the "Device Messages" chat, False otherwise."""
         return bool(lib.dc_chat_is_device_talk(self._dc_chat))
 
     def is_muted(self) -> bool:
@@ -109,12 +109,12 @@ class Chat(object):
         return bool(lib.dc_chat_is_muted(self._dc_chat))
 
     def is_pinned(self) -> bool:
-        """Return True if this chat is pinned, False otherwise"""
+        """Return True if this chat is pinned, False otherwise."""
         return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_PINNED
 
     def is_archived(self) -> bool:
         """Return True if this chat is archived, False otherwise.
-        :returns: True if archived, False otherwise
+        :returns: True if archived, False otherwise.
         """
         return lib.dc_chat_get_visibility(self._dc_chat) == const.DC_CHAT_VISIBILITY_ARCHIVED
 
@@ -136,7 +136,7 @@ class Chat(object):
 
     def can_send(self) -> bool:
         """Check if messages can be sent to a give chat.
-        This is not true eg. for the contact requests or for the device-talk
+        This is not true eg. for the contact requests or for the device-talk.
 
         :returns: True if the chat is writable, False otherwise
         """
@@ -167,7 +167,7 @@ class Chat(object):
 
     def get_color(self):
         """return the color of the chat.
-        :returns: color as 0x00rrggbb
+        :returns: color as 0x00rrggbb.
         """
         return lib.dc_chat_get_color(self._dc_chat)
 
@@ -178,21 +178,18 @@ class Chat(object):
         return json.loads(s)
 
     def mute(self, duration: Optional[int] = None) -> None:
-        """mutes the chat
+        """mutes the chat.
 
         :param duration: Number of seconds to mute the chat for. None to mute until unmuted again.
         :returns: None
         """
-        if duration is None:
-            mute_duration = -1
-        else:
-            mute_duration = duration
+        mute_duration = -1 if duration is None else duration
         ret = lib.dc_set_chat_mute_duration(self.account._dc_context, self.id, mute_duration)
         if not bool(ret):
             raise ValueError("Call to dc_set_chat_mute_duration failed")
 
     def unmute(self) -> None:
-        """unmutes the chat
+        """unmutes the chat.
 
         :returns: None
         """
@@ -252,7 +249,8 @@ class Chat(object):
     def get_encryption_info(self) -> Optional[str]:
         """Return encryption info for this chat.
 
-        :returns: a string with encryption preferences of all chat members"""
+        :returns: a string with encryption preferences of all chat members
+        """
         res = lib.dc_get_chat_encrinfo(self.account._dc_context, self.id)
         return from_dc_charpointer(res)
 
@@ -463,7 +461,7 @@ class Chat(object):
 
     def get_contacts(self):
         """get all contacts for this chat.
-        :returns: list of :class:`deltachat.contact.Contact` objects for this chat
+        :returns: list of :class:`deltachat.contact.Contact` objects for this chat.
         """
         from .contact import Contact
 
@@ -547,19 +545,10 @@ class Chat(object):
         :param timespan_to: a datetime object or None (indicating up till now)
         :returns: list of :class:`deltachat.chat.Location` objects.
         """
-        if timestamp_from is None:
-            time_from = 0
-        else:
-            time_from = calendar.timegm(timestamp_from.utctimetuple())
-        if timestamp_to is None:
-            time_to = 0
-        else:
-            time_to = calendar.timegm(timestamp_to.utctimetuple())
+        time_from = 0 if timestamp_from is None else calendar.timegm(timestamp_from.utctimetuple())
+        time_to = 0 if timestamp_to is None else calendar.timegm(timestamp_to.utctimetuple())
 
-        if contact is None:
-            contact_id = 0
-        else:
-            contact_id = contact.id
+        contact_id = 0 if contact is None else contact.id
 
         dc_array = lib.dc_get_locations(self.account._dc_context, self.id, contact_id, time_from, time_to)
         return [

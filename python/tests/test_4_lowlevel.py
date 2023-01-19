@@ -93,7 +93,7 @@ def test_empty_context():
     capi.lib.dc_context_unref(ctx)
 
 
-def test_dc_close_events(tmpdir, acfactory):
+def test_dc_close_events(acfactory):
     ac1 = acfactory.get_unconfigured_account()
 
     # register after_shutdown function

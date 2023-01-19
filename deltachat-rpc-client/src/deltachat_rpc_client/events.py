@@ -10,7 +10,7 @@ from .const import EventType
 
 def _tuple_of(obj, type_: type) -> tuple:
     if not obj:
-        return tuple()
+        return ()
     if isinstance(obj, type_):
         obj = (obj,)
 
@@ -39,7 +39,7 @@ class EventFilter(ABC):
         """Return True if two event filters are equal."""
 
     def __ne__(self, other):
-        return not self.__eq__(other)
+        return not self == other
 
     async def _call_func(self, event) -> bool:
         if not self.func:
@@ -65,9 +65,7 @@ class RawEvent(EventFilter):
                  should be dispatched or not.
     """
 
-    def __init__(
-        self, types: Union[None, EventType, Iterable[EventType]] = None, **kwargs
-    ):
+    def __init__(self, types: Union[None, EventType, Iterable[EventType]] = None, **kwargs):
         super().__init__(**kwargs)
         try:
             self.types = _tuple_of(types, EventType)

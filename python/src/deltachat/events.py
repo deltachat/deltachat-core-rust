@@ -32,12 +32,11 @@ class FFIEvent:
     def __str__(self):
         if self.name == "DC_EVENT_INFO":
             return "INFO {data2}".format(data2=self.data2)
-        elif self.name == "DC_EVENT_WARNING":
+        if self.name == "DC_EVENT_WARNING":
             return "WARNING {data2}".format(data2=self.data2)
-        elif self.name == "DC_EVENT_ERROR":
+        if self.name == "DC_EVENT_ERROR":
             return "ERROR {data2}".format(data2=self.data2)
-        else:
-            return "{name} data1={data1} data2={data2}".format(**self.__dict__)
+        return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
 class FFIEventLogger:
@@ -135,7 +134,8 @@ class FFIEventTracker:
     def wait_for_connectivity(self, connectivity):
         """Wait for the specified connectivity.
         This only works reliably if the connectivity doesn't change
-        again too quickly, otherwise we might miss it."""
+        again too quickly, otherwise we might miss it.
+        """
         while 1:
             if self.account.get_connectivity() == connectivity:
                 return
@@ -143,12 +143,13 @@ class FFIEventTracker:
 
     def wait_for_connectivity_change(self, previous, expected_next):
         """Wait until the connectivity changes to `expected_next`.
-        Fails the test if it changes to something else."""
+        Fails the test if it changes to something else.
+        """
         while 1:
             current = self.account.get_connectivity()
             if current == expected_next:
                 return
-            elif current != previous:
+            if current != previous:
                 raise Exception("Expected connectivity " + str(expected_next) + " but got " + str(current))
 
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
@@ -183,7 +184,8 @@ class FFIEventTracker:
         - ac1 and ac2 are created
         - ac1 sends a message to ac2
         - ac2 is still running FetchExsistingMsgs job and thinks it's an existing, old message
-        - therefore no DC_EVENT_INCOMING_MSG is sent"""
+        - therefore no DC_EVENT_INCOMING_MSG is sent
+        """
         self.get_info_contains("INBOX: Idle entering")
 
     def wait_next_incoming_message(self):
@@ -193,14 +195,15 @@ class FFIEventTracker:
 
     def wait_next_messages_changed(self):
         """wait for and return next message-changed message or None
-        if the event contains no msgid"""
+        if the event contains no msgid
+        """
         ev = self.get_matching("DC_EVENT_MSGS_CHANGED")
         if ev.data2 > 0:
             return self.account.get_message_by_id(ev.data2)
         return None
 
     def wait_next_reactions_changed(self):
-        """wait for and return next reactions-changed message"""
+        """wait for and return next reactions-changed message."""
         ev = self.get_matching("DC_EVENT_REACTIONS_CHANGED")
         assert ev.data1 > 0
         return self.account.get_message_by_id(ev.data2)
@@ -292,10 +295,10 @@ class EventThread(threading.Thread):
             if data1 == 0 or data1 == 1000:
                 success = data1 == 1000
                 comment = ffi_event.data2
-                yield "ac_configure_completed", dict(success=success, comment=comment)
+                yield "ac_configure_completed", {"success": success, "comment": comment}
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = account.get_message_by_id(ffi_event.data2)
-            yield map_system_message(msg) or ("ac_incoming_message", dict(message=msg))
+            yield map_system_message(msg) or ("ac_incoming_message", {"message": msg})
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = account.get_message_by_id(ffi_event.data2)
@@ -303,19 +306,19 @@ class EventThread(threading.Thread):
                     res = map_system_message(msg)
                     if res and res[0].startswith("ac_member"):
                         yield res
-                    yield "ac_outgoing_message", dict(message=msg)
+                    yield "ac_outgoing_message", {"message": msg}
                 elif msg.is_in_fresh():
                     yield map_system_message(msg) or (
                         "ac_incoming_message",
-                        dict(message=msg),
+                        {"message": msg},
                     )
         elif name == "DC_EVENT_REACTIONS_CHANGED":
             assert ffi_event.data1 > 0
             msg = account.get_message_by_id(ffi_event.data2)
-            yield "ac_reactions_changed", dict(message=msg)
+            yield "ac_reactions_changed", {"message": msg}
         elif name == "DC_EVENT_MSG_DELIVERED":
             msg = account.get_message_by_id(ffi_event.data2)
-            yield "ac_message_delivered", dict(message=msg)
+            yield "ac_message_delivered", {"message": msg}
         elif name == "DC_EVENT_CHAT_MODIFIED":
             chat = account.get_chat_by_id(ffi_event.data1)
-            yield "ac_chat_modified", dict(chat=chat)
+            yield "ac_chat_modified", {"chat": chat}

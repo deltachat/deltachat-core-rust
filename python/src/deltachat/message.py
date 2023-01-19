@@ -1,4 +1,4 @@
-""" The Message object. """
+"""The Message object."""
 
 import json
 import os
@@ -59,10 +59,7 @@ class Message(object):
         :param view_type: the message type code or one of the strings:
            "text", "audio", "video", "file", "sticker", "videochat", "webxdc"
         """
-        if isinstance(view_type, int):
-            view_type_code = view_type
-        else:
-            view_type_code = get_viewtype_code_from_name(view_type)
+        view_type_code = view_type if isinstance(view_type, int) else get_viewtype_code_from_name(view_type)
         return Message(
             account,
             ffi.gc(lib.dc_msg_new(account._dc_context, view_type_code), lib.dc_msg_unref),
@@ -129,7 +126,7 @@ class Message(object):
 
     @props.with_doc
     def filemime(self) -> str:
-        """mime type of the file (if it exists)"""
+        """mime type of the file (if it exists)."""
         return from_dc_charpointer(lib.dc_msg_get_filemime(self._dc_msg))
 
     def get_status_updates(self, serial: int = 0) -> list:
@@ -141,7 +138,7 @@ class Message(object):
         :param serial: The last known serial. Pass 0 if there are no known serials to receive all updates.
         """
         return json.loads(
-            from_dc_charpointer(lib.dc_get_webxdc_status_updates(self.account._dc_context, self.id, serial))
+            from_dc_charpointer(lib.dc_get_webxdc_status_updates(self.account._dc_context, self.id, serial)),
         )
 
     def send_status_update(self, json_data: Union[str, dict], description: str) -> bool:
@@ -158,8 +155,11 @@ class Message(object):
             json_data = json.dumps(json_data, default=str)
         return bool(
             lib.dc_send_webxdc_status_update(
-                self.account._dc_context, self.id, as_dc_charpointer(json_data), as_dc_charpointer(description)
-            )
+                self.account._dc_context,
+                self.id,
+                as_dc_charpointer(json_data),
+                as_dc_charpointer(description),
+            ),
         )
 
     def send_reaction(self, reaction: str):
@@ -232,16 +232,18 @@ class Message(object):
         ts = lib.dc_msg_get_received_timestamp(self._dc_msg)
         if ts:
             return datetime.fromtimestamp(ts, timezone.utc)
+        return None
 
     @props.with_doc
     def ephemeral_timer(self):
-        """Ephemeral timer in seconds
+        """Ephemeral timer in seconds.
 
         :returns: timer in seconds or None if there is no timer
         """
         timer = lib.dc_msg_get_ephemeral_timer(self._dc_msg)
         if timer:
             return timer
+        return None
 
     @props.with_doc
     def ephemeral_timestamp(self):
@@ -255,23 +257,25 @@ class Message(object):
 
     @property
     def quoted_text(self) -> Optional[str]:
-        """Text inside the quote
+        """Text inside the quote.
 
-        :returns: Quoted text"""
+        :returns: Quoted text
+        """
         return from_optional_dc_charpointer(lib.dc_msg_get_quoted_text(self._dc_msg))
 
     @property
     def quote(self):
-        """Quote getter
+        """Quote getter.
 
-        :returns: Quoted message, if found in the database"""
+        :returns: Quoted message, if found in the database
+        """
         msg = lib.dc_msg_get_quoted_msg(self._dc_msg)
         if msg:
             return Message(self.account, ffi.gc(msg, lib.dc_msg_unref))
 
     @quote.setter
     def quote(self, quoted_message):
-        """Quote setter"""
+        """Quote setter."""
         lib.dc_msg_set_quote(self._dc_msg, quoted_message._dc_msg)
 
     def force_plaintext(self) -> None:
@@ -286,7 +290,7 @@ class Message(object):
 
         :returns: email-mime message object (with headers only, no body).
         """
-        import email.parser
+        import email
 
         mime_headers = lib.dc_get_mime_headers(self.account._dc_context, self.id)
         if mime_headers:
@@ -297,7 +301,7 @@ class Message(object):
 
     @property
     def error(self) -> Optional[str]:
-        """Error message"""
+        """Error message."""
         return from_optional_dc_charpointer(lib.dc_msg_get_error(self._dc_msg))
 
     @property
@@ -493,7 +497,8 @@ def get_viewtype_code_from_name(view_type_name):
     if code is not None:
         return code
     raise ValueError(
-        "message typecode not found for {!r}, " "available {!r}".format(view_type_name, list(_view_type_mapping.keys()))
+        "message typecode not found for {!r}, "
+        "available {!r}".format(view_type_name, list(_view_type_mapping.keys())),
     )
 
 
@@ -506,14 +511,11 @@ def map_system_message(msg):
     if msg.is_system_message():
         res = parse_system_add_remove(msg.text)
         if not res:
-            return
+            return None
         action, affected, actor = res
         affected = msg.account.get_contact_by_addr(affected)
-        if actor == "me":
-            actor = None
-        else:
-            actor = msg.account.get_contact_by_addr(actor)
-        d = dict(chat=msg.chat, contact=affected, actor=actor, message=msg)
+        actor = None if actor == "me" else msg.account.get_contact_by_addr(actor)
+        d = {"chat": msg.chat, "contact": affected, "actor": actor, "message": msg}
         return "ac_member_" + res[0], d
 
 
@@ -528,8 +530,8 @@ def extract_addr(text):
 def parse_system_add_remove(text):
     """return add/remove info from parsing the given system message text.
 
-    returns a (action, affected, actor) triple"""
-
+    returns a (action, affected, actor) triple
+    """
     # You removed member a@b.
     # You added member a@b.
     # Member Me (x@y) removed by a@b.

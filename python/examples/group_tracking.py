@@ -34,8 +34,10 @@ class GroupTrackingPlugin:
     def ac_member_added(self, chat, contact, actor, message):
         print(
             "ac_member_added {} to chat {} from {}".format(
-                contact.addr, chat.id, actor or message.get_sender_contact().addr
-            )
+                contact.addr,
+                chat.id,
+                actor or message.get_sender_contact().addr,
+            ),
         )
         for member in chat.get_contacts():
             print("chat member: {}".format(member.addr))
@@ -44,8 +46,10 @@ class GroupTrackingPlugin:
     def ac_member_removed(self, chat, contact, actor, message):
         print(
             "ac_member_removed {} from chat {} by {}".format(
-                contact.addr, chat.id, actor or message.get_sender_contact().addr
-            )
+                contact.addr,
+                chat.id,
+                actor or message.get_sender_contact().addr,
+            ),
         )
 
 

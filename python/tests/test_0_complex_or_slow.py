@@ -216,7 +216,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     # would also find the "Sent" folder, but it would be too late:
     # The sentbox thread, started by `start_io()`, would have seen that there is no
     # ConfiguredSentboxFolder and do nothing.
-    acfactory._acsetup.start_configure(ac1, reconfigure=True)
+    acfactory._acsetup.start_configure(ac1)
     acfactory.bring_accounts_online()
     assert_folders_configured(ac1)
 

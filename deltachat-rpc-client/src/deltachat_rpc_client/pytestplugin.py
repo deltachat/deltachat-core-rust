@@ -67,9 +67,7 @@ class ACFactory:
     ) -> Message:
         if not from_account:
             from_account = (await self.get_online_accounts(1))[0]
-        to_contact = await from_account.create_contact(
-            await to_account.get_config("addr")
-        )
+        to_contact = await from_account.create_contact(await to_account.get_config("addr"))
         if group:
             to_chat = await from_account.create_group(group)
             await to_chat.add_contact(to_contact)
