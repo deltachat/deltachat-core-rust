@@ -20,6 +20,18 @@ async fn connect_tcp_inner(addr: SocketAddr, timeout_val: Duration) -> Result<Tc
     Ok(tcp_stream)
 }
 
+async fn lookup_host_with_timeout(
+    hostname: &str,
+    port: u16,
+    timeout_val: Duration,
+) -> Result<Vec<SocketAddr>> {
+    let res = timeout(timeout_val, lookup_host((hostname, port)))
+        .await
+        .context("DNS lookup timeout")?
+        .context("DNS lookup failure")?;
+    Ok(res.collect())
+}
+
 /// Looks up hostname and port using DNS and updates the address resolution cache.
 ///
 /// If `load_cache` is true, appends cached results not older than 30 days to the end.
@@ -27,11 +39,12 @@ async fn lookup_host_with_cache(
     context: &Context,
     hostname: &str,
     port: u16,
+    timeout_val: Duration,
     load_cache: bool,
 ) -> Result<Vec<SocketAddr>> {
     let now = time();
-    let mut resolved_addrs: Vec<SocketAddr> = match lookup_host((hostname, port)).await {
-        Ok(res) => res.collect(),
+    let mut resolved_addrs = match lookup_host_with_timeout(hostname, port, timeout_val).await {
+        Ok(res) => res,
         Err(err) => {
             warn!(
                 context,
@@ -126,7 +139,9 @@ pub(crate) async fn connect_tcp(
     let mut tcp_stream = None;
     let mut last_error = None;
 
-    for resolved_addr in lookup_host_with_cache(context, host, port, load_cache).await? {
+    for resolved_addr in
+        lookup_host_with_cache(context, host, port, timeout_val, load_cache).await?
+    {
         match connect_tcp_inner(resolved_addr, timeout_val).await {
             Ok(stream) => {
                 tcp_stream = Some(stream);
