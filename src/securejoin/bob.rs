@@ -5,6 +5,9 @@
 
 use anyhow::{Context as _, Result};
 
+use super::bobstate::{BobHandshakeStage, BobState};
+use super::qrinvite::QrInvite;
+use super::HandshakeMessage;
 use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
 use crate::constants::{Blocked, Chattype};
 use crate::contact::Contact;
@@ -13,10 +16,6 @@ use crate::events::EventType;
 use crate::mimeparser::MimeMessage;
 use crate::tools::time;
 use crate::{chat, stock_str};
-
-use super::bobstate::{BobHandshakeStage, BobState};
-use super::qrinvite::QrInvite;
-use super::HandshakeMessage;
 
 /// Starts the securejoin protocol with the QR `invite`.
 ///

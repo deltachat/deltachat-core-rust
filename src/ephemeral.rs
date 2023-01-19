@@ -64,6 +64,7 @@
 
 #![allow(missing_docs)]
 
+use std::cmp::max;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -86,7 +87,6 @@ use crate::mimeparser::SystemMessage;
 use crate::sql::{self, params_iter};
 use crate::stock_str;
 use crate::tools::{duration_to_str, time};
-use std::cmp::max;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {

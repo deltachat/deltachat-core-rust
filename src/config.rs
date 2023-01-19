@@ -440,15 +440,14 @@ fn get_config_keys_string() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::str::FromStr;
     use std::string::ToString;
 
+    use num_traits::FromPrimitive;
+
+    use super::*;
     use crate::constants;
     use crate::test_utils::TestContext;
-
-    use num_traits::FromPrimitive;
 
     #[test]
     fn test_to_string() {

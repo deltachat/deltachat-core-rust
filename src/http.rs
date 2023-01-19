@@ -1,7 +1,8 @@
 //! # HTTP module.
 
-use anyhow::Result;
 use std::time::Duration;
+
+use anyhow::Result;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
 

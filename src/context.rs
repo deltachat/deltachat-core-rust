@@ -861,8 +861,13 @@ pub fn get_version_str() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
+    use anyhow::Context as _;
+    use strum::IntoEnumIterator;
+    use tempfile::tempdir;
+
+    use super::*;
     use crate::chat::{
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
@@ -873,10 +878,6 @@ mod tests {
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
     use crate::tools::create_outgoing_rfc724_mid;
-    use anyhow::Context as _;
-    use std::time::Duration;
-    use strum::IntoEnumIterator;
-    use tempfile::tempdir;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_wrong_db() -> Result<()> {

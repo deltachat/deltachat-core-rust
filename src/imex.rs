@@ -769,13 +769,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use ::pgp::armor::BlockType;
 
+    use super::*;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext};
-
-    use ::pgp::armor::BlockType;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file() {

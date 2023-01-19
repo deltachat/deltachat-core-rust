@@ -1982,13 +1982,12 @@ impl Viewtype {
 mod tests {
     use num_traits::FromPrimitive;
 
+    use super::*;
     use crate::chat::{marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
     use crate::test_utils::{TestContext, TestContextManager};
-
-    use super::*;
 
     #[test]
     fn test_guess_msgtype_from_suffix() {

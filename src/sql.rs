@@ -874,10 +874,9 @@ pub fn repeat_vars(count: usize) -> String {
 mod tests {
     use async_channel as channel;
 
+    use super::*;
     use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
-
-    use super::*;
 
     #[test]
     fn test_maybe_add_file() {

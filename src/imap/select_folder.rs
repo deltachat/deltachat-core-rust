@@ -1,7 +1,7 @@
-use super::session::Session as ImapSession;
-
-use crate::context::Context;
 use anyhow::Context as _;
+
+use super::session::Session as ImapSession;
+use crate::context::Context;
 
 type Result<T> = std::result::Result<T, Error>;
 

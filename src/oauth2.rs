@@ -352,7 +352,6 @@ fn normalize_addr(addr: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::test_utils::TestContext;
 
     #[test]

@@ -332,7 +332,6 @@ pub fn build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::test_utils::TestContext;
 
     #[test]

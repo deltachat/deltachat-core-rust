@@ -10,6 +10,8 @@
 use anyhow::{Error, Result};
 use rusqlite::Connection;
 
+use super::qrinvite::QrInvite;
+use super::{encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified};
 use crate::chat::{self, ChatId};
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
@@ -20,9 +22,6 @@ use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::sql::Sql;
-
-use super::qrinvite::QrInvite;
-use super::{encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified};
 
 /// The stage of the [`BobState`] securejoin handshake protocol state machine.
 ///

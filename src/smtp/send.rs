@@ -1,12 +1,13 @@
 //! # SMTP message sending
 
-use super::Smtp;
+use std::time::Duration;
+
 use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
 
+use super::Smtp;
 use crate::config::Config;
 use crate::context::Context;
 use crate::events::EventType;
-use std::time::Duration;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

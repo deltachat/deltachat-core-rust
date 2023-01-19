@@ -2,8 +2,9 @@
 
 #![allow(missing_docs)]
 
-use crate::simplify::split_lines;
 use once_cell::sync::Lazy;
+
+use crate::simplify::split_lines;
 
 #[derive(Debug)]
 pub struct PlainText {

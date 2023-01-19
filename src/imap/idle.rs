@@ -1,12 +1,12 @@
-use super::Imap;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::extensions::idle::IdleResponse;
 use futures_lite::FutureExt;
-use std::time::{Duration, SystemTime};
 
 use super::session::Session;
+use super::Imap;
 use crate::imap::client::IMAP_TIMEOUT;
 use crate::{context::Context, scheduler::InterruptInfo};
 

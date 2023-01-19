@@ -365,7 +365,6 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;

@@ -3675,12 +3675,10 @@ pub(crate) async fn update_msg_text_and_timestamp(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::chatlist::{get_archived_cnt, Chatlist};
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::{Contact, ContactAddress};
     use crate::receive_imf::receive_imf;
-
     use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

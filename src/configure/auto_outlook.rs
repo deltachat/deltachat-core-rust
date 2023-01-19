@@ -3,15 +3,14 @@
 //! This module implements autoconfiguration via POX (Plain Old XML) interface to Autodiscover
 //! Service. Newer SOAP interface, introduced in Exchange 2010, is not used.
 
-use quick_xml::events::Event;
-
 use std::io::BufRead;
 
-use crate::context::Context;
-use crate::provider::{Protocol, Socket};
+use quick_xml::events::Event;
 
 use super::read_url::read_url;
 use super::{Error, ServerParams};
+use crate::context::Context;
+use crate::provider::{Protocol, Socket};
 
 /// Result of parsing a single `Protocol` tag.
 ///

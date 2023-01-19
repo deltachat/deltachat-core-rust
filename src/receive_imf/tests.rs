@@ -1,7 +1,6 @@
 use tokio::fs;
 
 use super::*;
-
 use crate::aheader::EncryptPreference;
 use crate::chat::get_chat_contacts;
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};

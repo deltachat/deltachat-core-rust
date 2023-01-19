@@ -4,6 +4,9 @@
 
 use std::collections::HashSet;
 
+use anyhow::{Context as _, Error, Result};
+use num_traits::FromPrimitive;
+
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
@@ -16,8 +19,6 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use anyhow::{Context as _, Error, Result};
-use num_traits::FromPrimitive;
 
 #[derive(Debug)]
 pub enum PeerstateKeyType {

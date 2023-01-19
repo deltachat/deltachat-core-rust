@@ -1508,6 +1508,7 @@ fn maybe_encode_words(words: &str) -> String {
 mod tests {
     use mailparse::{addrparse_header, MailHeaderMap};
 
+    use super::*;
     use crate::chat::ChatId;
     use crate::chat::{
         self, add_contact_to_chat, create_group_chat, remove_contact_from_chat, send_text_msg,
@@ -1518,8 +1519,6 @@ mod tests {
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
-
-    use super::*;
     #[test]
     fn test_render_email_address() {
         let display_name = "ä space";

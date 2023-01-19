@@ -9,7 +9,6 @@ use std::fmt;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Error, Result};
@@ -703,7 +702,6 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-
     use crate::{
         config::Config, message::get_msg_info, receive_imf::receive_imf, test_utils::TestContext,
     };
@@ -1008,10 +1006,11 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
 
-    use crate::chatlist::Chatlist;
-    use crate::{chat, test_utils};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use proptest::prelude::*;
+
+    use crate::chatlist::Chatlist;
+    use crate::{chat, test_utils};
 
     proptest! {
         #[test]

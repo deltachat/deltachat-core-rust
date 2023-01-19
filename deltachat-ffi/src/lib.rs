@@ -23,13 +23,6 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
-use deltachat::qr_code_generator::get_securejoin_qr_svg;
-use num_traits::{FromPrimitive, ToPrimitive};
-use once_cell::sync::Lazy;
-use rand::Rng;
-use tokio::runtime::Runtime;
-use tokio::sync::RwLock;
-
 use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, ContactId, Origin};
@@ -37,20 +30,27 @@ use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
+use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
 use deltachat::stock_str::StockStrings;
 use deltachat::webxdc::StatusUpdateSerial;
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
+use num_traits::{FromPrimitive, ToPrimitive};
+use once_cell::sync::Lazy;
+use rand::Rng;
+use tokio::runtime::Runtime;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 mod dc_array;
 mod lot;
 
 mod string;
-use self::string::*;
 use deltachat::chatlist::Chatlist;
+
+use self::string::*;
 
 // as C lacks a good and portable error handling,
 // in general, the C Interface is forgiving wrt to bad parameters.
@@ -4577,10 +4577,11 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
 
 #[cfg(feature = "jsonrpc")]
 mod jsonrpc {
-    use super::*;
     use deltachat_jsonrpc::api::CommandApi;
     use deltachat_jsonrpc::events::event_to_json_rpc_notification;
     use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
+
+    use super::*;
 
     pub struct dc_jsonrpc_instance_t {
         receiver: OutReceiver,

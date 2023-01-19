@@ -770,6 +770,7 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::chat::{
         add_contact_to_chat, create_broadcast_list, create_group_chat, forward_msgs,
         remove_contact_from_chat, resend_msgs, send_msg, send_text_msg, ChatId, ProtectionStatus,
@@ -780,8 +781,6 @@ mod tests {
     use crate::message;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
-
-    use super::*;
 
     #[allow(clippy::assertions_on_constants)]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

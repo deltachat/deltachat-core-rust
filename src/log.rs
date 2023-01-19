@@ -155,8 +155,9 @@ impl<T, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::TestContext;
     use anyhow::Result;
+
+    use crate::test_utils::TestContext;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_last_error() -> Result<()> {

@@ -1656,7 +1656,6 @@ impl RecentlySeenLoop {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::chat::{get_chat_contacts, send_text_msg, Chat};
     use crate::chatlist::Chatlist;
     use crate::receive_imf::receive_imf;

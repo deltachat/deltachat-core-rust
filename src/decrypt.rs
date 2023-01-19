@@ -344,10 +344,9 @@ pub(crate) async fn get_autocrypt_peerstate(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-
-    use super::*;
 
     #[test]
     fn test_has_decrypted_pgp_armor() {

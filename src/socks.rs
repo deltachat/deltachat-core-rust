@@ -4,17 +4,17 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
 
-use crate::net::connect_tcp;
 use anyhow::Result;
 pub use async_smtp::ServerAddress;
-use tokio::net::TcpStream;
-use tokio_io_timeout::TimeoutStream;
-
-use crate::context::Context;
 use fast_socks5::client::{Config, Socks5Stream};
 use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
 use fast_socks5::Socks5Command;
+use tokio::net::TcpStream;
+use tokio_io_timeout::TimeoutStream;
+
+use crate::context::Context;
+use crate::net::connect_tcp;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Socks5Config {

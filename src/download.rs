@@ -1,9 +1,11 @@
 //! # Download large messages manually.
 
+use std::cmp::max;
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 use crate::config::Config;
 use crate::context::Context;
@@ -14,7 +16,6 @@ use crate::mimeparser::{MimeMessage, Part};
 use crate::param::Params;
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
-use std::cmp::max;
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///
@@ -264,13 +265,12 @@ impl MimeMessage {
 mod tests {
     use num_traits::FromPrimitive;
 
+    use super::*;
     use crate::chat::{get_chat_msgs, send_msg};
     use crate::ephemeral::Timer;
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf_inner;
     use crate::test_utils::TestContext;
-
-    use super::*;
 
     #[test]
     fn test_downloadstate_values() {

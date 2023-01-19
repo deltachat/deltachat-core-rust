@@ -2,10 +2,11 @@
 //!
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 
-use anyhow::{bail, Context as _, Error, Result};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
+
+use anyhow::{bail, Context as _, Error, Result};
 
 use crate::key::{DcKey, SignedPublicKey};
 

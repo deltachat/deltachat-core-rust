@@ -509,7 +509,6 @@ impl AccountConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::stock_str::{self, StockMessage};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

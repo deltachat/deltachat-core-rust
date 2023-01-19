@@ -4,6 +4,7 @@ use futures::try_join;
 use futures_lite::FutureExt;
 use tokio::task;
 
+use self::connectivity::ConnectivityStore;
 use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
@@ -16,8 +17,6 @@ use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
 use crate::tools::time;
 use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
-
-use self::connectivity::ConnectivityStore;
 
 pub(crate) mod connectivity;
 

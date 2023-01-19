@@ -4,20 +4,17 @@ use std::{
 };
 
 use anyhow::{Context as _, Result};
-
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
-
 use tokio::io::BufWriter;
 use tokio::net::ToSocketAddrs;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
+use super::session::SessionStream;
 use crate::login_param::build_tls;
 use crate::net::connect_tcp;
 use crate::socks::Socks5Config;
-
-use super::session::SessionStream;
 
 /// IMAP write and read timeout in seconds.
 pub(crate) const IMAP_TIMEOUT: Duration = Duration::from_secs(30);

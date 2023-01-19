@@ -3,14 +3,15 @@
 #![allow(missing_docs)]
 
 mod dclogin_scheme;
-pub use dclogin_scheme::LoginOptions;
+use std::collections::BTreeMap;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
+pub use dclogin_scheme::LoginOptions;
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
-use std::collections::BTreeMap;
 
+use self::dclogin_scheme::configure_from_login_qr;
 use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
@@ -23,8 +24,6 @@ use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::tools::time;
 use crate::{token, EventType};
-
-use self::dclogin_scheme::configure_from_login_qr;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
@@ -642,14 +641,14 @@ fn normalize_address(addr: &str) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use anyhow::Result;
 
+    use super::*;
     use crate::aheader::EncryptPreference;
     use crate::chat::{create_group_chat, ProtectionStatus};
     use crate::key::DcKey;
     use crate::securejoin::get_securejoin_qr;
     use crate::test_utils::{alice_keypair, TestContext};
-    use anyhow::Result;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decode_http() -> Result<()> {

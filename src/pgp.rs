@@ -382,10 +382,11 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_utils::{alice_keypair, bob_keypair};
     use once_cell::sync::Lazy;
     use tokio::sync::OnceCell;
+
+    use super::*;
+    use crate::test_utils::{alice_keypair, bob_keypair};
 
     #[test]
     fn test_split_armored_data_1() {

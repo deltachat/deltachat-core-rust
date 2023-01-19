@@ -355,7 +355,6 @@ mod tests {
     use tokio::io::AsyncReadExt;
 
     use super::*;
-
     use crate::aheader::EncryptPreference;
     use crate::e2ee;
     use crate::message;

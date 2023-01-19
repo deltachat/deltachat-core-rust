@@ -1953,6 +1953,8 @@ where
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
+    use mailparse::ParsedMail;
+
     use super::*;
     use crate::{
         chatlist::Chatlist,
@@ -1962,7 +1964,6 @@ mod tests {
         receive_imf::receive_imf,
         test_utils::TestContext,
     };
-    use mailparse::ParsedMail;
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {

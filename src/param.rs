@@ -435,14 +435,13 @@ impl<'a> ParamsFile<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::path::Path;
     use std::str::FromStr;
 
     use anyhow::Result;
     use tokio::fs;
 
+    use super::*;
     use crate::test_utils::TestContext;
 
     #[test]

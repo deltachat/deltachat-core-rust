@@ -6,9 +6,12 @@ mod read_url;
 mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
+use auto_mozilla::moz_autoconfigure;
+use auto_outlook::outlk_autodiscover;
 use futures::FutureExt;
 use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
 
 use crate::config::Config;
@@ -27,10 +30,6 @@ use crate::socks::Socks5Config;
 use crate::stock_str;
 use crate::tools::{time, EmailAddress};
 use crate::{chat, e2ee, provider};
-
-use auto_mozilla::moz_autoconfigure;
-use auto_outlook::outlk_autodiscover;
-use server_params::{expand_param_vector, ServerParams};
 
 macro_rules! progress {
     ($context:tt, $progress:expr, $comment:expr) => {

@@ -30,9 +30,10 @@ mod bob;
 mod bobstate;
 mod qrinvite;
 
-use crate::token::Namespace;
 use bobstate::BobState;
 use qrinvite::QrInvite;
+
+use crate::token::Namespace;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
@@ -767,7 +768,6 @@ fn encrypted_and_signed(
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;

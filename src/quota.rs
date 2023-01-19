@@ -2,9 +2,10 @@
 
 #![allow(missing_docs)]
 
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
-use std::collections::BTreeMap;
 
 use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;

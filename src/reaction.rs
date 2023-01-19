@@ -286,7 +286,6 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::chat::get_chat_msgs;
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;

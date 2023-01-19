@@ -4,12 +4,13 @@
 
 mod data;
 
-use crate::config::Config;
-use crate::context::Context;
-use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
 use anyhow::Result;
 use chrono::{NaiveDateTime, NaiveTime};
 use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
+
+use crate::config::Config;
+use crate::context::Context;
+use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
@@ -195,10 +196,11 @@ pub fn get_provider_update_timestamp() -> i64 {
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
+    use chrono::NaiveDate;
+
     use super::*;
     use crate::test_utils::TestContext;
     use crate::tools::time;
-    use chrono::NaiveDate;
 
     #[test]
     fn test_get_provider_by_domain_unexistant() {

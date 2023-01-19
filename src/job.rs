@@ -424,7 +424,6 @@ LIMIT 1;
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::test_utils::TestContext;
 
     async fn insert_job(context: &Context, foreign_id: i64, valid: bool) {

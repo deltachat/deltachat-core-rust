@@ -1,10 +1,12 @@
 //! # Legacy generic return values for C API.
 
+use std::borrow::Cow;
+
+use anyhow::Error;
+
 use crate::message::MessageState;
 use crate::qr::Qr;
 use crate::summary::{Summary, SummaryPrefix};
-use anyhow::Error;
-use std::borrow::Cow;
 
 /// An object containing a set of values.
 /// The meaning of the values is defined by the function returning the object.

@@ -1,10 +1,11 @@
 //! # Functions to update timestamps.
 
+use anyhow::Result;
+
 use crate::chat::{Chat, ChatId};
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::param::{Param, Params};
-use anyhow::Result;
 
 impl Context {
     /// Updates a contact's timestamp, if reasonable.

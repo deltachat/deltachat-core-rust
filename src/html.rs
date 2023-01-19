@@ -7,12 +7,14 @@
 //! `MsgId.get_html()` will return HTML -
 //! this allows nice quoting, handling linebreaks properly etc.
 
-use futures::future::FutureExt;
 use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{Context as _, Result};
+use futures::future::FutureExt;
 use lettre_email::mime::{self, Mime};
+use lettre_email::PartBuilder;
+use mailparse::ParsedContentType;
 
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
@@ -20,8 +22,6 @@ use crate::mimeparser::parse_message_id;
 use crate::param::Param::SendHtml;
 use crate::plaintext::PlainText;
 use crate::{context::Context, message};
-use lettre_email::PartBuilder;
-use mailparse::ParsedContentType;
 
 impl Message {
     /// Check if the message can be retrieved as HTML.

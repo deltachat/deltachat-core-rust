@@ -3,6 +3,8 @@
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
+use anyhow::{anyhow, Result};
+use humansize::{format_size, BINARY};
 use tokio::sync::{Mutex, RwLockReadGuard};
 
 use crate::events::EventType;
@@ -13,8 +15,6 @@ use crate::quota::{
 use crate::tools::time;
 use crate::{config::Config, scheduler::Scheduler, stock_str, tools};
 use crate::{context::Context, log::LogExt};
-use anyhow::{anyhow, Result};
-use humansize::{format_size, BINARY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
