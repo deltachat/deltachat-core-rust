@@ -58,7 +58,12 @@ async fn lookup_host_with_cache(
                  VALUES (?, ?, ?, ?)
                  ON CONFLICT (hostname, port, address)
                  DO UPDATE SET timestamp=excluded.timestamp",
-                paramsv![hostname, port, addr.to_string(), now.saturating_add(i)],
+                paramsv![
+                    hostname,
+                    port,
+                    addr.to_string(),
+                    now.saturating_add(i).saturating_add(1)
+                ],
             )
             .await?;
     }
@@ -125,6 +130,17 @@ pub(crate) async fn connect_tcp(
         match connect_tcp_inner(resolved_addr, timeout_val).await {
             Ok(stream) => {
                 tcp_stream = Some(stream);
+
+                // Maximize priority of this cached entry.
+                context
+                    .sql
+                    .execute(
+                        "UPDATE dns_cache
+                         SET timestamp = ?
+                         WHERE address = ?",
+                        paramsv![time(), resolved_addr.to_string()],
+                    )
+                    .await?;
                 break;
             }
             Err(err) => {
