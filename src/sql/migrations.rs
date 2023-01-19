@@ -675,10 +675,9 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         sql.execute_migration(
             "CREATE TABLE dns_cache (
                hostname TEXT NOT NULL,
-               port INTEGER NOT NULL,
-               address TEXT NOT NULL,
+               address TEXT NOT NULL, -- IPv4 or IPv6 address
                timestamp INTEGER NOT NULL,
-               UNIQUE (hostname, port, address)
+               UNIQUE (hostname, address)
              )",
             97,
         )

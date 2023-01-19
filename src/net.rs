@@ -1,5 +1,5 @@
 ///! # Common network utilities.
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::str::FromStr;
 use std::time::Duration;
@@ -67,14 +67,13 @@ async fn lookup_host_with_cache(
             .sql
             .execute(
                 "INSERT INTO dns_cache
-                 (hostname, port, address, timestamp)
-                 VALUES (?, ?, ?, ?)
-                 ON CONFLICT (hostname, port, address)
+                 (hostname, address, timestamp)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT (hostname, address)
                  DO UPDATE SET timestamp=excluded.timestamp",
                 paramsv![
                     hostname,
-                    port,
-                    addr.to_string(),
+                    addr.ip().to_string(),
                     now.saturating_add(i).saturating_add(1)
                 ],
             )
@@ -102,8 +101,9 @@ async fn lookup_host_with_cache(
             )
             .await?
         {
-            match SocketAddr::from_str(&cached_address) {
-                Ok(addr) => {
+            match IpAddr::from_str(&cached_address) {
+                Ok(ip_addr) => {
+                    let addr = SocketAddr::new(ip_addr, port);
                     if !resolved_addrs.contains(&addr) {
                         resolved_addrs.push(addr);
                     }
@@ -153,7 +153,7 @@ pub(crate) async fn connect_tcp(
                         "UPDATE dns_cache
                          SET timestamp = ?
                          WHERE address = ?",
-                        paramsv![time(), resolved_addr.to_string()],
+                        paramsv![time(), resolved_addr.ip().to_string()],
                     )
                     .await?;
                 break;
