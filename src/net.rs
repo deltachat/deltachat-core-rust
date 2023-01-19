@@ -55,8 +55,13 @@ async fn lookup_host_with_cache(
     };
 
     for (i, addr) in resolved_addrs.iter().enumerate() {
-        info!(context, "Resolved {}:{} into {}.", hostname, port, &addr);
+        let ip_string = addr.ip().to_string();
+        if ip_string == hostname {
+            // IP address resolved into itself, not interesting to cache.
+            continue;
+        }
 
+        info!(context, "Resolved {}:{} into {}.", hostname, port, &addr);
         let i = i64::try_from(i).unwrap_or_default();
 
         // Update the cache.
@@ -71,11 +76,7 @@ async fn lookup_host_with_cache(
                  VALUES (?, ?, ?)
                  ON CONFLICT (hostname, address)
                  DO UPDATE SET timestamp=excluded.timestamp",
-                paramsv![
-                    hostname,
-                    addr.ip().to_string(),
-                    now.saturating_add(i).saturating_add(1)
-                ],
+                paramsv![hostname, ip_string, now.saturating_add(i).saturating_add(1)],
             )
             .await?;
     }
