@@ -54,7 +54,7 @@ async fn lookup_host_with_cache(
         }
     };
 
-    for (i, addr) in resolved_addrs.iter().enumerate() {
+    for addr in resolved_addrs.iter() {
         let ip_string = addr.ip().to_string();
         if ip_string == hostname {
             // IP address resolved into itself, not interesting to cache.
@@ -62,12 +62,8 @@ async fn lookup_host_with_cache(
         }
 
         info!(context, "Resolved {}:{} into {}.", hostname, port, &addr);
-        let i = i64::try_from(i).unwrap_or_default();
 
         // Update the cache.
-        //
-        // Add sequence number to the timestamp, so addresses are ordered by timestamp in the same
-        // order as the resolver returns them.
         context
             .sql
             .execute(
@@ -76,7 +72,7 @@ async fn lookup_host_with_cache(
                  VALUES (?, ?, ?)
                  ON CONFLICT (hostname, address)
                  DO UPDATE SET timestamp=excluded.timestamp",
-                paramsv![hostname, ip_string, now.saturating_add(i).saturating_add(1)],
+                paramsv![hostname, ip_string, now],
             )
             .await?;
     }
