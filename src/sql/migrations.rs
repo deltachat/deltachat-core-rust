@@ -671,6 +671,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 97 {
+        sql.execute_migration(
+            "CREATE TABLE dns_cache (
+               hostname TEXT NOT NULL,
+               port INTEGER NOT NULL,
+               address TEXT NOT NULL,
+               timestamp INTEGER NOT NULL,
+               UNIQUE (hostname, port, address)
+             )",
+            97,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)

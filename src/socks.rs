@@ -56,14 +56,18 @@ impl Socks5Config {
         }
     }
 
+    /// If `load_dns_cache` is true, loads cached DNS resolution results.
+    /// Use this only if the connection is going to be protected with TLS checks.
     pub async fn connect(
         &self,
         context: &Context,
         target_host: &str,
         target_port: u16,
         timeout_val: Duration,
+        load_dns_cache: bool,
     ) -> Result<Socks5Stream<Pin<Box<TimeoutStream<TcpStream>>>>> {
-        let tcp_stream = connect_tcp(context, &self.host, self.port, timeout_val).await?;
+        let tcp_stream =
+            connect_tcp(context, &self.host, self.port, timeout_val, load_dns_cache).await?;
 
         let authentication_method = if let Some((username, password)) = self.user_password.as_ref()
         {

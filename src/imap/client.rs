@@ -94,7 +94,7 @@ impl Client {
         port: u16,
         strict_tls: bool,
     ) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT).await?;
+        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
         let tls = build_tls(strict_tls);
         let tls_stream = tls.connect(hostname, tcp_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
@@ -110,7 +110,7 @@ impl Client {
     }
 
     pub async fn connect_insecure(context: &Context, hostname: &str, port: u16) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT).await?;
+        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, false).await?;
         let buffered_stream = BufWriter::new(tcp_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
@@ -128,7 +128,7 @@ impl Client {
         port: u16,
         strict_tls: bool,
     ) -> Result<Self> {
-        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT).await?;
+        let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
 
         // Run STARTTLS command and convert the client back into a stream.
         let mut client = ImapClient::new(tcp_stream);
@@ -163,7 +163,7 @@ impl Client {
         socks5_config: Socks5Config,
     ) -> Result<Self> {
         let socks5_stream = socks5_config
-            .connect(context, domain, port, IMAP_TIMEOUT)
+            .connect(context, domain, port, IMAP_TIMEOUT, strict_tls)
             .await?;
         let tls = build_tls(strict_tls);
         let tls_stream = tls.connect(domain, socks5_stream).await?;
@@ -185,7 +185,7 @@ impl Client {
         socks5_config: Socks5Config,
     ) -> Result<Self> {
         let socks5_stream = socks5_config
-            .connect(context, domain, port, IMAP_TIMEOUT)
+            .connect(context, domain, port, IMAP_TIMEOUT, false)
             .await?;
         let buffered_stream = BufWriter::new(socks5_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
@@ -206,7 +206,7 @@ impl Client {
         strict_tls: bool,
     ) -> Result<Self> {
         let socks5_stream = socks5_config
-            .connect(context, hostname, port, IMAP_TIMEOUT)
+            .connect(context, hostname, port, IMAP_TIMEOUT, strict_tls)
             .await?;
 
         // Run STARTTLS command and convert the client back into a stream.
