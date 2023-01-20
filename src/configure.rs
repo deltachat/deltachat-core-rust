@@ -665,6 +665,7 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
 
     if errors.iter().all(|e| {
         e.msg.to_lowercase().contains("could not resolve")
+            || e.msg.to_lowercase().contains("no dns resolution results")
             || e.msg
                 .to_lowercase()
                 .contains("temporary failure in name resolution")

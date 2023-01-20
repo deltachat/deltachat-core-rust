@@ -4,6 +4,7 @@
 
 ### Changes
 - Pipeline SMTP commands #3924
+- Cache DNS results #3970
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
