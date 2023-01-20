@@ -262,7 +262,7 @@ impl Accounts {
     pub async fn stop_io(&self) {
         // Sending an event here wakes up event loop even
         // if there are no accounts.
-        info!(self, "Stopping IO for all accounts.");
+        self.emit_event(EventType::Info("Stopping IO for all accounts.".to_string()));
         for account in self.accounts.values() {
             account.stop_io().await;
         }

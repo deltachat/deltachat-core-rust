@@ -79,7 +79,7 @@ impl SchedulerState {
         // For this, the caller needs to instruct the event poller
         // to terminate on receiving the next event and then call stop_io()
         // which will emit the below event(s)
-        info!(context, "stopping IO");
+        context.emit_event(EventType::Info("Stopping IO.".to_string()));
         if let Some(debug_logging) = context.debug_logging.read().await.as_ref() {
             debug_logging.loop_handle.abort();
         }
