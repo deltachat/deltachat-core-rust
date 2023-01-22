@@ -162,8 +162,8 @@ class Chat:
         :param name: as a unicode string.
         :returns: True on success, False otherwise
         """
-        name = as_dc_charpointer(name)
-        return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name))
+        name_c = as_dc_charpointer(name)
+        return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name_c))
 
     def get_color(self):
         """return the color of the chat.

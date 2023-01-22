@@ -284,9 +284,9 @@ class Account:
         :returns: :class:`deltachat.contact.Contact` instance.
         """
         (name, addr) = self.get_contact_addr_and_name(obj, name)
-        name = as_dc_charpointer(name)
-        addr = as_dc_charpointer(addr)
-        contact_id = lib.dc_create_contact(self._dc_context, name, addr)
+        name_c = as_dc_charpointer(name)
+        addr_c = as_dc_charpointer(addr)
+        contact_id = lib.dc_create_contact(self._dc_context, name_c, addr_c)
         return Contact(self, contact_id)
 
     def get_contact(self, obj) -> Optional[Contact]:
