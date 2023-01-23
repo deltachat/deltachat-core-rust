@@ -3,6 +3,39 @@
 ## Unreleased
 
 ### Changes
+- Pipeline SMTP commands #3924
+- Cache DNS results #3970
+
+### Fixes
+- Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
+- fix verifier-by addr was empty string intead of None #3961
+- Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
+  unread messages increases #3959
+- Fix Peerstate comparison #3962
+- Log SOCKS5 configuration for IMAP like already done for SMTP #3964
+- Fix SOCKS5 usage for IMAP #3965
+- Exit from recently seen loop on interrupt channel errors to avoid busy looping #3966
+
+### API-Changes
+- jsonrpc: add verified-by information to `Contact`-Object
+- Remove `attach_selfavatar` config #3951
+
+
+## 1.106.0
+
+### Changes
+- Only send IncomingMsgBunch if there are more than 0 new messages #3941
+
+### Fixes
+- fix: only send contact changed event for recently seen if it is relevant (not too old to matter) #3938
+- Immediately save `accounts.toml` if it was modified by a migration from absolute paths to relative paths #3943
+- Do not treat invalid email addresses as an exception #3942
+- Add timeouts to HTTP requests #3948
+
+
+## 1.105.0
+
+### Changes
 - Validate signatures in try_decrypt() even if the message isn't encrypted #3859
 - Don't parse the message again after detached signatures validation #3862
 - Move format=flowed support to a separate crate #3869
@@ -12,10 +45,14 @@
 - Buffer IMAP client writes #3888
 - move `DC_CHAT_ID_ARCHIVED_LINK` to the top of chat lists
   and make `dc_get_fresh_msg_cnt()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3918
+- make `dc_marknoticed_chat()` work for `DC_CHAT_ID_ARCHIVED_LINK` #3919
+- Update provider database
 
 ### API-Changes
 - jsonrpc: add python API for webxdc updates #3872
+- jsonrpc: add fresh message count to ChatListItemFetchResult::ArchiveLink
 - Add ffi functions to retrieve `verified by` information #3786
+- resultify `Message::get_filebytes()` #3925
 
 ### Fixes
 - Do not add an error if the message is encrypted but not signed #3860
@@ -25,6 +62,7 @@
 - Fix STARTTLS connection and add a test for it #3907
 - Trigger reconnection when failing to fetch existing messages #3911
 - Do not retry fetching existing messages after failure, prevents infinite reconnection loop #3913
+- Ensure format=flowed formatting is always reversible on the receiver side #3880
 
 ## 1.104.0
 

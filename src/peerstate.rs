@@ -3,13 +3,15 @@
 #![allow(missing_docs)]
 
 use std::collections::HashSet;
-use std::fmt;
+
+use anyhow::{Context as _, Error, Result};
+use num_traits::FromPrimitive;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
 use crate::constants::Chattype;
-use crate::contact::{addr_cmp, Contact, Origin};
+use crate::contact::{addr_cmp, Contact, ContactAddress, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, Fingerprint, SignedPublicKey};
@@ -17,8 +19,6 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use anyhow::{Context as _, Result};
-use num_traits::FromPrimitive;
 
 #[derive(Debug)]
 pub enum PeerstateKeyType {
@@ -35,6 +35,7 @@ pub enum PeerstateVerifiedStatus {
 }
 
 /// Peerstate represents the state of an Autocrypt peer.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Peerstate {
     pub addr: String,
     pub last_seen: i64,
@@ -50,44 +51,6 @@ pub struct Peerstate {
     pub fingerprint_changed: bool,
     /// The address that verified this contact
     pub verifier: Option<String>,
-}
-
-impl PartialEq for Peerstate {
-    fn eq(&self, other: &Peerstate) -> bool {
-        self.addr == other.addr
-            && self.last_seen == other.last_seen
-            && self.last_seen_autocrypt == other.last_seen_autocrypt
-            && self.prefer_encrypt == other.prefer_encrypt
-            && self.public_key == other.public_key
-            && self.public_key_fingerprint == other.public_key_fingerprint
-            && self.gossip_key == other.gossip_key
-            && self.gossip_timestamp == other.gossip_timestamp
-            && self.gossip_key_fingerprint == other.gossip_key_fingerprint
-            && self.verified_key == other.verified_key
-            && self.verified_key_fingerprint == other.verified_key_fingerprint
-            && self.fingerprint_changed == other.fingerprint_changed
-    }
-}
-
-impl Eq for Peerstate {}
-
-impl fmt::Debug for Peerstate {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Peerstate")
-            .field("addr", &self.addr)
-            .field("last_seen", &self.last_seen)
-            .field("last_seen_autocrypt", &self.last_seen_autocrypt)
-            .field("prefer_encrypt", &self.prefer_encrypt)
-            .field("public_key", &self.public_key)
-            .field("public_key_fingerprint", &self.public_key_fingerprint)
-            .field("gossip_key", &self.gossip_key)
-            .field("gossip_timestamp", &self.gossip_timestamp)
-            .field("gossip_key_fingerprint", &self.gossip_key_fingerprint)
-            .field("verified_key", &self.verified_key)
-            .field("verified_key_fingerprint", &self.verified_key_fingerprint)
-            .field("fingerprint_changed", &self.fingerprint_changed)
-            .finish()
-    }
 }
 
 impl Peerstate {
@@ -223,7 +186,10 @@ impl Peerstate {
                         .transpose()
                         .unwrap_or_default(),
                     fingerprint_changed: false,
-                    verifier: row.get("verifier")?,
+                    verifier: {
+                        let verifier: Option<String> = row.get("verifier")?;
+                        verifier.filter(|verifier| !verifier.is_empty())
+                    },
                 };
 
                 Ok(res)
@@ -369,43 +335,48 @@ impl Peerstate {
     /// verifier:
     ///   The address which verifies the given contact
     ///   If we are verifying the contact, use that contacts address
-    /// Returns whether the value of the key has changed
     pub fn set_verified(
         &mut self,
         which_key: PeerstateKeyType,
-        fingerprint: &Fingerprint,
+        fingerprint: Fingerprint,
         verified: PeerstateVerifiedStatus,
         verifier: String,
-    ) -> bool {
+    ) -> Result<()> {
         if verified == PeerstateVerifiedStatus::BidirectVerified {
             match which_key {
                 PeerstateKeyType::PublicKey => {
                     if self.public_key_fingerprint.is_some()
-                        && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
+                        && self.public_key_fingerprint.as_ref().unwrap() == &fingerprint
                     {
                         self.verified_key = self.public_key.clone();
-                        self.verified_key_fingerprint = self.public_key_fingerprint.clone();
+                        self.verified_key_fingerprint = Some(fingerprint);
                         self.verifier = Some(verifier);
-                        true
+                        Ok(())
                     } else {
-                        false
+                        Err(Error::msg(format!(
+                            "{} is not peer's public key fingerprint",
+                            fingerprint,
+                        )))
                     }
                 }
                 PeerstateKeyType::GossipKey => {
                     if self.gossip_key_fingerprint.is_some()
-                        && self.gossip_key_fingerprint.as_ref().unwrap() == fingerprint
+                        && self.gossip_key_fingerprint.as_ref().unwrap() == &fingerprint
                     {
                         self.verified_key = self.gossip_key.clone();
-                        self.verified_key_fingerprint = self.gossip_key_fingerprint.clone();
+                        self.verified_key_fingerprint = Some(fingerprint);
                         self.verifier = Some(verifier);
-                        true
+                        Ok(())
                     } else {
-                        false
+                        Err(Error::msg(format!(
+                            "{} is not peer's gossip key fingerprint",
+                            fingerprint,
+                        )))
                     }
                 }
             }
         } else {
-            false
+            Err(Error::msg("BidirectVerified required"))
         }
     }
 
@@ -450,7 +421,7 @@ impl Peerstate {
                 self.verified_key.as_ref().map(|k| k.to_bytes()),
                 self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
                 self.addr,
-                self.verifier,
+                self.verifier.as_deref().unwrap_or(""),
             ],
         )
         .await?;
@@ -542,14 +513,31 @@ impl Peerstate {
                 if (chat.typ == Chattype::Group && chat.is_protected())
                     || chat.typ == Chattype::Broadcast
                 {
-                    chat::remove_from_chat_contacts_table(context, *chat_id, contact_id).await?;
-
-                    let (new_contact_id, _) =
-                        Contact::add_or_lookup(context, "", new_addr, Origin::IncomingUnknownFrom)
+                    match ContactAddress::new(new_addr) {
+                        Ok(new_addr) => {
+                            let (new_contact_id, _) = Contact::add_or_lookup(
+                                context,
+                                "",
+                                new_addr,
+                                Origin::IncomingUnknownFrom,
+                            )
                             .await?;
-                    chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id]).await?;
+                            chat::remove_from_chat_contacts_table(context, *chat_id, contact_id)
+                                .await?;
+                            chat::add_to_chat_contacts_table(context, *chat_id, &[new_contact_id])
+                                .await?;
 
-                    context.emit_event(EventType::ChatModified(*chat_id));
+                            context.emit_event(EventType::ChatModified(*chat_id));
+                        }
+                        Err(err) => {
+                            warn!(
+                                context,
+                                "New address {:?} is not vaild, not doing AEAP: {:#}.",
+                                new_addr,
+                                err
+                            )
+                        }
+                    }
                 }
             }
 

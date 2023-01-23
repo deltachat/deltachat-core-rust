@@ -29,7 +29,7 @@ def pytest_addoption(parser):
         "--liveconfig",
         action="store",
         default=None,
-        help="a file with >=2 lines where each line " "contains NAME=VALUE config settings for one account",
+        help="a file with >=2 lines where each line contains NAME=VALUE config settings for one account",
     )
     group.addoption(
         "--ignored",
@@ -124,7 +124,7 @@ def pytest_report_header(config, startdir):
             info["deltachat_core_version"],
             info["sqlite_version"],
             info["journal_mode"],
-        )
+        ),
     ]
 
     cfg = config.option.liveconfig
@@ -176,11 +176,11 @@ class TestProcess:
                 try:
                     yield self._configlist[index]
                 except IndexError:
-                    res = requests.post(liveconfig_opt)
+                    res = requests.post(liveconfig_opt, timeout=60)
                     if res.status_code != 200:
                         pytest.fail("newtmpuser count={} code={}: '{}'".format(index, res.status_code, res.text))
                     d = res.json()
-                    config = dict(addr=d["email"], mail_pw=d["password"])
+                    config = {"addr": d["email"], "mail_pw": d["password"]}
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     self._configlist.append(config)
                     yield config
@@ -229,7 +229,7 @@ def write_dict_to_dir(dic, target_dir):
         path.write_bytes(content)
 
 
-@pytest.fixture
+@pytest.fixture()
 def data(request):
     class Data:
         def __init__(self) -> None:
@@ -253,6 +253,7 @@ def data(request):
                 if os.path.exists(fn):
                     return fn
             print("WARNING: path does not exist: {!r}".format(fn))
+            return None
 
         def read_path(self, bn, mode="r"):
             fn = self.get_path(bn)
@@ -264,8 +265,11 @@ def data(request):
 
 
 class ACSetup:
-    """accounts setup helper to deal with multiple configure-process
-    and io & imap initialization phases. From tests, use the higher level
+    """
+    Accounts setup helper to deal with multiple configure-process
+    and io & imap initialization phases.
+
+    From tests, use the higher level
     public ACFactory methods instead of its private helper class.
     """
 
@@ -289,7 +293,7 @@ class ACSetup:
         self._account2state[account] = self.CONFIGURED
         self.log("added already configured account", account, account.get_config("addr"))
 
-    def start_configure(self, account, reconfigure=False):
+    def start_configure(self, account):
         """add an account and start its configure process."""
 
         class PendingTracker:
@@ -299,7 +303,7 @@ class ACSetup:
 
         account.add_account_plugin(PendingTracker(), name="pending_tracker")
         self._account2state[account] = self.CONFIGURING
-        account.configure(reconfigure=reconfigure)
+        account.configure()
         self.log("started configure on", account)
 
     def wait_one_configured(self, account):
@@ -411,7 +415,8 @@ class ACFactory:
                 acc.disable_logging()
 
     def get_next_liveconfig(self):
-        """Base function to get functional online configurations
+        """
+        Base function to get functional online configurations
         where we can make valid SMTP and IMAP connections with.
         """
         configdict = next(self._liveconfig_producer).copy()
@@ -465,8 +470,7 @@ class ACFactory:
             if fname_pub and fname_sec:
                 account._preconfigure_keypair(addr, fname_pub, fname_sec)
                 return True
-            else:
-                print("WARN: could not use preconfigured keys for {!r}".format(addr))
+            print("WARN: could not use preconfigured keys for {!r}".format(addr))
 
     def get_pseudo_configured_account(self, passphrase: Optional[str] = None) -> Account:
         # do a pseudo-configured account
@@ -476,14 +480,14 @@ class ACFactory:
         acname = ac._logid
         addr = "{}@offline.org".format(acname)
         ac.update_config(
-            dict(
-                addr=addr,
-                displayname=acname,
-                mail_pw="123",
-                configured_addr=addr,
-                configured_mail_pw="123",
-                configured="1",
-            )
+            {
+                "addr": addr,
+                "displayname": acname,
+                "mail_pw": "123",
+                "configured_addr": addr,
+                "configured_mail_pw": "123",
+                "configured": "1",
+            },
         )
         self._preconfigure_key(ac, addr)
         self._acsetup.init_logging(ac)
@@ -494,12 +498,12 @@ class ACFactory:
             configdict = self.get_next_liveconfig()
         else:
             # XXX we might want to transfer the key to the new account
-            configdict = dict(
-                addr=cloned_from.get_config("addr"),
-                mail_pw=cloned_from.get_config("mail_pw"),
-                imap_certificate_checks=cloned_from.get_config("imap_certificate_checks"),
-                smtp_certificate_checks=cloned_from.get_config("smtp_certificate_checks"),
-            )
+            configdict = {
+                "addr": cloned_from.get_config("addr"),
+                "mail_pw": cloned_from.get_config("mail_pw"),
+                "imap_certificate_checks": cloned_from.get_config("imap_certificate_checks"),
+                "smtp_certificate_checks": cloned_from.get_config("smtp_certificate_checks"),
+            }
         configdict.update(kwargs)
         ac = self._get_cached_account(addr=configdict["addr"]) if cache else None
         if ac is not None:
@@ -600,7 +604,7 @@ class ACFactory:
             acc._evtracker.wait_next_incoming_message()
 
 
-@pytest.fixture
+@pytest.fixture()
 def acfactory(request, tmpdir, testprocess, data):
     am = ACFactory(request=request, tmpdir=tmpdir, testprocess=testprocess, data=data)
     yield am
@@ -665,12 +669,12 @@ class BotProcess:
                     ignored.append(line)
 
 
-@pytest.fixture
+@pytest.fixture()
 def tmp_db_path(tmpdir):
     return tmpdir.join("test.db").strpath
 
 
-@pytest.fixture
+@pytest.fixture()
 def lp():
     class Printer:
         def sec(self, msg: str) -> None:

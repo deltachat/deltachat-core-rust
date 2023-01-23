@@ -1,4 +1,9 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::{collections::HashMap, str::FromStr};
+
 use anyhow::{anyhow, bail, ensure, Context, Result};
+pub use deltachat::accounts::Accounts;
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
@@ -23,21 +28,14 @@ use deltachat::{
     webxdc::StatusUpdateSerial,
 };
 use sanitize_filename::is_sanitized;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::{collections::HashMap, str::FromStr};
 use tokio::{fs, sync::RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
 
-pub use deltachat::accounts::Accounts;
-
 pub mod events;
 pub mod types;
 
-use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
-use crate::api::types::qr::QrObject;
-
+use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
 use types::chat_list::ChatListEntry;
@@ -53,8 +51,8 @@ use self::types::{
         JSONRPCMessageListItem, MessageNotificationInfo, MessageSearchResult, MessageViewtype,
     },
 };
-
-use num_traits::FromPrimitive;
+use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
+use crate::api::types::qr::QrObject;
 
 #[derive(Clone, Debug)]
 pub struct CommandApi {

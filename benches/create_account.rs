@@ -1,6 +1,7 @@
+use std::path::PathBuf;
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use deltachat::accounts::Accounts;
-use std::path::PathBuf;
 use tempfile::tempdir;
 
 async fn create_accounts(n: u32) {

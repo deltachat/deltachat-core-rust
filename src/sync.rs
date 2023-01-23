@@ -1,5 +1,10 @@
 //! # Synchronize items between devices.
 
+use anyhow::Result;
+use lettre_email::mime::{self};
+use lettre_email::PartBuilder;
+use serde::{Deserialize, Serialize};
+
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
 use crate::constants::Blocked;
@@ -12,10 +17,6 @@ use crate::sync::SyncData::{AddQrToken, DeleteQrToken};
 use crate::token::Namespace;
 use crate::tools::time;
 use crate::{chat, stock_str, token};
-use anyhow::Result;
-use lettre_email::mime::{self};
-use lettre_email::PartBuilder;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct QrTokenData {
@@ -260,12 +261,13 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::bail;
+
     use super::*;
     use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
-    use anyhow::bail;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_is_sync_sending_enabled() -> Result<()> {

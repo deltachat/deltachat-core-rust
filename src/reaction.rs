@@ -287,10 +287,9 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 mod tests {
     use super::*;
     use crate::chat::get_chat_msgs;
-
     use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
-    use crate::contact::{Contact, Origin};
+    use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
     use crate::message::MessageState;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
@@ -366,9 +365,14 @@ Can we chat at 1pm pacific, today?"
         let contacts = reactions.contacts();
         assert_eq!(contacts.len(), 0);
 
-        let bob_id = Contact::add_or_lookup(&alice, "", "bob@example.net", Origin::ManuallyCreated)
-            .await?
-            .0;
+        let bob_id = Contact::add_or_lookup(
+            &alice,
+            "",
+            ContactAddress::new("bob@example.net")?,
+            Origin::ManuallyCreated,
+        )
+        .await?
+        .0;
         let bob_reaction = reactions.get(bob_id);
         assert!(bob_reaction.is_empty()); // Bob has not reacted to message yet.
 

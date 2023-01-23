@@ -287,8 +287,9 @@ fn as_path_unicode<'a>(s: *const libc::c_char) -> &'a std::path::Path {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use libc::{free, strcmp};
+
+    use super::*;
 
     #[test]
     fn test_os_str_to_c_string_cwd() {

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-import os
 import json
-import re
+import os
 import pathlib
+import re
 import subprocess
 from argparse import ArgumentParser
 
@@ -23,7 +23,7 @@ def read_toml_version(relpath):
     res = regex_matches(relpath, rex)
     if res is not None:
         return res.group(1)
-    raise ValueError("no version found in {}".format(relpath))
+    raise ValueError(f"no version found in {relpath}")
 
 
 def replace_toml_version(relpath, newversion):
@@ -34,8 +34,8 @@ def replace_toml_version(relpath, newversion):
         for line in open(str(p)):
             m = rex.match(line)
             if m is not None:
-                print("{}: set version={}".format(relpath, newversion))
-                f.write('version = "{}"\n'.format(newversion))
+                print(f"{relpath}: set version={newversion}")
+                f.write(f'version = "{newversion}"\n')
             else:
                 f.write(line)
     os.rename(tmp_path, str(p))
@@ -44,7 +44,7 @@ def replace_toml_version(relpath, newversion):
 def read_json_version(relpath):
     p = pathlib.Path(relpath)
     assert p.exists()
-    with open(p, "r") as f:
+    with open(p) as f:
         json_data = json.loads(f.read())
     return json_data["version"]
 
@@ -52,7 +52,7 @@ def read_json_version(relpath):
 def update_package_json(relpath, newversion):
     p = pathlib.Path(relpath)
     assert p.exists()
-    with open(p, "r") as f:
+    with open(p) as f:
         json_data = json.loads(f.read())
     json_data["version"] = newversion
     with open(p, "w") as f:
@@ -63,7 +63,7 @@ def main():
     parser = ArgumentParser(prog="set_core_version")
     parser.add_argument("newversion")
 
-    json_list = ["package.json",  "deltachat-jsonrpc/typescript/package.json"]
+    json_list = ["package.json", "deltachat-jsonrpc/typescript/package.json"]
     toml_list = [
         "Cargo.toml",
         "deltachat-ffi/Cargo.toml",
@@ -75,9 +75,9 @@ def main():
     except SystemExit:
         print()
         for x in toml_list:
-            print("{}: {}".format(x, read_toml_version(x)))
+            print(f"{x}: {read_toml_version(x)}")
         for x in json_list:
-            print("{}: {}".format(x, read_json_version(x)))
+            print(f"{x}: {read_json_version(x)}")
         print()
         raise SystemExit("need argument: new version, example: 1.25.0")
 
@@ -92,18 +92,18 @@ def main():
     if "alpha" not in newversion:
         for line in open("CHANGELOG.md"):
             ## 1.25.0
-            if line.startswith("## "):
-                if line[2:].strip().startswith(newversion):
-                    break
+            if line.startswith("## ") and line[2:].strip().startswith(newversion):
+                break
         else:
-            raise SystemExit("CHANGELOG.md contains no entry for version: {}".format(newversion))
+            raise SystemExit(
+                f"CHANGELOG.md contains no entry for version: {newversion}"
+            )
 
     for toml_filename in toml_list:
         replace_toml_version(toml_filename, newversion)
-    
+
     for json_filename in json_list:
         update_package_json(json_filename, newversion)
-
 
     print("running cargo check")
     subprocess.call(["cargo", "check"])
@@ -114,13 +114,12 @@ def main():
 
     print("after commit, on master make sure to: ")
     print("")
-    print("   git tag -a {}".format(newversion))
-    print("   git push origin {}".format(newversion))
-    print("   git tag -a py-{}".format(newversion))
-    print("   git push origin py-{}".format(newversion))
+    print(f"   git tag -a {newversion}")
+    print(f"   git push origin {newversion}")
+    print(f"   git tag -a py-{newversion}")
+    print(f"   git push origin py-{newversion}")
     print("")
 
 
 if __name__ == "__main__":
     main()
-

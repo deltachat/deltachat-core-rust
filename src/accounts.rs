@@ -367,13 +367,20 @@ impl Config {
 
         // Previous versions of the core stored absolute paths in account config.
         // Convert them to relative paths.
+        let mut modified = false;
         for account in &mut inner.accounts {
             if let Ok(new_dir) = account.dir.strip_prefix(dir) {
                 account.dir = new_dir.to_path_buf();
+                modified = true;
             }
         }
 
-        Ok(Config { file, inner })
+        let config = Self { file, inner };
+        if modified {
+            config.sync().await?;
+        }
+
+        Ok(config)
     }
 
     /// Loads all accounts defined in the configuration file.
@@ -502,7 +509,6 @@ impl AccountConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::stock_str::{self, StockMessage};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

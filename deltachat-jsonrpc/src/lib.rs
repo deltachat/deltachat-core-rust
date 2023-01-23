@@ -4,11 +4,12 @@ pub use yerpc;
 
 #[cfg(test)]
 mod tests {
-    use super::api::{Accounts, CommandApi};
     use async_channel::unbounded;
     use futures::StreamExt;
     use tempfile::TempDir;
     use yerpc::{RpcClient, RpcSession};
+
+    use super::api::{Accounts, CommandApi};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn basic_json_rpc_functionality() -> anyhow::Result<()> {

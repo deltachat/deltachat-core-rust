@@ -77,11 +77,11 @@ class ConfigureTracker:
         self.account.remove_account_plugin(self)
 
     def wait_smtp_connected(self):
-        """wait until smtp is configured."""
+        """Wait until SMTP is configured."""
         self._smtp_finished.wait()
 
     def wait_imap_connected(self):
-        """wait until smtp is configured."""
+        """Wait until IMAP is configured."""
         self._imap_finished.wait()
 
     def wait_progress(self, data1=None):
@@ -91,7 +91,8 @@ class ConfigureTracker:
                 break
 
     def wait_finish(self, timeout=None):
-        """wait until configure is completed.
+        """
+        Wait until configure is completed.
 
         Raise Exception if Configure failed
         """

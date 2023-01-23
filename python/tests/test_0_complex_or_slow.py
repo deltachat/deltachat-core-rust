@@ -216,7 +216,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     # would also find the "Sent" folder, but it would be too late:
     # The sentbox thread, started by `start_io()`, would have seen that there is no
     # ConfiguredSentboxFolder and do nothing.
-    acfactory._acsetup.start_configure(ac1, reconfigure=True)
+    acfactory._acsetup.start_configure(ac1)
     acfactory.bring_accounts_online()
     assert_folders_configured(ac1)
 
@@ -492,3 +492,48 @@ def test_multidevice_sync_seen(acfactory, lp):
     assert ac1_clone_message.is_in_seen
     # Test that the timer is started on the second device after synchronizing the seen status.
     assert "Expires: " in ac1_clone_message.get_message_info()
+
+
+def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
+    """The test for the bug #3836:
+    - Alice has two devices, the second is offline.
+    - Alice creates a verified group and sends a QR invitation to Bob.
+    - Bob joins the group and sends a message there. Alice sees it.
+    - Alice's second devices goes online, but doesn't see Bob in the group.
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac2_addr = ac2.get_config("addr")
+    ac1_offl = acfactory.new_online_configuring_account(cloned_from=ac1)
+    for ac in [ac1, ac1_offl]:
+        ac.set_config("bcc_self", "1")
+    acfactory.bring_accounts_online()
+    dir = tmpdir.mkdir("exportdir")
+    ac1.export_self_keys(dir.strpath)
+    ac1_offl.import_self_keys(dir.strpath)
+    ac1_offl.stop_io()
+
+    lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+    chat = ac1.create_group_chat("hello", verified=True)
+    assert chat.is_protected()
+    qr = chat.get_join_qr()
+    lp.sec("ac2: start QR-code based join-group protocol")
+    chat2 = ac2.qr_join_chat(qr)
+    ac1._evtracker.wait_securejoin_inviter_progress(1000)
+
+    lp.sec("ac2: sending message")
+    # Message can be sent only after a receipt of "vg-member-added" message. Just wait for
+    # "Member Me (<addr>) added by <addr>." message.
+    ac2._evtracker.wait_next_incoming_message()
+    msg_out = chat2.send_text("hello")
+
+    lp.sec("ac1: receiving message")
+    msg_in = ac1._evtracker.wait_next_incoming_message()
+    assert msg_in.text == msg_out.text
+    assert msg_in.get_sender_contact().addr == ac2_addr
+
+    lp.sec("ac1_offl: going online, receiving message")
+    ac1_offl.start_io()
+    ac1_offl._evtracker.wait_securejoin_inviter_progress(1000)
+    msg_in = ac1_offl._evtracker.wait_next_incoming_message()
+    assert msg_in.text == msg_out.text
+    assert msg_in.get_sender_contact().addr == ac2_addr

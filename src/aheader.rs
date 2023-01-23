@@ -2,13 +2,12 @@
 //!
 //! Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 
-use anyhow::{bail, Context as _, Error, Result};
 use std::collections::BTreeMap;
+use std::fmt;
 use std::str::FromStr;
-use std::{fmt, str};
 
-use crate::contact::addr_cmp;
-use crate::headerdef::{HeaderDef, HeaderDefMap};
+use anyhow::{bail, Context as _, Error, Result};
+
 use crate::key::{DcKey, SignedPublicKey};
 
 /// Possible values for encryption preference
@@ -36,7 +35,7 @@ impl fmt::Display for EncryptPreference {
     }
 }
 
-impl str::FromStr for EncryptPreference {
+impl FromStr for EncryptPreference {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
@@ -69,29 +68,6 @@ impl Aheader {
             prefer_encrypt,
         }
     }
-
-    /// Tries to parse Autocrypt header.
-    ///
-    /// If there is none, returns None. If the header is present but cannot be parsed, returns an
-    /// error.
-    pub fn from_headers(
-        wanted_from: &str,
-        headers: &[mailparse::MailHeader<'_>],
-    ) -> Result<Option<Self>> {
-        if let Some(value) = headers.get_header_value(HeaderDef::Autocrypt) {
-            let header = Self::from_str(&value)?;
-            if !addr_cmp(&header.addr, wanted_from) {
-                bail!(
-                    "Autocrypt header address {:?} is not {:?}",
-                    header.addr,
-                    wanted_from
-                );
-            }
-            Ok(Some(header))
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 impl fmt::Display for Aheader {
@@ -118,7 +94,7 @@ impl fmt::Display for Aheader {
     }
 }
 
-impl str::FromStr for Aheader {
+impl FromStr for Aheader {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {

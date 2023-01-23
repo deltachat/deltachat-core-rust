@@ -3,12 +3,11 @@ use std::{collections::BTreeMap, time::Instant};
 use anyhow::{Context as _, Result};
 use futures::stream::StreamExt;
 
+use super::{get_folder_meaning, get_folder_meaning_by_name};
 use crate::config::Config;
 use crate::imap::Imap;
 use crate::log::LogExt;
 use crate::{context::Context, imap::FolderMeaning};
-
-use super::{get_folder_meaning, get_folder_meaning_by_name};
 
 impl Imap {
     /// Returns true if folders were scanned, false if scanning was postponed.

@@ -1,6 +1,7 @@
-use axum::{extract::ws::WebSocketUpgrade, response::Response, routing::get, Extension, Router};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+
+use axum::{extract::ws::WebSocketUpgrade, response::Response, routing::get, Extension, Router};
 use yerpc::axum::handle_ws_rpc;
 use yerpc::{RpcClient, RpcSession};
 

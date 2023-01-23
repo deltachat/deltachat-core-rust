@@ -337,7 +337,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                         ContactId::SELF,
                     ]
             ).await {
-                warn!(context, "failed to store location {:?}", err);
+                warn!(context, "failed to store location {:#}", err);
             } else {
                 info!(context, "stored location for chat {}", chat_id);
                 continue_streaming = true;
@@ -638,7 +638,7 @@ pub(crate) async fn location_loop(context: &Context, interrupt_receiver: Receive
     loop {
         let next_event = match maybe_send_locations(context).await {
             Err(err) => {
-                warn!(context, "maybe_send_locations failed: {}", err);
+                warn!(context, "maybe_send_locations failed: {:#}", err);
                 Some(60) // Retry one minute later.
             }
             Ok(next_event) => next_event,

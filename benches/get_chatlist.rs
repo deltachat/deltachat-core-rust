@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
 use deltachat::chatlist::Chatlist;
 use deltachat::context::Context;
 use deltachat::stock_str::StockStrings;

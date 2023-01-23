@@ -15,7 +15,7 @@ from deltachat.tracker import ImexFailed
 
 
 @pytest.mark.parametrize(
-    "msgtext,res",
+    ("msgtext", "res"),
     [
         (
             "Member Me (tmp1@x.org) removed by tmp2@x.org.",
@@ -108,7 +108,7 @@ class TestOfflineAccountBasic:
 
     def test_update_config(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
-        ac1.update_config(dict(mvbox_move=False))
+        ac1.update_config({"mvbox_move": False})
         assert ac1.get_config("mvbox_move") == "0"
 
     def test_has_savemime(self, acfactory):
@@ -229,11 +229,11 @@ class TestOfflineContact:
 
 
 class TestOfflineChat:
-    @pytest.fixture
+    @pytest.fixture()
     def ac1(self, acfactory):
         return acfactory.get_pseudo_configured_account()
 
-    @pytest.fixture
+    @pytest.fixture()
     def chat1(self, ac1):
         return ac1.create_contact("some1@example.org", name="some1").create_chat()
 
@@ -257,7 +257,7 @@ class TestOfflineChat:
         assert chat2.id == chat1.id
         assert chat2.get_name() == chat1.get_name()
         assert chat1 == chat2
-        assert not (chat1 != chat2)
+        assert not chat1.__ne__(chat2)
         assert chat1 != chat3
 
         for ichat in ac1.get_chats():
@@ -450,7 +450,7 @@ class TestOfflineChat:
         assert msg.filemime == "image/png"
 
     @pytest.mark.parametrize(
-        "fn,typein,typeout",
+        ("fn", "typein", "typeout"),
         [
             ("r", None, "application/octet-stream"),
             ("r.txt", None, "text/plain"),
@@ -458,7 +458,7 @@ class TestOfflineChat:
             ("r.txt", "image/png", "image/png"),
         ],
     )
-    def test_message_file(self, ac1, chat1, data, lp, fn, typein, typeout):
+    def test_message_file(self, chat1, data, lp, fn, typein, typeout):
         lp.sec("sending file")
         fp = data.get_path(fn)
         msg = chat1.send_file(fp, typein)
@@ -694,7 +694,7 @@ class TestOfflineChat:
         chat1.set_draft(None)
         assert chat1.get_draft() is None
 
-    def test_qr_setup_contact(self, acfactory, lp):
+    def test_qr_setup_contact(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
         ac2 = acfactory.get_pseudo_configured_account()
         qr = ac1.get_setup_contact_qr()

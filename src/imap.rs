@@ -22,7 +22,7 @@ use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
 };
-use crate::contact::{normalize_name, Contact, ContactId, Modifier, Origin};
+use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
@@ -308,6 +308,7 @@ impl Imap {
             if let Some(socks5_config) = &config.socks5_config {
                 if config.lp.security == Socket::Starttls {
                     Client::connect_starttls_socks5(
+                        context,
                         imap_server,
                         imap_port,
                         socks5_config.clone(),
@@ -315,13 +316,18 @@ impl Imap {
                     )
                     .await
                 } else {
-                    Client::connect_insecure_socks5((imap_server, imap_port), socks5_config.clone())
-                        .await
+                    Client::connect_insecure_socks5(
+                        context,
+                        imap_server,
+                        imap_port,
+                        socks5_config.clone(),
+                    )
+                    .await
                 }
             } else if config.lp.security == Socket::Starttls {
-                Client::connect_starttls(imap_server, imap_port, config.strict_tls).await
+                Client::connect_starttls(context, imap_server, imap_port, config.strict_tls).await
             } else {
-                Client::connect_insecure((imap_server, imap_port)).await
+                Client::connect_insecure(context, imap_server, imap_port).await
             }
         } else {
             let config = &self.config;
@@ -330,6 +336,7 @@ impl Imap {
 
             if let Some(socks5_config) = &config.socks5_config {
                 Client::connect_secure_socks5(
+                    context,
                     imap_server,
                     imap_port,
                     config.strict_tls,
@@ -337,7 +344,7 @@ impl Imap {
                 )
                 .await
             } else {
-                Client::connect_secure(imap_server, imap_port, config.strict_tls).await
+                Client::connect_secure(context, imap_server, imap_port, config.strict_tls).await
             }
         };
 
@@ -554,7 +561,10 @@ impl Imap {
         folder: &str,
     ) -> Result<bool> {
         let session = self.session.as_mut().context("no session")?;
-        let newly_selected = session.select_or_create_folder(context, folder).await?;
+        let newly_selected = session
+            .select_or_create_folder(context, folder)
+            .await
+            .with_context(|| format!("failed to select or create folder {}", folder))?;
         let mailbox = session
             .selected_mailbox
             .as_mut()
@@ -564,8 +574,12 @@ impl Imap {
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
 
-        let old_uid_validity = get_uidvalidity(context, folder).await?;
-        let old_uid_next = get_uid_next(context, folder).await?;
+        let old_uid_validity = get_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID validity for folder {}", folder))?;
+        let old_uid_next = get_uid_next(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID NEXT for folder {}", folder))?;
 
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
@@ -691,9 +705,11 @@ impl Imap {
         let old_uid_next = get_uid_next(context, folder).await?;
 
         let msgs = if fetch_existing_msgs {
-            self.prefetch_existing_msgs().await?
+            self.prefetch_existing_msgs()
+                .await
+                .context("prefetch_existing_msgs")?
         } else {
-            self.prefetch(old_uid_next).await?
+            self.prefetch(old_uid_next).await.context("prefetch")?
         };
         let read_cnt = msgs.len();
 
@@ -756,7 +772,7 @@ impl Imap {
                     fetch_response.flags(),
                     show_emails,
                 )
-                .await?
+                .await.context("prefetch_should_download")?
             {
                 match download_limit {
                     Some(download_limit) => uids_fetch.push((
@@ -792,7 +808,8 @@ impl Imap {
                         fetch_partially,
                         fetch_existing_msgs,
                     )
-                    .await?;
+                    .await
+                    .context("fetch_many_msgs")?;
                 received_msgs.extend(received_msgs_in_batch);
                 largest_uid_fetched = max(
                     largest_uid_fetched,
@@ -818,11 +835,13 @@ impl Imap {
 
         info!(context, "{} mails read from \"{}\".", read_cnt, folder);
 
-        let msg_ids = received_msgs
+        let msg_ids: Vec<MsgId> = received_msgs
             .iter()
             .flat_map(|m| m.msg_ids.clone())
             .collect();
-        context.emit_event(EventType::IncomingMsgBunch { msg_ids });
+        if !msg_ids.is_empty() {
+            context.emit_event(EventType::IncomingMsgBunch { msg_ids });
+        }
 
         chat::mark_old_messages_as_noticed(context, received_msgs).await?;
 
@@ -1725,7 +1744,19 @@ async fn should_move_out_of_spam(
         };
         // No chat found.
         let (from_id, blocked_contact, _origin) =
-            from_field_to_contact_id(context, &from, true).await?;
+            match from_field_to_contact_id(context, &from, true)
+                .await
+                .context("from_field_to_contact_id")?
+            {
+                Some(res) => res,
+                None => {
+                    warn!(
+                        context,
+                        "Contact with From address {:?} cannot exist, not moving out of spam", from
+                    );
+                    return Ok(false);
+                }
+            };
         if blocked_contact {
             // Contact is blocked, leave the message in spam.
             return Ok(false);
@@ -2015,7 +2046,10 @@ pub(crate) async fn prefetch_should_download(
         None => return Ok(false),
     };
     let (_from_id, blocked_contact, origin) =
-        from_field_to_contact_id(context, &from, true).await?;
+        match from_field_to_contact_id(context, &from, true).await? {
+            Some(res) => res,
+            None => return Ok(false),
+        };
     // prevent_rename=true as this might be a mailing list message and in this case it would be bad if we rename the contact.
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
@@ -2335,33 +2369,41 @@ async fn add_all_recipients_as_contacts(
         .await
         .with_context(|| format!("could not select {}", mailbox))?;
 
-    let contacts = imap
+    let recipients = imap
         .get_all_recipients(context)
         .await
         .context("could not get recipients")?;
 
     let mut any_modified = false;
-    for contact in contacts {
-        let display_name_normalized = contact
+    for recipient in recipients {
+        let display_name_normalized = recipient
             .display_name
             .as_ref()
             .map(|s| normalize_name(s))
             .unwrap_or_default();
 
-        match Contact::add_or_lookup(
+        let recipient_addr = match ContactAddress::new(&recipient.addr) {
+            Err(err) => {
+                warn!(
+                    context,
+                    "Could not add contact for recipient with address {:?}: {:#}",
+                    recipient.addr,
+                    err
+                );
+                continue;
+            }
+            Ok(recipient_addr) => recipient_addr,
+        };
+
+        let (_, modified) = Contact::add_or_lookup(
             context,
             &display_name_normalized,
-            &contact.addr,
+            recipient_addr,
             Origin::OutgoingTo,
         )
-        .await
-        {
-            Ok((_, modified)) => {
-                if modified != Modifier::None {
-                    any_modified = true;
-                }
-            }
-            Err(e) => warn!(context, "Could not add recipient: {}", e),
+        .await?;
+        if modified != Modifier::None {
+            any_modified = true;
         }
     }
     if any_modified {

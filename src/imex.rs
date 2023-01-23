@@ -656,7 +656,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    error!(context, "set_self_key: {}", err);
+                    info!(context, "set_self_key: {}", err);
                     continue;
                 }
             }
@@ -769,13 +769,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use ::pgp::armor::BlockType;
 
+    use super::*;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext};
-
-    use ::pgp::armor::BlockType;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file() {

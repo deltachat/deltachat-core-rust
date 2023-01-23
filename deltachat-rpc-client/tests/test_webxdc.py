@@ -3,16 +3,14 @@ import pytest
 from deltachat_rpc_client import EventType
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio()
 async def test_webxdc(acfactory) -> None:
     alice, bob = await acfactory.get_online_accounts(2)
 
     bob_addr = await bob.get_config("addr")
     alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
     alice_chat_bob = await alice_contact_bob.create_chat()
-    await alice_chat_bob.send_message(
-        text="Let's play chess!", file="../test-data/webxdc/chess.xdc"
-    )
+    await alice_chat_bob.send_message(text="Let's play chess!", file="../test-data/webxdc/chess.xdc")
 
     while True:
         event = await bob.wait_for_event()

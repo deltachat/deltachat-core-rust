@@ -1,4 +1,4 @@
-""" Contact object. """
+"""Contact object."""
 
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -28,7 +28,7 @@ class Contact(object):
         return self.account._dc_context == other.account._dc_context and self.id == other.id
 
     def __ne__(self, other):
-        return not (self == other)
+        return not self == other
 
     def __repr__(self):
         return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self.account._dc_context)
@@ -76,7 +76,7 @@ class Contact(object):
         return lib.dc_contact_is_verified(self._dc_contact)
 
     def get_verifier(self, contact):
-        """Return the address of the contact that verified the contact"""
+        """Return the address of the contact that verified the contact."""
         return from_dc_charpointer(lib.dc_contact_get_verifier_addr(contact._dc_contact))
 
     def get_profile_image(self) -> Optional[str]:

@@ -12,8 +12,11 @@ from .rpc import Rpc
 async def get_temp_credentials() -> dict:
     url = os.getenv("DCC_NEW_TMP_EMAIL")
     assert url, "Failed to get online account, DCC_NEW_TMP_EMAIL is not set"
+
+    # Replace default 5 minute timeout with a 1 minute timeout.
+    timeout = aiohttp.ClientTimeout(total=60)
     async with aiohttp.ClientSession() as session:
-        async with session.post(url) as response:
+        async with session.post(url, timeout=timeout) as response:
             return json.loads(await response.text())
 
 
@@ -64,9 +67,7 @@ class ACFactory:
     ) -> Message:
         if not from_account:
             from_account = (await self.get_online_accounts(1))[0]
-        to_contact = await from_account.create_contact(
-            await to_account.get_config("addr")
-        )
+        to_contact = await from_account.create_contact(await to_account.get_config("addr"))
         if group:
             to_chat = await from_account.create_group(group)
             await to_chat.add_contact(to_contact)

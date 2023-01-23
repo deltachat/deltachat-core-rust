@@ -285,8 +285,9 @@ fn is_plain_quote(buf: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use proptest::prelude::*;
+
+    use super::*;
 
     proptest! {
         #[test]

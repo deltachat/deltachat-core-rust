@@ -383,7 +383,7 @@ impl Context {
         let mut lock = self.inner.scheduler.write().await;
         if lock.is_none() {
             match Scheduler::start(self.clone()).await {
-                Err(err) => error!(self, "Failed to start IO: {}", err),
+                Err(err) => error!(self, "Failed to start IO: {:#}", err),
                 Ok(scheduler) => *lock = Some(scheduler),
             }
         }
@@ -499,7 +499,7 @@ impl Context {
         match &*s {
             RunningState::Running { cancel_sender } => {
                 if let Err(err) = cancel_sender.send(()).await {
-                    warn!(self, "could not cancel ongoing: {:?}", err);
+                    warn!(self, "could not cancel ongoing: {:#}", err);
                 }
                 info!(self, "Signaling the ongoing process to stop ASAP.",);
                 *s = RunningState::ShallStop;
@@ -861,8 +861,13 @@ pub fn get_version_str() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
+    use anyhow::Context as _;
+    use strum::IntoEnumIterator;
+    use tempfile::tempdir;
+
+    use super::*;
     use crate::chat::{
         get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
     };
@@ -873,10 +878,6 @@ mod tests {
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
     use crate::tools::create_outgoing_rfc724_mid;
-    use anyhow::Context as _;
-    use std::time::Duration;
-    use strum::IntoEnumIterator;
-    use tempfile::tempdir;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_wrong_db() -> Result<()> {

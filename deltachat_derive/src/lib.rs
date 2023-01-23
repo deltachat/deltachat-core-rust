@@ -1,8 +1,9 @@
 #![recursion_limit = "128"]
 extern crate proc_macro;
 
-use crate::proc_macro::TokenStream;
 use quote::quote;
+
+use crate::proc_macro::TokenStream;
 
 // For now, assume (not check) that these macroses are applied to enum without
 // data.  If this assumption is violated, compiler error will point to

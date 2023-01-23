@@ -1,15 +1,20 @@
 //! # SMTP message sending
 
-use super::Smtp;
-use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
-
-use crate::config::Config;
-use crate::constants::DEFAULT_MAX_SMTP_RCPT_TO;
-use crate::context::Context;
-use crate::events::EventType;
 use std::time::Duration;
 
+use async_smtp::{EmailAddress, Envelope, SendableEmail, Transport};
+
+use super::Smtp;
+use crate::config::Config;
+use crate::context::Context;
+use crate::events::EventType;
+
 pub type Result<T> = std::result::Result<T, Error>;
+
+// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is splitted to chunks.
+// this does not affect MIME'e `To:` header.
+// can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
+pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

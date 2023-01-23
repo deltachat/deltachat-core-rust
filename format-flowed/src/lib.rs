@@ -24,7 +24,7 @@
 fn format_line_flowed(line: &str, prefix: &str) -> String {
     let mut result = String::new();
     let mut buffer = prefix.to_string();
-    let mut after_space = false;
+    let mut after_space = prefix.ends_with(' ');
 
     for c in line.chars() {
         if c == ' ' {
@@ -55,7 +55,7 @@ fn format_line_flowed(line: &str, prefix: &str) -> String {
     result + &buffer
 }
 
-/// Returns text formatted according to RFC 3767 (format=flowed).
+/// Returns text formatted according to RFC 3676 (format=flowed).
 ///
 /// This function accepts text separated by LF, but returns text
 /// separated by CRLF.
@@ -70,23 +70,20 @@ pub fn format_flowed(text: &str) -> String {
             result += "\r\n";
         }
 
-        let line_no_prefix = line
-            .strip_prefix('>')
-            .map(|line| line.strip_prefix(' ').unwrap_or(line));
-        let is_quote = line_no_prefix.is_some();
-        let line = line_no_prefix.unwrap_or(line).trim_end();
-        let prefix = if is_quote { "> " } else { "" };
+        let line = line.trim_end();
+        let quote_depth = line.chars().take_while(|&c| c == '>').count();
+        let (prefix, mut line) = line.split_at(quote_depth);
 
-        if prefix.len() + line.len() > 78 {
-            result += &format_line_flowed(line, prefix);
-        } else {
-            result += prefix;
-            if prefix.is_empty() && (line.starts_with('>') || line.starts_with(' ')) {
-                // Space stuffing, see RFC 3676
-                result.push(' ');
+        let mut prefix = prefix.to_string();
+
+        if quote_depth > 0 {
+            if let Some(s) = line.strip_prefix(' ') {
+                line = s;
+                prefix += " ";
             }
-            result += line;
         }
+
+        result += &format_line_flowed(line, &prefix);
     }
 
     result
@@ -111,9 +108,6 @@ pub fn format_flowed_quote(text: &str) -> String {
 ///
 /// Lines must be separated by single LF.
 ///
-/// Quote processing is not supported, it is assumed that they are
-/// deleted during simplification.
-///
 /// Signature separator line is not processed here, it is assumed to
 /// be stripped beforehand.
 pub fn unformat_flowed(text: &str, delsp: bool) -> String {
@@ -121,6 +115,12 @@ pub fn unformat_flowed(text: &str, delsp: bool) -> String {
     let mut skip_newline = true;
 
     for line in text.split('\n') {
+        let line = if !result.is_empty() && skip_newline {
+            line.trim_start_matches('>')
+        } else {
+            line
+        };
+
         // Revert space-stuffing
         let line = line.strip_prefix(' ').unwrap_or(line);
 
@@ -150,8 +150,20 @@ mod tests {
 
     #[test]
     fn test_format_flowed() {
+        let text = "";
+        assert_eq!(format_flowed(text), "");
+
         let text = "Foo bar baz";
-        assert_eq!(format_flowed(text), "Foo bar baz");
+        assert_eq!(format_flowed(text), text);
+
+        let text = ">Foo bar";
+        assert_eq!(format_flowed(text), text);
+
+        let text = "> Foo bar";
+        assert_eq!(format_flowed(text), text);
+
+        let text = ">\n\nA";
+        assert_eq!(format_flowed(text), ">\r\n\r\nA");
 
         let text = "This is the Autocrypt Setup Message used to transfer your key between clients.\n\
                     \n\
@@ -165,15 +177,31 @@ mod tests {
         let text = "> A quote";
         assert_eq!(format_flowed(text), "> A quote");
 
+        let text = "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > A";
+        assert_eq!(
+            format_flowed(text),
+            "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > \r\n> A"
+        );
+
         // Test space stuffing of wrapped lines
         let text = "> This is the Autocrypt Setup Message used to transfer your key between clients.\n\
                     >                               \n\
                     > To decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device.";
         let expected = "> This is the Autocrypt Setup Message used to transfer your key between \r\n\
                         > clients.\r\n\
-                        > \r\n\
+                        >\r\n\
                         > To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
                         > client and enter the setup code presented on the generating device.";
+        assert_eq!(format_flowed(text), expected);
+
+        let text = ">> This is the Autocrypt Setup Message used to transfer your key between clients.\n\
+                    >>                               \n\
+                    >> To decrypt and use your key, open the message in an Autocrypt-compliant client and enter the setup code presented on the generating device.";
+        let expected = ">> This is the Autocrypt Setup Message used to transfer your key between \r\n\
+                        >> clients.\r\n\
+                        >>\r\n\
+                        >> To decrypt and use your key, open the message in an Autocrypt-compliant \r\n\
+                        >> client and enter the setup code presented on the generating device.";
         assert_eq!(format_flowed(text), expected);
 
         // Test space stuffing of spaces.
@@ -201,6 +229,12 @@ mod tests {
 
         let text = "  Foo bar";
         let expected = " Foo bar";
+        assert_eq!(unformat_flowed(text, false), expected);
+
+        let text =
+            "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > \n> A";
+        let expected =
+            "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > A";
         assert_eq!(unformat_flowed(text, false), expected);
     }
 

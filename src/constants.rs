@@ -68,6 +68,7 @@ impl Default for MediaQuality {
     }
 }
 
+/// Type of the key to generate.
 #[derive(
     Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
@@ -118,13 +119,13 @@ pub const DC_GCL_VERIFIED_ONLY: u32 = 0x01;
 pub const DC_GCL_ADD_SELF: u32 = 0x02;
 
 // unchanged user avatars are resent to the recipients every some days
-pub const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
+pub(crate) const DC_RESEND_USER_AVATAR_DAYS: i64 = 14;
 
 // warn about an outdated app after a given number of days.
 // as we use the "provider-db generation date" as reference (that might not be updated very often)
 // and as not all system get speedy updates,
 // do not use too small value that will annoy users checking for nonexistant updates.
-pub const DC_OUTDATED_WARNING_DAYS: i64 = 365;
+pub(crate) const DC_OUTDATED_WARNING_DAYS: i64 = 365;
 
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: ChatId = ChatId::new(3);
@@ -169,7 +170,7 @@ pub const DC_MSG_ID_DAYMARKER: u32 = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// String that indicates that something is left out or truncated.
-pub const DC_ELLIPSIS: &str = "[...]";
+pub(crate) const DC_ELLIPSIS: &str = "[...]";
 // how many lines desktop can display when fullscreen (fullscreen at zoomlevel 1x)
 // (taken from "subjective" testing what looks ok)
 pub const DC_DESIRED_TEXT_LINES: usize = 38;
@@ -185,11 +186,6 @@ pub const DC_DESIRED_TEXT_LINE_LEN: usize = 100;
 /// Note that for simplicity maximum length is defined as the number of Unicode Scalar Values (Rust
 /// `char`s), not Unicode Grapheme Clusters.
 pub const DC_DESIRED_TEXT_LEN: usize = DC_DESIRED_TEXT_LINE_LEN * DC_DESIRED_TEXT_LINES;
-
-// Flags for empty server job
-
-pub const DC_EMPTY_MVBOX: u32 = 0x01;
-pub const DC_EMPTY_INBOX: u32 = 0x02;
 
 // Flags for configuring IMAP and SMTP servers.
 // These flags are optional
@@ -220,21 +216,7 @@ pub const BALANCED_IMAGE_SIZE: u32 = 1280;
 pub const WORSE_IMAGE_SIZE: u32 = 640;
 
 // this value can be increased if the folder configuration is changed and must be redone on next program start
-pub const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
-
-// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is splitted to chunks.
-// this does not affect MIME'e `To:` header.
-// can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
-pub const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
-
-pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(u8)]
-pub enum KeyType {
-    Public = 0,
-    Private = 1,
-}
+pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 3;
 
 #[cfg(test)]
 mod tests {
@@ -260,13 +242,6 @@ mod tests {
         assert_eq!(KeyGenType::Default, KeyGenType::from_i32(0).unwrap());
         assert_eq!(KeyGenType::Rsa2048, KeyGenType::from_i32(1).unwrap());
         assert_eq!(KeyGenType::Ed25519, KeyGenType::from_i32(2).unwrap());
-    }
-
-    #[test]
-    fn test_keytype_values() {
-        // values may be written to disk and must not change
-        assert_eq!(KeyType::Public, KeyType::from_i32(0).unwrap());
-        assert_eq!(KeyType::Private, KeyType::from_i32(1).unwrap());
     }
 
     #[test]

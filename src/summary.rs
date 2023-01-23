@@ -1,5 +1,8 @@
 //! # Message summary for chatlist.
 
+use std::borrow::Cow;
+use std::fmt;
+
 use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::{Contact, ContactId};
@@ -9,8 +12,6 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::stock_str;
 use crate::tools::truncate;
-use std::borrow::Cow;
-use std::fmt;
 
 /// Prefix displayed before message and separated by ":" in the chatlist.
 #[derive(Debug)]

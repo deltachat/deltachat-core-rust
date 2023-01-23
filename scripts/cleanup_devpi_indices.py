@@ -2,12 +2,13 @@
 Remove old "dc" indices except for master which always stays.
 
 """
-from requests import Session
 import datetime
-import sys
 import subprocess
+import sys
 
-MAXDAYS=7
+from requests import Session
+
+MAXDAYS = 7
 
 session = Session()
 session.headers["Accept"] = "application/json"
@@ -54,7 +55,8 @@ def run():
             if not dates:
                 print(
                     "%s has no releases" % (baseurl + username + "/" + indexname),
-                    file=sys.stderr)
+                    file=sys.stderr,
+                )
                 date = datetime.datetime.now()
             else:
                 date = datetime.datetime(*max(dates))
@@ -67,6 +69,5 @@ def run():
             subprocess.check_call(["devpi", "index", "-y", "--delete", url])
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

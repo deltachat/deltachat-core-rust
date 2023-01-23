@@ -1,7 +1,6 @@
 use tokio::fs;
 
 use super::*;
-
 use crate::aheader::EncryptPreference;
 use crate::chat::get_chat_contacts;
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
@@ -425,11 +424,15 @@ async fn test_escaped_recipients() {
         .await
         .unwrap();
 
-    let carl_contact_id =
-        Contact::add_or_lookup(&t, "Carl", "carl@host.tld", Origin::IncomingUnknownFrom)
-            .await
-            .unwrap()
-            .0;
+    let carl_contact_id = Contact::add_or_lookup(
+        &t,
+        "Carl",
+        ContactAddress::new("carl@host.tld").unwrap(),
+        Origin::IncomingUnknownFrom,
+    )
+    .await
+    .unwrap()
+    .0;
 
     receive_imf(
         &t,
@@ -467,11 +470,15 @@ async fn test_cc_to_contact() {
         .await
         .unwrap();
 
-    let carl_contact_id =
-        Contact::add_or_lookup(&t, "garabage", "carl@host.tld", Origin::IncomingUnknownFrom)
-            .await
-            .unwrap()
-            .0;
+    let carl_contact_id = Contact::add_or_lookup(
+        &t,
+        "garabage",
+        ContactAddress::new("carl@host.tld").unwrap(),
+        Origin::IncomingUnknownFrom,
+    )
+    .await
+    .unwrap()
+    .0;
 
     receive_imf(
         &t,
@@ -2054,7 +2061,7 @@ async fn test_duplicate_message() -> Result<()> {
     let bob_contact_id = Contact::add_or_lookup(
         &alice,
         "Bob",
-        "bob@example.org",
+        ContactAddress::new("bob@example.org").unwrap(),
         Origin::IncomingUnknownFrom,
     )
     .await?
@@ -2109,9 +2116,14 @@ Second signature";
 async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
     let t = TestContext::new_alice().await;
     t.set_config(Config::ShowEmails, Some("2")).await?;
-    let bob_id = Contact::add_or_lookup(&t, "", "bob@example.net", Origin::IncomingUnknownCc)
-        .await?
-        .0;
+    let bob_id = Contact::add_or_lookup(
+        &t,
+        "",
+        ContactAddress::new("bob@example.net").unwrap(),
+        Origin::IncomingUnknownCc,
+    )
+    .await?
+    .0;
     let bob = Contact::load_from_db(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "");
     assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 0);
@@ -2523,13 +2535,8 @@ Second thread."#;
 
     // Alice adds Fiona to both ad hoc groups.
     let fiona = TestContext::new_fiona().await;
-    let (alice_fiona_contact_id, _) = Contact::add_or_lookup(
-        &alice,
-        "Fiona",
-        "fiona@example.net",
-        Origin::IncomingUnknownTo,
-    )
-    .await?;
+    let alice_fiona_contact = alice.add_or_lookup_contact(&fiona).await;
+    let alice_fiona_contact_id = alice_fiona_contact.id;
 
     chat::add_contact_to_chat(&alice, alice_first_msg.chat_id, alice_fiona_contact_id).await?;
     let alice_first_invite = alice.pop_sent_msg().await;

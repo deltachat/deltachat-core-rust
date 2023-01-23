@@ -32,7 +32,7 @@ def test_basic_imap_api(acfactory, tmpdir):
     imap2.shutdown()
 
 
-@pytest.mark.ignored
+@pytest.mark.ignored()
 def test_configure_generate_key(acfactory, lp):
     # A slow test which will generate new keys.
     acfactory.remove_preconfigured_keys()
@@ -88,7 +88,7 @@ def test_export_import_self_keys(acfactory, tmpdir, lp):
         lp.indent(dir.strpath + os.sep + name)
     lp.sec("importing into existing account")
     ac2.import_self_keys(dir.strpath)
-    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*", check_error=False)
+    (key_id2,) = ac2._evtracker.get_info_regex_groups(r".*stored.*KeyId\((.*)\).*")
     assert key_id2 == key_id
 
 
@@ -510,7 +510,7 @@ def test_send_and_receive_message_markseen(acfactory, lp):
             idle2.wait_for_seen()
 
         lp.step("1")
-        for i in range(2):
+        for _i in range(2):
             ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
             assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
             assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
@@ -529,7 +529,7 @@ def test_send_and_receive_message_markseen(acfactory, lp):
         pass  # mark_seen_messages() has generated events before it returns
 
 
-def test_moved_markseen(acfactory, lp):
+def test_moved_markseen(acfactory):
     """Test that message already moved to DeltaChat folder is marked as seen."""
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account(mvbox_move=True)
@@ -553,7 +553,7 @@ def test_moved_markseen(acfactory, lp):
         ac2.mark_seen_messages([msg])
         uid = idle2.wait_for_seen()
 
-    assert len([a for a in ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*")))]) == 1
+    assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True, uid=U(uid, "*"))))) == 1
 
 
 def test_message_override_sender_name(acfactory, lp):
@@ -832,7 +832,7 @@ def test_send_first_message_as_long_unicode_with_cr(acfactory, lp):
     lp.sec("sending multi-line non-unicode message from ac1 to ac2")
     text1 = (
         "hello\nworld\nthis is a very long message that should be"
-        + " wrapped using format=flowed and unwrapped on the receiver"
+        " wrapped using format=flowed and unwrapped on the receiver"
     )
     msg_out = chat.send_text(text1)
     assert not msg_out.is_encrypted()
@@ -894,7 +894,7 @@ def test_dont_show_emails(acfactory, lp):
 
         message in Drafts that is moved to Sent later
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
         ),
     )
     ac1.direct_imap.append(
@@ -908,7 +908,7 @@ def test_dont_show_emails(acfactory, lp):
 
         message in Sent
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
         ),
     )
     ac1.direct_imap.append(
@@ -922,7 +922,7 @@ def test_dont_show_emails(acfactory, lp):
 
         Unknown message in Spam
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
         ),
     )
     ac1.direct_imap.append(
@@ -936,7 +936,21 @@ def test_dont_show_emails(acfactory, lp):
 
         Unknown & malformed message in Spam
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
+        ),
+    )
+    ac1.direct_imap.append(
+        "Spam",
+        """
+        From: delta<address: inbox@nhroy.com>
+        Subject: subj
+        To: {}
+        Message-ID: <spam.message99@junk.org>
+        Content-Type: text/plain; charset=utf-8
+
+        Unknown & malformed message in Spam
+    """.format(
+            ac1.get_config("configured_addr"),
         ),
     )
     ac1.direct_imap.append(
@@ -950,7 +964,7 @@ def test_dont_show_emails(acfactory, lp):
 
         Actually interesting message in Spam
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
         ),
     )
     ac1.direct_imap.append(
@@ -964,7 +978,7 @@ def test_dont_show_emails(acfactory, lp):
 
         Unknown message in Junk
     """.format(
-            ac1.get_config("configured_addr")
+            ac1.get_config("configured_addr"),
         ),
     )
 
@@ -1698,7 +1712,7 @@ def test_system_group_msg_from_blocked_user(acfactory, lp):
     assert contact.is_blocked()
     chat_on_ac2.remove_contact(ac1)
     ac1._evtracker.get_matching("DC_EVENT_CHAT_MODIFIED")
-    assert not ac1.get_self_contact() in chat_on_ac1.get_contacts()
+    assert ac1.get_self_contact() not in chat_on_ac1.get_contacts()
 
 
 def test_set_get_group_image(acfactory, data, lp):
@@ -1772,7 +1786,7 @@ def test_connectivity(acfactory, lp):
 
     lp.sec(
         "Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, "
-        + "all messages are fetched"
+        "all messages are fetched",
     )
 
     ac1.direct_imap.select_config_folder("inbox")
@@ -2134,7 +2148,7 @@ def test_group_quote(acfactory, lp):
 
 
 @pytest.mark.parametrize(
-    "folder,move,expected_destination,",
+    ("folder", "move", "expected_destination"),
     [
         (
             "xyz",
@@ -2249,11 +2263,44 @@ def test_aeap_flow_verified(acfactory, lp):
     assert ac1new.get_config("addr") in [contact.addr for contact in msg_in_2.chat.get_contacts()]
 
 
+def test_archived_muted_chat(acfactory, lp):
+    """If an archived and muted chat receives a new message, DC_EVENT_MSGS_CHANGED for
+    DC_CHAT_ID_ARCHIVED_LINK must be generated if the chat had only seen messages previously.
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: send message to ac2")
+    chat.send_text("message0")
+
+    lp.sec("wait for ac2 to receive message")
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.text == "message0"
+    msg2.mark_seen()
+
+    chat2 = msg2.chat
+    chat2.archive()
+    chat2.mute()
+
+    lp.sec("ac1: send another message to ac2")
+    chat.send_text("message1")
+
+    lp.sec("wait for ac2 to receive DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK")
+    while 1:
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        if ev.data1 == const.DC_CHAT_ID_ARCHIVED_LINK:
+            assert ev.data2 == 0
+            archive = ac2.get_chat_by_id(const.DC_CHAT_ID_ARCHIVED_LINK)
+            assert archive.count_fresh_messages() == 1
+            assert chat2.count_fresh_messages() == 1
+            break
+
+
 class TestOnlineConfigureFails:
     def test_invalid_password(self, acfactory):
         configdict = acfactory.get_next_liveconfig()
         ac1 = acfactory.get_unconfigured_account()
-        ac1.update_config(dict(addr=configdict["addr"], mail_pw="123"))
+        ac1.update_config({"addr": configdict["addr"], "mail_pw": "123"})
         configtracker = ac1.configure()
         configtracker.wait_progress(500)
         configtracker.wait_progress(0)

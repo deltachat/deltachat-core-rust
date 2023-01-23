@@ -8,7 +8,7 @@ def with_doc(f):
 # copied over unmodified from
 # https://github.com/devpi/devpi/blob/master/common/devpi_common/types.py
 def cached(f):
-    """returns a cached property that is calculated by function f"""
+    """returns a cached property that is calculated by function f."""
 
     def get(self):
         try:
@@ -17,8 +17,9 @@ def cached(f):
             self._property_cache = {}
         except KeyError:
             pass
-        x = self._property_cache[f] = f(self)
-        return x
+        res = f(self)
+        self._property_cache[f] = res
+        return res
 
     def set(self, val):
         propcache = self.__dict__.setdefault("_property_cache", {})

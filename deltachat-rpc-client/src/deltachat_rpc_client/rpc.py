@@ -30,7 +30,7 @@ class Rpc:
             "deltachat-rpc-server",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            **self._kwargs
+            **self._kwargs,
         )
         self.id = 0
         self.event_queues = {}
@@ -46,7 +46,7 @@ class Rpc:
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, _exc_type, _exc, _tb):
         await self.close()
 
     async def reader_loop(self) -> None:
@@ -97,5 +97,6 @@ class Rpc:
                 raise JsonRpcError(response["error"])
             if "result" in response:
                 return response["result"]
+            return None
 
         return method

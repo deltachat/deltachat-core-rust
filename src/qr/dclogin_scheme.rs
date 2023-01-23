@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use crate::config::Config;
-use crate::context::Context;
-use crate::provider::Socket;
-use crate::{contact, login_param::CertificateChecks};
 use anyhow::{bail, Context as _, Result};
 use num_traits::cast::ToPrimitive;
 
 use super::{Qr, DCLOGIN_SCHEME};
+use crate::config::Config;
+use crate::context::Context;
+use crate::provider::Socket;
+use crate::{contact, login_param::CertificateChecks};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoginOptions {
@@ -221,9 +221,10 @@ pub(crate) async fn configure_from_login_qr(
 
 #[cfg(test)]
 mod test {
+    use anyhow::{self, bail};
+
     use super::{decode_login, LoginOptions};
     use crate::{login_param::CertificateChecks, provider::Socket, qr::Qr};
-    use anyhow::{self, bail};
 
     macro_rules! login_options_just_pw {
         ($pw: expr) => {

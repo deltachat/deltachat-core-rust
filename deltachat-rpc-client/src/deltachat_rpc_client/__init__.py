@@ -8,3 +8,18 @@ from .contact import Contact
 from .deltachat import DeltaChat
 from .message import Message
 from .rpc import Rpc
+
+__all__ = [
+    "Account",
+    "AttrDict",
+    "Bot",
+    "Chat",
+    "Client",
+    "Contact",
+    "DeltaChat",
+    "EventType",
+    "Message",
+    "Rpc",
+    "run_bot_cli",
+    "run_client_cli",
+]

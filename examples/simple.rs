@@ -1,5 +1,3 @@
-use tempfile::tempdir;
-
 use deltachat::chat::{self, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;
@@ -8,6 +6,7 @@ use deltachat::context::*;
 use deltachat::message::Message;
 use deltachat::stock_str::StockStrings;
 use deltachat::{EventType, Events};
+use tempfile::tempdir;
 
 fn cb(event: EventType) {
     match event {

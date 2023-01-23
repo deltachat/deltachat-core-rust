@@ -1,4 +1,4 @@
-""" Hooks for Python bindings to Delta Chat Core Rust CFFI"""
+"""Hooks for Python bindings to Delta Chat Core Rust CFFI."""
 
 import pluggy
 

@@ -89,9 +89,7 @@ class Account:
         """Configure an account."""
         await self._rpc.configure(self.id)
 
-    async def create_contact(
-        self, obj: Union[int, str, Contact], name: Optional[str] = None
-    ) -> Contact:
+    async def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
 
         Calling this method will always result in the same
@@ -120,10 +118,7 @@ class Account:
     async def get_blocked_contacts(self) -> List[AttrDict]:
         """Return a list with snapshots of all blocked contacts."""
         contacts = await self._rpc.get_blocked_contacts(self.id)
-        return [
-            AttrDict(contact=Contact(self, contact["id"]), **contact)
-            for contact in contacts
-        ]
+        return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
 
     async def get_contacts(
         self,
@@ -148,10 +143,7 @@ class Account:
 
         if snapshot:
             contacts = await self._rpc.get_contacts(self.id, flags, query)
-            return [
-                AttrDict(contact=Contact(self, contact["id"]), **contact)
-                for contact in contacts
-            ]
+            return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
         contacts = await self._rpc.get_contact_ids(self.id, flags, query)
         return [Contact(self, contact_id) for contact_id in contacts]
 
@@ -192,9 +184,7 @@ class Account:
         if alldone_hint:
             flags |= ChatlistFlag.ADD_ALLDONE_HINT
 
-        entries = await self._rpc.get_chatlist_entries(
-            self.id, flags, query, contact and contact.id
-        )
+        entries = await self._rpc.get_chatlist_entries(self.id, flags, query, contact and contact.id)
         if not snapshot:
             return [Chat(self, entry[0]) for entry in entries]
 

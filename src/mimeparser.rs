@@ -246,14 +246,17 @@ impl MimeMessage {
                     mail_raw = raw;
                     let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(context, "decrypted message mime-body:");
-                        println!("{}", String::from_utf8_lossy(&mail_raw));
+                        info!(
+                            context,
+                            "decrypted message mime-body:\n{}",
+                            String::from_utf8_lossy(&mail_raw),
+                        );
                     }
                     (Ok(decrypted_mail), signatures, true)
                 }
                 Ok(None) => (Ok(mail), HashSet::new(), false),
                 Err(err) => {
-                    warn!(context, "decryption failed: {}", err);
+                    warn!(context, "decryption failed: {:#}", err);
                     (Err(err), HashSet::new(), false)
                 }
             };
@@ -382,7 +385,7 @@ impl MimeMessage {
                         typ: Viewtype::Text,
                         msg_raw: Some(txt.clone()),
                         msg: txt,
-                        error: Some(format!("Decrypting failed: {}", err)),
+                        error: Some(format!("Decrypting failed: {:#}", err)),
                         ..Default::default()
                     };
                     parser.parts.push(part);
@@ -682,7 +685,7 @@ impl MimeMessage {
                     Err(err) => {
                         warn!(
                             context,
-                            "Could not save decoded avatar to blob file: {}", err
+                            "Could not save decoded avatar to blob file: {:#}", err
                         );
                         None
                     }
@@ -989,7 +992,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1009,7 +1012,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:?}", err);
+                                warn!(context, "Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1141,7 +1144,7 @@ impl MimeMessage {
             if filename.starts_with("location") || filename.starts_with("message") {
                 let parsed = location::Kml::parse(decoded_data)
                     .map_err(|err| {
-                        warn!(context, "failed to parse kml part: {}", err);
+                        warn!(context, "failed to parse kml part: {:#}", err);
                     })
                     .ok();
                 if filename.starts_with("location") {
@@ -1159,7 +1162,7 @@ impl MimeMessage {
             self.sync_items = context
                 .parse_sync_items(serialized)
                 .map_err(|err| {
-                    warn!(context, "failed to parse sync data: {}", err);
+                    warn!(context, "failed to parse sync data: {:#}", err);
                 })
                 .ok();
             return Ok(());
@@ -1181,7 +1184,7 @@ impl MimeMessage {
             Err(err) => {
                 error!(
                     context,
-                    "Could not add blob for mime part {}, error {}", filename, err
+                    "Could not add blob for mime part {}, error {:#}", filename, err
                 );
                 return Ok(());
             }
@@ -1226,7 +1229,7 @@ impl MimeMessage {
             Err(err) => {
                 warn!(
                     context,
-                    "PGP key attachment is not an ASCII-armored file: {}", err,
+                    "PGP key attachment is not an ASCII-armored file: {:#}", err
                 );
                 return Ok(false);
             }
@@ -1952,6 +1955,8 @@ where
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
+    use mailparse::ParsedMail;
+
     use super::*;
     use crate::{
         chatlist::Chatlist,
@@ -1961,7 +1966,6 @@ mod tests {
         receive_imf::receive_imf,
         test_utils::TestContext,
     };
-    use mailparse::ParsedMail;
 
     impl AvatarAction {
         pub fn is_change(&self) -> bool {
@@ -3147,7 +3151,7 @@ On 2020-10-25, Bob wrote:
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
         assert_eq!(msg.chat_blocked, Blocked::Request);
         assert_eq!(msg.state, MessageState::InFresh);
-        assert_eq!(msg.get_filebytes(&t).await, 2115);
+        assert_eq!(msg.get_filebytes(&t).await.unwrap().unwrap(), 2115);
         assert!(msg.get_file(&t).is_some());
         assert_eq!(msg.get_filename().unwrap(), "avatar64x64.png");
         assert_eq!(msg.get_width(), 64);

@@ -14,6 +14,7 @@ use chat::ChatItem;
 use once_cell::sync::Lazy;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
 
@@ -21,8 +22,8 @@ use crate::chat::{self, Chat, ChatId};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
-use crate::contact::{Contact, ContactId, Modifier, Origin};
+use crate::constants::{DC_GCL_NO_SPECIALS, DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
+use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
@@ -263,7 +264,6 @@ impl TestContext {
         Self::builder().configure_fiona().build().await
     }
 
-    #[allow(dead_code)]
     /// Print current chat state.
     pub async fn print_chats(&self) {
         println!("\n========== Chats of {}: ==========", self.name());
@@ -502,7 +502,7 @@ impl TestContext {
 
     /// Gets the most recent message over all chats.
     pub async fn get_last_msg(&self) -> Message {
-        let chats = Chatlist::try_load(&self.ctx, 0, None, None)
+        let chats = Chatlist::try_load(&self.ctx, DC_GCL_NO_SPECIALS, None, None)
             .await
             .expect("failed to load chatlist");
         // 0 is correct in the next line (as opposed to `chats.len() - 1`, which would be the last element):
@@ -523,13 +523,14 @@ impl TestContext {
             .await
             .unwrap_or_default()
             .unwrap_or_default();
-        let addr = other.ctx.get_primary_self_addr().await.unwrap();
+        let primary_self_addr = other.ctx.get_primary_self_addr().await.unwrap();
+        let addr = ContactAddress::new(&primary_self_addr).unwrap();
         // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
         // origin when creating this contact.
         let (contact_id, modified) =
-            Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
+            Contact::add_or_lookup(self, &name, addr, Origin::MailinglistAddress)
                 .await
-                .unwrap();
+                .expect("add_or_lookup");
         match modified {
             Modifier::None => (),
             Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),
@@ -699,6 +700,19 @@ impl Deref for TestContext {
 
     fn deref(&self) -> &Context {
         &self.ctx
+    }
+}
+
+impl Drop for TestContext {
+    fn drop(&mut self) {
+        task::block_in_place(move || {
+            if let Ok(handle) = Handle::try_current() {
+                // Print the chats if runtime still exists.
+                handle.block_on(async move {
+                    self.print_chats().await;
+                });
+            }
+        });
     }
 }
 
@@ -1078,5 +1092,13 @@ mod tests {
         alice.ctx.emit_event(EventType::Info("hello".into()));
         bob.ctx.emit_event(EventType::Info("there".into()));
         // panic!("Both fail");
+    }
+
+    /// Checks that dropping the `TestContext` after the runtime does not panic,
+    /// e.g. that `TestContext::drop` does not assume the runtime still exists.
+    #[test]
+    fn test_new_test_context() {
+        let runtime = tokio::runtime::Runtime::new().expect("unable to create tokio runtime");
+        runtime.block_on(TestContext::new());
     }
 }

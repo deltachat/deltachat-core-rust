@@ -30,12 +30,7 @@ class AttrDict(dict):
     """Dictionary that allows accessing values usin the "dot notation" as attributes."""
 
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__(
-            {
-                _camel_to_snake(key): _to_attrdict(value)
-                for key, value in dict(*args, **kwargs).items()
-            }
-        )
+        super().__init__({_camel_to_snake(key): _to_attrdict(value) for key, value in dict(*args, **kwargs).items()})
 
     def __getattr__(self, attr):
         if attr in self:
@@ -51,7 +46,7 @@ class AttrDict(dict):
 async def run_client_cli(
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """Run a simple command line app, using the given hooks.
 
@@ -65,7 +60,7 @@ async def run_client_cli(
 async def run_bot_cli(
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """Run a simple bot command line using the given hooks.
 
@@ -80,7 +75,7 @@ async def _run_cli(
     client_type: Type["Client"],
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     from .deltachat import DeltaChat
     from .rpc import Rpc
@@ -107,12 +102,9 @@ async def _run_cli(
         client = client_type(account, hooks)
         client.logger.debug("Running deltachat core %s", core_version)
         if not await client.is_configured():
-            assert (
-                args.email and args.password
-            ), "Account is not configured and email and password must be provided"
-            asyncio.create_task(
-                client.configure(email=args.email, password=args.password)
-            )
+            assert args.email, "Account is not configured and email must be provided"
+            assert args.password, "Account is not configured and password must be provided"
+            asyncio.create_task(client.configure(email=args.email, password=args.password))
         await client.run_forever()
 
 

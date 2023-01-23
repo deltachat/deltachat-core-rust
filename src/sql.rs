@@ -626,26 +626,26 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
-            "Housekeeping: cannot remove unusued files: {}", err
+            "Housekeeping: cannot remove unusued files: {:#}", err
         );
     }
 
     if let Err(err) = start_ephemeral_timers(context).await {
         warn!(
             context,
-            "Housekeeping: cannot start ephemeral timers: {}", err
+            "Housekeeping: cannot start ephemeral timers: {:#}", err
         );
     }
 
     if let Err(err) = prune_tombstones(&context.sql).await {
         warn!(
             context,
-            "Housekeeping: Cannot prune message tombstones: {}", err
+            "Housekeeping: Cannot prune message tombstones: {:#}", err
         );
     }
 
     if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {}", err)
+        warn!(context, "Failed to deduplicate peerstates: {:#}", err)
     }
 
     context.schedule_quota_update().await?;
@@ -874,10 +874,9 @@ pub fn repeat_vars(count: usize) -> String {
 mod tests {
     use async_channel as channel;
 
+    use super::*;
     use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
-
-    use super::*;
 
     #[test]
     fn test_maybe_add_file() {

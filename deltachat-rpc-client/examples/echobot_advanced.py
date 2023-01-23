@@ -27,9 +27,7 @@ async def log_error(event):
 
 @hooks.on(events.MemberListChanged)
 async def on_memberlist_changed(event):
-    logging.info(
-        "member %s was %s", event.member, "added" if event.member_added else "removed"
-    )
+    logging.info("member %s was %s", event.member, "added" if event.member_added else "removed")
 
 
 @hooks.on(events.GroupImageChanged)

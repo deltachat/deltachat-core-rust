@@ -9,7 +9,6 @@ use std::fmt;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Error, Result};
@@ -277,6 +276,12 @@ async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time
 /// - for INCOMING messages, the ID is taken from the Chat-Group-ID-header or from the Message-ID in the In-Reply-To: or References:-Header
 /// - the group-id should be a string with the characters [a-zA-Z0-9\-_]
 pub(crate) fn create_id() -> String {
+    const URL_SAFE_ENGINE: base64::engine::fast_portable::FastPortable =
+        base64::engine::fast_portable::FastPortable::from(
+            &base64::alphabet::URL_SAFE,
+            base64::engine::fast_portable::NO_PAD,
+        );
+
     // ThreadRng implements CryptoRng trait and is supposed to be cryptographically secure.
     let mut rng = thread_rng();
 
@@ -285,7 +290,7 @@ pub(crate) fn create_id() -> String {
     rng.fill(&mut arr[..]);
 
     // Take 11 base64 characters containing 66 random bits.
-    base64::encode_config(arr, base64::URL_SAFE)
+    base64::encode_engine(arr, &URL_SAFE_ENGINE)
         .chars()
         .take(11)
         .collect()
@@ -358,12 +363,10 @@ pub(crate) fn get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf
     }
 }
 
-pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> u64 {
+pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
     let path_abs = get_abs_path(context, &path);
-    match fs::metadata(&path_abs).await {
-        Ok(meta) => meta.len(),
-        Err(_err) => 0,
-    }
+    let meta = fs::metadata(&path_abs).await?;
+    Ok(meta.len())
 }
 
 pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
@@ -699,7 +702,6 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-
     use crate::{
         config::Config, message::get_msg_info, receive_imf::receive_imf, test_utils::TestContext,
     };
@@ -1004,10 +1006,11 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
 
-    use crate::chatlist::Chatlist;
-    use crate::{chat, test_utils};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use proptest::prelude::*;
+
+    use crate::chatlist::Chatlist;
+    use crate::{chat, test_utils};
 
     proptest! {
         #[test]
@@ -1049,7 +1052,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             .is_ok());
         assert!(file_exist!(context, "$BLOBDIR/foobar"));
         assert!(!file_exist!(context, "$BLOBDIR/foobarx"));
-        assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await, 7);
+        assert_eq!(get_filebytes(context, "$BLOBDIR/foobar").await.unwrap(), 7);
 
         let abs_path = context
             .get_blobdir()

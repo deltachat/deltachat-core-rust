@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
+use humansize::{format_size, BINARY};
 use strum::EnumProperty as EnumPropertyTrait;
 use strum_macros::EnumProperty;
 use tokio::sync::RwLock;
@@ -19,7 +20,6 @@ use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
 use crate::tools::timestamp_to_str;
-use humansize::{format_size, BINARY};
 
 #[derive(Debug, Clone)]
 pub struct StockStrings {
@@ -1308,12 +1308,11 @@ impl Accounts {
 mod tests {
     use num_traits::ToPrimitive;
 
+    use super::*;
     use crate::chat::delete_and_reset_all_device_msgs;
     use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use crate::test_utils::TestContext;
-
-    use super::*;
 
     #[test]
     fn test_enum_mapping() {

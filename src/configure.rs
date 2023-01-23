@@ -6,9 +6,12 @@ mod read_url;
 mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
+use auto_mozilla::moz_autoconfigure;
+use auto_outlook::outlk_autodiscover;
 use futures::FutureExt;
 use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
 
 use crate::config::Config;
@@ -27,10 +30,6 @@ use crate::socks::Socks5Config;
 use crate::stock_str;
 use crate::tools::{time, EmailAddress};
 use crate::{chat, e2ee, provider};
-
-use auto_mozilla::moz_autoconfigure;
-use auto_outlook::outlk_autodiscover;
-use server_params::{expand_param_vector, ServerParams};
 
 macro_rules! progress {
     ($context:tt, $progress:expr, $comment:expr) => {
@@ -565,13 +564,18 @@ async fn try_imap_one_param(
     provider_strict_tls: bool,
 ) -> Result<Imap, ConfigurationError> {
     let inf = format!(
-        "imap: {}@{}:{} security={} certificate_checks={} oauth2={}",
+        "imap: {}@{}:{} security={} certificate_checks={} oauth2={} socks5_config={}",
         param.user,
         param.server,
         param.port,
         param.security,
         param.certificate_checks,
-        param.oauth2
+        param.oauth2,
+        if let Some(socks5_config) = socks5_config {
+            socks5_config.to_string()
+        } else {
+            "None".to_string()
+        }
     );
     info!(context, "Trying: {}", inf);
 
@@ -661,6 +665,7 @@ async fn nicer_configuration_error(context: &Context, errors: Vec<ConfigurationE
 
     if errors.iter().all(|e| {
         e.msg.to_lowercase().contains("could not resolve")
+            || e.msg.to_lowercase().contains("no dns resolution results")
             || e.msg
                 .to_lowercase()
                 .contains("temporary failure in name resolution")
