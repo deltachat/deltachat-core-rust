@@ -28,7 +28,7 @@ This code used to live at [`deltachat-node`](https://github.com/deltachat/deltac
 
 ## Install
 
-By default the installation will build try to use the bundled prebuilds in the
+By default the installation will try to use the bundled prebuilds in the
 npm package. If this fails it falls back to compile `../deltachat-core-rust` from
 this repository, using `scripts/rebuild-core.js`.
 
