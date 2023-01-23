@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## Changes
+
+## Fixes
+
+## API-Changes
+
+
+## 1.107.0
+
 ### Changes
 - Pipeline SMTP commands #3924
 - Cache DNS results #3970
