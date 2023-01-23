@@ -1084,7 +1084,8 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
 
 
 /**
- * Return wether webxdc with `msg_id` is updating
+ * Checks if a webxdc has pending updates to be sent out.
+ 
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
  * @return 1=contact ID is member of chat ID, 0=contact is not in chat
