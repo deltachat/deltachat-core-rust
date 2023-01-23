@@ -7,7 +7,7 @@
 use std::time::{Duration, SystemTime};
 
 #[derive(Debug)]
-pub(crate) struct Ratelimit {
+pub struct Ratelimit {
     /// Time of the last update.
     last_update: SystemTime,
 
@@ -25,7 +25,7 @@ impl Ratelimit {
     /// Returns a new rate limiter with the given constraints.
     ///
     /// Rate limiter will allow to send no more than `quota` messages within duration `window`.
-    pub(crate) fn new(window: Duration, quota: f64) -> Self {
+    pub fn new(window: Duration, quota: f64) -> Self {
         Self::new_at(window, quota, SystemTime::now())
     }
 
@@ -57,7 +57,7 @@ impl Ratelimit {
     /// Returns true if can send another message now.
     ///
     /// This method takes mutable reference
-    pub(crate) fn can_send(&self) -> bool {
+    pub fn can_send(&self) -> bool {
         self.can_send_at(SystemTime::now())
     }
 
@@ -71,7 +71,7 @@ impl Ratelimit {
     /// It is possible to send message even if over quota, e.g. if the message sending is initiated
     /// by the user and should not be rate limited. However, sending messages when over quota
     /// further postpones the time when it will be allowed to send low priority messages.
-    pub(crate) fn send(&mut self) {
+    pub fn send(&mut self) {
         self.send_at(SystemTime::now())
     }
 
@@ -87,7 +87,7 @@ impl Ratelimit {
     }
 
     /// Calculates the time until `can_send` will return `true`.
-    pub(crate) fn until_can_send(&self) -> Duration {
+    pub fn until_can_send(&self) -> Duration {
         self.until_can_send_at(SystemTime::now())
     }
 }

@@ -11,6 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::chat::{get_chat_cnt, ChatId};
@@ -22,7 +23,6 @@ use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
-use crate::ratelimit::Ratelimit;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;

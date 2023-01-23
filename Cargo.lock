@@ -918,6 +918,7 @@ dependencies = [
  "r2d2",
  "r2d2_sqlite",
  "rand 0.8.5",
+ "ratelimit",
  "regex",
  "reqwest",
  "rusqlite",
@@ -2877,6 +2878,10 @@ checksum = "d25bf25ec5ae4a3f1b92f929810509a2f53d7dca2f50b794ff57e3face536c8f"
 dependencies = [
  "rand_core 0.6.3",
 ]
+
+[[package]]
+name = "ratelimit"
+version = "1.0.0"
 
 [[package]]
 name = "rayon"

@@ -103,7 +103,6 @@ mod color;
 pub mod html;
 mod net;
 pub mod plaintext;
-mod ratelimit;
 pub mod summary;
 
 pub mod receive_imf;
