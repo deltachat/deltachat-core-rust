@@ -405,11 +405,6 @@ impl Context {
             )
             .await?;
 
-        self.emit_event(EventType::WebxdcUpdateStateChanged {
-            msg_id: instance.id,
-            is_sending: true,
-        });
-
         if send_now {
             self.sql.insert(
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
@@ -417,6 +412,12 @@ impl Context {
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 paramsv![instance.id, status_update_serial, status_update_serial, descr],
             ).await?;
+
+            self.emit_event(EventType::WebxdcUpdateStateChanged {
+                msg_id: instance.id,
+                has_pending_updates: true,
+            });
+
             self.interrupt_smtp(InterruptInfo::new(false)).await;
         }
         Ok(())
@@ -477,7 +478,7 @@ impl Context {
         for msg_id in update_needed.difference(&update_needed_after_sending) {
             self.emit_event(EventType::WebxdcUpdateStateChanged {
                 msg_id: *msg_id,
-                is_sending: false,
+                has_pending_updates: false,
             })
         }
         Ok(())
@@ -2456,7 +2457,7 @@ sth_for_the = "future""#
                 matches!(
                     evt,
                     EventType::WebxdcUpdateStateChanged {
-                        is_sending: true,
+                        has_pending_updates: true,
                         ..
                     }
                 )
@@ -2471,7 +2472,7 @@ sth_for_the = "future""#
                 matches!(
                     evt,
                     EventType::WebxdcUpdateStateChanged {
-                        is_sending: false,
+                        has_pending_updates: false,
                         ..
                     }
                 )

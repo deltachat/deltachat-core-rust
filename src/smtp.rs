@@ -21,7 +21,6 @@ use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::socks::Socks5Config;
 use crate::sql;
-
 use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout in seconds.

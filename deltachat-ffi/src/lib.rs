@@ -521,7 +521,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::SelfavatarChanged => 2110,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
-        EventType::WebxdcUpdateStateChanged { .. } => 2017,
+        EventType::WebxdcUpdateStateChanged { .. } => 2122,
     }
 }
 
@@ -621,7 +621,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
             ..
         } => status_update_serial.to_u32() as libc::c_int,
         EventType::WebxdcUpdateStateChanged {
-            is_sending: is_send,
+            has_pending_updates: is_send,
             ..
         } => *is_send as libc::c_int,
     }

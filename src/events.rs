@@ -324,6 +324,6 @@ pub enum EventType {
     /// Informs that the webxdc changed its update sending state
     WebxdcUpdateStateChanged {
         msg_id: MsgId,
-        is_sending: bool,
+        has_pending_updates: bool,
     },
 }

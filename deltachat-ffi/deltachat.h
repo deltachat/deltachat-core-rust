@@ -1088,7 +1088,7 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  
  * @param context The context object.
  * @param msg_id The ID of the message with the webxdc instance.
- * @return 1=contact ID is member of chat ID, 0=contact is not in chat
+ * @return 1 = webxdc is updating , 0 = webxdc is not updating
  */
 int   dc_is_webxdc_updating        (dc_context_t* context, uint32_t msg_id);
 
@@ -5892,7 +5892,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 (int) msg_id
  * @param data1 (int) is_sending
  */
-#define DC_EVENT_WEBXDC_UPDATE_STATE_CHANGED      2017
+#define DC_EVENT_WEBXDC_UPDATE_STATE_CHANGED      2122
 
 /**
  * @}
