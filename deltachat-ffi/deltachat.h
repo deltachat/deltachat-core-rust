@@ -1089,7 +1089,7 @@ char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint
  * @param msg_id The ID of the message with the webxdc instance.
  * @return 1=contact ID is member of chat ID, 0=contact is not in chat
  */
-int   dc_is_webxdc_updating        (dc_context_t* context, uint32_t chat_id);
+int   dc_is_webxdc_updating        (dc_context_t* context, uint32_t msg_id);
 
 
 /**
