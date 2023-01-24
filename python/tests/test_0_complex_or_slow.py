@@ -537,3 +537,54 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     msg_in = ac1_offl._evtracker.wait_next_incoming_message()
     assert msg_in.text == msg_out.text
     assert msg_in.get_sender_contact().addr == ac2_addr
+
+    ac1.set_config("bcc_self", "0")
+
+
+def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
+    """Another test for the bug #3836:
+    - Bob has two devices, the second is offline.
+    - Alice creates a verified group and sends a QR invitation to Bob.
+    - Bob joins the group.
+    - Bob's second devices goes online, but sees a contact request instead of the verified group.
+    - The "member added" message is not a system message but a plain text message.
+    - Sending a message fails as the key is missing -- message info says "proper enc-key for <Alice>
+      missing, cannot encrypt".
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac2_offl = acfactory.new_online_configuring_account(cloned_from=ac2)
+    for ac in [ac2, ac2_offl]:
+        ac.set_config("bcc_self", "1")
+    acfactory.bring_accounts_online()
+    dir = tmpdir.mkdir("exportdir")
+    ac2.export_self_keys(dir.strpath)
+    ac2_offl.import_self_keys(dir.strpath)
+    ac2_offl.stop_io()
+
+    lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+    chat = ac1.create_group_chat("hello", verified=True)
+    assert chat.is_protected()
+    qr = chat.get_join_qr()
+    lp.sec("ac2: start QR-code based join-group protocol")
+    ac2.qr_join_chat(qr)
+    ac1._evtracker.wait_securejoin_inviter_progress(1000)
+
+    lp.sec("ac2_offl: going online, checking the 'member added' message")
+    ac2_offl.start_io()
+    # Receive "Member Me (<addr>) added by <addr>." message.
+    msg_in = ac2_offl._evtracker.wait_next_incoming_message()
+    assert msg_in.is_system_message()
+    assert msg_in.get_sender_contact().addr == ac1.get_config("addr")
+    chat2 = msg_in.chat
+    assert chat2.is_protected()
+
+    lp.sec("ac2_offl: sending message")
+    msg_out = chat2.send_text("hello")
+
+    lp.sec("ac1: receiving message")
+    msg_in = ac1._evtracker.wait_next_incoming_message()
+    assert msg_in.chat == chat
+    assert msg_in.get_sender_contact().addr == ac2.get_config("addr")
+    assert msg_in.text == msg_out.text
+
+    ac2.set_config("bcc_self", "0")
