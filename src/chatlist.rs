@@ -1,7 +1,5 @@
 //! # Chat list module.
 
-#![allow(missing_docs)]
-
 use anyhow::{ensure, Context as _, Result};
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
@@ -341,10 +339,12 @@ impl Chatlist {
         }
     }
 
+    /// Returns chatlist item position for the given chat ID.
     pub fn get_index_for_id(&self, id: ChatId) -> Option<usize> {
         self.ids.iter().position(|(chat_id, _)| chat_id == &id)
     }
 
+    /// An iterator visiting all chatlist items.
     pub fn iter(&self) -> impl Iterator<Item = &(ChatId, Option<MsgId>)> {
         self.ids.iter()
     }
