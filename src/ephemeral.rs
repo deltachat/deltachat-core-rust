@@ -62,8 +62,6 @@
 //! the database entries which are expired either according to their
 //! ephemeral message timers or global `delete_server_after` setting.
 
-#![allow(missing_docs)]
-
 use std::cmp::max;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
@@ -88,13 +86,25 @@ use crate::sql::{self, params_iter};
 use crate::stock_str;
 use crate::tools::{duration_to_str, time};
 
+/// Ephemeral timer value.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum Timer {
+    /// Timer is disabled.
     Disabled,
-    Enabled { duration: u32 },
+
+    /// Timer is enabled.
+    Enabled {
+        /// Timer duration in seconds.
+        ///
+        /// The value cannot be 0.
+        duration: u32,
+    },
 }
 
 impl Timer {
+    /// Converts epehmeral timer value to integer.
+    ///
+    /// If the timer is disabled, return 0.
     pub fn to_u32(self) -> u32 {
         match self {
             Self::Disabled => 0,
@@ -102,6 +112,9 @@ impl Timer {
         }
     }
 
+    /// Converts integer to ephemeral timer value.
+    ///
+    /// 0 value is treated as disabled timer.
     pub fn from_u32(duration: u32) -> Self {
         if duration == 0 {
             Self::Disabled
