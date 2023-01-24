@@ -694,12 +694,9 @@ impl<'a> MimeFactory<'a> {
                 && self.should_do_gossip(context).await?
             {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
-                    if peerstate.peek_key(min_verified).is_some() {
-                        if let Some(header) = peerstate.render_gossip_header(min_verified) {
-                            message =
-                                message.header(Header::new("Autocrypt-Gossip".into(), header));
-                            is_gossiped = true;
-                        }
+                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
+                        message = message.header(Header::new("Autocrypt-Gossip".into(), header));
+                        is_gossiped = true;
                     }
                 }
             }
