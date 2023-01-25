@@ -640,7 +640,7 @@ impl Peerstate {
 /// AEAP stands for "Automatic Email Address Porting."
 ///
 /// In `drafts/aeap_mvp.md` there is a "big picture" overview over AEAP.
-pub async fn maybe_do_aeap_transition(
+pub(crate) async fn maybe_do_aeap_transition(
     context: &Context,
     mime_parser: &mut crate::mimeparser::MimeMessage,
 ) -> Result<()> {
