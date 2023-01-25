@@ -16,7 +16,7 @@ use crate::login_param::build_tls;
 use crate::net::connect_tcp;
 use crate::socks::Socks5Config;
 
-/// IMAP write and read timeout in seconds.
+/// IMAP write and read timeout.
 pub(crate) const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
