@@ -283,7 +283,11 @@ impl ChatId {
         let chat_id = ChatId::new(u32::try_from(row_id)?);
         info!(
             context,
-            "Created group/mailinglist '{}' grpid={} as {}", grpname, grpid, chat_id
+            "Created group/mailinglist '{}' grpid={} as {}, blocked={}",
+            grpname,
+            grpid,
+            chat_id,
+            create_blocked,
         );
 
         Ok(chat_id)
