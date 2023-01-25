@@ -1398,10 +1398,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         // Run housekeeping to delete unused blobs.
         // We need to use set_raw_config() here since with set_config() it
         // wouldn't compile ("recursion in an `async fn`")
-        context
-            .sql
-            .set_raw_config(Config::LastHousekeeping.as_ref(), None)
-            .await?;
+        context.set_config(Config::LastHousekeeping, None).await?;
     }
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.

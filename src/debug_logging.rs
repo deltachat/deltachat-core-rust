@@ -88,8 +88,11 @@ pub async fn maybe_set_logging_xdc_inner(
 ) -> anyhow::Result<()> {
     if viewtype == Viewtype::Webxdc {
         if let Ok(Some(file)) = file {
-            if let Some(file_name) = file.file_name() {
-                if file_name == "debug_logging.xdc" && chat_id.is_self_talk(context).await? {
+            if let Some(file_name) = file.file_name().and_then(|name| name.to_str()) {
+                if file_name.starts_with("debug_logging")
+                    && file_name.ends_with(".xdc")
+                    && chat_id.is_self_talk(context).await?
+                {
                     set_debug_logging_xdc(context, Some(msg_id)).await?;
                 }
             }
@@ -137,6 +140,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                 .set_raw_config(Config::DebugLogging.as_ref(), None)
                 .await?;
             *ctx.debug_logging.write().await = None;
+            info!(ctx, "removing logging webxdc");
         }
     }
     Ok(())
