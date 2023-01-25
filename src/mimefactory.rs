@@ -364,7 +364,11 @@ impl<'a> MimeFactory<'a> {
                 if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
                     Ok(true)
                 } else {
-                    Ok(self.msg.param.get_cmd() == SystemMessage::MemberAddedToGroup)
+                    let cmd = self.msg.param.get_cmd();
+                    // Do gossip in all Securejoin messages not to complicate the code. There's no
+                    // need in gossips in "vg-auth-required" messages f.e., but let them be.
+                    Ok(cmd == SystemMessage::MemberAddedToGroup
+                        || cmd == SystemMessage::SecurejoinMessage)
                 }
             }
             Loaded::Mdn { .. } => Ok(false),
