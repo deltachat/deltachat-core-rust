@@ -12,6 +12,8 @@ use tokio_io_timeout::TimeoutStream;
 use crate::context::Context;
 use crate::tools::time;
 
+pub(crate) mod session;
+
 async fn connect_tcp_inner(addr: SocketAddr, timeout_val: Duration) -> Result<TcpStream> {
     let tcp_stream = timeout(timeout_val, TcpStream::connect(addr))
         .await

@@ -10,10 +10,10 @@ use tokio::io::BufWriter;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
-use super::session::SessionStream;
 use crate::context::Context;
 use crate::login_param::build_tls;
 use crate::net::connect_tcp;
+use crate::net::session::SessionStream;
 use crate::socks::Socks5Config;
 
 /// IMAP write and read timeout.
