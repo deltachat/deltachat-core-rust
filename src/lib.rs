@@ -105,6 +105,7 @@ mod net;
 pub mod plaintext;
 pub mod summary;
 
+mod debug_logging;
 pub mod receive_imf;
 pub mod tools;
 

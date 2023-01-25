@@ -19,6 +19,7 @@ use crate::contact::{
     may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin, VerifiedStatus,
 };
 use crate::context::Context;
+use crate::debug_logging::maybe_set_logging_xdc_inner;
 use crate::download::DownloadState;
 use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -1229,6 +1230,18 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
     drop(conn);
+
+    // check all parts wheter they contain a new logging webxdc
+    for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {
+        maybe_set_logging_xdc_inner(
+            context,
+            part.typ,
+            chat_id,
+            part.param.get_path(Param::File, context),
+            *msg_id,
+        )
+        .await?;
+    }
 
     if let Some(replace_msg_id) = replace_msg_id {
         // "Replace" placeholder with a message that has no parts.

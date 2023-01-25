@@ -3,7 +3,7 @@
 #![allow(missing_docs)]
 
 use anyhow::{ensure, Context as _, Result};
-use strum::{EnumProperty as EnumPropertyTrait, IntoEnumIterator};
+use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
@@ -192,6 +192,11 @@ pub enum Config {
     ///
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
+
+    /// Let the core save all events to the database.
+    /// This value is used internally to remember the MsgId of the logging xdc
+    #[strum(props(default = "0"))]
+    DebugLogging,
 }
 
 impl Context {

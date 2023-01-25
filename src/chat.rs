@@ -23,6 +23,7 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
+use crate::debug_logging::maybe_set_logging_xdc;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
@@ -1192,6 +1193,7 @@ impl Chat {
         Ok(chat)
     }
 
+    /// Returns whether this is the `saved messages` chat
     pub fn is_self_talk(&self) -> bool {
         self.param.exists(Param::Selftalk)
     }
@@ -1498,7 +1500,6 @@ impl Chat {
         }
 
         // add independent location to database
-
         if msg.param.exists(Param::SetLatitude) {
             if let Ok(row_id) = context
                 .sql
@@ -1542,7 +1543,6 @@ impl Chat {
         };
 
         // add message to the database
-
         if let Some(update_msg_id) = update_msg_id {
             context
                 .sql
@@ -1624,6 +1624,8 @@ impl Chat {
                 )
                 .await?;
             msg.id = MsgId::new(u32::try_from(raw_id)?);
+
+            maybe_set_logging_xdc(context, msg, self.id).await?;
         }
         context.interrupt_ephemeral_task().await;
         Ok(msg.id)
@@ -2030,6 +2032,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     Ok(())
 }
 
+/// Prepares a message to be send out
+/// - Checks if chat can be sent to
 async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,

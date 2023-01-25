@@ -15,6 +15,7 @@ use crate::constants::{
 };
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
+use crate::debug_logging::set_debug_logging_xdc;
 use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
@@ -398,6 +399,7 @@ impl Message {
         self.param.get_path(Param::File, context).unwrap_or(None)
     }
 
+    /// If message is an image or gif, set Param::Width and Param::Height
     pub(crate) async fn try_calc_and_set_dimensions(&mut self, context: &Context) -> Result<()> {
         if self.viewtype.has_file() {
             let file_param = self.param.get_path(Param::File, context)?;
@@ -1375,12 +1377,27 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
                 paramsv![msg.rfc724_mid],
             )
             .await?;
+
+        let logging_xdc_id = context
+            .debug_logging
+            .read()
+            .await
+            .as_ref()
+            .map(|dl| dl.msg_id);
+
+        if let Some(id) = logging_xdc_id {
+            if id == *msg_id {
+                set_debug_logging_xdc(context, None).await?;
+            }
+        }
     }
 
     if !msg_ids.is_empty() {
         context.emit_msgs_changed_without_ids();
 
         // Run housekeeping to delete unused blobs.
+        // We need to use set_raw_config() here since with set_config() it
+        // wouldn't compile ("recursion in an `async fn`")
         context.set_config(Config::LastHousekeeping, None).await?;
     }
 

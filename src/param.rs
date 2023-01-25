@@ -129,6 +129,7 @@ pub enum Param {
     ProfileImage = b'i',
 
     /// For Chats
+    /// Signals wheter the chat is the `saved messages` chat
     Selftalk = b'K',
 
     /// For Chats: On sending a new message we set the subject to `Re: <last subject>`.
