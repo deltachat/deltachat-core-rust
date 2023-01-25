@@ -3684,7 +3684,6 @@ mod tests {
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{TestContext, TestContextManager};
 
-
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
         let t = TestContext::new().await;

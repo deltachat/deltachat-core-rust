@@ -724,7 +724,7 @@ impl MimeMessage {
     }
 
     /// Returns whether the email contains a `chat-version` header.
-    /// This indicates that email is a DC-email from a chat.
+    /// This indicates that the email is a DC-email from a chat.
     pub(crate) fn has_chat_version(&self) -> bool {
         self.header.contains_key("chat-version")
     }
