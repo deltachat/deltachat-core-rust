@@ -5,6 +5,7 @@
 ## Changes
 
 ## Fixes
+- Fix Securejoin for multiple devices on a joining side #3982
 
 ## API-Changes
 

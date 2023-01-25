@@ -561,7 +561,9 @@ pub(crate) async fn observe_securejoin_on_other_device(
     info!(context, "observing secure-join message \'{}\'", step);
 
     match step.as_str() {
-        "vg-member-added"
+        "vg-request-with-auth"
+        | "vc-request-with-auth"
+        | "vg-member-added"
         | "vc-contact-confirm"
         | "vg-member-added-received"
         | "vc-contact-confirm-received" => {
@@ -675,6 +677,12 @@ pub(crate) async fn observe_securejoin_on_other_device(
             }
             if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
                 inviter_progress!(context, contact_id, 1000);
+            }
+            if step.as_str() == "vg-request-with-auth" || step.as_str() == "vc-request-with-auth" {
+                // This actually reflects what happens on the first device (which does the secure
+                // join) and causes a subsequent "vg-member-added" message to create an unblocked
+                // verified group.
+                ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Not).await?;
             }
             Ok(if step.as_str() == "vg-member-added" {
                 HandshakeMessage::Propagate
