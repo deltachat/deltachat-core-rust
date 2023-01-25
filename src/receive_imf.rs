@@ -1616,118 +1616,118 @@ async fn apply_group_changes(
     to_ids: &[ContactId],
 ) -> Result<Option<String>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
+
     if chat.typ != Chattype::Group {
         return Ok(None);
     }
 
-    let mut recreate_member_list = match mime_parser.get_header(HeaderDef::InReplyTo) {
-        Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-        Some(_) => !is_contact_in_chat(context, chat_id, ContactId::SELF).await?,
-        None => true,
+    let is_self_in_chat = chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?;
+    let mut send_event_chat_modified = false;
+    let mut removed_id = None;
+    let mut better_msg = None;
+
+    let mut recreate_member_list = if !mime_parser.has_chat_version() {
+        true
+    } else {
+        match mime_parser.get_header(HeaderDef::InReplyTo) {
+            Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
+            Some(_) => !is_self_in_chat,
+            _ => false,
+        }
     };
 
-    let mut send_event_chat_modified = false;
-
-    let mut better_msg = None;
-    let removed_id;
     if let Some(removed_addr) = mime_parser
         .get_header(HeaderDef::ChatGroupMemberRemoved)
         .cloned()
     {
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
-        match removed_id {
-            Some(contact_id) => {
-                if !recreate_member_list {
-                    chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
-                    chat_id
-                        .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-                        .await?;
-                    send_event_chat_modified = true;
-                }
-
-                better_msg = if contact_id == from_id {
-                    Some(stock_str::msg_group_left(context, from_id).await)
-                } else {
-                    Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
-                };
+        if let Some(contact_id) = removed_id {
+            // remove a single member from the chat only if the received message is not outdated
+            if !recreate_member_list
+                && chat_id
+                    .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                    .await?
+            {
+                chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+                send_event_chat_modified = true;
             }
-            None => {
+
+            better_msg = if contact_id == from_id {
+                Some(stock_str::msg_group_left(context, from_id).await)
+            } else {
+                Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
+            };
+        }
+    } else if let Some(added_addr) = mime_parser
+        .get_header(HeaderDef::ChatGroupMemberAdded)
+        .cloned()
+    {
+        better_msg = Some(stock_str::msg_add_member(context, &added_addr, from_id).await);
+
+        // If we got added to the group ourselves, we have to recreate the memberlist
+        if let Some(self_addr) = context.get_config(Config::Addr).await? {
+            if self_addr == added_addr {
                 recreate_member_list = true;
-                warn!(context, "removed {:?} has no contact_id", removed_addr)
             }
         };
-    } else {
-        removed_id = None;
-        if let Some(added_member) = mime_parser
-            .get_header(HeaderDef::ChatGroupMemberAdded)
-            .cloned()
-        {
-            better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
 
-            if !recreate_member_list {
-                if let Some(contact_id) =
-                    Contact::lookup_id_by_addr(context, &added_member, Origin::Unknown).await?
-                {
-                    chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
-                    chat_id
-                        .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-                        .await?;
-                    send_event_chat_modified = true;
-                } else {
-                    recreate_member_list = true;
-                }
-            }
-        } else if let Some(old_name) = mime_parser
-            .get_header(HeaderDef::ChatGroupNameChanged)
-            // See create_or_lookup_group() for explanation
-            .map(|s| s.trim())
-        {
-            if let Some(grpname) = mime_parser
-                .get_header(HeaderDef::ChatGroupName)
-                // See create_or_lookup_group() for explanation
-                .map(|grpname| grpname.trim())
-                .filter(|grpname| grpname.len() < 200)
+        // add a single member to the chat only if the received message is not outdated
+        if !recreate_member_list {
+            if let Some(contact_id) =
+                Contact::lookup_id_by_addr(context, &added_addr, Origin::Unknown).await?
             {
                 if chat_id
-                    .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                    .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
                     .await?
                 {
-                    info!(context, "updating grpname for chat {}", chat_id);
-                    context
-                        .sql
-                        .execute(
-                            "UPDATE chats SET name=? WHERE id=?;",
-                            paramsv![grpname.to_string(), chat_id],
-                        )
-                        .await?;
+                    chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
                     send_event_chat_modified = true;
-                }
-
-                better_msg =
-                    Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
-            }
-        } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
-            if value == "group-avatar-changed" {
-                if let Some(avatar_action) = &mime_parser.group_avatar {
-                    // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages
-                    better_msg = match avatar_action {
-                        AvatarAction::Delete => {
-                            Some(stock_str::msg_grp_img_deleted(context, from_id).await)
-                        }
-                        AvatarAction::Change(_) => {
-                            Some(stock_str::msg_grp_img_changed(context, from_id).await)
-                        }
-                    };
                 }
             }
         }
-    }
+    } else if let Some(old_name) = mime_parser
+        .get_header(HeaderDef::ChatGroupNameChanged)
+        // See create_or_lookup_group() for explanation
+        .map(|s| s.trim())
+    {
+        if let Some(grpname) = mime_parser
+            .get_header(HeaderDef::ChatGroupName)
+            // See create_or_lookup_group() for explanation
+            .map(|grpname| grpname.trim())
+            .filter(|grpname| grpname.len() < 200)
+        {
+            if chat_id
+                .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                .await?
+            {
+                info!(context, "updating grpname for chat {}", chat_id);
+                context
+                    .sql
+                    .execute(
+                        "UPDATE chats SET name=? WHERE id=?;",
+                        paramsv![grpname.to_string(), chat_id],
+                    )
+                    .await?;
+                send_event_chat_modified = true;
+            }
 
-    if !mime_parser.has_chat_version() {
-        // If a classical MUA user adds someone to TO/CC, then the DC user shall
-        // see this addition and have the new recipient in the member list.
-        recreate_member_list = true;
+            better_msg = Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+        }
+    } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
+        if value == "group-avatar-changed" {
+            if let Some(avatar_action) = &mime_parser.group_avatar {
+                // this is just an explicit message containing the group-avatar,
+                // apart from that, the group-avatar is send along with various other messages
+                better_msg = match avatar_action {
+                    AvatarAction::Delete => {
+                        Some(stock_str::msg_grp_img_deleted(context, from_id).await)
+                    }
+                    AvatarAction::Change(_) => {
+                        Some(stock_str::msg_grp_img_changed(context, from_id).await)
+                    }
+                };
+            }
+        }
     }
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
@@ -1746,52 +1746,48 @@ async fn apply_group_changes(
     }
 
     // add members to group/check members
-    if recreate_member_list {
-        if chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-            && !chat::is_contact_in_chat(context, chat_id, from_id).await?
-        {
+    if recreate_member_list
+        && chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+    {
+        if is_self_in_chat && !chat::is_contact_in_chat(context, chat_id, from_id).await? {
             warn!(
                 context,
                 "Contact {} attempts to modify group chat {} member list without being a member.",
                 from_id,
                 chat_id
             );
-        } else if chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-        {
-            let mut members_to_add = vec![];
-            if removed_id.is_some()
-                || !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-            {
-                // Members could have been removed while we were
-                // absent. We can't use existing member list and need to
-                // start from scratch.
-                context
-                    .sql
-                    .execute(
-                        "DELETE FROM chats_contacts WHERE chat_id=?;",
-                        paramsv![chat_id],
-                    )
-                    .await?;
+        } else {
+            // clear chat contacts
+            context
+                .sql
+                .execute(
+                    "DELETE FROM chats_contacts WHERE chat_id=?;",
+                    paramsv![chat_id],
+                )
+                .await?;
 
-                members_to_add.push(ContactId::SELF);
-            }
+            let mut members_to_add = HashSet::new();
+            members_to_add.extend(to_ids);
+
+            members_to_add.insert(ContactId::SELF);
 
             if !from_id.is_special() {
-                members_to_add.push(from_id);
+                members_to_add.insert(from_id);
             }
-            members_to_add.extend(to_ids);
+
             if let Some(removed_id) = removed_id {
-                members_to_add.retain(|id| *id != removed_id);
+                members_to_add.remove(&removed_id);
             }
-            members_to_add.dedup();
 
             info!(
                 context,
                 "adding {:?} to chat id={}", members_to_add, chat_id
             );
-            chat::add_to_chat_contacts_table(context, chat_id, &members_to_add).await?;
+
+            chat::add_to_chat_contacts_table(context, chat_id, &Vec::from_iter(members_to_add))
+                .await?;
             send_event_chat_modified = true;
         }
     }
