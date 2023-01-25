@@ -1237,7 +1237,9 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
             context,
             part.typ,
             chat_id,
-            part.param.get_path(Param::File, context),
+            part.param
+                .get_path(Param::File, context)
+                .unwrap_or_default(),
             *msg_id,
         )
         .await?;

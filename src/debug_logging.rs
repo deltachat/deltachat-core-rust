@@ -70,7 +70,7 @@ pub async fn maybe_set_logging_xdc(
         context,
         msg.get_viewtype(),
         chat_id,
-        msg.param.get_path(Param::File, context),
+        msg.param.get_path(Param::File, context).unwrap_or_default(),
         msg.get_id(),
     )
     .await?;
@@ -83,11 +83,11 @@ pub async fn maybe_set_logging_xdc_inner(
     context: &Context,
     viewtype: Viewtype,
     chat_id: ChatId,
-    file: anyhow::Result<Option<PathBuf>>,
+    file: Option<PathBuf>,
     msg_id: MsgId,
 ) -> anyhow::Result<()> {
     if viewtype == Viewtype::Webxdc {
-        if let Ok(Some(file)) = file {
+        if let Some(file) = file {
             if let Some(file_name) = file.file_name().and_then(|name| name.to_str()) {
                 if file_name.starts_with("debug_logging")
                     && file_name.ends_with(".xdc")
