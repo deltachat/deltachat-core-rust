@@ -32,7 +32,7 @@ ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1"
 async-imap = { git = "https://github.com/async-email/async-imap", branch = "master", default-features = false, features = ["runtime-tokio"] }
 async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
-async-smtp = { version = "0.6", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
+async-smtp = { version = "0.8", default-features = false, features = ["runtime-tokio"] }
 trust-dns-resolver = "0.22"
 tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
@@ -157,7 +157,6 @@ internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term", "dirs"]
 vendored = [
   "async-native-tls/vendored",
-  "async-smtp/native-tls-vendored",
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]

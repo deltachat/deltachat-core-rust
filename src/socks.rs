@@ -5,7 +5,6 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use anyhow::Result;
-pub use async_smtp::ServerAddress;
 use fast_socks5::client::{Config, Socks5Stream};
 use fast_socks5::util::target_addr::ToTargetAddr;
 use fast_socks5::AuthenticationMethod;
@@ -86,14 +85,6 @@ impl Socks5Config {
             .await?;
 
         Ok(socks_stream)
-    }
-
-    pub fn to_async_smtp_socks5_config(&self) -> async_smtp::smtp::Socks5Config {
-        async_smtp::smtp::Socks5Config {
-            host: self.host.clone(),
-            port: self.port,
-            user_password: self.user_password.clone(),
-        }
     }
 }
 

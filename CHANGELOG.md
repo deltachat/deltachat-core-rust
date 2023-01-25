@@ -3,6 +3,8 @@
 ## Unreleased
 
 ## Changes
+- Use read/write timeouts instead of per-command timeouts for SMTP #3985
+- Cache DNS results for SMTP connections #3985
 
 ## Fixes
 - Fix Securejoin for multiple devices on a joining side #3982
@@ -23,7 +25,7 @@
 
 ### Changes
 - Pipeline SMTP commands #3924
-- Cache DNS results #3970
+- Cache DNS results for IMAP connections #3970
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914

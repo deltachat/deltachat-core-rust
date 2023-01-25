@@ -47,6 +47,7 @@ async def test_configure_starttls(acfactory) -> None:
 
     # Use STARTTLS
     await account.set_config("mail_security", "2")
+    await account.set_config("send_security", "2")
     await account.configure()
     assert await account.is_configured()
 

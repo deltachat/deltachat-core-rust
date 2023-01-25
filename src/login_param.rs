@@ -4,7 +4,6 @@ use std::fmt;
 
 use anyhow::{ensure, Result};
 use async_native_tls::Certificate;
-pub use async_smtp::ServerAddress;
 use once_cell::sync::Lazy;
 
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
