@@ -1231,7 +1231,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     }
     drop(conn);
 
-    // check all parts wheter they contain a new logging webxdc
+    // check all parts whether they contain a new logging webxdc
     for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {
         maybe_set_logging_xdc_inner(
             context,
