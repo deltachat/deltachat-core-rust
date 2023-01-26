@@ -31,10 +31,7 @@ jobs:
             override: true
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
-      - uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --workspace --tests --examples --benches --features repl -- -D warnings
+      - run: cargo clippy --workspace --tests --examples --benches --features repl -- -D warnings
 
   docs:
     name: Rust doc comments
