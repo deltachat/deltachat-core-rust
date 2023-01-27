@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 ///! Delta Chat core RPC server.
 ///!
 ///! It speaks JSON Lines over stdio.
