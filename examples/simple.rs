@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use deltachat::chat::{self, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;

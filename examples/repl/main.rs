@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 //! This is a CLI program and a little testing frame.  This file must not be
 //! included when using Delta Chat Core as a library.
 //!
