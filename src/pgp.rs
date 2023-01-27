@@ -119,8 +119,13 @@ pub fn split_armored_data(buf: &[u8]) -> Result<(BlockType, BTreeMap<String, Str
 /// keys together as they are one unit.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KeyPair {
+    /// Email address.
     pub addr: EmailAddress,
+
+    /// Public key.
     pub public: SignedPublicKey,
+
+    /// Secret key.
     pub secret: SignedSecretKey,
 }
 

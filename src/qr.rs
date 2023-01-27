@@ -106,6 +106,8 @@ pub enum Qr {
         invitenumber: String,
         authcode: String,
     },
+
+    /// `dclogin:` scheme parameters.
     Login {
         address: String,
         options: LoginOptions,

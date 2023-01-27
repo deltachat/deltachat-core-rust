@@ -1,7 +1,5 @@
 //! Cryptographic key module.
 
-#![allow(missing_docs)]
-
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
@@ -332,6 +330,7 @@ pub async fn store_self_keypair(
 pub struct Fingerprint(Vec<u8>);
 
 impl Fingerprint {
+    /// Creates new 160-bit (20 bytes) fingerprint.
     pub fn new(v: Vec<u8>) -> Fingerprint {
         debug_assert_eq!(v.len(), 20);
         Fingerprint(v)

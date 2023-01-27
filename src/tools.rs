@@ -511,6 +511,7 @@ pub fn open_file_std<P: AsRef<std::path::Path>>(
     }
 }
 
+/// Reads directory and returns a vector of directory entries.
 pub async fn read_dir(path: &Path) -> Result<Vec<fs::DirEntry>> {
     let res = tokio_stream::wrappers::ReadDirStream::new(fs::read_dir(path).await?)
         .try_collect()

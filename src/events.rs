@@ -27,12 +27,14 @@ impl Default for Events {
 }
 
 impl Events {
+    /// Creates a new event channel.
     pub fn new() -> Self {
         let (sender, receiver) = channel::bounded(1_000);
 
         Self { receiver, sender }
     }
 
+    /// Emits an event.
     pub fn emit(&self, event: Event) {
         match self.sender.try_send(event) {
             Ok(()) => {}

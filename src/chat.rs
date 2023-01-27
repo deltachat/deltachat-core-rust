@@ -46,7 +46,9 @@ use crate::{location, sql};
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChatItem {
+    /// Chat message stored in the database.
     Message {
+        /// Database ID of the messsage.
         msg_id: MsgId,
     },
 
@@ -1124,10 +1126,15 @@ impl rusqlite::types::FromSql for ChatId {
 /// if you want an update, you have to recreate the object.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Chat {
+    /// Database ID.
     pub id: ChatId,
+
+    /// Chat type, e.g. 1:1 chat, group chat, mailing list.
     pub typ: Chattype,
     pub name: String,
     pub visibility: ChatVisibility,
+
+    /// Group ID.
     pub grpid: String,
     pub(crate) blocked: Blocked,
     pub param: Params,
@@ -1207,6 +1214,7 @@ impl Chat {
         self.param.exists(Param::Devicetalk)
     }
 
+    /// Returns true if chat is a mailing list.
     pub fn is_mailing_list(&self) -> bool {
         self.typ == Chattype::Mailinglist
     }
@@ -1636,10 +1644,16 @@ impl Chat {
     }
 }
 
+/// Whether the chat is pinned or archived.
 #[derive(Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ChatVisibility {
+    /// Chat is neither archived nor pinned.
     Normal,
+
+    /// Chat is archived.
     Archived,
+
+    /// Chat is pinned to the top of the chatlist.
     Pinned,
 }
 
@@ -2334,6 +2348,7 @@ pub async fn send_text_msg(
     send_msg(context, chat_id, &mut msg).await
 }
 
+/// Sends invitation to a videochat.
 pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Result<MsgId> {
     ensure!(
         !chat_id.is_special(),
@@ -2992,10 +3007,16 @@ pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) 
     Ok(needs_attach)
 }
 
+/// Chat mute duration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MuteDuration {
+    /// Chat is not muted.
     NotMuted,
+
+    /// Chat is muted until the user unmutes the chat.
     Forever,
+
+    /// Chat is muted for a limited period of time.
     Until(SystemTime),
 }
 
@@ -3034,6 +3055,7 @@ impl rusqlite::types::FromSql for MuteDuration {
     }
 }
 
+/// Mutes the chat for a given duration or unmutes it.
 pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     context
@@ -3048,6 +3070,7 @@ pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuratio
     Ok(())
 }
 
+/// Removes contact from the chat.
 pub async fn remove_contact_from_chat(
     context: &Context,
     chat_id: ChatId,
@@ -3251,6 +3274,7 @@ pub async fn set_chat_profile_image(
     Ok(())
 }
 
+/// Forwards multiple messages to a chat.
 pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId) -> Result<()> {
     ensure!(!msg_ids.is_empty(), "empty msgs_ids: nothing to forward");
     ensure!(!chat_id.is_special(), "can not forward to special chat");

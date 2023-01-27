@@ -1,7 +1,5 @@
 //! # Support for IMAP QUOTA extension.
 
-#![allow(missing_docs)]
-
 use std::collections::BTreeMap;
 
 use anyhow::{anyhow, Context as _, Result};
@@ -23,8 +21,8 @@ use crate::{job, stock_str, EventType};
 /// quota icon is "yellow".
 pub const QUOTA_WARN_THRESHOLD_PERCENTAGE: u64 = 80;
 
-// warning again after this usage percentage is reached,
-// quota icon is "red".
+/// warning again after this usage percentage is reached,
+/// quota icon is "red".
 pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 
 /// if quota is below this value (again),
@@ -36,10 +34,11 @@ pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 /// providers report bad values and we would then spam the user.
 pub const QUOTA_ALLCLEAR_PERCENTAGE: u64 = 75;
 
-// if recent quota is older,
-// it is re-fetched on dc_get_connectivity_html()
+/// if recent quota is older,
+/// it is re-fetched on dc_get_connectivity_html()
 pub const QUOTA_MAX_AGE_SECONDS: i64 = 60;
 
+/// Server quota information with an update timestamp.
 #[derive(Debug)]
 pub struct QuotaInfo {
     /// Recently loaded quota information.

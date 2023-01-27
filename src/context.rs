@@ -193,6 +193,7 @@ impl Deref for Context {
     }
 }
 
+/// Actual context, expensive to clone.
 #[derive(Debug)]
 pub struct InnerContext {
     /// Blob directory path
@@ -570,6 +571,7 @@ impl Context {
      * UI chat/message related API
      ******************************************************************************/
 
+    /// Returns information about the context as key-value pairs.
     pub async fn get_info(&self) -> Result<BTreeMap<&'static str, String>> {
         let unset = "0";
         let l = LoginParam::load_candidate_params_unchecked(self).await?;
@@ -878,16 +880,19 @@ impl Context {
         Ok(list)
     }
 
+    /// Returns true if given folder name is the name of the inbox.
     pub async fn is_inbox(&self, folder_name: &str) -> Result<bool> {
         let inbox = self.get_config(Config::ConfiguredInboxFolder).await?;
         Ok(inbox.as_deref() == Some(folder_name))
     }
 
+    /// Returns true if given folder name is the name of the "sent" folder.
     pub async fn is_sentbox(&self, folder_name: &str) -> Result<bool> {
         let sentbox = self.get_config(Config::ConfiguredSentboxFolder).await?;
         Ok(sentbox.as_deref() == Some(folder_name))
     }
 
+    /// Returns true if given folder name is the name of the "Delta Chat" folder.
     pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
         Ok(mvbox.as_deref() == Some(folder_name))
@@ -908,6 +913,7 @@ impl Context {
     }
 }
 
+/// Returns core version as a string.
 pub fn get_version_str() -> &'static str {
     &DC_VERSION_STR
 }

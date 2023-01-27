@@ -32,29 +32,75 @@ use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum Config {
+    /// Email address, used in the `From:` field.
     Addr,
+
+    /// IMAP server hostname.
     MailServer,
+
+    /// IMAP server username.
     MailUser,
+
+    /// IMAP server password.
     MailPw,
+
+    /// IMAP server port.
     MailPort,
+
+    /// IMAP server security (e.g. TLS, STARTTLS).
     MailSecurity,
+
+    /// How to check IMAP server TLS certificates.
     ImapCertificateChecks,
+
+    /// SMTP server hostname.
     SendServer,
+
+    /// SMTP server username.
     SendUser,
+
+    /// SMTP server password.
     SendPw,
+
+    /// SMTP server port.
     SendPort,
+
+    /// SMTP server security (e.g. TLS, STARTTLS).
     SendSecurity,
+
+    /// How to check SMTP server TLS certificates.
     SmtpCertificateChecks,
+
+    /// Whether to use OAuth 2.
+    ///
+    /// Historically contained other bitflags, which are now deprecated.
+    /// Should not be extended in the future, create new config keys instead.
     ServerFlags,
 
+    /// True if SOCKS5 is enabled.
+    ///
+    /// Can be used to disable SOCKS5 without erasing SOCKS5 configuration.
     Socks5Enabled,
+
+    /// SOCKS5 proxy server hostname or address.
     Socks5Host,
+
+    /// SOCKS5 proxy server port.
     Socks5Port,
+
+    /// SOCKS5 proxy server username.
     Socks5User,
+
+    /// SOCKS5 proxy server password.
     Socks5Password,
 
+    /// Own name to use in the `From:` field when sending messages.
     Displayname,
+
+    /// Own status to display, sent in message footer.
     Selfstatus,
+
+    /// Own avatar filename.
     Selfavatar,
 
     #[strum(props(default = "1"))]
@@ -121,15 +167,33 @@ pub enum Config {
     SaveMimeHeaders,
     /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
+
+    /// Configured IMAP server hostname.
     ConfiguredMailServer,
+
+    /// Configured IMAP server username.
     ConfiguredMailUser,
+
+    /// Configured IMAP server password.
     ConfiguredMailPw,
+
+    /// Configured IMAP server port.
     ConfiguredMailPort,
+
+    /// Configured IMAP server security (e.g. TLS, STARTTLS).
     ConfiguredMailSecurity,
     ConfiguredImapCertificateChecks,
+
+    /// Configured SMTP server hostname.
     ConfiguredSendServer,
+
+    /// Configured SMTP server username.
     ConfiguredSendUser,
+
+    /// Configured SMTP server password.
     ConfiguredSendPw,
+
+    /// Configured SMTP server port.
     ConfiguredSendPort,
     ConfiguredSmtpCertificateChecks,
     ConfiguredServerFlags,
@@ -200,6 +264,7 @@ pub enum Config {
 }
 
 impl Context {
+    /// Returns true if configuration value is set for the given key.
     pub async fn config_exists(&self, key: Config) -> Result<bool> {
         Ok(self.sql.get_raw_config(key.as_ref()).await?.is_some())
     }
