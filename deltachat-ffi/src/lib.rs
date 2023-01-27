@@ -6,7 +6,8 @@
     non_upper_case_globals,
     non_camel_case_types,
     clippy::missing_safety_doc,
-    clippy::expect_fun_call
+    clippy::expect_fun_call,
+    clippy::uninlined_format_args
 )]
 
 #[macro_use]
