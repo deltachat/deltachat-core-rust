@@ -1289,4 +1289,16 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
         assert_eq!(msgs.len(), test_len + 1);
     }
+
+    #[test]
+    fn test_remove_subject_prefix() {
+        assert_eq!(remove_subject_prefix("Subject"), "Subject");
+        assert_eq!(
+            remove_subject_prefix("Chat: Re: Subject"),
+            "Chat: Re: Subject"
+        );
+        assert_eq!(remove_subject_prefix("Re: Subject"), "Subject");
+        assert_eq!(remove_subject_prefix("Fwd: Subject"), "Subject");
+        assert_eq!(remove_subject_prefix("Fw: Subject"), "Subject");
+    }
 }
