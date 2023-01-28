@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, RwLock};
@@ -149,24 +149,15 @@ impl ContextBuilder {
     }
 
     /// Opens the [`Context`].
-    pub async fn open(self) -> Result<Context, ContextError> {
+    pub async fn open(self) -> Result<Context> {
         let context =
             Context::new_closed(&self.dbfile, self.id, self.events, self.stock_strings).await?;
         let password = self.password.unwrap_or_default();
         match context.open(password).await? {
             true => Ok(context),
-            false => Err(ContextError::DatabaseEncrypted),
+            false => bail!("database could not be decrypted, incorrect or missing password"),
         }
     }
-}
-
-#[non_exhaustive]
-#[derive(Debug, thiserror::Error)]
-pub enum ContextError {
-    #[error("database could not be decrypted, incorrect or missing password")]
-    DatabaseEncrypted,
-    #[error("failed to open context")]
-    Other(#[from] anyhow::Error),
 }
 
 /// The context for a single DeltaChat account.
