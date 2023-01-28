@@ -47,12 +47,11 @@ impl Smtp {
 
         let message_len_bytes = message.len();
 
-        let mut chunk_size = DEFAULT_MAX_SMTP_RCPT_TO;
-        if let Some(provider) = context.get_configured_provider().await? {
-            if let Some(max_smtp_rcpt_to) = provider.max_smtp_rcpt_to {
-                chunk_size = max_smtp_rcpt_to as usize;
-            }
-        }
+        let chunk_size = context
+            .get_configured_provider()
+            .await?
+            .and_then(|provider| provider.max_smtp_rcpt_to)
+            .map_or(DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
 
         for recipients_chunk in recipients.chunks(chunk_size) {
             let recipients_display = recipients_chunk
