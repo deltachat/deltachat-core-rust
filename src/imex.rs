@@ -700,20 +700,16 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
     for (id, public_key, private_key, is_default) in keys {
         let id = Some(id).filter(|_| is_default != 0);
         if let Ok(key) = public_key {
-            if export_key_to_asc_file(context, dir, id, &key)
-                .await
-                .is_err()
-            {
+            if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
+                error!(context, "Failed to export public key: {:#}.", err);
                 export_errors += 1;
             }
         } else {
             export_errors += 1;
         }
         if let Ok(key) = private_key {
-            if export_key_to_asc_file(context, dir, id, &key)
-                .await
-                .is_err()
-            {
+            if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
+                error!(context, "Failed to export private key: {:#}.", err);
                 export_errors += 1;
             }
         } else {
@@ -733,7 +729,7 @@ async fn export_key_to_asc_file<T>(
     dir: &Path,
     id: Option<i64>,
     key: &T,
-) -> std::io::Result<()>
+) -> Result<()>
 where
     T: DcKey + Any,
 {
@@ -755,16 +751,16 @@ where
         key.key_id(),
         file_name.display()
     );
-    delete_file(context, &file_name).await;
+
+    // Delete the file if it already exists.
+    delete_file(context, &file_name).await.ok();
 
     let content = key.to_asc(None).into_bytes();
-    let res = write_file(context, &file_name, &content).await;
-    if res.is_err() {
-        error!(context, "Cannot write key to {}", file_name.display());
-    } else {
-        context.emit_event(EventType::ImexFileWritten(file_name));
-    }
-    res
+    write_file(context, &file_name, &content)
+        .await
+        .with_context(|| format!("cannot write key to {}", file_name.display()))?;
+    context.emit_event(EventType::ImexFileWritten(file_name));
+    Ok(())
 }
 
 #[cfg(test)]
@@ -854,12 +850,12 @@ mod tests {
         let context = TestContext::new_alice().await;
         let blobdir = context.ctx.get_blobdir();
         if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir, None).await {
-            panic!("got error on export: {:?}", err);
+            panic!("got error on export: {:#}", err);
         }
 
         let context2 = TestContext::new_alice().await;
         if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir, None).await {
-            panic!("got error on import: {:?}", err);
+            panic!("got error on import: {:#}", err);
         }
     }
 

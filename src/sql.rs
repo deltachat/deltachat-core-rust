@@ -798,7 +798,14 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     entry.file_name()
                 );
                 let path = entry.path();
-                delete_file(context, path).await;
+                if let Err(err) = delete_file(context, &path).await {
+                    error!(
+                        context,
+                        "Failed to delete unused file {}: {:#}.",
+                        path.display(),
+                        err
+                    );
+                }
             }
         }
         Err(err) => {

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _, Result};
 use chrono::{Local, TimeZone};
 use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
@@ -369,49 +369,39 @@ pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> 
     Ok(meta.len())
 }
 
-pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> bool {
-    let path_abs = get_abs_path(context, &path);
+pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Result<()> {
+    let path = path.as_ref();
+    let path_abs = get_abs_path(context, path);
     if !path_abs.exists() {
-        return false;
+        bail!("path {} does not exist", path_abs.display());
     }
     if !path_abs.is_file() {
-        warn!(
-            context,
-            "refusing to delete non-file \"{}\".",
-            path.as_ref().display()
-        );
-        return false;
+        warn!(context, "refusing to delete non-file {}.", path.display());
+        bail!("not a file: \"{}\"", path.display());
     }
 
-    let dpath = format!("{}", path.as_ref().to_string_lossy());
-    match fs::remove_file(path_abs).await {
-        Ok(_) => {
-            context.emit_event(EventType::DeletedBlobFile(dpath));
-            true
-        }
-        Err(err) => {
-            warn!(context, "Cannot delete \"{}\": {}", dpath, err);
-            false
-        }
-    }
+    let dpath = format!("{}", path.to_string_lossy());
+    fs::remove_file(path_abs)
+        .await
+        .with_context(|| format!("cannot delete {:?}", dpath))?;
+    context.emit_event(EventType::DeletedBlobFile(dpath));
+    Ok(())
 }
 
-pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) {
-    match tokio::fs::read_dir(path).await {
-        Ok(read_dir) => {
-            let mut read_dir = tokio_stream::wrappers::ReadDirStream::new(read_dir);
-            while let Some(entry) = read_dir.next().await {
-                match entry {
-                    Ok(file) => {
-                        delete_file(context, file.file_name()).await;
-                    }
-                    Err(e) => warn!(context, "Could not read file to delete: {}", e),
-                }
+pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) -> Result<()> {
+    let read_dir = tokio::fs::read_dir(path)
+        .await
+        .context("could not read dir to delete")?;
+    let mut read_dir = tokio_stream::wrappers::ReadDirStream::new(read_dir);
+    while let Some(entry) = read_dir.next().await {
+        match entry {
+            Ok(file) => {
+                delete_file(context, file.file_name()).await?;
             }
+            Err(e) => warn!(context, "Could not read file to delete: {}", e),
         }
-
-        Err(e) => warn!(context, "Could not read dir to delete: {}", e),
     }
+    Ok(())
 }
 
 pub(crate) async fn create_folder(
@@ -1047,7 +1037,9 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             };
         }
 
-        assert!(!delete_file(context, "$BLOBDIR/lkqwjelqkwlje").await);
+        assert!(delete_file(context, "$BLOBDIR/lkqwjelqkwlje")
+            .await
+            .is_err());
         assert!(write_file(context, "$BLOBDIR/foobar", b"content")
             .await
             .is_ok());
@@ -1063,17 +1055,19 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
 
         assert!(file_exist!(context, &abs_path));
 
-        assert!(delete_file(context, "$BLOBDIR/foobar").await);
+        assert!(delete_file(context, "$BLOBDIR/foobar").await.is_ok());
         assert!(create_folder(context, "$BLOBDIR/foobar-folder")
             .await
             .is_ok());
         assert!(file_exist!(context, "$BLOBDIR/foobar-folder"));
-        assert!(!delete_file(context, "$BLOBDIR/foobar-folder").await);
+        assert!(delete_file(context, "$BLOBDIR/foobar-folder")
+            .await
+            .is_err());
 
         let fn0 = "$BLOBDIR/data.data";
         assert!(write_file(context, &fn0, b"content").await.is_ok());
 
-        assert!(delete_file(context, &fn0).await);
+        assert!(delete_file(context, &fn0).await.is_ok());
         assert!(!file_exist!(context, &fn0));
     }
 
