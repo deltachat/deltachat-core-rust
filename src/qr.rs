@@ -5,7 +5,7 @@
 mod dclogin_scheme;
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, bail, ensure, Context as _, Error, Result};
+use anyhow::{anyhow, bail, ensure, Context as _, Result};
 pub use dclogin_scheme::LoginOptions;
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
@@ -629,7 +629,7 @@ impl Qr {
 }
 
 /// URL decodes a given address, does basic email validation on the result.
-fn normalize_address(addr: &str) -> Result<String, Error> {
+fn normalize_address(addr: &str) -> Result<String> {
     // urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases
     let new_addr = percent_decode_str(addr).decode_utf8()?;
     let new_addr = addr_normalize(&new_addr);

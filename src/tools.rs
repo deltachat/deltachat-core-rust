@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 use chrono::{Local, TimeZone};
 use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
@@ -344,7 +344,7 @@ pub fn get_filesuffix_lc(path_filename: &str) -> Option<String> {
 }
 
 /// Returns the `(width, height)` of the given image buffer.
-pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
+pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32)> {
     let image = image::io::Reader::new(Cursor::new(buf)).with_guessed_format()?;
     let dimensions = image.into_dimensions()?;
     Ok(dimensions)
@@ -456,7 +456,7 @@ pub(crate) async fn write_file(
     })
 }
 
-pub async fn read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<Vec<u8>, Error> {
+pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let path_abs = get_abs_path(context, &path);
 
     match fs::read(&path_abs).await {
@@ -473,7 +473,7 @@ pub async fn read_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<Vec
     }
 }
 
-pub async fn open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<fs::File, Error> {
+pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::File> {
     let path_abs = get_abs_path(context, &path);
 
     match fs::File::open(&path_abs).await {
@@ -493,7 +493,7 @@ pub async fn open_file<P: AsRef<Path>>(context: &Context, path: P) -> Result<fs:
 pub fn open_file_std<P: AsRef<std::path::Path>>(
     context: &Context,
     path: P,
-) -> Result<std::fs::File, Error> {
+) -> Result<std::fs::File> {
     let p: PathBuf = path.as_ref().into();
     let path_abs = get_abs_path(context, p);
 

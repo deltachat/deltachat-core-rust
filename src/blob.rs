@@ -6,7 +6,7 @@ use std::fmt;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
-use anyhow::{format_err, Context as _, Error, Result};
+use anyhow::{format_err, Context as _, Result};
 use image::{DynamicImage, ImageFormat};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
@@ -443,7 +443,7 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    pub fn get_exif_orientation(&self, context: &Context) -> Result<i32, Error> {
+    pub fn get_exif_orientation(&self, context: &Context) -> Result<i32> {
         let file = std::fs::File::open(self.to_abs_path())?;
         let mut bufreader = std::io::BufReader::new(&file);
         let exifreader = exif::Reader::new();

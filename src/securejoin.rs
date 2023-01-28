@@ -210,7 +210,7 @@ async fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: &Fingerprint,
     contact_id: ContactId,
-) -> Result<bool, Error> {
+) -> Result<bool> {
     let contact = Contact::load_from_db(context, contact_id).await?;
     let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
         Ok(peerstate) => peerstate,
@@ -698,7 +698,7 @@ async fn secure_connection_established(
     context: &Context,
     contact_id: ContactId,
     chat_id: ChatId,
-) -> Result<(), Error> {
+) -> Result<()> {
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
@@ -711,7 +711,7 @@ async fn could_not_establish_secure_connection(
     contact_id: ContactId,
     chat_id: ChatId,
     details: &str,
-) -> Result<(), Error> {
+) -> Result<()> {
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_not_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
@@ -726,7 +726,7 @@ async fn mark_peer_as_verified(
     context: &Context,
     fingerprint: Fingerprint,
     verifier: String,
-) -> Result<(), Error> {
+) -> Result<()> {
     if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, &fingerprint).await? {
         if let Err(err) = peerstate.set_verified(
             PeerstateKeyType::PublicKey,
