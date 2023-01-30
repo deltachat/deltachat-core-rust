@@ -1657,7 +1657,7 @@ async fn apply_group_changes(
                 .await?;
 
             match mime_parser.get_header(HeaderDef::InReplyTo) {
-                // If we don't know the referenced message we, we missed some messages which could be add/delete
+                // If we don't know the referenced message, we missed some messages which could be add/delete
                 Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
                 Some(_) => self_added,
                 None => false,

@@ -3330,7 +3330,7 @@ async fn test_rebuild_contact_list_on_missing_message() -> Result<()> {
     remove_contact_from_chat(&bob, bob_chat_id, bob_contact_fiona).await?;
     bob.pop_sent_msg().await;
 
-    // bob ads a new member
+    // bob adds a new member
     let bob_blue = Contact::create(&bob, "blue", "blue@example.net").await?;
     add_contact_to_chat(&bob, bob_chat_id, bob_blue).await?;
 
@@ -3403,7 +3403,7 @@ async fn test_mua_cant_remove() -> Result<()> {
     let single_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
     assert_eq!(single_chat.typ, Chattype::Group);
 
-    // Bob uses a classical MUA to answer again, removing a receipient.
+    // Bob uses a classical MUA to answer again, removing a recipient.
     let msg3 = receive_imf(
         &alice,
         b"Subject: Re: Message from alice\r\n\
