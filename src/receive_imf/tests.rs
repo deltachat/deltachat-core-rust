@@ -2,7 +2,10 @@ use tokio::fs;
 
 use super::*;
 use crate::aheader::EncryptPreference;
-use crate::chat::get_chat_contacts;
+use crate::chat::{
+    add_contact_to_chat, add_to_chat_contacts_table, create_group_chat, get_chat_contacts,
+    is_contact_in_chat, remove_contact_from_chat, send_text_msg,
+};
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::constants::DC_GCL_NO_SPECIALS;
@@ -3243,5 +3246,184 @@ async fn test_mua_user_adds_recipient_to_single_chat() -> Result<()> {
         .unwrap();
     assert!(chat::is_contact_in_chat(&alice, group_chat.id, fiona).await?);
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_dont_rebuild_contacts_on_add_remove() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+
+    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "bob", "bob@example.net").await?,
+    )
+    .await?;
+
+    send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+    bob_chat_id.accept(&bob).await?;
+
+    // alice adds a member
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "fiona", "fiona@example.net").await?,
+    )
+    .await?;
+
+    // bob adds a member
+    let bob_blue = Contact::create(&bob, "blue", "blue@example.net").await?;
+    add_contact_to_chat(&bob, bob_chat_id, bob_blue).await?;
+
+    alice.recv_msg(&bob.pop_sent_msg().await).await;
+
+    // We don't rebuild the contactlist of ours just because we received a new addition
+    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
+
+    // alice adds a member
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "daisy", "daisy@example.net").await?,
+    )
+    .await?;
+
+    // bob removes a member
+    remove_contact_from_chat(&bob, bob_chat_id, bob_blue).await?;
+
+    alice.recv_msg(&bob.pop_sent_msg().await).await;
+
+    // We don't rebuild the contactlist of ours just because we received a new removal
+    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_rebuild_contact_list_on_missing_message() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+
+    let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+
+    // create chat with three members
+    add_to_chat_contacts_table(
+        &alice,
+        chat_id,
+        &[
+            Contact::create(&alice, "bob", "bob@example.net").await?,
+            Contact::create(&alice, "fiona", "fiona@example.net").await?,
+        ],
+    )
+    .await?;
+
+    send_text_msg(&alice, chat_id, "populate".to_string()).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+    bob_chat_id.accept(&bob).await?;
+
+    // bob removes a member
+    let bob_contact_fiona = Contact::create(&bob, "fiona", "fiona@example.net").await?;
+    remove_contact_from_chat(&bob, bob_chat_id, bob_contact_fiona).await?;
+    bob.pop_sent_msg().await;
+
+    // bob ads a new member
+    let bob_blue = Contact::create(&bob, "blue", "blue@example.net").await?;
+    add_contact_to_chat(&bob, bob_chat_id, bob_blue).await?;
+
+    let add_msg = bob.pop_sent_msg().await;
+
+    // alice only receives the addition of the member
+    alice.recv_msg(&add_msg).await;
+
+    // since we missed a message, a new contact list should be build
+    assert_eq!(get_chat_contacts(&alice, chat_id).await?.len(), 3);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_dont_readd_with_normal_msg() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+
+    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "bob", "bob@example.net").await?,
+    )
+    .await?;
+
+    send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+    bob_chat_id.accept(&bob).await?;
+
+    remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
+
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "fiora", "fiora@example.net").await?,
+    )
+    .await?;
+
+    bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+    // even though the received message contains a header for member addition,
+    // you are not added to the group
+    assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mua_cant_remove() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+
+    // Alice creates chat with 2 contacts
+    let msg = receive_imf(
+        &alice,
+        b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+            From: alice@example.org\r\n\
+            To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
+            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
+            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+            Chat-Version: 1.0\r\n\
+            \r\n\
+            tst\r\n",
+        false,
+    )
+    .await?
+    .unwrap();
+    let single_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(single_chat.typ, Chattype::Group);
+
+    // Bob uses a classical MUA to answer again, removing a receipient.
+    let msg3 = receive_imf(
+        &alice,
+        b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
+            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+        false,
+    )
+    .await?
+    .unwrap();
+    assert_eq!(msg3.chat_id, single_chat.id);
+    let group_chat = Chat::load_from_db(&alice, msg3.chat_id).await?;
+    assert_eq!(group_chat.typ, Chattype::Group);
+    assert_eq!(
+        chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+        4
+    );
     Ok(())
 }

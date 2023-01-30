@@ -1638,46 +1638,34 @@ async fn apply_group_changes(
             .get_header(HeaderDef::ChatGroupMemberAdded)
             .is_some()
     {
-        apply_group_changes = chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?;
+        let self_added =
+            if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
+                if let Ok(self_addr) = context.get_primary_self_addr().await {
+                    self_addr == *added_addr
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
 
-        if apply_group_changes {
+        if !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await? && !self_added {
+            false
+        } else {
+            apply_group_changes = chat_id
+                .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                .await?;
+
             match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message we, we missed some messages which could be add/delete
                 Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-                Some(_) => {
-                    // recreate chat if we are getting readded
-                    if let Some(added_addr) =
-                        mime_parser.get_header(HeaderDef::ChatGroupMemberAdded)
-                    {
-                        if let Ok(self_addr) = context.get_primary_self_addr().await {
-                            self_addr == *added_addr
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                }
+                Some(_) => self_added,
                 None => false,
             }
-        } else {
-            false
         }
     } else {
         false
     };
-
-    // Always use the MUA users contact list if message is up to date
-    if !mime_parser.has_chat_version()
-        && chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-    {
-        recreate_member_list = true;
-        apply_group_changes = true;
-    }
 
     if let Some(removed_addr) = mime_parser
         .get_header(HeaderDef::ChatGroupMemberRemoved)
@@ -1702,13 +1690,6 @@ async fn apply_group_changes(
         .cloned()
     {
         better_msg = Some(stock_str::msg_add_member(context, &added_addr, from_id).await);
-
-        // If we got added to the group ourselves, we have to recreate the memberlist
-        if let Some(self_addr) = context.get_config(Config::Addr).await? {
-            if self_addr == added_addr {
-                recreate_member_list = true;
-            }
-        };
 
         // add a single member to the chat
         if !recreate_member_list && apply_group_changes {
@@ -1775,14 +1756,21 @@ async fn apply_group_changes(
             chat_id
                 .inner_set_protection(context, ProtectionStatus::Protected)
                 .await?;
-            recreate_member_list = true;
         }
     }
 
+    // Recreate member list if message is from a MUA
+    if !mime_parser.has_chat_version()
+        && chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+    {
+        recreate_member_list = true;
+    }
+
     // recreate member list
-    if recreate_member_list && apply_group_changes {
-        if chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-            && !chat::is_contact_in_chat(context, chat_id, from_id).await?
+    if recreate_member_list  {
+        if !chat::is_contact_in_chat(context, chat_id, from_id).await?
         {
             warn!(
                 context,
@@ -1791,14 +1779,16 @@ async fn apply_group_changes(
                 chat_id
             );
         } else {
-            // clear chat contacts
-            context
-                .sql
-                .execute(
-                    "DELETE FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![chat_id],
-                )
-                .await?;
+            // only delete old contacts if the sender is not a MUA
+            if mime_parser.has_chat_version() {
+                context
+                    .sql
+                    .execute(
+                        "DELETE FROM chats_contacts WHERE chat_id=?;",
+                        paramsv![chat_id],
+                    )
+                    .await?;
+            }
 
             let mut members_to_add = HashSet::new();
             members_to_add.extend(to_ids);
