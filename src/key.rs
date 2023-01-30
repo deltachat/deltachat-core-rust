@@ -363,7 +363,7 @@ impl fmt::Display for Fingerprint {
             } else if i > 0 && i % 4 == 0 {
                 write!(f, " ")?;
             }
-            write!(f, "{}", c)?;
+            write!(f, "{c}")?;
         }
         Ok(())
     }

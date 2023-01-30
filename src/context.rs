@@ -601,7 +601,7 @@ impl Context {
             .await?;
         let fingerprint_str = match SignedPublicKey::load_self(self).await {
             Ok(key) => key.fingerprint().hex(),
-            Err(err) => format!("<key failure: {}>", err),
+            Err(err) => format!("<key failure: {err}>"),
         };
 
         let sentbox_watch = self.get_config_int(Config::SentboxWatch).await?;
@@ -658,7 +658,7 @@ impl Context {
         res.insert("used_account_settings", l2.to_string());
 
         if let Some(server_id) = &*self.server_id.read().await {
-            res.insert("imap_server_id", format!("{:?}", server_id));
+            res.insert("imap_server_id", format!("{server_id:?}"));
         }
 
         res.insert("secondary_addrs", secondary_addrs);
@@ -808,7 +808,7 @@ impl Context {
         if real_query.is_empty() {
             return Ok(Vec::new());
         }
-        let str_like_in_text = format!("%{}%", real_query);
+        let str_like_in_text = format!("%{real_query}%");
 
         let do_query = |query, params| {
             self.sql.query_map(
@@ -964,7 +964,7 @@ mod tests {
             contact.get_addr(),
             create_outgoing_rfc724_mid(None, contact.get_addr())
         );
-        println!("{}", msg);
+        println!("{msg}");
         receive_imf(t, msg.as_bytes(), false).await.unwrap();
     }
 
@@ -1191,8 +1191,7 @@ mod tests {
             {
                 assert!(
                     info.contains_key(&*key),
-                    "'{}' missing in get_info() output",
-                    key
+                    "'{key}' missing in get_info() output"
                 );
             }
         }

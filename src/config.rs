@@ -277,7 +277,7 @@ impl Context {
                 rel_path.map(|p| get_abs_path(self, p).to_string_lossy().into_owned())
             }
             Config::SysVersion => Some((*DC_VERSION_STR).clone()),
-            Config::SysMsgsizeMaxRecommended => Some(format!("{}", RECOMMENDED_FILE_SIZE)),
+            Config::SysMsgsizeMaxRecommended => Some(format!("{RECOMMENDED_FILE_SIZE}")),
             Config::SysConfigKeys => Some(get_config_keys_string()),
             _ => self.sql.get_raw_config(key.as_ref()).await?,
         };
@@ -505,7 +505,7 @@ fn get_config_keys_string() -> String {
         acc
     });
 
-    format!(" {} ", keys)
+    format!(" {keys} ")
 }
 
 #[cfg(test)]

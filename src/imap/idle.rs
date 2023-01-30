@@ -99,8 +99,8 @@ impl Session {
 
         let mut session = tokio::time::timeout(Duration::from_secs(15), handle.done())
             .await
-            .with_context(|| format!("{}: IMAP IDLE protocol timed out", folder_name))?
-            .with_context(|| format!("{}: IMAP IDLE failed", folder_name))?;
+            .with_context(|| format!("{folder_name}: IMAP IDLE protocol timed out"))?
+            .with_context(|| format!("{folder_name}: IMAP IDLE failed"))?;
         session.as_mut().set_read_timeout(Some(IMAP_TIMEOUT));
         self.inner = session;
 

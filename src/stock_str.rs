@@ -719,10 +719,7 @@ pub(crate) async fn secure_join_started(
             .replace1(&contact.get_name_n_addr())
             .replace2(contact.get_display_name())
     } else {
-        format!(
-            "secure_join_started: unknown contact {}",
-            inviter_contact_id
-        )
+        format!("secure_join_started: unknown contact {inviter_contact_id}")
     }
 }
 
@@ -733,7 +730,7 @@ pub(crate) async fn secure_join_replies(context: &Context, contact_id: ContactId
             .await
             .replace1(contact.get_display_name())
     } else {
-        format!("secure_join_replies: unknown contact {}", contact_id)
+        format!("secure_join_replies: unknown contact {contact_id}")
     }
 }
 
@@ -746,7 +743,7 @@ pub(crate) async fn setup_contact_qr_description(
     let name = &if display_name == addr {
         addr.to_owned()
     } else {
-        format!("{} ({})", display_name, addr)
+        format!("{display_name} ({addr})")
     };
     translated(context, StockMessage::SetupContactQRDescription)
         .await
@@ -1117,7 +1114,7 @@ pub(crate) async fn forwarded(context: &Context) -> String {
 pub(crate) async fn quota_exceeding(context: &Context, highest_usage: u64) -> String {
     translated(context, StockMessage::QuotaExceedingMsgBody)
         .await
-        .replace1(&format!("{}", highest_usage))
+        .replace1(&format!("{highest_usage}"))
         .replace("%%", "%")
 }
 

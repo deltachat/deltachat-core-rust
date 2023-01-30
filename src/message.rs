@@ -706,7 +706,7 @@ impl Message {
 
         // make sure, there is a scheme in the url
         if !url.contains(':') {
-            url = format!("https://{}", url);
+            url = format!("https://{url}");
         }
 
         // add/replace room
@@ -731,13 +731,13 @@ impl Message {
             } else {
                 "/"
             };
-            format!("{}{}{}", url, maybe_slash, room)
+            format!("{url}{maybe_slash}{room}")
         };
 
         // re-add and normalize type
         match videochat_type {
-            VideochatType::BasicWebrtc => format!("basicwebrtc:{}", url),
-            VideochatType::Jitsi => format!("jitsi:{}", url),
+            VideochatType::BasicWebrtc => format!("basicwebrtc:{url}"),
+            VideochatType::Jitsi => format!("jitsi:{url}"),
             VideochatType::Unknown => url,
         }
     }
@@ -1085,21 +1085,21 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let mut ret = String::new();
 
     if rawtxt.is_none() {
-        ret += &format!("Cannot load message {}.", msg_id);
+        ret += &format!("Cannot load message {msg_id}.");
         return Ok(ret);
     }
     let rawtxt = rawtxt.unwrap_or_default();
     let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
 
     let fts = timestamp_to_str(msg.get_timestamp());
-    ret += &format!("Sent: {}", fts);
+    ret += &format!("Sent: {fts}");
 
     let name = Contact::load_from_db(context, msg.from_id)
         .await
         .map(|contact| contact.get_name_n_addr())
         .unwrap_or_default();
 
-    ret += &format!(" by {}", name);
+    ret += &format!(" by {name}");
     ret += "\n";
 
     if msg.from_id != ContactId::SELF {
@@ -1113,7 +1113,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
 
     if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
-        ret += &format!("Ephemeral timer: {}\n", duration);
+        ret += &format!("Ephemeral timer: {duration}\n");
     }
 
     if msg.ephemeral_timestamp != 0 {
@@ -1141,14 +1141,14 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     {
         for (contact_id, ts) in rows {
             let fts = timestamp_to_str(ts);
-            ret += &format!("Read: {}", fts);
+            ret += &format!("Read: {fts}");
 
             let name = Contact::load_from_db(context, contact_id)
                 .await
                 .map(|contact| contact.get_name_n_addr())
                 .unwrap_or_default();
 
-            ret += &format!(" by {}", name);
+            ret += &format!(" by {name}");
             ret += "\n";
         }
     }
@@ -1173,11 +1173,11 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
 
     let reactions = get_msg_reactions(context, msg_id).await?;
     if !reactions.is_empty() {
-        ret += &format!("Reactions: {}\n", reactions);
+        ret += &format!("Reactions: {reactions}\n");
     }
 
     if let Some(error) = msg.error.as_ref() {
-        ret += &format!("Error: {}", error);
+        ret += &format!("Error: {error}");
     }
 
     if let Some(path) = msg.get_file(context) {
@@ -1194,14 +1194,14 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let w = msg.param.get_int(Param::Width).unwrap_or_default();
     let h = msg.param.get_int(Param::Height).unwrap_or_default();
     if w != 0 || h != 0 {
-        ret += &format!("Dimension: {} x {}\n", w, h,);
+        ret += &format!("Dimension: {w} x {h}\n",);
     }
     let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
     if duration != 0 {
-        ret += &format!("Duration: {} ms\n", duration,);
+        ret += &format!("Duration: {duration} ms\n",);
     }
     if !rawtxt.is_empty() {
-        ret += &format!("\n{}\n", rawtxt);
+        ret += &format!("\n{rawtxt}\n");
     }
     if !msg.rfc724_mid.is_empty() {
         ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
@@ -1225,7 +1225,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
 
         for (folder, uid) in server_uids {
             // Format as RFC 5092 relative IMAP URL.
-            ret += &format!("\n</{}/;UID={}>", folder, uid);
+            ret += &format!("\n</{folder}/;UID={uid}>");
         }
     }
     let hop_info: Option<String> = context
@@ -1364,7 +1364,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         msg_id
             .trash(context)
             .await
-            .with_context(|| format!("Unable to trash message {}", msg_id))?;
+            .with_context(|| format!("Unable to trash message {msg_id}"))?;
 
         if msg.viewtype == Viewtype::Webxdc {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id: *msg_id });
@@ -1718,7 +1718,7 @@ pub(crate) async fn handle_ndn(
     let error = if let Some(error) = error {
         error
     } else if let Some(failed_recipient) = &failed.failed_recipient {
-        format!("Delivery to {} failed.", failed_recipient).clone()
+        format!("Delivery to {failed_recipient} failed.").clone()
     } else {
         "Delivery to at least one recipient failed.".to_string()
     };

@@ -246,7 +246,7 @@ impl MimeMessage {
                 time() + max(delete_server_after, MIN_DELETE_SERVER_AFTER),
             )
             .await;
-            text += format!(" [{}]", until).as_str();
+            text += format!(" [{until}]").as_str();
         };
 
         info!(context, "Partial download: {}", text);
@@ -370,7 +370,7 @@ mod tests {
         receive_imf_inner(
             &t,
             "Mr.12345678901@example.com",
-            format!("{}\n\n100k text...", header).as_bytes(),
+            format!("{header}\n\n100k text...").as_bytes(),
             false,
             None,
             false,

@@ -126,7 +126,7 @@ impl Smtp {
         }
 
         let from = EmailAddress::new(addr.to_string())
-            .with_context(|| format!("invalid login address {}", addr))?;
+            .with_context(|| format!("invalid login address {addr}"))?;
 
         self.from = Some(from);
 
@@ -227,7 +227,7 @@ pub(crate) async fn smtp_send(
 ) -> SendResult {
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
         info!(context, "smtp-sending out mime message:");
-        println!("{}", message);
+        println!("{message}");
     }
 
     smtp.connectivity.set_working(context).await;
@@ -237,7 +237,7 @@ pub(crate) async fn smtp_send(
         .await
         .context("Failed to open SMTP connection")
     {
-        smtp.last_send_error = Some(format!("{:#}", err));
+        smtp.last_send_error = Some(format!("{err:#}"));
         return SendResult::Retry;
     }
 
@@ -374,7 +374,7 @@ pub(crate) async fn send_msg_to_smtp(
         .await
         .context("SMTP connection failure")
     {
-        smtp.last_send_error = Some(format!("{:#}", err));
+        smtp.last_send_error = Some(format!("{err:#}"));
         return Err(err);
     }
 
@@ -436,7 +436,7 @@ pub(crate) async fn send_msg_to_smtp(
     // delete_msgs() was called before the generated mime was sent out.
     if !message::exists(context, msg_id)
         .await
-        .with_context(|| format!("failed to check message {} existence", msg_id))?
+        .with_context(|| format!("failed to check message {msg_id} existence"))?
     {
         info!(
             context,

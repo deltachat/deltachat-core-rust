@@ -1,5 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
-
 ///! Delta Chat core RPC server.
 ///!
 ///! It speaks JSON Lines over stdio.
@@ -42,7 +40,7 @@ async fn main() -> Result<()> {
         while let Some(message) = out_receiver.next().await {
             let message = serde_json::to_string(&message)?;
             log::trace!("RPC send {}", message);
-            println!("{}", message);
+            println!("{message}");
         }
         Ok(())
     });

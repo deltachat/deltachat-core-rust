@@ -908,11 +908,10 @@ impl ChatId {
     {
         let sql = &context.sql;
         let query = format!(
-            "SELECT {} \
+            "SELECT {fields} \
              FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
              ORDER BY timestamp DESC, id DESC \
-             LIMIT 1;",
-            fields
+             LIMIT 1;"
         );
         let row = sql
             .query_row_optional(
@@ -993,9 +992,9 @@ impl ChatId {
                 })
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
-                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{}\n", addr),
-                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{}\n", addr),
-                Some(EncryptPreference::Reset) | None => ret_reset += &format!("{}\n", addr),
+                Some(EncryptPreference::Mutual) => ret_mutual += &format!("{addr}\n"),
+                Some(EncryptPreference::NoPreference) => ret_nopreference += &format!("{addr}\n"),
+                Some(EncryptPreference::Reset) | None => ret_reset += &format!("{addr}\n"),
             };
         }
 
@@ -1171,7 +1170,7 @@ impl Chat {
                 },
             )
             .await
-            .context(format!("Failed loading chat {} from database", chat_id))?;
+            .context(format!("Failed loading chat {chat_id} from database"))?;
 
         if chat.id.is_archived_link() {
             chat.name = stock_str::archived_chats(context).await;
@@ -1491,11 +1490,11 @@ impl Chat {
 
                 if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
                     // angle brackets are added by the mimefactory later
-                    new_references = format!("{} {}", parent_references, parent_rfc724_mid);
+                    new_references = format!("{parent_references} {parent_rfc724_mid}");
                 } else if !parent_references.is_empty() {
                     new_references = parent_references.to_string();
                 } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
-                    new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
+                    new_references = format!("{parent_in_reply_to} {parent_rfc724_mid}");
                 } else if !parent_in_reply_to.is_empty() {
                     new_references = parent_in_reply_to;
                 } else {
@@ -2797,7 +2796,7 @@ async fn find_unused_broadcast_list_name(context: &Context) -> Result<String> {
     let base_name = stock_str::broadcast_list(context).await;
     for attempt in 1..1000 {
         let better_name = if attempt > 1 {
-            format!("{} {}", base_name, attempt)
+            format!("{base_name} {attempt}")
         } else {
             base_name.clone()
         };
@@ -3065,7 +3064,7 @@ pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuratio
             paramsv![duration, chat_id],
         )
         .await
-        .context(format!("Failed to set mute duration for {}", chat_id))?;
+        .context(format!("Failed to set mute duration for {chat_id}"))?;
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
@@ -4498,12 +4497,11 @@ mod tests {
                 format!(
                     "From: bob@example.net\n\
                      To: alice@example.org\n\
-                     Message-ID: <{}@example.org>\n\
+                     Message-ID: <{num}@example.org>\n\
                      Chat-Version: 1.0\n\
                      Date: Sun, 22 Mar 2022 19:37:57 +0000\n\
                      \n\
-                     hello\n",
-                    num
+                     hello\n"
                 )
                 .as_bytes(),
                 false,
@@ -4579,14 +4577,13 @@ mod tests {
             receive_imf(
                 t,
                 format!(
-                    "From: {}@example.net\n\
+                    "From: {name}@example.net\n\
                      To: alice@example.org\n\
-                     Message-ID: <{}@example.org>\n\
+                     Message-ID: <{num}@example.org>\n\
                      Chat-Version: 1.0\n\
                      Date: Sun, 22 Mar 2022 19:37:57 +0000\n\
                      \n\
-                     hello\n",
-                    name, num
+                     hello\n"
                 )
                 .as_bytes(),
                 false,
@@ -4793,7 +4790,7 @@ mod tests {
         let chat_id = ChatId::create_for_contact(&context.ctx, contact1)
             .await
             .unwrap();
-        assert!(!chat_id.is_special(), "chat_id too small {}", chat_id);
+        assert!(!chat_id.is_special(), "chat_id too small {chat_id}");
         let chat = Chat::load_from_db(&context.ctx, chat_id).await.unwrap();
 
         let chat2_id = ChatId::create_for_contact(&context.ctx, contact1)

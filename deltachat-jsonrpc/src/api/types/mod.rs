@@ -10,7 +10,7 @@ pub mod reactions;
 pub mod webxdc;
 
 pub fn color_int_to_hex_string(color: u32) -> String {
-    format!("{:#08x}", color).replace("0x", "#")
+    format!("{color:#08x}").replace("0x", "#")
 }
 
 fn maybe_empty_string_to_option(string: String) -> Option<String> {

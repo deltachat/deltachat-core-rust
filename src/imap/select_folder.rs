@@ -22,7 +22,7 @@ pub enum Error {
 
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Error {
-        Error::Other(format!("{:#}", err))
+        Error::Other(format!("{err:#}"))
     }
 }
 
@@ -111,12 +111,12 @@ impl ImapSession {
                 Error::NoFolder(..) => {
                     info!(context, "Failed to select folder {} because it does not exist, trying to create it.", folder);
                     self.create(folder).await.with_context(|| {
-                        format!("Couldn't select folder ('{}'), then create() failed", err)
+                        format!("Couldn't select folder ('{err}'), then create() failed")
                     })?;
 
-                    Ok(self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {}", folder))?)
+                    Ok(self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"))?)
                 }
-                _ => Err(err).with_context(|| format!("failed to select folder {} with error other than NO, not trying to create it", folder)),
+                _ => Err(err).with_context(|| format!("failed to select folder {folder} with error other than NO, not trying to create it")),
             },
         }
     }

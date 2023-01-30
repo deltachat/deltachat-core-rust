@@ -29,9 +29,9 @@ pub enum SummaryPrefix {
 impl fmt::Display for SummaryPrefix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SummaryPrefix::Username(username) => write!(f, "{}", username),
-            SummaryPrefix::Draft(text) => write!(f, "{}", text),
-            SummaryPrefix::Me(text) => write!(f, "{}", text),
+            SummaryPrefix::Username(username) => write!(f, "{username}"),
+            SummaryPrefix::Draft(text) => write!(f, "{text}"),
+            SummaryPrefix::Me(text) => write!(f, "{text}"),
         }
     }
 }
@@ -133,7 +133,7 @@ impl Message {
                     } else {
                         stock_str::file(context).await
                     };
-                    format!("{} – {}", label, file_name)
+                    format!("{label} – {file_name}")
                 }
             }
             Viewtype::VideochatInvitation => {
@@ -167,7 +167,7 @@ impl Message {
             } else if prefix.is_empty() {
                 text.to_string()
             } else {
-                format!("{} – {}", prefix, text)
+                format!("{prefix} – {text}")
             }
         } else {
             prefix

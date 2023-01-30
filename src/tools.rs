@@ -95,7 +95,7 @@ pub(crate) fn truncate_by_lines(
         };
 
         if let Some(truncated_text) = text {
-            (format!("{}{}", truncated_text, DC_ELLIPSIS), true)
+            (format!("{truncated_text}{DC_ELLIPSIS}"), true)
         } else {
             // In case of indexing/slicing error, we return an error
             // message as a preview and add HTML version. This should
@@ -128,7 +128,7 @@ pub fn duration_to_str(duration: Duration) -> String {
     let h = secs / 3600;
     let m = (secs % 3600) / 60;
     let s = (secs % 3600) % 60;
-    format!("{}h {}m {}s", h, m, s)
+    format!("{h}h {m}m {s}s")
 }
 
 pub(crate) fn gm2local_offset() -> i64 {
@@ -383,7 +383,7 @@ pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Re
     let dpath = format!("{}", path.to_string_lossy());
     fs::remove_file(path_abs)
         .await
-        .with_context(|| format!("cannot delete {:?}", dpath))?;
+        .with_context(|| format!("cannot delete {dpath:?}"))?;
     context.emit_event(EventType::DeletedBlobFile(dpath));
     Ok(())
 }

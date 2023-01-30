@@ -596,7 +596,7 @@ impl Context {
                 },
             )
             .await?;
-        Ok(format!("[{}]", json))
+        Ok(format!("[{json}]"))
     }
 
     /// Renders JSON-object for status updates as used on the wire.
@@ -634,7 +634,7 @@ impl Context {
         if json.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(format!(r#"{{"updates":[{}]}}"#, json)))
+            Ok(Some(format!(r#"{{"updates":[{json}]}}"#)))
         }
     }
 }

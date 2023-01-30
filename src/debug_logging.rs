@@ -45,7 +45,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
             .await
         {
             Err(err) => {
-                eprintln!("Can't log event to webxdc status update: {:#}", err);
+                eprintln!("Can't log event to webxdc status update: {err:#}");
             }
             Ok(serial) => {
                 context.events.emit(Event {

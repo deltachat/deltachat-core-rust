@@ -30,7 +30,7 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
             // set raw config inside the transaction
             transaction.execute(
                 "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                paramsv![VERSION_CFG, format!("{}", dbversion_before_update)],
+                paramsv![VERSION_CFG, format!("{dbversion_before_update}")],
             )?;
             Ok(())
         })
@@ -40,7 +40,7 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
         let mut lock = context.sql.config_cache.write().await;
         lock.insert(
             VERSION_CFG.to_string(),
-            Some(format!("{}", dbversion_before_update)),
+            Some(format!("{dbversion_before_update}")),
         );
         drop(lock);
     } else {
@@ -320,11 +320,11 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
     if dbversion < 67 {
         for prefix in &["", "configured_"] {
             if let Some(server_flags) = sql
-                .get_raw_config_int(&format!("{}server_flags", prefix))
+                .get_raw_config_int(&format!("{prefix}server_flags"))
                 .await?
             {
                 let imap_socket_flags = server_flags & 0x700;
-                let key = &format!("{}mail_security", prefix);
+                let key = &format!("{prefix}mail_security");
                 match imap_socket_flags {
                     0x100 => sql.set_raw_config_int(key, 2).await?, // STARTTLS
                     0x200 => sql.set_raw_config_int(key, 1).await?, // SSL/TLS
@@ -332,7 +332,7 @@ ALTER TABLE msgs ADD COLUMN ephemeral_timestamp INTEGER DEFAULT 0;"#,
                     _ => sql.set_raw_config_int(key, 0).await?,
                 }
                 let smtp_socket_flags = server_flags & 0x70000;
-                let key = &format!("{}send_security", prefix);
+                let key = &format!("{prefix}send_security");
                 match smtp_socket_flags {
                     0x10000 => sql.set_raw_config_int(key, 2).await?, // STARTTLS
                     0x20000 => sql.set_raw_config_int(key, 1).await?, // SSL/TLS
@@ -721,16 +721,16 @@ impl Sql {
             // set raw config inside the transaction
             transaction.execute(
                 "UPDATE config SET value=? WHERE keyname=?;",
-                paramsv![format!("{}", version), VERSION_CFG],
+                paramsv![format!("{version}"), VERSION_CFG],
             )?;
 
             Ok(())
         })
         .await
-        .with_context(|| format!("execute_migration failed for version {}", version))?;
+        .with_context(|| format!("execute_migration failed for version {version}"))?;
 
         let mut lock = self.config_cache.write().await;
-        lock.insert(VERSION_CFG.to_string(), Some(format!("{}", version)));
+        lock.insert(VERSION_CFG.to_string(), Some(format!("{version}")));
         drop(lock);
 
         Ok(())

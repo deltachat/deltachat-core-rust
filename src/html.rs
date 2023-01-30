@@ -207,7 +207,7 @@ impl HtmlMsgParser {
                                             self.html = re
                                                 .replace_all(
                                                     &self.html,
-                                                    format!("${{1}}{}${{3}}", replacement).as_str(),
+                                                    format!("${{1}}{replacement}${{3}}").as_str(),
                                                 )
                                                 .as_ref()
                                                 .to_string()
@@ -561,7 +561,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(msg.text.as_ref().unwrap().contains("foo bar ä ö ü ß"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&t).await?.unwrap();
-        println!("{}", html);
+        println!("{html}");
         assert!(html.contains("foo bar ä ö ü ß"));
         Ok(())
     }

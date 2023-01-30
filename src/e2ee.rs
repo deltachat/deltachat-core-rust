@@ -78,7 +78,7 @@ impl EncryptHelper {
                     };
                 }
                 None => {
-                    let msg = format!("peerstate for {:?} missing, cannot encrypt", addr);
+                    let msg = format!("peerstate for {addr:?} missing, cannot encrypt");
                     if e2ee_guaranteed {
                         return Err(format_err!("{}", msg));
                     } else {
@@ -112,7 +112,7 @@ impl EncryptHelper {
         {
             let key = peerstate
                 .take_key(min_verified)
-                .with_context(|| format!("proper enc-key for {} missing, cannot encrypt", addr))?;
+                .with_context(|| format!("proper enc-key for {addr} missing, cannot encrypt"))?;
             keyring.add(key);
         }
         keyring.add(self.public_key.clone());

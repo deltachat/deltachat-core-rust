@@ -15,7 +15,6 @@
     clippy::unused_async
 )]
 #![allow(
-    clippy::uninlined_format_args,
     clippy::match_bool,
     clippy::mixed_read_write_in_expression,
     clippy::bool_assert_comparison,

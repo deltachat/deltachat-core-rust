@@ -227,13 +227,13 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         let addr = ContactAddress::new(addr)?;
         let (contact_id, _) = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
             .await
-            .with_context(|| format!("failed to add or lookup contact for address {:?}", addr))?;
+            .with_context(|| format!("failed to add or lookup contact for address {addr:?}"))?;
 
         if let (Some(grpid), Some(grpname)) = (grpid, grpname) {
             if context
                 .is_self_addr(&addr)
                 .await
-                .with_context(|| format!("can't check if address {:?} is our address", addr))?
+                .with_context(|| format!("can't check if address {addr:?} is our address"))?
             {
                 if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
                     Ok(Qr::WithdrawVerifyGroup {
@@ -309,7 +309,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         } else {
             let contact_id = Contact::lookup_id_by_addr(context, &addr, Origin::Unknown)
                 .await
-                .with_context(|| format!("Error looking up contact {:?}", addr))?;
+                .with_context(|| format!("Error looking up contact {addr:?}"))?;
             Ok(Qr::FprMismatch { contact_id })
         }
     } else {
@@ -325,7 +325,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
         .get(DCACCOUNT_SCHEME.len()..)
         .context("invalid DCACCOUNT payload")?;
     let url =
-        url::Url::parse(payload).with_context(|| format!("Invalid account URL: {:?}", payload))?;
+        url::Url::parse(payload).with_context(|| format!("Invalid account URL: {payload:?}"))?;
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::Account {
             domain: url
@@ -346,7 +346,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
     let url =
-        url::Url::parse(&url).with_context(|| format!("Invalid WebRTC instance: {:?}", payload))?;
+        url::Url::parse(&url).with_context(|| format!("Invalid WebRTC instance: {payload:?}"))?;
 
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::WebrtcInstance {
@@ -380,18 +380,14 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let response = crate::http::get_client()?.post(url_str).send().await?;
     let response_status = response.status();
     let response_text = response.text().await.with_context(|| {
-        format!(
-            "Cannot create account, request to {:?} failed: empty response",
-            url_str
-        )
+        format!("Cannot create account, request to {url_str:?} failed: empty response")
     })?;
 
     if response_status.is_success() {
         let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
             .with_context(|| {
                 format!(
-                    "Cannot create account, response from {:?} is malformed:\n{:?}",
-                    url_str, response_text
+                    "Cannot create account, response from {url_str:?} is malformed:\n{response_text:?}"
                 )
             })?;
         context.set_config(Config::Addr, Some(&email)).await?;
@@ -403,8 +399,7 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
             Ok(error) => Err(anyhow!(error.reason)),
             Err(parse_error) => {
                 context.emit_event(EventType::Error(format!(
-                    "Cannot create account, server response could not be parsed:\n{:#}\nraw response:\n{}",
-                    parse_error, response_text
+                    "Cannot create account, server response could not be parsed:\n{parse_error:#}\nraw response:\n{response_text}"
                 )));
                 bail!(
                     "Cannot create account, unexpected server response:\n{:?}",
@@ -603,7 +598,7 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
             let last_name = caps.get(1)?.as_str().trim();
             let first_name = caps.get(2)?.as_str().trim();
 
-            Some(format!("{} {}", first_name, last_name))
+            Some(format!("{first_name} {last_name}"))
         })
         .unwrap_or_default();
 

@@ -90,7 +90,7 @@ fn inner_generate_secure_join_qr_code(
 
     w.elem("svg", |d| {
         d.attr("xmlns", "http://www.w3.org/2000/svg")?;
-        d.attr("viewBox", format_args!("0 0 {} {}", width, height))?;
+        d.attr("viewBox", format_args!("0 0 {width} {height}"))?;
         Ok(())
     })?
     .build(|w| {
@@ -129,14 +129,14 @@ fn inner_generate_secure_join_qr_code(
                 for y in 0..qr.size() {
                     for x in 0..qr.size() {
                         if qr.get_module(x, y) {
-                            path_data += &format!("M{},{}h1v1h-1z", x, y);
+                            path_data += &format!("M{x},{y}h1v1h-1z");
                         }
                     }
                 }
 
                 d.attr("style", "fill:#000000")?;
                 d.attr("d", path_data)?;
-                d.attr("transform", format!("scale({})", scale))
+                d.attr("transform", format!("scale({scale})"))
             })
         })?;
 
@@ -167,10 +167,9 @@ fn inner_generate_secure_join_qr_code(
                     format!(
                         "font-family:sans-serif;\
                         font-weight:bold;\
-                        font-size:{}px;\
+                        font-size:{text_font_size}px;\
                         fill:#000000;\
-                        stroke:none",
-                        text_font_size
+                        stroke:none"
                     ),
                 )
             })?
@@ -236,9 +235,8 @@ fn inner_generate_secure_join_qr_code(
                     format!(
                         "font-family:sans-serif;\
                             font-weight:400;\
-                            font-size:{}px;\
-                            fill:#ffffff;",
-                        avatar_font_size
+                            font-size:{avatar_font_size}px;\
+                            fill:#ffffff;"
                     ),
                 )
             })?

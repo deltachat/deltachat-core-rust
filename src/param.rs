@@ -391,7 +391,7 @@ impl Params {
 
     /// Set the given paramter to the passed in `i32`.
     pub fn set_int(&mut self, key: Param, value: i32) -> &mut Self {
-        self.set(key, format!("{}", value));
+        self.set(key, format!("{value}"));
         self
     }
 
@@ -403,7 +403,7 @@ impl Params {
 
     /// Set the given parameter to the passed in `f64` .
     pub fn set_float(&mut self, key: Param, value: f64) -> &mut Self {
-        self.set(key, format!("{}", value));
+        self.set(key, format!("{value}"));
         self
     }
 }

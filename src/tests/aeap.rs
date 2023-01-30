@@ -295,7 +295,7 @@ async fn check_that_transition_worked(
         assert_eq!(info_msg.text.unwrap(), expected_text);
         assert_eq!(info_msg.from_id, ContactId::INFO);
 
-        let msg = format!("Sending to group {}", group);
+        let msg = format!("Sending to group {group}");
         let sent = bob.send_text(*group, &msg).await;
         let recvd = alice.recv_msg(&sent).await;
         assert_eq!(recvd.text.unwrap(), msg);
@@ -326,8 +326,7 @@ async fn check_no_transition_done(groups: &[ChatId], old_alice_addr: &str, bob: 
         let last_info_msg = get_last_info_msg(bob, *group).await;
         assert!(
             last_info_msg.is_none(),
-            "{:?} shouldn't be there (or it's an unrelated info msg)",
-            last_info_msg
+            "{last_info_msg:?} shouldn't be there (or it's an unrelated info msg)"
         );
     }
 }

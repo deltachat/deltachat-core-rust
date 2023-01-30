@@ -1,4 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
 //! This is a CLI program and a little testing frame.  This file must not be
 //! included when using Delta Chat Core as a library.
 //!
@@ -68,8 +67,7 @@ fn receive_event(event: EventType) {
             info!(
                 "{}",
                 yellow.paint(format!(
-                    "Received MSGS_CHANGED(chat_id={}, msg_id={})",
-                    chat_id, msg_id,
+                    "Received MSGS_CHANGED(chat_id={chat_id}, msg_id={msg_id})",
                 ))
             );
         }
@@ -81,8 +79,7 @@ fn receive_event(event: EventType) {
             info!(
                 "{}",
                 yellow.paint(format!(
-                    "Received REACTIONS_CHANGED(chat_id={}, msg_id={}, contact_id={})",
-                    chat_id, msg_id, contact_id
+                    "Received REACTIONS_CHANGED(chat_id={chat_id}, msg_id={msg_id}, contact_id={contact_id})"
                 ))
             );
         }
@@ -92,7 +89,7 @@ fn receive_event(event: EventType) {
         EventType::LocationChanged(contact) => {
             info!(
                 "{}",
-                yellow.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
+                yellow.paint(format!("Received LOCATION_CHANGED(contact={contact:?})"))
             );
         }
         EventType::ConfigureProgress { progress, comment } => {
@@ -100,21 +97,20 @@ fn receive_event(event: EventType) {
                 info!(
                     "{}",
                     yellow.paint(format!(
-                        "Received CONFIGURE_PROGRESS({} ‰, {})",
-                        progress, comment
+                        "Received CONFIGURE_PROGRESS({progress} ‰, {comment})"
                     ))
                 );
             } else {
                 info!(
                     "{}",
-                    yellow.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
+                    yellow.paint(format!("Received CONFIGURE_PROGRESS({progress} ‰)"))
                 );
             }
         }
         EventType::ImexProgress(progress) => {
             info!(
                 "{}",
-                yellow.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
+                yellow.paint(format!("Received IMEX_PROGRESS({progress} ‰)"))
             );
         }
         EventType::ImexFileWritten(file) => {
@@ -126,7 +122,7 @@ fn receive_event(event: EventType) {
         EventType::ChatModified(chat) => {
             info!(
                 "{}",
-                yellow.paint(format!("Received CHAT_MODIFIED({})", chat))
+                yellow.paint(format!("Received CHAT_MODIFIED({chat})"))
             );
         }
         _ => {
@@ -363,7 +359,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
                                 false
                             }
                             Err(err) => {
-                                println!("Error: {}", err);
+                                println!("Error: {err}");
                                 true
                             }
                         }
@@ -378,7 +374,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
                     break;
                 }
                 Err(err) => {
-                    println!("Error: {}", err);
+                    println!("Error: {err}");
                     break;
                 }
             }
@@ -445,7 +441,7 @@ async fn handle_cmd(
                 if arg0 == "getbadqr" && qr.len() > 40 {
                     qr.replace_range(12..22, "0000000000")
                 }
-                println!("{}", qr);
+                println!("{qr}");
                 let output = Command::new("qrencode")
                     .args(["-t", "ansiutf8", qr.as_str(), "-o", "-"])
                     .output()
@@ -461,7 +457,7 @@ async fn handle_cmd(
             match get_securejoin_qr_svg(&ctx, group).await {
                 Ok(svg) => {
                     fs::write(&file, svg).await?;
-                    println!("QR code svg written to: {:#?}", file);
+                    println!("QR code svg written to: {file:#?}");
                 }
                 Err(err) => {
                     bail!("Failed to get QR code svg: {}", err);

@@ -996,7 +996,7 @@ async fn add_parts(
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "verification problem: {:#}", err);
-                let s = format!("{}. See 'Info' for more details", err);
+                let s = format!("{err}. See 'Info' for more details");
                 mime_parser.repl_msg_by_error(&s);
             } else {
                 // change chat protection only when verification check passes
@@ -1013,7 +1013,7 @@ async fn add_parts(
                             chat::add_info_msg(
                                 context,
                                 chat_id,
-                                &format!("Cannot set protection: {}", e),
+                                &format!("Cannot set protection: {e}"),
                                 sort_timestamp,
                             )
                             .await?;
@@ -1162,7 +1162,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
 
         if part.typ == Viewtype::Text {
             let msg_raw = part.msg_raw.as_ref().cloned().unwrap_or_default();
-            txt_raw = format!("{}\n\n{}", subject, msg_raw);
+            txt_raw = format!("{subject}\n\n{msg_raw}");
         }
 
         let ephemeral_timestamp = if in_fresh {
@@ -1254,7 +1254,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
 
     info!(
         context,
-        "Message has {} parts and is assigned to chat #{}.", icnt, chat_id,
+        "Message has {icnt} parts and is assigned to chat #{chat_id}."
     );
 
     // new outgoing message from another device marks the chat as noticed.
@@ -1522,7 +1522,7 @@ async fn create_or_lookup_group(
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
             warn!(context, "verification problem: {:#}", err);
-            let s = format!("{}. See 'Info' for more details", err);
+            let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
         }
         ProtectionStatus::Protected
@@ -1573,7 +1573,7 @@ async fn create_or_lookup_group(
             None,
         )
         .await
-        .with_context(|| format!("Failed to create group '{}' for grpid={}", grpname, grpid))?;
+        .with_context(|| format!("Failed to create group '{grpname}' for grpid={grpid}"))?;
 
         chat_id = Some(new_chat_id);
         chat_id_blocked = create_blocked;
@@ -1720,7 +1720,7 @@ async fn apply_group_changes(
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
             warn!(context, "verification problem: {:#}", err);
-            let s = format!("{}. See 'Info' for more details", err);
+            let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
         }
 

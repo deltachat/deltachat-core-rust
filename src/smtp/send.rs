@@ -77,8 +77,7 @@ impl Smtp {
                     .map_err(Error::SmtpSend)?;
 
                 context.emit_event(EventType::SmtpMessageSent(format!(
-                    "Message len={} was smtp-sent to {}",
-                    message_len_bytes, recipients_display
+                    "Message len={message_len_bytes} was smtp-sent to {recipients_display}"
                 )));
                 self.last_success = Some(std::time::SystemTime::now());
             } else {

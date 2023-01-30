@@ -143,7 +143,7 @@ impl Accounts {
         let ctx = self
             .accounts
             .remove(&id)
-            .with_context(|| format!("no account with id {}", id))?;
+            .with_context(|| format!("no account with id {id}"))?;
         ctx.stop_io().await;
         drop(ctx);
 

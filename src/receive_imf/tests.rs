@@ -627,15 +627,14 @@ async fn test_parse_ndn(
         &t,
         format!(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-                From: {}\n\
-                To: {}\n\
+                From: {self_addr}\n\
+                To: {foreign_addr}\n\
                 Subject: foo\n\
-                Message-ID: <{}>\n\
+                Message-ID: <{rfc724_mid_outgoing}>\n\
                 Chat-Version: 1.0\n\
                 Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                 \n\
-                hello\n",
-            self_addr, foreign_addr, rfc724_mid_outgoing
+                hello\n"
         )
         .as_bytes(),
         false,
@@ -861,7 +860,7 @@ async fn test_classic_mailing_list() -> Result<()> {
     let sent = t.send_text(chat.id, "Hello mailinglist!").await;
     let mime = sent.payload();
 
-    println!("Sent mime message is:\n\n{}\n\n", mime);
+    println!("Sent mime message is:\n\n{mime}\n\n");
     assert!(mime.contains("Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no\r\n"));
     assert!(mime.contains("Subject: =?utf-8?q?Re=3A_=5Bdelta-dev=5D_What=27s_up=3F?=\r\n"));
     assert!(mime.contains("MIME-Version: 1.0\r\n"));
@@ -1375,7 +1374,7 @@ async fn test_apply_mailinglist_changes_assigned_by_reply() {
     let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
     assert!(chat.can_send(&t).await.unwrap());
 
-    let imf_raw = format!("In-Reply-To: 3333@example.org\n{}", GH_MAILINGLIST2);
+    let imf_raw = format!("In-Reply-To: 3333@example.org\n{GH_MAILINGLIST2}");
     receive_imf(&t, imf_raw.as_bytes(), false).await.unwrap();
 
     assert_eq!(
@@ -1470,7 +1469,7 @@ async fn check_dont_show_in_contacts_list(addr: &str) {
         &t,
         format!(
             "Subject: Re: [deltachat/deltachat-core-rust] DC is the best repo on GitHub!
-To: {}
+To: {addr}
 References: <deltachat/deltachat-core-rust/pull/1625@github.com>
  <deltachat/deltachat-core-rust/pull/1625/c644661857@github.com>
 From: alice@example.org
@@ -1481,8 +1480,7 @@ Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 7bit
 
 YEAAAAAA!.
-",
-            addr
+"
         )
         .as_bytes(),
         false,
@@ -2814,7 +2812,7 @@ async fn test_long_filenames() -> Result<()> {
         "a.a..a.a.a.a.tar.gz",
     ] {
         let attachment = alice.blobdir.join(filename_sent);
-        let content = format!("File content of {}", filename_sent);
+        let content = format!("File content of {filename_sent}");
         tokio::fs::write(&attachment, content.as_bytes()).await?;
 
         let mut msg_alice = Message::new(Viewtype::File);
@@ -2831,14 +2829,11 @@ async fn test_long_filenames() -> Result<()> {
             let path = msg.get_file(t).unwrap();
             assert!(
                 resulting_filename.ends_with(".tar.gz"),
-                "{:?} doesn't end with .tar.gz, path: {:?}",
-                resulting_filename,
-                path
+                "{resulting_filename:?} doesn't end with .tar.gz, path: {path:?}"
             );
             assert!(
                 path.to_str().unwrap().ends_with(".tar.gz"),
-                "path {:?} doesn't end with .tar.gz",
-                path
+                "path {path:?} doesn't end with .tar.gz"
             );
             assert_eq!(fs::read_to_string(path).await.unwrap(), content);
         }

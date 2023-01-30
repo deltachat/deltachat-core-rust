@@ -1099,7 +1099,7 @@ mod tests {
                 .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
                 .await
                 .unwrap();
-            assert!(rawtxt.is_none_or_empty(), "{:?}", rawtxt);
+            assert!(rawtxt.is_none_or_empty(), "{rawtxt:?}");
         }
     }
 

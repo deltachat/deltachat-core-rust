@@ -179,7 +179,7 @@ impl Chatlist {
                 warn!(context, "cannot update special chat names: {:?}", err)
             }
 
-            let str_like_cmd = format!("%{}%", query);
+            let str_like_cmd = format!("%{query}%");
             context
                 .sql
                 .query_map(

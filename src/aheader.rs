@@ -90,7 +90,7 @@ impl fmt::Display for Aheader {
                 res
             },
         );
-        write!(fmt, " keydata={}", keydata)
+        write!(fmt, " keydata={keydata}")
     }
 }
 
@@ -152,11 +152,8 @@ mod tests {
 
     #[test]
     fn test_from_str() -> Result<()> {
-        let h: Aheader = format!(
-            "addr=me@mail.com; prefer-encrypt=mutual; keydata={}",
-            RAWKEY
-        )
-        .parse()?;
+        let h: Aheader =
+            format!("addr=me@mail.com; prefer-encrypt=mutual; keydata={RAWKEY}").parse()?;
 
         assert_eq!(h.addr, "me@mail.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::Mutual);
@@ -166,10 +163,7 @@ mod tests {
     // EncryptPreference::Reset is an internal value, parser should never return it
     #[test]
     fn test_from_str_reset() -> Result<()> {
-        let raw = format!(
-            "addr=reset@example.com; prefer-encrypt=reset; keydata={}",
-            RAWKEY
-        );
+        let raw = format!("addr=reset@example.com; prefer-encrypt=reset; keydata={RAWKEY}");
         let h: Aheader = raw.parse()?;
 
         assert_eq!(h.addr, "reset@example.com");
@@ -179,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_from_str_non_critical() -> Result<()> {
-        let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={}", RAWKEY);
+        let raw = format!("addr=me@mail.com; _foo=one; _bar=two; keydata={RAWKEY}");
         let h: Aheader = raw.parse()?;
 
         assert_eq!(h.addr, "me@mail.com");
@@ -189,10 +183,7 @@ mod tests {
 
     #[test]
     fn test_from_str_superflous_critical() {
-        let raw = format!(
-            "addr=me@mail.com; _foo=one; _bar=two; other=me; keydata={}",
-            RAWKEY
-        );
+        let raw = format!("addr=me@mail.com; _foo=one; _bar=two; other=me; keydata={RAWKEY}");
         assert!(raw.parse::<Aheader>().is_err());
     }
 
@@ -226,21 +217,20 @@ mod tests {
         let ah = Aheader::from_str(fixed_header)?;
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
-        assert_eq!(format!("{}", ah), fixed_header);
+        assert_eq!(format!("{ah}"), fixed_header);
 
         let rendered = ah.to_string();
         assert_eq!(rendered, fixed_header);
 
-        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", RAWKEY))?;
+        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {RAWKEY}"))?;
         assert_eq!(ah.addr, "a@b.example.org");
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
 
         Aheader::from_str(&format!(
-            "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata={}",
-            RAWKEY
+            "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata={RAWKEY}"
         ))?;
 
-        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", RAWKEY))?;
+        Aheader::from_str(&format!("addr=a@b.example.org; keydata={RAWKEY}"))?;
         Ok(())
     }
 

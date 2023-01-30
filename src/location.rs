@@ -465,8 +465,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
     if locations_send_begin != 0 && now <= locations_send_until {
         ret += &format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-            <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
-            self_addr,
+            <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{self_addr}\">\n",
         );
 
         context
@@ -500,10 +499,9 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
                         let (location_id, latitude, longitude, accuracy, timestamp) = row?;
                         ret += &format!(
                             "<Placemark>\
-                <Timestamp><when>{}</when></Timestamp>\
-                <Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point>\
-                </Placemark>\n",
-                            timestamp, accuracy, longitude, latitude
+                <Timestamp><when>{timestamp}</when></Timestamp>\
+                <Point><coordinates accuracy=\"{accuracy}\">{longitude},{latitude}</coordinates></Point>\
+                </Placemark>\n"
                         );
                         location_count += 1;
                         last_added_location_id = location_id as u32;

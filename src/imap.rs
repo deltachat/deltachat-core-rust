@@ -505,7 +505,7 @@ impl Imap {
         let mut list = session
             .uid_fetch("1:*", RFC724MID_UID)
             .await
-            .with_context(|| format!("can't resync folder {}", folder))?;
+            .with_context(|| format!("can't resync folder {folder}"))?;
         while let Some(fetch) = list.next().await {
             let msg = fetch?;
 
@@ -564,22 +564,22 @@ impl Imap {
         let newly_selected = session
             .select_or_create_folder(context, folder)
             .await
-            .with_context(|| format!("failed to select or create folder {}", folder))?;
+            .with_context(|| format!("failed to select or create folder {folder}"))?;
         let mailbox = session
             .selected_mailbox
             .as_mut()
-            .with_context(|| format!("No mailbox selected, folder: {}", folder))?;
+            .with_context(|| format!("No mailbox selected, folder: {folder}"))?;
 
         let new_uid_validity = mailbox
             .uid_validity
-            .with_context(|| format!("No UIDVALIDITY for folder {}", folder))?;
+            .with_context(|| format!("No UIDVALIDITY for folder {folder}"))?;
 
         let old_uid_validity = get_uidvalidity(context, folder)
             .await
-            .with_context(|| format!("failed to get old UID validity for folder {}", folder))?;
+            .with_context(|| format!("failed to get old UID validity for folder {folder}"))?;
         let old_uid_next = get_uid_next(context, folder)
             .await
-            .with_context(|| format!("failed to get old UID NEXT for folder {}", folder))?;
+            .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
 
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
@@ -694,7 +694,7 @@ impl Imap {
         let new_emails = self
             .select_with_uidvalidity(context, folder)
             .await
-            .with_context(|| format!("failed to select folder {}", folder))?;
+            .with_context(|| format!("failed to select folder {folder}"))?;
 
         if !new_emails && !fetch_existing_msgs {
             info!(context, "No new emails in folder {}", folder);
@@ -917,8 +917,7 @@ impl Session {
             .context("cannot remove deleted messages from imap table")?;
 
         context.emit_event(EventType::ImapMessageDeleted(format!(
-            "IMAP messages {} marked as deleted",
-            uid_set
+            "IMAP messages {uid_set} marked as deleted"
         )));
         Ok(())
     }
@@ -948,8 +947,7 @@ impl Session {
                         .await
                         .context("cannot delete moved messages from imap table")?;
                     context.emit_event(EventType::ImapMessageMoved(format!(
-                        "IMAP messages {} moved to {}",
-                        set, target
+                        "IMAP messages {set} moved to {target}"
                     )));
                     return Ok(());
                 }
@@ -986,8 +984,7 @@ impl Session {
                     .await
                     .context("cannot plan deletion of copied messages")?;
                 context.emit_event(EventType::ImapMessageMoved(format!(
-                    "IMAP messages {} copied to {}",
-                    set, target
+                    "IMAP messages {set} copied to {target}"
                 )));
                 Ok(())
             }
@@ -1111,7 +1108,7 @@ impl Imap {
         let session = self
             .session
             .as_mut()
-            .with_context(|| format!("No IMAP connection established, folder: {}", folder))?;
+            .with_context(|| format!("No IMAP connection established, folder: {folder}"))?;
 
         if !session.can_condstore() {
             info!(
@@ -1129,7 +1126,7 @@ impl Imap {
         let mailbox = session
             .selected_mailbox
             .as_ref()
-            .with_context(|| format!("No mailbox selected, folder: {}", folder))?;
+            .with_context(|| format!("No mailbox selected, folder: {folder}"))?;
 
         // Check if the mailbox supports MODSEQ.
         // We are not interested in actual value of HIGHESTMODSEQ.
@@ -1144,12 +1141,12 @@ impl Imap {
         let mut updated_chat_ids = BTreeSet::new();
         let uid_validity = get_uidvalidity(context, folder)
             .await
-            .with_context(|| format!("failed to get UID validity for folder {}", folder))?;
+            .with_context(|| format!("failed to get UID validity for folder {folder}"))?;
         let mut highest_modseq = get_modseq(context, folder)
             .await
-            .with_context(|| format!("failed to get MODSEQ for folder {}", folder))?;
+            .with_context(|| format!("failed to get MODSEQ for folder {folder}"))?;
         let mut list = session
-            .uid_fetch("1:*", format!("(FLAGS) (CHANGEDSINCE {})", highest_modseq))
+            .uid_fetch("1:*", format!("(FLAGS) (CHANGEDSINCE {highest_modseq})"))
             .await
             .context("failed to fetch flags")?;
 
@@ -1166,7 +1163,7 @@ impl Imap {
                 if let Some(chat_id) = mark_seen_by_uid(context, folder, uid_validity, uid)
                     .await
                     .with_context(|| {
-                        format!("failed to update seen status for msg {}/{}", folder, uid)
+                        format!("failed to update seen status for msg {folder}/{uid}")
                     })?
                 {
                     updated_chat_ids.insert(chat_id);
@@ -1184,7 +1181,7 @@ impl Imap {
 
         set_modseq(context, folder, highest_modseq)
             .await
-            .with_context(|| format!("failed to set MODSEQ for folder {}", folder))?;
+            .with_context(|| format!("failed to set MODSEQ for folder {folder}"))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
         }
@@ -1242,7 +1239,7 @@ impl Imap {
             .context("no IMAP connection established")?;
 
         // fetch messages with larger UID than the last one seen
-        let set = format!("{}:*", uid_next);
+        let set = format!("{uid_next}:*");
         let mut list = session
             .uid_fetch(set, PREFETCH_FLAGS)
             .await
@@ -1280,7 +1277,7 @@ impl Imap {
         // Sequence numbers are sequential. If there are 1000 messages in the inbox,
         // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
         let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT);
-        let set = format!("{}:*", first);
+        let set = format!("{first}:*");
         let mut list = session
             .fetch(&set, PREFETCH_FLAGS)
             .await
@@ -1499,11 +1496,11 @@ impl Session {
         if flag == "\\Deleted" {
             self.selected_folder_needs_expunge = true;
         }
-        let query = format!("+FLAGS ({})", flag);
+        let query = format!("+FLAGS ({flag})");
         let mut responses = self
             .uid_store(uid_set, &query)
             .await
-            .with_context(|| format!("IMAP failed to store: ({}, {})", uid_set, query))?;
+            .with_context(|| format!("IMAP failed to store: ({uid_set}, {query})"))?;
         while let Some(_response) = responses.next().await {
             // Read all the responses
         }
@@ -1663,7 +1660,7 @@ impl Imap {
 
         info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
 
-        let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
+        let fallback_folder = format!("INBOX{delimiter}DeltaChat");
         let mvbox_folder = self
             .configure_mvbox(context, &["DeltaChat", &fallback_folder], create_mvbox)
             .await
@@ -2109,12 +2106,7 @@ async fn mark_seen_by_uid(
             },
         )
         .await
-        .with_context(|| {
-            format!(
-                "failed to get msg and chat ID for IMAP message {}/{}",
-                folder, uid
-            )
-        })?
+        .with_context(|| format!("failed to get msg and chat ID for IMAP message {folder}/{uid}"))?
     {
         let updated = context
             .sql
@@ -2130,16 +2122,14 @@ async fn mark_seen_by_uid(
                 ],
             )
             .await
-            .with_context(|| format!("failed to update msg {} state", msg_id))?
+            .with_context(|| format!("failed to update msg {msg_id} state"))?
             > 0;
 
         if updated {
             msg_id
                 .start_ephemeral_timer(context)
                 .await
-                .with_context(|| {
-                    format!("failed to start ephemeral timer for message {}", msg_id)
-                })?;
+                .with_context(|| format!("failed to start ephemeral timer for message {msg_id}"))?;
             Ok(Some(chat_id))
         } else {
             // Message state has not chnaged.
@@ -2254,7 +2244,7 @@ pub(crate) async fn get_imap_self_sent_search_command(context: &Context) -> Resu
     let mut search_command = format!("FROM \"{}\"", context.get_primary_self_addr().await?);
 
     for item in context.get_secondary_self_addrs().await? {
-        search_command = format!("OR ({}) (FROM \"{}\")", search_command, item);
+        search_command = format!("OR ({search_command}) (FROM \"{item}\")");
     }
 
     Ok(search_command)
@@ -2262,7 +2252,7 @@ pub(crate) async fn get_imap_self_sent_search_command(context: &Context) -> Resu
 
 /// Deprecated, use get_uid_next() and get_uidvalidity()
 pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result<(u32, u32)> {
-    let key = format!("imap.mailbox.{}", folder);
+    let key = format!("imap.mailbox.{folder}");
     if let Some(entry) = context.sql.get_raw_config(&key).await? {
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
         let mut parts = entry.split(':');
@@ -2367,7 +2357,7 @@ async fn add_all_recipients_as_contacts(
     };
     imap.select_with_uidvalidity(context, &mailbox)
         .await
-        .with_context(|| format!("could not select {}", mailbox))?;
+        .with_context(|| format!("could not select {mailbox}"))?;
 
     let recipients = imap
         .get_all_recipients(context)
@@ -2532,8 +2522,7 @@ mod tests {
         outgoing: bool,
         setupmessage: bool,
     ) -> Result<()> {
-        println!("Testing: For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}",
-                               folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage);
+        println!("Testing: For folder {folder}, mvbox_move {mvbox_move}, chat_msg {chat_msg}, accepted {accepted_chat}, outgoing {outgoing}, setupmessage {setupmessage}");
 
         let t = TestContext::new_alice().await;
         t.ctx
@@ -2590,8 +2579,7 @@ mod tests {
         } else {
             Some(expected_destination)
         };
-        assert_eq!(expected, actual.as_deref(), "For folder {}, mvbox_move {}, chat_msg {}, accepted {}, outgoing {}, setupmessage {}: expected {:?}, got {:?}",
-                                                     folder, mvbox_move, chat_msg, accepted_chat, outgoing, setupmessage, expected, actual);
+        assert_eq!(expected, actual.as_deref(), "For folder {folder}, mvbox_move {mvbox_move}, chat_msg {chat_msg}, accepted {accepted_chat}, outgoing {outgoing}, setupmessage {setupmessage}: expected {expected:?}, got {actual:?}");
         Ok(())
     }
 

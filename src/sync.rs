@@ -177,7 +177,7 @@ impl Context {
             Ok(None)
         } else {
             Ok(Some((
-                format!("{{\"items\":[\n{}\n]}}", serialized),
+                format!("{{\"items\":[\n{serialized}\n]}}"),
                 ids.iter()
                     .map(|x| x.to_string())
                     .collect::<Vec<String>>()
@@ -200,7 +200,7 @@ impl Context {
     pub(crate) async fn delete_sync_ids(&self, ids: String) -> Result<()> {
         self.sql
             .execute(
-                &format!("DELETE FROM multi_device_sync WHERE id IN ({});", ids),
+                &format!("DELETE FROM multi_device_sync WHERE id IN ({ids});"),
                 paramsv![],
             )
             .await?;

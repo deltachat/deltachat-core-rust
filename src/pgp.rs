@@ -136,7 +136,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
     };
 
-    let user_id = format!("<{}>", addr);
+    let user_id = format!("<{addr}>");
     let key_params = SecretKeyParamsBuilder::default()
         .key_type(secret_key_type)
         .can_create_certificates(true)

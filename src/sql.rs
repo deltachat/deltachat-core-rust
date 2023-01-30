@@ -125,7 +125,7 @@ impl Sql {
     pub(crate) async fn export(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
             .to_str()
-            .with_context(|| format!("path {:?} is not valid unicode", path))?;
+            .with_context(|| format!("path {path:?} is not valid unicode"))?;
         let conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
             conn.execute(
@@ -148,7 +148,7 @@ impl Sql {
     pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
             .to_str()
-            .with_context(|| format!("path {:?} is not valid unicode", path))?;
+            .with_context(|| format!("path {path:?} is not valid unicode"))?;
         let conn = self.get_conn().await?;
 
         tokio::task::block_in_place(move || {
@@ -587,7 +587,7 @@ impl Sql {
         let value = self
             .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv![key])
             .await
-            .context(format!("failed to fetch raw config: {}", key))?;
+            .context(format!("failed to fetch raw config: {key}"))?;
         lock.insert(key.to_string(), value.clone());
         drop(lock);
 
@@ -595,7 +595,7 @@ impl Sql {
     }
 
     pub async fn set_raw_config_int(&self, key: &str, value: i32) -> Result<()> {
-        self.set_raw_config(key, Some(&format!("{}", value))).await
+        self.set_raw_config(key, Some(&format!("{value}"))).await
     }
 
     pub async fn get_raw_config_int(&self, key: &str) -> Result<Option<i32>> {
@@ -623,7 +623,7 @@ impl Sql {
     }
 
     pub async fn set_raw_config_int64(&self, key: &str, value: i64) -> Result<()> {
-        self.set_raw_config(key, Some(&format!("{}", value))).await
+        self.set_raw_config(key, Some(&format!("{value}"))).await
     }
 
     pub async fn get_raw_config_int64(&self, key: &str) -> Result<Option<i64>> {
@@ -863,7 +863,7 @@ async fn maybe_add_from_param(
         },
     )
     .await
-    .context(format!("housekeeping: failed to add_from_param {}", query))?;
+    .context(format!("housekeeping: failed to add_from_param {query}"))?;
 
     Ok(())
 }
@@ -986,8 +986,7 @@ mod tests {
             match event.typ {
                 EventType::Info(s) => assert!(
                     !s.contains("Keeping new unreferenced file"),
-                    "File {} was almost deleted, only reason it was kept is that it was created recently (as the tests don't run for a long time)",
-                    s
+                    "File {s} was almost deleted, only reason it was kept is that it was created recently (as the tests don't run for a long time)"
                 ),
                 EventType::Error(s) => panic!("{}", s),
                 _ => {}

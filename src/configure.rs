@@ -87,7 +87,7 @@ impl Context {
                         self,
                         // We are using Anyhow's .context() and to show the
                         // inner error, too, we need the {:#}:
-                        &format!("{:#}", err),
+                        &format!("{err:#}"),
                     )
                     .await
                 )
@@ -492,8 +492,7 @@ async fn get_autoconfig(
     if let Ok(res) = moz_autoconfigure(
         ctx,
         &format!(
-            "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
-            param_domain, param_addr_urlencoded
+            "https://autoconfig.{param_domain}/mail/config-v1.1.xml?emailaddress={param_addr_urlencoded}"
         ),
         param,
     )
@@ -586,7 +585,7 @@ async fn try_imap_one_param(
             info!(context, "failure: {:#}", err);
             return Err(ConfigurationError {
                 config: inf,
-                msg: format!("{:#}", err),
+                msg: format!("{err:#}"),
             });
         }
         Ok(imap) => imap,
@@ -597,7 +596,7 @@ async fn try_imap_one_param(
             info!(context, "failure: {:#}", err);
             Err(ConfigurationError {
                 config: inf,
-                msg: format!("{:#}", err),
+                msg: format!("{err:#}"),
             })
         }
         Ok(()) => {
@@ -638,7 +637,7 @@ async fn try_smtp_one_param(
         info!(context, "failure: {}", err);
         Err(ConfigurationError {
             config: inf,
-            msg: format!("{:#}", err),
+            msg: format!("{err:#}"),
         })
     } else {
         info!(context, "success: {}", inf);

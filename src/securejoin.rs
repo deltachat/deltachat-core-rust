@@ -179,7 +179,7 @@ async fn send_alice_handshake_msg(
 ) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
-        text: Some(format!("Secure-Join: {}", step)),
+        text: Some(format!("Secure-Join: {step}")),
         hidden: true,
         ..Default::default()
     };
@@ -625,7 +625,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         context,
                         contact_id,
                         info_chat_id(context, contact_id).await?,
-                        &format!("Could not mark peer as verified at step {}: {}", step, err),
+                        &format!("Could not mark peer as verified at step {step}: {err}"),
                     )
                     .await?;
                     return Ok(HandshakeMessage::Ignore);
@@ -653,7 +653,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         context,
                         contact_id,
                         info_chat_id(context, contact_id).await?,
-                        format!("Fingerprint mismatch on observing {}.", step).as_ref(),
+                        format!("Fingerprint mismatch on observing {step}.").as_ref(),
                     )
                     .await?;
                     return Ok(HandshakeMessage::Ignore);
@@ -1333,7 +1333,7 @@ mod tests {
                 if let chat::ChatItem::Message { msg_id } = item {
                     let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
                     let text = msg.get_text().unwrap();
-                    println!("msg {} text: {}", msg_id, text);
+                    println!("msg {msg_id} text: {text}");
                 }
             }
             let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)

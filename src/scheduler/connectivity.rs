@@ -393,7 +393,7 @@ impl Context {
 
         let watched_folders = get_watched_folder_configs(self).await?;
         let incoming_messages = stock_str::incoming_messages(self).await;
-        ret += &format!("<h3>{}</h3><ul>", incoming_messages);
+        ret += &format!("<h3>{incoming_messages}</h3><ul>");
         for (folder, state) in &folders_states {
             let mut folder_added = false;
 
@@ -436,7 +436,7 @@ impl Context {
         // =============================================================================================
 
         let outgoing_messages = stock_str::outgoing_messages(self).await;
-        ret += &format!("<h3>{}</h3><ul><li>", outgoing_messages);
+        ret += &format!("<h3>{outgoing_messages}</h3><ul><li>");
         let detailed = smtp.get_detailed().await;
         ret += &*detailed.to_icon();
         ret += " ";
@@ -452,7 +452,7 @@ impl Context {
 
         let domain = &tools::EmailAddress::new(&self.get_primary_self_addr().await?)?.domain;
         let storage_on_domain = stock_str::storage_on_domain(self, domain).await;
-        ret += &format!("<h3>{}</h3><ul>", storage_on_domain);
+        ret += &format!("<h3>{storage_on_domain}</h3><ul>");
         let quota = self.quota.read().await;
         if let Some(quota) = &*quota {
             match &quota.recent {
@@ -488,7 +488,7 @@ impl Context {
                                     )
                                 }
                                 Message => {
-                                    format!("<b>{}:</b> {}", part_of_total_used, messages)
+                                    format!("<b>{part_of_total_used}:</b> {messages}")
                                 }
                                 Storage => {
                                     // do not use a special title needed for "Storage":
@@ -511,14 +511,14 @@ impl Context {
                             } else {
                                 "green"
                             };
-                            ret += &format!("<div class=\"bar\"><div class=\"progress {}\" style=\"width: {}%\">{}%</div></div>", color, percent, percent);
+                            ret += &format!("<div class=\"bar\"><div class=\"progress {color}\" style=\"width: {percent}%\">{percent}%</div></div>");
 
                             ret += "</li>";
                         }
                     }
                 }
                 Err(e) => {
-                    ret += format!("<li>{}</li>", e).as_str();
+                    ret += format!("<li>{e}</li>").as_str();
                 }
             }
 
@@ -527,7 +527,7 @@ impl Context {
             }
         } else {
             let not_connected = stock_str::not_connected(self).await;
-            ret += &format!("<li>{}</li>", not_connected);
+            ret += &format!("<li>{not_connected}</li>");
             self.schedule_quota_update().await?;
         }
         ret += "</ul>";

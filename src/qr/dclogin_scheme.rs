@@ -32,7 +32,7 @@ pub enum LoginOptions {
 /// scheme: `dclogin://user@host/?p=password&v=1[&options]`
 /// read more about the scheme at <https://github.com/deltachat/interface/blob/master/uri-schemes.md#DCLOGIN>
 pub(super) fn decode_login(qr: &str) -> Result<Qr> {
-    let url = url::Url::parse(qr).with_context(|| format!("Malformed url: {:?}", qr))?;
+    let url = url::Url::parse(qr).with_context(|| format!("Malformed url: {qr:?}"))?;
 
     let url_without_scheme = qr
         .get(DCLOGIN_SCHEME.len()..)

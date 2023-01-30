@@ -1,4 +1,3 @@
-#![allow(clippy::uninlined_format_args)]
 use deltachat::chat::{self, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;
@@ -75,7 +74,7 @@ async fn main() {
 
     for i in 0..1 {
         log::info!("sending message {}", i);
-        chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {}nth message!", i))
+        chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {i}nth message!"))
             .await
             .unwrap();
     }

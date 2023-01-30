@@ -407,7 +407,7 @@ mod tests {
     async fn test_quote_div() {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
         let dehtml = dehtml(input).unwrap();
-        println!("{}", dehtml);
+        println!("{dehtml}");
         let SimplifiedText {
             text,
             is_forwarded,

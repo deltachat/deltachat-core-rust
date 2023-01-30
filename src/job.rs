@@ -415,7 +415,7 @@ LIMIT 1;
                     .sql
                     .execute("DELETE FROM jobs WHERE id=?;", paramsv![id])
                     .await
-                    .with_context(|| format!("Failed to delete invalid job {}", id))?;
+                    .with_context(|| format!("Failed to delete invalid job {id}"))?;
             }
         }
     }

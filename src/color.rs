@@ -36,7 +36,7 @@ pub(crate) fn str_to_color(s: &str) -> u32 {
 }
 
 pub fn color_int_to_hex_string(color: u32) -> String {
-    format!("{:#08x}", color).replace("0x", "#")
+    format!("{color:#08x}").replace("0x", "#")
 }
 
 #[cfg(test)]

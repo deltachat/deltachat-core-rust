@@ -656,7 +656,7 @@ impl TestContext {
             },
             match sel_chat.get_profile_image(self).await.unwrap() {
                 Some(icon) => match icon.to_str() {
-                    Some(icon) => format!(" Icon: {}", icon),
+                    Some(icon) => format!(" Icon: {icon}"),
                     _ => " Icon: Err".to_string(),
                 },
                 _ => "".to_string(),
@@ -931,7 +931,7 @@ pub(crate) async fn get_chat_msg(
 fn print_logevent(logevent: &LogEvent) {
     match logevent {
         LogEvent::Event(event) => print_event(event),
-        LogEvent::Section(msg) => println!("\n========== {} ==========", msg),
+        LogEvent::Section(msg) => println!("\n========== {msg} =========="),
     }
 }
 
@@ -944,60 +944,57 @@ fn print_event(event: &Event) {
     let red = Color::Red.normal();
 
     let msg = match &event.typ {
-        EventType::Info(msg) => format!("INFO: {}", msg),
-        EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {}", msg),
-        EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {}", msg),
-        EventType::SmtpMessageSent(msg) => format!("[SMTP_MESSAGE_SENT] {}", msg),
+        EventType::Info(msg) => format!("INFO: {msg}"),
+        EventType::SmtpConnected(msg) => format!("[SMTP_CONNECTED] {msg}"),
+        EventType::ImapConnected(msg) => format!("[IMAP_CONNECTED] {msg}"),
+        EventType::SmtpMessageSent(msg) => format!("[SMTP_MESSAGE_SENT] {msg}"),
         EventType::Warning(msg) => format!("WARN: {}", yellow.paint(msg)),
         EventType::Error(msg) => format!("ERROR: {}", red.paint(msg)),
         EventType::ErrorSelfNotInGroup(msg) => {
-            format!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {}", msg)))
+            format!("{}", red.paint(format!("[SELF_NOT_IN_GROUP] {msg}")))
         }
         EventType::MsgsChanged { chat_id, msg_id } => format!(
             "{}",
             green.paint(format!(
-                "Received MSGS_CHANGED(chat_id={}, msg_id={})",
-                chat_id, msg_id,
+                "Received MSGS_CHANGED(chat_id={chat_id}, msg_id={msg_id})",
             ))
         ),
         EventType::ContactsChanged(_) => format!("{}", green.paint("Received CONTACTS_CHANGED()")),
         EventType::LocationChanged(contact) => format!(
             "{}",
-            green.paint(format!("Received LOCATION_CHANGED(contact={:?})", contact))
+            green.paint(format!("Received LOCATION_CHANGED(contact={contact:?})"))
         ),
         EventType::ConfigureProgress { progress, comment } => {
             if let Some(comment) = comment {
                 format!(
                     "{}",
                     green.paint(format!(
-                        "Received CONFIGURE_PROGRESS({} ‰, {})",
-                        progress, comment
+                        "Received CONFIGURE_PROGRESS({progress} ‰, {comment})"
                     ))
                 )
             } else {
                 format!(
                     "{}",
-                    green.paint(format!("Received CONFIGURE_PROGRESS({} ‰)", progress))
+                    green.paint(format!("Received CONFIGURE_PROGRESS({progress} ‰)"))
                 )
             }
         }
         EventType::ImexProgress(progress) => format!(
             "{}",
-            green.paint(format!("Received IMEX_PROGRESS({} ‰)", progress))
+            green.paint(format!("Received IMEX_PROGRESS({progress} ‰)"))
         ),
         EventType::ImexFileWritten(file) => format!(
             "{}",
             green.paint(format!("Received IMEX_FILE_WRITTEN({})", file.display()))
         ),
-        EventType::ChatModified(chat) => format!(
-            "{}",
-            green.paint(format!("Received CHAT_MODIFIED({})", chat))
-        ),
-        _ => format!("Received {:?}", event),
+        EventType::ChatModified(chat) => {
+            format!("{}", green.paint(format!("Received CHAT_MODIFIED({chat})")))
+        }
+        _ => format!("Received {event:?}"),
     };
     let context_names = CONTEXT_NAMES.read().unwrap();
     match context_names.get(&event.id) {
-        Some(name) => println!("{} {}", name, msg),
+        Some(name) => println!("{name} {msg}"),
         None => println!("{} {}", event.id, msg),
     }
 }
@@ -1009,7 +1006,7 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
     let contact = match Contact::get_by_id(context, msg.get_from_id()).await {
         Ok(contact) => contact,
         Err(e) => {
-            println!("Can't log message: invalid contact: {}", e);
+            println!("Can't log message: invalid contact: {e}");
             return;
         }
     };

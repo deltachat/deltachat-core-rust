@@ -134,7 +134,7 @@ impl CommandApi {
             if let Some(ctx) = context_option {
                 accounts.push(Account::from_context(&ctx, id).await?)
             } else {
-                println!("account with id {} doesn't exist anymore", id);
+                println!("account with id {id} doesn't exist anymore");
             }
         }
         Ok(accounts)
@@ -242,7 +242,7 @@ impl CommandApi {
         for (key, value) in config.into_iter() {
             set_config(&ctx, &key, value.as_deref())
                 .await
-                .with_context(|| format!("Can't set {} to {:?}", key, value))?;
+                .with_context(|| format!("Can't set {key} to {value:?}"))?;
         }
         Ok(())
     }
@@ -459,7 +459,7 @@ impl CommandApi {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
                         id: entry.0,
-                        error: format!("{:?}", err),
+                        error: format!("{err:?}"),
                     },
                 },
             );
@@ -1714,7 +1714,7 @@ async fn set_config(
         ctx.set_ui_config(key, value).await?;
     } else {
         ctx.set_config(
-            Config::from_str(key).with_context(|| format!("unknown key {:?}", key))?,
+            Config::from_str(key).with_context(|| format!("unknown key {key:?}"))?,
             value,
         )
         .await?;
@@ -1736,7 +1736,7 @@ async fn get_config(
     if key.starts_with("ui.") {
         ctx.get_ui_config(key).await
     } else {
-        ctx.get_config(Config::from_str(key).with_context(|| format!("unknown key {:?}", key))?)
+        ctx.get_config(Config::from_str(key).with_context(|| format!("unknown key {key:?}"))?)
             .await
     }
 }

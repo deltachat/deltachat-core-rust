@@ -417,8 +417,7 @@ impl Peerstate {
                         Ok(())
                     } else {
                         Err(Error::msg(format!(
-                            "{} is not peer's public key fingerprint",
-                            fingerprint,
+                            "{fingerprint} is not peer's public key fingerprint",
                         )))
                     }
                 }
@@ -432,8 +431,7 @@ impl Peerstate {
                         Ok(())
                     } else {
                         Err(Error::msg(format!(
-                            "{} is not peer's gossip key fingerprint",
-                            fingerprint,
+                            "{fingerprint} is not peer's gossip key fingerprint",
                         )))
                     }
                 }

@@ -135,7 +135,7 @@ impl fmt::Display for Reactions {
                 write!(f, " ")?;
             }
             first = false;
-            write!(f, "{}{}", emoji, frequency)?;
+            write!(f, "{emoji}{frequency}")?;
         }
         Ok(())
     }
@@ -500,7 +500,7 @@ Content-Disposition: reaction\n\
                     Message-ID: <first@example.org>\n\
                     Date: Sun, 14 Nov 2021 00:10:00 +0000\
                     Content-Type: text/plain";
-        let msg_full = format!("{}\n\n100k text...", msg_header);
+        let msg_full = format!("{msg_header}\n\n100k text...");
 
         // Alice downloads message from Bob partially.
         let alice_received_message = receive_imf_inner(
