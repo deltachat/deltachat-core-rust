@@ -1769,9 +1769,8 @@ async fn apply_group_changes(
     }
 
     // recreate member list
-    if recreate_member_list  {
-        if !chat::is_contact_in_chat(context, chat_id, from_id).await?
-        {
+    if recreate_member_list {
+        if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
             warn!(
                 context,
                 "Contact {} attempts to modify group chat {} member list without being a member.",
