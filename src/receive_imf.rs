@@ -12,7 +12,7 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::chat::{self, is_contact_in_chat, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
@@ -1626,20 +1626,58 @@ async fn apply_group_changes(
         return Ok(None);
     }
 
-    let is_self_in_chat = chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?;
     let mut send_event_chat_modified = false;
     let mut removed_id = None;
     let mut better_msg = None;
+    let mut apply_group_changes = false;
 
-    let mut recreate_member_list = if !mime_parser.has_chat_version() {
-        true
-    } else {
-        match mime_parser.get_header(HeaderDef::InReplyTo) {
-            Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
-            Some(_) => !is_self_in_chat,
-            _ => false,
+    let mut recreate_member_list = if mime_parser
+        .get_header(HeaderDef::ChatGroupMemberRemoved)
+        .is_some()
+        || mime_parser
+            .get_header(HeaderDef::ChatGroupMemberAdded)
+            .is_some()
+    {
+        apply_group_changes = chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?;
+
+        if apply_group_changes {
+            match mime_parser.get_header(HeaderDef::InReplyTo) {
+                // If we don't know the referenced message we, we missed some messages which could be add/delete
+                Some(reply_to) if rfc724_mid_exists(context, reply_to).await?.is_none() => true,
+                Some(_) => {
+                    // recreate chat if we are getting readded
+                    if let Some(added_addr) =
+                        mime_parser.get_header(HeaderDef::ChatGroupMemberAdded)
+                    {
+                        if let Ok(self_addr) = context.get_primary_self_addr().await {
+                            self_addr == *added_addr
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+                None => false,
+            }
+        } else {
+            false
         }
+    } else {
+        false
     };
+
+    // Always use the MUA users contact list if message is up to date
+    if !mime_parser.has_chat_version()
+        && chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+    {
+        recreate_member_list = true;
+        apply_group_changes = true;
+    }
 
     if let Some(removed_addr) = mime_parser
         .get_header(HeaderDef::ChatGroupMemberRemoved)
@@ -1647,12 +1685,8 @@ async fn apply_group_changes(
     {
         removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
         if let Some(contact_id) = removed_id {
-            // remove a single member from the chat only if the received message is not outdated
-            if !recreate_member_list
-                && chat_id
-                    .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-                    .await?
-            {
+            // remove a single member from the chat
+            if !recreate_member_list && apply_group_changes {
                 chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
                 send_event_chat_modified = true;
             }
@@ -1676,18 +1710,13 @@ async fn apply_group_changes(
             }
         };
 
-        // add a single member to the chat only if the received message is not outdated
-        if !recreate_member_list {
+        // add a single member to the chat
+        if !recreate_member_list && apply_group_changes {
             if let Some(contact_id) =
                 Contact::lookup_id_by_addr(context, &added_addr, Origin::Unknown).await?
             {
-                if chat_id
-                    .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-                    .await?
-                {
-                    chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
-                    send_event_chat_modified = true;
-                }
+                chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
+                send_event_chat_modified = true;
             }
         }
     } else if let Some(old_name) = mime_parser
@@ -1750,13 +1779,11 @@ async fn apply_group_changes(
         }
     }
 
-    // add members to group/check members
-    if recreate_member_list
-        && chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-    {
-        if is_self_in_chat && !chat::is_contact_in_chat(context, chat_id, from_id).await? {
+    // recreate member list
+    if recreate_member_list && apply_group_changes {
+        if chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
+            && !chat::is_contact_in_chat(context, chat_id, from_id).await?
+        {
             warn!(
                 context,
                 "Contact {} attempts to modify group chat {} member list without being a member.",
@@ -1775,7 +1802,6 @@ async fn apply_group_changes(
 
             let mut members_to_add = HashSet::new();
             members_to_add.extend(to_ids);
-
             members_to_add.insert(ContactId::SELF);
 
             if !from_id.is_special() {
@@ -1788,7 +1814,7 @@ async fn apply_group_changes(
 
             info!(
                 context,
-                "adding {:?} to chat id={}", members_to_add, chat_id
+                "recreating chat {chat_id} with members {members_to_add:?}"
             );
 
             chat::add_to_chat_contacts_table(context, chat_id, &Vec::from_iter(members_to_add))
