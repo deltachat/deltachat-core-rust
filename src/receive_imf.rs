@@ -604,16 +604,6 @@ async fn add_parts(
                     }
                 }
             }
-
-            better_msg = better_msg.or(apply_group_changes(
-                context,
-                mime_parser,
-                sent_timestamp,
-                chat_id,
-                from_id,
-                to_ids,
-            )
-            .await?);
         }
 
         if chat_id.is_none() {
@@ -657,6 +647,21 @@ async fn add_parts(
 
         if let Some(chat_id) = chat_id {
             apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+        }
+
+        if let Some(chat_id) = chat_id {
+            if let Some(even_better_msg) = apply_group_changes(
+                context,
+                mime_parser,
+                sent_timestamp,
+                chat_id,
+                from_id,
+                to_ids,
+            )
+            .await?
+            {
+                better_msg = Some(even_better_msg)
+            }
         }
 
         // if contact renaming is prevented (for mailinglists and bots),
