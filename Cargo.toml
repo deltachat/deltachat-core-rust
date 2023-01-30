@@ -71,7 +71,7 @@ smallvec = "1"
 strum = "0.24"
 strum_macros = "0.24"
 thiserror = "1"
-toml = "0.5"
+toml = "0.7"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 fast-socks5 = "0.8"
