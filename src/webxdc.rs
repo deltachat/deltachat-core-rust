@@ -640,7 +640,8 @@ impl Context {
 }
 
 fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
-    let manifest: WebxdcManifest = toml::from_slice(bytes)?;
+    let s = std::str::from_utf8(bytes)?;
+    let manifest: WebxdcManifest = toml::from_str(s)?;
     Ok(manifest)
 }
 
