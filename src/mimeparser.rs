@@ -8,6 +8,7 @@ use std::pin::Pin;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
+use base64::Engine as _;
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
@@ -663,7 +664,7 @@ impl MimeMessage {
             .split_ascii_whitespace()
             .collect::<String>()
             .strip_prefix("base64:")
-            .map(base64::decode)
+            .map(|x| base64::engine::general_purpose::STANDARD.decode(x))
         {
             // Avatar sent directly in the header as base64.
             if let Ok(decoded_data) = avatar {

@@ -6,6 +6,7 @@ use std::io::Cursor;
 use std::pin::Pin;
 
 use anyhow::{ensure, Context as _, Result};
+use base64::Engine as _;
 use futures::Future;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
@@ -36,7 +37,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     fn from_base64(data: &str) -> Result<Self> {
         // strip newlines and other whitespace
         let cleaned: String = data.split_whitespace().collect();
-        let bytes = base64::decode(cleaned.as_bytes())?;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(cleaned.as_bytes())?;
         Self::from_slice(&bytes)
     }
 
@@ -67,7 +68,7 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 
     /// Serialise the key to a base64 string.
     fn to_base64(&self) -> String {
-        base64::encode(DcKey::to_bytes(self))
+        base64::engine::general_purpose::STANDARD.encode(DcKey::to_bytes(self))
     }
 
     /// Serialise the key to ASCII-armored representation.

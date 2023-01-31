@@ -889,7 +889,7 @@ dependencies = [
  "async-smtp",
  "async_zip",
  "backtrace",
- "base64 0.20.0",
+ "base64 0.21.0",
  "bitflags",
  "chrono",
  "criterion",

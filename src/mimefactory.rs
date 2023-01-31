@@ -3,6 +3,7 @@
 use std::convert::TryInto;
 
 use anyhow::{bail, ensure, Context as _, Result};
+use base64::Engine as _;
 use chrono::TimeZone;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
@@ -1341,7 +1342,7 @@ impl<'a> MimeFactory<'a> {
 /// This line length limit is an
 /// [RFC5322 requirement](https://tools.ietf.org/html/rfc5322#section-2.1.1).
 fn wrapped_base64_encode(buf: &[u8]) -> String {
-    let base64 = base64::encode(buf);
+    let base64 = base64::engine::general_purpose::STANDARD.encode(buf);
     let mut chars = base64.chars();
     std::iter::repeat_with(|| chars.by_ref().take(78).collect::<String>())
         .take_while(|s| !s.is_empty())

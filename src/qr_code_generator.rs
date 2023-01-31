@@ -1,6 +1,7 @@
 #![allow(missing_docs)]
 
 use anyhow::Result;
+use base64::Engine as _;
 use qrcodegen::{QrCode, QrCodeEcc};
 
 use crate::{
@@ -211,7 +212,10 @@ fn inner_generate_secure_join_qr_code(
                 d.attr("clip-path", "url(#avatar-cut)")?;
                 d.attr(
                     "href", /*might need xlink:href instead if it doesn't work on older devices?*/
-                    format!("data:image/jpeg;base64,{}", base64::encode(img)),
+                    format!(
+                        "data:image/jpeg;base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(img)
+                    ),
                 )
             })?;
         } else {

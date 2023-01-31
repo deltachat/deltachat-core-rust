@@ -11,6 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{Context as _, Result};
+use base64::Engine as _;
 use futures::future::FutureExt;
 use lettre_email::mime::{self, Mime};
 use lettre_email::PartBuilder;
@@ -234,7 +235,7 @@ impl HtmlMsgParser {
 /// Convert a mime part to a data: url as defined in [RFC 2397](https://tools.ietf.org/html/rfc2397).
 fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
     let data = mail.get_body_raw()?;
-    let data = base64::encode(data);
+    let data = base64::engine::general_purpose::STANDARD.encode(data);
     Ok(format!("data:{};base64,{}", mail.ctype.mimetype, data))
 }
 
