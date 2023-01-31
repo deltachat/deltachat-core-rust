@@ -155,4 +155,3 @@ vendored = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]
-nightly = ["pgp/nightly"]
