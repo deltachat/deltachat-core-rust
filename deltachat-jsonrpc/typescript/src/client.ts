@@ -120,7 +120,7 @@ export class StdioTransport extends BaseTransport {
     });
   }
 
-  _send(message: RPC.Message): void {
+  _send(message: any): void {
     const serialized = JSON.stringify(message);
     this.input.write(serialized + "\n");
   }
