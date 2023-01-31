@@ -19,7 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 tempfile = "3.3.0"
 log = "0.4"
 async-channel = { version = "1.8.0" }
-futures = { version = "0.3.25" }
+futures = { version = "0.3.26" }
 serde_json = "1.0.91"
 yerpc = { version = "^0.3.1", features = ["anyhow_expose"] }
 typescript-type-def = { version = "0.5.5", features = ["json_value"] }
