@@ -363,7 +363,8 @@ impl Config {
     pub async fn from_file(file: PathBuf) -> Result<Self> {
         let dir = file.parent().context("can't get config file directory")?;
         let bytes = fs::read(&file).await.context("failed to read file")?;
-        let mut inner: InnerConfig = toml::from_slice(&bytes).context("failed to parse config")?;
+        let s = std::str::from_utf8(&bytes)?;
+        let mut inner: InnerConfig = toml::from_str(s).context("failed to parse config")?;
 
         // Previous versions of the core stored absolute paths in account config.
         // Convert them to relative paths.
