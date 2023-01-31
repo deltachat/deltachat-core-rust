@@ -1,6 +1,5 @@
 //! # Login parameters.
 
-use std::borrow::Cow;
 use std::fmt;
 
 use anyhow::{ensure, Result};
@@ -298,12 +297,11 @@ impl fmt::Display for LoginParam {
     }
 }
 
-#[allow(clippy::ptr_arg)]
-fn unset_empty(s: &String) -> Cow<String> {
+fn unset_empty(s: &str) -> &str {
     if s.is_empty() {
-        Cow::Owned("unset".to_string())
+        "unset"
     } else {
-        Cow::Borrowed(s)
+        s
     }
 }
 
