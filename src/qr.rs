@@ -64,6 +64,9 @@ pub enum Qr {
     Account {
         domain: String,
     },
+    Backup {
+        ticket: sendme::provider::Ticket,
+    },
     WebrtcInstance {
         domain: String,
         instance_pattern: String,

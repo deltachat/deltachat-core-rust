@@ -2320,7 +2320,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   ask whether to verify the contact;
  *   if so, start the protocol with dc_join_securejoin().
  *
- * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name:
+ * - DC_QR_ASK_VERIFYGROUP with dc_lot_t::text1=Group name:
  *   ask whether to join the group;
  *   if so, start the protocol with dc_join_securejoin().
  *
@@ -2339,6 +2339,10 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_ACCOUNT dc_lot_t::text1=domain:
  *   ask the user if they want to create an account on the given domain,
  *   if so, call dc_set_config_from_qr() and then dc_configure().
+ *
+ * - DC_QR_BACKUP:
+ *   ask the user if they want to set up a new device.
+ *   If so, pass the qr-code to dc_receive_backup().
  *
  * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
  *   ask the user if they want to use the given service for video chats;
@@ -2628,6 +2632,9 @@ char* dc_get_last_error (dc_context_t* context);
  *     If NULL is given, nothing is done.
  */
 void dc_str_unref (char* str);
+
+
+// TODO: add New stuff
 
 
 /**

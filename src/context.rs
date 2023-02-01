@@ -513,6 +513,13 @@ impl Context {
 
     // Ongoing process allocation/free/check
 
+    /// Tries to acquire the global UI "ongoing" mutex.
+    ///
+    /// This is for modal operations during which no other user actions are allowed.  Only
+    /// one such operation is allowed at any given time.
+    ///
+    /// The return value is a cancel token, which will release the ongoing mutex when
+    /// dropped.
     pub(crate) async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
         let mut s = self.running_state.write().await;
         ensure!(

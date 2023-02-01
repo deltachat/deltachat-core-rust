@@ -30,12 +30,11 @@ ratelimit = { path = "./deltachat-ratelimit" }
 
 ansi_term = { version = "0.12.1", optional = true }
 anyhow = "1"
+async-channel = "1.8.0"
 async-imap = { git = "https://github.com/async-email/async-imap", branch = "master", default-features = false, features = ["runtime-tokio"] }
 async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
 async-smtp = { version = "0.6", default-features = false, features = ["smtp-transport", "socks5", "runtime-tokio"] }
-trust-dns-resolver = "0.22"
-tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
-tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
+async_zip = { version = "0.0.9", default-features = false, features = ["deflate"] }
 backtrace = "0.3"
 base64 = "0.21"
 bitflags = "1.3"
@@ -44,8 +43,11 @@ dirs = { version = "4", optional=true }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
 escaper = "0.1"
+fast-socks5 = "0.8"
 futures = "0.3"
+futures-lite = "1.12.0"
 hex = "0.4.0"
+humansize = "2"
 image = { version = "0.24.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
@@ -53,44 +55,43 @@ libc = "0.2"
 log = {version = "0.4.16", optional = true }
 mailparse = "0.14"
 native-tls = "0.2"
-num_cpus = "1.15"
 num-derive = "0.3"
 num-traits = "0.2"
+num_cpus = "1.15"
 once_cell = "1.17.0"
 percent-encoding = "2.2"
 pgp = { version = "0.9", default-features = false }
 pretty_env_logger = { version = "0.4", optional = true }
+qrcodegen = "1.7.0"
 quick-xml = "0.27"
 r2d2 = "0.8"
 r2d2_sqlite = "0.20"
 rand = "0.8"
 regex = "1.7"
+reqwest = { version = "0.11.14", features = ["json"] }
 rusqlite = { version = "0.27", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 rustyline = { version = "10", optional = true }
 sanitize-filename = "0.4"
-serde_json = "1.0"
+sendme = { git = "https://github.com/n0-computer/sendme", branch = "main" }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 sha-1 = "0.10"
 sha2 = "0.10"
 smallvec = "1"
 strum = "0.24"
 strum_macros = "0.24"
-thiserror = "1"
-toml = "0.7"
-url = "2"
-uuid = { version = "1", features = ["serde", "v4"] }
-fast-socks5 = "0.8"
-humansize = "2"
-qrcodegen = "1.7.0"
 tagger = "4.3.4"
 textwrap = "0.16.0"
-async-channel = "1.8.0"
-futures-lite = "1.12.0"
-tokio-stream = { version = "0.1.11", features = ["fs"] }
+thiserror = "1"
+tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-io-timeout = "1.2.0"
-reqwest = { version = "0.11.14", features = ["json"] }
-async_zip = { version = "0.0.9", default-features = false, features = ["deflate"] }
+tokio-stream = { version = "0.1.11", features = ["fs"] }
+tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
+toml = "0.7"
+trust-dns-resolver = "0.22"
+url = "2"
+uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
@@ -161,3 +162,6 @@ vendored = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]
+
+[patch.'https://github.com/n0-computer/sendme']
+sendme = { path = "/home/flub/n0/sendme" }

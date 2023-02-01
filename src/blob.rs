@@ -160,9 +160,9 @@ impl<'a> BlobObject<'a> {
     pub fn from_path(context: &'a Context, path: &Path) -> Result<BlobObject<'a>> {
         let rel_path = path
             .strip_prefix(context.get_blobdir())
-            .context("wrong blobdir")?;
+            .with_context(|| format!("wrong blobdir: {}", path.display()))?;
         if !BlobObject::is_acceptible_blob_name(rel_path) {
-            return Err(format_err!("wrong name"));
+            return Err(format_err!("bad blob name: {}", rel_path.display()));
         }
         let name = rel_path.to_str().context("wrong name")?;
         BlobObject::from_name(context, name.to_string())
