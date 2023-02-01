@@ -1439,7 +1439,6 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
 
     lp.sec("export all to {}".format(backupdir))
     with ac1.temp_plugin(ImexTracker()) as imex_tracker:
-
         ac1.stop_io()
         ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
 
