@@ -35,6 +35,7 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
+const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Qr {
@@ -137,6 +138,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         dclogin_scheme::decode_login(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
+    } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
+        decode_backup(qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
@@ -362,6 +365,18 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     } else {
         bail!("Bad URL scheme for WebRTC instance: {:?}", payload);
     }
+}
+
+/// Decodes a [`DCBACKUP_SCHEME`] QR code.
+///
+/// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
+/// [`sendme::provider::Ticket`]'s `Display` impl.
+fn decode_backup(qr: &str) -> Result<Qr> {
+    let payload = qr
+        .strip_prefix(DCBACKUP_SCHEME)
+        .ok_or(anyhow!("invalid DCBACKUP scheme"))?;
+    let ticket: sendme::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
+    Ok(Qr::Backup { ticket })
 }
 
 #[derive(Debug, Deserialize)]
