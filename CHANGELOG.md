@@ -10,6 +10,15 @@
 ## API-Changes
 
 
+## 1.107.1
+
+### Changes
+- Log server security (TLS/STARTTLS/plain) type #4005
+
+### Fixes
+- Disable SMTP pipelining #4006
+
+
 ## 1.107.0
 
 ### Changes
