@@ -8,8 +8,7 @@ use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
-use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
-use async_channel::Receiver;
+use anyhow::{bail, ensure, format_err, Context as _, Result};
 use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
@@ -30,13 +29,16 @@ use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::pgp;
-use crate::qr::Qr;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{
     create_folder, delete_file, get_filesuffix_lc, open_file_std, read_file, time, write_file,
     EmailAddress,
 };
+
+mod transfer;
+
+pub use transfer::{get_backup, BackupProvider};
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
@@ -753,138 +755,6 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
         .await
         .with_context(|| format!("failed to backup database to {}", dest.display()))?;
     Ok(())
-}
-
-#[derive(Debug)]
-pub struct BackupSender {
-    /// A handle to the running provider.
-    provider: sendme::provider::Provider,
-    /// The ticket to retrieve the backup collection.
-    ticket: sendme::provider::Ticket,
-    /// Token holding the "ongoing" mutex.  When this completes the provider should shut
-    /// down.
-    cancel_token: Receiver<()>,
-}
-
-impl BackupSender {
-    // - [x] check i/o is not running
-    // - [x] check we have secret key
-    // - [x] alloc ongoing
-    //   - [x] correctly cancel Provider when cancelled
-    // - [x] create auth token
-    // - [x] export backup with generated token as password
-    //   - needs a path to store the database
-    // - [x] create the sendme database
-    // - [x] start provider
-    // - [ ] wait for one successful connection
-    // - [ ] shutdown when a connection is closed, successful or not.
-    //
-    // - [ ] provide progress report
-    /// Prepares for sending a backup to a second device.
-    ///
-    /// Before calling this function all I/O must be stopped so that no changes to the blobs
-    /// or database are happening, this is done by calling the `dc_accounts_stop_io` or
-    /// `dc_stop_io` APIs first.  TODO: Add the rust equivalents.
-    ///
-    /// This will acquire the global "ongoing process" mutex.  You must call
-    /// [`BackupSender::join`] after creating this struct, otherwise this will not respect
-    /// the possible cancellation of the "ongoing process".
-    pub async fn perpare(context: &Context, dir: &Path) -> Result<Self> {
-        ensure!(
-            // TODO: Should we worry about path normalisation?
-            dir != context.get_blobdir(),
-            "Temporary database export directory should not be in blobdir"
-        );
-        e2ee::ensure_secret_key_exists(context)
-            .await
-            .context("Private key not available, aborting backup export")?;
-
-        // Acquire global "ongoing" mutex.
-        let cancel_token = context.alloc_ongoing().await?;
-        let res = tokio::select! {
-            biased;
-            res = Self::prepare_inner(context, dir) => {
-                match res {
-                    Ok(slf) => {
-                        // TODO: maybe this is the wrong place to log this
-                        // TODO: Also needs to log progress somehow.
-                        info!(context, "Waiting for remote to connect");
-                        Ok(slf)
-                    },
-                    Err(err) => {
-                        error!(context, "Failed to set up second device setup: {:#}", err);
-                        Err(err)
-                    },
-                }
-            },
-            _ = cancel_token.recv() => Err(format_err!("cancelled")),
-        };
-        let (provider, ticket) = match res {
-            Ok((provider, ticket)) => (provider, ticket),
-            Err(err) => {
-                context.free_ongoing().await;
-                return Err(err);
-            }
-        };
-        Ok(Self {
-            provider,
-            ticket,
-            cancel_token,
-        })
-    }
-
-    async fn prepare_inner(
-        context: &Context,
-        dir: &Path,
-    ) -> Result<(sendme::provider::Provider, sendme::provider::Ticket)> {
-        // Generate the token up front: we also use it to encrypt the database.
-        let token = sendme::protocol::AuthToken::generate();
-        let dbfile = dir.join(DBFILE_BACKUP_NAME);
-        export_database(context, &dbfile, token.to_string())
-            .await
-            .context("Database export failed")?;
-
-        // Now we can be sure IO is not running.
-        let mut files = vec![sendme::provider::DataSource::from(dbfile)];
-        let blobdir = BlobDirContents::new(context).await?;
-        for blob in blobdir.iter() {
-            files.push(blob.to_abs_path().into());
-        }
-
-        // Start listening.
-        let (db, hash) = sendme::provider::create_collection(files).await?;
-        let provider = sendme::provider::Provider::builder(db)
-            .auth_token(token)
-            .spawn()?;
-        let ticket = provider.ticket(hash);
-        Ok((provider, ticket))
-    }
-
-    pub fn qr(&self) -> Qr {
-        Qr::Backup {
-            ticket: self.ticket.clone(),
-        }
-    }
-
-    /// Wait for the backup sender to complete.
-    ///
-    /// The sender completes when an authenticated client disconnects, whether the transfer
-    /// was successful or not.  When the ongoing task is cancelled the sender also completes
-    /// with an error.
-    ///
-    /// Note that this must be called and awaited for the ongoing cancellation to work.
-    pub async fn join(self) -> Result<()> {
-        // TODO: should wait for 1 transfer to complete or abort
-        tokio::select! {
-            biased;
-            res = self.provider.join() => res.context("BackupSender failed"),
-            _ = self.cancel_token.recv() => Err(anyhow!("BackupSender cancelled")),
-        }
-    }
-
-    pub fn abort(&self) {
-        self.provider.abort()
-    }
 }
 
 /// All files in the blobdir.
