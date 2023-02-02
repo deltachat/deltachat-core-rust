@@ -14,6 +14,8 @@ use crate::summary::{Summary, SummaryPrefix};
 /// eg. by chatlist.get_summary() or dc_msg_get_summary().
 ///
 /// *Lot* is used in the meaning *heap* here.
+// The QR code grew too large.  So be it.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Lot {
     Summary(Summary),

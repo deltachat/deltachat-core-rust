@@ -33,7 +33,7 @@ use sendme::blobs::Collection;
 use sendme::get::{AsyncSliceDecoder, Hash, Options, ReceiveStream};
 use sendme::protocol::AuthToken;
 use sendme::provider::{DataSource, Provider, Ticket};
-use tokio::fs::File;
+use tokio::fs::{self, File};
 use tokio::io::{self, BufWriter};
 
 use super::{export_database, BlobDirContents, DBFILE_BACKUP_NAME};
@@ -184,7 +184,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         addr: ticket.addr,
         peer_id: Some(ticket.peer),
     };
-    let on_blob = |hash, reader, name| on_blob(context, hash, reader, name);
+    let on_blob = |hash, reader, name| on_blob(context, &ticket, hash, reader, name);
     sendme::get::run(
         ticket.hash,
         ticket.token,
@@ -194,16 +194,17 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         on_blob,
     )
     .await?;
-
-    todo!();
+    Ok(())
 }
 
 /// Get callback when the connection is established with the provider.
+#[allow(clippy::unused_async)]
 async fn on_connected() -> Result<()> {
     Ok(())
 }
 
 /// Get callback when a collection is received from the provider.
+#[allow(clippy::unused_async)]
 async fn on_collection(_collection: Collection) -> Result<()> {
     Ok(())
 }
@@ -211,14 +212,32 @@ async fn on_collection(_collection: Collection) -> Result<()> {
 /// Get callback when a blob is received from the provider.
 async fn on_blob(
     context: &Context,
+    ticket: &Ticket,
     _hash: Hash,
     mut reader: AsyncSliceDecoder<ReceiveStream>,
     name: String,
 ) -> Result<AsyncSliceDecoder<ReceiveStream>> {
     ensure!(!name.is_empty(), "Received a nameless blob");
-    let path = context.get_blobdir().join(name);
+    let path = if name == DBFILE_BACKUP_NAME {
+        // We can only safely write to the blobdir.  But the blobdir could have a file named
+        // exactly like our special name.  We solve this by using an uppercase extension
+        // which is forbidden for normal blobs.
+        context.get_blobdir().join(format!("{name}.SPECIAL"))
+    } else {
+        context.get_blobdir().join(&name)
+    };
     let file = File::create(&path).await?;
     let mut file = BufWriter::with_capacity(128 * 1024, file);
     io::copy(&mut reader, &mut file).await?;
+    if name == DBFILE_BACKUP_NAME {
+        context
+            .sql
+            .import(&path, ticket.token.to_string())
+            .await
+            .context("cannot import database")?;
+        fs::remove_file(&path)
+            .await
+            .with_context(|| format!("Database file: {}", path.display()))?;
+    }
     Ok(reader)
 }

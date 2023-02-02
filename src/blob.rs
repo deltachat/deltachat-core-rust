@@ -242,7 +242,8 @@ impl<'a> BlobObject<'a> {
     /// including the dot.  E.g. "foo.txt" is returned as `("foo",
     /// ".txt")` while "bar" is returned as `("bar", "")`.
     ///
-    /// The extension part will always be lowercased.
+    /// The extension part will always be lowercased.  Note that [`imex::transfer`] relies
+    /// on this for safety, if uppercase extensions are ever allowed it needs to be adapted.
     fn sanitise_name(name: &str) -> (String, String) {
         let mut name = name.to_string();
         for part in name.rsplit('/') {
