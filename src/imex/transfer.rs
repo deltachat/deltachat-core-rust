@@ -30,14 +30,16 @@ use crate::e2ee;
 use crate::qr::Qr;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
+use futures_lite::StreamExt;
 use sendme::blobs::Collection;
 use sendme::get::{AsyncSliceDecoder, Hash, Options, ReceiveStream};
 use sendme::protocol::AuthToken;
 use sendme::provider::{DataSource, Provider, Ticket};
 use tokio::fs::{self, File};
 use tokio::io::{self, BufWriter};
+use tokio_stream::wrappers::ReadDirStream;
 
-use super::{export_database, BlobDirContents, DBFILE_BACKUP_NAME};
+use super::{export_database, BlobDirContents, DeleteOnDrop, DBFILE_BACKUP_NAME};
 
 /// Provide or send a backup of this device.
 ///
@@ -186,7 +188,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         peer_id: Some(ticket.peer),
     };
     let on_blob = |hash, reader, name| on_blob(context, &ticket, hash, reader, name);
-    sendme::get::run(
+    match sendme::get::run(
         ticket.hash,
         ticket.token,
         opts,
@@ -194,9 +196,24 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         on_collection,
         on_blob,
     )
-    .await?;
-    delete_and_reset_all_device_msgs(context).await?;
-    Ok(())
+    .await
+    {
+        Ok(_) => {
+            delete_and_reset_all_device_msgs(context).await?;
+            Ok(())
+        }
+        Err(err) => {
+            // Clean up any blobs we already wrote.
+            let readdir = fs::read_dir(context.get_blobdir()).await?;
+            let mut readdir = ReadDirStream::new(readdir);
+            while let Some(dirent) = readdir.next().await {
+                if let Ok(dirent) = dirent {
+                    fs::remove_file(dirent.path()).await.ok();
+                }
+            }
+            Err(err)
+        }
+    }
 }
 
 /// Get callback when the connection is established with the provider.
@@ -227,6 +244,11 @@ async fn on_blob(
         context.get_blobdir().join(format!("{name}.SPECIAL"))
     } else {
         context.get_blobdir().join(&name)
+    };
+    let _guard = if name == DBFILE_BACKUP_NAME {
+        Some(DeleteOnDrop(path.clone()))
+    } else {
+        None
     };
     let file = File::create(&path).await?;
     let mut file = BufWriter::with_capacity(128 * 1024, file);
