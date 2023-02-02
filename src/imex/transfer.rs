@@ -24,6 +24,7 @@
 
 use std::path::Path;
 
+use crate::chat::delete_and_reset_all_device_msgs;
 use crate::context::Context;
 use crate::e2ee;
 use crate::qr::Qr;
@@ -194,6 +195,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         on_blob,
     )
     .await?;
+    delete_and_reset_all_device_msgs(context).await?;
     Ok(())
 }
 
@@ -237,7 +239,7 @@ async fn on_blob(
             .context("cannot import database")?;
         fs::remove_file(&path)
             .await
-            .with_context(|| format!("Database file: {}", path.display()))?;
+            .with_context(|| format!("database import file: {}", path.display()))?;
     }
     Ok(reader)
 }
