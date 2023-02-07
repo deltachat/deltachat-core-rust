@@ -129,10 +129,15 @@ impl BackupProvider {
             .context("Database export failed")?;
 
         // Now we can be sure IO is not running.
-        let mut files = vec![DataSource::from(dbfile)];
+        let mut files = vec![DataSource::with_name(
+            dbfile,
+            format!("db/{DBFILE_BACKUP_NAME}"),
+        )];
         let blobdir = BlobDirContents::new(context).await?;
         for blob in blobdir.iter() {
-            files.push(blob.to_abs_path().into());
+            let path = blob.to_abs_path();
+            let name = format!("blob/P{}", blob.as_file_name());
+            files.push(DataSource::with_name(path, name));
         }
 
         // Start listening.
@@ -290,15 +295,19 @@ async fn on_blob(
     name: String,
 ) -> Result<DataStream> {
     ensure!(!name.is_empty(), "Received a nameless blob");
-    let path = if name == DBFILE_BACKUP_NAME {
+    let path = if name.starts_with("db/") {
         // We can only safely write to the blobdir.  But the blobdir could have a file named
         // exactly like our special name.  We solve this by using an uppercase extension
         // which is forbidden for normal blobs.
-        context.get_blobdir().join(format!("{name}.SPECIAL"))
+        context
+            .get_blobdir()
+            .join(format!("{DBFILE_BACKUP_NAME}.SPECIAL"))
     } else {
-        context.get_blobdir().join(&name)
+        ensure!(name.starts_with("blob/"), "malformatted blob name");
+        let blobname = name.rsplit('/').next().context("malformatted blob name")?;
+        context.get_blobdir().join(blobname)
     };
-    let _guard = if name == DBFILE_BACKUP_NAME {
+    let _guard = if name.starts_with("db/") {
         Some(DeleteOnDrop(path.clone()))
     } else {
         None
@@ -306,7 +315,7 @@ async fn on_blob(
     let file = File::create(&path).await?;
     let mut file = BufWriter::with_capacity(128 * 1024, file);
     io::copy(&mut reader, &mut file).await?;
-    if name == DBFILE_BACKUP_NAME {
+    if name.starts_with("db/") {
         context
             .sql
             .import(&path, ticket.token.to_string())
