@@ -162,7 +162,7 @@ impl LoginParam {
             .await?
             .and_then(|provider_id| get_provider_by_id(&provider_id));
 
-        let socks5_config = Socks5Config::from_database(context).await?;
+        let socks5_config = Socks5Config::from_database(&context.sql).await?;
 
         Ok(LoginParam {
             addr,

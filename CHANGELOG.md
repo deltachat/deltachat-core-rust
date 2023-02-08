@@ -6,6 +6,7 @@
 - Use read/write timeouts instead of per-command timeouts for SMTP #3985
 - Cache DNS results for SMTP connections #3985
 - Prefer TLS over STARTTLS during autoconfiguration #4021
+- Use SOCKS5 configuration for HTTP requests #4017
 
 ## Fixes
 - Fix Securejoin for multiple devices on a joining side #3982
