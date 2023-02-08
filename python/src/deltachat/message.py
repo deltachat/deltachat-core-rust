@@ -39,7 +39,7 @@ class Message(object):
         return "<Message {} sys={} {} id={} sender={}/{} chat={}/{}>".format(
             typ,
             self.is_system_message(),
-            repr(self.text[:10]),
+            repr(self.text[:100]),
             self.id,
             c.id,
             c.addr,
