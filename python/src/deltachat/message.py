@@ -36,15 +36,9 @@ class Message(object):
     def __repr__(self):
         c = self.get_sender_contact()
         typ = "outgoing" if self.is_outgoing() else "incoming"
-        return "<Message {} sys={} {} id={} sender={}/{} chat={}/{}>".format(
-            typ,
-            self.is_system_message(),
-            repr(self.text[:100]),
-            self.id,
-            c.id,
-            c.addr,
-            self.chat.id,
-            self.chat.get_name(),
+        return (
+            f"<Message {typ} sys={self.is_system_message()} {repr(self.text[:100])} "
+            f"id={self.id} sender={c.id}/{c.addr} chat={self.chat.id}/{self.chat.get_name()}>"
         )
 
     @classmethod
@@ -115,7 +109,7 @@ class Message(object):
         """set file for this message from path and mime_type."""
         mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
         if not os.path.exists(path):
-            raise ValueError("path does not exist: {!r}".format(path))
+            raise ValueError(f"path does not exist: {path!r}")
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc

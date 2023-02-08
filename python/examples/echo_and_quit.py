@@ -14,10 +14,10 @@ class EchoPlugin:
             message.create_chat()
             addr = message.get_sender_contact().addr
             if message.is_system_message():
-                message.chat.send_text("echoing system message from {}:\n{}".format(addr, message))
+                message.chat.send_text(f"echoing system message from {addr}:\n{message}")
             else:
                 text = message.text
-                message.chat.send_text("echoing from {}:\n{}".format(addr, text))
+                message.chat.send_text(f"echoing from {addr}:\n{text}")
 
     @account_hookimpl
     def ac_message_delivered(self, message):

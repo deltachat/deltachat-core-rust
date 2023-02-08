@@ -40,7 +40,7 @@ class Chat(object):
         return not self == other
 
     def __repr__(self) -> str:
-        return "<Chat id={} name={}>".format(self.id, self.get_name())
+        return f"<Chat id={self.id} name={self.get_name()}>"
 
     @property
     def _dc_chat(self):
@@ -444,7 +444,7 @@ class Chat(object):
         contact = self.account.create_contact(obj)
         ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
-            raise ValueError("could not add contact {!r} to chat".format(contact))
+            raise ValueError(f"could not add contact {contact!r} to chat")
         return contact
 
     def remove_contact(self, obj):
@@ -457,7 +457,7 @@ class Chat(object):
         contact = self.account.get_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
-            raise ValueError("could not remove contact {!r} from chat".format(contact))
+            raise ValueError(f"could not remove contact {contact!r} from chat")
 
     def get_contacts(self):
         """get all contacts for this chat.
@@ -493,7 +493,7 @@ class Chat(object):
         p = as_dc_charpointer(img_path)
         res = lib.dc_set_chat_profile_image(self.account._dc_context, self.id, p)
         if res != 1:
-            raise ValueError("Setting Profile Image {!r} failed".format(p))
+            raise ValueError(f"Setting Profile Image {p!r} failed")
 
     def remove_profile_image(self):
         """remove group profile image.

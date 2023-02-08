@@ -82,7 +82,7 @@ class DirectImap:
         configured, otherwise None.
         """
         if "_" not in config_name:
-            config_name = "configured_{}_folder".format(config_name)
+            config_name = f"configured_{config_name}_folder"
         foldername = self.account.get_config(config_name)
         if foldername:
             return self.select_folder(foldername)
@@ -203,7 +203,7 @@ class IdleManager:
         """(blocking) wait for next idle message from server."""
         self.log("imap-direct: calling idle_check")
         res = self.direct_imap.conn.idle.poll(timeout=timeout)
-        self.log("imap-direct: idle_check returned {!r}".format(res))
+        self.log(f"imap-direct: idle_check returned {res!r}")
         return res
 
     def wait_for_new_message(self, timeout=None) -> bytes:

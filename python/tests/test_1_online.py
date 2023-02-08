@@ -1249,7 +1249,7 @@ def test_send_mark_seen_clean_incoming_events(acfactory, lp):
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.text == "hello"
 
-    lp.sec("ac2: mark seen {}".format(msg))
+    lp.sec(f"ac2: mark seen {msg}")
     msg.mark_seen()
 
     for ev in ac1._evtracker.iter_events():
@@ -1437,7 +1437,7 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
 
     backupdir = tmpdir.mkdir("backup")
 
-    lp.sec("export all to {}".format(backupdir))
+    lp.sec(f"export all to {backupdir}")
     with ac1.temp_plugin(ImexTracker()) as imex_tracker:
         ac1.stop_io()
         ac1.imex(backupdir.strpath, const.DC_IMEX_EXPORT_BACKUP)
@@ -1474,7 +1474,7 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
     assert_account_is_proper(ac1)
     assert_account_is_proper(ac2)
 
-    lp.sec("Second-time export all to {}".format(backupdir))
+    lp.sec(f"Second-time export all to {backupdir}")
     ac1.stop_io()
     path2 = ac1.export_all(backupdir.strpath)
     assert os.path.exists(path2)

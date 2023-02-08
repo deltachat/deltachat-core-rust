@@ -17,7 +17,7 @@ def wait_msg_delivered(account, msg_list):
 
 def wait_msgs_changed(account, msgs_list):
     """wait for one or more MSGS_CHANGED events to match msgs_list contents."""
-    account.log("waiting for msgs_list={}".format(msgs_list))
+    account.log(f"waiting for msgs_list={msgs_list}")
     msgs_list = list(msgs_list)
     while msgs_list:
         ev = account._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -27,7 +27,7 @@ def wait_msgs_changed(account, msgs_list):
                     del msgs_list[i]
                     break
         else:
-            account.log("waiting mismatch data1={} data2={}".format(data1, data2))
+            account.log(f"waiting mismatch data1={data1} data2={data2}")
     return ev.data1, ev.data2
 
 

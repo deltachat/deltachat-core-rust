@@ -18,7 +18,7 @@ class Reactions(object):
         self._dc_reactions = dc_reactions
 
     def __repr__(self):
-        return "<Reactions dc_reactions={}>".format(self._dc_reactions)
+        return f"<Reactions dc_reactions={self._dc_reactions}>"
 
     @classmethod
     def from_msg(cls, msg):
