@@ -31,7 +31,6 @@ use crate::qr::Qr;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use futures_lite::StreamExt;
-use sendme::blobs::Collection;
 use sendme::get::{DataStream, Options};
 use sendme::protocol::AuthToken;
 use sendme::provider::{DataSource, Event, Provider, Ticket};
@@ -251,7 +250,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         ticket.token,
         opts,
         on_connected,
-        on_collection,
+        |_collection| async { Ok(()) },
         on_blob,
     )
     .await
@@ -277,12 +276,6 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
 /// Get callback when the connection is established with the provider.
 #[allow(clippy::unused_async)]
 async fn on_connected() -> Result<()> {
-    Ok(())
-}
-
-/// Get callback when a collection is received from the provider.
-#[allow(clippy::unused_async)]
-async fn on_collection(_collection: Collection) -> Result<()> {
     Ok(())
 }
 
