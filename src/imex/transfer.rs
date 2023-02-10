@@ -70,12 +70,14 @@ impl BackupProvider {
     /// Prepares for sending a backup to a second device.
     ///
     /// Before calling this function all I/O must be stopped so that no changes to the blobs
-    /// or database are happening, this is done by calling the `dc_accounts_stop_io` or
-    /// `dc_stop_io` APIs first.  TODO: Add the rust equivalents.
+    /// or database are happening, this is done by calling the [`Accounts::stop_io`] or
+    /// [`Context::stop_io`] APIs first.
     ///
     /// This will acquire the global "ongoing process" mutex.  You must call
-    /// [`BackupSender::join`] after creating this struct, otherwise this will not respect
+    /// [`BackupProvider::join`] after creating this struct, otherwise this will not respect
     /// the possible cancellation of the "ongoing process".
+    ///
+    /// [`Accounts::stop_io`]: crate::accounts::Accounts::stop_io
     pub async fn prepare(context: &Context, dir: &Path) -> Result<Self> {
         ensure!(
             // TODO: Should we worry about path normalisation?
@@ -121,7 +123,7 @@ impl BackupProvider {
         Ok(Self { handle, ticket })
     }
 
-    /// Creates the provider and supervisor tasks.
+    /// Creates the provider task.
     ///
     /// Having this as a function makes it easier to cancel it when needed.
     async fn prepare_inner(context: &Context, dir: &Path) -> Result<(Provider, Ticket)> {
@@ -155,9 +157,10 @@ impl BackupProvider {
         Ok((provider, ticket))
     }
 
-    /// Supervises the sendme [`Provider`] terminating it when needed.
+    /// Supervises the sendme [`Provider`], terminating it when needed.
     ///
     /// This will watch the provider and terminate it when:
+    ///
     /// - A transfer is completed, successful or unsuccessful.
     /// - An event could not be observed to protect against not knowing of a completed event.
     /// - The ongoing process is cancelled.
@@ -221,16 +224,19 @@ impl BackupProvider {
         res
     }
 
+    /// Returns a QR code that allows fetching this backup.
+    ///
+    /// This QR code can be passed to [`get_backup`] on a (different) device.
     pub fn qr(&self) -> Qr {
         Qr::Backup {
             ticket: self.ticket.clone(),
         }
     }
 
-    /// Awaits the [`BackupSender`] until it is finished.
+    /// Awaits the [`BackupProvider`] until it is finished.
     ///
     /// This waits until someone connected to the sender and transferred a backup.  If the
-    /// [`BackupSender`] task results in an error it will be returned here.
+    /// [`BackupProvider`] task results in an error it will be returned here.
     pub async fn join(self) -> Result<()> {
         self.handle.await??;
         Ok(())
@@ -285,7 +291,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         addr: ticket.addr,
         peer_id: Some(ticket.peer),
     };
-    let progress = ProgressEmitter::new(0, 85);
+    let progress = ProgressEmitter::new(0, ReceiveProgress::max_blob_progress());
     spawn_progress_proxy(context.clone(), progress.subscribe());
     let on_connected = || {
         context.emit_event(ReceiveProgress::Connected.into());
@@ -328,6 +334,9 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
 }
 
 /// Get callback when a blob is received from the provider.
+///
+/// This writes the blobs to the blobdir.  If the blob is the database it will import it to
+/// the database of the current [`Context`].
 async fn on_blob(
     context: &Context,
     progress: &ProgressEmitter,
@@ -407,6 +416,15 @@ enum ReceiveProgress {
     Failed,
 }
 
+impl ReceiveProgress {
+    /// The maximum value for [`ReceiveProgress::BlobProgress`].
+    ///
+    /// This only exists to keep this magic value local in this type.
+    fn max_blob_progress() -> u16 {
+        85
+    }
+}
+
 impl From<ReceiveProgress> for EventType {
     fn from(source: ReceiveProgress) -> Self {
         let val = match source {
@@ -479,6 +497,12 @@ impl ProgressEmitter {
     }
 }
 
+/// The actual implementation.
+///
+/// This exists so it can be Arc'd into [`ProgressEmitter`] and we can easily have multiple
+/// `Send + Sync` copies of it.  This is used by the
+/// [`ProgressEmitter::ProgressAsyncReader`] to update the progress without intertwining
+/// lifetimes.
 #[derive(Debug)]
 struct InnerProgressEmitter {
     total: AtomicU64,
