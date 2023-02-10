@@ -362,7 +362,9 @@ fn spawn_progress_proxy(context: Context, mut rx: broadcast::Receiver<u16>) {
 enum ReceiveProgress {
     Connected,
     CollectionRecieved,
-    /// A value between 0 and 85 as percentage
+    /// A value between 0 and 85 interpreted as a percentage.
+    ///
+    /// Other values are already used by the other variants of this enum.
     BlobProgress(u16),
     Completed,
     Failed,
@@ -381,6 +383,15 @@ impl From<ReceiveProgress> for EventType {
     }
 }
 
+/// A generic progress event emitter.
+///
+/// It is created with a total value to reach and at which increments progress should be
+/// emitted.  E.g. when downloading a file of any size but you want percentage increments
+/// you would create `ProgressEmitter::new(file_size_in_bytes, 100)` and
+/// [`ProgressEmitter::subscribe`] will yield numbers `1..100` only.
+///
+/// Progress is made by calling [`ProgressEmitter::inc`], which can be implicitly done by
+/// [`ProgressEmitter::wrap_async_read`].
 #[derive(Debug, Clone)]
 struct ProgressEmitter {
     inner: Arc<InnerProgressEmitter>,
@@ -409,7 +420,7 @@ impl ProgressEmitter {
         self.inner.set_total(value)
     }
 
-    /// Return a receiver that gets incremental values.
+    /// Returns a receiver that gets incremental values.
     ///
     /// The values yielded depend on *steps* passed to [`ProgressEmitter::new`]: it will go
     /// from `1..steps`.
@@ -422,6 +433,7 @@ impl ProgressEmitter {
         self.inner.inc(amount);
     }
 
+    /// Wraps an [`AsyncRead`] which implicitly calls [`ProgressEmitter::inc`].
     fn wrap_async_read<R: AsyncRead + Unpin>(&self, read: R) -> ProgressAsyncReader<R> {
         ProgressAsyncReader {
             emitter: self.clone(),
@@ -460,6 +472,10 @@ impl InnerProgressEmitter {
     }
 }
 
+/// A wrapper around [`AsyncRead`] which increments a [`ProgressEmitter`].
+///
+/// This can be used just like the underlying [`AsyncRead`] but increments progress for each
+/// byte read.  Create this using [`ProgressEmitter::wrap_async_read`].
 #[derive(Debug)]
 struct ProgressAsyncReader<R: AsyncRead + Unpin> {
     emitter: ProgressEmitter,
