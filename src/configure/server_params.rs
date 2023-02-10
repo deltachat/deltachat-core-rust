@@ -99,21 +99,21 @@ impl ServerParams {
             // Try common secure combinations.
 
             vec![
-                // Try STARTTLS
-                Self {
-                    socket: Socket::Starttls,
-                    port: match self.protocol {
-                        Protocol::Imap => 143,
-                        Protocol::Smtp => 587,
-                    },
-                    ..self.clone()
-                },
                 // Try TLS
                 Self {
                     socket: Socket::Ssl,
                     port: match self.protocol {
                         Protocol::Imap => 993,
                         Protocol::Smtp => 465,
+                    },
+                    ..self.clone()
+                },
+                // Try STARTTLS
+                Self {
+                    socket: Socket::Starttls,
+                    port: match self.protocol {
+                        Protocol::Imap => 143,
+                        Protocol::Smtp => 587,
                     },
                     ..self
                 },
@@ -341,6 +341,42 @@ mod tests {
                     username: "foobar".to_string(),
                     strict_tls: Some(true)
                 }
+            ],
+        );
+
+        // Test that TLS is preferred to STARTTLS
+        // when the port and security are not set.
+        let v = expand_param_vector(
+            vec![ServerParams {
+                protocol: Protocol::Smtp,
+                hostname: "example.net".to_string(),
+                port: 0,
+                socket: Socket::Automatic,
+                username: "foobar".to_string(),
+                strict_tls: Some(true),
+            }],
+            "foobar@example.net",
+            "example.net",
+        );
+        assert_eq!(
+            v,
+            vec![
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 465,
+                    socket: Socket::Ssl,
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
+                ServerParams {
+                    protocol: Protocol::Smtp,
+                    hostname: "example.net".to_string(),
+                    port: 587,
+                    socket: Socket::Starttls,
+                    username: "foobar".to_string(),
+                    strict_tls: Some(true)
+                },
             ],
         );
     }
