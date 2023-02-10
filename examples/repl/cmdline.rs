@@ -336,6 +336,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  has-backup\n\
                  export-backup\n\
                  import-backup <backup-file>\n\
+                 send-backup\n\
+                 receive-backup <qr>\n\
                  export-keys\n\
                  import-keys\n\
                  export-setup\n\
@@ -485,6 +487,22 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Some(arg2.to_string()),
             )
             .await?;
+        }
+        "send-backup" => {
+            let tdir = tempfile::TempDir::new()?;
+            let dir = tdir.path();
+            let provider = BackupProvider::prepare(&context, dir).await?;
+            let qr = provider.qr();
+            let rendered = deltachat::qr_code_generator::generate_backup_qr(&context, qr).await?;
+            let file = dir.join("qr.svg");
+            tokio::fs::write(&file, rendered).await?;
+            println!("The QR code is at: {}", file.display());
+            provider.join().await?;
+        }
+        "receive-backup" => {
+            ensure!(!arg1.is_empty(), "Argument <qr> is missing.");
+            let qr = check_qr(&context, arg1).await?;
+            deltachat::imex::get_backup(&context, qr).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();
