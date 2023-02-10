@@ -244,12 +244,18 @@ pub struct Message {
 
     /// ID of the first contact in the `To:` header.
     pub(crate) to_id: ContactId,
+
+    /// ID of the chat message belongs to.
     pub(crate) chat_id: ChatId,
+
+    /// Type of the message.
     pub(crate) viewtype: Viewtype,
 
     /// State of the message.
     pub(crate) state: MessageState,
     pub(crate) download_state: DownloadState,
+
+    /// Whether the message is hidden.
     pub(crate) hidden: bool,
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
@@ -257,8 +263,14 @@ pub struct Message {
     pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
+
+    /// Message subject.
     pub(crate) subject: String,
+
+    /// `Message-ID` header value.
     pub(crate) rfc724_mid: String,
+
+    /// `In-Reply-To` header value.
     pub(crate) in_reply_to: Option<String>,
     pub(crate) is_dc_message: MessengerMessage,
     pub(crate) mime_modified: bool,

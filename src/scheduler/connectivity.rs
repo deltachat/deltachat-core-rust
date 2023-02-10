@@ -1,5 +1,3 @@
-#![allow(missing_docs)]
-
 use core::fmt;
 use std::{ops::Deref, sync::Arc};
 
@@ -538,6 +536,7 @@ impl Context {
         Ok(ret)
     }
 
+    /// Returns true if all background work is done.
     pub async fn all_work_done(&self) -> bool {
         let lock = self.scheduler.read().await;
         let stores: Vec<_> = match &*lock {

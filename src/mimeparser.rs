@@ -49,12 +49,18 @@ use crate::{location, tools};
 /// using the [MimeMessage::from_bytes] constructor.
 #[derive(Debug)]
 pub struct MimeMessage {
+    /// Parsed MIME parts.
     pub parts: Vec<Part>,
+
+    /// Message headers.
     header: HashMap<String, String>,
 
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
+
+    /// `From:` address.
     pub from: SingleInfo,
+
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
@@ -72,6 +78,8 @@ pub struct MimeMessage {
     /// The set of mail recipient addresses for which gossip headers were applied, regardless of
     /// whether they modified any peerstates.
     pub gossiped_addr: HashSet<String>,
+
+    /// True if the message is a forwarded message.
     pub is_forwarded: bool,
     pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
@@ -128,10 +136,20 @@ pub(crate) enum MailinglistType {
 #[repr(u32)]
 pub enum SystemMessage {
     Unknown = 0,
+
+    /// Group name changed.
     GroupNameChanged = 2,
+
+    /// Group avatar changed.
     GroupImageChanged = 3,
+
+    /// Member was added to the group.
     MemberAddedToGroup = 4,
+
+    /// Member was removed from the group.
     MemberRemovedFromGroup = 5,
+
+    /// Autocrypt Setup Message.
     AutocryptSetupMessage = 6,
     SecurejoinMessage = 7,
     LocationStreamingEnabled = 8,
@@ -140,20 +158,22 @@ pub enum SystemMessage {
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged = 10,
 
-    // Chat protection state changed
+    /// Chat protection is enabled.
     ChatProtectionEnabled = 11,
+
+    /// Chat protection is disabled.
     ChatProtectionDisabled = 12,
 
     /// Self-sent-message that contains only json used for multi-device-sync;
     /// if possible, we attach that to other messages as for locations.
     MultiDeviceSync = 20,
 
-    // Sync message that contains a json payload
-    // sent to the other webxdc instances
-    // These messages are not shown in the chat.
+    /// Sync message that contains a json payload
+    /// sent to the other webxdc instances
+    /// These messages are not shown in the chat.
     WebxdcStatusUpdate = 30,
 
-    // Webxdc info added with `info` set in `send_webxdc_status_update()`.
+    /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
     WebxdcInfoMessage = 32,
 }
 
@@ -1764,16 +1784,32 @@ fn is_known(key: &str) -> bool {
     )
 }
 
+/// Parsed MIME part.
 #[derive(Debug, Default, Clone)]
 pub struct Part {
+    /// Type of the MIME part determining how it should be displayed.
     pub typ: Viewtype,
+
+    /// MIME type.
     pub mimetype: Option<Mime>,
+
+    /// Message text to be displayed in the chat.
     pub msg: String,
+
+    /// Message text to be displayed in message info.
     pub msg_raw: Option<String>,
+
+    /// Size of the MIME part in bytes.
     pub bytes: usize,
     pub param: Params,
+
+    /// Attachment filename.
     pub(crate) org_filename: Option<String>,
+
+    /// An error detected during parsing.
     pub error: Option<String>,
+
+    /// True if conversion from HTML to plaintext failed.
     pub(crate) dehtml_failed: bool,
 
     /// the part is a child or a descendant of multipart/related.

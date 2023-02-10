@@ -240,7 +240,7 @@ fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
 }
 
 impl MsgId {
-    /// Get HTML from a message-id.
+    /// Get HTML by database message id.
     /// This requires `mime_headers` field to be set for the message;
     /// this is the case at least when `Message.has_html()` returns true
     /// (we do not save raw mime unconditionally in the database to save space).

@@ -1,13 +1,13 @@
 //! Handle plain text together with some attributes.
 
-#![allow(missing_docs)]
-
 use once_cell::sync::Lazy;
 
 use crate::simplify::split_lines;
 
+/// Plaintext message body together with format=flowed attributes.
 #[derive(Debug)]
 pub struct PlainText {
+    /// The text itself.
     pub text: String,
 
     /// Text may "flowed" as defined in [RFC 2646](https://tools.ietf.org/html/rfc2646).

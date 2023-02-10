@@ -1159,7 +1159,7 @@ uint32_t        dc_add_device_msg            (dc_context_t* context, const char*
 
 /**
  * Check if a device-message with a given label was ever added.
- * Device-messages can be added dc_add_device_msg().
+ * Device-messages can be added with dc_add_device_msg().
  *
  * @memberof dc_context_t
  * @param context The context object.

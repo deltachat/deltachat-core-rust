@@ -1,7 +1,5 @@
 //! # Import/export module.
 
-#![allow(missing_docs)]
-
 use std::any::Any;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -38,6 +36,7 @@ use crate::{e2ee, tools};
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
 const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
+/// Import/export command.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum ImexMode {
@@ -220,6 +219,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
     ))
 }
 
+/// Creates a new setup code for Autocrypt Setup Message.
 pub fn create_setup_code(_context: &Context) -> String {
     let mut random_val: u16;
     let mut rng = thread_rng();
@@ -258,6 +258,10 @@ async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
     Ok(())
 }
 
+/// Continue key transfer via Autocrypt Setup Message.
+///
+/// `msg_id` is the ID of the received Autocrypt Setup Message.
+/// `setup_code` is the code entered by the user.
 pub async fn continue_key_transfer(
     context: &Context,
     msg_id: MsgId,
