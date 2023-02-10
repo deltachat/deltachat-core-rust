@@ -127,10 +127,12 @@ impl BackupProvider {
     async fn prepare_inner(context: &Context, dir: &Path) -> Result<(Provider, Ticket)> {
         // Generate the token up front: we also use it to encrypt the database.
         let token = AuthToken::generate();
+        context.emit_event(SendProgress::Started.into());
         let dbfile = dir.join(DBFILE_BACKUP_NAME);
         export_database(context, &dbfile, token.to_string())
             .await
             .context("Database export failed")?;
+        context.emit_event(SendProgress::DatabaseExported.into());
 
         // Now we can be sure IO is not running.
         let mut files = vec![DataSource::with_name(
@@ -146,7 +148,9 @@ impl BackupProvider {
 
         // Start listening.
         let (db, hash) = sendme::provider::create_collection(files).await?;
+        context.emit_event(SendProgress::CollectionCreated.into());
         let provider = Provider::builder(db).auth_token(token).spawn()?;
+        context.emit_event(SendProgress::ProviderListening.into());
         let ticket = provider.ticket(hash);
         Ok((provider, ticket))
     }
@@ -165,6 +169,7 @@ impl BackupProvider {
         mut provider: Provider,
         cancel_token: Receiver<()>,
     ) -> Result<()> {
+        context.emit_event(SendProgress::ProviderListening.into());
         let mut events = provider.subscribe();
         let res = loop {
             tokio::select! {
@@ -176,14 +181,21 @@ impl BackupProvider {
                     match maybe_event {
                         Ok(event) => {
                             match event {
+                                Event::ClientConnected { ..} => {
+                                    context.emit_event(SendProgress::ClientConnected.into());
+                                }
+                                Event::RequestReceived { .. } => {
+                                    context.emit_event(SendProgress::TransferStarted.into());
+                                }
                                 Event::TransferCompleted { .. } => {
+                                    context.emit_event(SendProgress::TransferFinished.into());
                                     provider.shutdown();
                                 }
                                 Event::TransferAborted { .. } => {
+                                    context.emit_event(SendProgress::Failed.into());
                                     provider.shutdown();
                                     break Err(anyhow!("BackupSender transfer aborted"));
                                 }
-                                _ => (),
                             }
                         }
                         Err(broadcast::error::RecvError::Closed) => {
@@ -204,6 +216,7 @@ impl BackupProvider {
                 },
             }
         };
+        context.emit_event(SendProgress::Completed.into());
         context.free_ongoing().await;
         res
     }
@@ -221,6 +234,29 @@ impl BackupProvider {
     pub async fn join(self) -> Result<()> {
         self.handle.await??;
         Ok(())
+    }
+}
+
+/// Create [`EventType::ImexProgress`] events using readable names.
+///
+/// Plus you get warnings if you don't use all variants.
+#[derive(Debug)]
+#[repr(u16)]
+enum SendProgress {
+    Failed = 0,
+    Started = 100,
+    DatabaseExported = 300,
+    CollectionCreated = 400,
+    ProviderListening = 500,
+    ClientConnected = 600,
+    TransferStarted = 650,
+    TransferFinished = 950,
+    Completed = 1000,
+}
+
+impl From<SendProgress> for EventType {
+    fn from(source: SendProgress) -> Self {
+        Self::ImexProgress((source as u16).into())
     }
 }
 
@@ -359,6 +395,7 @@ fn spawn_progress_proxy(context: Context, mut rx: broadcast::Receiver<u16>) {
 /// Create [`EventType::ImexProgress`] events using readable names.
 ///
 /// Plus you get warnings if you don't use all variants.
+#[derive(Debug)]
 enum ReceiveProgress {
     Connected,
     CollectionRecieved,
@@ -456,7 +493,7 @@ impl InnerProgressEmitter {
         let prev_count = self.count.fetch_add(amount, Ordering::Relaxed);
         let count = prev_count + amount;
         let total = self.total.load(Ordering::Relaxed);
-        let step = (total * u64::from(self.steps) / std::cmp::min(count, total)) as u16;
+        let step = (std::cmp::min(count, total) * u64::from(self.steps) / total) as u16;
         let last_step = self.last_step.swap(step, Ordering::Relaxed);
         if step > last_step {
             self.tx.send(step).ok();
@@ -530,16 +567,10 @@ mod tests {
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
         // Prepare to transfer backup.
-        ctx0.stop_io().await;
         let provider = BackupProvider::prepare(&ctx0, &dir).await.unwrap();
 
         // Set up second device.
-        let ctx1 = tcm.bob().await;
-        ctx1.stop_io().await;
-        ctx1.sql
-            .set_raw_config_bool("configured", false)
-            .await
-            .unwrap();
+        let ctx1 = tcm.unconfigured().await;
         get_backup(&ctx1, provider.qr()).await.unwrap();
 
         // Make sure the provider finishes without an error.
@@ -559,5 +590,13 @@ mod tests {
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
         let text = msg.get_text().unwrap();
         assert_eq!(text, "hi there");
+
+        // Check that both received the ImexProgress events.
+        ctx0.evtracker
+            .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
+            .await;
+        ctx1.evtracker
+            .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
+            .await;
     }
 }
