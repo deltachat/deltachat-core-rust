@@ -1080,7 +1080,7 @@ mod tests {
     }
 
     async fn check_msg_is_deleted(t: &TestContext, chat: &Chat, msg_id: MsgId) {
-        let chat_items = chat::get_chat_msgs(t, chat.id, 0).await.unwrap();
+        let chat_items = chat::get_chat_msgs(t, chat.id).await.unwrap();
         // Check that the chat is empty except for possibly info messages:
         for item in &chat_items {
             if let ChatItem::Message { msg_id } = item {

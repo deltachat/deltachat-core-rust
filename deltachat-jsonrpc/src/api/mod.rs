@@ -6,8 +6,9 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
 use deltachat::{
     chat::{
-        self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, marknoticed_chat,
-        remove_contact_from_chat, Chat, ChatId, ChatItem, ProtectionStatus,
+        self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
+        marknoticed_chat, remove_contact_from_chat, Chat, ChatId, ChatItem, MessageListOptions,
+        ProtectionStatus,
     },
     chatlist::Chatlist,
     config::Config,
@@ -803,7 +804,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
 
         // TODO: implement this in core with an SQL query, that will be way faster
-        let messages = get_chat_msgs(&ctx, ChatId::new(chat_id), 0).await?;
+        let messages = get_chat_msgs(&ctx, ChatId::new(chat_id)).await?;
         let mut first_unread_message_id = None;
         for item in messages.into_iter().rev() {
             if let ChatItem::Message { msg_id } = item {
@@ -878,9 +879,23 @@ impl CommandApi {
         markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
     }
 
-    async fn get_message_ids(&self, account_id: u32, chat_id: u32, flags: u32) -> Result<Vec<u32>> {
+    async fn get_message_ids(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        info_only: bool,
+        add_daymarker: bool,
+    ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
+        let msg = get_chat_msgs_ex(
+            &ctx,
+            ChatId::new(chat_id),
+            MessageListOptions {
+                info_only,
+                add_daymarker,
+            },
+        )
+        .await?;
         Ok(msg
             .iter()
             .map(|chat_item| -> u32 {
@@ -896,10 +911,19 @@ impl CommandApi {
         &self,
         account_id: u32,
         chat_id: u32,
-        flags: u32,
+        info_only: bool,
+        add_daymarker: bool,
     ) -> Result<Vec<JSONRPCMessageListItem>> {
         let ctx = self.get_context(account_id).await?;
-        let msg = get_chat_msgs(&ctx, ChatId::new(chat_id), flags).await?;
+        let msg = get_chat_msgs_ex(
+            &ctx,
+            ChatId::new(chat_id),
+            MessageListOptions {
+                info_only,
+                add_daymarker,
+            },
+        )
+        .await?;
         Ok(msg
             .iter()
             .map(|chat_item| (*chat_item).into())

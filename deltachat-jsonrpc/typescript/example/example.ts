@@ -76,7 +76,8 @@ async function run() {
       const messageIds = await client.rpc.getMessageIds(
         selectedAccount,
         chatId,
-        0
+        false,
+        false
       );
       const messages = await client.rpc.getMessages(
         selectedAccount,

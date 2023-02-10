@@ -18,11 +18,11 @@ use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, Chat, ChatId, MessageListOptions};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
-use crate::constants::{DC_GCL_NO_SPECIALS, DC_GCM_ADDDAYMARKER, DC_MSG_ID_DAYMARKER};
+use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::{Event, EventType, Events};
@@ -464,9 +464,7 @@ impl TestContext {
             .await
             .unwrap();
 
-        let chat_msgs = chat::get_chat_msgs(self, received.chat_id, 0)
-            .await
-            .unwrap();
+        let chat_msgs = chat::get_chat_msgs(self, received.chat_id).await.unwrap();
         assert!(
             chat_msgs.contains(&ChatItem::Message { msg_id: msg.id }),
             "received message is not shown in chat, maybe it's hidden (you may have \
@@ -491,7 +489,7 @@ impl TestContext {
     ///
     /// Panics on errors or if the most recent message is a marker.
     pub async fn get_last_msg_in(&self, chat_id: ChatId) -> Message {
-        let msgs = chat::get_chat_msgs(&self.ctx, chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&self.ctx, chat_id).await.unwrap();
         let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
             msg_id
         } else {
@@ -619,9 +617,16 @@ impl TestContext {
     #[allow(dead_code)]
     #[allow(clippy::indexing_slicing)]
     pub async fn print_chat(&self, chat_id: ChatId) {
-        let msglist = chat::get_chat_msgs(self, chat_id, DC_GCM_ADDDAYMARKER)
-            .await
-            .unwrap();
+        let msglist = chat::get_chat_msgs_ex(
+            self,
+            chat_id,
+            MessageListOptions {
+                info_only: false,
+                add_daymarker: true,
+            },
+        )
+        .await
+        .unwrap();
         let msglist: Vec<MsgId> = msglist
             .into_iter()
             .map(|x| match x {
@@ -918,7 +923,7 @@ pub(crate) async fn get_chat_msg(
     index: usize,
     asserted_msgs_count: usize,
 ) -> Message {
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), asserted_msgs_count);
     let msg_id = if let ChatItem::Message { msg_id } = msgs[index] {
         msg_id

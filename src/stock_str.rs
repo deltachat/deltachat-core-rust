@@ -1449,16 +1449,10 @@ mod tests {
         };
 
         // delete self-talk first; this adds a message to device-chat about how self-talk can be restored
-        let device_chat_msgs_before = chat::get_chat_msgs(&t, device_chat_id, 0)
-            .await
-            .unwrap()
-            .len();
+        let device_chat_msgs_before = chat::get_chat_msgs(&t, device_chat_id).await.unwrap().len();
         self_talk_id.delete(&t).await.ok();
         assert_eq!(
-            chat::get_chat_msgs(&t, device_chat_id, 0)
-                .await
-                .unwrap()
-                .len(),
+            chat::get_chat_msgs(&t, device_chat_id).await.unwrap().len(),
             device_chat_msgs_before + 1
         );
 

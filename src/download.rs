@@ -450,7 +450,7 @@ mod tests {
         .await?;
         let msg = bob.get_last_msg().await;
         let chat_id = msg.chat_id;
-        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 1);
         assert_eq!(msg.download_state(), DownloadState::Available);
 
         // downloading the status update afterwards expands to nothing and moves the placeholder to trash-chat
@@ -464,7 +464,7 @@ mod tests {
             false,
         )
         .await?;
-        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 0);
         assert!(Message::load_from_db(&bob, msg.id)
             .await?
             .chat_id
@@ -517,13 +517,13 @@ mod tests {
         .await?;
         let msg = bob.get_last_msg().await;
         let chat_id = msg.chat_id;
-        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 1);
         assert_eq!(msg.download_state(), DownloadState::Available);
 
         // downloading the mdn afterwards expands to nothing and deletes the placeholder directly
         // (usually mdn are too small for not being downloaded directly)
         receive_imf_inner(&bob, "bar@example.org", raw, false, None, false).await?;
-        assert_eq!(get_chat_msgs(&bob, chat_id, 0).await?.len(), 0);
+        assert_eq!(get_chat_msgs(&bob, chat_id).await?.len(), 0);
         assert!(Message::load_from_db(&bob, msg.id)
             .await?
             .chat_id

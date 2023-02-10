@@ -779,7 +779,7 @@ mod tests {
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
-    use crate::constants::{Chattype, DC_GCM_ADDDAYMARKER};
+    use crate::constants::Chattype;
     use crate::contact::ContactAddress;
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
@@ -922,7 +922,7 @@ mod tests {
         // Check Alice got the verified message in her 1:1 chat.
         {
             let chat = alice.create_chat(&bob).await;
-            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
+            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -971,7 +971,7 @@ mod tests {
         // Check Bob got the verified message in his 1:1 chat.
         {
             let chat = bob.create_chat(&alice).await;
-            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id(), DC_GCM_ADDDAYMARKER)
+            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -1281,7 +1281,7 @@ mod tests {
                 Blocked::Yes,
                 "Alice's 1:1 chat with Bob is not hidden"
             );
-            let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid, DC_GCM_ADDDAYMARKER)
+            let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid)
                 .await
                 .unwrap()
                 .into_iter()
@@ -1326,17 +1326,14 @@ mod tests {
                 Blocked::Yes,
                 "Bob's 1:1 chat with Alice is not hidden"
             );
-            for item in chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
-                .await
-                .unwrap()
-            {
+            for item in chat::get_chat_msgs(&bob.ctx, bob_chatid).await.unwrap() {
                 if let chat::ChatItem::Message { msg_id } = item {
                     let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
                     let text = msg.get_text().unwrap();
                     println!("msg {msg_id} text: {text}");
                 }
             }
-            let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid, DC_GCM_ADDDAYMARKER)
+            let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid)
                 .await
                 .unwrap()
                 .into_iter();

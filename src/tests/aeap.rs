@@ -4,7 +4,6 @@ use anyhow::Result;
 
 use crate::chat;
 use crate::chat::ChatId;
-use crate::constants;
 use crate::contact;
 use crate::contact::Contact;
 use crate::contact::ContactId;
@@ -345,9 +344,16 @@ async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 }
 
 async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Option<Message> {
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, constants::DC_GCM_INFO_ONLY)
-        .await
-        .unwrap();
+    let msgs = chat::get_chat_msgs_ex(
+        &t.ctx,
+        chat_id,
+        chat::MessageListOptions {
+            info_only: true,
+            add_daymarker: false,
+        },
+    )
+    .await
+    .unwrap();
     let msg_id = if let chat::ChatItem::Message { msg_id } = msgs.last()? {
         msg_id
     } else {

@@ -154,12 +154,12 @@ async fn test_adhoc_group_show_accepted_contact_accepted() {
     assert_eq!(chat.typ, Chattype::Single);
     assert_eq!(chat.name, "Bob");
     assert_eq!(chat::get_chat_contacts(&t, chat_id).await.unwrap().len(), 1);
-    assert_eq!(chat::get_chat_msgs(&t, chat_id, 0).await.unwrap().len(), 1);
+    assert_eq!(chat::get_chat_msgs(&t, chat_id).await.unwrap().len(), 1);
 
     // receive a non-delta-message from Bob, shows up because of the show_emails setting
     receive_imf(&t, ONETOONE_NOREPLY_MAIL, false).await.unwrap();
 
-    assert_eq!(chat::get_chat_msgs(&t, chat_id, 0).await.unwrap().len(), 2);
+    assert_eq!(chat::get_chat_msgs(&t, chat_id).await.unwrap().len(), 2);
 
     // let Bob create an adhoc-group by a non-delta-message, shows up because of the show_emails setting
     receive_imf(&t, GRP_MAIL, false).await.unwrap();
@@ -208,7 +208,7 @@ async fn test_read_receipt_and_unarchive() -> Result<()> {
     // create a group with bob, archive group
     let group_id = chat::create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
     chat::add_contact_to_chat(&t, group_id, bob_id).await?;
-    assert_eq!(chat::get_chat_msgs(&t, group_id, 0).await.unwrap().len(), 0);
+    assert_eq!(chat::get_chat_msgs(&t, group_id).await.unwrap().len(), 0);
     group_id
         .set_visibility(&t, ChatVisibility::Archived)
         .await?;
@@ -289,7 +289,7 @@ async fn test_read_receipt_and_unarchive() -> Result<()> {
             false,
         )
         .await?;
-    assert_eq!(chat::get_chat_msgs(&t, group_id, 0).await?.len(), 1);
+    assert_eq!(chat::get_chat_msgs(&t, group_id).await?.len(), 1);
     let msg = message::Message::load_from_db(&t, msg.id).await?;
     assert_eq!(msg.state, MessageState::OutMdnRcvd);
 
@@ -705,7 +705,7 @@ async fn test_parse_ndn_group_msg() -> Result<()> {
 
     assert_eq!(msg.state, MessageState::OutFailed);
 
-    let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await?;
+    let msgs = chat::get_chat_msgs(&t, msg.chat_id).await?;
     let msg_id = if let ChatItem::Message { msg_id } = msgs.last().unwrap() {
         msg_id
     } else {
@@ -966,7 +966,7 @@ async fn test_block_mailing_list() {
     assert_eq!(chats.len(), 0); // Test that the message is not shown
 
     // Both messages are in the same blocked chat.
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 2);
 }
 
@@ -997,7 +997,7 @@ async fn test_mailing_list_decide_block_then_unblock() {
 
     receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
     let msg = t.get_last_msg().await;
-    let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t, msg.chat_id).await.unwrap();
     assert_eq!(msgs.len(), 2);
 }
 
@@ -1019,14 +1019,14 @@ async fn test_mailing_list_decide_not_now() {
 
     let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
     assert_eq!(chats.len(), 1); // Test that chat is still in the chatlist
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 1); // ...and contains 1 message
 
     receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
 
     let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
     assert_eq!(chats.len(), 1); // Test that the new mailing list message got into the same chat
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 2);
     let chat = Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
     assert!(chat.is_contact_request());
@@ -1052,7 +1052,7 @@ async fn test_mailing_list_decide_accept() {
 
     receive_imf(&t.ctx, DC_MAILINGLIST2, false).await.unwrap();
 
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 2);
     let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await.unwrap();
     assert!(chat.can_send(&t.ctx).await.unwrap());
@@ -1110,7 +1110,7 @@ async fn test_majordomo_mailing_list() -> Result<()> {
     assert_eq!(chat.typ, Chattype::Mailinglist);
     assert_eq!(chat.grpid, "mylist@bar.org");
     assert_eq!(chat.name, "ola");
-    assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
+    assert_eq!(chat::get_chat_msgs(&t, chat.id).await.unwrap().len(), 1);
     assert!(!chat.can_send(&t).await?);
     assert_eq!(chat.get_mailinglist_addr(), None);
 
@@ -1131,7 +1131,7 @@ async fn test_majordomo_mailing_list() -> Result<()> {
     )
     .await
     .unwrap();
-    assert_eq!(chat::get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 2);
+    assert_eq!(chat::get_chat_msgs(&t, chat.id).await.unwrap().len(), 2);
 
     Ok(())
 }
@@ -1330,7 +1330,7 @@ async fn test_mailing_list_with_mimepart_footer() {
     );
     assert!(msg.has_html());
     let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-    assert_eq!(get_chat_msgs(&t, msg.chat_id, 0).await.unwrap().len(), 1);
+    assert_eq!(get_chat_msgs(&t, msg.chat_id).await.unwrap().len(), 1);
     assert_eq!(chat.typ, Chattype::Mailinglist);
     assert_eq!(chat.blocked, Blocked::Request);
     assert_eq!(chat.grpid, "intern.lists.abc.de");
@@ -1350,7 +1350,7 @@ async fn test_mailing_list_with_mimepart_footer_signed() {
     .await
     .unwrap();
     let msg = t.get_last_msg().await;
-    assert_eq!(get_chat_msgs(&t, msg.chat_id, 0).await.unwrap().len(), 1);
+    assert_eq!(get_chat_msgs(&t, msg.chat_id).await.unwrap().len(), 1);
     let text = msg.text.clone().unwrap();
     assert!(text.contains("content text"));
     assert!(!text.contains("footer text"));
@@ -1547,7 +1547,7 @@ async fn test_many_images() {
     assert_eq!(msg.viewtype, Viewtype::Image);
     assert!(msg.has_html());
     let chat = Chat::load_from_db(&t, msg.chat_id).await.unwrap();
-    assert_eq!(get_chat_msgs(&t, chat.id, 0).await.unwrap().len(), 1);
+    assert_eq!(get_chat_msgs(&t, chat.id).await.unwrap().len(), 1);
 }
 
 /// Test that classical MUA messages are assigned to group chats based on the `In-Reply-To`
@@ -1597,7 +1597,7 @@ async fn test_in_reply_to() {
     assert_eq!(msg.get_text().unwrap(), "reply foo");
 
     // Load the first message from the same chat.
-    let msgs = chat::get_chat_msgs(&t, msg.chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t, msg.chat_id).await.unwrap();
     let msg_id = if let ChatItem::Message { msg_id } = msgs.first().unwrap() {
         msg_id
     } else {
@@ -1824,7 +1824,7 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     assert!(msg.get_text().unwrap().contains("hi support!"));
     let chat = Chat::load_from_db(&alice, msg.chat_id).await.unwrap();
     assert_eq!(chat.typ, Chattype::Group);
-    assert_eq!(get_chat_msgs(&alice, chat.id, 0).await.unwrap().len(), 1);
+    assert_eq!(get_chat_msgs(&alice, chat.id).await.unwrap().len(), 1);
     if group_request {
         assert_eq!(get_chat_contacts(&alice, chat.id).await.unwrap().len(), 4);
     } else {
@@ -1857,7 +1857,7 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     } else {
         assert_eq!(chat.typ, Chattype::Single);
     }
-    assert_eq!(get_chat_msgs(&claire, chat.id, 0).await.unwrap().len(), 1);
+    assert_eq!(get_chat_msgs(&claire, chat.id).await.unwrap().len(), 1);
     assert_eq!(msg.get_override_sender_name(), None);
 
     (claire, alice)
@@ -1972,7 +1972,7 @@ async fn test_dont_assign_to_trash_by_parent() {
     println!("\n========= Delete the message ==========");
     msg.id.trash(&t).await.unwrap();
 
-    let msgs = chat::get_chat_msgs(&t.ctx, chat_id, 0).await.unwrap();
+    let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 0);
 
     println!("\n========= Receive a message that is a reply to the deleted message ==========");
@@ -2182,8 +2182,8 @@ Original signature updated",
     .await?;
     let bob = Contact::load_from_db(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "Original signature updated");
-    assert_eq!(get_chat_msgs(&t, one2one_chat_id, 0).await?.len(), 2);
-    assert_eq!(get_chat_msgs(&t, ml_chat_id, 0).await?.len(), 1);
+    assert_eq!(get_chat_msgs(&t, one2one_chat_id).await?.len(), 2);
+    assert_eq!(get_chat_msgs(&t, ml_chat_id).await?.len(), 1);
     assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 2);
     Ok(())
 }

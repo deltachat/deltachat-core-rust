@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
-use deltachat::chat::{ChatId, ChatVisibility, MuteDuration, ProtectionStatus};
+use deltachat::chat::{ChatId, ChatVisibility, MessageListOptions, MuteDuration, ProtectionStatus};
 use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, ContactId, Origin};
 use deltachat::context::Context;
@@ -60,7 +60,8 @@ use self::string::*;
 //   this avoids panics if the ui just forgets to handle a case
 // - finally, this behaviour matches the old core-c API and UIs already depend on it
 
-// TODO: constants
+const DC_GCM_ADDDAYMARKER: u32 = 0x01;
+const DC_GCM_INFO_ONLY: u32 = 0x02;
 
 // dc_context_t
 
@@ -1156,12 +1157,21 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
     }
     let ctx = &*context;
 
+    let info_only = (flags & DC_GCM_INFO_ONLY) != 0;
+    let add_daymarker = (flags & DC_GCM_ADDDAYMARKER) != 0;
     block_on(async move {
         Box::into_raw(Box::new(
-            chat::get_chat_msgs(ctx, ChatId::new(chat_id), flags)
-                .await
-                .unwrap_or_log_default(ctx, "failed to get chat msgs")
-                .into(),
+            chat::get_chat_msgs_ex(
+                ctx,
+                ChatId::new(chat_id),
+                MessageListOptions {
+                    info_only,
+                    add_daymarker,
+                },
+            )
+            .await
+            .unwrap_or_log_default(ctx, "failed to get chat msgs")
+            .into(),
         ))
     })
 }

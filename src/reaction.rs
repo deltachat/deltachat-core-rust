@@ -443,24 +443,24 @@ Content-Disposition: reaction\n\
         let chat_alice = alice.create_chat(&bob).await;
         let alice_msg = alice.send_text(chat_alice.id, "Hi!").await;
         let bob_msg = bob.recv_msg(&alice_msg).await;
-        assert_eq!(get_chat_msgs(&alice, chat_alice.id, 0).await?.len(), 1);
-        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 1);
 
         let alice_msg2 = alice.send_text(chat_alice.id, "Hi again!").await;
         bob.recv_msg(&alice_msg2).await;
-        assert_eq!(get_chat_msgs(&alice, chat_alice.id, 0).await?.len(), 2);
-        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         bob_msg.chat_id.accept(&bob).await?;
 
         send_reaction(&bob, bob_msg.id, "👍").await.unwrap();
         expect_reactions_changed_event(&bob, bob_msg.chat_id, bob_msg.id, ContactId::SELF).await?;
-        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, bob_msg.chat_id).await?.len(), 2);
 
         let bob_reaction_msg = bob.pop_sent_msg().await;
         let alice_reaction_msg = alice.recv_msg_opt(&bob_reaction_msg).await.unwrap();
         assert_eq!(alice_reaction_msg.chat_id, DC_CHAT_ID_TRASH);
-        assert_eq!(get_chat_msgs(&alice, chat_alice.id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&alice, chat_alice.id).await?.len(), 2);
 
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
