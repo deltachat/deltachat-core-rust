@@ -20,7 +20,6 @@ from .cutil import (
     from_optional_dc_charpointer,
     iter_array,
 )
-from .events import EventThread, FFIEventLogger
 from .message import Message
 from .tracker import ConfigureTracker, ImexTracker
 
@@ -63,6 +62,8 @@ class Account(object):
     MissingCredentials = MissingCredentials
 
     def __init__(self, db_path, os_name=None, logging=True, closed=False) -> None:
+        from .events import EventThread
+
         """initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -368,7 +369,7 @@ class Account(object):
     def get_fresh_messages(self) -> Generator[Message, None, None]:
         """yield all fresh messages from all chats."""
         dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), lib.dc_array_unref)
-        yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
+        return (x for x in iter_array(dc_array, lambda x: Message.from_db(self, x)) if x is not None)
 
     def create_chat(self, obj) -> Chat:
         """Create a 1:1 chat with Account, Contact or e-mail address."""
@@ -413,7 +414,7 @@ class Account(object):
     def get_device_chat(self) -> Chat:
         return Contact(self, const.DC_CONTACT_ID_DEVICE).create_chat()
 
-    def get_message_by_id(self, msg_id: int) -> Message:
+    def get_message_by_id(self, msg_id: int) -> Optional[Message]:
         """return Message instance.
         :param msg_id: integer id of this message.
         :returns: :class:`deltachat.message.Message` instance.
@@ -596,6 +597,8 @@ class Account(object):
     #
 
     def run_account(self, addr=None, password=None, account_plugins=None, show_ffi=False):
+        from .events import FFIEventLogger
+
         """get the account running, configure it if necessary. add plugins if provided.
 
         :param addr: the email address of the account

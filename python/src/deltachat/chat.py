@@ -282,12 +282,20 @@ class Chat(object):
         if msg.is_out_preparing():
             assert msg.id != 0
             # get a fresh copy of dc_msg, the core needs it
-            msg = Message.from_db(self.account, msg.id)
+            maybe_msg = Message.from_db(self.account, msg.id)
+            if maybe_msg is not None:
+                msg = maybe_msg
+            else:
+                raise ValueError("message does not exist")
+
         sent_id = lib.dc_send_msg(self.account._dc_context, self.id, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         # modify message in place to avoid bad state for the caller
-        msg._dc_msg = Message.from_db(self.account, sent_id)._dc_msg
+        sent_msg = Message.from_db(self.account, sent_id)
+        if sent_msg is None:
+            raise ValueError("cannot load just sent message from the database")
+        msg._dc_msg = sent_msg._dc_msg
         return msg
 
     def send_text(self, text):

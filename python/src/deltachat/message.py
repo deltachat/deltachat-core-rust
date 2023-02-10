@@ -42,9 +42,15 @@ class Message(object):
         )
 
     @classmethod
-    def from_db(cls, account, id):
+    def from_db(cls, account, id) -> Optional["Message"]:
+        """Attempt to load the message from the database given its ID.
+
+        None is returned if the message does not exist, i.e. deleted."""
         assert id > 0
-        return cls(account, ffi.gc(lib.dc_get_msg(account._dc_context, id), lib.dc_msg_unref))
+        res = lib.dc_get_msg(account._dc_context, id)
+        if res == ffi.NULL:
+            return None
+        return cls(account, ffi.gc(res, lib.dc_msg_unref))
 
     @classmethod
     def new_empty(cls, account, view_type):

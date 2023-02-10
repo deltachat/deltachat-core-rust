@@ -13,6 +13,7 @@ from .capi import ffi, lib
 from .cutil import from_optional_dc_charpointer
 from .hookspec import account_hookimpl
 from .message import map_system_message
+from .account import Account
 
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
@@ -221,7 +222,7 @@ class EventThread(threading.Thread):
     With each Account init this callback thread is started.
     """
 
-    def __init__(self, account) -> None:
+    def __init__(self, account: Account) -> None:
         self.account = account
         super(EventThread, self).__init__(name="events")
         self.daemon = True
@@ -298,20 +299,22 @@ class EventThread(threading.Thread):
                 yield "ac_configure_completed", {"success": success, "comment": comment}
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = account.get_message_by_id(ffi_event.data2)
-            yield map_system_message(msg) or ("ac_incoming_message", {"message": msg})
+            if msg is not None:
+                yield map_system_message(msg) or ("ac_incoming_message", {"message": msg})
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = account.get_message_by_id(ffi_event.data2)
-                if msg.is_outgoing():
-                    res = map_system_message(msg)
-                    if res and res[0].startswith("ac_member"):
-                        yield res
-                    yield "ac_outgoing_message", {"message": msg}
-                elif msg.is_in_fresh():
-                    yield map_system_message(msg) or (
-                        "ac_incoming_message",
-                        {"message": msg},
-                    )
+                if msg is not None:
+                    if msg.is_outgoing():
+                        res = map_system_message(msg)
+                        if res and res[0].startswith("ac_member"):
+                            yield res
+                        yield "ac_outgoing_message", {"message": msg}
+                    elif msg.is_in_fresh():
+                        yield map_system_message(msg) or (
+                            "ac_incoming_message",
+                            {"message": msg},
+                        )
         elif name == "DC_EVENT_REACTIONS_CHANGED":
             assert ffi_event.data1 > 0
             msg = account.get_message_by_id(ffi_event.data2)

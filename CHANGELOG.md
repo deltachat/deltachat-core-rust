@@ -9,6 +9,8 @@
 
 ## Fixes
 - Fix Securejoin for multiple devices on a joining side #3982
+- python: handle NULL value returned from `dc_get_msg()` #4020
+  Account.`get_message_by_id` may return `None` in this case.
 
 ## API-Changes
 
