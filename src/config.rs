@@ -134,7 +134,7 @@ pub enum Config {
     OnlyFetchMvbox,
 
     /// Whether to show classic emails or only chat messages.
-    #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
+    #[strum(props(default = "2"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
     /// Quality of the media files to send.

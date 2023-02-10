@@ -7,6 +7,7 @@
 - Cache DNS results for SMTP connections #3985
 - Prefer TLS over STARTTLS during autoconfiguration #4021
 - Use SOCKS5 configuration for HTTP requests #4017
+- Show non-deltachat emails by default for new installations #4019
 
 ## Fixes
 - Fix Securejoin for multiple devices on a joining side #3982

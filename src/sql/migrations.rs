@@ -683,6 +683,13 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 98 {
+        if exists_before_update && sql.get_raw_config_int("show_emails").await?.is_none() {
+            sql.set_raw_config_int("show_emails", ShowEmails::Off as i32)
+                .await?;
+        }
+        sql.set_db_version(98).await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)

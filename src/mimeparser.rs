@@ -1993,7 +1993,6 @@ mod tests {
     use super::*;
     use crate::{
         chatlist::Chatlist,
-        config::Config,
         constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
         message::{Message, MessageState, MessengerMessage},
         receive_imf::receive_imf,
@@ -3162,7 +3161,6 @@ On 2020-10-25, Bob wrote:
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_subj_to_multimedia_msg() {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
         receive_imf(
             &t.ctx,
             include_bytes!("../test-data/message/subj_with_multimedia_msg.eml"),
@@ -3446,7 +3444,6 @@ Message.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_ms_exchange_mdn() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await?;
 
         let original =
             include_bytes!("../test-data/message/ms_exchange_report_original_message.eml");

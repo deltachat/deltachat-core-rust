@@ -5133,9 +5133,6 @@ mod tests {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
-        alice.set_config(Config::ShowEmails, Some("2")).await?;
-        bob.set_config(Config::ShowEmails, Some("2")).await?;
-
         let alice_bob_contact = alice.add_or_lookup_contact(&bob).await;
         let contact_id = alice_bob_contact.id;
         let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "grp").await?;
@@ -5319,12 +5316,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_classic_email_chat() -> Result<()> {
         let alice = TestContext::new_alice().await;
-
-        // Alice enables receiving classic emails.
-        alice
-            .set_config(Config::ShowEmails, Some("2"))
-            .await
-            .unwrap();
 
         // Alice receives a classic (non-chat) message from Bob.
         receive_imf(

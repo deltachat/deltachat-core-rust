@@ -49,7 +49,7 @@ pub enum ShowEmails {
 
 impl Default for ShowEmails {
     fn default() -> Self {
-        ShowEmails::Off // also change Config.ShowEmails props(default) on changes
+        ShowEmails::All // also change Config.ShowEmails props(default) on changes
     }
 }
 
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn test_showemails_values() {
         // values may be written to disk and must not change
-        assert_eq!(ShowEmails::Off, ShowEmails::default());
+        assert_eq!(ShowEmails::All, ShowEmails::default());
         assert_eq!(ShowEmails::Off, ShowEmails::from_i32(0).unwrap());
         assert_eq!(
             ShowEmails::AcceptedContacts,
