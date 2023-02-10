@@ -1386,7 +1386,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_adhoc_group_no_qr() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("2")).await?;
 
         let mime = br#"Subject: First thread
 Message-ID: first@example.org

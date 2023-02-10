@@ -5,7 +5,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::get_chat_contacts;
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
-use crate::constants::DC_GCL_NO_SPECIALS;
+use crate::constants::{ShowEmails, DC_GCL_NO_SPECIALS};
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
@@ -94,7 +94,7 @@ static GRP_MAIL: &[u8] =
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_adhoc_group_show_chats_only() {
     let t = TestContext::new_alice().await;
-    assert_eq!(t.get_config_int(Config::ShowEmails).await.unwrap(), 0);
+    t.set_config(Config::ShowEmails, Some("0")).await.unwrap();
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
     assert_eq!(chats.len(), 0);
@@ -175,7 +175,7 @@ async fn test_adhoc_group_show_accepted_contact_accepted() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_adhoc_group_show_all() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
+    assert_eq!(t.get_config_int(Config::ShowEmails).await.unwrap(), 2);
     receive_imf(&t, GRP_MAIL, false).await.unwrap();
 
     // adhoc-group with unknown contacts with show_emails=all will show up in a single chat
@@ -768,7 +768,6 @@ static GH_MAILINGLIST2: &str =
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_github_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
 
     receive_imf(&t.ctx, GH_MAILINGLIST, false).await?;
 
@@ -840,10 +839,6 @@ static DC_MAILINGLIST2: &[u8] = b"Received: (Postfix, from userid 1000); Mon, 4 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_classic_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.ctx
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
     receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
     let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
     let chat_id = chats.get_chat_id(0).unwrap();
@@ -885,7 +880,6 @@ Hello mailinglist!\r\n"
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_other_device_writes_to_mailinglist() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
     receive_imf(&t, DC_MAILINGLIST, false).await.unwrap();
     let first_msg = t.get_last_msg().await;
     let first_chat = Chat::load_from_db(&t, first_msg.chat_id).await?;
@@ -935,10 +929,6 @@ async fn test_other_device_writes_to_mailinglist() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_block_mailing_list() {
     let t = TestContext::new_alice().await;
-    t.ctx
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
 
     receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
     t.evtracker.wait_next_incoming_message().await;
@@ -973,7 +963,6 @@ async fn test_block_mailing_list() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_decide_block_then_unblock() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(&t, DC_MAILINGLIST, false).await.unwrap();
     let blocked = Contact::get_all_blocked(&t).await.unwrap();
@@ -1004,10 +993,6 @@ async fn test_mailing_list_decide_block_then_unblock() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_decide_not_now() {
     let t = TestContext::new_alice().await;
-    t.ctx
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
 
     receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
 
@@ -1035,10 +1020,6 @@ async fn test_mailing_list_decide_not_now() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_decide_accept() {
     let t = TestContext::new_alice().await;
-    t.ctx
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
 
     receive_imf(&t.ctx, DC_MAILINGLIST, false).await.unwrap();
 
@@ -1061,7 +1042,6 @@ async fn test_mailing_list_decide_accept() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_multiple_names_in_subject() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
     receive_imf(
         &t,
         b"From: Foo Bar <foo@bar.org>\n\
@@ -1086,7 +1066,6 @@ async fn test_mailing_list_multiple_names_in_subject() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_majordomo_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     // test mailing lists not having a `ListId:`-header
     receive_imf(
@@ -1139,7 +1118,6 @@ async fn test_majordomo_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailchimp_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(
             &t,
@@ -1173,7 +1151,6 @@ async fn test_mailchimp_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dhl_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(
         &t,
@@ -1202,7 +1179,6 @@ async fn test_dhl_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dpd_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(
         &t,
@@ -1231,7 +1207,6 @@ async fn test_dpd_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xt_local_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     receive_imf(
         &t,
@@ -1265,7 +1240,6 @@ async fn test_xt_local_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_xing_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     receive_imf(
         &t,
@@ -1288,7 +1262,6 @@ async fn test_xing_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_ttline_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     receive_imf(
         &t,
@@ -1309,7 +1282,6 @@ async fn test_ttline_mailing_list() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_with_mimepart_footer() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     // the mailing list message contains two top-level texts.
     // the second text is a footer that is added by some mailing list software
@@ -1340,7 +1312,6 @@ async fn test_mailing_list_with_mimepart_footer() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mailing_list_with_mimepart_footer_signed() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(
         &t,
@@ -1365,7 +1336,6 @@ async fn test_mailing_list_with_mimepart_footer_signed() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_apply_mailinglist_changes_assigned_by_reply() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(&t, GH_MAILINGLIST, false).await.unwrap();
 
@@ -1461,10 +1431,6 @@ async fn test_dont_show_noreply_in_contacts_list() {
 
 async fn check_dont_show_in_contacts_list(addr: &str) {
     let t = TestContext::new_alice().await;
-    t.ctx
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
     receive_imf(
         &t,
         format!(
@@ -1534,7 +1500,6 @@ async fn test_pdf_filename_continuation() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_many_images() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
     receive_imf(
         &t,
@@ -1811,10 +1776,6 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
     };
 
     let alice = TestContext::new_alice().await;
-    alice
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
     receive_imf(&alice, claire_request.as_bytes(), false)
         .await
         .unwrap();
@@ -1834,10 +1795,6 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
 
     let claire = TestContext::new().await;
     claire.configure_addr("claire@example.org").await;
-    claire
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
     receive_imf(&claire, claire_request.as_bytes(), false)
         .await
         .unwrap();
@@ -1949,7 +1906,6 @@ async fn test_alias_answer_from_dc() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dont_assign_to_trash_by_parent() {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
     println!("\n========= Receive a message ==========");
     receive_imf(
         &t,
@@ -2024,12 +1980,6 @@ Message content",
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_outgoing_classic_mail_creates_chat() {
     let alice = TestContext::new_alice().await;
-
-    // Alice enables classic emails.
-    alice
-        .set_config(Config::ShowEmails, Some("2"))
-        .await
-        .unwrap();
 
     // Alice downloads outgoing classic email.
     receive_imf(
@@ -2113,7 +2063,6 @@ Second signature";
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
     let bob_id = Contact::add_or_lookup(
         &t,
         "",
@@ -2192,7 +2141,6 @@ Original signature updated",
 async fn test_chat_assignment_private_classical_reply() {
     for outgoing_is_classical in &[true, false] {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
         receive_imf(
             &t,
@@ -2278,7 +2226,6 @@ async fn test_chat_assignment_private_chat_reply() {
         &[(true, true), (false, true), (false, false)]
     {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
         receive_imf(
             &t,
@@ -2372,7 +2319,6 @@ Sent with my Delta Chat Messenger: https://delta.chat
 async fn test_chat_assignment_nonprivate_classical_reply() {
     for outgoing_is_classical in &[true, false] {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await.unwrap();
 
         receive_imf(
             &t,
@@ -2481,8 +2427,6 @@ Reply to all"#,
 async fn test_chat_assignment_adhoc() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
-    alice.set_config(Config::ShowEmails, Some("2")).await?;
-    bob.set_config(Config::ShowEmails, Some("2")).await?;
 
     let first_thread_mime = br#"Subject: First thread
 Message-ID: first@example.org
@@ -2588,7 +2532,6 @@ async fn test_read_receipts_dont_create_chats() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_gmx_forwarded_msg() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     receive_imf(
         &t,
@@ -2633,7 +2576,6 @@ async fn test_incoming_contact_request() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_parent_message() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     let mime = br#"Subject: First
 Message-ID: first@example.net
@@ -2707,8 +2649,6 @@ async fn test_rfc1847_encapsulation() -> Result<()> {
     bob.recv_msg(&first_msg).await;
     message::delete_msgs(&bob, &[bob.get_last_msg().await.id]).await?;
 
-    bob.set_config(Config::ShowEmails, Some("2")).await?;
-
     // Alice sends a message to Bob using Thunderbird.
     let raw = include_bytes!("../../test-data/message/rfc1847_encapsulation.eml");
     receive_imf(&bob, raw, false).await?;
@@ -2734,7 +2674,6 @@ async fn test_invalid_to_address() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_reply_from_different_addr() -> Result<()> {
     let t = TestContext::new_alice().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     // Alice creates a 2-person-group with Bob
     receive_imf(
@@ -3042,7 +2981,6 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_autocrypt() -> Result<()> {
     let t = TestContext::new_bob().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     let raw = include_bytes!("../../test-data/message/thunderbird_with_autocrypt.eml");
     receive_imf(&t, raw, false).await?;
@@ -3058,7 +2996,6 @@ async fn test_thunderbird_autocrypt() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
     let t = TestContext::new_bob().await;
-    t.set_config(Config::ShowEmails, Some("2")).await?;
 
     let raw = include_bytes!("../../test-data/message/thunderbird_with_autocrypt_unencrypted.eml");
     receive_imf(&t, raw, false).await?;
@@ -3084,7 +3021,6 @@ async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_unsigned() -> Result<()> {
     let alice = TestContext::new_alice().await;
-    alice.set_config(Config::ShowEmails, Some("2")).await?;
 
     // Alice receives an unsigned message from Bob.
     let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_unsigned.eml");
