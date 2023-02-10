@@ -59,7 +59,7 @@ pub async fn generate_backup_qr(context: &Context, qr: Qr) -> Result<String> {
     let Qr::Backup { ticket } = qr else {
         bail!("QR code not a backup");
     };
-    let content = format!("{DCBACKUP_SCHEME}{}", ticket.to_string());
+    let content = format!("{DCBACKUP_SCHEME}{ticket}");
     let (avatar, displayname, _addr, color) = self_info(context).await?;
     let description = "Scan to setup second device"; // TODO: translation!
 
@@ -326,6 +326,6 @@ mod tests {
         tokio::fs::write(dir.join("qr.svg"), &rendered)
             .await
             .unwrap();
-        assert_eq!(&rendered[..4], "<svg");
+        assert_eq!(rendered.get(..4), Some("<svg"));
     }
 }
