@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use base64::Engine as _;
 use qrcodegen::{QrCode, QrCodeEcc};
 
@@ -11,6 +11,7 @@ use crate::{
     config::Config,
     contact::{Contact, ContactId},
     context::Context,
+    qr::{Qr, DCBACKUP_SCHEME},
     securejoin, stock_str,
 };
 
@@ -43,6 +44,36 @@ async fn generate_join_group_qr_code(context: &Context, chat_id: ChatId) -> Resu
 }
 
 async fn generate_verification_qr(context: &Context) -> Result<String> {
+    let (avatar, displayname, addr, color) = self_info(context).await?;
+
+    inner_generate_secure_join_qr_code(
+        &stock_str::setup_contact_qr_description(context, &displayname, &addr).await,
+        &securejoin::get_securejoin_qr(context, None).await?,
+        &color,
+        avatar,
+        displayname.chars().next().unwrap_or('#'),
+    )
+}
+
+pub async fn generate_backup_qr(context: &Context, qr: Qr) -> Result<String> {
+    let Qr::Backup { ticket } = qr else {
+        bail!("QR code not a backup");
+    };
+    let content = format!("{DCBACKUP_SCHEME}{}", ticket.to_string());
+    let (avatar, displayname, _addr, color) = self_info(context).await?;
+    let description = "Scan to setup second device"; // TODO: translation!
+
+    inner_generate_secure_join_qr_code(
+        description,
+        &content,
+        &color,
+        avatar,
+        displayname.chars().next().unwrap_or('#'),
+    )
+}
+
+/// Returns `(avatar, displayname, addr, color) of the configured account.
+async fn self_info(context: &Context) -> Result<(Option<Vec<u8>>, String, String, String)> {
     let contact = Contact::get_by_id(context, ContactId::SELF).await?;
 
     let avatar = match contact.get_profile_image(context).await? {
@@ -55,16 +86,11 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 
     let displayname = match context.get_config(Config::Displayname).await? {
         Some(name) => name,
-        None => contact.get_addr().to_owned(),
+        None => contact.get_addr().to_string(),
     };
-
-    inner_generate_secure_join_qr_code(
-        &stock_str::setup_contact_qr_description(context, &displayname, contact.get_addr()).await,
-        &securejoin::get_securejoin_qr(context, None).await?,
-        &color_int_to_hex_string(contact.get_color()),
-        avatar,
-        displayname.chars().next().unwrap_or('#'),
-    )
+    let addr = contact.get_addr().to_string();
+    let color = color_int_to_hex_string(contact.get_color());
+    Ok((avatar, displayname, addr, color))
 }
 
 fn inner_generate_secure_join_qr_code(
@@ -268,6 +294,11 @@ fn inner_generate_secure_join_qr_code(
 
 #[cfg(test)]
 mod tests {
+    use testdir::testdir;
+
+    use crate::imex::BackupProvider;
+    use crate::test_utils::TestContextManager;
+
     use super::*;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -281,5 +312,20 @@ mod tests {
         )
         .unwrap();
         assert!(svg.contains("descr123 &quot; &lt; &gt; &amp;"))
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_generate_backup_qr() {
+        let dir = testdir!();
+        let mut tcm = TestContextManager::new();
+        let ctx = tcm.alice().await;
+        let provider = BackupProvider::prepare(&ctx, &dir).await.unwrap();
+        let qr = provider.qr();
+
+        let rendered = generate_backup_qr(&ctx, qr).await.unwrap();
+        tokio::fs::write(dir.join("qr.svg"), &rendered)
+            .await
+            .unwrap();
+        assert_eq!(&rendered[..4], "<svg");
     }
 }

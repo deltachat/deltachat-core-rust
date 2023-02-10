@@ -35,7 +35,7 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
-const DCBACKUP_SCHEME: &str = "DCBACKUP:";
+pub(crate) const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Qr {
