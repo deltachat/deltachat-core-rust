@@ -908,7 +908,6 @@ dependencies = [
  "chrono",
  "criterion",
  "deltachat_derive",
- "dirs",
  "email",
  "encoded-words",
  "escaper",
@@ -943,7 +942,6 @@ dependencies = [
  "reqwest",
  "rusqlite",
  "rust-hsluv",
- "rustyline",
  "sanitize-filename",
  "serde",
  "serde_json",
@@ -986,6 +984,21 @@ dependencies = [
  "typescript-type-def",
  "walkdir",
  "yerpc",
+]
+
+[[package]]
+name = "deltachat-repl"
+version = "1.107.0"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "deltachat",
+ "dirs",
+ "log",
+ "pretty_env_logger",
+ "rusqlite",
+ "rustyline",
+ "tokio",
 ]
 
 [[package]]

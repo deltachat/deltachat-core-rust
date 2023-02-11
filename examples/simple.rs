@@ -28,7 +28,7 @@ fn cb(event: EventType) {
     }
 }
 
-/// Run with `RUST_LOG=simple=info cargo run --release --example simple --features repl -- email pw`.
+/// Run with `RUST_LOG=simple=info cargo run --release --example simple -- email pw`.
 #[tokio::main]
 async fn main() {
     pretty_env_logger::try_init_timed().ok();

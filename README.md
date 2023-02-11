@@ -19,9 +19,18 @@ $ curl https://sh.rustup.rs -sSf | sh
 Compile and run Delta Chat Core command line utility, using `cargo`:
 
 ```
-$ RUST_LOG=repl=info cargo run --example repl --features repl -- ~/deltachat-db
+$ RUST_LOG=repl=info cargo run -p deltachat-repl -- ~/deltachat-db
 ```
 where ~/deltachat-db is the database file. Delta Chat will create it if it does not exist.
+
+Optionally, install `deltachat-repl` binary with
+```
+$ cargo install --path deltachat-repl/
+```
+and run as
+```
+$ deltachat-repl ~/deltachat-db
+```
 
 Configure your account (if not already configured):
 

@@ -31,7 +31,7 @@ jobs:
             override: true
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --tests --examples --benches --features repl -- -D warnings
+      - run: cargo clippy --workspace --tests --examples --benches -- -D warnings
 
   docs:
     name: Rust doc comments
@@ -89,7 +89,7 @@ jobs:
       uses: swatinem/rust-cache@v2
 
     - name: check
-      run: cargo check --all --bins --examples --tests --features repl --benches
+      run: cargo check --all --bins --examples --tests --benches
 
     - name: tests
       run: cargo test --all

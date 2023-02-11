@@ -20,10 +20,10 @@ jobs:
         override: true
 
     - name: build
-      run: cargo build --example repl --features repl,vendored
+      run: cargo build --example repl --features vendored
 
     - name: Upload binary
       uses: actions/upload-artifact@v3
       with:
         name: repl.exe
-        path: 'target/debug/examples/repl.exe'
+        path: 'target/debug/deltachat-repl.exe'
