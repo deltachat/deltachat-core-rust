@@ -104,7 +104,8 @@ async def _run_cli(
         if not await client.is_configured():
             assert args.email, "Account is not configured and email must be provided"
             assert args.password, "Account is not configured and password must be provided"
-            asyncio.create_task(client.configure(email=args.email, password=args.password))
+            # Save a reference to avoid garbage collection of the task.
+            _configure_task = asyncio.create_task(client.configure(email=args.email, password=args.password))
         await client.run_forever()
 
 
