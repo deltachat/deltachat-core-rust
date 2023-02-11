@@ -20,7 +20,7 @@ jobs:
         override: true
 
     - name: build
-      run: cargo build --example repl --features vendored
+      run: cargo build -p deltachat-repl --features vendored
 
     - name: Upload binary
       uses: actions/upload-artifact@v3
