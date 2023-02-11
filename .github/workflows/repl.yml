@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: build
+    - name: Build
       run: cargo build -p deltachat-repl --features vendored
 
     - name: Upload binary

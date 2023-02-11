@@ -12,14 +12,14 @@ jobs:
     name: 'Package @deltachat/jsonrpc-client and upload to download.delta.chat'
     runs-on: ubuntu-18.04
     steps:
-      - name: install tree
+      - name: Install tree
         run: sudo apt install tree
       - name: Checkout
         uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
-      - name: get tag
+      - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@v1
         continue-on-error: true
@@ -38,11 +38,11 @@ jobs:
           npm --version
           node --version
           echo $DELTACHAT_JSONRPC_TAR_GZ
-      - name: install dependencies without running scripts
+      - name: Install dependencies without running scripts
         run: |
           cd deltachat-jsonrpc/typescript
           npm install --ignore-scripts
-      - name: package
+      - name: Package
         shell: bash
         run: |
           cd deltachat-jsonrpc/typescript
@@ -65,7 +65,7 @@ jobs:
           chmod 600 __TEMP_INPUT_KEY_FILE
           scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r deltachat-jsonrpc/typescript/$DELTACHAT_JSONRPC_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
         continue-on-error: true
-      - name: "Post links to details"
+      - name: Post links to details
         if: steps.upload-preview.outcome == 'success'
         run: node ./node/scripts/postLinksToDetails.js
         env:
