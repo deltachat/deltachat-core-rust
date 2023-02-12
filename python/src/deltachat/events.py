@@ -248,36 +248,37 @@ class EventThread(threading.Thread):
     def run(self) -> None:
         """get and run events until shutdown."""
         with self.log_execution("EVENT THREAD"):
-            self._inner_run()
+            event_emitter = ffi.gc(
+                lib.dc_get_event_emitter(self.account._dc_context),
+                lib.dc_event_emitter_unref,
+            )
+            while not self._marked_for_shutdown:
+                with self.swallow_and_log_exception("Unexpected error in event thread"):
+                    event = lib.dc_get_next_event(event_emitter)
+                    if event == ffi.NULL or self._marked_for_shutdown:
+                        break
+                    self._process_event(event)
 
-    def _inner_run(self):
-        event_emitter = ffi.gc(
-            lib.dc_get_event_emitter(self.account._dc_context),
-            lib.dc_event_emitter_unref,
-        )
-        while not self._marked_for_shutdown:
-            event = lib.dc_get_next_event(event_emitter)
-            if event == ffi.NULL or self._marked_for_shutdown:
-                break
-            evt = lib.dc_event_get_id(event)
-            data1 = lib.dc_event_get_data1_int(event)
-            # the following code relates to the deltachat/_build.py's helper
-            # function which provides us signature info of an event call
-            evt_name = get_dc_event_name(evt)
-            if lib.dc_event_has_string_data(evt):
-                data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
-            else:
-                data2 = lib.dc_event_get_data2_int(event)
+    def _process_event(self, event) -> None:
+        evt = lib.dc_event_get_id(event)
+        data1 = lib.dc_event_get_data1_int(event)
+        # the following code relates to the deltachat/_build.py's helper
+        # function which provides us signature info of an event call
+        evt_name = get_dc_event_name(evt)
+        if lib.dc_event_has_string_data(evt):
+            data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
+        else:
+            data2 = lib.dc_event_get_data2_int(event)
 
-            lib.dc_event_unref(event)
-            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            with self.swallow_and_log_exception(f"ac_process_ffi_event {ffi_event}"):
-                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-            for name, kwargs in self._map_ffi_event(ffi_event):
-                hook = getattr(self.account._pm.hook, name)
-                info = f"call {name} kwargs={kwargs} failed"
-                with self.swallow_and_log_exception(info):
-                    hook(**kwargs)
+        lib.dc_event_unref(event)
+        ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+        with self.swallow_and_log_exception(f"ac_process_ffi_event {ffi_event}"):
+            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+        for name, kwargs in self._map_ffi_event(ffi_event):
+            hook = getattr(self.account._pm.hook, name)
+            info = f"call {name} kwargs={kwargs} failed"
+            with self.swallow_and_log_exception(info):
+                hook(**kwargs)
 
     @contextmanager
     def swallow_and_log_exception(self, info):
