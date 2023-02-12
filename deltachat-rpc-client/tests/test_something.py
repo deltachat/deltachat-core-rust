@@ -225,10 +225,10 @@ async def test_is_bot(acfactory) -> None:
     bob_addr = await bob.get_config("addr")
     alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
     alice_chat_bob = await alice_contact_bob.create_chat()
-    await alice_chat_bob.send_text("Hello!")
 
     # Alice becomes a bot.
-    await alice.set_config("bot")
+    await alice.set_config("bot", "1")
+    await alice_chat_bob.send_text("Hello!")
 
     while True:
         event = await bob.wait_for_event()
@@ -257,7 +257,8 @@ async def test_bot(acfactory) -> None:
     event = await acfactory.process_message(
         from_account=user, to_client=bot, text="Hello!"
     )
-    assert not event.is_bot
+    snapshot = await bot.get_message_by_id(event.msg_id).get_snapshot()
+    assert not snapshot.is_bot
     mock.hook.assert_called_once_with(event.msg_id)
     bot.remove_hook(*hook)
 
