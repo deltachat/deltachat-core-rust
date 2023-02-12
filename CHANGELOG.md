@@ -18,6 +18,7 @@
   C interface is not changed.
   Rust and JSON-RPC API have `flags` integer argument
   replaced with two boolean flags `info_only` and `add_daymarker`.
+- jsonrpc: add API to check if the message is sent by a bot #3877
 
 
 ## 1.107.1
