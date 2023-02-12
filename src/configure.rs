@@ -13,6 +13,7 @@ use futures_lite::FutureExt as _;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
+use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::contact::addr_cmp;
@@ -100,7 +101,7 @@ impl Context {
     }
 
     async fn inner_configure(&self) -> Result<()> {
-        info!(self, "Configure ...");
+        info!("Configure ...");
 
         let mut param = LoginParam::load_candidate_params(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
@@ -125,13 +126,10 @@ async fn on_configure_completed(
         if let Some(config_defaults) = &provider.config_defaults {
             for def in config_defaults.iter() {
                 if !context.config_exists(def.key).await? {
-                    info!(context, "apply config_defaults {}={}", def.key, def.value);
+                    info!("apply config_defaults {}={}", def.key, def.value);
                     context.set_config(def.key, Some(def.value)).await?;
                 } else {
-                    info!(
-                        context,
-                        "skip already set config_defaults {}={}", def.key, def.value
-                    );
+                    info!("skip already set config_defaults {}={}", def.key, def.value);
                 }
             }
         }
@@ -143,7 +141,7 @@ async fn on_configure_completed(
                 .await
                 .is_err()
             {
-                warn!(context, "cannot add after_login_hint as core-provider-info");
+                warn!("cannot add after_login_hint as core-provider-info");
             }
         }
     }
@@ -186,7 +184,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             .await?
             .and_then(|e| e.parse().ok())
         {
-            info!(ctx, "Authorized address is {}", oauth2_addr);
+            info!("Authorized address is {oauth2_addr}");
             param.addr = oauth2_addr;
             ctx.sql
                 .set_raw_config("addr", Some(param.addr.as_str()))
@@ -215,22 +213,17 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     {
         // no advanced parameters entered by the user: query provider-database or do Autoconfig
 
-        info!(
-            ctx,
-            "checking internal provider-info for offline autoconfig"
-        );
+        info!("checking internal provider-info for offline autoconfig");
 
-        if let Some(provider) =
-            provider::get_provider_info(ctx, &param_domain, socks5_enabled).await
-        {
+        if let Some(provider) = provider::get_provider_info(&param_domain, socks5_enabled).await {
             param.provider = Some(provider);
             match provider.status {
                 provider::Status::Ok | provider::Status::Preparation => {
                     if provider.server.is_empty() {
-                        info!(ctx, "offline autoconfig found, but no servers defined");
+                        info!("offline autoconfig found, but no servers defined");
                         param_autoconfig = None;
                     } else {
-                        info!(ctx, "offline autoconfig found");
+                        info!("offline autoconfig found");
                         let servers = provider
                             .server
                             .iter()
@@ -257,17 +250,17 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                     }
                 }
                 provider::Status::Broken => {
-                    info!(ctx, "offline autoconfig found, provider is broken");
+                    info!("offline autoconfig found, provider is broken");
                     param_autoconfig = None;
                 }
             }
         } else {
             // Try receiving autoconfig
-            info!(ctx, "no offline autoconfig found");
+            info!("no offline autoconfig found");
             param_autoconfig = if socks5_enabled {
                 // Currently we can't do http requests through socks5, to not leak
                 // the ip, just don't do online autoconfig
-                info!(ctx, "socks5 enabled, skipping autoconfig");
+                info!("socks5 enabled, skipping autoconfig");
                 None
             } else {
                 get_autoconfig(ctx, param, &param_domain, &param_addr_urlencoded).await
@@ -465,7 +458,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     progress!(ctx, 920);
 
     e2ee::ensure_secret_key_exists(ctx).await?;
-    info!(ctx, "key generation completed");
+    info!("key generation completed");
 
     ctx.set_config_bool(Config::FetchedExistingMsgs, false)
         .await?;
@@ -578,13 +571,13 @@ async fn try_imap_one_param(
             "None".to_string()
         }
     );
-    info!(context, "Trying: {}", inf);
+    info!("Trying: {}", inf);
 
     let (_s, r) = async_channel::bounded(1);
 
     let mut imap = match Imap::new(param, socks5_config.clone(), addr, provider_strict_tls, r) {
         Err(err) => {
-            info!(context, "failure: {:#}", err);
+            info!("failure: {:#}", err);
             return Err(ConfigurationError {
                 config: inf,
                 msg: format!("{err:#}"),
@@ -595,14 +588,14 @@ async fn try_imap_one_param(
 
     match imap.connect(context).await {
         Err(err) => {
-            info!(context, "failure: {:#}", err);
+            info!("failure: {:#}", err);
             Err(ConfigurationError {
                 config: inf,
                 msg: format!("{err:#}"),
             })
         }
         Ok(()) => {
-            info!(context, "success: {}", inf);
+            info!("success: {}", inf);
             Ok(imap)
         }
     }
@@ -630,19 +623,19 @@ async fn try_smtp_one_param(
             "None".to_string()
         }
     );
-    info!(context, "Trying: {}", inf);
+    info!("Trying: {inf}");
 
     if let Err(err) = smtp
         .connect(context, param, socks5_config, addr, provider_strict_tls)
         .await
     {
-        info!(context, "failure: {}", err);
+        info!("failure: {err:#}");
         Err(ConfigurationError {
             config: inf,
             msg: format!("{err:#}"),
         })
     } else {
-        info!(context, "success: {}", inf);
+        info!("success: {inf}");
         smtp.disconnect().await;
         Ok(())
     }

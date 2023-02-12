@@ -9,6 +9,7 @@ use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use tracing::{info, warn};
 
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
@@ -96,11 +97,10 @@ pub(crate) async fn receive_imf_inner(
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
 ) -> Result<Option<ReceivedMsg>> {
-    info!(context, "Receiving message, seen={seen}...");
+    info!("Receiving message, seen={seen}...");
 
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
         info!(
-            context,
             "receive_imf: incoming message mime-body:\n{}",
             String::from_utf8_lossy(imf_raw),
         );
@@ -109,7 +109,7 @@ pub(crate) async fn receive_imf_inner(
     let mut mime_parser = match MimeMessage::from_bytes(context, imf_raw, is_partial_download).await
     {
         Err(err) => {
-            warn!(context, "receive_imf: can't parse MIME: {err:#}.");
+            warn!("receive_imf: can't parse MIME: {err:#}.");
             let msg_ids;
             if !rfc724_mid.starts_with(GENERATED_PREFIX) {
                 let row_id = context
@@ -138,11 +138,11 @@ pub(crate) async fn receive_imf_inner(
 
     // we can not add even an empty record if we have no info whatsoever
     if !mime_parser.has_headers() {
-        warn!(context, "receive_imf: no headers found.");
+        warn!("receive_imf: no headers found.");
         return Ok(None);
     }
 
-    info!(context, "Received message has Message-Id: {rfc724_mid}");
+    info!("Received message has Message-Id: {rfc724_mid}");
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
@@ -151,14 +151,11 @@ pub(crate) async fn receive_imf_inner(
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
                 // the message was partially downloaded before and is fully downloaded now.
-                info!(
-                    context,
-                    "Message already partly in DB, replacing by full message."
-                );
+                info!("Message already partly in DB, replacing by full message.");
                 Some(old_msg_id)
             } else {
                 // the message was probably moved around.
-                info!(context, "Message already in DB, doing nothing.");
+                info!("Message already in DB, doing nothing.");
                 return Ok(None);
             }
         } else {
@@ -180,10 +177,7 @@ pub(crate) async fn receive_imf_inner(
         match from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await? {
             Some(contact_id_res) => contact_id_res,
             None => {
-                warn!(
-                    context,
-                    "receive_imf: From field does not contain an acceptable address."
-                );
+                warn!("receive_imf: From field does not contain an acceptable address.");
                 return Ok(None);
             }
         };
@@ -246,10 +240,7 @@ pub(crate) async fn receive_imf_inner(
             .iter()
             .all(|recipient| mime_parser.gossiped_addr.contains(&recipient.addr))
     {
-        info!(
-            context,
-            "Received message contains Autocrypt-Gossip for all members, updating timestamp."
-        );
+        info!("Received message contains Autocrypt-Gossip for all members, updating timestamp.");
         if chat_id.get_gossiped_timestamp(context).await? < sent_timestamp {
             chat_id
                 .set_gossiped_timestamp(context, sent_timestamp)
@@ -269,13 +260,13 @@ pub(crate) async fn receive_imf_inner(
         if from_id == ContactId::SELF {
             if mime_parser.was_encrypted() {
                 if let Err(err) = context.execute_sync_items(sync_items).await {
-                    warn!(context, "receive_imf cannot execute sync items: {err:#}.");
+                    warn!("receive_imf cannot execute sync items: {err:#}.");
                 }
             } else {
-                warn!(context, "Sync items are not encrypted.");
+                warn!("Sync items are not encrypted.");
             }
         } else {
-            warn!(context, "Sync items not sent by self.");
+            warn!("Sync items not sent by self.");
         }
     }
 
@@ -284,7 +275,7 @@ pub(crate) async fn receive_imf_inner(
             .receive_status_update(from_id, insert_msg_id, status_update)
             .await
         {
-            warn!(context, "receive_imf cannot update status: {err:#}.");
+            warn!("receive_imf cannot update status: {err:#}.");
         }
     }
 
@@ -302,7 +293,7 @@ pub(crate) async fn receive_imf_inner(
             )
             .await
             {
-                warn!(context, "receive_imf cannot update profile image: {err:#}.");
+                warn!("receive_imf cannot update profile image: {err:#}.");
             };
         }
     }
@@ -328,7 +319,7 @@ pub(crate) async fn receive_imf_inner(
         )
         .await
         {
-            warn!(context, "Cannot update contact status: {err:#}.");
+            warn!("Cannot update contact status: {err:#}.");
         }
     }
 
@@ -389,10 +380,7 @@ pub async fn from_field_to_contact_id(
     let from_addr = match ContactAddress::new(&from.addr) {
         Ok(from_addr) => from_addr,
         Err(err) => {
-            warn!(
-                context,
-                "Cannot create a contact for the given From field: {err:#}."
-            );
+            warn!("Cannot create a contact for the given From field: {err:#}.");
             return Ok(None);
         }
     };
@@ -473,7 +461,7 @@ async fn add_parts(
         // this message is a classic email not a chat-message nor a reply to one
         match show_emails {
             ShowEmails::Off => {
-                info!(context, "Classical email not shown (TRASH).");
+                info!("Classical email not shown (TRASH).");
                 chat_id = Some(DC_CHAT_ID_TRASH);
                 allow_creation = false;
             }
@@ -516,7 +504,7 @@ async fn add_parts(
                     securejoin_seen = false;
                 }
                 Err(err) => {
-                    warn!(context, "Error in Secure-Join message handling: {err:#}.");
+                    warn!("Error in Secure-Join message handling: {err:#}.");
                     chat_id = Some(DC_CHAT_ID_TRASH);
                     securejoin_seen = true;
                 }
@@ -533,7 +521,7 @@ async fn add_parts(
 
         if chat_id.is_none() && mime_parser.delivery_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
-            info!(context, "Message is a DSN (TRASH).",);
+            info!("Message is a DSN (TRASH).",);
         }
 
         if chat_id.is_none() {
@@ -707,10 +695,7 @@ async fn add_parts(
                         // the contact requests will pop up and this should be just fine.
                         Contact::scaleup_origin_by_id(context, from_id, Origin::IncomingReplyTo)
                             .await?;
-                        info!(
-                            context,
-                            "Message is a reply to a known message, mark sender as known.",
-                        );
+                        info!("Message is a reply to a known message, mark sender as known.",);
                     }
                 }
             }
@@ -751,7 +736,7 @@ async fn add_parts(
                     chat_id = None;
                 }
                 Err(err) => {
-                    warn!(context, "Error in Secure-Join watching: {err:#}.");
+                    warn!("Error in Secure-Join watching: {err:#}.");
                     chat_id = Some(DC_CHAT_ID_TRASH);
                 }
             }
@@ -768,7 +753,7 @@ async fn add_parts(
 
         if is_draft {
             // Most mailboxes have a "Drafts" folder where constantly new emails appear but we don't actually want to show them
-            info!(context, "Email is probably just a draft (TRASH).");
+            info!("Email is probably just a draft (TRASH).");
             chat_id = Some(DC_CHAT_ID_TRASH);
         }
 
@@ -860,14 +845,14 @@ async fn add_parts(
     if fetching_existing_messages && mime_parser.decrypting_failed {
         chat_id = Some(DC_CHAT_ID_TRASH);
         // We are only gathering old messages on first start. We do not want to add loads of non-decryptable messages to the chats.
-        info!(context, "Existing non-decipherable message (TRASH).");
+        info!("Existing non-decipherable message (TRASH).");
     }
 
     if mime_parser.webxdc_status_update.is_some() && mime_parser.parts.len() == 1 {
         if let Some(part) = mime_parser.parts.first() {
             if part.typ == Viewtype::Text && part.msg.is_empty() {
                 chat_id = Some(DC_CHAT_ID_TRASH);
-                info!(context, "Message is a status update only (TRASH).");
+                info!("Message is a status update only (TRASH).");
             }
         }
     }
@@ -877,7 +862,7 @@ async fn add_parts(
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
-            info!(context, "No chat id for message (TRASH).");
+            info!("No chat id for message (TRASH).");
             DC_CHAT_ID_TRASH
         })
     };
@@ -889,7 +874,7 @@ async fn add_parts(
         match value.parse::<EphemeralTimer>() {
             Ok(timer) => timer,
             Err(err) => {
-                warn!(context, "Can't parse ephemeral timer \"{value}\": {err:#}.");
+                warn!("Can't parse ephemeral timer \"{value}\": {err:#}.");
                 EphemeralTimer::Disabled
             }
         }
@@ -909,7 +894,7 @@ async fn add_parts(
         && !mime_parser.parts.is_empty()
         && chat_id.get_ephemeral_timer(context).await? != ephemeral_timer
     {
-        info!(context, "Received new ephemeral timer value {ephemeral_timer:?} for chat {chat_id}, checking if it should be applied.");
+        info!("Received new ephemeral timer value {ephemeral_timer:?} for chat {chat_id}, checking if it should be applied.");
         if is_dc_message == MessengerMessage::Yes
             && get_previous_message(context, mime_parser)
                 .await?
@@ -924,7 +909,6 @@ async fn add_parts(
             // value is different, it means the sender has not received some timer update that we
             // have seen or sent ourselves, so we ignore incoming timer to prevent a rollback.
             warn!(
-                context,
                 "Ignoring ephemeral timer change to {ephemeral_timer:?} for chat {chat_id} to avoid rollback.",
             );
         } else if chat_id
@@ -935,15 +919,9 @@ async fn add_parts(
                 .inner_set_ephemeral_timer(context, ephemeral_timer)
                 .await
             {
-                warn!(
-                    context,
-                    "Failed to modify timer for chat {chat_id}: {err:#}."
-                );
+                warn!("Failed to modify timer for chat {chat_id}: {err:#}.");
             } else {
-                info!(
-                    context,
-                    "Updated ephemeral timer to {ephemeral_timer:?} for chat {chat_id}."
-                );
+                info!("Updated ephemeral timer to {ephemeral_timer:?} for chat {chat_id}.");
                 if mime_parser.is_system_message != SystemMessage::EphemeralTimerChanged {
                     chat::add_info_msg(
                         context,
@@ -955,10 +933,7 @@ async fn add_parts(
                 }
             }
         } else {
-            warn!(
-                context,
-                "Ignoring ephemeral timer change to {ephemeral_timer:?} because it is outdated."
-            );
+            warn!("Ignoring ephemeral timer change to {ephemeral_timer:?} because it is outdated.");
         }
     }
 
@@ -986,7 +961,7 @@ async fn add_parts(
         if chat.is_protected() || new_status.is_some() {
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
-                warn!(context, "Verification problem: {err:#}.");
+                warn!("Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
                 mime_parser.repl_msg_by_error(&s);
             } else {
@@ -1243,10 +1218,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
 
     chat_id.unarchive_if_not_muted(context, state).await?;
 
-    info!(
-        context,
-        "Message has {icnt} parts and is assigned to chat #{chat_id}."
-    );
+    info!("Message has {icnt} parts and is assigned to chat #{chat_id}.");
 
     // new outgoing message from another device marks the chat as noticed.
     if !incoming && !chat_id.is_special() {
@@ -1327,7 +1299,6 @@ async fn save_locations(
                 }
             } else {
                 warn!(
-                    context,
                     "Address in location.kml {:?} is not the same as the sender address {:?}.",
                     addr,
                     contact.get_addr()
@@ -1415,8 +1386,8 @@ async fn lookup_chat_by_reply(
         }
 
         info!(
-            context,
-            "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
+            "Assigning message to {} as it's a reply to {}.",
+            parent_chat.id, parent.rfc724_mid
         );
         return Ok(Some((parent_chat.id, parent_chat.blocked)));
     }
@@ -1486,7 +1457,7 @@ async fn create_or_lookup_group(
             .map(|chat_id| (chat_id, create_blocked));
         return Ok(res);
     } else {
-        info!(context, "Creating ad-hoc group prevented from caller.");
+        info!("Creating ad-hoc group prevented from caller.");
         return Ok(None);
     };
 
@@ -1512,7 +1483,7 @@ async fn create_or_lookup_group(
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
-            warn!(context, "Verification problem: {err:#}.");
+            warn!("Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
         }
@@ -1544,7 +1515,7 @@ async fn create_or_lookup_group(
     {
         // Group does not exist but should be created.
         if !allow_creation {
-            info!(context, "Creating group forbidden by caller.");
+            info!("Creating group forbidden by caller.");
             return Ok(None);
         }
 
@@ -1589,6 +1560,7 @@ async fn create_or_lookup_group(
         //    .await?;
         //}
 
+        info!("Chat {} is created.", new_chat_id);
         context.emit_event(EventType::ChatModified(new_chat_id));
     }
 
@@ -1605,7 +1577,7 @@ async fn create_or_lookup_group(
     } else {
         // The message was decrypted successfully, but contains a late "quit" or otherwise
         // unwanted message.
-        info!(context, "Message belongs to unwanted group (TRASH).");
+        info!("Message belongs to unwanted group (TRASH).");
         Ok(Some((DC_CHAT_ID_TRASH, Blocked::Not)))
     }
 }
@@ -1645,7 +1617,7 @@ async fn apply_group_changes(
                     Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
                 };
             }
-            None => warn!(context, "Removed {removed_addr:?} has no contact_id."),
+            None => warn!("Removed {removed_addr:?} has no contact_id."),
         }
     } else {
         removed_id = None;
@@ -1670,7 +1642,7 @@ async fn apply_group_changes(
                     .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
                     .await?
                 {
-                    info!(context, "Updating grpname for chat {chat_id}.");
+                    info!("Updating grpname for chat {chat_id}.");
                     context
                         .sql
                         .execute(
@@ -1710,7 +1682,7 @@ async fn apply_group_changes(
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
-            warn!(context, "Verification problem: {err:#}.");
+            warn!("Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
         }
@@ -1729,7 +1701,6 @@ async fn apply_group_changes(
             && !chat::is_contact_in_chat(context, chat_id, from_id).await?
         {
             warn!(
-                context,
                 "Contact {from_id} attempts to modify group chat {chat_id} member list without being a member."
             );
         } else if chat_id
@@ -1763,7 +1734,7 @@ async fn apply_group_changes(
             }
             members_to_add.dedup();
 
-            info!(context, "Adding {members_to_add:?} to chat id={chat_id}.");
+            info!("Adding {members_to_add:?} to chat id={chat_id}.");
             chat::add_to_chat_contacts_table(context, chat_id, &members_to_add).await?;
             send_event_chat_modified = true;
         }
@@ -1771,17 +1742,13 @@ async fn apply_group_changes(
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
         if !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
-            warn!(
-                context,
-                "Received group avatar update for group chat {chat_id} we are not a member of."
-            );
+            warn!("Received group avatar update for group chat {chat_id} we are not a member of.");
         } else if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
             warn!(
-                context,
                 "Contact {from_id} attempts to modify group chat {chat_id} avatar without being a member.",
             );
         } else {
-            info!(context, "Group-avatar change for {chat_id}.");
+            info!("Group-avatar change for {chat_id}.");
             if chat
                 .param
                 .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
@@ -1923,7 +1890,7 @@ async fn create_or_lookup_mailinglist(
         chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
         Ok(Some((chat_id, blocked)))
     } else {
-        info!(context, "Creating list forbidden by caller.");
+        info!("Creating list forbidden by caller.");
         Ok(None)
     }
 }
@@ -1946,7 +1913,7 @@ async fn apply_mailinglist_changes(
         let list_post = match ContactAddress::new(list_post) {
             Ok(list_post) => list_post,
             Err(err) => {
-                warn!(context, "Invalid List-Post: {:#}.", err);
+                warn!("Invalid List-Post: {:#}.", err);
                 return Ok(());
             }
         };
@@ -2013,10 +1980,7 @@ async fn create_adhoc_group(
     member_ids: &[ContactId],
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
-        info!(
-            context,
-            "Not creating ad-hoc group for mailing list message."
-        );
+        info!("Not creating ad-hoc group for mailing list message.");
 
         return Ok(None);
     }
@@ -2030,15 +1994,12 @@ async fn create_adhoc_group(
         // Chat-Group-ID and incompatible Message-ID format.
         //
         // Instead, assign the message to 1:1 chat with the sender.
-        warn!(
-            context,
-            "Not creating ad-hoc group for message that cannot be decrypted."
-        );
+        warn!("Not creating ad-hoc group for message that cannot be decrypted.");
         return Ok(None);
     }
 
     if member_ids.len() < 3 {
-        info!(context, "Not creating ad-hoc group: too few contacts.");
+        info!("Not creating ad-hoc group: too few contacts.");
         return Ok(None);
     }
 
@@ -2078,11 +2039,7 @@ async fn check_verified_properties(
         // we do not fail here currently, this would exclude (a) non-deltas
         // and (b) deltas with different protection views across multiple devices.
         // for group creation or protection enabled/disabled, however, Chat-Verified is respected.
-        warn!(
-            context,
-            "{} did not mark message as protected.",
-            contact.get_addr()
-        );
+        warn!("{} did not mark message as protected.", contact.get_addr());
     }
 
     // ensure, the contact is verified
@@ -2144,7 +2101,6 @@ async fn check_verified_properties(
 
     for (to_addr, mut is_verified) in rows {
         info!(
-            context,
             "check_verified_properties: {:?} self={:?}.",
             to_addr,
             context.is_self_addr(&to_addr).await
@@ -2163,7 +2119,7 @@ async fn check_verified_properties(
                     || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                         && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
                 {
-                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr);
+                    info!("{} has verified {}.", contact.get_addr(), to_addr);
                     let fp = peerstate.gossip_key_fingerprint.clone();
                     if let Some(fp) = fp {
                         peerstate.set_verified(
@@ -2295,7 +2251,7 @@ async fn add_or_lookup_contacts_by_address_list(
                 add_or_lookup_contact_by_addr(context, display_name, addr, origin).await?;
             contact_ids.insert(contact_id);
         } else {
-            warn!(context, "Contact with address {:?} cannot exist.", addr);
+            warn!("Contact with address {:?} cannot exist.", addr);
         }
     }
 

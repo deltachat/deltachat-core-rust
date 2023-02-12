@@ -38,6 +38,8 @@
   It is used to fix race condition between fetching
   existing messages and starting the test. #4208
 
+### API-Changes
+- Use `tracing` crate for logging. #3960
 
 ## [1.111.0] - 2023-03-05
 

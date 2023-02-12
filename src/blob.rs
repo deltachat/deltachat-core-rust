@@ -14,6 +14,7 @@ use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
+use tracing::{error, info, warn};
 
 use crate::config::Config;
 use crate::constants::{
@@ -329,7 +330,7 @@ impl<'a> BlobObject<'a> {
 
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) = self.recode_to_size(context, blob_abs, img_wh, Some(20_000))? {
+        if let Some(new_name) = self.recode_to_size(blob_abs, img_wh, Some(20_000))? {
             self.name = new_name;
         }
         Ok(())
@@ -351,10 +352,7 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => WORSE_IMAGE_SIZE,
             };
 
-        if self
-            .recode_to_size(context, blob_abs, img_wh, None)?
-            .is_some()
-        {
+        if self.recode_to_size(blob_abs, img_wh, None)?.is_some() {
             return Err(format_err!(
                 "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
             ));
@@ -364,21 +362,20 @@ impl<'a> BlobObject<'a> {
 
     fn recode_to_size(
         &self,
-        context: &Context,
         mut blob_abs: PathBuf,
         mut img_wh: u32,
         max_bytes: Option<usize>,
     ) -> Result<Option<String>> {
         tokio::task::block_in_place(move || {
             let mut img = image::open(&blob_abs).context("image recode failure")?;
-            let orientation = self.get_exif_orientation(context);
+            let orientation = self.get_exif_orientation();
             let mut encoded = Vec::new();
             let mut changed_name = None;
 
             let exceeds_width = img.width() > img_wh || img.height() > img_wh;
 
             let do_scale =
-                exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
+                exceeds_width || encoded_img_exceeds_bytes(&img, max_bytes, &mut encoded)?;
             let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
 
             if do_scale || do_rotate {
@@ -401,7 +398,7 @@ impl<'a> BlobObject<'a> {
                     loop {
                         let new_img = img.thumbnail(img_wh, img_wh);
 
-                        if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                        if encoded_img_exceeds_bytes(&new_img, max_bytes, &mut encoded)? {
                             if img_wh < 20 {
                                 return Err(format_err!(
                                     "Failed to scale image to below {}B",
@@ -416,7 +413,6 @@ impl<'a> BlobObject<'a> {
                             }
 
                             info!(
-                                context,
                                 "Final scaled-down image size: {}B ({}px).",
                                 encoded.len(),
                                 img_wh
@@ -446,7 +442,7 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    pub fn get_exif_orientation(&self, context: &Context) -> Result<i32> {
+    pub fn get_exif_orientation(&self) -> Result<i32> {
         let file = std::fs::File::open(self.to_abs_path())?;
         let mut bufreader = std::io::BufReader::new(&file);
         let exifreader = exif::Reader::new();
@@ -458,7 +454,7 @@ impl<'a> BlobObject<'a> {
                 Some(3) => return Ok(180),
                 Some(6) => return Ok(90),
                 Some(8) => return Ok(270),
-                other => warn!(context, "Exif orientation value ignored: {other:?}."),
+                other => warn!("Exif orientation value ignored: {other:?}."),
             }
         }
         Ok(0)
@@ -490,7 +486,7 @@ impl<'a> BlobDirContents<'a> {
                 match entry {
                     Ok(entry) => Some(entry),
                     Err(err) => {
-                        error!(context, "Failed to read blob file: {err}.");
+                        error!("Failed to read blob file: {err:#}.");
                         None
                     }
                 }
@@ -500,7 +496,6 @@ impl<'a> BlobDirContents<'a> {
                     true => Some(entry.path()),
                     false => {
                         warn!(
-                            context,
                             "Export: Found blob dir entry {} that is not a file, ignoring.",
                             entry.path().display()
                         );
@@ -543,7 +538,7 @@ impl<'a> Iterator for BlobDirIter<'a> {
             // silently skipping them is fine.
             match BlobObject::from_path(self.context, path) {
                 Ok(blob) => return Some(blob),
-                Err(err) => warn!(self.context, "{err}"),
+                Err(err) => warn!("{err:#}"),
             }
         }
         None
@@ -559,7 +554,6 @@ fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
     Ok(())
 }
 fn encoded_img_exceeds_bytes(
-    context: &Context,
     img: &DynamicImage,
     max_bytes: Option<usize>,
     encoded: &mut Vec<u8>,
@@ -568,7 +562,6 @@ fn encoded_img_exceeds_bytes(
         encode_img(img, encoded)?;
         if encoded.len() > max_bytes {
             info!(
-                context,
                 "Image size {}B ({}x{}px) exceeds {}B, need to scale down.",
                 encoded.len(),
                 img.width(),
@@ -823,7 +816,7 @@ mod tests {
 
         let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
 
-        blob.recode_to_size(&t, blob.to_abs_path(), 1000, Some(3000))
+        blob.recode_to_size(blob.to_abs_path(), 1000, Some(3000))
             .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
@@ -1007,7 +1000,7 @@ mod tests {
         check_image_size(&file, original_width, original_height);
 
         let blob = BlobObject::new_from_path(&alice, &file).await?;
-        assert_eq!(blob.get_exif_orientation(&alice).unwrap_or(0), orientation);
+        assert_eq!(blob.get_exif_orientation().unwrap_or(0), orientation);
 
         let mut msg = Message::new(Viewtype::Image);
         msg.set_file(file.to_str().unwrap(), None);
@@ -1028,7 +1021,7 @@ mod tests {
         let file = bob_msg.get_file(&bob).unwrap();
 
         let blob = BlobObject::new_from_path(&bob, &file).await?;
-        assert_eq!(blob.get_exif_orientation(&bob).unwrap_or(0), 0);
+        assert_eq!(blob.get_exif_orientation().unwrap_or(0), 0);
 
         let img = check_image_size(file, compressed_width, compressed_height);
         Ok(img)

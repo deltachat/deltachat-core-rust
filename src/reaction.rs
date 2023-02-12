@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use anyhow::Result;
+use tracing::info;
 
 use crate::chat::{send_msg, ChatId};
 use crate::contact::ContactId;
@@ -232,8 +233,8 @@ pub(crate) async fn set_msg_reaction(
         set_msg_id_reaction(context, msg_id, chat_id, contact_id, reaction).await
     } else {
         info!(
-            context,
-            "Can't assign reaction to unknown message with Message-ID {}", in_reply_to
+            "Can't assign reaction to unknown message with Message-ID {}",
+            in_reply_to
         );
         Ok(())
     }

@@ -14,6 +14,7 @@ pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
 use tokio::runtime::Handle;
+use tracing::info;
 
 use crate::config::Config;
 use crate::constants::KeyGenType;
@@ -211,14 +212,13 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             let start = std::time::SystemTime::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
-            info!(context, "Generating keypair with type {}", keytype);
+            info!("Generating keypair with type {}", keytype);
             let keypair = Handle::current()
                 .spawn_blocking(move || crate::pgp::create_keypair(addr, keytype))
                 .await??;
 
             store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
             info!(
-                context,
                 "Keypair generated in {:.3}s.",
                 start.elapsed().unwrap_or_default().as_secs()
             );

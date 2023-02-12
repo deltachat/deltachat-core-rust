@@ -9,6 +9,7 @@
 
 use anyhow::{Error, Result};
 use rusqlite::Connection;
+use tracing::{info, warn};
 
 use super::qrinvite::QrInvite;
 use super::{encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified};
@@ -96,7 +97,7 @@ impl BobState {
             if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await?
             {
                 // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
-                info!(context, "Taking securejoin protocol shortcut");
+                info!("Taking securejoin protocol shortcut");
                 send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth)
                     .await?;
                 (
@@ -245,15 +246,14 @@ impl BobState {
             Some(step) => step,
             None => {
                 warn!(
-                    context,
                     "Message has no Secure-Join header: {}",
                     mime_message.get_rfc724_mid().unwrap_or_default()
                 );
                 return Ok(None);
             }
         };
-        if !self.is_msg_expected(context, step.as_str()) {
-            info!(context, "{} message out of sync for BobState", step);
+        if !self.is_msg_expected(step.as_str()) {
+            info!("{} message out of sync for BobState", step);
             return Ok(None);
         }
         match step.as_str() {
@@ -264,19 +264,19 @@ impl BobState {
                 self.step_contact_confirm(context, mime_message).await
             }
             _ => {
-                warn!(context, "Invalid step for BobState: {}", step);
+                warn!("Invalid step for BobState: {}", step);
                 Ok(None)
             }
         }
     }
 
     /// Returns `true` if the message is expected according to the protocol.
-    fn is_msg_expected(&self, context: &Context, step: &str) -> bool {
+    fn is_msg_expected(&self, step: &str) -> bool {
         let variant_matches = match self.invite {
             QrInvite::Contact { .. } => step.starts_with("vc-"),
             QrInvite::Group { .. } => step.starts_with("vg-"),
         };
-        let step_matches = self.next.matches(context, step);
+        let step_matches = self.next.matches(step);
         variant_matches && step_matches
     }
 
@@ -289,11 +289,8 @@ impl BobState {
         context: &Context,
         mime_message: &MimeMessage,
     ) -> Result<Option<BobHandshakeStage>> {
-        info!(
-            context,
-            "Bob Step 4 - handling vc-auth-require/vg-auth-required message"
-        );
-        if !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint())) {
+        info!("Bob Step 4 - handling vc-auth-require/vg-auth-required message");
+        if !encrypted_and_signed(mime_message, Some(self.invite.fingerprint())) {
             let reason = if mime_message.was_encrypted() {
                 "Valid signature missing"
             } else {
@@ -310,7 +307,7 @@ impl BobState {
                 .await?;
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }
-        info!(context, "Fingerprint verified.",);
+        info!("Fingerprint verified.",);
         self.update_next(&context.sql, SecureJoinStep::ContactConfirm)
             .await?;
         self.send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
@@ -331,10 +328,7 @@ impl BobState {
         context: &Context,
         mime_message: &MimeMessage,
     ) -> Result<Option<BobHandshakeStage>> {
-        info!(
-            context,
-            "Bob Step 7 - handling vc-contact-confirm/vg-member-added message"
-        );
+        info!("Bob Step 7 - handling vc-contact-confirm/vg-member-added message");
         let vg_expect_encrypted = match self.invite {
             QrInvite::Contact { .. } => {
                 // setup-contact is always encrypted
@@ -357,7 +351,7 @@ impl BobState {
             }
         };
         if vg_expect_encrypted
-            && !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint()))
+            && !encrypted_and_signed(mime_message, Some(self.invite.fingerprint()))
         {
             self.update_next(&context.sql, SecureJoinStep::Terminated)
                 .await?;
@@ -381,7 +375,7 @@ impl BobState {
                 .map(|s| s.as_str())
                 .ok_or_else(|| Error::msg("Missing Chat-Group-Member-Added header"))?;
             if !context.is_self_addr(member_added).await? {
-                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
+                info!( "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return Ok(None);
             }
         }
@@ -389,10 +383,7 @@ impl BobState {
         self.send_handshake_message(context, BobHandshakeMsg::ContactConfirmReceived)
             .await
             .map_err(|_| {
-                warn!(
-                    context,
-                    "Failed to send vc-contact-confirm-received/vg-member-added-received"
-                );
+                warn!("Failed to send vc-contact-confirm-received/vg-member-added-received");
             })
             // This is not an error affecting the protocol outcome.
             .ok();
@@ -530,16 +521,16 @@ pub enum SecureJoinStep {
 
 impl SecureJoinStep {
     /// Compares the legacy string representation of a step to a [`SecureJoinStep`] variant.
-    fn matches(&self, context: &Context, step: &str) -> bool {
+    fn matches(&self, step: &str) -> bool {
         match self {
             Self::AuthRequired => step == "vc-auth-required" || step == "vg-auth-required",
             Self::ContactConfirm => step == "vc-contact-confirm" || step == "vg-member-added",
             SecureJoinStep::Terminated => {
-                warn!(context, "Terminated state for next securejoin step");
+                warn!("Terminated state for next securejoin step");
                 false
             }
             SecureJoinStep::Completed => {
-                warn!(context, "Completed state for next securejoin step");
+                warn!("Completed state for next securejoin step");
                 false
             }
         }

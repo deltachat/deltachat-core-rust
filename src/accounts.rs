@@ -291,6 +291,11 @@ impl Accounts {
     pub fn get_event_emitter(&self) -> EventEmitter {
         self.events.get_emitter()
     }
+
+    /// Returns event channel.
+    pub fn events(&self) -> Events {
+        self.events.clone()
+    }
 }
 
 /// Configuration file name.

@@ -4,6 +4,7 @@ use anyhow::{bail, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::extensions::idle::IdleResponse;
 use futures_lite::FutureExt;
+use tracing::{error, info, warn};
 
 use super::session::Session;
 use super::Imap;
@@ -15,7 +16,6 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
 impl Session {
     pub async fn idle(
         mut self,
-        context: &Context,
         idle_interrupt_receiver: Receiver<InterruptInfo>,
         watch_folder: Option<String>,
     ) -> Result<(Self, InterruptInfo)> {
@@ -27,14 +27,14 @@ impl Session {
 
         let mut info = Default::default();
 
-        self.select_folder(context, watch_folder.as_deref()).await?;
+        self.select_folder(watch_folder.as_deref()).await?;
 
-        if self.server_sent_unsolicited_exists(context)? {
+        if self.server_sent_unsolicited_exists()? {
             return Ok((self, info));
         }
 
         if let Ok(info) = idle_interrupt_receiver.try_recv() {
-            info!(context, "skip idle, got interrupt {:?}", info);
+            info!("skip idle, got interrupt {:?}", info);
             return Ok((self, info));
         }
 
@@ -56,10 +56,7 @@ impl Session {
         }
 
         let folder_name = watch_folder.as_deref().unwrap_or("None");
-        info!(
-            context,
-            "{}: Idle entering wait-on-remote state", folder_name
-        );
+        info!("{}: Idle entering wait-on-remote state", folder_name);
         let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
             let info = idle_interrupt_receiver.recv().await;
 
@@ -71,29 +68,20 @@ impl Session {
 
         match fut.await {
             Ok(Event::IdleResponse(IdleResponse::NewData(x))) => {
-                info!(context, "{}: Idle has NewData {:?}", folder_name, x);
+                info!("{}: Idle has NewData {:?}", folder_name, x);
             }
             Ok(Event::IdleResponse(IdleResponse::Timeout)) => {
-                info!(
-                    context,
-                    "{}: Idle-wait timeout or interruption", folder_name
-                );
+                info!("{}: Idle-wait timeout or interruption", folder_name);
             }
             Ok(Event::IdleResponse(IdleResponse::ManualInterrupt)) => {
-                info!(
-                    context,
-                    "{}: Idle wait was interrupted manually", folder_name
-                );
+                info!("{}: Idle wait was interrupted manually", folder_name);
             }
             Ok(Event::Interrupt(i)) => {
-                info!(
-                    context,
-                    "{}: Idle wait was interrupted: {:?}", folder_name, &i
-                );
+                info!("{}: Idle wait was interrupted: {:?}", folder_name, &i);
                 info = i;
             }
             Err(err) => {
-                warn!(context, "{}: Idle wait errored: {:?}", folder_name, err);
+                warn!("{}: Idle wait errored: {:?}", folder_name, err);
             }
         }
 
@@ -124,14 +112,14 @@ impl Imap {
         let watch_folder = if let Some(watch_folder) = watch_folder {
             watch_folder
         } else {
-            info!(context, "IMAP-fake-IDLE: no folder, waiting for interrupt");
+            info!("IMAP-fake-IDLE: no folder, waiting for interrupt");
             return self
                 .idle_interrupt_receiver
                 .recv()
                 .await
                 .unwrap_or_default();
         };
-        info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
+        info!("IMAP-fake-IDLEing folder={:?}", watch_folder);
 
         // check every minute if there are new messages
         // TODO: grow sleep durations / make them more flexible
@@ -159,7 +147,7 @@ impl Imap {
                     // (setup_handle_if_needed might not know about them if we
                     // never successfully connected)
                     if let Err(err) = self.prepare(context).await {
-                        warn!(context, "fake_idle: could not connect: {}", err);
+                        warn!("fake_idle: could not connect: {}", err);
                         continue;
                     }
                     if let Some(session) = &self.session {
@@ -168,7 +156,7 @@ impl Imap {
                             break InterruptInfo::new(false);
                         }
                     }
-                    info!(context, "fake_idle is connected");
+                    info!("fake_idle is connected");
                     // we are connected, let's see if fetching messages results
                     // in anything.  If so, we behave as if IDLE had data but
                     // will have already fetched the messages so perform_*_fetch
@@ -178,27 +166,26 @@ impl Imap {
                         .await
                     {
                         Ok(res) => {
-                            info!(context, "fetch_new_messages returned {:?}", res);
+                            info!("fetch_new_messages returned {:?}", res);
                             if res {
                                 break InterruptInfo::new(false);
                             }
                         }
                         Err(err) => {
-                            error!(context, "could not fetch from folder: {:#}", err);
-                            self.trigger_reconnect(context);
+                            error!("could not fetch from folder: {:#}", err);
+                            self.trigger_reconnect();
                         }
                     }
                 }
                 Event::Interrupt(info) => {
                     // Interrupt
-                    info!(context, "Fake IDLE interrupted");
+                    info!("Fake IDLE interrupted");
                     break info;
                 }
             }
         };
 
         info!(
-            context,
             "IMAP-fake-IDLE done after {:.4}s",
             SystemTime::now()
                 .duration_since(fake_idle_start_time)

@@ -1,4 +1,5 @@
 use anyhow::{anyhow, format_err};
+use tracing::info;
 
 use crate::context::Context;
 use crate::socks::Socks5Config;
@@ -6,12 +7,12 @@ use crate::socks::Socks5Config;
 pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
     match read_url_inner(context, url).await {
         Ok(s) => {
-            info!(context, "Successfully read url {}", url);
+            info!("Successfully read url {url}");
             Ok(s)
         }
         Err(e) => {
-            info!(context, "Can't read URL {}: {:#}", url, e);
-            Err(format_err!("Can't read URL {}: {:#}", url, e))
+            info!("Can't read URL {url}: {e:#}");
+            Err(format_err!("Can't read URL {url}: {e:#}"))
         }
     }
 }
@@ -32,7 +33,7 @@ pub async fn read_url_inner(context: &Context, url: &str) -> anyhow::Result<Stri
                 .last()
                 .ok_or_else(|| anyhow!("Redirection doesn't have a target location"))?
                 .to_str()?;
-            info!(context, "Following redirect to {}", header);
+            info!("Following redirect to {header}");
             url = header.to_string();
             continue;
         }

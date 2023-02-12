@@ -5,43 +5,12 @@
 use crate::context::Context;
 
 #[macro_export]
-macro_rules! info {
-    ($ctx:expr,  $msg:expr) => {
-        info!($ctx, $msg,)
-    };
-    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
-        let formatted = format!($msg, $($args),*);
-        let full = format!("{file}:{line}: {msg}",
-                           file = file!(),
-                           line = line!(),
-                           msg = &formatted);
-        $ctx.emit_event($crate::EventType::Info(full));
-    }};
-}
-
-#[macro_export]
-macro_rules! warn {
-    ($ctx:expr, $msg:expr) => {
-        warn!($ctx, $msg,)
-    };
-    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
-        let formatted = format!($msg, $($args),*);
-        let full = format!("{file}:{line}: {msg}",
-                           file = file!(),
-                           line = line!(),
-                           msg = &formatted);
-        $ctx.emit_event($crate::EventType::Warning(full));
-    }};
-}
-
-#[macro_export]
 macro_rules! error {
     ($ctx:expr, $msg:expr) => {
         error!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        $ctx.set_last_error(&formatted);
         $ctx.emit_event($crate::EventType::Error(formatted));
     }};
 }
@@ -166,12 +135,6 @@ mod tests {
         assert_eq!(t.get_last_error(), "");
 
         error!(t, "foo-error");
-        assert_eq!(t.get_last_error(), "foo-error");
-
-        warn!(t, "foo-warning");
-        assert_eq!(t.get_last_error(), "foo-error");
-
-        info!(t, "foo-info");
         assert_eq!(t.get_last_error(), "foo-error");
 
         error!(t, "bar-error");

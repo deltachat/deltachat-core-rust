@@ -22,7 +22,6 @@ use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::securejoin::*;
 use deltachat::stock_str::StockStrings;
 use deltachat::{EventType, Events};
-use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
@@ -33,6 +32,9 @@ use rustyline::{
 };
 use tokio::fs;
 use tokio::runtime::Handle;
+use tracing::{error, info, warn};
+use tracing_log::LogTracer;
+use tracing_subscriber::{fmt, EnvFilter};
 
 mod cmdline;
 use self::cmdline::*;
@@ -481,7 +483,12 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let _ = pretty_env_logger::try_init();
+    // Convert `log` records into `tracing` events.
+    LogTracer::init()?;
+
+    // Setup `tracing` subscriber according to `RUST_LOG` environment variable.
+    let filter = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
+    fmt().with_env_filter(filter).with_writer(io::stderr).init();
 
     let args = std::env::args().collect();
     start(args).await?;

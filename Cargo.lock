@@ -1173,6 +1173,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "pgp",
+ "pin-project-lite",
  "pretty_env_logger",
  "proptest",
  "qrcodegen",

@@ -4,6 +4,7 @@ use anyhow::Result;
 use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
@@ -90,8 +91,8 @@ impl Context {
                 let chat = Chat::load_from_db(self, chat_id).await?;
                 if !chat.is_promoted() {
                     info!(
-                        self,
-                        "group '{}' not yet promoted, do not sync tokens yet.", chat.grpid
+                        "group '{}' not yet promoted, do not sync tokens yet.",
+                        chat.grpid
                     );
                     return Ok(());
                 }
@@ -226,7 +227,7 @@ impl Context {
     /// If eg. just an item cannot be deleted,
     /// that should not hold off the other items to be executed.
     pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
-        info!(self, "executing {} sync item(s)", items.items.len());
+        info!("executing {} sync item(s)", items.items.len());
         for item in &items.items {
             match &item.data {
                 AddQrToken(token) => {
@@ -236,10 +237,7 @@ impl Context {
                         {
                             Some(chat_id)
                         } else {
-                            warn!(
-                                self,
-                                "Ignoring token for nonexistent/deleted group '{}'.", grpid
-                            );
+                            warn!("Ignoring token for nonexistent/deleted group '{}'.", grpid);
                             continue;
                         }
                     } else {

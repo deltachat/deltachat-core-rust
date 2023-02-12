@@ -19,6 +19,7 @@ use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
 use rand::{thread_rng, Rng};
 use tokio::{fs, io};
+use tracing::warn;
 
 use crate::chat::{add_device_msg, add_device_msg_with_importance};
 use crate::constants::{DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
@@ -200,7 +201,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
             .await
             .ok();
         } else {
-            warn!(context, "Can't convert current timestamp");
+            warn!("Can't convert current timestamp");
         }
         return true;
     }
@@ -336,7 +337,7 @@ pub(crate) async fn delete_file(context: &Context, path: impl AsRef<Path>) -> Re
         bail!("path {} does not exist", path_abs.display());
     }
     if !path_abs.is_file() {
-        warn!(context, "refusing to delete non-file {}.", path.display());
+        warn!("refusing to delete non-file \"{}\".", path.display());
         bail!("not a file: \"{}\"", path.display());
     }
 
@@ -358,7 +359,7 @@ pub async fn delete_files_in_dir(context: &Context, path: impl AsRef<Path>) -> R
             Ok(file) => {
                 delete_file(context, file.file_name()).await?;
             }
-            Err(e) => warn!(context, "Could not read file to delete: {}", e),
+            Err(e) => warn!("Could not read file to delete: {}", e),
         }
     }
     Ok(())
@@ -374,7 +375,6 @@ pub(crate) async fn create_folder(
             Ok(_) => Ok(()),
             Err(err) => {
                 warn!(
-                    context,
                     "Cannot create directory \"{}\": {}",
                     path.as_ref().display(),
                     err
@@ -396,7 +396,6 @@ pub(crate) async fn write_file(
     let path_abs = get_abs_path(context, &path);
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
-            context,
             "Cannot write {} bytes to \"{}\": {}",
             buf.len(),
             path.as_ref().display(),
@@ -414,7 +413,6 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
         Ok(bytes) => Ok(bytes),
         Err(err) => {
             warn!(
-                context,
                 "Cannot read \"{}\" or file is empty: {}",
                 path.as_ref().display(),
                 err
@@ -431,7 +429,6 @@ pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::
         Ok(bytes) => Ok(bytes),
         Err(err) => {
             warn!(
-                context,
                 "Cannot read \"{}\" or file is empty: {}",
                 path.as_ref().display(),
                 err
@@ -452,7 +449,6 @@ pub fn open_file_std<P: AsRef<std::path::Path>>(
         Ok(bytes) => Ok(bytes),
         Err(err) => {
             warn!(
-                context,
                 "Cannot read \"{}\" or file is empty: {}",
                 path.as_ref().display(),
                 err

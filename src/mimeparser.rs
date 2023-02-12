@@ -12,6 +12,7 @@ use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 use once_cell::sync::Lazy;
+use tracing::{error, info, warn};
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
@@ -213,7 +214,6 @@ impl MimeMessage {
 
         // Parse IMF headers.
         MimeMessage::merge_headers(
-            context,
             &mut headers,
             &mut recipients,
             &mut from,
@@ -231,7 +231,6 @@ impl MimeMessage {
                     // messages are shown as unencrypted anyway.
 
                     MimeMessage::merge_headers(
-                        context,
                         &mut headers,
                         &mut recipients,
                         &mut from,
@@ -281,14 +280,13 @@ impl MimeMessage {
 
         let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
         let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
-            try_decrypt(context, &mail, &private_keyring, &public_keyring)
+            try_decrypt(&mail, &private_keyring, &public_keyring)
         }) {
             Ok(Some((raw, signatures))) => {
                 mail_raw = raw;
                 let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
                 if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                     info!(
-                        context,
                         "decrypted message mime-body:\n{}",
                         String::from_utf8_lossy(&mail_raw),
                     );
@@ -297,7 +295,7 @@ impl MimeMessage {
             }
             Ok(None) => (Ok(mail), HashSet::new(), false),
             Err(err) => {
-                warn!(context, "decryption failed: {:#}", err);
+                warn!("decryption failed: {:#}", err);
                 (Err(err), HashSet::new(), false)
             }
         };
@@ -336,7 +334,6 @@ impl MimeMessage {
             headers.remove("subject");
 
             MimeMessage::merge_headers(
-                context,
                 &mut headers,
                 &mut recipients,
                 &mut signed_from,
@@ -355,10 +352,7 @@ impl MimeMessage {
                     // Or it's because someone is doing some replay attack
                     // - OTOH, I can't come up with an attack scenario
                     // where this would be useful.
-                    warn!(
-                        context,
-                        "From header in signed part doesn't match the outer one",
-                    );
+                    warn!("From header in signed part doesn't match the outer one",);
                 }
             }
         }
@@ -468,7 +462,7 @@ impl MimeMessage {
     }
 
     /// Parses system messages.
-    fn parse_system_message_headers(&mut self, context: &Context) {
+    fn parse_system_message_headers(&mut self) {
         if self.get_header(HeaderDef::AutocryptSetupMessage).is_some() {
             self.parts.retain(|part| {
                 part.mimetype.is_none()
@@ -478,7 +472,7 @@ impl MimeMessage {
             if self.parts.len() == 1 {
                 self.is_system_message = SystemMessage::AutocryptSetupMessage;
             } else {
-                warn!(context, "could not determine ASM mime-part");
+                warn!("could not determine ASM mime-part");
             }
         } else if let Some(value) = self.get_header(HeaderDef::ChatContent) {
             if value == "location-streaming-enabled" {
@@ -602,7 +596,7 @@ impl MimeMessage {
     }
 
     async fn parse_headers(&mut self, context: &Context) -> Result<()> {
-        self.parse_system_message_headers(context);
+        self.parse_system_message_headers();
         self.parse_avatar_headers(context).await;
         self.parse_videochat_headers();
         if self.delivery_report.is_none() {
@@ -659,8 +653,8 @@ impl MimeMessage {
                         }
                     } else {
                         warn!(
-                            context,
-                            "{} requested a read receipt to {}, ignoring", from, dn_to.addr
+                            "{} requested a read receipt to {}, ignoring",
+                            from, dn_to.addr
                         );
                     }
                 }
@@ -724,10 +718,7 @@ impl MimeMessage {
                 {
                     Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),
                     Err(err) => {
-                        warn!(
-                            context,
-                            "Could not save decoded avatar to blob file: {:#}", err
-                        );
+                        warn!("Could not save decoded avatar to blob file: {:#}", err);
                         None
                     }
                 }
@@ -795,13 +786,12 @@ impl MimeMessage {
             if mail.ctype.params.get("protected-headers").is_some() {
                 if mail.ctype.mimetype == "text/rfc822-headers" {
                     warn!(
-                        context,
                         "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
                     );
                     return Ok(false);
                 }
 
-                warn!(context, "Ignoring nested protected headers");
+                warn!( "Ignoring nested protected headers");
             }
 
             enum MimeS {
@@ -920,7 +910,7 @@ impl MimeMessage {
                 if mail.subparts.len() >= 2 {
                     match mail.ctype.params.get("report-type").map(|s| s as &str) {
                         Some("disposition-notification") => {
-                            if let Some(report) = self.process_report(context, mail)? {
+                            if let Some(report) = self.process_report(mail)? {
                                 self.mdn_reports.push(report);
                             }
 
@@ -938,7 +928,7 @@ impl MimeMessage {
                         }
                         // Some providers, e.g. Tiscali, forget to set the report-type. So, if it's None, assume that it might be delivery-status
                         Some("delivery-status") | None => {
-                            if let Some(report) = self.process_delivery_status(context, mail)? {
+                            if let Some(report) = self.process_delivery_status(mail)? {
                                 self.delivery_report = Some(report);
                             }
 
@@ -1002,7 +992,7 @@ impl MimeMessage {
         let (mime_type, msg_type) = get_mime_type(mail)?;
         let raw_mime = mail.ctype.mimetype.to_lowercase();
 
-        let filename = get_attachment_filename(context, mail)?;
+        let filename = get_attachment_filename(mail)?;
 
         let old_part_count = self.parts.len();
 
@@ -1022,7 +1012,7 @@ impl MimeMessage {
             None => {
                 match mime_type.type_() {
                     mime::IMAGE | mime::AUDIO | mime::VIDEO | mime::APPLICATION => {
-                        warn!(context, "Missing attachment");
+                        warn!("Missing attachment");
                         return Ok(false);
                     }
                     mime::TEXT
@@ -1033,7 +1023,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:#}", err);
+                                warn!("Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1053,7 +1043,7 @@ impl MimeMessage {
                         let decoded_data = match mail.get_body() {
                             Ok(decoded_data) => decoded_data,
                             Err(err) => {
-                                warn!(context, "Invalid body parsed {:#}", err);
+                                warn!("Invalid body parsed {:#}", err);
                                 // Note that it's not always an error - might be no data
                                 return Ok(false);
                             }
@@ -1185,7 +1175,7 @@ impl MimeMessage {
             if filename.starts_with("location") || filename.starts_with("message") {
                 let parsed = location::Kml::parse(decoded_data)
                     .map_err(|err| {
-                        warn!(context, "failed to parse kml part: {:#}", err);
+                        warn!("failed to parse kml part: {:#}", err);
                     })
                     .ok();
                 if filename.starts_with("location") {
@@ -1203,7 +1193,7 @@ impl MimeMessage {
             self.sync_items = context
                 .parse_sync_items(serialized)
                 .map_err(|err| {
-                    warn!(context, "failed to parse sync data: {:#}", err);
+                    warn!("failed to parse sync data: {:#}", err);
                 })
                 .ok();
             return Ok(());
@@ -1224,13 +1214,13 @@ impl MimeMessage {
             Ok(blob) => blob,
             Err(err) => {
                 error!(
-                    context,
-                    "Could not add blob for mime part {}, error {:#}", filename, err
+                    "Could not add blob for mime part {}, error {:#}",
+                    filename, err
                 );
                 return Ok(());
             }
         };
-        info!(context, "added blobfile: {:?}", blob.as_name());
+        info!("added blobfile: {:?}", blob.as_name());
 
         /* create and register Mime part referencing the new Blob object */
         let mut part = Part::default();
@@ -1261,23 +1251,20 @@ impl MimeMessage {
     ) -> Result<bool> {
         let key = match str::from_utf8(decoded_data) {
             Err(err) => {
-                warn!(context, "PGP key attachment is not a UTF-8 file: {}", err);
+                warn!("PGP key attachment is not a UTF-8 file: {}", err);
                 return Ok(false);
             }
             Ok(key) => key,
         };
         let key = match SignedPublicKey::from_asc(key) {
             Err(err) => {
-                warn!(
-                    context,
-                    "PGP key attachment is not an ASCII-armored file: {:#}", err
-                );
+                warn!("PGP key attachment is not an ASCII-armored file: {:#}", err);
                 return Ok(false);
             }
             Ok((key, _)) => key,
         };
         if let Err(err) = key.verify() {
-            warn!(context, "attached PGP key verification failed: {}", err);
+            warn!("attached PGP key verification failed: {}", err);
             return Ok(false);
         }
         if !key.details.users.iter().any(|user| {
@@ -1293,19 +1280,17 @@ impl MimeMessage {
                 // user have an Autocrypt-capable MUA and also attaches a key, but if that's the
                 // case, let 'em first disable Autocrypt and then change the key by attaching it.
                 warn!(
-                    context,
                     "not using attached PGP key for peer '{}' because another one is already set \
                     with prefer-encrypt={}",
-                    peerstate.addr,
-                    peerstate.prefer_encrypt,
+                    peerstate.addr, peerstate.prefer_encrypt,
                 );
                 return Ok(false);
             }
         }
         peerstate.public_key = Some(key);
         info!(
-            context,
-            "using attached PGP key for peer '{}' with prefer-encrypt=mutual", peerstate.addr,
+            "using attached PGP key for peer '{}' with prefer-encrypt=mutual",
+            peerstate.addr,
         );
         peerstate.prefer_encrypt = EncryptPreference::Mutual;
         peerstate.save_to_db(&context.sql).await?;
@@ -1357,7 +1342,6 @@ impl MimeMessage {
     }
 
     fn merge_headers(
-        context: &Context,
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
         from: &mut Option<SingleInfo>,
@@ -1376,7 +1360,7 @@ impl MimeMessage {
                         Ok(addrlist) => {
                             *chat_disposition_notification_to = addrlist.extract_single_info();
                         }
-                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                        Err(e) => warn!("Could not read {} address: {}", key, e),
                     }
                 } else {
                     let value = field.get_value();
@@ -1398,11 +1382,7 @@ impl MimeMessage {
         }
     }
 
-    fn process_report(
-        &self,
-        context: &Context,
-        report: &mailparse::ParsedMail<'_>,
-    ) -> Result<Option<Report>> {
+    fn process_report(&self, report: &mailparse::ParsedMail<'_>) -> Result<Option<Report>> {
         // parse as mailheaders
         let report_body = if let Some(subpart) = report.subparts.get(1) {
             subpart.get_body_raw()?
@@ -1433,7 +1413,6 @@ impl MimeMessage {
             }));
         }
         warn!(
-            context,
             "ignoring unknown disposition-notification, Message-Id: {:?}",
             report_fields.get_header_value(HeaderDef::MessageId)
         );
@@ -1443,7 +1422,6 @@ impl MimeMessage {
 
     fn process_delivery_status(
         &self,
-        context: &Context,
         report: &mailparse::ParsedMail<'_>,
     ) -> Result<Option<DeliveryReport>> {
         // Assume failure.
@@ -1455,7 +1433,7 @@ impl MimeMessage {
             if status_part.ctype.mimetype != "message/delivery-status"
                 && status_part.ctype.mimetype != "message/global-delivery-status"
             {
-                warn!(context, "Second part of Delivery Status Notification is not message/delivery-status or message/global-delivery-status, ignoring");
+                warn!( "Second part of Delivery Status Notification is not message/delivery-status or message/global-delivery-status, ignoring");
                 return Ok(None);
             }
 
@@ -1469,14 +1447,14 @@ impl MimeMessage {
                 let (status_fields, _) = mailparse::parse_headers(status_body)?;
                 if let Some(action) = status_fields.get_first_value("action") {
                     if action != "failed" {
-                        info!(context, "DSN with {:?} action", action);
+                        info!("DSN with {:?} action", action);
                         failure = false;
                     }
                 } else {
-                    warn!(context, "DSN without action");
+                    warn!("DSN without action");
                 }
             } else {
-                warn!(context, "DSN without per-recipient fields");
+                warn!("DSN without per-recipient fields");
             }
         } else {
             // No message/delivery-status part.
@@ -1513,7 +1491,6 @@ impl MimeMessage {
             }
 
             warn!(
-                context,
                 "ignoring unknown ndn-notification, Message-Id: {:?}",
                 report_fields.get_header_value(HeaderDef::MessageId)
             );
@@ -1638,7 +1615,7 @@ impl MimeMessage {
                     }
                     Ok(None) => {}
                     Err(err) => {
-                        warn!(context, "failed to handle_mdn: {:#}", err);
+                        warn!("failed to handle_mdn: {:#}", err);
                     }
                 }
             }
@@ -1651,7 +1628,7 @@ impl MimeMessage {
                     .find(|p| p.typ == Viewtype::Text)
                     .map(|p| p.msg.clone());
                 if let Err(e) = message::handle_ndn(context, delivery_report, error).await {
-                    warn!(context, "Could not handle ndn: {}", e);
+                    warn!("Could not handle ndn: {}", e);
                 }
             }
         }
@@ -1699,7 +1676,7 @@ async fn update_gossip_peerstates(
         let header = match value.parse::<Aheader>() {
             Ok(header) => header,
             Err(err) => {
-                warn!(context, "Failed parsing Autocrypt-Gossip header: {}", err);
+                warn!("Failed parsing Autocrypt-Gossip header: {}", err);
                 continue;
             }
         };
@@ -1709,16 +1686,16 @@ async fn update_gossip_peerstates(
             .any(|info| addr_cmp(&info.addr, &header.addr))
         {
             warn!(
-                context,
-                "Ignoring gossiped \"{}\" as the address is not in To/Cc list.", &header.addr,
+                "Ignoring gossiped \"{}\" as the address is not in To/Cc list.",
+                &header.addr,
             );
             continue;
         }
         if addr_cmp(from, &header.addr) {
             // Non-standard, but anyway we can't update the cached peerstate here.
             warn!(
-                context,
-                "Ignoring gossiped \"{}\" as it equals the From address", &header.addr,
+                "Ignoring gossiped \"{}\" as it equals the From address",
+                &header.addr,
             );
             continue;
         }
@@ -1909,10 +1886,7 @@ fn is_attachment_disposition(mail: &mailparse::ParsedMail<'_>) -> bool {
 /// returned. If Content-Disposition is "attachment" but filename is
 /// not specified, filename is guessed. If Content-Disposition cannot
 /// be parsed, returns an error.
-fn get_attachment_filename(
-    context: &Context,
-    mail: &mailparse::ParsedMail,
-) -> Result<Option<String>> {
+fn get_attachment_filename(mail: &mailparse::ParsedMail) -> Result<Option<String>> {
     let ct = mail.get_content_disposition();
 
     // try to get file name as "encoded-words" from
@@ -1924,7 +1898,7 @@ fn get_attachment_filename(
             // be graceful and just use the original name.
             // some MUA, including Delta Chat up to core1.50,
             // use `filename*` mistakenly for simple encoded-words without following rfc2231
-            warn!(context, "apostrophed encoding invalid: {}", name);
+            warn!("apostrophed encoding invalid: {}", name);
             desired_filename = Some(name);
         }
     }
@@ -2154,147 +2128,123 @@ mod tests {
         assert!(is_attachment_disposition(&mail.subparts[1]));
     }
 
-    fn load_mail_with_attachment<'a>(t: &'a TestContext, raw: &'a [u8]) -> ParsedMail<'a> {
+    fn load_mail_with_attachment(raw: &[u8]) -> ParsedMail<'_> {
         let mail = mailparse::parse_mail(raw).unwrap();
-        assert!(get_attachment_filename(t, &mail).unwrap().is_none());
-        assert!(get_attachment_filename(t, &mail.subparts[0])
+        assert!(get_attachment_filename(&mail).unwrap().is_none());
+        assert!(get_attachment_filename(&mail.subparts[0])
             .unwrap()
             .is_none());
         mail
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_simple.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_simple.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("test.html".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_encoded_words() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_encoded_words.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_encoded_words() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_encoded_words_binary() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_encoded_words_binary.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_encoded_words_binary() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_binary.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some(" § 165 Abs".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_encoded_words_windows1251() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_encoded_words_windows1251.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_encoded_words_windows1251() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_windows1251.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("file Что нового 2020.pdf".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_encoded_words_cont() {
+    #[test]
+    fn test_get_attachment_filename_encoded_words_cont() {
         // test continued encoded-words and also test apostropes work that way
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_encoded_words_cont.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_cont.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßn'ah'men Okt. 2020.html".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_encoded_words_bad_delimiter() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_encoded_words_bad_delimiter.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_encoded_words_bad_delimiter() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_encoded_words_bad_delimiter.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         // not decoded as a space is missing after encoded-words part
         assert_eq!(filename, Some("=?utf-8?q?foo?=.bar".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_apostrophed() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_apostrophed.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_apostrophed() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2021.html".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_apostrophed_cont() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_apostrophed_cont.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_apostrophed_cont() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_cont.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen März 2022.html".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_apostrophed_windows1251() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_apostrophed_windows1251.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_apostrophed_windows1251() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_windows1251.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("программирование.HTM".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_apostrophed_cp1252() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_apostrophed_cp1252.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_apostrophed_cp1252() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_cp1252.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Auftragsbestätigung.pdf".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_apostrophed_invalid() {
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_apostrophed_invalid.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+    #[test]
+    fn test_get_attachment_filename_apostrophed_invalid() {
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_apostrophed_invalid.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("somedäüta.html.zip".to_string()))
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_get_attachment_filename_combined() {
+    #[test]
+    fn test_get_attachment_filename_combined() {
         // test that if `filename` and `filename*0` are given, the filename is not doubled
-        let t = TestContext::new().await;
-        let mail = load_mail_with_attachment(
-            &t,
-            include_bytes!("../test-data/message/attach_filename_combined.eml"),
-        );
-        let filename = get_attachment_filename(&t, &mail.subparts[1]).unwrap();
+        let mail = load_mail_with_attachment(include_bytes!(
+            "../test-data/message/attach_filename_combined.eml"
+        ));
+        let filename = get_attachment_filename(&mail.subparts[1]).unwrap();
         assert_eq!(filename, Some("Maßnahmen Okt. 2020.html".to_string()))
     }
 

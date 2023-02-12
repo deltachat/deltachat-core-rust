@@ -2,6 +2,7 @@
 
 use anyhow::{format_err, Context as _, Result};
 use num_traits::FromPrimitive;
+use tracing::info;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
@@ -51,7 +52,6 @@ impl EncryptHelper {
     /// Returns an error if `e2ee_guaranteed` is true, but one or more keys are missing.
     pub fn should_encrypt(
         &self,
-        context: &Context,
         e2ee_guaranteed: bool,
         peerstates: &[(Option<Peerstate>, &str)],
     ) -> Result<bool> {
@@ -63,10 +63,7 @@ impl EncryptHelper {
         for (peerstate, addr) in peerstates {
             match peerstate {
                 Some(peerstate) => {
-                    info!(
-                        context,
-                        "peerstate for {:?} is {}", addr, peerstate.prefer_encrypt
-                    );
+                    info!("peerstate for {:?} is {}", addr, peerstate.prefer_encrypt);
                     match peerstate.prefer_encrypt {
                         EncryptPreference::NoPreference => {}
                         EncryptPreference::Mutual => prefer_encrypt_count += 1,
@@ -82,7 +79,7 @@ impl EncryptHelper {
                     if e2ee_guaranteed {
                         return Err(format_err!("{}", msg));
                     } else {
-                        info!(context, "{}", msg);
+                        info!("{}", msg);
                         return Ok(false);
                     }
                 }
@@ -322,22 +319,22 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         // test with EncryptPreference::NoPreference:
         // if e2ee_eguaranteed is unset, there is no encryption as not more than half of peers want encryption
         let ps = new_peerstates(EncryptPreference::NoPreference);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(false, &ps).unwrap());
 
         // test with EncryptPreference::Reset
         let ps = new_peerstates(EncryptPreference::Reset);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(true, &ps).unwrap());
+        assert!(!encrypt_helper.should_encrypt(false, &ps).unwrap());
 
         // test with EncryptPreference::Mutual (self is also Mutual)
         let ps = new_peerstates(EncryptPreference::Mutual);
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).unwrap());
-        assert!(encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(true, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(false, &ps).unwrap());
 
         // test with missing peerstate
         let ps = vec![(None, "bob@foo.bar")];
-        assert!(encrypt_helper.should_encrypt(&t, true, &ps).is_err());
-        assert!(!encrypt_helper.should_encrypt(&t, false, &ps).unwrap());
+        assert!(encrypt_helper.should_encrypt(true, &ps).is_err());
+        assert!(!encrypt_helper.should_encrypt(false, &ps).unwrap());
     }
 }

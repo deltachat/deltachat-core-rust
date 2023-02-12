@@ -40,7 +40,6 @@ pub trait ToSql: rusqlite::ToSql + Send + Sync {}
 
 impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
 
-#[macro_use]
 pub mod log;
 
 #[cfg(feature = "internals")]

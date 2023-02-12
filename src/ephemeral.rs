@@ -72,6 +72,7 @@ use anyhow::{ensure, Result};
 use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
+use tracing::{error, info, warn};
 
 use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
@@ -225,8 +226,8 @@ impl ChatId {
             msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
             if let Err(err) = send_msg(context, self, &mut msg).await {
                 error!(
-                    context,
-                    "Failed to send a message about ephemeral message timer change: {:?}", err
+                    "Failed to send a message about ephemeral message timer change: {:?}",
+                    err
                 );
             }
         }
@@ -433,7 +434,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
     let rows = select_expired_messages(context, now).await?;
 
     if !rows.is_empty() {
-        info!(context, "Attempting to delete {} messages.", rows.len());
+        info!("Attempting to delete {} messages.", rows.len());
 
         let (msgs_changed, webxdc_deleted) = context
             .sql
@@ -523,7 +524,7 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
         .await
     {
         Err(err) => {
-            warn!(context, "Can't calculate next ephemeral timeout: {}", err);
+            warn!("Can't calculate next ephemeral timeout: {}", err);
             None
         }
         Ok(ephemeral_timestamp) => ephemeral_timestamp,
@@ -533,8 +534,8 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
         match next_delete_device_after_timestamp(context).await {
             Err(err) => {
                 warn!(
-                    context,
-                    "Can't calculate timestamp of the next message expiration: {}", err
+                    "Can't calculate timestamp of the next message expiration: {}",
+                    err
                 );
                 None
             }
@@ -563,7 +564,6 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
 
         if let Ok(duration) = until.duration_since(now) {
             info!(
-                context,
                 "Ephemeral loop waiting for deletion in {} or interrupt",
                 duration_to_str(duration)
             );

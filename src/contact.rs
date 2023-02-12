@@ -17,12 +17,16 @@ use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tokio::task;
 use tokio::time::{timeout, Duration};
+use tracing::instrument::WithSubscriber;
+use tracing::Instrument;
+use tracing::{info, warn};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
+use crate::context::future::ContextIdFutureExt;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{DcKey, SignedPublicKey};
@@ -546,7 +550,7 @@ impl Contact {
                 // Filter out use-once addresses (like reply+AEJDGPOECLAP...@reply.github.com):
                 || (addr.len() > 50 && addr.contains('+'))
             {
-                info!(context, "hiding contact {}", addr);
+                info!("hiding contact {addr}");
                 origin = Origin::Hidden;
                 // For these kind of email addresses, sender and address often don't belong together
                 // (like hocuri <notifications@github.com>). In this example, hocuri shouldn't
@@ -699,7 +703,7 @@ impl Contact {
 
                 sth_modified = Modifier::Created;
                 row_id = u32::try_from(transaction.last_insert_rowid())?;
-                info!(context, "added contact id={} addr={}", row_id, &addr);
+                info!("added contact id={} addr={}", row_id, &addr);
             }
             Ok(row_id)
         }).await?;
@@ -739,15 +743,12 @@ impl Contact {
                             }
                         }
                         Err(err) => {
-                            warn!(
-                                context,
-                                "Failed to add address {} from address book: {}", addr, err
-                            );
+                            warn!("Failed to add address {addr} from address book: {err:#}");
                         }
                     }
                 }
                 Err(err) => {
-                    warn!(context, "{:#}.", err);
+                    warn!("{err:#}.");
                 }
             }
         }
@@ -1055,7 +1056,7 @@ impl Contact {
     }
 
     /// Updates `param` column in the database.
-    pub async fn update_param(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn update_param(&self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
@@ -1067,7 +1068,7 @@ impl Contact {
     }
 
     /// Updates `status` column in the database.
-    pub async fn update_status(&self, context: &Context) -> Result<()> {
+    pub(crate) async fn update_status(&self, context: &Context) -> Result<()> {
         context
             .sql
             .execute(
@@ -1388,7 +1389,7 @@ pub(crate) async fn set_profile_image(
                         .set_config(Config::Selfavatar, Some(profile_image))
                         .await?;
                 } else {
-                    info!(context, "Do not use unencrypted selfavatar.");
+                    info!("Do not use unencrypted selfavatar.");
                 }
             } else {
                 contact.param.set(Param::ProfileImage, profile_image);
@@ -1400,7 +1401,7 @@ pub(crate) async fn set_profile_image(
                 if was_encrypted {
                     context.set_config(Config::Selfavatar, None).await?;
                 } else {
-                    info!(context, "Do not use unencrypted selfavatar deletion.");
+                    info!("Do not use unencrypted selfavatar deletion.");
                 }
             } else {
                 contact.param.remove(Param::ProfileImage);
@@ -1555,7 +1556,12 @@ impl RecentlySeenLoop {
     pub(crate) fn new(context: Context) -> Self {
         let (interrupt_send, interrupt_recv) = channel::bounded(1);
 
-        let handle = task::spawn(Self::run(context, interrupt_recv));
+        let handle = task::spawn(
+            Self::run(context, interrupt_recv)
+                .with_current_subscriber()
+                .bind_current_context_id()
+                .in_current_span(),
+        );
         Self {
             handle,
             interrupt_send,
@@ -1607,7 +1613,6 @@ impl RecentlySeenLoop {
 
             if let Ok(duration) = until.duration_since(now) {
                 info!(
-                    context,
                     "Recently seen loop waiting for {} or interrupt",
                     duration_to_str(duration)
                 );
@@ -1621,10 +1626,7 @@ impl RecentlySeenLoop {
                         }
                     }
                     Ok(Err(err)) => {
-                        warn!(
-                            context,
-                            "Error receiving an interruption in recently seen loop: {}", err
-                        );
+                        warn!("Error receiving an interruption in recently seen loop: {err:#}.");
                         // Maybe the sender side is closed.
                         // Terminate the loop to avoid looping indefinitely.
                         return;
@@ -1638,10 +1640,7 @@ impl RecentlySeenLoop {
                     }
                 }
             } else {
-                info!(
-                    context,
-                    "Recently seen loop is not waiting, event is already due."
-                );
+                info!("Recently seen loop is not waiting, event is already due.");
 
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {

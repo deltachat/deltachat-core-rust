@@ -1,3 +1,5 @@
+use tempfile::tempdir;
+
 use deltachat::chat::{self, ChatId};
 use deltachat::chatlist::*;
 use deltachat::config;
@@ -6,24 +8,25 @@ use deltachat::context::*;
 use deltachat::message::Message;
 use deltachat::stock_str::StockStrings;
 use deltachat::{EventType, Events};
-use tempfile::tempdir;
+use tracing::{error, info, warn};
+use tracing_subscriber::{fmt, EnvFilter};
 
 fn cb(event: EventType) {
     match event {
         EventType::ConfigureProgress { progress, .. } => {
-            log::info!("progress: {}", progress);
+            info!("progress: {progress}");
         }
         EventType::Info(msg) => {
-            log::info!("{}", msg);
+            info!("{msg}");
         }
         EventType::Warning(msg) => {
-            log::warn!("{}", msg);
+            warn!("{msg}");
         }
         EventType::Error(msg) => {
-            log::error!("{}", msg);
+            error!("{msg}");
         }
         event => {
-            log::info!("{:?}", event);
+            info!("{event:?}");
         }
     }
 }
@@ -31,16 +34,22 @@ fn cb(event: EventType) {
 /// Run with `RUST_LOG=simple=info cargo run --release --example simple -- email pw`.
 #[tokio::main]
 async fn main() {
-    pretty_env_logger::try_init_timed().ok();
+    let filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("info"))
+        .unwrap();
+    fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
 
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    log::info!("creating database {:?}", dbfile);
+    info!("creating database {:?}", dbfile);
     let ctx = Context::new(&dbfile, 0, Events::new(), StockStrings::new())
         .await
         .expect("Failed to create context");
     let info = ctx.get_info().await;
-    log::info!("info: {:#?}", info);
+    info!("info: {:#?}", info);
 
     let events = ctx.get_event_emitter();
     let events_spawn = tokio::task::spawn(async move {
@@ -49,7 +58,7 @@ async fn main() {
         }
     });
 
-    log::info!("configuring");
+    info!("configuring");
     let args = std::env::args().collect::<Vec<String>>();
     assert_eq!(args.len(), 3, "requires email password");
     let email = args[1].clone();
@@ -63,9 +72,9 @@ async fn main() {
 
     ctx.configure().await.unwrap();
 
-    log::info!("------ RUN ------");
+    info!("------ RUN ------");
     ctx.start_io().await;
-    log::info!("--- SENDING A MESSAGE ---");
+    info!("--- SENDING A MESSAGE ---");
 
     let contact_id = Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com")
         .await
@@ -73,7 +82,7 @@ async fn main() {
     let chat_id = ChatId::create_for_contact(&ctx, contact_id).await.unwrap();
 
     for i in 0..1 {
-        log::info!("sending message {}", i);
+        info!("sending message {}", i);
         chat::send_text_msg(&ctx, chat_id, format!("Hi, here is my {i}nth message!"))
             .await
             .unwrap();
@@ -82,19 +91,19 @@ async fn main() {
     // wait for the message to be sent out
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-    log::info!("fetching chats..");
+    info!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();
 
     for i in 0..chats.len() {
         let msg = Message::load_from_db(&ctx, chats.get_msg_id(i).unwrap().unwrap())
             .await
             .unwrap();
-        log::info!("[{}] msg: {:?}", i, msg);
+        info!("[{i}] msg: {msg:?}");
     }
 
-    log::info!("stopping");
+    info!("stopping");
     ctx.stop_io().await;
-    log::info!("closing");
+    info!("closing");
     drop(ctx);
     events_spawn.await.unwrap();
 }

@@ -95,6 +95,7 @@ class Account:
             ptr,
             lib.dc_context_unref,
         )
+        self._id = lib.dc_get_id(self._dc_context)
 
         self._shutdown_event = Event()
         self._event_thread = EventThread(self)
@@ -138,6 +139,10 @@ class Account:
     def get_info(self) -> Dict[str, str]:
         """return dictionary of built config parameters."""
         return get_dc_info_as_dict(self._dc_context)
+
+    def get_id(self) -> int:
+        """Return account ID."""
+        return self._id
 
     def dump_account_info(self, logfile):
         def log(*args, **kwargs):

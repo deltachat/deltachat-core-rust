@@ -8,6 +8,7 @@ use anyhow::{Context as _, Error, Result};
 use tokio::net::{lookup_host, TcpStream};
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
+use tracing::{info, warn};
 
 use crate::context::Context;
 use crate::tools::time;
@@ -50,8 +51,8 @@ async fn lookup_host_with_cache(
         Ok(res) => res,
         Err(err) => {
             warn!(
-                context,
-                "DNS resolution for {}:{} failed: {:#}.", hostname, port, err
+                "DNS resolution for {}:{} failed: {:#}.",
+                hostname, port, err
             );
             Vec::new()
         }
@@ -64,7 +65,7 @@ async fn lookup_host_with_cache(
             continue;
         }
 
-        info!(context, "Resolved {}:{} into {}.", hostname, port, &addr);
+        info!("Resolved {}:{} into {}.", hostname, port, &addr);
 
         // Update the cache.
         context
@@ -110,8 +111,8 @@ async fn lookup_host_with_cache(
                 }
                 Err(err) => {
                     warn!(
-                        context,
-                        "Failed to parse cached address {:?}: {:#}.", cached_address, err
+                        "Failed to parse cached address {:?}: {:#}.",
+                        cached_address, err
                     );
                 }
             }
@@ -163,10 +164,7 @@ pub(crate) async fn connect_tcp(
                 break;
             }
             Err(err) => {
-                warn!(
-                    context,
-                    "Failed to connect to {}: {:#}.", resolved_addr, err
-                );
+                warn!("Failed to connect to {}: {:#}.", resolved_addr, err);
                 last_error = Some(err);
             }
         }

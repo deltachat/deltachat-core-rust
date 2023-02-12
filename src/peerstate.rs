@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use anyhow::{Context as _, Error, Result};
 use num_traits::FromPrimitive;
+use tracing::warn;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
@@ -594,10 +595,8 @@ impl Peerstate {
                         }
                         Err(err) => {
                             warn!(
-                                context,
                                 "New address {:?} is not valid, not doing AEAP: {:#}.",
-                                new_addr,
-                                err
+                                new_addr, err
                             )
                         }
                     }

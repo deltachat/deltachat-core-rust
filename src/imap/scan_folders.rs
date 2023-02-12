@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
 use futures::stream::StreamExt;
+use tracing::info;
 
 use super::{get_folder_meaning_by_attrs, get_folder_meaning_by_name};
 use crate::config::Config;
@@ -24,7 +25,7 @@ impl Imap {
                 return Ok(false);
             }
         }
-        info!(context, "Starting full folder scan");
+        info!("Starting full folder scan");
 
         self.prepare(context).await?;
         let folders = self.list_folders(context).await?;
@@ -65,7 +66,7 @@ impl Imap {
             {
                 let session = self.session.as_mut().context("no session")?;
                 // Drain leftover unsolicited EXISTS messages
-                session.server_sent_unsolicited_exists(context)?;
+                session.server_sent_unsolicited_exists()?;
 
                 loop {
                     self.fetch_move_delete(context, folder.name(), folder_meaning)
@@ -74,7 +75,7 @@ impl Imap {
 
                     let session = self.session.as_mut().context("no session")?;
                     // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
-                    if !session.server_sent_unsolicited_exists(context)? {
+                    if !session.server_sent_unsolicited_exists()? {
                         break;
                     }
                 }

@@ -44,6 +44,7 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, Mutex};
 use tokio::task::{JoinHandle, JoinSet};
 use tokio_stream::wrappers::ReadDirStream;
+use tracing::{error, info, warn};
 
 use crate::blob::BlobDirContents;
 use crate::chat::delete_and_reset_all_device_msgs;
@@ -100,7 +101,7 @@ impl BackupProvider {
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
-            warn!(context, "Previous database export deleted");
+            warn!("Previous database export deleted.");
         }
         let dbfile = TempPathGuard::new(dbfile);
         let res = tokio::select! {
@@ -109,7 +110,7 @@ impl BackupProvider {
                 match res {
                     Ok(slf) => Ok(slf),
                     Err(err) => {
-                        error!(context, "Failed to set up second device setup: {:#}", err);
+                        error!("Failed to set up second device setup: {err:#}.");
                         Err(err)
                     },
                 }
@@ -170,7 +171,7 @@ impl BackupProvider {
             .auth_token(token)
             .spawn()?;
         context.emit_event(SendProgress::ProviderListening.into());
-        info!(context, "Waiting for remote to connect");
+        info!("Waiting for remote to connect.");
         let ticket = provider.ticket(hash);
         Ok((provider, ticket))
     }
@@ -257,7 +258,7 @@ impl BackupProvider {
         match &res {
             Ok(_) => context.emit_event(SendProgress::Completed.into()),
             Err(err) => {
-                error!(context, "Backup transfer failure: {err:#}");
+                error!("Backup transfer failure: {err:#}.");
                 context.emit_event(SendProgress::Failed.into())
             }
         }
@@ -414,7 +415,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
             peer_id: Some(ticket.peer),
             keylog: false,
         };
-        info!(context, "attempting to contact {}", addr);
+        info!("Attempting to contact {addr}.");
         match transfer_from_provider(context, &ticket, opts).await {
             Ok(_) => {
                 delete_and_reset_all_device_msgs(context).await?;
@@ -422,7 +423,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
                 return Ok(());
             }
             Err(TransferError::ConnectionError(err)) => {
-                warn!(context, "Connection error: {err:#}.");
+                warn!("Connection error: {err:#}.");
                 continue;
             }
             Err(TransferError::Other(err)) => {
@@ -492,7 +493,6 @@ async fn transfer_from_provider(
     match res {
         Ok(stats) => {
             info!(
-                context,
                 "Backup transfer finished, transfer rate is {} Mbps.",
                 stats.mbits()
             );
@@ -527,7 +527,7 @@ async fn on_blob(
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
-            warn!(context, "Previous database export deleted");
+            warn!("Previous database export deleted.");
         }
         dbfile
     } else {
@@ -547,12 +547,11 @@ async fn on_blob(
         let token = ticket.token.to_string();
         jobs.lock().await.spawn(async move {
             if let Err(err) = context.sql.import(&path, token).await {
-                error!(context, "cannot import database: {:#?}", err);
+                error!("Cannot import database: {err:#?}.");
             }
             if let Err(err) = fs::remove_file(&path).await {
                 error!(
-                    context,
-                    "failed to delete database import file '{}': {:#?}",
+                    "Failed to delete database import file '{}': {:#?}.",
                     path.display(),
                     err,
                 );

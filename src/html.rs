@@ -16,6 +16,7 @@ use futures::future::FutureExt;
 use lettre_email::mime::{self, Mime};
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
+use tracing::warn;
 
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::message::{Message, MsgId};
@@ -87,7 +88,7 @@ impl HtmlMsgParser {
     /// Function takes a raw mime-message string,
     /// searches for the main-text part
     /// and returns that as parser.html
-    pub async fn from_bytes(context: &Context, rawmime: &[u8]) -> Result<Self> {
+    pub async fn from_bytes(rawmime: &[u8]) -> Result<Self> {
         let mut parser = HtmlMsgParser {
             html: "".to_string(),
             plain: None,
@@ -102,7 +103,7 @@ impl HtmlMsgParser {
                 parser.html = plain.to_html();
             }
         } else {
-            parser.cid_to_data_recursive(context, &parsedmail).await?;
+            parser.cid_to_data_recursive(&parsedmail).await?;
         }
 
         Ok(parser)
@@ -173,7 +174,6 @@ impl HtmlMsgParser {
     /// This allows the final html-file to be self-contained.
     fn cid_to_data_recursive<'a>(
         &'a mut self,
-        context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
         // Boxed future to deal with recursion
@@ -181,7 +181,7 @@ impl HtmlMsgParser {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
                     for cur_data in &mail.subparts {
-                        self.cid_to_data_recursive(context, cur_data).await?;
+                        self.cid_to_data_recursive(cur_data).await?;
                     }
                     Ok(())
                 }
@@ -191,7 +191,7 @@ impl HtmlMsgParser {
                         return Ok(());
                     }
                     let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
-                    self.cid_to_data_recursive(context, &mail).await
+                    self.cid_to_data_recursive(&mail).await
                 }
                 MimeMultipartType::Single => {
                     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
@@ -214,10 +214,8 @@ impl HtmlMsgParser {
                                                 .to_string()
                                         }
                                         Err(e) => warn!(
-                                            context,
                                             "Cannot create regex for cid: {} throws {}",
-                                            re_string,
-                                            e
+                                            re_string, e
                                         ),
                                     }
                                 }
@@ -249,15 +247,15 @@ impl MsgId {
         let rawmime = message::get_mime_headers(context, self).await?;
 
         if !rawmime.is_empty() {
-            match HtmlMsgParser::from_bytes(context, &rawmime).await {
+            match HtmlMsgParser::from_bytes(&rawmime).await {
                 Err(err) => {
-                    warn!(context, "get_html: parser error: {:#}", err);
+                    warn!("get_html: parser error: {:#}", err);
                     Ok(None)
                 }
                 Ok(parser) => Ok(Some(parser.html)),
             }
         } else {
-            warn!(context, "get_html: no mime for {}", self);
+            warn!("get_html: no mime for {}", self);
             Ok(None)
         }
     }
@@ -286,9 +284,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_plain_unspecified() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
@@ -305,9 +302,8 @@ This message does not have Content-Type nor Subject.<br/>
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_plain_iso88591() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_iso88591.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
@@ -324,9 +320,8 @@ message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_plain_flowed() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_plain_flowed.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert!(parser.plain.unwrap().flowed);
         assert_eq!(
             parser.html,
@@ -347,9 +342,8 @@ and will be wrapped as usual.<br/>
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_alt_plain() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
@@ -369,9 +363,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_html() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
 
         // on windows, `\r\n` linends are returned from mimeparser,
         // however, rust multiline-strings use just `\n`;
@@ -387,9 +380,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_alt_html() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert_eq!(
             parser.html.replace('\r', ""), // see comment in test_htmlparse_html()
             r##"<html>
@@ -402,9 +394,8 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_htmlparse_alt_plain_html() {
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert_eq!(
             parser.html.replace('\r', ""), // see comment in test_htmlparse_html()
             r##"<html>
@@ -421,7 +412,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     async fn test_htmlparse_apple_cid_jpg() {
         // load raw mime html-data with related image-part (cid:)
         // and make sure, Content-Id has angle-brackets that are removed correctly.
-        let t = TestContext::new().await;
         let raw = include_bytes!("../test-data/message/apple_cid_jpg.eml");
         let test = String::from_utf8_lossy(raw);
         assert!(test.contains("Content-Id: <8AE052EF-BC90-486F-BB78-58D3590308EC@fritz.box>"));
@@ -429,7 +419,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert!(test.find("data:").is_none());
 
         // parsing converts cid: to data:
-        let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
+        let parser = HtmlMsgParser::from_bytes(raw).await.unwrap();
         assert!(parser.html.contains("<html>"));
         assert!(!parser.html.contains("Content-Id:"));
         assert!(parser.html.contains("data:image/jpeg;base64,/9j/4AAQ"));

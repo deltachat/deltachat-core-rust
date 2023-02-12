@@ -16,6 +16,7 @@ use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
 use futures::StreamExt;
 use num_traits::FromPrimitive;
+use tracing::{error, info, warn};
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
@@ -306,7 +307,7 @@ impl Imap {
 
         let oauth2 = self.config.lp.oauth2;
 
-        info!(context, "Connecting to IMAP server");
+        info!("Connecting to IMAP server");
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
@@ -363,7 +364,7 @@ impl Imap {
         let imap_pw: &str = config.lp.password.as_ref();
 
         let login_res = if oauth2 {
-            info!(context, "Logging into IMAP server with OAuth 2");
+            info!("Logging into IMAP server with OAuth 2");
             let addr: &str = config.addr.as_ref();
 
             let token = get_oauth2_access_token(context, addr, imap_pw, true)
@@ -375,7 +376,7 @@ impl Imap {
             };
             client.authenticate("XOAUTH2", auth).await
         } else {
-            info!(context, "Logging into IMAP server with LOGIN");
+            info!("Logging into IMAP server with LOGIN");
             client.login(imap_user, imap_pw).await
         };
 
@@ -391,7 +392,7 @@ impl Imap {
                     "IMAP-LOGIN as {}",
                     self.config.lp.user
                 )));
-                info!(context, "Successfully logged into IMAP server");
+                info!("Successfully logged into IMAP server");
                 Ok(())
             }
 
@@ -399,7 +400,7 @@ impl Imap {
                 let imap_user = self.config.lp.user.to_owned();
                 let message = stock_str::cannot_login(context, &imap_user).await;
 
-                warn!(context, "{} ({:#})", message, err);
+                warn!("{} ({:#})", message, err);
 
                 let lock = context.wrong_pw_warning_mutex.lock().await;
                 if self.login_failed_once
@@ -407,7 +408,7 @@ impl Imap {
                     && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
                     if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
-                        warn!(context, "{:#}", e);
+                        warn!("{:#}", e);
                     }
                     drop(lock);
 
@@ -417,7 +418,7 @@ impl Imap {
                         chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
                             .await
                     {
-                        warn!(context, "{:#}", e);
+                        warn!("{:#}", e);
                     }
                 } else {
                     self.login_failed_once = true;
@@ -445,8 +446,8 @@ impl Imap {
     /// Drops the session without disconnecting properly.
     /// Useful in case of an IMAP error, when it's unclear if it's in a correct state and it's
     /// easier to setup a new connection.
-    pub fn trigger_reconnect(&mut self, context: &Context) {
-        info!(context, "Dropping an IMAP connection.");
+    pub fn trigger_reconnect(&mut self) {
+        info!("Dropping an IMAP connection.");
         self.session = None;
     }
 
@@ -510,7 +511,7 @@ impl Imap {
             .as_mut()
             .context("IMAP No connection established")?;
 
-        session.select_folder(context, Some(folder)).await?;
+        session.select_folder(Some(folder)).await?;
 
         let mut list = session
             .uid_fetch("1:*", RFC724MID_UID)
@@ -521,7 +522,7 @@ impl Imap {
             let headers = match get_fetch_headers(&fetch) {
                 Ok(headers) => headers,
                 Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    warn!("Failed to parse FETCH headers: {}", err);
                     continue;
                 }
             };
@@ -539,7 +540,6 @@ impl Imap {
         }
 
         info!(
-            context,
             "Resync: collected {} message IDs in folder {}",
             msgs.len(),
             folder,
@@ -582,7 +582,7 @@ impl Imap {
     ) -> Result<bool> {
         let session = self.session.as_mut().context("no session")?;
         let newly_selected = session
-            .select_or_create_folder(context, folder)
+            .select_or_create_folder(folder)
             .await
             .with_context(|| format!("failed to select or create folder {folder}"))?;
         let mailbox = session
@@ -611,7 +611,6 @@ impl Imap {
             } else if let Some(uid_next) = mailbox.uid_next {
                 if uid_next < old_uid_next {
                     warn!(
-                        context,
                         "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...", 
                         folder, old_uid_next, uid_next, new_uid_validity,
                     );
@@ -629,7 +628,7 @@ impl Imap {
         set_modseq(context, folder, 0).await?;
 
         if mailbox.exists == 0 {
-            info!(context, "Folder \"{}\" is empty.", folder);
+            info!("Folder \"{}\" is empty.", folder);
 
             // set uid_next=1 for empty folders.
             // If we do not do this here, we'll miss the first message
@@ -645,10 +644,7 @@ impl Imap {
         let new_uid_next = match mailbox.uid_next {
             Some(uid_next) => uid_next,
             None => {
-                warn!(
-                    context,
-                    "IMAP folder has no uid_next, fall back to fetching"
-                );
+                warn!("IMAP folder has no uid_next, fall back to fetching");
                 // note that we use fetch by sequence number
                 // and thus we only need to get exactly the
                 // last-index message.
@@ -685,13 +681,8 @@ impl Imap {
             job::schedule_resync(context).await?;
         }
         info!(
-            context,
             "uid/validity change folder {}: new {}/{} previous {}/{}",
-            folder,
-            new_uid_next,
-            new_uid_validity,
-            old_uid_next,
-            old_uid_validity,
+            folder, new_uid_next, new_uid_validity, old_uid_next, old_uid_validity,
         );
         Ok(false)
     }
@@ -707,7 +698,7 @@ impl Imap {
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
         if should_ignore_folder(context, folder, folder_meaning).await? {
-            info!(context, "Not fetching from {}", folder);
+            info!("Not fetching from {}", folder);
             return Ok(false);
         }
 
@@ -717,7 +708,7 @@ impl Imap {
             .with_context(|| format!("failed to select folder {folder}"))?;
 
         if !new_emails && !fetch_existing_msgs {
-            info!(context, "No new emails in folder {}", folder);
+            info!("No new emails in folder {}", folder);
             return Ok(false);
         }
 
@@ -743,7 +734,7 @@ impl Imap {
             let headers = match get_fetch_headers(fetch_response) {
                 Ok(headers) => headers,
                 Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    warn!("Failed to parse FETCH headers: {}", err);
                     continue;
                 }
             };
@@ -843,7 +834,7 @@ impl Imap {
             set_uid_next(context, folder, new_uid_next).await?;
         }
 
-        info!(context, "{} mails read from \"{}\".", read_cnt, folder);
+        info!("{} mails read from \"{}\".", read_cnt, folder);
 
         let msg_ids: Vec<MsgId> = received_msgs
             .iter()
@@ -890,10 +881,7 @@ impl Imap {
                     None => continue,
                 };
                 if let Some(folder) = context.get_config(config).await? {
-                    info!(
-                        context,
-                        "Fetching existing messages from folder \"{}\"", folder
-                    );
+                    info!("Fetching existing messages from folder \"{}\"", folder);
                     self.fetch_new_messages(context, &folder, meaning, true)
                         .await
                         .context("could not fetch existing messages")?;
@@ -901,7 +889,7 @@ impl Imap {
             }
         }
 
-        info!(context, "Done fetching existing messages.");
+        info!("Done fetching existing messages.");
         Ok(())
     }
 
@@ -986,21 +974,15 @@ impl Session {
                 Err(err) => {
                     if context.should_delete_to_trash().await? {
                         error!(
-                            context,
                             "Cannot move messages {} to {}, no fallback to COPY/DELETE because \
                             delete_to_trash is set. Error: {:#}",
-                            set,
-                            target,
-                            err,
+                            set, target, err,
                         );
                         return Err(err.into());
                     }
                     warn!(
-                        context,
                         "Cannot move messages, fallback to COPY/DELETE {} to {}: {}",
-                        set,
-                        target,
-                        err
+                        set, target, err
                     );
                 }
             }
@@ -1011,14 +993,14 @@ impl Session {
         let copy = !context.is_trash(target).await?;
         if copy {
             info!(
-                context,
-                "Server does not support MOVE, fallback to COPY/DELETE {} to {}", set, target
+                "Server does not support MOVE, fallback to COPY/DELETE {} to {}",
+                set, target
             );
             self.uid_copy(&set, &target).await?;
         } else {
             error!(
-                context,
-                "Server does not support MOVE, fallback to DELETE {} to {}", set, target,
+                "Server does not support MOVE, fallback to DELETE {} to {}",
+                set, target,
             );
         }
         context
@@ -1067,7 +1049,7 @@ impl Session {
             // MOVE/DELETE operations. This does not result in multiple SELECT commands
             // being sent because `select_folder()` does nothing if the folder is already
             // selected.
-            self.select_folder(context, Some(folder)).await?;
+            self.select_folder(Some(folder)).await?;
 
             // Empty target folder name means messages should be deleted.
             if target.is_empty() {
@@ -1088,8 +1070,8 @@ impl Session {
 
         // Expunge folder if needed, e.g. if some jobs have
         // deleted messages on the server.
-        if let Err(err) = self.maybe_close_folder(context).await {
-            warn!(context, "failed to close folder: {:?}", err);
+        if let Err(err) = self.maybe_close_folder().await {
+            warn!("failed to close folder: {:?}", err);
         }
 
         Ok(())
@@ -1115,23 +1097,17 @@ impl Session {
             .await?;
 
         for (folder, rowid_set, uid_set) in UidGrouper::from(rows) {
-            self.select_folder(context, Some(&folder))
+            self.select_folder(Some(&folder))
                 .await
                 .context("failed to select folder")?;
 
             if let Err(err) = self.add_flag_finalized_with_set(&uid_set, "\\Seen").await {
                 warn!(
-                    context,
                     "Cannot mark messages {} in folder {} as seen, will retry later: {}.",
-                    uid_set,
-                    folder,
-                    err
+                    uid_set, folder, err
                 );
             } else {
-                info!(
-                    context,
-                    "Marked messages {} in folder {} as seen.", uid_set, folder
-                );
+                info!("Marked messages {} in folder {} as seen.", uid_set, folder);
                 context
                     .sql
                     .execute(
@@ -1159,15 +1135,12 @@ impl Imap {
             .with_context(|| format!("No IMAP connection established, folder: {folder}"))?;
 
         if !session.can_condstore() {
-            info!(
-                context,
-                "Server does not support CONDSTORE, skipping flag synchronization."
-            );
+            info!("Server does not support CONDSTORE, skipping flag synchronization.");
             return Ok(());
         }
 
         session
-            .select_folder(context, Some(folder))
+            .select_folder(Some(folder))
             .await
             .context("failed to select folder")?;
 
@@ -1180,8 +1153,8 @@ impl Imap {
         // We are not interested in actual value of HIGHESTMODSEQ.
         if mailbox.highest_modseq.is_none() {
             info!(
-                context,
-                "Mailbox {} does not support mod-sequences, skipping flag synchronization.", folder
+                "Mailbox {} does not support mod-sequences, skipping flag synchronization.",
+                folder
             );
             return Ok(());
         }
@@ -1203,7 +1176,7 @@ impl Imap {
             let uid = if let Some(uid) = fetch.uid {
                 uid
             } else {
-                info!(context, "FETCH result contains no UID, skipping");
+                info!("FETCH result contains no UID, skipping");
                 continue;
             };
             let is_seen = fetch.flags().any(|flag| flag == Flag::Seen);
@@ -1223,7 +1196,7 @@ impl Imap {
                     highest_modseq = modseq;
                 }
             } else {
-                warn!(context, "FETCH result contains no MODSEQ");
+                warn!("FETCH result contains no MODSEQ");
             }
         }
 
@@ -1269,7 +1242,7 @@ impl Imap {
                         }
                     }
                     Err(err) => {
-                        warn!(context, "{}", err);
+                        warn!("{}", err);
                         continue;
                     }
                 };
@@ -1366,7 +1339,6 @@ impl Imap {
         let session = self.session.as_mut().context("no IMAP session")?;
         for (request_uids, set) in build_sequence_sets(&request_uids)? {
             info!(
-                context,
                 "Starting a {} FETCH of message set \"{}\".",
                 if fetch_partially { "partial" } else { "full" },
                 set
@@ -1407,7 +1379,7 @@ impl Imap {
                     let next_fetch_response = match next_fetch_response {
                         Ok(next_fetch_response) => next_fetch_response,
                         Err(err) => {
-                            warn!(context, "Failed to process IMAP FETCH result: {}.", err);
+                            warn!("Failed to process IMAP FETCH result: {}.", err);
                             continue;
                         }
                     };
@@ -1423,24 +1395,21 @@ impl Imap {
                             // another client changes \Seen flag on a message after we do a prefetch but
                             // before fetch. It's not an error if we receive such unsolicited response.
                             info!(
-                                context,
-                                "Skipping not requested FETCH response for UID {}.", next_uid
+                                "Skipping not requested FETCH response for UID {}.",
+                                next_uid
                             );
                         } else if uid_msgs.insert(next_uid, next_fetch_response).is_some() {
-                            warn!(context, "Got duplicated UID {}.", next_uid);
+                            warn!("Got duplicated UID {}.", next_uid);
                         }
                     } else {
-                        info!(context, "Skipping FETCH response without UID.");
+                        info!("Skipping FETCH response without UID.");
                     }
                 }
 
                 let fetch_response = match fetch_response {
                     Some(fetch) => fetch,
                     None => {
-                        warn!(
-                            context,
-                            "Missed UID {} in the server response.", request_uid
-                        );
+                        warn!("Missed UID {} in the server response.", request_uid);
                         continue;
                     }
                 };
@@ -1454,7 +1423,7 @@ impl Imap {
                 };
 
                 if is_deleted {
-                    info!(context, "Not processing deleted msg {}.", request_uid);
+                    info!("Not processing deleted msg {}.", request_uid);
                     last_uid = Some(request_uid);
                     continue;
                 }
@@ -1462,10 +1431,7 @@ impl Imap {
                 let body = if let Some(body) = body {
                     body
                 } else {
-                    info!(
-                        context,
-                        "Not processing message {} without a BODY.", request_uid
-                    );
+                    info!("Not processing message {} without a BODY.", request_uid);
                     last_uid = Some(request_uid);
                     continue;
                 };
@@ -1476,17 +1442,13 @@ impl Imap {
                     rfc724_mid
                 } else {
                     error!(
-                        context,
                         "No Message-ID corresponding to UID {} passed in uid_messsage_ids.",
                         request_uid
                     );
                     continue;
                 };
 
-                info!(
-                    context,
-                    "Passing message UID {} to receive_imf().", request_uid
-                );
+                info!("Passing message UID {} to receive_imf().", request_uid);
                 match receive_imf_inner(
                     context,
                     rfc724_mid,
@@ -1503,7 +1465,7 @@ impl Imap {
                         }
                     }
                     Err(err) => {
-                        warn!(context, "receive_imf error: {:#}.", err);
+                        warn!("receive_imf error: {:#}.", err);
                     }
                 };
                 last_uid = Some(request_uid)
@@ -1515,18 +1477,13 @@ impl Imap {
 
             if count != request_uids.len() {
                 warn!(
-                    context,
                     "Failed to fetch all UIDs: got {}, requested {}, we requested the UIDs {:?}.",
                     count,
                     request_uids.len(),
                     request_uids,
                 );
             } else {
-                info!(
-                    context,
-                    "Successfully received {} UIDs.",
-                    request_uids.len()
-                );
+                info!("Successfully received {} UIDs.", request_uids.len());
             }
         }
 
@@ -1567,7 +1524,7 @@ impl Imap {
             return Some(ImapActionResult::RetryLater);
         }
         if let Err(err) = self.prepare(context).await {
-            warn!(context, "prepare_imap_op failed: {}", err);
+            warn!("prepare_imap_op failed: {}", err);
             return Some(ImapActionResult::RetryLater);
         }
 
@@ -1577,24 +1534,24 @@ impl Imap {
             .context("no IMAP connection established")
         {
             Err(err) => {
-                error!(context, "Failed to prepare IMAP operation: {:#}", err);
+                error!("Failed to prepare IMAP operation: {:#}", err);
                 return Some(ImapActionResult::Failed);
             }
             Ok(session) => session,
         };
 
-        match session.select_folder(context, Some(folder)).await {
+        match session.select_folder(Some(folder)).await {
             Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
-                warn!(context, "Lost imap connection");
+                warn!("Lost imap connection");
                 Some(ImapActionResult::RetryLater)
             }
             Err(select_folder::Error::BadFolderName(folder_name)) => {
-                warn!(context, "invalid folder name: {:?}", folder_name);
+                warn!("invalid folder name: {:?}", folder_name);
                 Some(ImapActionResult::Failed)
             }
             Err(err) => {
-                warn!(context, "failed to select folder {:?}: {:#}", folder, err);
+                warn!("failed to select folder {:?}: {:#}", folder, err);
                 Some(ImapActionResult::RetryLater)
             }
         }
@@ -1623,7 +1580,6 @@ impl Imap {
     /// Returns first found or created folder name.
     async fn configure_mvbox<'a>(
         &mut self,
-        context: &Context,
         folders: &[&'a str],
         create_mvbox: bool,
     ) -> Result<Option<&'a str>> {
@@ -1634,15 +1590,15 @@ impl Imap {
 
         // Close currently selected folder if needed.
         // We are going to select folders using low-level EXAMINE operations below.
-        session.select_folder(context, None).await?;
+        session.select_folder(None).await?;
 
         for folder in folders {
-            info!(context, "Looking for MVBOX-folder \"{}\"...", &folder);
+            info!("Looking for MVBOX-folder \"{}\"...", &folder);
             let res = session.examine(&folder).await;
             if res.is_ok() {
                 info!(
-                    context,
-                    "MVBOX-folder {:?} successfully selected, using it.", &folder
+                    "MVBOX-folder {:?} successfully selected, using it.",
+                    &folder
                 );
                 session.close().await?;
                 return Ok(Some(folder));
@@ -1653,11 +1609,11 @@ impl Imap {
             for folder in folders {
                 match session.create(&folder).await {
                     Ok(_) => {
-                        info!(context, "MVBOX-folder {} created.", &folder);
+                        info!("MVBOX-folder {} created.", &folder);
                         return Ok(Some(folder));
                     }
                     Err(err) => {
-                        warn!(context, "Cannot create MVBOX-folder {:?}: {}", &folder, err);
+                        warn!("Cannot create MVBOX-folder {:?}: {}", &folder, err);
                     }
                 }
             }
@@ -1682,7 +1638,7 @@ impl Imap {
 
         while let Some(folder) = folders.next().await {
             let folder = folder?;
-            info!(context, "Scanning folder: {:?}", folder);
+            info!("Scanning folder: {:?}", folder);
 
             // Update the delimiter iff there is a different one, but only once.
             if let Some(d) = folder.delimiter() {
@@ -1706,11 +1662,11 @@ impl Imap {
         }
         drop(folders);
 
-        info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
+        info!("Using \"{}\" as folder-delimiter.", delimiter);
 
         let fallback_folder = format!("INBOX{delimiter}DeltaChat");
         let mvbox_folder = self
-            .configure_mvbox(context, &["DeltaChat", &fallback_folder], create_mvbox)
+            .configure_mvbox(&["DeltaChat", &fallback_folder], create_mvbox)
             .await
             .context("failed to configure mvbox")?;
 
@@ -1718,7 +1674,7 @@ impl Imap {
             .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
             .await?;
         if let Some(mvbox_folder) = mvbox_folder {
-            info!(context, "Setting MVBOX FOLDER TO {}", &mvbox_folder);
+            info!("Setting MVBOX FOLDER TO {}", &mvbox_folder);
             context
                 .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                 .await?;
@@ -1731,7 +1687,7 @@ impl Imap {
             .set_raw_config_int("folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
             .await?;
 
-        info!(context, "FINISHED configuring IMAP-folders.");
+        info!("FINISHED configuring IMAP-folders.");
         Ok(())
     }
 }
@@ -1741,18 +1697,15 @@ impl Session {
     /// Drains all responses from `session.unsolicited_responses` in the process.
     /// If this returns `true`, this means that new emails arrived and you should
     /// fetch again, even if you just fetched.
-    fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
+    fn server_sent_unsolicited_exists(&self) -> Result<bool> {
         let mut unsolicited_exists = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
             match response {
                 UnsolicitedResponse::Exists(_) => {
-                    info!(
-                        context,
-                        "Need to fetch again, got unsolicited EXISTS {:?}", response
-                    );
+                    info!("Need to fetch again, got unsolicited EXISTS {:?}", response);
                     unsolicited_exists = true;
                 }
-                _ => info!(context, "ignoring unsolicited response {:?}", response),
+                _ => info!("ignoring unsolicited response {:?}", response),
             }
         }
         Ok(unsolicited_exists)
@@ -1796,8 +1749,8 @@ async fn should_move_out_of_spam(
                 Some(res) => res,
                 None => {
                     warn!(
-                        context,
-                        "Contact with From address {:?} cannot exist, not moving out of spam", from
+                        "Contact with From address {:?} cannot exist, not moving out of spam",
+                        from
                     );
                     return Ok(false);
                 }
@@ -2120,7 +2073,7 @@ pub(crate) async fn prefetch_should_download(
     // (prevent_rename is the last argument of from_field_to_contact_id())
 
     if flags.any(|f| f == Flag::Draft) {
-        info!(context, "Ignoring draft message");
+        info!("Ignoring draft message");
         return Ok(false);
     }
 
@@ -2425,8 +2378,8 @@ async fn add_all_recipients_as_contacts(
         m
     } else {
         info!(
-            context,
-            "Folder {} is not configured, skipping fetching contacts from it.", folder
+            "Folder {} is not configured, skipping fetching contacts from it.",
+            folder
         );
         return Ok(());
     };
@@ -2450,10 +2403,8 @@ async fn add_all_recipients_as_contacts(
         let recipient_addr = match ContactAddress::new(&recipient.addr) {
             Err(err) => {
                 warn!(
-                    context,
                     "Could not add contact for recipient with address {:?}: {:#}",
-                    recipient.addr,
-                    err
+                    recipient.addr, err
                 );
                 continue;
             }

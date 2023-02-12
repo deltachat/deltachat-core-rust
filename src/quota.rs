@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
+use tracing::warn;
 
 use crate::chat::add_device_msg_with_importance;
 use crate::config::Config;
@@ -134,7 +135,7 @@ impl Context {
     /// Called in response to `Action::UpdateRecentQuota`.
     pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<()> {
         if let Err(err) = imap.prepare(self).await {
-            warn!(self, "could not connect: {:#}", err);
+            warn!("could not connect: {err:#}");
             return Ok(());
         }
 
@@ -162,7 +163,7 @@ impl Context {
                         self.set_config(Config::QuotaExceeding, None).await?;
                     }
                 }
-                Err(err) => warn!(self, "cannot get highest quota usage: {:#}", err),
+                Err(err) => warn!("cannot get highest quota usage: {:#}", err),
             }
         }
 

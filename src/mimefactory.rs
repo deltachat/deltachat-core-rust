@@ -8,6 +8,7 @@ use chrono::TimeZone;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
+use tracing::{info, warn};
 
 use crate::blob::BlobObject;
 use crate::chat::Chat;
@@ -651,8 +652,7 @@ impl<'a> MimeFactory<'a> {
         };
 
         let peerstates = self.peerstates_for_recipients(context).await?;
-        let should_encrypt =
-            encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
+        let should_encrypt = encrypt_helper.should_encrypt(e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
 
         let message = if parts.is_empty() {
@@ -730,7 +730,6 @@ impl<'a> MimeFactory<'a> {
 
             if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
                 info!(
-                    context,
                     "mimefactory: unencrypted message mime-body:\n{}",
                     message.clone().build().as_string(),
                 );
@@ -819,7 +818,6 @@ impl<'a> MimeFactory<'a> {
 
         if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
             info!(
-                context,
                 "mimefactory: outgoing message mime-body:\n{}",
                 outer_message.clone().build().as_string(),
             );
@@ -940,7 +938,6 @@ impl<'a> MimeFactory<'a> {
                         & DC_FROM_HANDSHAKE
                     {
                         info!(
-                            context,
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                             "vg-member-added",
                         );
@@ -1025,8 +1022,8 @@ impl<'a> MimeFactory<'a> {
                 let step = msg.param.get(Param::Arg).unwrap_or_default();
                 if !step.is_empty() {
                     info!(
-                        context,
-                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                        step,
                     );
                     headers
                         .protected
@@ -1074,7 +1071,7 @@ impl<'a> MimeFactory<'a> {
         }
 
         if let Some(grpimage) = grpimage {
-            info!(context, "setting group image '{}'", grpimage);
+            info!("setting group image '{}'", grpimage);
             let mut meta = Message {
                 viewtype: Viewtype::Image,
                 ..Default::default()
@@ -1234,7 +1231,7 @@ impl<'a> MimeFactory<'a> {
             match self.get_location_kml_part(context).await {
                 Ok(part) => parts.push(part),
                 Err(err) => {
-                    warn!(context, "mimefactory: could not send location: {}", err);
+                    warn!("mimefactory: could not send location: {}", err);
                 }
             }
         }
@@ -1265,7 +1262,7 @@ impl<'a> MimeFactory<'a> {
                         "Chat-User-Avatar".into(),
                         format!("base64:{avatar}"),
                     )),
-                    Err(err) => warn!(context, "mimefactory: cannot attach selfavatar: {}", err),
+                    Err(err) => warn!("mimefactory: cannot attach selfavatar: {}", err),
                 },
                 None => headers
                     .protected

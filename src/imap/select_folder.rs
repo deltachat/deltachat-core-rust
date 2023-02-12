@@ -1,9 +1,9 @@
 //! # IMAP folder selection module.
 
 use anyhow::Context as _;
+use tracing::info;
 
 use super::session::Session as ImapSession;
-use crate::context::Context;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -34,13 +34,13 @@ impl ImapSession {
     ///
     /// CLOSE is considerably faster than an EXPUNGE, see
     /// <https://tools.ietf.org/html/rfc3501#section-6.4.2>
-    pub(super) async fn maybe_close_folder(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub(super) async fn maybe_close_folder(&mut self) -> anyhow::Result<()> {
         if let Some(folder) = &self.selected_folder {
             if self.selected_folder_needs_expunge {
-                info!(context, "Expunge messages in \"{}\".", folder);
+                info!("Expunge messages in \"{}\".", folder);
 
                 self.close().await.context("IMAP close/expunge failed")?;
-                info!(context, "close/expunge succeeded");
+                info!("close/expunge succeeded");
                 self.selected_folder = None;
                 self.selected_folder_needs_expunge = false;
             }
@@ -51,11 +51,7 @@ impl ImapSession {
     /// Selects a folder, possibly updating uid_validity and, if needed,
     /// expunging the folder to remove delete-marked messages.
     /// Returns whether a new folder was selected.
-    pub(super) async fn select_folder(
-        &mut self,
-        context: &Context,
-        folder: Option<&str>,
-    ) -> Result<NewlySelected> {
+    pub(super) async fn select_folder(&mut self, folder: Option<&str>) -> Result<NewlySelected> {
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
         if let Some(folder) = folder {
@@ -67,7 +63,7 @@ impl ImapSession {
         }
 
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
-        self.maybe_close_folder(context).await?;
+        self.maybe_close_folder().await?;
 
         // select new folder
         if let Some(folder) = folder {
@@ -104,19 +100,18 @@ impl ImapSession {
     /// Selects a folder. Tries to create it once and select again if the folder does not exist.
     pub(super) async fn select_or_create_folder(
         &mut self,
-        context: &Context,
         folder: &str,
     ) -> anyhow::Result<NewlySelected> {
-        match self.select_folder(context, Some(folder)).await {
+        match self.select_folder( Some(folder)).await {
             Ok(newly_selected) => Ok(newly_selected),
             Err(err) => match err {
                 Error::NoFolder(..) => {
-                    info!(context, "Failed to select folder {} because it does not exist, trying to create it.", folder);
+                    info!( "Failed to select folder {} because it does not exist, trying to create it.", folder);
                     self.create(folder).await.with_context(|| {
                         format!("Couldn't select folder ('{err}'), then create() failed")
                     })?;
 
-                    Ok(self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"))?)
+                    Ok(self.select_folder(Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"))?)
                 }
                 _ => Err(err).with_context(|| format!("failed to select folder {folder} with error other than NO, not trying to create it")),
             },

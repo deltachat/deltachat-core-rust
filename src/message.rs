@@ -7,6 +7,7 @@ use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
+use tracing::{error, info, warn};
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
@@ -337,7 +338,6 @@ impl Message {
                                 Ok(t) => t,
                                 Err(_) => {
                                     warn!(
-                                        context,
                                         concat!(
                                             "dc_msg_load_from_db: could not get ",
                                             "text column as non-lossy utf8 id {}"
@@ -1511,7 +1511,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
             && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
         {
             update_msg_state(context, id, MessageState::InSeen).await?;
-            info!(context, "Seen message {}.", id);
+            info!("Seen message {}.", id);
 
             markseen_on_imap_table(context, &curr_rfc724_mid).await?;
 
@@ -1595,11 +1595,11 @@ pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
         if msg.state.can_fail() {
             msg.state = MessageState::OutFailed;
-            warn!(context, "{} failed: {}", msg_id, error);
+            warn!("{} failed: {}", msg_id, error);
         } else {
             warn!(
-                context,
-                "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
+                "{} seems to have failed ({}), but state is {}",
+                msg_id, error, msg.state
             )
         }
 
@@ -1616,7 +1616,7 @@ pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str
                 msg_id,
             }),
             Err(e) => {
-                warn!(context, "{:?}", e);
+                warn!("{:?}", e);
             }
         }
     }
@@ -1630,10 +1630,7 @@ pub async fn handle_mdn(
     timestamp_sent: i64,
 ) -> Result<Option<(ChatId, MsgId)>> {
     if from_id == ContactId::SELF {
-        warn!(
-            context,
-            "ignoring MDN sent to self, this is a bug on the sender device"
-        );
+        warn!("ignoring MDN sent to self, this is a bug on the sender device");
 
         // This is not an error on our side,
         // we successfully ignored an invalid MDN and return `Ok`.
@@ -1667,7 +1664,6 @@ pub async fn handle_mdn(
         res
     } else {
         info!(
-            context,
             "handle_mdn found no message with Message-ID {:?} sent by us in the database",
             rfc724_mid
         );
@@ -1785,7 +1781,7 @@ async fn ndn_maybe_add_info_msg(
         Chattype::Mailinglist => {
             // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
             // If we get an NDN for the mailing list, just issue a warning.
-            warn!(context, "ignoring NDN for mailing list.");
+            warn!("ignoring NDN for mailing list.");
         }
         Chattype::Single | Chattype::Undefined => {}
     }
@@ -1806,7 +1802,7 @@ pub async fn get_unblocked_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "get_unblocked_msg_cnt() failed. {:#}", err);
+            error!("get_unblocked_msg_cnt() failed. {:#}", err);
             0
         }
     }
@@ -1826,7 +1822,7 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
     {
         Ok(res) => res,
         Err(err) => {
-            error!(context, "get_request_msg_cnt() failed. {:#}", err);
+            error!("get_request_msg_cnt() failed. {:#}", err);
             0
         }
     }
@@ -1897,7 +1893,7 @@ pub(crate) async fn rfc724_mid_exists(
 ) -> Result<Option<MsgId>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
-        warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
+        warn!("Empty rfc724_mid passed to rfc724_mid_exists");
         return Ok(None);
     }
 

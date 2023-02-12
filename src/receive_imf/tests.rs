@@ -1,4 +1,6 @@
 use tokio::fs;
+use tracing_futures::WithSubscriber;
+use tracing_subscriber::{prelude::*, registry::Registry};
 
 use super::*;
 use crate::aheader::EncryptPreference;
@@ -1340,8 +1342,12 @@ async fn test_apply_mailinglist_changes_assigned_by_reply() {
     let chat = Chat::load_from_db(&t, chat_id).await.unwrap();
     assert!(chat.can_send(&t).await.unwrap());
 
+    let subscriber = Registry::default().with(t.to_layer());
     let imf_raw = format!("In-Reply-To: 3333@example.org\n{GH_MAILINGLIST2}");
-    receive_imf(&t, imf_raw.as_bytes(), false).await.unwrap();
+    receive_imf(&t, imf_raw.as_bytes(), false)
+        .with_subscriber(subscriber)
+        .await
+        .unwrap();
 
     assert_eq!(
         t.get_last_msg().await.in_reply_to.unwrap(),

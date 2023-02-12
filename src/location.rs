@@ -8,6 +8,7 @@ use async_channel::Receiver;
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 use tokio::time::timeout;
+use tracing::{info, warn};
 
 use crate::chat::{self, ChatId};
 use crate::contact::ContactId;
@@ -337,9 +338,9 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                         ContactId::SELF,
                     ]
             ).await {
-                warn!(context, "failed to store location {:#}", err);
+                warn!( "failed to store location {:#}", err);
             } else {
-                info!(context, "stored location for chat {}", chat_id);
+                info!("stored location for chat {}", chat_id);
                 continue_streaming = true;
             }
         }
@@ -639,7 +640,7 @@ pub(crate) async fn location_loop(context: &Context, interrupt_receiver: Receive
     loop {
         let next_event = match maybe_send_locations(context).await {
             Err(err) => {
-                warn!(context, "maybe_send_locations failed: {:#}", err);
+                warn!("maybe_send_locations failed: {:#}", err);
                 Some(60) // Retry one minute later.
             }
             Ok(next_event) => next_event,
@@ -652,7 +653,6 @@ pub(crate) async fn location_loop(context: &Context, interrupt_receiver: Receive
         };
 
         info!(
-            context,
             "Location loop is waiting for {} or interrupt",
             duration_to_str(duration)
         );
@@ -719,10 +719,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
                     // Send location-only message.
                     // Pending locations are attached automatically to every message,
                     // so also to this empty text message.
-                    info!(
-                        context,
-                        "Chat {} has pending locations, sending them.", chat_id
-                    );
+                    info!("Chat {} has pending locations, sending them.", chat_id);
                     let mut msg = Message::new(Viewtype::Text);
                     msg.hidden = true;
                     msg.param.set_cmd(SystemMessage::LocationOnly);
@@ -730,8 +727,8 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
                 } else {
                     // Wait until pending locations can be sent.
                     info!(
-                        context,
-                        "Chat {} has pending locations, but they can't be sent yet.", chat_id
+                        "Chat {} has pending locations, but they can't be sent yet.",
+                        chat_id
                     );
                     next_event = next_event
                         .into_iter()
@@ -740,17 +737,14 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
                 }
             } else {
                 info!(
-                    context,
-                    "Chat {} has location streaming enabled, but no pending locations.", chat_id
+                    "Chat {} has location streaming enabled, but no pending locations.",
+                    chat_id
                 );
             }
         } else {
             // Location streaming was either explicitly disabled (locations_send_begin = 0) or
             // locations_send_until is in the past.
-            info!(
-                context,
-                "Disabling location streaming for chat {}.", chat_id
-            );
+            info!("Disabling location streaming for chat {}.", chat_id);
             context
                 .sql
                 .execute(

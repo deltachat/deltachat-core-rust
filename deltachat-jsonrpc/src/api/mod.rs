@@ -15,6 +15,7 @@ use deltachat::{
     config::Config,
     constants::DC_MSG_ID_DAYMARKER,
     contact::{may_be_valid_addr, Contact, ContactId, Origin},
+    context::future::ContextIdFutureExt,
     context::get_info,
     ephemeral::Timer,
     imex, location,
@@ -228,13 +229,13 @@ impl CommandApi {
 
     async fn start_io(&self, id: u32) -> Result<()> {
         let ctx = self.get_context(id).await?;
-        ctx.start_io().await;
+        ctx.start_io().bind_context_id(id).await;
         Ok(())
     }
 
     async fn stop_io(&self, id: u32) -> Result<()> {
         let ctx = self.get_context(id).await?;
-        ctx.stop_io().await;
+        ctx.stop_io().bind_context_id(id).await;
         Ok(())
     }
 
@@ -284,25 +285,27 @@ impl CommandApi {
             .await?;
 
         let provider_info =
-            get_provider_info(&ctx, email.split('@').last().unwrap_or(""), socks5_enabled).await;
+            get_provider_info(email.split('@').last().unwrap_or(""), socks5_enabled).await;
         Ok(ProviderInfo::from_dc_type(provider_info))
     }
 
     /// Checks if the context is already configured.
     async fn is_configured(&self, account_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
-        ctx.is_configured().await
+        ctx.is_configured().bind_context_id(account_id).await
     }
 
     /// Get system info for an account.
     async fn get_info(&self, account_id: u32) -> Result<BTreeMap<&'static str, String>> {
         let ctx = self.get_context(account_id).await?;
-        ctx.get_info().await
+        ctx.get_info().bind_context_id(account_id).await
     }
 
     async fn set_config(&self, account_id: u32, key: String, value: Option<String>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        set_config(&ctx, &key, value.as_deref()).await
+        set_config(&ctx, &key, value.as_deref())
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn batch_set_config(
@@ -313,6 +316,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         for (key, value) in config.into_iter() {
             set_config(&ctx, &key, value.as_deref())
+                .bind_context_id(account_id)
                 .await
                 .with_context(|| format!("Can't set {key} to {value:?}"))?;
         }
@@ -326,19 +330,23 @@ impl CommandApi {
     /// Internally, the function will call dc_set_config() with the appropriate keys,
     async fn set_config_from_qr(&self, account_id: u32, qr_content: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        qr::set_config_from_qr(&ctx, &qr_content).await
+        qr::set_config_from_qr(&ctx, &qr_content)
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn check_qr(&self, account_id: u32, qr_content: String) -> Result<QrObject> {
         let ctx = self.get_context(account_id).await?;
-        let qr = qr::check_qr(&ctx, &qr_content).await?;
+        let qr = qr::check_qr(&ctx, &qr_content)
+            .bind_context_id(account_id)
+            .await?;
         let qr_object = QrObject::from(qr);
         Ok(qr_object)
     }
 
     async fn get_config(&self, account_id: u32, key: String) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
-        get_config(&ctx, &key).await
+        get_config(&ctx, &key).bind_context_id(account_id).await
     }
 
     async fn batch_get_config(
@@ -349,7 +357,10 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let mut result: HashMap<String, Option<String>> = HashMap::new();
         for key in keys {
-            result.insert(key.clone(), get_config(&ctx, &key).await?);
+            result.insert(
+                key.clone(),
+                get_config(&ctx, &key).bind_context_id(account_id).await?,
+            );
         }
         Ok(result)
     }
@@ -370,22 +381,26 @@ impl CommandApi {
     /// Setup the credential config before calling this.
     async fn configure(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_io().await;
-        let result = ctx.configure().await;
-        if result.is_err() {
-            if let Ok(true) = ctx.is_configured().await {
-                ctx.start_io().await;
+        async {
+            ctx.stop_io().await;
+            let result = ctx.configure().await;
+            if result.is_err() {
+                if let Ok(true) = ctx.is_configured().await {
+                    ctx.start_io().await;
+                }
+                return result;
             }
-            return result;
+            ctx.start_io().await;
+            Ok(())
         }
-        ctx.start_io().await;
-        Ok(())
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Signal an ongoing process to stop.
     async fn stop_ongoing_process(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_ongoing().await;
+        ctx.stop_ongoing().bind_context_id(account_id).await;
         Ok(())
     }
 
@@ -402,6 +417,7 @@ impl CommandApi {
             path.as_ref(),
             passphrase,
         )
+        .bind_context_id(account_id)
         .await
     }
 
@@ -418,6 +434,7 @@ impl CommandApi {
             path.as_ref(),
             passphrase,
         )
+        .bind_context_id(account_id)
         .await
     }
 
@@ -436,6 +453,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         Ok(ctx
             .get_fresh_msgs()
+            .bind_context_id(account_id)
             .await?
             .iter()
             .map(|msg_id| msg_id.to_u32())
@@ -450,7 +468,10 @@ impl CommandApi {
     /// e.g. using "gray" instead of "red" color.
     async fn get_fresh_msg_cnt(&self, account_id: u32, chat_id: u32) -> Result<usize> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await
+        ChatId::new(chat_id)
+            .get_fresh_msg_cnt(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Estimate the number of messages that will be deleted
@@ -464,7 +485,9 @@ impl CommandApi {
         seconds: i64,
     ) -> Result<usize> {
         let ctx = self.get_context(account_id).await?;
-        message::estimate_deletion_cnt(&ctx, from_server, seconds).await
+        message::estimate_deletion_cnt(&ctx, from_server, seconds)
+            .bind_context_id(account_id)
+            .await
     }
 
     // ---------------------------------------------
@@ -473,7 +496,9 @@ impl CommandApi {
 
     async fn initiate_autocrypt_key_transfer(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        deltachat::imex::initiate_key_transfer(&ctx).await
+        deltachat::imex::initiate_key_transfer(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn continue_autocrypt_key_transfer(
@@ -483,7 +508,9 @@ impl CommandApi {
         setup_code: String,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        deltachat::imex::continue_key_transfer(&ctx, MsgId::new(message_id), &setup_code).await
+        deltachat::imex::continue_key_transfer(&ctx, MsgId::new(message_id), &setup_code)
+            .bind_context_id(account_id)
+            .await
     }
 
     // ---------------------------------------------
@@ -504,6 +531,7 @@ impl CommandApi {
             query_string.as_deref(),
             query_contact_id.map(ContactId::new),
         )
+        .bind_context_id(account_id)
         .await?;
         let mut l: Vec<ChatListEntry> = Vec::with_capacity(list.len());
         for i in 0..list.len() {
@@ -527,7 +555,10 @@ impl CommandApi {
         for entry in entries.iter() {
             result.insert(
                 entry.0,
-                match get_chat_list_item_by_id(&ctx, entry).await {
+                match get_chat_list_item_by_id(&ctx, entry)
+                    .bind_context_id(account_id)
+                    .await
+                {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
                         id: entry.0,
@@ -545,24 +576,34 @@ impl CommandApi {
 
     async fn get_full_chat_by_id(&self, account_id: u32, chat_id: u32) -> Result<FullChat> {
         let ctx = self.get_context(account_id).await?;
-        FullChat::try_from_dc_chat_id(&ctx, chat_id).await
+        FullChat::try_from_dc_chat_id(&ctx, chat_id)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// get basic info about a chat,
     /// use chatlist_get_full_chat_by_id() instead if you need more information
     async fn get_basic_chat_info(&self, account_id: u32, chat_id: u32) -> Result<BasicChat> {
         let ctx = self.get_context(account_id).await?;
-        BasicChat::try_from_dc_chat_id(&ctx, chat_id).await
+        BasicChat::try_from_dc_chat_id(&ctx, chat_id)
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn accept_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).accept(&ctx).await
+        ChatId::new(chat_id)
+            .accept(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn block_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).block(&ctx).await
+        ChatId::new(chat_id)
+            .block(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Delete a chat.
@@ -585,7 +626,10 @@ impl CommandApi {
     /// To leave a chat explicitly, use leave_group()
     async fn delete_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).delete(&ctx).await
+        ChatId::new(chat_id)
+            .delete(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Get encryption info for a chat.
@@ -595,7 +639,10 @@ impl CommandApi {
     /// returns Multi-line text
     async fn get_chat_encryption_info(&self, account_id: u32, chat_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).get_encryption_info(&ctx).await
+        ChatId::new(chat_id)
+            .get_encryption_info(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Get QR code (text and SVG) that will offer an Setup-Contact or Verified-Group invitation.
@@ -621,10 +668,14 @@ impl CommandApi {
     ) -> Result<(String, String)> {
         let ctx = self.get_context(account_id).await?;
         let chat = chat_id.map(ChatId::new);
-        Ok((
-            securejoin::get_securejoin_qr(&ctx, chat).await?,
-            get_securejoin_qr_svg(&ctx, chat).await?,
-        ))
+        async {
+            Ok((
+                securejoin::get_securejoin_qr(&ctx, chat).await?,
+                get_securejoin_qr_svg(&ctx, chat).await?,
+            ))
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Continue a Setup-Contact or Verified-Group-Invite protocol
@@ -650,13 +701,17 @@ impl CommandApi {
     ///
     async fn secure_join(&self, account_id: u32, qr: String) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+        let chat_id = securejoin::join_securejoin(&ctx, &qr)
+            .bind_context_id(account_id)
+            .await?;
         Ok(chat_id.to_u32())
     }
 
     async fn leave_group(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        remove_contact_from_chat(&ctx, ChatId::new(chat_id), ContactId::SELF).await
+        remove_contact_from_chat(&ctx, ChatId::new(chat_id), ContactId::SELF)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Remove a member from a group.
@@ -672,7 +727,9 @@ impl CommandApi {
         contact_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        remove_contact_from_chat(&ctx, ChatId::new(chat_id), ContactId::new(contact_id)).await
+        remove_contact_from_chat(&ctx, ChatId::new(chat_id), ContactId::new(contact_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Add a member to a group.
@@ -690,7 +747,9 @@ impl CommandApi {
         contact_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        add_contact_to_chat(&ctx, ChatId::new(chat_id), ContactId::new(contact_id)).await
+        add_contact_to_chat(&ctx, ChatId::new(chat_id), ContactId::new(contact_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Get the contact IDs belonging to a chat.
@@ -710,7 +769,9 @@ impl CommandApi {
     ///   so we could return only SELF or the known members; this is not decided yet)
     async fn get_chat_contacts(&self, account_id: u32, chat_id: u32) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let contacts = chat::get_chat_contacts(&ctx, ChatId::new(chat_id)).await?;
+        let contacts = chat::get_chat_contacts(&ctx, ChatId::new(chat_id))
+            .bind_context_id(account_id)
+            .await?;
         Ok(contacts.iter().map(|id| id.to_u32()).collect::<Vec<u32>>())
     }
 
@@ -740,6 +801,7 @@ impl CommandApi {
             false => ProtectionStatus::Unprotected,
         };
         chat::create_group_chat(&ctx, protect, &name)
+            .bind_context_id(account_id)
             .await
             .map(|id| id.to_u32())
     }
@@ -768,6 +830,7 @@ impl CommandApi {
     async fn create_broadcast_list(&self, account_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         chat::create_broadcast_list(&ctx)
+            .bind_context_id(account_id)
             .await
             .map(|id| id.to_u32())
     }
@@ -780,7 +843,9 @@ impl CommandApi {
     /// Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.
     async fn set_chat_name(&self, account_id: u32, chat_id: u32, new_name: String) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        chat::set_chat_name(&ctx, ChatId::new(chat_id), &new_name).await
+        chat::set_chat_name(&ctx, ChatId::new(chat_id), &new_name)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Set group profile image.
@@ -804,6 +869,7 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         chat::set_chat_profile_image(&ctx, ChatId::new(chat_id), &image_path.unwrap_or_default())
+            .bind_context_id(account_id)
             .await
     }
 
@@ -817,6 +883,7 @@ impl CommandApi {
 
         ChatId::new(chat_id)
             .set_visibility(&ctx, visibility.into_core_type())
+            .bind_context_id(account_id)
             .await
     }
 
@@ -829,6 +896,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         ChatId::new(chat_id)
             .set_ephemeral_timer(&ctx, Timer::from_u32(timer))
+            .bind_context_id(account_id)
             .await
     }
 
@@ -836,6 +904,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         Ok(ChatId::new(chat_id)
             .get_ephemeral_timer(&ctx)
+            .bind_context_id(account_id)
             .await?
             .to_u32())
     }
@@ -850,8 +919,9 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some(text));
-        let message_id =
-            deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg)).await?;
+        let message_id = deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg))
+            .bind_context_id(account_id)
+            .await?;
         Ok(message_id.to_u32())
     }
 
@@ -864,7 +934,9 @@ impl CommandApi {
     ///  See also markseen_msgs().
     async fn marknoticed_chat(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        marknoticed_chat(&ctx, ChatId::new(chat_id)).await
+        marknoticed_chat(&ctx, ChatId::new(chat_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn get_first_unread_message_of_chat(
@@ -875,20 +947,24 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
 
         // TODO: implement this in core with an SQL query, that will be way faster
-        let messages = get_chat_msgs(&ctx, ChatId::new(chat_id)).await?;
-        let mut first_unread_message_id = None;
-        for item in messages.into_iter().rev() {
-            if let ChatItem::Message { msg_id } = item {
-                match msg_id.get_state(&ctx).await? {
-                    MessageState::InSeen => break,
-                    MessageState::InFresh | MessageState::InNoticed => {
-                        first_unread_message_id = Some(msg_id)
+        async {
+            let messages = get_chat_msgs(&ctx, ChatId::new(chat_id)).await?;
+            let mut first_unread_message_id = None;
+            for item in messages.into_iter().rev() {
+                if let ChatItem::Message { msg_id } = item {
+                    match msg_id.get_state(&ctx).await? {
+                        MessageState::InSeen => break,
+                        MessageState::InFresh | MessageState::InNoticed => {
+                            first_unread_message_id = Some(msg_id)
+                        }
+                        _ => continue,
                     }
-                    _ => continue,
                 }
             }
+            Ok(first_unread_message_id.map(|id| id.to_u32()))
         }
-        Ok(first_unread_message_id.map(|id| id.to_u32()))
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Set mute duration of a chat.
@@ -910,7 +986,9 @@ impl CommandApi {
         duration: MuteDuration,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        chat::set_muted(&ctx, ChatId::new(chat_id), duration.try_into_core_type()?).await
+        chat::set_muted(&ctx, ChatId::new(chat_id), duration.try_into_core_type()?)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).
@@ -919,6 +997,7 @@ impl CommandApi {
     async fn is_chat_muted(&self, account_id: u32, chat_id: u32) -> Result<bool> {
         let ctx = self.get_context(account_id).await?;
         Ok(Chat::load_from_db(&ctx, ChatId::new(chat_id))
+            .bind_context_id(account_id)
             .await?
             .is_muted())
     }
@@ -947,7 +1026,9 @@ impl CommandApi {
     /// One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
     async fn markseen_msgs(&self, account_id: u32, msg_ids: Vec<u32>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect()).await
+        markseen_msgs(&ctx, msg_ids.into_iter().map(MsgId::new).collect())
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn get_message_ids(
@@ -966,6 +1047,7 @@ impl CommandApi {
                 add_daymarker,
             },
         )
+        .bind_context_id(account_id)
         .await?;
         Ok(msg
             .iter()
@@ -994,6 +1076,7 @@ impl CommandApi {
                 add_daymarker,
             },
         )
+        .bind_context_id(account_id)
         .await?;
         Ok(msg
             .iter()
@@ -1003,12 +1086,17 @@ impl CommandApi {
 
     async fn get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
         let ctx = self.get_context(account_id).await?;
-        MessageObject::from_message_id(&ctx, message_id).await
+        MessageObject::from_message_id(&ctx, message_id)
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
-        MsgId::new(message_id).get_html(&ctx).await
+        MsgId::new(message_id)
+            .get_html(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// get multiple messages in one call,
@@ -1023,7 +1111,9 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let mut messages: HashMap<u32, MessageLoadResult> = HashMap::new();
         for message_id in message_ids {
-            let message_result = MessageObject::from_message_id(&ctx, message_id).await;
+            let message_result = MessageObject::from_message_id(&ctx, message_id)
+                .bind_context_id(account_id)
+                .await;
             messages.insert(
                 message_id,
                 match message_result {
@@ -1044,7 +1134,9 @@ impl CommandApi {
         message_id: u32,
     ) -> Result<MessageNotificationInfo> {
         let ctx = self.get_context(account_id).await?;
-        MessageNotificationInfo::from_msg_id(&ctx, MsgId::new(message_id)).await
+        MessageNotificationInfo::from_msg_id(&ctx, MsgId::new(message_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Delete messages. The messages are deleted on the current device and
@@ -1052,7 +1144,7 @@ impl CommandApi {
     async fn delete_messages(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let msgs: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
-        delete_msgs(&ctx, &msgs).await
+        delete_msgs(&ctx, &msgs).bind_context_id(account_id).await
     }
 
     /// Get an informational text for a single message. The text is multiline and may
@@ -1062,7 +1154,9 @@ impl CommandApi {
     /// max. text returned by dc_msg_get_text() (about 30000 characters).
     async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        get_msg_info(&ctx, MsgId::new(message_id)).await
+        get_msg_info(&ctx, MsgId::new(message_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Asks the core to start downloading a message fully.
@@ -1078,7 +1172,10 @@ impl CommandApi {
     /// To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.
     async fn download_full_message(&self, account_id: u32, message_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        MsgId::new(message_id).download_full(&ctx).await
+        MsgId::new(message_id)
+            .download_full(&ctx)
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Search messages containing the given query string.
@@ -1100,7 +1197,10 @@ impl CommandApi {
         chat_id: Option<u32>,
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let messages = ctx.search_msgs(chat_id.map(ChatId::new), &query).await?;
+        let messages = ctx
+            .search_msgs(chat_id.map(ChatId::new), &query)
+            .bind_context_id(account_id)
+            .await?;
         Ok(messages
             .iter()
             .map(|msg_id| msg_id.to_u32())
@@ -1118,7 +1218,9 @@ impl CommandApi {
         for id in message_ids {
             results.insert(
                 id,
-                MessageSearchResult::from_msg_id(&ctx, MsgId::new(id)).await?,
+                MessageSearchResult::from_msg_id(&ctx, MsgId::new(id))
+                    .bind_context_id(account_id)
+                    .await?,
             );
         }
         Ok(results)
@@ -1135,7 +1237,9 @@ impl CommandApi {
 
         ContactObject::try_from_dc_contact(
             &ctx,
-            deltachat::contact::Contact::get_by_id(&ctx, contact_id).await?,
+            deltachat::contact::Contact::get_by_id(&ctx, contact_id)
+                .bind_context_id(account_id)
+                .await?,
         )
         .await
     }
@@ -1155,17 +1259,23 @@ impl CommandApi {
                 "provided email address is not a valid email address"
             ))
         }
-        let contact_id = Contact::create(&ctx, &name.unwrap_or_default(), &email).await?;
+        let contact_id = Contact::create(&ctx, &name.unwrap_or_default(), &email)
+            .bind_context_id(account_id)
+            .await?;
         Ok(contact_id.to_u32())
     }
 
     /// Returns contact id of the created or existing DM chat with that contact
     async fn create_chat_by_contact_id(&self, account_id: u32, contact_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let contact = Contact::get_by_id(&ctx, ContactId::new(contact_id)).await?;
-        ChatId::create_for_contact(&ctx, contact.id)
-            .await
-            .map(|id| id.to_u32())
+        async {
+            let contact = Contact::get_by_id(&ctx, ContactId::new(contact_id)).await?;
+            ChatId::create_for_contact(&ctx, contact.id)
+                .await
+                .map(|id| id.to_u32())
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     async fn block_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
@@ -1175,23 +1285,29 @@ impl CommandApi {
 
     async fn unblock_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        Contact::unblock(&ctx, ContactId::new(contact_id)).await
+        Contact::unblock(&ctx, ContactId::new(contact_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn get_blocked_contacts(&self, account_id: u32) -> Result<Vec<ContactObject>> {
         let ctx = self.get_context(account_id).await?;
-        let blocked_ids = Contact::get_all_blocked(&ctx).await?;
-        let mut contacts: Vec<ContactObject> = Vec::with_capacity(blocked_ids.len());
-        for id in blocked_ids {
-            contacts.push(
-                ContactObject::try_from_dc_contact(
-                    &ctx,
-                    deltachat::contact::Contact::get_by_id(&ctx, id).await?,
-                )
-                .await?,
-            );
+        async {
+            let blocked_ids = Contact::get_all_blocked(&ctx).await?;
+            let mut contacts: Vec<ContactObject> = Vec::with_capacity(blocked_ids.len());
+            for id in blocked_ids {
+                contacts.push(
+                    ContactObject::try_from_dc_contact(
+                        &ctx,
+                        deltachat::contact::Contact::get_by_id(&ctx, id).await?,
+                    )
+                    .await?,
+                );
+            }
+            Ok(contacts)
         }
-        Ok(contacts)
+        .bind_context_id(account_id)
+        .await
     }
 
     async fn get_contact_ids(
@@ -1201,7 +1317,9 @@ impl CommandApi {
         query: Option<String>,
     ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let contacts = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
+        let contacts = Contact::get_all(&ctx, list_flags, query.as_deref())
+            .bind_context_id(account_id)
+            .await?;
         Ok(contacts.into_iter().map(|c| c.to_u32()).collect())
     }
 
@@ -1214,18 +1332,22 @@ impl CommandApi {
         query: Option<String>,
     ) -> Result<Vec<ContactObject>> {
         let ctx = self.get_context(account_id).await?;
-        let contact_ids = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
-        let mut contacts: Vec<ContactObject> = Vec::with_capacity(contact_ids.len());
-        for id in contact_ids {
-            contacts.push(
-                ContactObject::try_from_dc_contact(
-                    &ctx,
-                    deltachat::contact::Contact::get_by_id(&ctx, id).await?,
-                )
-                .await?,
-            );
+        async {
+            let contact_ids = Contact::get_all(&ctx, list_flags, query.as_deref()).await?;
+            let mut contacts: Vec<ContactObject> = Vec::with_capacity(contact_ids.len());
+            for id in contact_ids {
+                contacts.push(
+                    ContactObject::try_from_dc_contact(
+                        &ctx,
+                        deltachat::contact::Contact::get_by_id(&ctx, id).await?,
+                    )
+                    .await?,
+                );
+            }
+            Ok(contacts)
         }
-        Ok(contacts)
+        .bind_context_id(account_id)
+        .await
     }
 
     async fn get_contacts_by_ids(
@@ -1235,25 +1357,31 @@ impl CommandApi {
     ) -> Result<HashMap<u32, ContactObject>> {
         let ctx = self.get_context(account_id).await?;
 
-        let mut contacts = HashMap::with_capacity(ids.len());
-        for id in ids {
-            contacts.insert(
-                id,
-                ContactObject::try_from_dc_contact(
-                    &ctx,
-                    deltachat::contact::Contact::get_by_id(&ctx, ContactId::new(id)).await?,
-                )
-                .await?,
-            );
+        async {
+            let mut contacts = HashMap::with_capacity(ids.len());
+            for id in ids {
+                contacts.insert(
+                    id,
+                    ContactObject::try_from_dc_contact(
+                        &ctx,
+                        deltachat::contact::Contact::get_by_id(&ctx, ContactId::new(id)).await?,
+                    )
+                    .await?,
+                );
+            }
+            Ok(contacts)
         }
-        Ok(contacts)
+        .bind_context_id(account_id)
+        .await
     }
 
     async fn delete_contact(&self, account_id: u32, contact_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
 
-        Contact::delete(&ctx, contact_id).await?;
+        Contact::delete(&ctx, contact_id)
+            .bind_context_id(account_id)
+            .await?;
         Ok(())
     }
 
@@ -1265,10 +1393,14 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
-        let contact = Contact::load_from_db(&ctx, contact_id).await?;
-        let addr = contact.get_addr();
-        Contact::create(&ctx, &name, addr).await?;
-        Ok(())
+        async {
+            let contact = Contact::load_from_db(&ctx, contact_id).await?;
+            let addr = contact.get_addr();
+            Contact::create(&ctx, &name, addr).await?;
+            Ok(())
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Get encryption info for a contact.
@@ -1280,7 +1412,9 @@ impl CommandApi {
         contact_id: u32,
     ) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        Contact::get_encrinfo(&ctx, ContactId::new(contact_id)).await
+        Contact::get_encrinfo(&ctx, ContactId::new(contact_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
@@ -1294,7 +1428,9 @@ impl CommandApi {
         addr: String,
     ) -> Result<Option<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let contact_id = Contact::lookup_id_by_addr(&ctx, &addr, Origin::IncomingReplyTo).await?;
+        let contact_id = Contact::lookup_id_by_addr(&ctx, &addr, Origin::IncomingReplyTo)
+            .bind_context_id(account_id)
+            .await?;
         Ok(contact_id.map(|id| id.to_u32()))
     }
 
@@ -1329,7 +1465,9 @@ impl CommandApi {
         let or_msg_type2 = or_message_type2.map_or(Viewtype::Unknown, |v| v.into());
         let or_msg_type3 = or_message_type3.map_or(Viewtype::Unknown, |v| v.into());
 
-        let media = get_chat_media(&ctx, chat_id, msg_type, or_msg_type2, or_msg_type3).await?;
+        let media = get_chat_media(&ctx, chat_id, msg_type, or_msg_type2, or_msg_type3)
+            .bind_context_id(account_id)
+            .await?;
         Ok(media.iter().map(|msg_id| msg_id.to_u32()).collect())
     }
 
@@ -1353,29 +1491,33 @@ impl CommandApi {
         let msg_type2: Viewtype = or_message_type2.map(|v| v.into()).unwrap_or_default();
         let msg_type3: Viewtype = or_message_type3.map(|v| v.into()).unwrap_or_default();
 
-        let prev = chat::get_next_media(
-            &ctx,
-            MsgId::new(msg_id),
-            chat::Direction::Backward,
-            msg_type,
-            msg_type2,
-            msg_type3,
-        )
-        .await?
-        .map(|id| id.to_u32());
+        async {
+            let prev = chat::get_next_media(
+                &ctx,
+                MsgId::new(msg_id),
+                chat::Direction::Backward,
+                msg_type,
+                msg_type2,
+                msg_type3,
+            )
+            .await?
+            .map(|id| id.to_u32());
 
-        let next = chat::get_next_media(
-            &ctx,
-            MsgId::new(msg_id),
-            chat::Direction::Forward,
-            msg_type,
-            msg_type2,
-            msg_type3,
-        )
-        .await?
-        .map(|id| id.to_u32());
+            let next = chat::get_next_media(
+                &ctx,
+                MsgId::new(msg_id),
+                chat::Direction::Forward,
+                msg_type,
+                msg_type2,
+                msg_type3,
+            )
+            .await?
+            .map(|id| id.to_u32());
 
-        Ok((prev, next))
+            Ok((prev, next))
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     // ---------------------------------------------
@@ -1395,6 +1537,7 @@ impl CommandApi {
             destination.as_ref(),
             passphrase,
         )
+        .bind_context_id(account_id)
         .await
     }
 
@@ -1411,6 +1554,7 @@ impl CommandApi {
             path.as_ref(),
             passphrase,
         )
+        .bind_context_id(account_id)
         .await
     }
 
@@ -1510,7 +1654,7 @@ impl CommandApi {
     /// If the connectivity changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     async fn get_connectivity(&self, account_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        Ok(ctx.get_connectivity().await as u32)
+        Ok(ctx.get_connectivity().bind_context_id(account_id).await as u32)
     }
 
     /// Get an overview of the current connectivity, and possibly more statistics.
@@ -1524,7 +1668,9 @@ impl CommandApi {
     /// and the improvement instantly reaches all UIs.
     async fn get_connectivity_html(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        ctx.get_connectivity_html().await
+        ctx.get_connectivity_html()
+            .bind_context_id(account_id)
+            .await
     }
 
     // ---------------------------------------------
@@ -1548,6 +1694,7 @@ impl CommandApi {
             timestamp_begin,
             timestamp_end,
         )
+        .bind_context_id(account_id)
         .await?;
 
         Ok(locations.into_iter().map(|l| l.into()).collect())
@@ -1566,6 +1713,7 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         ctx.send_webxdc_status_update(MsgId::new(instance_msg_id), &update_str, &description)
+            .bind_context_id(account_id)
             .await
     }
 
@@ -1580,6 +1728,7 @@ impl CommandApi {
             MsgId::new(instance_msg_id),
             StatusUpdateSerial::new(last_known_serial),
         )
+        .bind_context_id(account_id)
         .await
     }
 
@@ -1590,7 +1739,9 @@ impl CommandApi {
         instance_msg_id: u32,
     ) -> Result<WebxdcMessageInfo> {
         let ctx = self.get_context(account_id).await?;
-        WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
+        WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     /// Get blob encoded as base64 from a webxdc message
@@ -1603,11 +1754,14 @@ impl CommandApi {
         path: String,
     ) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
-        let blob = message.get_webxdc_blob(&ctx, &path).await?;
-
-        use base64::{engine::general_purpose, Engine as _};
-        Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
+        async {
+            let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
+            let blob = message.get_webxdc_blob(&ctx, &path).await?;
+            use base64::{engine::general_purpose, Engine as _};
+            Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Forward messages to another chat.
@@ -1624,7 +1778,9 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
-        forward_msgs(&ctx, &message_ids, ChatId::new(chat_id)).await
+        forward_msgs(&ctx, &message_ids, ChatId::new(chat_id))
+            .bind_context_id(account_id)
+            .await
     }
 
     async fn send_sticker(
@@ -1638,7 +1794,9 @@ impl CommandApi {
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(&sticker_path, None);
 
-        let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
+        let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg)
+            .bind_context_id(account_id)
+            .await?;
         Ok(message_id.to_u32())
     }
 
@@ -1655,50 +1813,56 @@ impl CommandApi {
         reaction: Vec<String>,
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" ")).await?;
+        let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" "))
+            .bind_context_id(account_id)
+            .await?;
         Ok(message_id.to_u32())
     }
 
     async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let mut message = Message::new(if let Some(viewtype) = data.viewtype {
-            viewtype.into()
-        } else if data.file.is_some() {
-            Viewtype::File
-        } else {
-            Viewtype::Text
-        });
-        if data.text.is_some() {
-            message.set_text(data.text);
+        async {
+            let mut message = Message::new(if let Some(viewtype) = data.viewtype {
+                viewtype.into()
+            } else if data.file.is_some() {
+                Viewtype::File
+            } else {
+                Viewtype::Text
+            });
+            if data.text.is_some() {
+                message.set_text(data.text);
+            }
+            if data.html.is_some() {
+                message.set_html(data.html);
+            }
+            if data.override_sender_name.is_some() {
+                message.set_override_sender_name(data.override_sender_name);
+            }
+            if let Some(file) = data.file {
+                message.set_file(file, None);
+            }
+            if let Some((latitude, longitude)) = data.location {
+                message.set_location(latitude, longitude);
+            }
+            if let Some(id) = data.quoted_message_id {
+                message
+                    .set_quote(
+                        &ctx,
+                        Some(
+                            &Message::load_from_db(&ctx, MsgId::new(id))
+                                .await
+                                .context("message to quote could not be loaded")?,
+                        ),
+                    )
+                    .await?;
+            }
+            let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+                .await?
+                .to_u32();
+            Ok(msg_id)
         }
-        if data.html.is_some() {
-            message.set_html(data.html);
-        }
-        if data.override_sender_name.is_some() {
-            message.set_override_sender_name(data.override_sender_name);
-        }
-        if let Some(file) = data.file {
-            message.set_file(file, None);
-        }
-        if let Some((latitude, longitude)) = data.location {
-            message.set_location(latitude, longitude);
-        }
-        if let Some(id) = data.quoted_message_id {
-            message
-                .set_quote(
-                    &ctx,
-                    Some(
-                        &Message::load_from_db(&ctx, MsgId::new(id))
-                            .await
-                            .context("message to quote could not be loaded")?,
-                    ),
-                )
-                .await?;
-        }
-        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
-            .await?
-            .to_u32();
-        Ok(msg_id)
+        .bind_context_id(account_id)
+        .await
     }
 
     // ---------------------------------------------
@@ -1708,24 +1872,32 @@ impl CommandApi {
 
     async fn remove_draft(&self, account_id: u32, chat_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ChatId::new(chat_id).set_draft(&ctx, None).await
+        ChatId::new(chat_id)
+            .set_draft(&ctx, None)
+            .bind_context_id(account_id)
+            .await
     }
 
     ///  Get draft for a chat, if any.
     async fn get_draft(&self, account_id: u32, chat_id: u32) -> Result<Option<MessageObject>> {
         let ctx = self.get_context(account_id).await?;
-        if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
-            Ok(Some(
-                MessageObject::from_msg_id(&ctx, draft.get_id()).await?,
-            ))
-        } else {
-            Ok(None)
+        async {
+            if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
+                Ok(Some(
+                    MessageObject::from_msg_id(&ctx, draft.get_id()).await?,
+                ))
+            } else {
+                Ok(None)
+            }
         }
+        .bind_context_id(account_id)
+        .await
     }
 
     async fn send_videochat_invitation(&self, account_id: u32, chat_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         chat::send_videochat_invitation(&ctx, ChatId::new(chat_id))
+            .bind_context_id(account_id)
             .await
             .map(|msg_id| msg_id.to_u32())
     }
@@ -1737,16 +1909,20 @@ impl CommandApi {
 
     async fn misc_get_sticker_folder(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        let account_folder = ctx
-            .get_dbfile()
-            .parent()
-            .context("account folder not found")?;
-        let sticker_folder_path = account_folder.join("stickers");
-        fs::create_dir_all(&sticker_folder_path).await?;
-        sticker_folder_path
-            .to_str()
-            .map(|s| s.to_owned())
-            .context("path conversion to string failed")
+        async {
+            let account_folder = ctx
+                .get_dbfile()
+                .parent()
+                .context("account folder not found")?;
+            let sticker_folder_path = account_folder.join("stickers");
+            fs::create_dir_all(&sticker_folder_path).await?;
+            sticker_folder_path
+                .to_str()
+                .map(|s| s.to_owned())
+                .context("path conversion to string failed")
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     /// save a sticker to a collection/folder in the account's sticker folder
@@ -1757,79 +1933,86 @@ impl CommandApi {
         collection: String,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
-        ensure!(
-            message.get_viewtype() == Viewtype::Sticker,
-            "message {} is not a sticker",
-            msg_id
-        );
-        let account_folder = ctx
-            .get_dbfile()
-            .parent()
-            .context("account folder not found")?;
-        ensure!(
-            is_sanitized(&collection),
-            "illegal characters in collection name"
-        );
-        let destination_path = account_folder.join("stickers").join(collection);
-        fs::create_dir_all(&destination_path).await?;
-        let file = message.get_file(&ctx).context("no file")?;
-        fs::copy(
-            &file,
-            destination_path.join(format!(
-                "{}.{}",
-                msg_id,
-                file.extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-            )),
-        )
-        .await?;
-        Ok(())
+        async {
+            let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+            ensure!(
+                message.get_viewtype() == Viewtype::Sticker,
+                "message {} is not a sticker",
+                msg_id
+            );
+            let account_folder = ctx
+                .get_dbfile()
+                .parent()
+                .context("account folder not found")?;
+            ensure!(
+                is_sanitized(&collection),
+                "illegal characters in collection name"
+            );
+            let destination_path = account_folder.join("stickers").join(collection);
+            fs::create_dir_all(&destination_path).await?;
+            let file = message.get_file(&ctx).context("no file")?;
+            fs::copy(
+                &file,
+                destination_path.join(format!(
+                    "{}.{}",
+                    msg_id,
+                    file.extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default()
+                )),
+            )
+            .await?;
+            Ok(())
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     /// for desktop, get stickers from stickers folder,
     /// grouped by the collection/folder they are in.
     async fn misc_get_stickers(&self, account_id: u32) -> Result<HashMap<String, Vec<String>>> {
         let ctx = self.get_context(account_id).await?;
-        let account_folder = ctx
-            .get_dbfile()
-            .parent()
-            .context("account folder not found")?;
-        let sticker_folder_path = account_folder.join("stickers");
-        fs::create_dir_all(&sticker_folder_path).await?;
-        let mut result = HashMap::new();
+        async {
+            let account_folder = ctx
+                .get_dbfile()
+                .parent()
+                .context("account folder not found")?;
+            let sticker_folder_path = account_folder.join("stickers");
+            fs::create_dir_all(&sticker_folder_path).await?;
+            let mut result = HashMap::new();
 
-        let mut packs = tokio::fs::read_dir(sticker_folder_path).await?;
-        while let Some(entry) = packs.next_entry().await? {
-            if !entry.file_type().await?.is_dir() {
-                continue;
-            }
-            let pack_name = entry.file_name().into_string().unwrap_or_default();
-            let mut stickers = tokio::fs::read_dir(entry.path()).await?;
-            let mut sticker_paths = Vec::new();
-            while let Some(sticker_entry) = stickers.next_entry().await? {
-                if !sticker_entry.file_type().await?.is_file() {
+            let mut packs = tokio::fs::read_dir(sticker_folder_path).await?;
+            while let Some(entry) = packs.next_entry().await? {
+                if !entry.file_type().await?.is_dir() {
                     continue;
                 }
-                let sticker_name = sticker_entry.file_name().into_string().unwrap_or_default();
-                if sticker_name.ends_with(".png") || sticker_name.ends_with(".webp") {
-                    sticker_paths.push(
-                        sticker_entry
-                            .path()
-                            .to_str()
-                            .map(|s| s.to_owned())
-                            .context("path conversion to string failed")?,
-                    );
+                let pack_name = entry.file_name().into_string().unwrap_or_default();
+                let mut stickers = tokio::fs::read_dir(entry.path()).await?;
+                let mut sticker_paths = Vec::new();
+                while let Some(sticker_entry) = stickers.next_entry().await? {
+                    if !sticker_entry.file_type().await?.is_file() {
+                        continue;
+                    }
+                    let sticker_name = sticker_entry.file_name().into_string().unwrap_or_default();
+                    if sticker_name.ends_with(".png") || sticker_name.ends_with(".webp") {
+                        sticker_paths.push(
+                            sticker_entry
+                                .path()
+                                .to_str()
+                                .map(|s| s.to_owned())
+                                .context("path conversion to string failed")?,
+                        );
+                    }
+                }
+                if !sticker_paths.is_empty() {
+                    result.insert(pack_name, sticker_paths);
                 }
             }
-            if !sticker_paths.is_empty() {
-                result.insert(pack_name, sticker_paths);
-            }
+            Ok(result)
         }
-
-        Ok(result)
+        .bind_context_id(account_id)
+        .await
     }
 
     /// Returns the messageid of the sent message
@@ -1841,11 +2024,16 @@ impl CommandApi {
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
 
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(text));
+        async {
+            let mut msg = Message::new(Viewtype::Text);
+            msg.set_text(Some(text));
 
-        let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
-        Ok(message_id.to_u32())
+            let message_id =
+                deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
+            Ok(message_id.to_u32())
+        }
+        .bind_context_id(account_id)
+        .await
     }
 
     // mimics the old desktop call, will get replaced with something better in the composer rewrite,
@@ -1860,37 +2048,41 @@ impl CommandApi {
         quoted_message_id: Option<u32>,
     ) -> Result<(u32, MessageObject)> {
         let ctx = self.get_context(account_id).await?;
-        let mut message = Message::new(if file.is_some() {
-            Viewtype::File
-        } else {
-            Viewtype::Text
-        });
-        if text.is_some() {
-            message.set_text(text);
+        async {
+            let mut message = Message::new(if file.is_some() {
+                Viewtype::File
+            } else {
+                Viewtype::Text
+            });
+            if text.is_some() {
+                message.set_text(text);
+            }
+            if let Some(file) = file {
+                message.set_file(file, None);
+            }
+            if let Some((latitude, longitude)) = location {
+                message.set_location(latitude, longitude);
+            }
+            if let Some(id) = quoted_message_id {
+                message
+                    .set_quote(
+                        &ctx,
+                        Some(
+                            &Message::load_from_db(&ctx, MsgId::new(id))
+                                .await
+                                .context("message to quote could not be loaded")?,
+                        ),
+                    )
+                    .await?;
+            }
+            let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+                .await?
+                .to_u32();
+            let message = MessageObject::from_message_id(&ctx, msg_id).await?;
+            Ok((msg_id, message))
         }
-        if let Some(file) = file {
-            message.set_file(file, None);
-        }
-        if let Some((latitude, longitude)) = location {
-            message.set_location(latitude, longitude);
-        }
-        if let Some(id) = quoted_message_id {
-            message
-                .set_quote(
-                    &ctx,
-                    Some(
-                        &Message::load_from_db(&ctx, MsgId::new(id))
-                            .await
-                            .context("message to quote could not be loaded")?,
-                    ),
-                )
-                .await?;
-        }
-        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
-            .await?
-            .to_u32();
-        let message = MessageObject::from_message_id(&ctx, msg_id).await?;
-        Ok((msg_id, message))
+        .bind_context_id(account_id)
+        .await
     }
 
     // mimics the old desktop call, will get replaced with something better in the composer rewrite,
@@ -1906,31 +2098,35 @@ impl CommandApi {
         quoted_message_id: Option<u32>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        let mut draft = Message::new(if file.is_some() {
-            Viewtype::File
-        } else {
-            Viewtype::Text
-        });
-        if text.is_some() {
-            draft.set_text(text);
-        }
-        if let Some(file) = file {
-            draft.set_file(file, None);
-        }
-        if let Some(id) = quoted_message_id {
-            draft
-                .set_quote(
-                    &ctx,
-                    Some(
-                        &Message::load_from_db(&ctx, MsgId::new(id))
-                            .await
-                            .context("message to quote could not be loaded")?,
-                    ),
-                )
-                .await?;
-        }
+        async {
+            let mut draft = Message::new(if file.is_some() {
+                Viewtype::File
+            } else {
+                Viewtype::Text
+            });
+            if text.is_some() {
+                draft.set_text(text);
+            }
+            if let Some(file) = file {
+                draft.set_file(file, None);
+            }
+            if let Some(id) = quoted_message_id {
+                draft
+                    .set_quote(
+                        &ctx,
+                        Some(
+                            &Message::load_from_db(&ctx, MsgId::new(id))
+                                .await
+                                .context("message to quote could not be loaded")?,
+                        ),
+                    )
+                    .await?;
+            }
 
-        ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
+            ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
+        }
+        .bind_context_id(account_id)
+        .await
     }
 }
 

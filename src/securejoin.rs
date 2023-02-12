@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 
 use anyhow::{bail, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
+use tracing::{error, info, warn};
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
@@ -124,7 +125,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         )
     };
 
-    info!(context, "Generated QR code: {}", qr);
+    info!("Generated QR code: {}", qr);
 
     Ok(qr)
 }
@@ -133,7 +134,7 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
     match SignedPublicKey::load_self(context).await {
         Ok(key) => Some(key.fingerprint()),
         Err(_) => {
-            warn!(context, "get_self_fingerprint(): failed to load key");
+            warn!("get_self_fingerprint(): failed to load key");
             None
         }
     }
@@ -147,9 +148,9 @@ async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
 /// The function returns immediately and the handshake will run in background.
 pub async fn join_securejoin(context: &Context, qr: &str) -> Result<ChatId> {
     securejoin(context, qr).await.map_err(|err| {
-        warn!(context, "Fatal joiner error: {:#}", err);
+        warn!("Fatal joiner error: {:#}", err);
         // The user just scanned this QR code so has context on what failed.
-        error!(context, "QR process failed");
+        error!("QR process failed");
         err
     })
 }
@@ -160,7 +161,7 @@ async fn securejoin(context: &Context, qr: &str) -> Result<ChatId> {
     ====   Step 2 in "Setup verified contact" protocol   =====
     ========================================================*/
 
-    info!(context, "Requesting secure-join ...",);
+    info!("Requesting secure-join ...",);
     let qr_scan = check_qr(context, qr).await?;
 
     let invite = QrInvite::try_from(qr_scan)?;
@@ -215,7 +216,6 @@ async fn fingerprint_equals_sender(
         Ok(peerstate) => peerstate,
         Err(err) => {
             warn!(
-                context,
                 "Failed to sender peerstate for {}: {}",
                 contact.get_addr(),
                 err
@@ -288,8 +288,8 @@ pub(crate) async fn handle_securejoin_handshake(
         .context("Not a Secure-Join message")?;
 
     info!(
-        context,
-        ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
+        ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received",
+        step,
     );
 
     let join_vg = step.starts_with("vg-");
@@ -308,15 +308,15 @@ pub(crate) async fn handle_securejoin_handshake(
             let invitenumber = match mime_message.get_header(HeaderDef::SecureJoinInvitenumber) {
                 Some(n) => n,
                 None => {
-                    warn!(context, "Secure-join denied (invitenumber missing)");
+                    warn!("Secure-join denied (invitenumber missing)");
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
             if !token::exists(context, token::Namespace::InviteNumber, invitenumber).await {
-                warn!(context, "Secure-join denied (bad invitenumber).");
+                warn!("Secure-join denied (bad invitenumber).");
                 return Ok(HandshakeMessage::Ignore);
             }
-            info!(context, "Secure-join requested.",);
+            info!("Secure-join requested.",);
 
             inviter_progress!(context, contact_id, 300);
 
@@ -366,7 +366,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-            if !encrypted_and_signed(context, mime_message, Some(&fingerprint)) {
+            if !encrypted_and_signed(mime_message, Some(&fingerprint)) {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -386,7 +386,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            info!(context, "Fingerprint verified.",);
+            info!("Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
             let auth_0 = match mime_message.get_header(HeaderDef::SecureJoinAuth) {
                 Some(auth) => auth,
@@ -429,7 +429,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 return Ok(HandshakeMessage::Ignore);
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await?;
-            info!(context, "Auth verified.",);
+            info!("Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
@@ -439,7 +439,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 let field_grpid = match mime_message.get_header(HeaderDef::SecureJoinGroup) {
                     Some(s) => s.as_str(),
                     None => {
-                        warn!(context, "Missing Secure-Join-Group header");
+                        warn!("Missing Secure-Join-Group header");
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
@@ -450,7 +450,7 @@ pub(crate) async fn handle_securejoin_handshake(
                             chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, true)
                                 .await
                         {
-                            error!(context, "failed to add contact: {}", err);
+                            error!("failed to add contact: {}", err);
                         }
                     }
                     None => bail!("Chat {} not found", &field_grpid),
@@ -501,7 +501,7 @@ pub(crate) async fn handle_securejoin_handshake(
 
             if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
                 if contact.is_verified(context).await? == VerifiedStatus::Unverified {
-                    warn!(context, "{} invalid.", step);
+                    warn!("{} invalid.", step);
                     return Ok(HandshakeMessage::Ignore);
                 }
                 if join_vg {
@@ -510,7 +510,7 @@ pub(crate) async fn handle_securejoin_handshake(
                         .map(|s| s.as_str())
                         .unwrap_or_else(|| "");
                     if let Err(err) = chat::get_chat_id_by_grpid(context, field_grpid).await {
-                        warn!(context, "Failed to lookup chat_id from grpid: {}", err);
+                        warn!("Failed to lookup chat_id from grpid: {}", err);
                         return Err(
                             err.context(format!("Chat for group {} not found", &field_grpid))
                         );
@@ -518,12 +518,12 @@ pub(crate) async fn handle_securejoin_handshake(
                 }
                 Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
             } else {
-                warn!(context, "{} invalid.", step);
+                warn!("{} invalid.", step);
                 Ok(HandshakeMessage::Ignore)
             }
         }
         _ => {
-            warn!(context, "invalid step: {}", step);
+            warn!("invalid step: {}", step);
             Ok(HandshakeMessage::Ignore)
         }
     }
@@ -557,7 +557,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     let step = mime_message
         .get_header(HeaderDef::SecureJoin)
         .context("Not a Secure-Join message")?;
-    info!(context, "observing secure-join message \'{}\'", step);
+    info!("observing secure-join message \'{}\'", step);
 
     match step.as_str() {
         "vg-request-with-auth"
@@ -566,11 +566,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         | "vc-contact-confirm"
         | "vg-member-added-received"
         | "vc-contact-confirm-received" => {
-            if !encrypted_and_signed(
-                context,
-                mime_message,
-                get_self_fingerprint(context).await.as_ref(),
-            ) {
+            if !encrypted_and_signed(mime_message, get_self_fingerprint(context).await.as_ref()) {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -715,8 +711,8 @@ async fn could_not_establish_secure_connection(
     let msg = stock_str::contact_not_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
     warn!(
-        context,
-        "StockMessage::ContactNotVerified posted to 1:1 chat ({})", details
+        "StockMessage::ContactNotVerified posted to 1:1 chat ({})",
+        details
     );
     Ok(())
 }
@@ -733,7 +729,7 @@ async fn mark_peer_as_verified(
             PeerstateVerifiedStatus::BidirectVerified,
             verifier,
         ) {
-            error!(context, "Could not mark peer as verified: {}", err);
+            error!("Could not mark peer as verified: {}", err);
             return Err(err);
         }
         peerstate.prefer_encrypt = EncryptPreference::Mutual;
@@ -749,25 +745,24 @@ async fn mark_peer_as_verified(
  ******************************************************************************/
 
 fn encrypted_and_signed(
-    context: &Context,
     mimeparser: &MimeMessage,
     expected_fingerprint: Option<&Fingerprint>,
 ) -> bool {
     if !mimeparser.was_encrypted() {
-        warn!(context, "Message not encrypted.",);
+        warn!("Message not encrypted.",);
         false
     } else if let Some(expected_fingerprint) = expected_fingerprint {
         if !mimeparser.signatures.contains(expected_fingerprint) {
             warn!(
-                context,
-                "Message does not match expected fingerprint {}.", expected_fingerprint,
+                "Message does not match expected fingerprint {}.",
+                expected_fingerprint,
             );
             false
         } else {
             true
         }
     } else {
-        warn!(context, "Fingerprint for comparison missing.");
+        warn!("Fingerprint for comparison missing.");
         false
     }
 }

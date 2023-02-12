@@ -1,10 +1,10 @@
 //! # Thunderbird's Autoconfiguration implementation
 //!
 //! Documentation: <https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration>
+use quick_xml::events::{BytesStart, Event};
 use std::io::BufRead;
 use std::str::FromStr;
-
-use quick_xml::events::{BytesStart, Event};
+use tracing::warn;
 
 use super::read_url::read_url;
 use super::{Error, ServerParams};
@@ -263,10 +263,7 @@ pub(crate) async fn moz_autoconfigure(
 
     let res = parse_serverparams(&param_in.addr, &xml_raw);
     if let Err(err) = &res {
-        warn!(
-            context,
-            "Failed to parse Thunderbird autoconfiguration XML: {}", err
-        );
+        warn!("Failed to parse Thunderbird autoconfiguration XML: {err:#}");
     }
     res
 }

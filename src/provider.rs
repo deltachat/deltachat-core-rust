@@ -4,10 +4,10 @@ mod data;
 
 use anyhow::Result;
 use chrono::{NaiveDateTime, NaiveTime};
+use tracing::warn;
 use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
-use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
 
 /// Provider status according to manual testing.
@@ -184,11 +184,7 @@ fn get_resolver() -> Result<TokioAsyncResolver> {
 ///
 /// For compatibility, email address can be passed to this function
 /// instead of the domain.
-pub async fn get_provider_info(
-    context: &Context,
-    domain: &str,
-    skip_mx: bool,
-) -> Option<&'static Provider> {
+pub async fn get_provider_info(domain: &str, skip_mx: bool) -> Option<&'static Provider> {
     let domain = domain.rsplit('@').next()?;
 
     if let Some(provider) = get_provider_by_domain(domain) {
@@ -196,7 +192,7 @@ pub async fn get_provider_info(
     }
 
     if !skip_mx {
-        if let Some(provider) = get_provider_by_mx(context, domain).await {
+        if let Some(provider) = get_provider_by_mx(domain).await {
             return Some(provider);
         }
     }
@@ -216,7 +212,7 @@ pub fn get_provider_by_domain(domain: &str) -> Option<&'static Provider> {
 /// Finds a provider based on MX record for the given domain.
 ///
 /// For security reasons, only Gmail can be configured this way.
-pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'static Provider> {
+pub async fn get_provider_by_mx(domain: &str) -> Option<&'static Provider> {
     if let Ok(resolver) = get_resolver() {
         let mut fqdn: String = domain.to_string();
         if !fqdn.ends_with('.') {
@@ -243,7 +239,7 @@ pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'sta
             }
         }
     } else {
-        warn!(context, "cannot get a resolver to check MX records.");
+        warn!("cannot get a resolver to check MX records.");
     }
 
     None
@@ -272,7 +268,6 @@ mod tests {
     use chrono::NaiveDate;
 
     use super::*;
-    use crate::test_utils::TestContext;
     use crate::tools::time;
 
     #[test]
@@ -322,13 +317,12 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_get_provider_info() {
-        let t = TestContext::new().await;
-        assert!(get_provider_info(&t, "", false).await.is_none());
-        assert!(get_provider_info(&t, "google.com", false).await.unwrap().id == "gmail");
+        assert!(get_provider_info("", false).await.is_none());
+        assert!(get_provider_info("google.com", false).await.unwrap().id == "gmail");
 
         // get_provider_info() accepts email addresses for backwards compatibility
         assert!(
-            get_provider_info(&t, "example@google.com", false)
+            get_provider_info("example@google.com", false)
                 .await
                 .unwrap()
                 .id

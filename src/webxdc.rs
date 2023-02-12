@@ -10,6 +10,7 @@ use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
+use tracing::{info, warn};
 
 use crate::chat::Chat;
 use crate::contact::ContactId;
@@ -187,8 +188,8 @@ impl Context {
 
         if file.len() as u64 > WEBXDC_RECEIVING_LIMIT {
             info!(
-                self,
-                "{} exceeds receiving limit of {} bytes", &filename, WEBXDC_RECEIVING_LIMIT
+                "{} exceeds receiving limit of {} bytes",
+                &filename, WEBXDC_RECEIVING_LIMIT
             );
             return Ok(false);
         }
@@ -196,13 +197,13 @@ impl Context {
         let archive = match async_zip::read::mem::ZipFileReader::new(file.to_vec()).await {
             Ok(archive) => archive,
             Err(_) => {
-                info!(self, "{} cannot be opened as zip-file", &filename);
+                info!("{} cannot be opened as zip-file", &filename);
                 return Ok(false);
             }
         };
 
         if find_zip_entry(archive.file(), "index.html").is_none() {
-            info!(self, "{} misses index.html", &filename);
+            info!("{} misses index.html", &filename);
             return Ok(false);
         }
 
@@ -229,14 +230,14 @@ impl Context {
         let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
             Ok(archive) => {
                 if find_zip_entry(archive.file(), "index.html").is_none() {
-                    info!(self, "{} misses index.html", filename);
+                    info!("{} misses index.html", filename);
                     false
                 } else {
                     true
                 }
             }
             Err(_) => {
-                info!(self, "{} cannot be opened as zip-file", filename);
+                info!("{} cannot be opened as zip-file", filename);
                 false
             }
         };
@@ -751,7 +752,7 @@ impl Message {
         if let Some(ref name) = manifest.name {
             let name = name.trim();
             if name.is_empty() {
-                warn!(context, "empty name given in manifest");
+                warn!("empty name given in manifest");
                 manifest.name = None;
             }
         }

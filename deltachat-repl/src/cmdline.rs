@@ -465,7 +465,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             continue_key_transfer(&context, MsgId::new(arg1.parse()?), arg2).await?;
         }
         "has-backup" => {
-            has_backup(&context, blobdir).await?;
+            has_backup(blobdir).await?;
         }
         "export-backup" => {
             let dir = dirs::home_dir().unwrap_or_default();
@@ -508,7 +508,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             imex(&context, ImexMode::ImportSelfKeys, arg1.as_ref(), None).await?;
         }
         "export-setup" => {
-            let setup_code = create_setup_code(&context);
+            let setup_code = create_setup_code();
             let file_name = blobdir.join("autocrypt-setup-message.html");
             let file_content = render_setup_file(&context, &setup_code).await?;
             fs::write(&file_name, file_content).await?;
@@ -1244,7 +1244,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let socks5_enabled = context
                 .get_config_bool(config::Config::Socks5Enabled)
                 .await?;
-            match provider::get_provider_info(&context, arg1, socks5_enabled).await {
+            match provider::get_provider_info(arg1, socks5_enabled).await {
                 Some(info) => {
                     println!("Information for provider belonging to {arg1}:");
                     println!("status: {}", info.status as u32);

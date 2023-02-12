@@ -6,6 +6,7 @@
 use std::io::BufRead;
 
 use quick_xml::events::Event;
+use tracing::warn;
 
 use super::read_url::read_url;
 use super::{Error, ServerParams};
@@ -202,7 +203,7 @@ pub(crate) async fn outlk_autodiscover(
         let xml_raw = read_url(context, &url).await?;
         let res = parse_xml(&xml_raw);
         if let Err(err) = &res {
-            warn!(context, "{}", err);
+            warn!("{err:#}");
         }
         match res? {
             ParsingResult::RedirectUrl(redirect_url) => url = redirect_url,

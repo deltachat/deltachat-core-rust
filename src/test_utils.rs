@@ -17,6 +17,7 @@ use tempfile::{tempdir, TempDir};
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
+use tracing::warn;
 
 use crate::chat::{self, Chat, ChatId, MessageListOptions};
 use crate::chatlist::Chatlist;
@@ -536,8 +537,8 @@ impl TestContext {
                 .expect("add_or_lookup");
         match modified {
             Modifier::None => (),
-            Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),
-            Modifier::Created => warn!(&self.ctx, "Contact {} created by TestContext", &addr),
+            Modifier::Modified => warn!("Contact {} modified by TestContext", &addr),
+            Modifier::Created => warn!("Contact {} created by TestContext", &addr),
         }
         Contact::load_from_db(&self.ctx, contact_id).await.unwrap()
     }

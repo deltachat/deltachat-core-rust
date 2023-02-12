@@ -263,6 +263,7 @@ class EventThread(threading.Thread):
                     self._process_event(event)
 
     def _process_event(self, event) -> None:
+        account_id = lib.dc_event_get_account_id(event)
         evt = lib.dc_event_get_id(event)
         data1 = lib.dc_event_get_data1_int(event)
         # the following code relates to the deltachat/_build.py's helper
@@ -272,6 +273,7 @@ class EventThread(threading.Thread):
             data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
         else:
             data2 = lib.dc_event_get_data2_int(event)
+        assert account_id == self.account.get_id(), f"data2={data2}"
 
         lib.dc_event_unref(event)
         ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)

@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use mailparse::ParsedMail;
+use tracing::{info, warn};
 
 use crate::aheader::Aheader;
 use crate::authres::handle_authres;
@@ -24,7 +25,6 @@ use crate::pgp;
 ///
 /// If the message is wrongly signed, HashSet will be empty.
 pub fn try_decrypt(
-    context: &Context,
     mail: &ParsedMail<'_>,
     private_keyring: &Keyring<SignedSecretKey>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
@@ -36,7 +36,7 @@ pub fn try_decrypt(
         None => return Ok(None),
         Some(res) => res,
     };
-    info!(context, "Detected Autocrypt-mime message");
+    info!("Detected Autocrypt-mime message");
 
     decrypt_part(
         encrypted_data_part,
@@ -54,7 +54,6 @@ pub(crate) async fn prepare_decryption(
     if mail.headers.get_header(HeaderDef::ListPost).is_some() {
         if mail.headers.get_header(HeaderDef::Autocrypt).is_some() {
             info!(
-                context,
                 "Ignoring autocrypt header since this is a mailing list message. \
                 NOTE: For privacy reasons, the mailing list software should remove Autocrypt headers."
             );
@@ -78,13 +77,13 @@ pub(crate) async fn prepare_decryption(
                 Ok(header) if addr_cmp(&header.addr, from) => Some(header),
                 Ok(header) => {
                     warn!(
-                        context,
-                        "Autocrypt header address {:?} is not {:?}.", header.addr, from
+                        "Autocrypt header address {:?} is not {:?}.",
+                        header.addr, from
                     );
                     None
                 }
                 Err(err) => {
-                    warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
+                    warn!("Failed to parse Autocrypt header: {:#}.", err);
                     None
                 }
             }
@@ -319,8 +318,8 @@ pub(crate) async fn get_autocrypt_peerstate(
                     peerstate.save_to_db(&context.sql).await?;
                 } else {
                     info!(
-                        context,
-                        "Refusing to update existing peerstate of {}", &peerstate.addr
+                        "Refusing to update existing peerstate of {}",
+                        &peerstate.addr
                     );
                 }
             }

@@ -1,6 +1,7 @@
 //! # Chat list module.
 
 use anyhow::{ensure, Context as _, Result};
+use tracing::warn;
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
@@ -176,7 +177,7 @@ impl Chatlist {
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
             if let Err(err) = update_special_chat_names(context).await {
-                warn!(context, "Cannot update special chat names: {err:#}.")
+                warn!("Cannot update special chat names: {err:#}.")
             }
 
             let str_like_cmd = format!("%{query}%");

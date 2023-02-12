@@ -1,6 +1,7 @@
 //! Migrations module.
 
 use anyhow::{Context as _, Result};
+use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::constants::ShowEmails;
@@ -372,7 +373,7 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
                     )
                     .await?;
             } else {
-                warn!(context, "Can't parse configured address: {:?}", addr);
+                warn!("Can't parse configured address: {:?}", addr);
             }
         }
 
@@ -715,10 +716,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         } else {
             "Created new database; "
         };
-        info!(
-            context,
-            "{}[migration] v{}-v{}", created_db, dbversion, new_version
-        );
+        info!("{}[migration] v{}-v{}", created_db, dbversion, new_version);
     }
 
     Ok((

@@ -13,13 +13,14 @@ use async_channel::{self as channel, Receiver, Sender};
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task;
+use tracing::{info, warn};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::debug_logging::DebugEventLogData;
-use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::events::{Event, EventEmitter, EventLayer, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
@@ -29,6 +30,8 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{duration_to_str, time};
+
+pub mod future;
 
 /// Builder for the [`Context`].
 ///
@@ -290,13 +293,18 @@ impl Context {
         events: Events,
         stock_strings: StockStrings,
     ) -> Result<Context> {
-        let context = Self::new_closed(dbfile, id, events, stock_strings).await?;
+        let context = Self::new_closed(dbfile, id, events.clone(), stock_strings).await?;
 
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
             context.sql.open(&context, "".to_string()).await?;
         }
         Ok(context)
+    }
+
+    /// Returns `tracing` subscriber layer.
+    pub fn to_layer(&self) -> EventLayer {
+        self.events.to_layer()
     }
 
     /// Creates new context without opening the database.
@@ -389,7 +397,7 @@ impl Context {
     /// Starts the IO scheduler.
     pub async fn start_io(&self) {
         if let Ok(false) = self.is_configured().await {
-            warn!(self, "can not start io on a context that is not configured");
+            warn!("can not start io on a context that is not configured");
             return;
         }
         self.scheduler.start(self.clone()).await;
@@ -532,13 +540,13 @@ impl Context {
         match &*s {
             RunningState::Running { cancel_sender } => {
                 if let Err(err) = cancel_sender.send(()).await {
-                    warn!(self, "could not cancel ongoing: {:#}", err);
+                    warn!("could not cancel ongoing: {:#}", err);
                 }
-                info!(self, "Signaling the ongoing process to stop ASAP.",);
+                info!("Signaling the ongoing process to stop ASAP.",);
                 *s = RunningState::ShallStop;
             }
             RunningState::ShallStop | RunningState::Stopped => {
-                info!(self, "No ongoing process to stop.",);
+                info!("No ongoing process to stop.",);
             }
         }
     }

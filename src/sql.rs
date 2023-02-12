@@ -22,6 +22,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
 use crate::tools::{delete_file, time};
+use tracing::{error, info, warn};
 
 #[allow(missing_docs)]
 #[macro_export]
@@ -216,7 +217,7 @@ impl Sql {
         // the structure is complete now and all objects are usable
 
         if recalc_fingerprints {
-            info!(context, "[migration] recalc fingerprints");
+            info!("[migration] recalc fingerprints");
             let addrs = self
                 .query_map(
                     "SELECT addr FROM acpeerstates;",
@@ -265,7 +266,7 @@ impl Sql {
                             .await?
                     }
                     Err(e) => {
-                        warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
+                        warn!("Migrations can't recode avatar, removing. {:#}", e);
                         context.set_config(Config::Selfavatar, None).await?
                     }
                 }
@@ -280,8 +281,8 @@ impl Sql {
     pub async fn open(&self, context: &Context, passphrase: String) -> Result<()> {
         if self.is_open().await {
             error!(
-                context,
-                "Cannot open, database \"{:?}\" already opened.", self.dbfile,
+                "Cannot open, database \"{:?}\" already opened.",
+                self.dbfile,
             );
             bail!("SQL database is already opened.");
         }
@@ -291,7 +292,7 @@ impl Sql {
             self.close().await;
             Err(err)
         } else {
-            info!(context, "Opened database {:?}.", self.dbfile);
+            info!("Opened database {:?}.", self.dbfile);
             *self.is_encrypted.write().await = Some(passphrase_nonempty);
 
             // setup debug logging if there is an entry containing its id
@@ -697,28 +698,19 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
 /// Cleanup the account to restore some storage and optimize the database.
 pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
-        warn!(
-            context,
-            "Housekeeping: cannot remove unused files: {:#}.", err
-        );
+        warn!("Housekeeping: cannot remove unused files: {err:#}.");
     }
 
     if let Err(err) = start_ephemeral_timers(context).await {
-        warn!(
-            context,
-            "Housekeeping: cannot start ephemeral timers: {:#}.", err
-        );
+        warn!("Housekeeping: cannot start ephemeral timers: {err:#}.");
     }
 
     if let Err(err) = prune_tombstones(&context.sql).await {
-        warn!(
-            context,
-            "Housekeeping: Cannot prune message tombstones: {:#}.", err
-        );
+        warn!("Housekeeping: Cannot prune message tombstones: {err:#}.");
     }
 
     if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {:#}.", err)
+        warn!("Failed to deduplicate peerstates: {err:#}.")
     }
 
     context.schedule_quota_update().await?;
@@ -731,11 +723,11 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .await
     {
         Err(err) => {
-            warn!(context, "Failed to run incremental vacuum: {err:#}.");
+            warn!("Failed to run incremental vacuum: {err:#}.");
         }
         Ok(Some(())) => {
             // Incremental vacuum returns a zero-column result if it did anything.
-            info!(context, "Successfully ran incremental vacuum.");
+            info!("Successfully ran incremental vacuum.");
         }
         Ok(None) => {
             // Incremental vacuum returned `SQLITE_DONE` immediately,
@@ -747,7 +739,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .set_config(Config::LastHousekeeping, Some(&time().to_string()))
         .await
     {
-        warn!(context, "Can't set config: {e:#}.");
+        warn!("Can't set config: {e:#}.");
     }
 
     context
@@ -759,7 +751,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .await
         .ok_or_log_msg(context, "failed to remove old MDNs");
 
-    info!(context, "Housekeeping done.");
+    info!("Housekeeping done.");
     Ok(())
 }
 
@@ -768,7 +760,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 
-    info!(context, "Start housekeeping...");
+    info!("Start housekeeping...");
     maybe_add_from_param(
         &context.sql,
         &mut files_in_use,
@@ -814,7 +806,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         .await
         .context("housekeeping: failed to SELECT value FROM config")?;
 
-    info!(context, "{} files in use.", files_in_use.len());
+    info!("{} files in use.", files_in_use.len());
     /* go through directories and delete unused files */
     let blobdir = context.get_blobdir();
     for p in [&blobdir.join(BLOBS_BACKUP_NAME), blobdir] {
@@ -845,7 +837,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                                 // The dir could be created not by a user, but by a desktop
                                 // environment f.e. So, no warning.
                                 info!(
-                                    context,
                                     "Housekeeping: Cannot rmdir {}: {:#}.",
                                     entry.path().display(),
                                     e
@@ -867,7 +858,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                             && (recently_created || recently_modified || recently_accessed)
                         {
                             info!(
-                                context,
                                 "Housekeeping: Keeping new unreferenced file #{}: {:?}.",
                                 unreferenced_count,
                                 entry.file_name(),
@@ -878,7 +868,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                         unreferenced_count += 1;
                     }
                     info!(
-                        context,
                         "Housekeeping: Deleting unreferenced file #{}: {:?}.",
                         unreferenced_count,
                         entry.file_name()
@@ -886,7 +875,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     let path = entry.path();
                     if let Err(err) = delete_file(context, &path).await {
                         error!(
-                            context,
                             "Failed to delete unused file {}: {:#}.",
                             path.display(),
                             err
@@ -895,12 +883,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                 }
             }
             Err(err) => {
-                warn!(
-                    context,
-                    "Housekeeping: Cannot read dir {}: {:#}.",
-                    p.display(),
-                    err
-                );
+                warn!("Housekeeping: Cannot read dir {}: {:#}.", p.display(), err);
             }
         }
     }
@@ -1162,7 +1145,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_migration_flags() -> Result<()> {
         let t = TestContext::new().await;
-        t.evtracker.get_info_contains("Opened database").await;
 
         // as migrations::run() was already executed on context creation,
         // another call should not result in any action needed.
@@ -1174,7 +1156,9 @@ mod tests {
         assert!(!disable_server_delete);
         assert!(!recode_avatar);
 
-        info!(&t, "test_migration_flags: XXX END MARKER");
+        t.emit_event(crate::EventType::Info(
+            "test_migration_flags: XXX END MARKER".to_string(),
+        ));
 
         loop {
             let evt = t

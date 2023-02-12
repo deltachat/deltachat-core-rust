@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
+use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::context::Context;
@@ -124,7 +125,7 @@ impl Job {
     /// Called in response to `Action::DownloadMsg`.
     pub(crate) async fn download_msg(&self, context: &Context, imap: &mut Imap) -> Status {
         if let Err(err) = imap.prepare(context).await {
-            warn!(context, "download: could not connect: {:#}", err);
+            warn!("download: could not connect: {:#}", err);
             return Status::RetryNow;
         }
 
@@ -195,7 +196,7 @@ impl Imap {
         }
 
         // we are connected, and the folder is selected
-        info!(context, "Downloading message {}/{} fully...", folder, uid);
+        info!("Downloading message {}/{} fully...", folder, uid);
 
         let mut uid_message_ids: BTreeMap<u32, String> = BTreeMap::new();
         uid_message_ids.insert(uid, rfc724_mid);
@@ -240,7 +241,7 @@ impl MimeMessage {
             text += format!(" [{until}]").as_str();
         };
 
-        info!(context, "Partial download: {}", text);
+        info!("Partial download: {}", text);
 
         self.parts.push(Part {
             typ: Viewtype::Text,

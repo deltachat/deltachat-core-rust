@@ -4,6 +4,7 @@ use std::{iter::once, ops::Deref, sync::Arc};
 use anyhow::{anyhow, Result};
 use humansize::{format_size, BINARY};
 use tokio::sync::Mutex;
+use tracing::info;
 
 use crate::events::EventType;
 use crate::imap::{scan_folders::get_watched_folder_configs, FolderMeaning};
@@ -408,7 +409,7 @@ impl Context {
                                 ret +=
                                     &format!("<b>{}:</b> ", &*escaper::encode_minimal(root_name));
                             } else {
-                                info!(self, "connectivity: root name hidden: \"{}\"", root_name);
+                                info!("connectivity: root name hidden: \"{}\"", root_name);
                             }
 
                             let messages = stock_str::messages(self).await;

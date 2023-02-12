@@ -11,6 +11,7 @@ use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
 use tokio::fs::{self, File};
 use tokio_tar::Archive;
+use tracing::{error, info, warn};
 
 use crate::blob::{BlobDirContents, BlobObject};
 use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
@@ -103,10 +104,10 @@ pub async fn imex(
 
     if let Err(err) = res.as_ref() {
         // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:
-        error!(context, "IMEX failed to complete: {:#}", err);
+        error!("IMEX failed to complete: {:#}", err);
         context.emit_event(EventType::ImexProgress(0));
     } else {
-        info!(context, "IMEX successfully completed");
+        info!("IMEX successfully completed");
         context.emit_event(EventType::ImexProgress(1000));
     }
 
@@ -114,7 +115,7 @@ pub async fn imex(
 }
 
 /// Returns the filename of the backup found (otherwise an error)
-pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
+pub async fn has_backup(dir_name: &Path) -> Result<String> {
     let mut dir_iter = tokio::fs::read_dir(dir_name).await?;
     let mut newest_backup_name = "".to_string();
     let mut newest_backup_path: Option<PathBuf> = None;
@@ -144,7 +145,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
 ///
 /// Returns setup code.
 pub async fn initiate_key_transfer(context: &Context) -> Result<String> {
-    let setup_code = create_setup_code(context);
+    let setup_code = create_setup_code();
     /* this may require a keypair to be created. this may take a second ... */
     let setup_file_content = render_setup_file(context, &setup_code).await?;
     /* encrypting may also take a while ... */
@@ -226,7 +227,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
 }
 
 /// Creates a new setup code for Autocrypt Setup Message.
-pub fn create_setup_code(_context: &Context) -> String {
+pub fn create_setup_code() -> String {
     let mut random_val: u16;
     let mut rng = thread_rng();
     let mut ret = String::new();
@@ -343,7 +344,7 @@ async fn set_self_key(
     )
     .await?;
 
-    info!(context, "stored self key: {:?}", keypair.secret.key_id());
+    info!("stored self key: {:?}", keypair.secret.key_id());
     Ok(())
 }
 
@@ -376,7 +377,7 @@ async fn imex_inner(
     path: &Path,
     passphrase: Option<String>,
 ) -> Result<()> {
-    info!(context, "Import/export dir: {}", path.display());
+    info!("Import/export dir: {}", path.display());
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
 
@@ -426,7 +427,6 @@ async fn import_backup(
     let backup_file = File::open(backup_to_import).await?;
     let file_size = backup_file.metadata().await?.len();
     info!(
-        context,
         "Import \"{}\" ({} bytes) to \"{}\".",
         backup_to_import.display(),
         file_size,
@@ -468,7 +468,7 @@ async fn import_backup(
                 if let Some(name) = from_path.file_name() {
                     fs::rename(&from_path, context.get_blobdir().join(name)).await?;
                 } else {
-                    warn!(context, "No file name");
+                    warn!("No file name.");
                 }
             }
         }
@@ -527,7 +527,6 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         .context("could not export database")?;
 
     info!(
-        context,
         "Backup '{}' to '{}'.",
         context.get_dbfile().display(),
         dest_path.display(),
@@ -541,7 +540,7 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
             context.emit_event(EventType::ImexFileWritten(dest_path));
         }
         Err(e) => {
-            error!(context, "backup failed: {}", e);
+            error!("backup failed: {}", e);
         }
     }
 
@@ -613,7 +612,7 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
                     continue;
                 }
                 set_default = if name_f.contains("legacy") {
-                    info!(context, "found legacy key '{}'", path_plus_name.display());
+                    info!("found legacy key '{}'", path_plus_name.display());
                     false
                 } else {
                     true
@@ -623,17 +622,13 @@ async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
                 continue;
             }
         }
-        info!(
-            context,
-            "considering key file: {}",
-            path_plus_name.display()
-        );
+        info!("considering key file: {}", path_plus_name.display());
 
         match read_file(context, &path_plus_name).await {
             Ok(buf) => {
                 let armored = std::string::String::from_utf8_lossy(&buf);
                 if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    info!(context, "set_self_key: {}", err);
+                    info!("set_self_key: {}", err);
                     continue;
                 }
             }
@@ -678,7 +673,7 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         let id = Some(id).filter(|_| is_default != 0);
         if let Ok(key) = public_key {
             if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
-                error!(context, "Failed to export public key: {:#}.", err);
+                error!("Failed to export public key: {:#}.", err);
                 export_errors += 1;
             }
         } else {
@@ -686,7 +681,7 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         }
         if let Ok(key) = private_key {
             if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
-                error!(context, "Failed to export private key: {:#}.", err);
+                error!("Failed to export private key: {:#}.", err);
                 export_errors += 1;
             }
         } else {
@@ -723,7 +718,6 @@ where
         dir.join(format!("{}-key-{}.asc", kind, &id))
     };
     info!(
-        context,
         "Exporting key {:?} to {}",
         key.key_id(),
         file_name.display()
@@ -764,7 +758,7 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
         .sql
         .call_write(|conn| {
             conn.execute("VACUUM;", params![])
-                .map_err(|err| warn!(context, "Vacuum failed, exporting anyway {err}"))
+                .map_err(|err| warn!("Vacuum failed, exporting anyway {err:#}."))
                 .ok();
             conn.execute(
                 "ATTACH DATABASE ? AS backup KEY ?",
@@ -824,8 +818,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_setup_code() {
-        let t = TestContext::new().await;
-        let setupcode = create_setup_code(&t);
+        let setupcode = create_setup_code();
         assert_eq!(setupcode.len(), 44);
         assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
         assert_eq!(setupcode.chars().nth(9).unwrap(), '-');
@@ -890,7 +883,7 @@ mod tests {
 
         let context2 = TestContext::new().await;
         assert!(!context2.is_configured().await?);
-        assert!(has_backup(&context2, backup_dir.path()).await.is_err());
+        assert!(has_backup(backup_dir.path()).await.is_err());
 
         // export from context1
         assert!(
@@ -904,7 +897,7 @@ mod tests {
             .await;
 
         // import to context2
-        let backup = has_backup(&context2, backup_dir.path()).await?;
+        let backup = has_backup(backup_dir.path()).await?;
 
         // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
         assert!(imex(
@@ -949,7 +942,7 @@ mod tests {
         imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None).await?;
 
         // import to context2
-        let backup = has_backup(&context2, backup_dir.path()).await?;
+        let backup = has_backup(backup_dir.path()).await?;
         let context2_cloned = context2.clone();
         let handle = task::spawn(async move {
             imex(

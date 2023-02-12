@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
+use tracing::{info, warn};
 
 use crate::config::Config;
 use crate::context::Context;
@@ -62,7 +63,7 @@ pub async fn get_oauth2_url(
     redirect_uri: &str,
 ) -> Result<Option<String>> {
     let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, socks5_enabled).await {
+    if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
         context
             .sql
             .set_raw_config("oauth2_pending_redirect_uri", Some(redirect_uri))
@@ -83,7 +84,7 @@ pub(crate) async fn get_oauth2_access_token(
     regenerate: bool,
 ) -> Result<Option<String>> {
     let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    if let Some(oauth2) = Oauth2::from_address(context, addr, socks5_enabled).await {
+    if let Some(oauth2) = Oauth2::from_address(addr, socks5_enabled).await {
         let lock = context.oauth2_mutex.lock().await;
 
         // read generated token
@@ -105,7 +106,7 @@ pub(crate) async fn get_oauth2_access_token(
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
             if refresh_token.is_none() || refresh_token_for != code {
-                info!(context, "Generate OAuth2 refresh_token and access_token...",);
+                info!("Generate OAuth2 refresh_token and access_token...",);
                 (
                     context
                         .sql
@@ -116,10 +117,7 @@ pub(crate) async fn get_oauth2_access_token(
                     true,
                 )
             } else {
-                info!(
-                    context,
-                    "Regenerate OAuth2 access_token by refresh_token...",
-                );
+                info!("Regenerate OAuth2 access_token by refresh_token...",);
                 (
                     context
                         .sql
@@ -167,14 +165,14 @@ pub(crate) async fn get_oauth2_access_token(
                 Ok(response) => response,
                 Err(err) => {
                     warn!(
-                        context,
-                        "Failed to parse OAuth2 JSON response from {}: error: {}", token_url, err
+                        "Failed to parse OAuth2 JSON response from {}: error: {}",
+                        token_url, err
                     );
                     return Ok(None);
                 }
             },
             Err(err) => {
-                warn!(context, "Error calling OAuth2 at {}: {:?}", token_url, err);
+                warn!("Error calling OAuth2 at {}: {:?}", token_url, err);
                 return Ok(None);
             }
         };
@@ -215,14 +213,14 @@ pub(crate) async fn get_oauth2_access_token(
                     .await?;
             }
         } else {
-            warn!(context, "Failed to find OAuth2 access token");
+            warn!("Failed to find OAuth2 access token");
         }
 
         drop(lock);
 
         Ok(response.access_token)
     } else {
-        warn!(context, "Internal OAuth2 error: 2");
+        warn!("Internal OAuth2 error: 2");
 
         Ok(None)
     }
@@ -234,7 +232,7 @@ pub(crate) async fn get_oauth2_addr(
     code: &str,
 ) -> Result<Option<String>> {
     let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
-    let oauth2 = match Oauth2::from_address(context, addr, socks5_enabled).await {
+    let oauth2 = match Oauth2::from_address(addr, socks5_enabled).await {
         Some(o) => o,
         None => return Ok(None),
     };
@@ -260,13 +258,13 @@ pub(crate) async fn get_oauth2_addr(
 }
 
 impl Oauth2 {
-    async fn from_address(context: &Context, addr: &str, skip_mx: bool) -> Option<Self> {
+    async fn from_address(addr: &str, skip_mx: bool) -> Option<Self> {
         let addr_normalized = normalize_addr(addr);
         if let Some(domain) = addr_normalized
             .find('@')
             .map(|index| addr_normalized.split_at(index + 1).1)
         {
-            if let Some(oauth2_authorizer) = provider::get_provider_info(context, domain, skip_mx)
+            if let Some(oauth2_authorizer) = provider::get_provider_info(domain, skip_mx)
                 .await
                 .and_then(|provider| provider.oauth2_authorizer.as_ref())
             {
@@ -294,14 +292,14 @@ impl Oauth2 {
         let client = match crate::http::get_client(socks5_config) {
             Ok(cl) => cl,
             Err(err) => {
-                warn!(context, "failed to get HTTP client: {}", err);
+                warn!("failed to get HTTP client: {}", err);
                 return None;
             }
         };
         let response = match client.get(userinfo_url).send().await {
             Ok(response) => response,
             Err(err) => {
-                warn!(context, "failed to get userinfo: {}", err);
+                warn!("failed to get userinfo: {}", err);
                 return None;
             }
         };
@@ -309,7 +307,7 @@ impl Oauth2 {
         let parsed = match response {
             Ok(parsed) => parsed,
             Err(err) => {
-                warn!(context, "Error getting userinfo: {}", err);
+                warn!("Error getting userinfo: {}", err);
                 return None;
             }
         };
@@ -319,11 +317,11 @@ impl Oauth2 {
             if let Some(s) = addr.as_str() {
                 Some(s.to_string())
             } else {
-                warn!(context, "E-mail in userinfo is not a string: {}", addr);
+                warn!("E-mail in userinfo is not a string: {}", addr);
                 None
             }
         } else {
-            warn!(context, "E-mail missing in userinfo.");
+            warn!("E-mail missing in userinfo.");
             None
         }
     }
@@ -377,39 +375,34 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_oauth_from_address() {
-        let t = TestContext::new().await;
         assert_eq!(
-            Oauth2::from_address(&t, "hello@gmail.com", false).await,
+            Oauth2::from_address("hello@gmail.com", false).await,
             Some(OAUTH2_GMAIL)
         );
         assert_eq!(
-            Oauth2::from_address(&t, "hello@googlemail.com", false).await,
+            Oauth2::from_address("hello@googlemail.com", false).await,
             Some(OAUTH2_GMAIL)
         );
         assert_eq!(
-            Oauth2::from_address(&t, "hello@yandex.com", false).await,
+            Oauth2::from_address("hello@yandex.com", false).await,
             Some(OAUTH2_YANDEX)
         );
         assert_eq!(
-            Oauth2::from_address(&t, "hello@yandex.ru", false).await,
+            Oauth2::from_address("hello@yandex.ru", false).await,
             Some(OAUTH2_YANDEX)
         );
-        assert_eq!(Oauth2::from_address(&t, "hello@web.de", false).await, None);
+        assert_eq!(Oauth2::from_address("hello@web.de", false).await, None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_oauth_from_mx() {
         // youtube staff seems to use "google workspace with oauth2", figures this out by MX lookup
-        let t = TestContext::new().await;
         assert_eq!(
-            Oauth2::from_address(&t, "hello@youtube.com", false).await,
+            Oauth2::from_address("hello@youtube.com", false).await,
             Some(OAUTH2_GMAIL)
         );
         // without MX lookup, we would not know as youtube.com is not in our provider-db
-        assert_eq!(
-            Oauth2::from_address(&t, "hello@youtube.com", true).await,
-            None
-        );
+        assert_eq!(Oauth2::from_address("hello@youtube.com", true).await, None);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

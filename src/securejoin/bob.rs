@@ -4,6 +4,7 @@
 //! the required user interactions.
 
 use anyhow::{Context as _, Result};
+use tracing::{error, warn};
 
 use super::bobstate::{BobHandshakeStage, BobState};
 use super::qrinvite::QrInvite;
@@ -45,7 +46,7 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
     let (state, stage, aborted_states) =
         BobState::start_protocol(context, invite.clone(), chat_id).await?;
     for state in aborted_states {
-        error!(context, "Aborting previously unfinished QR Join process.");
+        error!("Aborting previously unfinished QR Join process.");
         state.notify_aborted(context, "new QR scanned").await?;
         state.emit_progress(context, JoinerProgress::Error);
     }
@@ -133,10 +134,7 @@ pub(super) async fn handle_contact_confirm(
             Ok(retval)
         }
         Some(_) => {
-            warn!(
-                context,
-                "Impossible state returned from handling handshake message"
-            );
+            warn!("Impossible state returned from handling handshake message");
             Ok(retval)
         }
         None => Ok(retval),
@@ -208,8 +206,8 @@ impl BobState {
         let chat_id = self.joining_chat_id(context).await?;
         chat::add_info_msg(context, chat_id, &msg, time()).await?;
         warn!(
-            context,
-            "StockMessage::ContactNotVerified posted to joining chat ({})", why
+            "StockMessage::ContactNotVerified posted to joining chat ({})",
+            why
         );
         Ok(())
     }

@@ -8,6 +8,7 @@ pub use dclogin_scheme::LoginOptions;
 use once_cell::sync::Lazy;
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
+use tracing::info;
 
 use self::dclogin_scheme::configure_from_login_qr;
 use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
@@ -247,7 +248,7 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
 pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
-    info!(context, "Scanned QR code: {}", qr);
+    info!("Scanned QR code: {}", qr);
 
     let qrcode = if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)

@@ -1,6 +1,7 @@
 //! # SMTP message sending
 
 use async_smtp::{EmailAddress, Envelope, SendableEmail};
+use tracing::warn;
 
 use super::Smtp;
 use crate::config::Config;
@@ -70,8 +71,8 @@ impl Smtp {
                 self.last_success = Some(std::time::SystemTime::now());
             } else {
                 warn!(
-                    context,
-                    "uh? SMTP has no transport, failed to send to {}", recipients_display
+                    "uh? SMTP has no transport, failed to send to {}",
+                    recipients_display
                 );
                 return Err(Error::NoTransport);
             }

@@ -1,10 +1,16 @@
+#![allow(missing_docs)]
 //! # Events specification.
 
+use std::fmt::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
 use serde::Serialize;
+
+use tracing::Level;
+use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::Layer;
 
 use crate::chat::ChatId;
 use crate::contact::ContactId;
@@ -42,8 +48,19 @@ impl Events {
         }
     }
 
-    /// Emits an event.
+    /// Set last error string.
+    /// Implemented as blocking as used from macros in different, not always async blocks.
+    pub fn set_last_error(&self, error: &str) {
+        let error = error.to_string();
+        let mut last_error = self.last_error.write().unwrap();
+        *last_error = error;
+    }
+
+    /// Emits an event into event channel.
     pub fn emit(&self, event: Event) {
+        if let EventType::Error(formatted) = &event.typ {
+            self.set_last_error(formatted);
+        }
         match self.sender.try_send(event) {
             Ok(()) => {}
             Err(TrySendError::Full(event)) => {
@@ -62,6 +79,89 @@ impl Events {
     /// Retrieve the event emitter.
     pub fn get_emitter(&self) -> EventEmitter {
         EventEmitter(self.receiver.clone())
+    }
+
+    /// Returns `tracing` subscriber layer.
+    pub fn to_layer(&self) -> EventLayer {
+        EventLayer::new(self.sender.clone(), self.last_error.clone())
+    }
+}
+
+#[derive(Debug)]
+struct MessageStorage<'a>(&'a mut String);
+
+impl tracing::field::Visit for MessageStorage<'_> {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            write!(self.0, "{value:?}").ok();
+        }
+    }
+}
+
+/// Tracing subscriber layer converting logs into Delta Chat events.
+#[derive(Debug)]
+pub struct EventLayer {
+    /// Event channel for event submission.
+    sender: Sender<Event>,
+
+    last_error: Arc<RwLock<String>>,
+}
+
+impl EventLayer {
+    pub(crate) fn new(sender: Sender<Event>, last_error: Arc<RwLock<String>>) -> Self {
+        Self { sender, last_error }
+    }
+
+    fn set_last_error(&self, error: &str) {
+        let error = error.to_string();
+        let mut last_error = self.last_error.write().unwrap();
+        *last_error = error;
+    }
+}
+
+impl<S> Layer<S> for EventLayer
+where
+    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
+{
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let context_id = crate::context::future::current_context_id();
+        let &level = event.metadata().level();
+        let mut message = "".to_string();
+        let mut visitor = MessageStorage(&mut message);
+        event.record(&mut visitor);
+
+        match level {
+            Level::ERROR => {
+                self.set_last_error(&message);
+                self.sender
+                    .try_send(Event {
+                        id: context_id,
+                        typ: EventType::Error(message),
+                    })
+                    .ok();
+            }
+            Level::WARN => {
+                self.sender
+                    .try_send(Event {
+                        id: context_id,
+                        typ: EventType::Warning(message),
+                    })
+                    .ok();
+            }
+            Level::INFO => {
+                self.sender
+                    .try_send(Event {
+                        id: context_id,
+                        typ: EventType::Info(message),
+                    })
+                    .ok();
+            }
+            Level::TRACE | Level::DEBUG => {}
+        }
     }
 }
 

@@ -12,6 +12,7 @@ use async_channel::{self as channel, Receiver};
 use serde_json::json;
 use std::path::PathBuf;
 use tokio::task;
+use tracing::info;
 
 /// Store all information needed to log an event to a webxdc.
 pub struct DebugEventLogData {
@@ -132,7 +133,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                     });
                 }
             }
-            info!(ctx, "replacing logging webxdc");
+            info!("replacing logging webxdc");
         }
         // Delete current debug logging
         None => {
@@ -140,7 +141,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                 .set_raw_config(Config::DebugLogging.as_ref(), None)
                 .await?;
             *ctx.debug_logging.write().await = None;
-            info!(ctx, "removing logging webxdc");
+            info!("removing logging webxdc");
         }
     }
     Ok(())
