@@ -79,10 +79,10 @@ jobs:
       uses: swatinem/rust-cache@v2
 
     - name: Check
-      run: cargo check --all --bins --examples --tests --benches
+      run: cargo check --workspace --bins --examples --tests --benches
 
     - name: Tests
-      run: cargo test --all
+      run: cargo test --workspace
 
     - name: Test cargo vendor
       run: cargo vendor
