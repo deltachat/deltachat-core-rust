@@ -2,6 +2,7 @@ import json
 import os
 from typing import AsyncGenerator, List, Optional
 
+import asyncio
 import aiohttp
 import pytest_asyncio
 
@@ -51,11 +52,13 @@ class ACFactory:
         await bot.configure(credentials["email"], credentials["password"])
         return bot
 
+    async def get_online_account(self) -> Account:
+        account = await self.new_configured_account()
+        await account.start_io()
+        return account
+
     async def get_online_accounts(self, num: int) -> List[Account]:
-        accounts = [await self.new_configured_account() for _ in range(num)]
-        for account in accounts:
-            await account.start_io()
-        return accounts
+        return await asyncio.gather(*[self.get_online_account() for _ in range(num)])
 
     async def send_message(
         self,
