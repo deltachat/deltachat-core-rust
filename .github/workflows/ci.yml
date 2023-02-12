@@ -24,14 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            components: clippy
-            override: true
+      - name: Install clippy
+        run: rustup toolchain install 1.67.1 --component clippy
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
-      - run: scripts/clippy.sh
+      - name: Run clippy
+        env:
+          RUSTUP_TOOLCHAIN: 1.67.1
+        run: scripts/clippy.sh
 
   docs:
     name: Rust doc comments
@@ -41,13 +41,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install rust stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rust-docs
-          override: true
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
       - name: Rustdoc
@@ -79,11 +72,9 @@ jobs:
     steps:
     - uses: actions/checkout@master
 
-    - name: Install ${{ matrix.rust }}
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        override: true
+    - name: Install Rust ${{ matrix.rust }}
+      run: rustup toolchain install ${{ matrix.rust }}
+    - run: rustup override set ${{ matrix.rust }}
 
     - name: Cache rust cargo artifacts
       uses: swatinem/rust-cache@v2
