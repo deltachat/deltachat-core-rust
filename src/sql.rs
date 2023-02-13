@@ -1,7 +1,5 @@
 //! # SQLite wrapper.
 
-#![allow(missing_docs)]
-
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;
@@ -26,6 +24,7 @@ use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
 use crate::tools::{delete_file, time};
 
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! paramsv {
     () => {
@@ -36,6 +35,7 @@ macro_rules! paramsv {
     };
 }
 
+#[allow(missing_docs)]
 #[macro_export]
 macro_rules! params_iterv {
     ($($param:expr),+ $(,)?) => {
@@ -55,16 +55,19 @@ pub struct Sql {
     /// Database file path
     pub(crate) dbfile: PathBuf,
 
+    /// SQL connection pool.
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
 
     /// None if the database is not open, true if it is open with passphrase and false if it is
     /// open without a passphrase.
     is_encrypted: RwLock<Option<bool>>,
 
+    /// Cache of `config` table.
     pub(crate) config_cache: RwLock<HashMap<String, Option<String>>>,
 }
 
 impl Sql {
+    /// Creates new SQL database.
     pub fn new(dbfile: PathBuf) -> Sql {
         Self {
             dbfile,
@@ -244,6 +247,7 @@ impl Sql {
         Ok(())
     }
 
+    /// Updates SQL schema to the latest version.
     pub async fn run_migrations(&self, context: &Context) -> Result<()> {
         // (1) update low-level database structure.
         // this should be done before updates that use high-level objects that
@@ -388,6 +392,7 @@ impl Sql {
         })
     }
 
+    /// Allocates a connection from the connection pool and returns it.
     pub async fn get_conn(
         &self,
     ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
@@ -585,22 +590,26 @@ impl Sql {
         Ok(value)
     }
 
+    /// Sets configuration for the given key to 32-bit signed integer value.
     pub async fn set_raw_config_int(&self, key: &str, value: i32) -> Result<()> {
         self.set_raw_config(key, Some(&format!("{value}"))).await
     }
 
+    /// Returns 32-bit signed integer configuration value for the given key.
     pub async fn get_raw_config_int(&self, key: &str) -> Result<Option<i32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
+    /// Returns 32-bit unsigned integer configuration value for the given key.
     pub async fn get_raw_config_u32(&self, key: &str) -> Result<Option<u32>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|s| s.parse().ok()))
     }
 
+    /// Returns boolean configuration value for the given key.
     pub async fn get_raw_config_bool(&self, key: &str) -> Result<bool> {
         // Not the most obvious way to encode bool as string, but it is matter
         // of backward compatibility.
@@ -608,27 +617,32 @@ impl Sql {
         Ok(res.unwrap_or_default() > 0)
     }
 
+    /// Sets configuration for the given key to boolean value.
     pub async fn set_raw_config_bool(&self, key: &str, value: bool) -> Result<()> {
         let value = if value { Some("1") } else { None };
         self.set_raw_config(key, value).await
     }
 
+    /// Sets configuration for the given key to 64-bit signed integer value.
     pub async fn set_raw_config_int64(&self, key: &str, value: i64) -> Result<()> {
         self.set_raw_config(key, Some(&format!("{value}"))).await
     }
 
+    /// Returns 64-bit signed integer configuration value for the given key.
     pub async fn get_raw_config_int64(&self, key: &str) -> Result<Option<i64>> {
         self.get_raw_config(key)
             .await
             .map(|s| s.and_then(|r| r.parse().ok()))
     }
 
+    /// Returns configuration cache.
     #[cfg(feature = "internals")]
     pub fn config_cache(&self) -> &RwLock<HashMap<String, Option<String>>> {
         &self.config_cache
     }
 }
 
+/// Cleanup the account to restore some storage and optimize the database.
 pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
@@ -687,6 +701,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     Ok(())
 }
 
+/// Enumerates used files in the blobdir and removes unused ones.
 pub async fn remove_unused_files(context: &Context) -> Result<()> {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;

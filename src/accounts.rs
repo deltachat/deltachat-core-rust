@@ -161,6 +161,8 @@ impl Accounts {
     }
 
     /// Migrate an existing account into this structure.
+    ///
+    /// Returns the ID of new account.
     pub async fn migrate_account(&mut self, dbfile: PathBuf) -> Result<u32> {
         let blobdir = Context::derive_blobdir(&dbfile);
         let walfile = Context::derive_walfile(&dbfile);

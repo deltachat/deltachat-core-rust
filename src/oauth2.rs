@@ -1,7 +1,5 @@
 //! OAuth 2 module.
 
-#![allow(missing_docs)]
-
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -56,6 +54,8 @@ struct Response {
     scope: Option<String>,
 }
 
+/// Returns URL that should be opened in the browser
+/// if OAuth 2 is supported for this address.
 pub async fn get_oauth2_url(
     context: &Context,
     addr: &str,
@@ -76,7 +76,7 @@ pub async fn get_oauth2_url(
     }
 }
 
-pub async fn get_oauth2_access_token(
+pub(crate) async fn get_oauth2_access_token(
     context: &Context,
     addr: &str,
     code: &str,
@@ -228,7 +228,11 @@ pub async fn get_oauth2_access_token(
     }
 }
 
-pub async fn get_oauth2_addr(context: &Context, addr: &str, code: &str) -> Result<Option<String>> {
+pub(crate) async fn get_oauth2_addr(
+    context: &Context,
+    addr: &str,
+    code: &str,
+) -> Result<Option<String>> {
     let socks5_enabled = context.get_config_bool(Config::Socks5Enabled).await?;
     let oauth2 = match Oauth2::from_address(context, addr, socks5_enabled).await {
         Some(o) => o,

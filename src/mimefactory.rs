@@ -98,6 +98,8 @@ pub struct RenderedEmail {
 
     /// Message ID (Message in the sense of Email)
     pub rfc724_mid: String,
+
+    /// Message subject.
     pub subject: String,
 }
 

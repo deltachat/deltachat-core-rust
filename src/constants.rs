@@ -66,14 +66,20 @@ pub enum KeyGenType {
     Ed25519 = 2,
 }
 
+/// Video chat URL type.
 #[derive(
     Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
 #[repr(i8)]
 pub enum VideochatType {
+    /// Unknown type.
     #[default]
     Unknown = 0,
+
+    /// [basicWebRTC](https://github.com/cracker0dks/basicwebrtc) instance.
     BasicWebrtc = 1,
+
+    /// [Jitsi Meet](https://jitsi.org/jitsi-meet/) instance.
     Jitsi = 2,
 }
 
@@ -109,6 +115,7 @@ pub const DC_CHAT_ID_ALLDONE_HINT: ChatId = ChatId::new(7);
 /// larger chat IDs are "real" chats, their messages are "real" messages.
 pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 
+/// Chat type.
 #[derive(
     Debug,
     Default,
@@ -127,11 +134,20 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 )]
 #[repr(u32)]
 pub enum Chattype {
+    /// Undefined chat type.
     #[default]
     Undefined = 0,
+
+    /// 1:1 chat.
     Single = 100,
+
+    /// Group chat.
     Group = 120,
+
+    /// Mailing list.
     Mailinglist = 140,
+
+    /// Broadcast list.
     Broadcast = 160,
 }
 

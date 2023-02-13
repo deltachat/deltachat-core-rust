@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+//! # QR code generation module.
 
 use anyhow::Result;
 use base64::Engine as _;
@@ -14,6 +14,10 @@ use crate::{
     securejoin, stock_str,
 };
 
+/// Returns SVG of the QR code to join the group or verify contact.
+///
+/// If `chat_id` is `None`, returns verification QR code.
+/// Otherwise, returns secure join QR code.
 pub async fn get_securejoin_qr_svg(context: &Context, chat_id: Option<ChatId>) -> Result<String> {
     if let Some(chat_id) = chat_id {
         generate_join_group_qr_code(context, chat_id).await

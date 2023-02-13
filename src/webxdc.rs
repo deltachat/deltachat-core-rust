@@ -114,12 +114,12 @@ pub struct WebxdcInfo {
 pub struct StatusUpdateSerial(u32);
 
 impl StatusUpdateSerial {
-    /// Create a new [MsgId].
+    /// Create a new [StatusUpdateSerial].
     pub fn new(id: u32) -> StatusUpdateSerial {
         StatusUpdateSerial(id)
     }
 
-    /// Gets StatusUpdateId as untyped integer.
+    /// Gets StatusUpdateSerial as untyped integer.
     /// Avoid using this outside ffi.
     pub fn to_u32(self) -> u32 {
         self.0

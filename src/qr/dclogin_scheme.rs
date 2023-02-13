@@ -9,22 +9,53 @@ use crate::context::Context;
 use crate::provider::Socket;
 use crate::{contact, login_param::CertificateChecks};
 
+/// Options for `dclogin:` scheme.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoginOptions {
+    /// Unsupported version.
     UnsuportedVersion(u32),
+
+    /// Version 1.
     V1 {
+        /// IMAP server password.
+        ///
+        /// Used for SMTP if separate SMTP password is not provided.
         mail_pw: String,
+
+        /// IMAP host.
         imap_host: Option<String>,
+
+        /// IMAP port.
         imap_port: Option<u16>,
+
+        /// IMAP username.
         imap_username: Option<String>,
+
+        /// IMAP password.
         imap_password: Option<String>,
+
+        /// IMAP socket security.
         imap_security: Option<Socket>,
+
+        /// IMAP certificate checks.
         imap_certificate_checks: Option<CertificateChecks>,
+
+        /// SMTP host.
         smtp_host: Option<String>,
+
+        /// SMTP port.
         smtp_port: Option<u16>,
+
+        /// SMTP username.
         smtp_username: Option<String>,
+
+        /// SMTP password.
         smtp_password: Option<String>,
+
+        /// SMTP socket security.
         smtp_security: Option<Socket>,
+
+        /// SMTP certificate checks.
         smtp_certificate_checks: Option<CertificateChecks>,
     },
 }

@@ -2075,8 +2075,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     Ok(())
 }
 
-/// Prepares a message to be send out
-/// - Checks if chat can be sent to
+/// Prepares a message to be sent out.
 async fn prepare_msg_common(
     context: &Context,
     chat_id: ChatId,
@@ -2084,6 +2083,8 @@ async fn prepare_msg_common(
     change_state_to: MessageState,
 ) -> Result<MsgId> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
+
+    // Check if the chat can be sent to.
     if let Some(reason) = chat.why_cant_send(context).await? {
         bail!("cannot send to {}: {}", chat_id, reason);
     }
@@ -2141,7 +2142,7 @@ pub async fn is_contact_in_chat(
     Ok(exists)
 }
 
-/// Send a message defined by a dc_msg_t object to a chat.
+/// Sends a message object to a chat.
 ///
 /// Sends the event #DC_EVENT_MSGS_CHANGED on succcess.
 /// However, this does not imply, the message really reached the recipient -
@@ -3294,7 +3295,7 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
     Ok(())
 }
 
-/// Set a new profile image for the chat.
+/// Sets a new profile image for the chat.
 ///
 /// The profile image can only be set when you are a member of the
 /// chat.  To remove the profile image pass an empty string for the

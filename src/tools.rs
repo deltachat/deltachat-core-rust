@@ -124,6 +124,7 @@ pub fn timestamp_to_str(wanted: i64) -> String {
     }
 }
 
+/// Converts duration to string representation suitable for logs.
 pub fn duration_to_str(duration: Duration) -> String {
     let secs = duration.as_secs();
     let h = secs / 3600;
@@ -442,6 +443,7 @@ pub(crate) async fn write_file(
     })
 }
 
+/// Reads the file and returns its context as a byte vector.
 pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let path_abs = get_abs_path(context, &path);
 
@@ -530,7 +532,10 @@ pub(crate) fn time() -> i64 {
 /// ```
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EmailAddress {
+    /// Local part of the email address.
     pub local: String,
+
+    /// Email address domain.
     pub domain: String,
 }
 
