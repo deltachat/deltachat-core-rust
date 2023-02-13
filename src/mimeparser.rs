@@ -48,7 +48,7 @@ use crate::{location, tools};
 /// It is created by parsing the raw data of an actual MIME message
 /// using the [MimeMessage::from_bytes] constructor.
 #[derive(Debug)]
-pub struct MimeMessage {
+pub(crate) struct MimeMessage {
     /// Parsed MIME parts.
     pub parts: Vec<Part>,
 
@@ -186,15 +186,11 @@ impl Default for SystemMessage {
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";
 
 impl MimeMessage {
-    pub async fn from_bytes(context: &Context, body: &[u8]) -> Result<Self> {
-        MimeMessage::from_bytes_with_partial(context, body, None).await
-    }
-
     /// Parse a mime message.
     ///
     /// If `partial` is set, it contains the full message size in bytes
     /// and `body` contains the header only.
-    pub(crate) async fn from_bytes_with_partial(
+    pub(crate) async fn from_bytes(
         context: &Context,
         body: &[u8],
         partial: Option<u32>,
@@ -2012,35 +2008,35 @@ mod tests {
     async fn test_mimeparser_fromheader() {
         let ctx = TestContext::new_alice().await;
 
-        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: g@c.de\n\nhi")
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: g@c.de\n\nhi", None)
             .await
             .unwrap();
         let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
-        let mimemsg = MimeMessage::from_bytes(&ctx, b"From:   g@c.de  \n\nhi")
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From:   g@c.de  \n\nhi", None)
             .await
             .unwrap();
         let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
-        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: <g@c.de>\n\nhi")
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: <g@c.de>\n\nhi", None)
             .await
             .unwrap();
         let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, None);
 
-        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: Goetz C <g@c.de>\n\nhi")
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: Goetz C <g@c.de>\n\nhi", None)
             .await
             .unwrap();
         let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
-        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: \"Goetz C\" <g@c.de>\n\nhi")
+        let mimemsg = MimeMessage::from_bytes(&ctx, b"From: \"Goetz C\" <g@c.de>\n\nhi", None)
             .await
             .unwrap();
         let contact = mimemsg.from;
@@ -2048,7 +2044,7 @@ mod tests {
         assert_eq!(contact.display_name, Some("Goetz C".to_string()));
 
         let mimemsg =
-            MimeMessage::from_bytes(&ctx, b"From: =?utf-8?q?G=C3=B6tz?= C <g@c.de>\n\nhi")
+            MimeMessage::from_bytes(&ctx, b"From: =?utf-8?q?G=C3=B6tz?= C <g@c.de>\n\nhi", None)
                 .await
                 .unwrap();
         let contact = mimemsg.from;
@@ -2057,10 +2053,13 @@ mod tests {
 
         // although RFC 2047 says, encoded-words shall not appear inside quoted-string,
         // this combination is used in the wild eg. by MailMate
-        let mimemsg =
-            MimeMessage::from_bytes(&ctx, b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi")
-                .await
-                .unwrap();
+        let mimemsg = MimeMessage::from_bytes(
+            &ctx,
+            b"From: \"=?utf-8?q?G=C3=B6tz?= C\" <g@c.de>\n\nhi",
+            None,
+        )
+        .await
+        .unwrap();
         let contact = mimemsg.from;
         assert_eq!(contact.addr, "g@c.de");
         assert_eq!(contact.display_name, Some("Götz C".to_string()));
@@ -2070,7 +2069,7 @@ mod tests {
     async fn test_mimeparser_crash() {
         let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
 
@@ -2082,7 +2081,7 @@ mod tests {
     async fn test_get_rfc724_mid_exists() {
         let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/mail_with_message_id.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
 
@@ -2096,7 +2095,7 @@ mod tests {
     async fn test_get_rfc724_mid_not_exists() {
         let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/issue_523.txt");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(mimeparser.get_rfc724_mid(), None);
@@ -2293,7 +2292,7 @@ mod tests {
                     test1\n\
                     ";
 
-        let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None).await;
 
         assert!(mimeparser.is_err());
     }
@@ -2308,7 +2307,7 @@ mod tests {
                     \n\
                     Some reply\n\
                     ";
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2354,7 +2353,7 @@ mod tests {
                     --==break==--\n\
                     \n";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
 
@@ -2388,26 +2387,26 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/mail_attach_txt.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
         assert_eq!(mimeparser.user_avatar, None);
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_avatar_deleted.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert_eq!(mimeparser.user_avatar, Some(AvatarAction::Delete));
         assert_eq!(mimeparser.group_avatar, None);
 
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Text);
         assert!(mimeparser.user_avatar.unwrap().is_change());
@@ -2417,7 +2416,9 @@ mod tests {
         let raw = include_bytes!("../test-data/message/mail_with_user_and_group_avatars.eml");
         let raw = String::from_utf8_lossy(raw).to_string();
         let raw = raw.replace("Chat-User-Avatar:", "Xhat-Xser-Xvatar:");
-        let mimeparser = MimeMessage::from_bytes(&t, raw.as_bytes()).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, raw.as_bytes(), None)
+            .await
+            .unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::Image);
         assert_eq!(mimeparser.user_avatar, None);
@@ -2429,7 +2430,7 @@ mod tests {
         let t = TestContext::new_alice().await;
 
         let raw = include_bytes!("../test-data/message/videochat_invitation.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
         assert_eq!(mimeparser.parts.len(), 1);
         assert_eq!(mimeparser.parts[0].typ, Viewtype::VideochatInvitation);
         assert_eq!(
@@ -2476,7 +2477,7 @@ Content-Disposition: attachment; filename=\"message.kml\"\n\
 --==break==--\n\
 ;";
 
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2525,7 +2526,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2605,7 +2606,7 @@ Disposition: manual-action/MDN-sent-automatically; displayed\n\
 --outer--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2652,7 +2653,7 @@ Additional-Message-IDs: <foo@example.com> <foo@example.net>\n\
 --kJBbU58X1xeWNHgBtTbMk80M5qnV4N--\n\
 ";
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2699,7 +2700,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 ------=_Part_25_46172632.1581201680436--
 "#;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -2743,7 +2744,7 @@ MDYyMDYxNTE1RTlDOEE4Cj4+CnN0YXJ0eHJlZgo4Mjc4CiUlRU9GCg==
 ------=_Part_25_46172632.1581201680436--
 "#;
 
-        let message = MimeMessage::from_bytes(&t, &raw[..]).await.unwrap();
+        let message = MimeMessage::from_bytes(&t, &raw[..], None).await.unwrap();
 
         assert_eq!(message.parts.len(), 1);
         assert_eq!(message.parts[0].typ, Viewtype::File);
@@ -2797,7 +2798,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 ----11019878869865180--
 "#;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(message.get_subject(), Some("example".to_string()));
@@ -2869,7 +2870,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 
 --------------779C1631600DF3DB8C02E53A--"#;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(message.get_subject(), Some("Test subject".to_string()));
@@ -2940,7 +2941,7 @@ CWt6wx7fiLp0qS9RrX75g6Gqw7nfCs6EcBERcIPt7DTe8VStJwf3LWqVwxl4gQl46yhfoqwEO+I=
 ------=_NextPart_000_0003_01D622B3.CA753E60--
 "##;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -3038,7 +3039,7 @@ From: alice <alice@example.org>
 Reply
 "##;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -3070,7 +3071,7 @@ From: alice <alice@example.org>
 > Just a quote.
 "##;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(
@@ -3104,7 +3105,7 @@ On 2020-10-25, Bob wrote:
 > A quote.
 "##;
 
-        let message = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let message = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
         assert_eq!(message.get_subject(), Some("Re: top posting".to_string()));
@@ -3122,7 +3123,7 @@ On 2020-10-25, Bob wrote:
     async fn test_attachment_quote() {
         let context = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/quote_attach.eml");
-        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+        let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
             .await
             .unwrap();
 
@@ -3140,7 +3141,7 @@ On 2020-10-25, Bob wrote:
     async fn test_quote_div() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/gmx-quote.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, raw, None).await.unwrap();
         assert_eq!(mimeparser.parts[0].msg, "YIPPEEEEEE\n\nMulti-line");
         assert_eq!(mimeparser.parts[0].param.get(Param::Quote).unwrap(), "Now?");
     }
@@ -3150,7 +3151,7 @@ On 2020-10-25, Bob wrote:
         // all-inkl.com puts quotes into `<blockquote> </blockquote>`.
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/allinkl-quote.eml");
-        let mimeparser = MimeMessage::from_bytes(&t, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t, raw, None).await.unwrap();
         assert!(mimeparser.parts[0].msg.starts_with("It's 1.0."));
         assert_eq!(
             mimeparser.parts[0].param.get(Param::Quote).unwrap(),
@@ -3194,7 +3195,7 @@ On 2020-10-25, Bob wrote:
     async fn test_mime_modified_plain() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_plain_unspecified.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw, None).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
         assert_eq!(
             mimeparser.parts[0].msg,
@@ -3206,7 +3207,7 @@ On 2020-10-25, Bob wrote:
     async fn test_mime_modified_alt_plain_html() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain_html.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw, None).await.unwrap();
         assert!(mimeparser.is_mime_modified);
         assert_eq!(
             mimeparser.parts[0].msg,
@@ -3218,7 +3219,7 @@ On 2020-10-25, Bob wrote:
     async fn test_mime_modified_alt_plain() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_plain.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw, None).await.unwrap();
         assert!(!mimeparser.is_mime_modified);
         assert_eq!(
             mimeparser.parts[0].msg,
@@ -3233,7 +3234,7 @@ On 2020-10-25, Bob wrote:
     async fn test_mime_modified_alt_html() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_alt_html.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw, None).await.unwrap();
         assert!(mimeparser.is_mime_modified);
         assert_eq!(
             mimeparser.parts[0].msg,
@@ -3245,7 +3246,7 @@ On 2020-10-25, Bob wrote:
     async fn test_mime_modified_html() {
         let t = TestContext::new_alice().await;
         let raw = include_bytes!("../test-data/message/text_html.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw).await.unwrap();
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, raw, None).await.unwrap();
         assert!(mimeparser.is_mime_modified);
         assert_eq!(
             mimeparser.parts[0].msg,
@@ -3261,7 +3262,7 @@ On 2020-10-25, Bob wrote:
         static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_DESIRED_TEXT_LEN
         let long_txt = format!("From: alice@c.de\n\n{}", REPEAT_TXT.repeat(REPEAT_CNT));
 
-        let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref())
+        let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref(), None)
             .await
             .unwrap();
         assert_eq!(long_txt.matches("just repeated").count(), REPEAT_CNT);
@@ -3288,7 +3289,7 @@ On 2020-10-25, Bob wrote:
                 MIME-Version: 1.0\n\
                 \n\
                 Does it work with outlook now?\n\
-                ")
+                ", None)
             .await
             .unwrap();
         assert_eq!(
@@ -3453,7 +3454,7 @@ Message.
         // 1. Test mimeparser directly
         let mdn =
             include_bytes!("../test-data/message/ms_exchange_report_disposition_notification.eml");
-        let mimeparser = MimeMessage::from_bytes(&t.ctx, mdn).await?;
+        let mimeparser = MimeMessage::from_bytes(&t.ctx, mdn, None).await?;
         assert_eq!(mimeparser.mdn_reports.len(), 1);
         assert_eq!(
             mimeparser.mdn_reports[0].original_message_id.as_deref(),
@@ -3479,6 +3480,7 @@ Message.
         let mime_message = MimeMessage::from_bytes(
             &alice,
             include_bytes!("../test-data/message/attached-eml.eml"),
+            None,
         )
         .await?;
 
@@ -3521,6 +3523,7 @@ Content-Disposition: reaction\n\
 \n\
 \u{1F44D}"
                 .as_bytes(),
+            None,
         )
         .await?;
 

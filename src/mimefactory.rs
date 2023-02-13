@@ -2009,7 +2009,7 @@ mod tests {
             "1.0"
         );
 
-        let _mime_msg = MimeMessage::from_bytes(context, rendered_msg.message.as_bytes())
+        let _mime_msg = MimeMessage::from_bytes(context, rendered_msg.message.as_bytes(), None)
             .await
             .unwrap();
     }

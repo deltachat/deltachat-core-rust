@@ -441,8 +441,8 @@ impl TestContext {
     /// peerstates will be updated.  Later receiving the message using [recv_msg] is
     /// unlikely to be affected as the peerstate would be processed again in exactly the
     /// same way.
-    pub async fn parse_msg(&self, msg: &SentMessage<'_>) -> MimeMessage {
-        MimeMessage::from_bytes(&self.ctx, msg.payload().as_bytes())
+    pub(crate) async fn parse_msg(&self, msg: &SentMessage<'_>) -> MimeMessage {
+        MimeMessage::from_bytes(&self.ctx, msg.payload().as_bytes(), None)
             .await
             .unwrap()
     }

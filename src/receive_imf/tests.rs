@@ -20,7 +20,7 @@ async fn test_grpid_simple() {
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
                     \n\
                     hello\x00";
-    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
         .await
         .unwrap();
     assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
@@ -38,7 +38,7 @@ async fn test_bad_from() {
                     References: <Gr.HcxyMARjyJy.9-uvzWPTLtV@nauta.cu>\n\
                     \n\
                     hello\x00";
-    let mimeparser = MimeMessage::from_bytes_with_partial(&context.ctx, &raw[..], None).await;
+    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None).await;
     assert!(mimeparser.is_err());
 }
 
@@ -52,7 +52,7 @@ async fn test_grpid_from_multiple() {
                     References: <qweqweqwe>, <Gr.HcxyMARjyJy.9-uvzWPTLtV@nau.ca>\n\
                     \n\
                     hello\x00";
-    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..])
+    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
         .await
         .unwrap();
     let grpid = Some("HcxyMARjyJy");
@@ -2614,7 +2614,7 @@ References: <second@example.net> <nonexistent@example.net> <first@example.net>
 Content-Type: text/plain; charset=utf-8; format=flowed; delsp=no
 
 Message with references."#;
-    let mime_parser = MimeMessage::from_bytes(&t, &mime[..]).await?;
+    let mime_parser = MimeMessage::from_bytes(&t, &mime[..], None).await?;
 
     let parent = get_parent_message(&t, &mime_parser).await?.unwrap();
     assert_eq!(parent.id, first.id);

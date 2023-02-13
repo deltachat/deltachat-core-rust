@@ -103,35 +103,35 @@ pub(crate) async fn receive_imf_inner(
         );
     }
 
-    let mut mime_parser =
-        match MimeMessage::from_bytes_with_partial(context, imf_raw, is_partial_download).await {
-            Err(err) => {
-                warn!(context, "receive_imf: can't parse MIME: {:#}", err);
-                let msg_ids;
-                if !rfc724_mid.starts_with(GENERATED_PREFIX) {
-                    let row_id = context
-                        .sql
-                        .execute(
-                            "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                            paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
-                        )
-                        .await?;
-                    msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
-                } else {
-                    return Ok(None);
-                    // We don't have an rfc724_mid, there's no point in adding a trash entry
-                }
-
-                return Ok(Some(ReceivedMsg {
-                    chat_id: DC_CHAT_ID_TRASH,
-                    state: MessageState::Undefined,
-                    sort_timestamp: 0,
-                    msg_ids,
-                    needs_delete_job: false,
-                }));
+    let mut mime_parser = match MimeMessage::from_bytes(context, imf_raw, is_partial_download).await
+    {
+        Err(err) => {
+            warn!(context, "receive_imf: can't parse MIME: {:#}", err);
+            let msg_ids;
+            if !rfc724_mid.starts_with(GENERATED_PREFIX) {
+                let row_id = context
+                    .sql
+                    .execute(
+                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                        paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
+                    )
+                    .await?;
+                msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
+            } else {
+                return Ok(None);
+                // We don't have an rfc724_mid, there's no point in adding a trash entry
             }
-            Ok(mime_parser) => mime_parser,
-        };
+
+            return Ok(Some(ReceivedMsg {
+                chat_id: DC_CHAT_ID_TRASH,
+                state: MessageState::Undefined,
+                sort_timestamp: 0,
+                msg_ids,
+                needs_delete_job: false,
+            }));
+        }
+        Ok(mime_parser) => mime_parser,
+    };
 
     // we can not add even an empty record if we have no info whatsoever
     if !mime_parser.has_headers() {
