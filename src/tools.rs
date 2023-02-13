@@ -1180,7 +1180,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // the message should be added only once a day - test that an hour later and nearly a day later
@@ -1190,7 +1190,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         maybe_warn_on_bad_time(
@@ -1199,7 +1199,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             get_provider_update_timestamp(),
         )
         .await;
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // next day, there should be another device message
@@ -1212,7 +1212,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0).unwrap());
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 2);
     }
 
@@ -1242,7 +1242,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // do not repeat the warning every day ...
@@ -1262,7 +1262,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         let test_len = msgs.len();
         assert!(test_len == 1 || test_len == 2);
 
@@ -1277,7 +1277,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
-        let msgs = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), test_len + 1);
     }
 

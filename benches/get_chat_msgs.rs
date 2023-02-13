@@ -14,7 +14,7 @@ async fn get_chat_msgs_benchmark(dbfile: &Path, chats: &[ChatId]) {
         .unwrap();
 
     for c in chats.iter().take(10) {
-        black_box(chat::get_chat_msgs(&context, *c, 0).await.ok());
+        black_box(chat::get_chat_msgs(&context, *c).await.ok());
     }
 }
 

@@ -1,6 +1,7 @@
 use anyhow::{anyhow, format_err};
 
 use crate::context::Context;
+use crate::socks::Socks5Config;
 
 pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
     match read_url_inner(context, url).await {
@@ -16,7 +17,8 @@ pub async fn read_url(context: &Context, url: &str) -> anyhow::Result<String> {
 }
 
 pub async fn read_url_inner(context: &Context, url: &str) -> anyhow::Result<String> {
-    let client = crate::http::get_client()?;
+    let socks5_config = Socks5Config::from_database(&context.sql).await?;
+    let client = crate::http::get_client(socks5_config)?;
     let mut url = url.to_string();
 
     // Follow up to 10 http-redirects

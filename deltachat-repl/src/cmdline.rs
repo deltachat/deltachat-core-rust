@@ -666,8 +666,15 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let sel_chat = sel_chat.as_ref().unwrap();
 
             let time_start = std::time::SystemTime::now();
-            let msglist =
-                chat::get_chat_msgs(&context, sel_chat.get_id(), DC_GCM_ADDDAYMARKER).await?;
+            let msglist = chat::get_chat_msgs_ex(
+                &context,
+                sel_chat.get_id(),
+                chat::MessageListOptions {
+                    info_only: false,
+                    add_daymarker: true,
+                },
+            )
+            .await?;
             let time_needed = time_start.elapsed().unwrap_or_default();
 
             let msglist: Vec<MsgId> = msglist

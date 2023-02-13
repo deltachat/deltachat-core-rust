@@ -40,7 +40,7 @@ class Chat(object):
         return not self == other
 
     def __repr__(self) -> str:
-        return "<Chat id={} name={}>".format(self.id, self.get_name())
+        return f"<Chat id={self.id} name={self.get_name()}>"
 
     @property
     def _dc_chat(self):
@@ -282,12 +282,20 @@ class Chat(object):
         if msg.is_out_preparing():
             assert msg.id != 0
             # get a fresh copy of dc_msg, the core needs it
-            msg = Message.from_db(self.account, msg.id)
+            maybe_msg = Message.from_db(self.account, msg.id)
+            if maybe_msg is not None:
+                msg = maybe_msg
+            else:
+                raise ValueError("message does not exist")
+
         sent_id = lib.dc_send_msg(self.account._dc_context, self.id, msg._dc_msg)
         if sent_id == 0:
             raise ValueError("message could not be sent")
         # modify message in place to avoid bad state for the caller
-        msg._dc_msg = Message.from_db(self.account, sent_id)._dc_msg
+        sent_msg = Message.from_db(self.account, sent_id)
+        if sent_msg is None:
+            raise ValueError("cannot load just sent message from the database")
+        msg._dc_msg = sent_msg._dc_msg
         return msg
 
     def send_text(self, text):
@@ -444,7 +452,7 @@ class Chat(object):
         contact = self.account.create_contact(obj)
         ret = lib.dc_add_contact_to_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
-            raise ValueError("could not add contact {!r} to chat".format(contact))
+            raise ValueError(f"could not add contact {contact!r} to chat")
         return contact
 
     def remove_contact(self, obj):
@@ -457,7 +465,7 @@ class Chat(object):
         contact = self.account.get_contact(obj)
         ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
         if ret != 1:
-            raise ValueError("could not remove contact {!r} from chat".format(contact))
+            raise ValueError(f"could not remove contact {contact!r} from chat")
 
     def get_contacts(self):
         """get all contacts for this chat.
@@ -493,7 +501,7 @@ class Chat(object):
         p = as_dc_charpointer(img_path)
         res = lib.dc_set_chat_profile_image(self.account._dc_context, self.id, p)
         if res != 1:
-            raise ValueError("Setting Profile Image {!r} failed".format(p))
+            raise ValueError(f"Setting Profile Image {p!r} failed")
 
     def remove_profile_image(self):
         """remove group profile image.

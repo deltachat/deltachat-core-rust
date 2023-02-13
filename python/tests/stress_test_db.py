@@ -59,15 +59,15 @@ def test_db_busy_error(acfactory, tmpdir):
         if report_type == ReportType.exit:
             replier.log("EXIT")
         elif report_type == ReportType.ffi_error:
-            replier.log("ERROR: {}".format(report_args[0]))
+            replier.log(f"ERROR: {report_args[0]}")
         elif report_type == ReportType.message_echo:
             continue
         else:
-            raise ValueError("{} unknown report type {}, args={}".format(addr, report_type, report_args))
+            raise ValueError(f"{addr} unknown report type {report_type}, args={report_args}")
         alive_count -= 1
         replier.log("shutting down")
         replier.account.shutdown()
-        replier.log("shut down complete, remaining={}".format(alive_count))
+        replier.log(f"shut down complete, remaining={alive_count}")
 
 
 class ReportType:
@@ -86,12 +86,12 @@ class AutoReplier:
         self.current_sent = 0
         self.addr = self.account.get_self_contact().addr
 
-        self._thread = threading.Thread(name="Stats{}".format(self.account), target=self.thread_stats)
+        self._thread = threading.Thread(name=f"Stats{self.account}", target=self.thread_stats)
         self._thread.setDaemon(True)
         self._thread.start()
 
     def log(self, message):
-        self._log("{} {}".format(self.addr, message))
+        self._log(f"{self.addr} {message}")
 
     def thread_stats(self):
         # XXX later use, for now we just quit
@@ -107,17 +107,17 @@ class AutoReplier:
             return
         message.create_chat()
         message.mark_seen()
-        self.log("incoming message: {}".format(message))
+        self.log(f"incoming message: {message}")
 
         self.current_sent += 1
         # we are still alive, let's send a reply
         if self.num_bigfiles and self.current_sent % (self.num_send / self.num_bigfiles) == 0:
-            message.chat.send_text("send big file as reply to: {}".format(message.text))
+            message.chat.send_text(f"send big file as reply to: {message.text}")
             msg = message.chat.send_file(self.account.bigfile)
         else:
-            msg = message.chat.send_text("got message id {}, small text reply".format(message.id))
+            msg = message.chat.send_text(f"got message id {message.id}, small text reply")
             assert msg.text
-        self.log("message-sent: {}".format(msg))
+        self.log(f"message-sent: {msg}")
         self.report_func(self, ReportType.message_echo)
         if self.current_sent >= self.num_send:
             self.report_func(self, ReportType.exit)

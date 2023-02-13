@@ -99,8 +99,7 @@ pub(crate) async fn prepare_decryption(
         from,
         autocrypt_header.as_ref(),
         message_time,
-        // Disallowing keychanges is disabled for now:
-        true, // dkim_results.allow_keychange,
+        dkim_results.allow_keychange,
     )
     .await?;
 

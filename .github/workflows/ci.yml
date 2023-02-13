@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - master
-      - staging
-      - trying
 
 env:
   RUSTFLAGS: -Dwarnings
@@ -21,17 +19,18 @@ jobs:
       - run: cargo fmt --all -- --check
 
   run_clippy:
+    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            components: clippy
-            override: true
+      - name: Install clippy
+        run: rustup toolchain install 1.67.1 --component clippy
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --tests --examples --benches --features repl -- -D warnings
+      - name: Run clippy
+        env:
+          RUSTUP_TOOLCHAIN: 1.67.1
+        run: scripts/clippy.sh
 
   docs:
     name: Rust doc comments
@@ -41,13 +40,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install rust stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          components: rust-docs
-          override: true
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
       - name: Rustdoc
@@ -79,39 +71,37 @@ jobs:
     steps:
     - uses: actions/checkout@master
 
-    - name: Install ${{ matrix.rust }}
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust }}
-        override: true
+    - name: Install Rust ${{ matrix.rust }}
+      run: rustup toolchain install ${{ matrix.rust }}
+    - run: rustup override set ${{ matrix.rust }}
 
     - name: Cache rust cargo artifacts
       uses: swatinem/rust-cache@v2
 
-    - name: check
-      run: cargo check --all --bins --examples --tests --features repl --benches
+    - name: Check
+      run: cargo check --workspace --bins --examples --tests --benches
 
-    - name: tests
-      run: cargo test --all
+    - name: Tests
+      run: cargo test --workspace
 
-    - name: test cargo vendor
+    - name: Test cargo vendor
       run: cargo vendor
 
-    - name: install python
+    - name: Install python
       if: ${{ matrix.python }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
 
-    - name: install tox
+    - name: Install tox
       if: ${{ matrix.python }}
       run: pip install tox
 
-    - name: build C library
+    - name: Build C library
       if: ${{ matrix.python }}
       run: cargo build -p deltachat_ffi --features jsonrpc
 
-    - name: run python tests
+    - name: Run python tests
       if: ${{ matrix.python }}
       env:
         DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
@@ -120,28 +110,28 @@ jobs:
       working-directory: python
       run: tox -e lint,mypy,doc,py3
 
-    - name: build deltachat-rpc-server
+    - name: Build deltachat-rpc-server
       if: ${{ matrix.python }}
       run: cargo build -p deltachat-rpc-server
 
-    - name: add deltachat-rpc-server to path
+    - name: Add deltachat-rpc-server to path
       if: ${{ matrix.python }}
       run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
 
-    - name: run deltachat-rpc-client tests
+    - name: Run deltachat-rpc-client tests
       if: ${{ matrix.python }}
       env:
         DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
       working-directory: deltachat-rpc-client
       run: tox -e py3,lint
 
-    - name: install pypy
+    - name: Install pypy
       if: ${{ matrix.python }}
       uses: actions/setup-python@v4
       with:
         python-version: 'pypy${{ matrix.python }}'
 
-    - name: run pypy tests
+    - name: Run pypy tests
       if: ${{ matrix.python }}
       env:
         DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}

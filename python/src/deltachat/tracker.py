@@ -38,7 +38,7 @@ class ImexTracker:
             if isinstance(ev, str):
                 files_written.append(ev)
             elif ev == 0:
-                raise ImexFailed("export failed, exp-files: {}".format(files_written))
+                raise ImexFailed(f"export failed, exp-files: {files_written}")
             elif ev == 1000:
                 return files_written
 

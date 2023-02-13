@@ -4,7 +4,6 @@ use std::fmt;
 
 use anyhow::{ensure, Result};
 use async_native_tls::Certificate;
-pub use async_smtp::ServerAddress;
 use once_cell::sync::Lazy;
 
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
@@ -163,7 +162,7 @@ impl LoginParam {
             .await?
             .and_then(|provider_id| get_provider_by_id(&provider_id));
 
-        let socks5_config = Socks5Config::from_database(context).await?;
+        let socks5_config = Socks5Config::from_database(&context.sql).await?;
 
         Ok(LoginParam {
             addr,
@@ -263,7 +262,7 @@ impl fmt::Display for LoginParam {
 
         write!(
             f,
-            "{} imap:{}:{}:{}:{}:cert_{}:{} smtp:{}:{}:{}:{}:cert_{}:{}",
+            "{} imap:{}:{}:{}:{}:{}:cert_{}:{} smtp:{}:{}:{}:{}:{}:cert_{}:{}",
             unset_empty(&self.addr),
             unset_empty(&self.imap.user),
             if !self.imap.password.is_empty() {
@@ -273,6 +272,7 @@ impl fmt::Display for LoginParam {
             },
             unset_empty(&self.imap.server),
             self.imap.port,
+            self.imap.security,
             self.imap.certificate_checks,
             if self.imap.oauth2 {
                 "OAUTH2"
@@ -287,6 +287,7 @@ impl fmt::Display for LoginParam {
             },
             unset_empty(&self.smtp.server),
             self.smtp.port,
+            self.smtp.security,
             self.smtp.certificate_checks,
             if self.smtp.oauth2 {
                 "OAUTH2"

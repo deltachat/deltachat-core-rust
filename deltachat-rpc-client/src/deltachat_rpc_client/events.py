@@ -96,6 +96,9 @@ class NewMessage(EventFilter):
                     content.
     :param command: If set, only match messages with the given command (ex. /help).
                     Setting this property implies `is_info==False`.
+    :param is_bot: If set to True only match messages sent by bots, if set to None
+                   match messages from bots and users. If omitted or set to False
+                   only messages from users will be matched.
     :param is_info: If set to True only match info/system messages, if set to False
                     only match messages that are not info/system messages. If omitted
                     info/system messages as well as normal messages will be matched.
@@ -113,10 +116,12 @@ class NewMessage(EventFilter):
             re.Pattern,
         ] = None,
         command: Optional[str] = None,
+        is_bot: Optional[bool] = False,
         is_info: Optional[bool] = None,
         func: Optional[Callable[[AttrDict], bool]] = None,
     ) -> None:
         super().__init__(func=func)
+        self.is_bot = is_bot
         self.is_info = is_info
         if command is not None and not isinstance(command, str):
             raise TypeError("Invalid command")
@@ -133,19 +138,28 @@ class NewMessage(EventFilter):
             raise TypeError("Invalid pattern type")
 
     def __hash__(self) -> int:
-        return hash((self.pattern, self.func))
+        return hash((self.pattern, self.command, self.is_bot, self.is_info, self.func))
 
     def __eq__(self, other) -> bool:
         if isinstance(other, NewMessage):
-            return (self.pattern, self.command, self.is_info, self.func) == (
+            return (
+                self.pattern,
+                self.command,
+                self.is_bot,
+                self.is_info,
+                self.func,
+            ) == (
                 other.pattern,
                 other.command,
+                other.is_bot,
                 other.is_info,
                 other.func,
             )
         return False
 
     async def filter(self, event: AttrDict) -> bool:
+        if self.is_bot is not None and self.is_bot != event.message_snapshot.is_bot:
+            return False
         if self.is_info is not None and self.is_info != event.message_snapshot.is_info:
             return False
         if self.command and self.command != event.command:

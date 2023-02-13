@@ -744,7 +744,7 @@ class TestOfflineChat:
         contacts = []
         for i in range(10):
             lp.sec("create contact")
-            contact = ac1.create_contact("some{}@example.org".format(i))
+            contact = ac1.create_contact(f"some{i}@example.org")
             contacts.append(contact)
             lp.sec("add contact")
             chat.add_contact(contact)

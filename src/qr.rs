@@ -22,6 +22,7 @@ use crate::context::Context;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
+use crate::socks::Socks5Config;
 use crate::tools::time;
 use crate::{token, EventType};
 
@@ -395,7 +396,11 @@ struct CreateAccountErrorResponse {
 #[allow(clippy::indexing_slicing)]
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
-    let response = crate::http::get_client()?.post(url_str).send().await?;
+    let socks5_config = Socks5Config::from_database(&context.sql).await?;
+    let response = crate::http::get_client(socks5_config)?
+        .post(url_str)
+        .send()
+        .await?;
     let response_status = response.status();
     let response_text = response.text().await.with_context(|| {
         format!("Cannot create account, request to {url_str:?} failed: empty response")

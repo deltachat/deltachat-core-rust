@@ -32,7 +32,7 @@ async def main():
         async def process_messages():
             for message in await account.get_fresh_messages_in_arrival_order():
                 snapshot = await message.get_snapshot()
-                if not snapshot.is_info:
+                if not snapshot.is_bot and not snapshot.is_info:
                     await snapshot.chat.send_text(snapshot.text)
                 await snapshot.message.mark_seen()
 

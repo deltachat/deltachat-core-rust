@@ -9,7 +9,7 @@ on:
 
 jobs:
   prebuild:
-    name: 'prebuild'
+    name: Prebuild
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -65,17 +65,17 @@ jobs:
 
   pack-module:
     needs: prebuild
-    name: 'Package deltachat-node and upload to download.delta.chat'
+    name: Package deltachat-node and upload to download.delta.chat
     runs-on: ubuntu-18.04
     steps:
-      - name: install tree
+      - name: Install tree
         run: sudo apt install tree
       - name: Checkout
         uses: actions/checkout@v3
       - uses: actions/setup-node@v2
         with:
           node-version: '16'
-      - name: get tag
+      - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@v1
         continue-on-error: true
@@ -97,15 +97,15 @@ jobs:
           npm --version
           node --version
           echo $DELTACHAT_NODE_TAR_GZ
-      - name: Download ubuntu prebuild
+      - name: Download Ubuntu prebuild
         uses: actions/download-artifact@v1
         with:
           name: ubuntu-18.04
-      - name: Download macos prebuild
+      - name: Download macOS prebuild
         uses: actions/download-artifact@v1
         with:
           name: macos-latest
-      - name: Download windows prebuild
+      - name: Download Windows prebuild
         uses: actions/download-artifact@v1
         with:
           name: windows-latest
@@ -117,23 +117,23 @@ jobs:
           tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
           rm -rf ubuntu-18.04 macos-latest windows-latest
-      - name: install dependencies without running scripts
+      - name: Install dependencies without running scripts
         run: |
           npm install --ignore-scripts
-      - name: build constants
+      - name: Build constants
         run: |
           npm run build:core:constants
-      - name: build typescript part
+      - name: Build TypeScript part
         run: |
           npm run build:bindings:ts
-      - name: package
+      - name: Package
         shell: bash
         run: |
           mv node/README.md README.md
           npm pack .
           ls -lah
           mv $(find deltachat-node-*) $DELTACHAT_NODE_TAR_GZ
-      - name: Upload Prebuild
+      - name: Upload prebuild
         uses: actions/upload-artifact@v3
         with:
           name: deltachat-node.tgz
@@ -148,7 +148,7 @@ jobs:
           chmod 600 __TEMP_INPUT_KEY_FILE
           scp -o StrictHostKeyChecking=no -v -i __TEMP_INPUT_KEY_FILE -P "22" -r $DELTACHAT_NODE_TAR_GZ "${{ secrets.USERNAME }}"@"download.delta.chat":"/var/www/html/download/node/preview/"
         continue-on-error: true
-      - name: "Post links to details"
+      - name: Post links to details
         if: steps.upload-preview.outcome == 'success'
         run: node ./node/scripts/postLinksToDetails.js
         env:

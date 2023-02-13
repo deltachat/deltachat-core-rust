@@ -55,6 +55,7 @@ def run_cmdline(argv=None, account_plugins=None):
 
     ac.run_account(addr=args.email, password=args.password, account_plugins=account_plugins, show_ffi=args.show_ffi)
 
-    print("{}: waiting for message".format(ac.get_config("addr")))
+    addr = ac.get_config("addr")
+    print(f"{addr}: waiting for message")
 
     ac.wait_shutdown()

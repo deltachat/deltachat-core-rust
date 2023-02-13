@@ -131,9 +131,9 @@ def pytest_report_header(config, startdir):
     if cfg:
         if "?" in cfg:
             url, token = cfg.split("?", 1)
-            summary.append("Liveconfig provider: {}?<token ommitted>".format(url))
+            summary.append(f"Liveconfig provider: {url}?<token ommitted>")
         else:
-            summary.append("Liveconfig file: {}".format(cfg))
+            summary.append(f"Liveconfig file: {cfg}")
     return summary
 
 
@@ -178,13 +178,13 @@ class TestProcess:
                 except IndexError:
                     res = requests.post(liveconfig_opt, timeout=60)
                     if res.status_code != 200:
-                        pytest.fail("newtmpuser count={} code={}: '{}'".format(index, res.status_code, res.text))
+                        pytest.fail(f"newtmpuser count={index} code={res.status_code}: '{res.text}'")
                     d = res.json()
                     config = {"addr": d["email"], "mail_pw": d["password"]}
                     print("newtmpuser {}: addr={}".format(index, config["addr"]))
                     self._configlist.append(config)
                     yield config
-            pytest.fail("more than {} live accounts requested.".format(MAX_LIVE_CREATED_ACCOUNTS))
+            pytest.fail(f"more than {MAX_LIVE_CREATED_ACCOUNTS} live accounts requested.")
 
     def cache_maybe_retrieve_configured_db_files(self, cache_addr, db_target_path):
         db_target_path = pathlib.Path(db_target_path)
@@ -252,7 +252,7 @@ def data(request):
                 fn = os.path.join(path, *bn.split("/"))
                 if os.path.exists(fn):
                     return fn
-            print("WARNING: path does not exist: {!r}".format(fn))
+            print(f"WARNING: path does not exist: {fn!r}")
             return None
 
         def read_path(self, bn, mode="r"):
@@ -285,7 +285,7 @@ class ACSetup:
         self.init_time = init_time
 
     def log(self, *args):
-        print("[acsetup]", "{:.3f}".format(time.time() - self.init_time), *args)
+        print("[acsetup]", f"{time.time() - self.init_time:.3f}", *args)
 
     def add_configured(self, account):
         """add an already configured account."""
@@ -339,7 +339,7 @@ class ACSetup:
     def _pop_config_success(self):
         acc, success, comment = self._configured_events.get()
         if not success:
-            pytest.fail("configuring online account {} failed: {}".format(acc, comment))
+            pytest.fail(f"configuring online account {acc} failed: {comment}")
         self._account2state[acc] = self.CONFIGURED
         return acc
 
@@ -373,7 +373,7 @@ class ACSetup:
                     imap.delete("1:*", expunge=True)
                 else:
                     imap.conn.folder.delete(folder)
-            acc.log("imap cleaned for addr {}".format(addr))
+            acc.log(f"imap cleaned for addr {addr}")
             self._imap_cleaned.add(addr)
 
 
@@ -397,7 +397,7 @@ class ACFactory:
         request.addfinalizer(self.finalize)
 
     def log(self, *args):
-        print("[acfactory]", "{:.3f}".format(time.time() - self.init_time), *args)
+        print("[acfactory]", f"{time.time() - self.init_time:.3f}", *args)
 
     def finalize(self):
         while self._finalizers:
@@ -439,7 +439,7 @@ class ACFactory:
         return self._getaccount(closed=closed)
 
     def _getaccount(self, try_cache_addr=None, closed=False):
-        logid = "ac{}".format(len(self._accounts) + 1)
+        logid = f"ac{len(self._accounts) + 1}"
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
         if try_cache_addr:
@@ -465,12 +465,12 @@ class ACFactory:
         except IndexError:
             pass
         else:
-            fname_pub = self.data.read_path("key/{name}-public.asc".format(name=keyname))
-            fname_sec = self.data.read_path("key/{name}-secret.asc".format(name=keyname))
+            fname_pub = self.data.read_path(f"key/{keyname}-public.asc")
+            fname_sec = self.data.read_path(f"key/{keyname}-secret.asc")
             if fname_pub and fname_sec:
                 account._preconfigure_keypair(addr, fname_pub, fname_sec)
                 return True
-            print("WARN: could not use preconfigured keys for {!r}".format(addr))
+            print(f"WARN: could not use preconfigured keys for {addr!r}")
 
     def get_pseudo_configured_account(self, passphrase: Optional[str] = None) -> Account:
         # do a pseudo-configured account
@@ -478,7 +478,7 @@ class ACFactory:
         if passphrase:
             ac.open(passphrase)
         acname = ac._logid
-        addr = "{}@offline.org".format(acname)
+        addr = f"{acname}@offline.org"
         ac.update_config(
             {
                 "addr": addr,

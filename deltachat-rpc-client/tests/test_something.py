@@ -47,6 +47,7 @@ async def test_configure_starttls(acfactory) -> None:
 
     # Use STARTTLS
     await account.set_config("mail_security", "2")
+    await account.set_config("send_security", "2")
     await account.configure()
     assert await account.is_configured()
 
@@ -215,6 +216,7 @@ async def test_message(acfactory) -> None:
     snapshot = await message.get_snapshot()
     assert snapshot.chat_id == chat_id
     assert snapshot.text == "Hello!"
+    assert not snapshot.is_bot
     assert repr(message)
 
     with pytest.raises(JsonRpcError):  # chat is not accepted
@@ -227,17 +229,45 @@ async def test_message(acfactory) -> None:
 
 
 @pytest.mark.asyncio()
+async def test_is_bot(acfactory) -> None:
+    """Test that we can recognize messages submitted by bots."""
+    alice, bob = await acfactory.get_online_accounts(2)
+
+    bob_addr = await bob.get_config("addr")
+    alice_contact_bob = await alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = await alice_contact_bob.create_chat()
+
+    # Alice becomes a bot.
+    await alice.set_config("bot", "1")
+    await alice_chat_bob.send_text("Hello!")
+
+    while True:
+        event = await bob.wait_for_event()
+        if event.type == EventType.INCOMING_MSG:
+            msg_id = event.msg_id
+            message = bob.get_message_by_id(msg_id)
+            snapshot = await message.get_snapshot()
+            assert snapshot.chat_id == event.chat_id
+            assert snapshot.text == "Hello!"
+            assert snapshot.is_bot
+            break
+
+
+@pytest.mark.asyncio()
 async def test_bot(acfactory) -> None:
     mock = MagicMock()
     user = (await acfactory.get_online_accounts(1))[0]
     bot = await acfactory.new_configured_bot()
+    bot2 = await acfactory.new_configured_bot()
 
     assert await bot.is_configured()
     assert await bot.account.get_config("bot") == "1"
 
-    hook = lambda e: mock.hook(e.msg_id), events.RawEvent(EventType.INCOMING_MSG)
+    hook = lambda e: mock.hook(e.msg_id) and None, events.RawEvent(EventType.INCOMING_MSG)
     bot.add_hook(*hook)
     event = await acfactory.process_message(from_account=user, to_client=bot, text="Hello!")
+    snapshot = await bot.account.get_message_by_id(event.msg_id).get_snapshot()
+    assert not snapshot.is_bot
     mock.hook.assert_called_once_with(event.msg_id)
     bot.remove_hook(*hook)
 
@@ -252,6 +282,8 @@ async def test_bot(acfactory) -> None:
     mock.hook.assert_called_with(event.msg_id)
     event = await acfactory.process_message(from_account=user, to_client=bot, text="hello!")
     mock.hook.assert_called_with(event.msg_id)
+    await acfactory.process_message(from_account=bot2.account, to_client=bot, text="hello")
+    assert len(mock.hook.mock_calls) == 2  # bot messages are ignored between bots
     await acfactory.process_message(from_account=user, to_client=bot, text="hey!")
     assert len(mock.hook.mock_calls) == 2
     bot.remove_hook(*hook)

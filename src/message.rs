@@ -2144,7 +2144,7 @@ mod tests {
             .unwrap();
 
         let mut has_image = false;
-        let chatitems = chat::get_chat_msgs(&t, device_chat_id, 0).await.unwrap();
+        let chatitems = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         for chatitem in chatitems {
             if let ChatItem::Message { msg_id } = chatitem {
                 if let Ok(msg) = Message::load_from_db(&t, msg_id).await {
@@ -2288,7 +2288,7 @@ mod tests {
         assert_eq!(msg1.chat_id, msg2.chat_id);
         let chats = Chatlist::try_load(&bob, 0, None, None).await?;
         assert_eq!(chats.len(), 1);
-        let msgs = chat::get_chat_msgs(&bob, bob_chat_id, 0).await?;
+        let msgs = chat::get_chat_msgs(&bob, bob_chat_id).await?;
         assert_eq!(msgs.len(), 2);
         assert_eq!(bob.get_fresh_msgs().await?.len(), 0);
 
@@ -2299,7 +2299,7 @@ mod tests {
         let bob_chat = Chat::load_from_db(&bob, bob_chat_id).await?;
         assert_eq!(bob_chat.blocked, Blocked::Request);
 
-        let msgs = chat::get_chat_msgs(&bob, bob_chat_id, 0).await?;
+        let msgs = chat::get_chat_msgs(&bob, bob_chat_id).await?;
         assert_eq!(msgs.len(), 2);
         bob_chat_id.accept(&bob).await.unwrap();
 

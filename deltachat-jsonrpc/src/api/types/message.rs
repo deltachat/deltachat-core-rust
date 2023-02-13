@@ -48,6 +48,10 @@ pub struct MessageObject {
     is_setupmessage: bool,
     is_info: bool,
     is_forwarded: bool,
+
+    /// True if the message was sent by a bot.
+    is_bot: bool,
+
     /// when is_info is true this describes what type of system message it is
     system_message_type: SystemMessageType,
 
@@ -182,6 +186,7 @@ impl MessageObject {
             is_setupmessage: message.is_setupmessage(),
             is_info: message.is_info(),
             is_forwarded: message.is_forwarded(),
+            is_bot: message.is_bot(),
             system_message_type: message.get_info_type().into(),
 
             duration: message.get_duration(),

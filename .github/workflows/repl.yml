@@ -13,17 +13,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: 1.66.0
-        override: true
-
-    - name: build
-      run: cargo build --example repl --features repl,vendored
+    - name: Build
+      run: cargo build -p deltachat-repl --features vendored
 
     - name: Upload binary
       uses: actions/upload-artifact@v3
       with:
         name: repl.exe
-        path: 'target/debug/examples/repl.exe'
+        path: 'target/debug/deltachat-repl.exe'

@@ -19,7 +19,7 @@ use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
-    DC_CHAT_ID_TRASH, DC_GCM_ADDDAYMARKER, DC_GCM_INFO_ONLY, DC_RESEND_USER_AVATAR_DAYS,
+    DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
@@ -2376,12 +2376,40 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
     send_msg(context, chat_id, &mut msg).await
 }
 
-pub async fn get_chat_msgs(
+/// Chat message list request options.
+#[derive(Debug)]
+pub struct MessageListOptions {
+    /// Return only info messages.
+    pub info_only: bool,
+
+    /// Add day markers before each date regarding the local timezone.
+    pub add_daymarker: bool,
+}
+
+/// Returns all messages belonging to the chat.
+pub async fn get_chat_msgs(context: &Context, chat_id: ChatId) -> Result<Vec<ChatItem>> {
+    get_chat_msgs_ex(
+        context,
+        chat_id,
+        MessageListOptions {
+            info_only: false,
+            add_daymarker: false,
+        },
+    )
+    .await
+}
+
+/// Returns messages belonging to the chat according to the given options.
+pub async fn get_chat_msgs_ex(
     context: &Context,
     chat_id: ChatId,
-    flags: u32,
+    options: MessageListOptions,
 ) -> Result<Vec<ChatItem>> {
-    let process_row = if (flags & DC_GCM_INFO_ONLY) != 0 {
+    let MessageListOptions {
+        info_only,
+        add_daymarker,
+    } = options;
+    let process_row = if info_only {
         |row: &rusqlite::Row| {
             // is_info logic taken from Message.is_info()
             let params = row.get::<_, String>("param")?;
@@ -2431,7 +2459,7 @@ pub async fn get_chat_msgs(
         let cnv_to_local = gm2local_offset();
 
         for (ts, curr_id) in sorted_rows {
-            if (flags & DC_GCM_ADDDAYMARKER) != 0 {
+            if add_daymarker {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = curr_local_timestamp / 86400;
                 if curr_day != last_day {
@@ -2446,7 +2474,7 @@ pub async fn get_chat_msgs(
         Ok(ret)
     };
 
-    let items = if (flags & DC_GCM_INFO_ONLY) != 0 {
+    let items = if info_only {
         context
             .sql
             .query_map(
@@ -4942,7 +4970,7 @@ mod tests {
         assert!(chat.is_protected());
         assert!(chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0).await?;
+        let msgs = get_chat_msgs(&t, chat_id).await?;
         assert_eq!(msgs.len(), 1);
 
         let msg = t.get_last_msg_in(chat_id).await;
@@ -4971,7 +4999,7 @@ mod tests {
         assert!(!chat.is_protected());
         assert!(!chat.is_unpromoted());
 
-        let msgs = get_chat_msgs(&t, chat_id, 0).await?;
+        let msgs = get_chat_msgs(&t, chat_id).await?;
         assert_eq!(msgs.len(), 3);
 
         // enable protection on promoted chat, the info-message is sent via send_msg() this time
@@ -5069,7 +5097,7 @@ mod tests {
         add_contact_to_chat(&alice, alice_chat_id, contact_id).await?;
         assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
         send_text_msg(&alice, alice_chat_id, "hi!".to_string()).await?;
-        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&alice, alice_chat_id).await?.len(), 1);
 
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
@@ -5102,7 +5130,7 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
         assert_eq!(msg.text, Some("ho!".to_string()));
-        assert_eq!(get_chat_msgs(&alice, alice_chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&alice, alice_chat_id).await?.len(), 2);
         Ok(())
     }
 
@@ -5130,7 +5158,7 @@ mod tests {
         assert_eq!(chat.id.get_fresh_msg_cnt(&t).await?, 1);
         assert_eq!(t.get_fresh_msgs().await?.len(), 1);
 
-        let msgs = get_chat_msgs(&t, chat.id, 0).await?;
+        let msgs = get_chat_msgs(&t, chat.id).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => *msg_id,
@@ -5180,7 +5208,7 @@ mod tests {
             .is_contact_request());
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 1);
         assert_eq!(chat_id.get_fresh_msg_cnt(&t).await?, 1);
-        let msgs = get_chat_msgs(&t, chat_id, 0).await?;
+        let msgs = get_chat_msgs(&t, chat_id).await?;
         assert_eq!(msgs.len(), 1);
         let msg_id = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => *msg_id,
@@ -5268,7 +5296,7 @@ mod tests {
         let chat_id = msg.chat_id;
         assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, chat_id, 0).await?;
+        let msgs = get_chat_msgs(&alice, chat_id).await?;
         assert_eq!(msgs.len(), 1);
 
         // Alice disables receiving classic emails.
@@ -5280,7 +5308,7 @@ mod tests {
         // Already received classic email should still be in the chat.
         assert_eq!(chat_id.get_fresh_msg_cnt(&alice).await?, 1);
 
-        let msgs = get_chat_msgs(&alice, chat_id, 0).await?;
+        let msgs = get_chat_msgs(&alice, chat_id).await?;
         assert_eq!(msgs.len(), 1);
 
         Ok(())
@@ -5427,7 +5455,7 @@ mod tests {
         assert!(msg1.get_text().unwrap().contains("bob@example.net"));
 
         let chat_id2 = ChatId::create_for_contact(&t, bob_id).await?;
-        assert_eq!(get_chat_msgs(&t, chat_id2, 0).await?.len(), 0);
+        assert_eq!(get_chat_msgs(&t, chat_id2).await?.len(), 0);
         forward_msgs(&t, &[msg1.id], chat_id2).await?;
         let msg2 = t.get_last_msg_in(chat_id2).await;
         assert!(!msg2.is_info()); // forwarded info-messages lose their info-state
@@ -5596,15 +5624,15 @@ mod tests {
         let msg = bob.recv_msg(&sent1).await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 1);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id).await?.len(), 1);
         bob.recv_msg(&sent2).await;
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id).await?.len(), 2);
         let received = bob.recv_msg_opt(&sent3).await;
         // No message should actually be added since we already know this message:
         assert!(received.is_none());
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&bob, msg.chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&bob, msg.chat_id).await?.len(), 2);
 
         // Claire does not receive the first message, however, due to resending, she has a similar view as Alice and Bob
         let claire = TestContext::new().await;
@@ -5613,7 +5641,7 @@ mod tests {
         let msg = claire.recv_msg(&sent3).await;
         assert_eq!(msg.get_text().unwrap(), "alice->bob");
         assert_eq!(get_chat_contacts(&claire, msg.chat_id).await?.len(), 3);
-        assert_eq!(get_chat_msgs(&claire, msg.chat_id, 0).await?.len(), 2);
+        assert_eq!(get_chat_msgs(&claire, msg.chat_id).await?.len(), 2);
         let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
         assert_eq!(msg_from.get_addr(), "alice@example.org");
 

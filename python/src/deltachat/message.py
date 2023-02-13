@@ -36,21 +36,21 @@ class Message(object):
     def __repr__(self):
         c = self.get_sender_contact()
         typ = "outgoing" if self.is_outgoing() else "incoming"
-        return "<Message {} sys={} {} id={} sender={}/{} chat={}/{}>".format(
-            typ,
-            self.is_system_message(),
-            repr(self.text[:10]),
-            self.id,
-            c.id,
-            c.addr,
-            self.chat.id,
-            self.chat.get_name(),
+        return (
+            f"<Message {typ} sys={self.is_system_message()} {repr(self.text[:100])} "
+            f"id={self.id} sender={c.id}/{c.addr} chat={self.chat.id}/{self.chat.get_name()}>"
         )
 
     @classmethod
-    def from_db(cls, account, id):
+    def from_db(cls, account, id) -> Optional["Message"]:
+        """Attempt to load the message from the database given its ID.
+
+        None is returned if the message does not exist, i.e. deleted."""
         assert id > 0
-        return cls(account, ffi.gc(lib.dc_get_msg(account._dc_context, id), lib.dc_msg_unref))
+        res = lib.dc_get_msg(account._dc_context, id)
+        if res == ffi.NULL:
+            return None
+        return cls(account, ffi.gc(res, lib.dc_msg_unref))
 
     @classmethod
     def new_empty(cls, account, view_type):
@@ -115,7 +115,7 @@ class Message(object):
         """set file for this message from path and mime_type."""
         mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
         if not os.path.exists(path):
-            raise ValueError("path does not exist: {!r}".format(path))
+            raise ValueError(f"path does not exist: {path!r}")
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc

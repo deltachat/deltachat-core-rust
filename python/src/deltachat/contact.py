@@ -31,7 +31,7 @@ class Contact(object):
         return not self == other
 
     def __repr__(self):
-        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self.account._dc_context)
+        return f"<Contact id={self.id} addr={self.addr} dc_context={self.account._dc_context}>"
 
     @property
     def _dc_contact(self):

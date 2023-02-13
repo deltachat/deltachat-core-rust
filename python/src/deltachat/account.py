@@ -20,7 +20,6 @@ from .cutil import (
     from_optional_dc_charpointer,
     iter_array,
 )
-from .events import EventThread, FFIEventLogger
 from .message import Message
 from .tracker import ConfigureTracker, ImexTracker
 
@@ -63,6 +62,8 @@ class Account(object):
     MissingCredentials = MissingCredentials
 
     def __init__(self, db_path, os_name=None, logging=True, closed=False) -> None:
+        from .events import EventThread
+
         """initialize account object.
 
         :param db_path: a path to the account database. The database
@@ -84,7 +85,7 @@ class Account(object):
 
         ptr = lib.dc_context_new_closed(db_path) if closed else lib.dc_context_new(ffi.NULL, db_path, ffi.NULL)
         if ptr == ffi.NULL:
-            raise ValueError("Could not dc_context_new: {} {}".format(os_name, db_path))
+            raise ValueError(f"Could not dc_context_new: {os_name} {db_path}")
         self._dc_context = ffi.gc(
             ptr,
             lib.dc_context_unref,
@@ -116,7 +117,7 @@ class Account(object):
         self._logging = True
 
     def __repr__(self):
-        return "<Account path={}>".format(self.db_path)
+        return f"<Account path={self.db_path}>"
 
     # def __del__(self):
     #    self.shutdown()
@@ -127,7 +128,7 @@ class Account(object):
 
     def _check_config_key(self, name: str) -> None:
         if name not in self._configkeys:
-            raise KeyError("{!r} not a valid config key, existing keys: {!r}".format(name, self._configkeys))
+            raise KeyError(f"{name!r} not a valid config key, existing keys: {self._configkeys!r}")
 
     def get_info(self) -> Dict[str, str]:
         """return dictionary of built config parameters."""
@@ -141,7 +142,7 @@ class Account(object):
         log("=============== " + self.get_config("displayname") + " ===============")
         cursor = 0
         for name, val in self.get_info().items():
-            entry = "{}={}".format(name.upper(), val)
+            entry = f"{name.upper()}={val}"
             if cursor + len(entry) > 80:
                 log("")
                 cursor = 0
@@ -186,7 +187,7 @@ class Account(object):
             self._check_config_key(name)
         namebytes = name.encode("utf8")
         res = lib.dc_get_config(self._dc_context, namebytes)
-        assert res != ffi.NULL, "config value not found for: {!r}".format(name)
+        assert res != ffi.NULL, f"config value not found for: {name!r}"
         return from_dc_charpointer(res)
 
     def _preconfigure_keypair(self, addr: str, public: str, secret: str) -> None:
@@ -296,7 +297,7 @@ class Account(object):
             addr, displayname = obj.get_config("addr"), obj.get_config("displayname")
         elif isinstance(obj, Contact):
             if obj.account != self:
-                raise ValueError("account mismatch {}".format(obj))
+                raise ValueError(f"account mismatch {obj}")
             addr, displayname = obj.addr, obj.name
         elif isinstance(obj, str):
             displayname, addr = parseaddr(obj)
@@ -368,7 +369,7 @@ class Account(object):
     def get_fresh_messages(self) -> Generator[Message, None, None]:
         """yield all fresh messages from all chats."""
         dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), lib.dc_array_unref)
-        yield from iter_array(dc_array, lambda x: Message.from_db(self, x))
+        return (x for x in iter_array(dc_array, lambda x: Message.from_db(self, x)) if x is not None)
 
     def create_chat(self, obj) -> Chat:
         """Create a 1:1 chat with Account, Contact or e-mail address."""
@@ -413,7 +414,7 @@ class Account(object):
     def get_device_chat(self) -> Chat:
         return Contact(self, const.DC_CONTACT_ID_DEVICE).create_chat()
 
-    def get_message_by_id(self, msg_id: int) -> Message:
+    def get_message_by_id(self, msg_id: int) -> Optional[Message]:
         """return Message instance.
         :param msg_id: integer id of this message.
         :returns: :class:`deltachat.message.Message` instance.
@@ -428,7 +429,7 @@ class Account(object):
         """
         res = lib.dc_get_chat(self._dc_context, chat_id)
         if res == ffi.NULL:
-            raise ValueError("cannot get chat with id={}".format(chat_id))
+            raise ValueError(f"cannot get chat with id={chat_id}")
         lib.dc_chat_unref(res)
         return Chat(self, chat_id)
 
@@ -545,7 +546,7 @@ class Account(object):
         res = ffi.gc(lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)), lib.dc_lot_unref)
         lot = DCLot(res)
         if lot.state() == const.DC_QR_ERROR:
-            raise ValueError("invalid or unknown QR code: {}".format(lot.text1()))
+            raise ValueError(f"invalid or unknown QR code: {lot.text1()}")
         return ScannedQRCode(lot)
 
     def qr_setup_contact(self, qr):
@@ -596,6 +597,8 @@ class Account(object):
     #
 
     def run_account(self, addr=None, password=None, account_plugins=None, show_ffi=False):
+        from .events import FFIEventLogger
+
         """get the account running, configure it if necessary. add plugins if provided.
 
         :param addr: the email address of the account
@@ -743,7 +746,7 @@ class Account(object):
         try:
             self._event_thread.wait(timeout=5)
         except RuntimeError as e:
-            self.log("Waiting for event thread failed: {}".format(e))
+            self.log(f"Waiting for event thread failed: {e}")
 
         if self._event_thread.is_alive():
             self.log("WARN: event thread did not terminate yet, ignoring.")

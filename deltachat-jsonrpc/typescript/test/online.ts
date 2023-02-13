@@ -97,7 +97,8 @@ describe("online tests", function () {
     const messageList = await dc.rpc.getMessageIds(
       accountId2,
       chatIdOnAccountB,
-      0
+      false,
+      false
     );
 
     expect(messageList).have.length(1);
@@ -133,7 +134,8 @@ describe("online tests", function () {
     const messageList = await dc.rpc.getMessageIds(
       accountId2,
       chatIdOnAccountB,
-      0
+      false,
+      false
     );
     const message = await dc.rpc.getMessage(
       accountId2,
@@ -150,7 +152,7 @@ describe("online tests", function () {
     await eventPromise2;
 
     const messageId = (
-      await dc.rpc.getMessageIds(accountId1, chatId, 0)
+      await dc.rpc.getMessageIds(accountId1, chatId, false, false)
     ).reverse()[0];
     const message2 = await dc.rpc.getMessage(accountId1, messageId);
     expect(message2.text).equal("super secret message");

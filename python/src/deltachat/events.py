@@ -13,6 +13,7 @@ from .capi import ffi, lib
 from .cutil import from_optional_dc_charpointer
 from .hookspec import account_hookimpl
 from .message import map_system_message
+from .account import Account
 
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
@@ -31,11 +32,11 @@ class FFIEvent:
 
     def __str__(self):
         if self.name == "DC_EVENT_INFO":
-            return "INFO {data2}".format(data2=self.data2)
+            return f"INFO {self.data2}"
         if self.name == "DC_EVENT_WARNING":
-            return "WARNING {data2}".format(data2=self.data2)
+            return f"WARNING {self.data2}"
         if self.name == "DC_EVENT_ERROR":
-            return "ERROR {data2}".format(data2=self.data2)
+            return f"ERROR {self.data2}"
         return "{name} data1={data1} data2={data2}".format(**self.__dict__)
 
 
@@ -68,7 +69,7 @@ class FFIEventLogger:
         locname = tname
         if self.logid:
             locname += "-" + self.logid
-        s = "{:2.2f} [{}] {}".format(elapsed, locname, message)
+        s = f"{elapsed:2.2f} [{locname}] {message}"
 
         if os.name == "posix":
             WARN = "\033[93m"
@@ -103,7 +104,7 @@ class FFIEventTracker:
         timeout = timeout if timeout is not None else self._timeout
         ev = self._event_queue.get(timeout=timeout)
         if check_error and ev.name == "DC_EVENT_ERROR":
-            raise ValueError("unexpected event: {}".format(ev))
+            raise ValueError(f"unexpected event: {ev}")
         return ev
 
     def iter_events(self, timeout=None, check_error=True):
@@ -111,7 +112,7 @@ class FFIEventTracker:
             yield self.get(timeout=timeout, check_error=check_error)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
-        rex = re.compile("^(?:{})$".format(event_name_regex))
+        rex = re.compile(f"^(?:{event_name_regex})$")
         for ev in self.iter_events(timeout=timeout, check_error=check_error):
             if rex.match(ev.name):
                 return ev
@@ -162,20 +163,20 @@ class FFIEventTracker:
 
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
-        rex = re.compile("(?:{}).*".format(event_name_regex))
+        rex = re.compile(f"(?:{event_name_regex}).*")
         while 1:
             try:
                 ev = self._event_queue.get(False)
             except Empty:
                 break
             else:
-                assert not rex.match(ev.name), "event found {}".format(ev)
+                assert not rex.match(ev.name), f"event found {ev}"
 
     def wait_securejoin_inviter_progress(self, target):
         while 1:
             event = self.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
             if event.data2 >= target:
-                print("** SECUREJOINT-INVITER PROGRESS {}".format(target), self.account)
+                print(f"** SECUREJOINT-INVITER PROGRESS {target}", self.account)
                 break
 
     def wait_idle_inbox_ready(self):
@@ -221,7 +222,7 @@ class EventThread(threading.Thread):
     With each Account init this callback thread is started.
     """
 
-    def __init__(self, account) -> None:
+    def __init__(self, account: Account) -> None:
         self.account = account
         super(EventThread, self).__init__(name="events")
         self.daemon = True
@@ -247,36 +248,37 @@ class EventThread(threading.Thread):
     def run(self) -> None:
         """get and run events until shutdown."""
         with self.log_execution("EVENT THREAD"):
-            self._inner_run()
+            event_emitter = ffi.gc(
+                lib.dc_get_event_emitter(self.account._dc_context),
+                lib.dc_event_emitter_unref,
+            )
+            while not self._marked_for_shutdown:
+                with self.swallow_and_log_exception("Unexpected error in event thread"):
+                    event = lib.dc_get_next_event(event_emitter)
+                    if event == ffi.NULL or self._marked_for_shutdown:
+                        break
+                    self._process_event(event)
 
-    def _inner_run(self):
-        event_emitter = ffi.gc(
-            lib.dc_get_event_emitter(self.account._dc_context),
-            lib.dc_event_emitter_unref,
-        )
-        while not self._marked_for_shutdown:
-            event = lib.dc_get_next_event(event_emitter)
-            if event == ffi.NULL or self._marked_for_shutdown:
-                break
-            evt = lib.dc_event_get_id(event)
-            data1 = lib.dc_event_get_data1_int(event)
-            # the following code relates to the deltachat/_build.py's helper
-            # function which provides us signature info of an event call
-            evt_name = get_dc_event_name(evt)
-            if lib.dc_event_has_string_data(evt):
-                data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
-            else:
-                data2 = lib.dc_event_get_data2_int(event)
+    def _process_event(self, event) -> None:
+        evt = lib.dc_event_get_id(event)
+        data1 = lib.dc_event_get_data1_int(event)
+        # the following code relates to the deltachat/_build.py's helper
+        # function which provides us signature info of an event call
+        evt_name = get_dc_event_name(evt)
+        if lib.dc_event_has_string_data(evt):
+            data2 = from_optional_dc_charpointer(lib.dc_event_get_data2_str(event))
+        else:
+            data2 = lib.dc_event_get_data2_int(event)
 
-            lib.dc_event_unref(event)
-            ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
-            with self.swallow_and_log_exception("ac_process_ffi_event {}".format(ffi_event)):
-                self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
-            for name, kwargs in self._map_ffi_event(ffi_event):
-                hook = getattr(self.account._pm.hook, name)
-                info = "call {} kwargs={} failed".format(name, kwargs)
-                with self.swallow_and_log_exception(info):
-                    hook(**kwargs)
+        lib.dc_event_unref(event)
+        ffi_event = FFIEvent(name=evt_name, data1=data1, data2=data2)
+        with self.swallow_and_log_exception(f"ac_process_ffi_event {ffi_event}"):
+            self.account._pm.hook.ac_process_ffi_event(account=self, ffi_event=ffi_event)
+        for name, kwargs in self._map_ffi_event(ffi_event):
+            hook = getattr(self.account._pm.hook, name)
+            info = f"call {name} kwargs={kwargs} failed"
+            with self.swallow_and_log_exception(info):
+                hook(**kwargs)
 
     @contextmanager
     def swallow_and_log_exception(self, info):
@@ -285,7 +287,7 @@ class EventThread(threading.Thread):
         except Exception as ex:
             logfile = io.StringIO()
             traceback.print_exception(*sys.exc_info(), file=logfile)
-            self.account.log("{}\nException {}\nTraceback:\n{}".format(info, ex, logfile.getvalue()))
+            self.account.log(f"{info}\nException {ex}\nTraceback:\n{logfile.getvalue()}")
 
     def _map_ffi_event(self, ffi_event: FFIEvent):
         name = ffi_event.name
@@ -298,20 +300,22 @@ class EventThread(threading.Thread):
                 yield "ac_configure_completed", {"success": success, "comment": comment}
         elif name == "DC_EVENT_INCOMING_MSG":
             msg = account.get_message_by_id(ffi_event.data2)
-            yield map_system_message(msg) or ("ac_incoming_message", {"message": msg})
+            if msg is not None:
+                yield map_system_message(msg) or ("ac_incoming_message", {"message": msg})
         elif name == "DC_EVENT_MSGS_CHANGED":
             if ffi_event.data2 != 0:
                 msg = account.get_message_by_id(ffi_event.data2)
-                if msg.is_outgoing():
-                    res = map_system_message(msg)
-                    if res and res[0].startswith("ac_member"):
-                        yield res
-                    yield "ac_outgoing_message", {"message": msg}
-                elif msg.is_in_fresh():
-                    yield map_system_message(msg) or (
-                        "ac_incoming_message",
-                        {"message": msg},
-                    )
+                if msg is not None:
+                    if msg.is_outgoing():
+                        res = map_system_message(msg)
+                        if res and res[0].startswith("ac_member"):
+                            yield res
+                        yield "ac_outgoing_message", {"message": msg}
+                    elif msg.is_in_fresh():
+                        yield map_system_message(msg) or (
+                            "ac_incoming_message",
+                            {"message": msg},
+                        )
         elif name == "DC_EVENT_REACTIONS_CHANGED":
             assert ffi_event.data1 > 0
             msg = account.get_message_by_id(ffi_event.data2)
