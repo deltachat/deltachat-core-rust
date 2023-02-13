@@ -213,7 +213,6 @@ pub enum Config {
     /// Whether OAuth 2 is used with configured provider.
     ConfiguredServerFlags,
     ConfiguredSendSecurity,
-    ConfiguredE2EEEnabled,
     ConfiguredInboxFolder,
     ConfiguredMvboxFolder,
     ConfiguredSentboxFolder,
