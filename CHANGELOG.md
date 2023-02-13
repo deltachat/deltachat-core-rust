@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.108.0
 
 ## Changes
 - Use read/write timeouts instead of per-command timeouts for SMTP #3985
