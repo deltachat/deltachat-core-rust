@@ -1233,6 +1233,7 @@ dependencies = [
  "pretty_env_logger",
  "rusqlite",
  "rustyline",
+ "tempfile",
  "tokio 1.25.0",
 ]
 

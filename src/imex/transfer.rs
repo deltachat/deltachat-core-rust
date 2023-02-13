@@ -219,6 +219,7 @@ impl BackupProvider {
                 },
             }
         };
+        // TODO: delete the database?
         context.emit_event(SendProgress::Completed.into());
         context.free_ongoing().await;
         res
@@ -605,7 +606,7 @@ mod tests {
 
         // Check that we have the self message.
         let self_chat = ctx1.get_self_chat().await;
-        let msgs = get_chat_msgs(&ctx1, self_chat.id, 0).await.unwrap();
+        let msgs = get_chat_msgs(&ctx1, self_chat.id).await.unwrap();
         assert_eq!(msgs.len(), 1);
         let msgid = match msgs.get(0).unwrap() {
             ChatItem::Message { msg_id } => msg_id,
