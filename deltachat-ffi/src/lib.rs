@@ -28,9 +28,10 @@ use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, ContactId, Origin};
 use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
+use deltachat::imex::BackupProvider;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
-use deltachat::qr_code_generator::get_securejoin_qr_svg;
+use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
 use deltachat::stock_str::StockStrings;
@@ -4128,6 +4129,102 @@ pub unsafe extern "C" fn dc_reactions_unref(reactions: *mut dc_reactions_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
+}
+
+pub type dc_backup_provider_t = BackupProvider;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provide_backup(
+    context: *mut dc_context_t,
+    folder: *const libc::c_char,
+) -> *mut dc_backup_provider_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_backup()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+    let dir = as_path(folder);
+    block_on(async move {
+        BackupProvider::prepare(ctx, dir)
+            .await
+            .map(|provider| Box::into_raw(Box::new(provider)))
+            .log_err(ctx, "BackupProvider failed")
+            .unwrap_or(ptr::null_mut())
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_qr(
+    _context: *mut dc_context_t,
+    provider: *const dc_backup_provider_t,
+) -> *mut libc::c_char {
+    let provider = &*provider;
+    deltachat::qr::format_backup(provider.qr())
+        .unwrap_or_default()
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_qr_svg(
+    context: *mut dc_context_t,
+    provider: *const dc_backup_provider_t,
+) -> *mut libc::c_char {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_backup()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+    let provider = &*provider;
+    block_on(async move {
+        generate_backup_qr(ctx, provider.qr())
+            .await
+            .unwrap_or_default()
+            .strdup()
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_done(
+    context: *mut dc_context_t,
+    provider: *mut dc_backup_provider_t,
+) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_backup()");
+        return;
+    }
+    let ctx = &*context;
+    let provider = Box::from_raw(provider);
+    block_on(async move {
+        provider
+            .join()
+            .await
+            .log_err(ctx, "Failed to join provider")
+            .ok();
+    });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_receive_backup(
+    context: *mut dc_context_t,
+    qr: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_send_backup()");
+        return 0;
+    }
+    let ctx = &*context;
+    let qr_text = to_string_lossy(qr);
+    let qr = match block_on(qr::check_qr(ctx, &qr_text)).log_err(ctx, "Invalid QR code") {
+        Ok(qr) => qr,
+        Err(_) => return 0,
+    };
+    spawn(async move {
+        imex::get_backup(ctx, qr)
+            .await
+            .log_err(ctx, "Get backup failed")
+            .ok();
+    });
+    1
 }
 
 trait ResultExt<T, E> {

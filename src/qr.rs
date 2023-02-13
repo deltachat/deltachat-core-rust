@@ -161,6 +161,19 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
     Ok(qrcode)
 }
 
+/// Formats the text of the [`Qr::Backup`] variant.
+///
+/// This is the inverse of [`check_qr`] for that variant only.
+///
+/// TODO: Refactor this so all variants have a correct [`Display`] and transform `check_qr`
+/// into [`FromStr`].
+pub fn format_backup(qr: Qr) -> Result<String> {
+    match qr {
+        Qr::Backup { ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
+        _ => Err(anyhow!("Not a backup QR code")),
+    }
+}
+
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
 ///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR`
