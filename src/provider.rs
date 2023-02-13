@@ -175,8 +175,6 @@ pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'sta
     None
 }
 
-// TODO: uncomment when clippy starts complaining about it
-//#[allow(clippy::manual_map)] // Can't use .map() because the lifetime is not propagated
 pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
     if let Some(provider) = PROVIDER_IDS.get(id) {
         Some(provider)
