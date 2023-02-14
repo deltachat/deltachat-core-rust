@@ -4159,7 +4159,7 @@ pub unsafe extern "C" fn dc_backup_provider_qr(
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
     let provider = &*provider;
-    deltachat::qr::format_backup(provider.qr())
+    deltachat::qr::format_backup(&provider.qr())
         .unwrap_or_default()
         .strdup()
 }

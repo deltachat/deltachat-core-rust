@@ -28,10 +28,6 @@ use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
 
-use crate::chat::delete_and_reset_all_device_msgs;
-use crate::context::Context;
-use crate::qr::Qr;
-use crate::{e2ee, EventType};
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use futures_lite::StreamExt;
@@ -45,6 +41,11 @@ use tokio::sync::broadcast;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReadDirStream;
+
+use crate::chat::delete_and_reset_all_device_msgs;
+use crate::context::Context;
+use crate::qr::Qr;
+use crate::{e2ee, EventType};
 
 use super::{export_database, BlobDirContents, DeleteOnDrop, DBFILE_BACKUP_NAME};
 
@@ -273,9 +274,10 @@ impl From<SendProgress> for EventType {
 /// does avoid having [`sendme::provider::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
-    let Qr::Backup { ticket } = qr else {
-        bail!("QR code for backup must be of type DCBACKUP");
-    };
+    ensure!(
+        matches!(qr, Qr::Backup { .. }),
+        "QR code for backup must be of type DCBACKUP"
+    );
     ensure!(
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
@@ -284,6 +286,23 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         context.scheduler.read().await.is_none(),
         "cannot import backup, IO is running"
     );
+
+    // Acquire global "ongoing" mutex.
+    let cancel_token = context.alloc_ongoing().await?;
+    tokio::select! {
+        biased;
+        res = get_backup_inner(context, qr) => {
+            context.free_ongoing().await;
+            res
+        }
+        _ = cancel_token.recv() => Err(format_err!("cancelled")),
+    }
+}
+
+async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
+    let Qr::Backup { ticket } = qr else {
+        bail!("QR code for backup must be of type DCBACKUP");
+    };
     let opts = Options {
         addr: ticket.addr,
         peer_id: Some(ticket.peer),
