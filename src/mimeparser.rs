@@ -2362,7 +2362,7 @@ mod tests {
         assert_eq!(of, "no");
 
         // unknown headers do not bubble upwards
-        let of = mimeparser.get_header(HeaderDef::_TestHeader).unwrap();
+        let of = mimeparser.get_header(HeaderDef::TestHeader).unwrap();
         assert_eq!(of, "Bar");
 
         // the following fields would bubble up

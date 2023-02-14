@@ -70,7 +70,8 @@ pub enum HeaderDef {
     /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
-    _TestHeader,
+    #[cfg(test)]
+    TestHeader,
 }
 
 impl HeaderDef {
@@ -103,7 +104,7 @@ mod tests {
     fn kebab_test() {
         assert_eq!(HeaderDef::From_.get_headername(), "from");
 
-        assert_eq!(HeaderDef::_TestHeader.get_headername(), "test-header");
+        assert_eq!(HeaderDef::TestHeader.get_headername(), "test-header");
     }
 
     #[test]
