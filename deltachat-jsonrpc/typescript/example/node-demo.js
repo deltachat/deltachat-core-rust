@@ -10,5 +10,5 @@ async function run() {
 
   const accounts = await delta.rpc.getAllAccounts();
   console.log("accounts", accounts);
-  console.log("waiting for events...")
+  console.log("waiting for events...");
 }

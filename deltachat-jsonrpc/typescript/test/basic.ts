@@ -4,10 +4,7 @@ import chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 import { StdioDeltaChat as DeltaChat } from "../deltachat.js";
 
-import {
-  RpcServerHandle,
-  startServer,
-} from "./test_base.js";
+import { RpcServerHandle, startServer } from "./test_base.js";
 
 describe("basic tests", () => {
   let serverHandle: RpcServerHandle;
@@ -15,9 +12,9 @@ describe("basic tests", () => {
 
   before(async () => {
     serverHandle = await startServer();
-    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout)
+    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout);
     // dc.on("ALL", (event) => {
-      //console.log("event", event);
+    //console.log("event", event);
     // });
   });
 
@@ -111,8 +108,8 @@ describe("basic tests", () => {
       assert((await dc.rpc.getConfig(accountId, "addr")) == "valid@email");
     });
     it("set invalid key should throw", async function () {
-      await expect(dc.rpc.setConfig(accountId, "invalid_key", "some value")).to.be
-        .eventually.rejected;
+      await expect(dc.rpc.setConfig(accountId, "invalid_key", "some value")).to
+        .be.eventually.rejected;
     });
     it("get invalid key should throw", async function () {
       await expect(dc.rpc.getConfig(accountId, "invalid_key")).to.be.eventually
@@ -125,7 +122,10 @@ describe("basic tests", () => {
     it("set and retrive (batch)", async function () {
       const config = { addr: "valid@email", mail_pw: "1234" };
       await dc.rpc.batchSetConfig(accountId, config);
-      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
+      const retrieved = await dc.rpc.batchGetConfig(
+        accountId,
+        Object.keys(config)
+      );
       expect(retrieved).to.deep.equal(config);
     });
     it("set and retrive ui.* (batch)", async function () {
@@ -134,7 +134,10 @@ describe("basic tests", () => {
         "ui.enter_key_sends": "true",
       };
       await dc.rpc.batchSetConfig(accountId, config);
-      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
+      const retrieved = await dc.rpc.batchGetConfig(
+        accountId,
+        Object.keys(config)
+      );
       expect(retrieved).to.deep.equal(config);
     });
     it("set and retrive mixed(ui and core) (batch)", async function () {
@@ -145,7 +148,10 @@ describe("basic tests", () => {
         mail_pw: "123456",
       };
       await dc.rpc.batchSetConfig(accountId, config);
-      const retrieved = await dc.rpc.batchGetConfig(accountId, Object.keys(config));
+      const retrieved = await dc.rpc.batchGetConfig(
+        accountId,
+        Object.keys(config)
+      );
       expect(retrieved).to.deep.equal(config);
     });
   });
