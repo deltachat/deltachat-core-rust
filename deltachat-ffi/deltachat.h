@@ -2666,7 +2666,7 @@ void dc_str_unref (char* str);
  *    On errors, NULL is returned and dc_get_last_error()returns an error that
  *    should be shown to the user.
  */
-dc_backup_provider_t* dc_provide_backup (dc_context_t* context, const chat* folder);
+dc_backup_provider_t* dc_provide_backup (dc_context_t* context, const char* folder);
 
 
 /**
