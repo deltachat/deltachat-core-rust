@@ -94,12 +94,7 @@ impl BackupProvider {
             biased;
             res = Self::prepare_inner(context, dir) => {
                 match res {
-                    Ok(slf) => {
-                        // TODO: maybe this is the wrong place to log this
-                        // TODO: Also needs to log progress somehow.
-                        info!(context, "Waiting for remote to connect");
-                        Ok(slf)
-                    },
+                    Ok(slf) => Ok(slf),
                     Err(err) => {
                         error!(context, "Failed to set up second device setup: {:#}", err);
                         Err(err)
@@ -153,6 +148,7 @@ impl BackupProvider {
         context.emit_event(SendProgress::CollectionCreated.into());
         let provider = Provider::builder(db).auth_token(token).spawn()?;
         context.emit_event(SendProgress::ProviderListening.into());
+        info!(context, "Waiting for remote to connect");
         let ticket = provider.ticket(hash);
         Ok((provider, ticket))
     }

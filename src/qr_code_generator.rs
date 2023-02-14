@@ -12,7 +12,8 @@ use crate::{
     contact::{Contact, ContactId},
     context::Context,
     qr::{Qr, DCBACKUP_SCHEME},
-    securejoin, stock_str,
+    securejoin,
+    stock_str::{self, backup_transfer_qr},
 };
 
 pub async fn get_securejoin_qr_svg(context: &Context, chat_id: Option<ChatId>) -> Result<String> {
@@ -61,10 +62,10 @@ pub async fn generate_backup_qr(context: &Context, qr: Qr) -> Result<String> {
     };
     let content = format!("{DCBACKUP_SCHEME}{ticket}");
     let (avatar, displayname, _addr, color) = self_info(context).await?;
-    let description = "Scan to setup second device"; // TODO: translation!
+    let description = backup_transfer_qr(context).await?;
 
     inner_generate_secure_join_qr_code(
-        description,
+        &description,
         &content,
         &color,
         avatar,
@@ -297,6 +298,7 @@ mod tests {
     use testdir::testdir;
 
     use crate::imex::BackupProvider;
+    use crate::qr::format_backup;
     use crate::test_utils::TestContextManager;
 
     use super::*;
@@ -322,6 +324,7 @@ mod tests {
         let provider = BackupProvider::prepare(&ctx, &dir).await.unwrap();
         let qr = provider.qr();
 
+        println!("{}", format_backup(&qr).unwrap());
         let rendered = generate_backup_qr(&ctx, qr).await.unwrap();
         tokio::fs::write(dir.join("qr.svg"), &rendered)
             .await

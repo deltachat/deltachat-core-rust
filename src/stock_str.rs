@@ -404,6 +404,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Chat protection disabled by %1$s."))]
     ProtectionDisabledBy = 161,
+
+    #[strum(props(fallback = "Scan to set up second device for %1$s"))]
+    BackupTransferQr = 162,
 }
 
 impl StockMessage {
@@ -740,14 +743,14 @@ pub(crate) async fn setup_contact_qr_description(
     display_name: &str,
     addr: &str,
 ) -> String {
-    let name = &if display_name == addr {
+    let name = if display_name == addr {
         addr.to_owned()
     } else {
         format!("{display_name} ({addr})")
     };
     translated(context, StockMessage::SetupContactQRDescription)
         .await
-        .replace1(name)
+        .replace1(&name)
 }
 
 /// Stock string: `Scan to join %1$s`.
@@ -1237,6 +1240,18 @@ pub(crate) async fn aeap_explanation_and_link(
         .await
         .replace1(old_addr)
         .replace2(new_addr)
+}
+
+pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
+    let contact = Contact::get_by_id(context, ContactId::SELF).await?;
+    let addr = contact.get_addr();
+    let full_name = match context.get_config(Config::Displayname).await? {
+        Some(name) if name != addr => format!("{name} ({addr})"),
+        _ => addr.to_string(),
+    };
+    Ok(translated(context, StockMessage::BackupTransferQr)
+        .await
+        .replace1(&full_name))
 }
 
 impl Context {

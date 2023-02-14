@@ -167,9 +167,9 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
 ///
 /// TODO: Refactor this so all variants have a correct [`Display`] and transform `check_qr`
 /// into [`FromStr`].
-pub fn format_backup(qr: Qr) -> Result<String> {
+pub fn format_backup(qr: &Qr) -> Result<String> {
     match qr {
-        Qr::Backup { ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
+        Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
         _ => Err(anyhow!("Not a backup QR code")),
     }
 }
