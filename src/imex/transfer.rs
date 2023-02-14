@@ -398,7 +398,7 @@ async fn on_blob(
 
 /// Spawns a task proxying progress events.
 ///
-/// This spawns a tokio tasks which receives events from the [`ProgressEmitter`] and sends
+/// This spawns a tokio task which receives events from the [`ProgressEmitter`] and sends
 /// them to the context.  The task finishes when the emitter is dropped.
 ///
 /// This could be done directly in the emitter by making it less generic.

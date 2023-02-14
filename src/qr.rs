@@ -166,7 +166,7 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
 /// This is the inverse of [`check_qr`] for that variant only.
 ///
 /// TODO: Refactor this so all variants have a correct [`Display`] and transform `check_qr`
-/// into [`FromStr`].
+/// into `FromStr`.
 pub fn format_backup(qr: &Qr) -> Result<String> {
     match qr {
         Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),

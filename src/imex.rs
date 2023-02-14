@@ -804,7 +804,7 @@ impl<'a> BlobDirContents<'a> {
     }
 }
 
-/// A stream for [`Blob`]s.
+/// A stream for [`BlobObject`]s.
 ///
 /// The stream emits [`EventType::ImexProgress`] events as it being consumed.
 ///
