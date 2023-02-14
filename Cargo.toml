@@ -152,3 +152,6 @@ vendored = [
   "rusqlite/bundled-sqlcipher-vendored-openssl",
   "reqwest/native-tls-vendored"
 ]
+
+[patch.'https://github.com/n0-computer/sendme']
+sendme = { branch = "flub/debug-ci" }
