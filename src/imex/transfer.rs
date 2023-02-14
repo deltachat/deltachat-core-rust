@@ -297,8 +297,9 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
-    let Qr::Backup { ticket } = qr else {
-        bail!("QR code for backup must be of type DCBACKUP");
+    let ticket = match qr {
+        Qr::Backup { ticket } => ticket,
+        _ => bail!("QR code for backup must be of type DCBACKUP"),
     };
     let opts = Options {
         addr: ticket.addr,

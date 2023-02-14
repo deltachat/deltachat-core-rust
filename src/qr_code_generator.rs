@@ -57,8 +57,9 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 }
 
 pub async fn generate_backup_qr(context: &Context, qr: &Qr) -> Result<String> {
-    let Qr::Backup { ticket } = qr else {
-        bail!("QR code not a backup");
+    let ticket = match qr {
+        Qr::Backup { ticket } => ticket,
+        _ => bail!("QR code not a backup"),
     };
     let content = format!("{DCBACKUP_SCHEME}{ticket}");
     let (avatar, displayname, _addr, color) = self_info(context).await?;
