@@ -131,10 +131,11 @@ pub(crate) enum MailinglistType {
 }
 
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
 )]
 #[repr(u32)]
 pub enum SystemMessage {
+    #[default]
     Unknown = 0,
 
     /// Group name changed.
@@ -175,12 +176,6 @@ pub enum SystemMessage {
 
     /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
     WebxdcInfoMessage = 32,
-}
-
-impl Default for SystemMessage {
-    fn default() -> Self {
-        SystemMessage::Unknown
-    }
 }
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";

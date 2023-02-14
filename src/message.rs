@@ -981,6 +981,7 @@ impl Message {
 /// For outgoing message, the message could be pending, already delivered or confirmed.
 #[derive(
     Debug,
+    Default,
     Clone,
     Copy,
     PartialEq,
@@ -997,6 +998,7 @@ impl Message {
 #[repr(u32)]
 pub enum MessageState {
     /// Undefined message state.
+    #[default]
     Undefined = 0,
 
     /// Incoming *fresh* message. Fresh messages are neither noticed
@@ -1037,12 +1039,6 @@ pub enum MessageState {
     /// Outgoing message read by the recipient (two checkmarks; this
     /// requires goodwill on the receiver's side)
     OutMdnRcvd = 28,
-}
-
-impl Default for MessageState {
-    fn default() -> Self {
-        MessageState::Undefined
-    }
 }
 
 impl std::fmt::Display for MessageState {
@@ -1914,6 +1910,7 @@ pub(crate) async fn rfc724_mid_exists(
 /// How a message is primarily displayed.
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -1929,6 +1926,7 @@ pub(crate) async fn rfc724_mid_exists(
 #[repr(u32)]
 pub enum Viewtype {
     /// Unknown message type.
+    #[default]
     Unknown = 0,
 
     /// Text message.
@@ -1980,12 +1978,6 @@ pub enum Viewtype {
 
     /// Message is an webxdc instance.
     Webxdc = 80,
-}
-
-impl Default for Viewtype {
-    fn default() -> Self {
-        Viewtype::Unknown
-    }
 }
 
 impl Viewtype {

@@ -35,6 +35,7 @@ pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 /// Download state of the message.
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -50,6 +51,7 @@ pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 #[repr(u32)]
 pub enum DownloadState {
     /// Message is fully downloaded.
+    #[default]
     Done = 0,
 
     /// Message is partially downloaded and can be fully downloaded at request.
@@ -60,12 +62,6 @@ pub enum DownloadState {
 
     /// Full download of the message is in progress.
     InProgress = 1000,
-}
-
-impl Default for DownloadState {
-    fn default() -> Self {
-        DownloadState::Done
-    }
 }
 
 impl Context {

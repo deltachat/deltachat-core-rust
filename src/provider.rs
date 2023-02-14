@@ -37,10 +37,11 @@ pub enum Protocol {
 }
 
 /// Socket security.
-#[derive(Debug, Display, PartialEq, Eq, Copy, Clone, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Default, Display, PartialEq, Eq, Copy, Clone, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Socket {
     /// Unspecified socket security, select automatically.
+    #[default]
     Automatic = 0,
 
     /// TLS connection.
@@ -51,12 +52,6 @@ pub enum Socket {
 
     /// No TLS, plaintext connection.
     Plain = 3,
-}
-
-impl Default for Socket {
-    fn default() -> Self {
-        Socket::Automatic
-    }
 }
 
 /// Pattern used to construct login usernames from email addresses.

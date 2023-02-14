@@ -61,6 +61,7 @@ pub enum ChatItem {
 /// Chat protection status.
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -77,18 +78,13 @@ pub enum ChatItem {
 #[repr(u32)]
 pub enum ProtectionStatus {
     /// Chat is not protected.
+    #[default]
     Unprotected = 0,
 
     /// Chat is protected.
     ///
     /// All members of the chat must be verified.
     Protected = 1,
-}
-
-impl Default for ProtectionStatus {
-    fn default() -> Self {
-        ProtectionStatus::Unprotected
-    }
 }
 
 /// The reason why messages cannot be sent to the chat.

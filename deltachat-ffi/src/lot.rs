@@ -22,18 +22,13 @@ pub enum Lot {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Meaning {
+    #[default]
     None = 0,
     Text1Draft = 1,
     Text1Username = 2,
     Text1Self = 3,
-}
-
-impl Default for Meaning {
-    fn default() -> Self {
-        Meaning::None
-    }
 }
 
 impl Lot {
@@ -151,9 +146,9 @@ impl Lot {
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum LotState {
-    // Default
+    #[default]
     Undefined = 0,
 
     // Qr States
@@ -213,12 +208,6 @@ pub enum LotState {
     MsgOutFailed = 24,
     MsgOutDelivered = 26,
     MsgOutMdnRcvd = 28,
-}
-
-impl Default for LotState {
-    fn default() -> Self {
-        LotState::Undefined
-    }
 }
 
 impl From<MessageState> for LotState {

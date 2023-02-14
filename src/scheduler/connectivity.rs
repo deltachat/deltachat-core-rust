@@ -27,9 +27,10 @@ pub enum Connectivity {
 // the top) take priority. This means that e.g. if any folder has an error - usually
 // because there is no internet connection - the connectivity for the whole
 // account will be `Notconnected`.
-#[derive(Debug, Clone, PartialEq, Eq, EnumProperty, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, EnumProperty, PartialOrd)]
 enum DetailedConnectivity {
     Error(String),
+    #[default]
     Uninitialized,
     Connecting,
     Working,
@@ -38,12 +39,6 @@ enum DetailedConnectivity {
 
     /// The folder was configured not to be watched or configured_*_folder is not set
     NotConfigured,
-}
-
-impl Default for DetailedConnectivity {
-    fn default() -> Self {
-        DetailedConnectivity::Uninitialized
-    }
 }
 
 impl DetailedConnectivity {
