@@ -371,7 +371,8 @@ impl<'a> BlobObject<'a> {
     ) -> Result<Option<String>> {
         tokio::task::block_in_place(move || {
             let mut img = image::open(&blob_abs).context("image recode failure")?;
-            let orientation = self.get_exif_orientation(context);
+            let exif = self.get_exif().ok();
+            let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
             let mut changed_name = None;
 
@@ -379,53 +380,55 @@ impl<'a> BlobObject<'a> {
 
             let do_scale =
                 exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
-            let do_rotate = matches!(orientation, Ok(90) | Ok(180) | Ok(270));
+            let do_rotate = matches!(orientation, Some(90) | Some(180) | Some(270));
 
-            if do_scale || do_rotate {
-                if do_rotate {
-                    img = match orientation {
-                        Ok(90) => img.rotate90(),
-                        Ok(180) => img.rotate180(),
-                        Ok(270) => img.rotate270(),
-                        _ => img,
-                    }
+            if do_rotate {
+                img = match orientation {
+                    Some(90) => img.rotate90(),
+                    Some(180) => img.rotate180(),
+                    Some(270) => img.rotate270(),
+                    _ => img,
+                }
+            }
+
+            if do_scale {
+                if !exceeds_width {
+                    // The image is already smaller than img_wh, but exceeds max_bytes
+                    // We can directly start with trying to scale down to 2/3 of its current width
+                    img_wh = max(img.width(), img.height()) * 2 / 3
                 }
 
-                if do_scale {
-                    if !exceeds_width {
-                        // The image is already smaller than img_wh, but exceeds max_bytes
-                        // We can directly start with trying to scale down to 2/3 of its current width
-                        img_wh = max(img.width(), img.height()) * 2 / 3
-                    }
+                loop {
+                    let new_img = img.thumbnail(img_wh, img_wh);
 
-                    loop {
-                        let new_img = img.thumbnail(img_wh, img_wh);
-
-                        if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
-                            if img_wh < 20 {
-                                return Err(format_err!(
-                                    "Failed to scale image to below {}B",
-                                    max_bytes.unwrap_or_default()
-                                ));
-                            }
-
-                            img_wh = img_wh * 2 / 3;
-                        } else {
-                            if encoded.is_empty() {
-                                encode_img(&new_img, &mut encoded)?;
-                            }
-
-                            info!(
-                                context,
-                                "Final scaled-down image size: {}B ({}px).",
-                                encoded.len(),
-                                img_wh
-                            );
-                            break;
+                    if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                        if img_wh < 20 {
+                            return Err(format_err!(
+                                "Failed to scale image to below {}B.",
+                                max_bytes.unwrap_or_default()
+                            ));
                         }
+
+                        img_wh = img_wh * 2 / 3;
+                    } else {
+                        if encoded.is_empty() {
+                            encode_img(&new_img, &mut encoded)?;
+                        }
+
+                        info!(
+                            context,
+                            "Final scaled-down image size: {}B ({}px).",
+                            encoded.len(),
+                            img_wh
+                        );
+                        break;
                     }
                 }
+            }
 
+            // We also need to rewrite the file to remove metadata such as location, camera model,
+            // etc. if any
+            if do_rotate || do_scale || exif.is_some() {
                 // The file format is JPEG now, we may have to change the file extension
                 if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
                     blob_abs = blob_abs.with_extension("jpg");
@@ -446,23 +449,26 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    pub fn get_exif_orientation(&self, context: &Context) -> Result<i32> {
+    pub fn get_exif(&self) -> Result<exif::Exif> {
         let file = std::fs::File::open(self.to_abs_path())?;
         let mut bufreader = std::io::BufReader::new(&file);
         let exifreader = exif::Reader::new();
-        let exif = exifreader.read_from_container(&mut bufreader)?;
-        if let Some(orientation) = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY) {
-            // possible orientation values are described at http://sylvana.net/jpegcrop/exif_orientation.html
-            // we only use rotation, in practise, flipping is not used.
-            match orientation.value.get_uint(0) {
-                Some(3) => return Ok(180),
-                Some(6) => return Ok(90),
-                Some(8) => return Ok(270),
-                other => warn!(context, "Exif orientation value ignored: {other:?}."),
-            }
-        }
-        Ok(0)
+        Ok(exifreader.read_from_container(&mut bufreader)?)
     }
+}
+
+fn exif_orientation(exif: &exif::Exif, context: &Context) -> i32 {
+    if let Some(orientation) = exif.get_field(exif::Tag::Orientation, exif::In::PRIMARY) {
+        // possible orientation values are described at http://sylvana.net/jpegcrop/exif_orientation.html
+        // we only use rotation, in practise, flipping is not used.
+        match orientation.value.get_uint(0) {
+            Some(3) => return 180,
+            Some(6) => return 90,
+            Some(8) => return 270,
+            other => warn!(context, "Exif orientation value ignored: {other:?}."),
+        }
+    }
+    0
 }
 
 impl<'a> fmt::Display for BlobObject<'a> {
@@ -880,12 +886,22 @@ mod tests {
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
-        send_image_check_mediaquality(Some("0"), bytes, 1000, 1000, 0, 1000, 1000)
-            .await
-            .unwrap();
+        send_image_check_mediaquality(
+            Some("0"),
+            bytes,
+            true, // has Exif
+            1000,
+            1000,
+            0,
+            1000,
+            1000,
+        )
+        .await
+        .unwrap();
         send_image_check_mediaquality(
             Some("1"),
             bytes,
+            true, // has Exif
             1000,
             1000,
             0,
@@ -903,6 +919,7 @@ mod tests {
         let img_rotated = send_image_check_mediaquality(
             Some("0"),
             bytes,
+            true, // has Exif
             2000,
             1800,
             270,
@@ -926,6 +943,7 @@ mod tests {
             let img_rotated = send_image_check_mediaquality(
                 Some("0"),
                 &bytes2,
+                false, // no Exif
                 BALANCED_IMAGE_SIZE * 1800 / 2000,
                 BALANCED_IMAGE_SIZE,
                 0,
@@ -940,6 +958,7 @@ mod tests {
         let img_rotated = send_image_check_mediaquality(
             Some("1"),
             &bytes,
+            false, // no Exif
             BALANCED_IMAGE_SIZE * 1800 / 2000,
             BALANCED_IMAGE_SIZE,
             0,
@@ -956,15 +975,33 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_3() {
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
-        let img_rotated = send_image_check_mediaquality(Some("0"), bytes, 200, 180, 270, 180, 200)
-            .await
-            .unwrap();
+        let img_rotated = send_image_check_mediaquality(
+            Some("0"),
+            bytes,
+            true, // has Exif
+            200,
+            180,
+            270,
+            180,
+            200,
+        )
+        .await
+        .unwrap();
         assert_correct_rotation(&img_rotated);
 
         let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
-        let img_rotated = send_image_check_mediaquality(Some("1"), bytes, 200, 180, 270, 180, 200)
-            .await
-            .unwrap();
+        let img_rotated = send_image_check_mediaquality(
+            Some("1"),
+            bytes,
+            true, // has Exif
+            200,
+            180,
+            270,
+            180,
+            200,
+        )
+        .await
+        .unwrap();
         assert_correct_rotation(&img_rotated);
     }
 
@@ -985,9 +1022,11 @@ mod tests {
         assert_eq!(luma, 0);
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn send_image_check_mediaquality(
         media_quality_config: Option<&str>,
         bytes: &[u8],
+        has_exif: bool,
         original_width: u32,
         original_height: u32,
         orientation: i32,
@@ -1007,7 +1046,13 @@ mod tests {
         check_image_size(&file, original_width, original_height);
 
         let blob = BlobObject::new_from_path(&alice, &file).await?;
-        assert_eq!(blob.get_exif_orientation(&alice).unwrap_or(0), orientation);
+        let exif = blob.get_exif();
+        if has_exif {
+            let exif = exif.unwrap();
+            assert_eq!(exif_orientation(&exif, &alice), orientation);
+        } else {
+            assert!(exif.is_err());
+        }
 
         let mut msg = Message::new(Viewtype::Image);
         msg.set_file(file.to_str().unwrap(), None);
@@ -1028,7 +1073,7 @@ mod tests {
         let file = bob_msg.get_file(&bob).unwrap();
 
         let blob = BlobObject::new_from_path(&bob, &file).await?;
-        assert_eq!(blob.get_exif_orientation(&bob).unwrap_or(0), 0);
+        assert!(blob.get_exif().is_err());
 
         let img = check_image_size(file, compressed_width, compressed_height);
         Ok(img)
