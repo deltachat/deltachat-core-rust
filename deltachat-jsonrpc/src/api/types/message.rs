@@ -20,6 +20,13 @@ use super::reactions::JSONRPCReactions;
 use super::webxdc::WebxdcMessageInfo;
 
 #[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase", tag = "variant")]
+pub enum MessageLoadResult {
+    Message(MessageObject),
+    LoadingError { error: String },
+}
+
+#[derive(Serialize, TypeDef)]
 #[serde(rename = "Message", rename_all = "camelCase")]
 pub struct MessageObject {
     id: u32,

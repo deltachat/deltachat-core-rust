@@ -68,10 +68,7 @@ async function run() {
       null
     );
     for (const [chatId, _messageId] of chats) {
-      const chat = await client.rpc.getFullChatById(
-        selectedAccount,
-        chatId
-      );
+      const chat = await client.rpc.getFullChatById(selectedAccount, chatId);
       write($main, `<h3>${chat.name}</h3>`);
       const messageIds = await client.rpc.getMessageIds(
         selectedAccount,
@@ -84,7 +81,9 @@ async function run() {
         messageIds
       );
       for (const [_messageId, message] of Object.entries(messages)) {
-        write($main, `<p>${message.text}</p>`);
+        if (message.variant === "message")
+          write($main, `<p>${message.text}</p>`);
+        else write($main, `<p>loading error: ${message.error}</p>`);
       }
     }
   }
