@@ -3032,6 +3032,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable-atomic"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39c00c8683a03bd4fe7db7dd64ab4abee6b42166bc81231da983486ce96be51a"
+
+[[package]]
 name = "postcard"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3767,7 +3773,7 @@ dependencies = [
 [[package]]
 name = "sendme"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/sendme?branch=main#5bd545d8eb800a48b36c8d7d2333b9f21afec49a"
+source = "git+https://github.com/n0-computer/sendme?branch=main#d09a78636b6b280a4ca67c9948ba6325c4c75088"
 dependencies = [
  "anyhow",
  "bao",
@@ -3777,6 +3783,7 @@ dependencies = [
  "der",
  "ed25519-dalek",
  "futures",
+ "portable-atomic",
  "postcard",
  "quinn",
  "rand 0.7.3",
