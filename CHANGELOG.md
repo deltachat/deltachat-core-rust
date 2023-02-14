@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Use message text as the initial subject for 1:1 contacts. #4036
 
 ### Fixes
 

@@ -38,9 +38,6 @@ by the [Protected Headers](https://tools.ietf.org/id/draft-autocrypt-lamps-prote
 # Outgoing messages
 
 Messengers MUST add a `Chat-Version: 1.0` header to outgoing messages.
-For filtering and smart appearance of the messages in normal MUAs,
-the `Subject` header SHOULD be `Message from <sender name>`.
-Replies to messages MAY follow the typical `Re:`-format.
 
 The body MAY contain text which MUST have the content type `text/plain`
 or `mulipart/alternative` containing `text/plain`.

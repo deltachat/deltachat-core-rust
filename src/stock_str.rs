@@ -868,14 +868,6 @@ pub(crate) async fn unknown_sender_for_chat(context: &Context) -> String {
     translated(context, StockMessage::UnknownSenderForChat).await
 }
 
-/// Stock string: `Message from %1$s`.
-// TODO: This can compute `self_name` itself instead of asking the caller to do this.
-pub(crate) async fn subject_for_new_contact(context: &Context, self_name: &str) -> String {
-    translated(context, StockMessage::SubjectForNewContact)
-        .await
-        .replace1(self_name)
-}
-
 /// Stock string: `Failed to send message to %1$s.`.
 pub(crate) async fn failed_sending_to(context: &Context, name: &str) -> String {
     translated(context, StockMessage::FailedSendingTo)

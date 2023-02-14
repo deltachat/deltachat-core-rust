@@ -28,7 +28,7 @@ use crate::stock_str;
 use crate::tools::IsNoneOrEmpty;
 use crate::tools::{
     create_outgoing_rfc724_mid, create_smeared_timestamp, get_filebytes, remove_subject_prefix,
-    time,
+    time, truncate,
 };
 
 // attachments of 25 mb brutto should work on the majority of providers
@@ -435,11 +435,7 @@ impl<'a> MimeFactory<'a> {
                     }
                 }
 
-                let self_name = &match context.get_config(Config::Displayname).await? {
-                    Some(name) => name,
-                    None => context.get_config(Config::Addr).await?.unwrap_or_default(),
-                };
-                stock_str::subject_for_new_contact(context, self_name).await
+                truncate(self.msg.text.as_deref().unwrap_or_default().trim(), 40).to_string()
             }
             Loaded::Mdn { .. } => stock_str::read_rcpt(context).await,
         };
@@ -1669,13 +1665,13 @@ mod tests {
         // 3. Send the first message to a new contact
         let t = TestContext::new_alice().await;
 
-        assert_eq!(first_subject_str(t).await, "Message from alice@example.org");
+        assert_eq!(first_subject_str(t).await, "Hi");
 
         let t = TestContext::new_alice().await;
         t.set_config(Config::Displayname, Some("Alice"))
             .await
             .unwrap();
-        assert_eq!(first_subject_str(t).await, "Message from Alice");
+        assert_eq!(first_subject_str(t).await, "Hi");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
