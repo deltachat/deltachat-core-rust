@@ -56,7 +56,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
     )
 }
 
-pub async fn generate_backup_qr(context: &Context, qr: Qr) -> Result<String> {
+pub async fn generate_backup_qr(context: &Context, qr: &Qr) -> Result<String> {
     let Qr::Backup { ticket } = qr else {
         bail!("QR code not a backup");
     };
@@ -325,7 +325,7 @@ mod tests {
         let qr = provider.qr();
 
         println!("{}", format_backup(&qr).unwrap());
-        let rendered = generate_backup_qr(&ctx, qr).await.unwrap();
+        let rendered = generate_backup_qr(&ctx, &qr).await.unwrap();
         tokio::fs::write(dir.join("qr.svg"), &rendered)
             .await
             .unwrap();

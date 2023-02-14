@@ -4176,7 +4176,7 @@ pub unsafe extern "C" fn dc_backup_provider_qr_svg(
     let ctx = &*context;
     let provider = &*provider;
     block_on(async move {
-        generate_backup_qr(ctx, provider.qr())
+        generate_backup_qr(ctx, &provider.qr())
             .await
             .unwrap_or_default()
             .strdup()

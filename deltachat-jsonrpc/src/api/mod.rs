@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 
@@ -22,7 +23,7 @@ use deltachat::{
     },
     provider::get_provider_info,
     qr,
-    qr_code_generator::get_securejoin_qr_svg,
+    qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg},
     reaction::send_reaction,
     securejoin,
     stock_str::StockMessage,
@@ -1334,6 +1335,40 @@ impl CommandApi {
             passphrase,
         )
         .await
+    }
+
+    /// Starts to provide the backup for remote devices to retrieve.
+    ///
+    /// Can be cancelled by stopping the ongoing process.  Success or failure can be tracked
+    /// via the `ImexProgress` event which should either reach `1000` for success or `0` for
+    /// failure.
+    ///
+    /// This **stops IO**.  After completion `start_io` must be called to restart IO.
+    ///
+    /// Returns the QR code as a rendered SVG image.
+    async fn provide_backup(&self, account_id: u32, path: String) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.stop_io().await;
+        let provider = imex::BackupProvider::prepare(&ctx, Path::new(&path)).await?;
+        let qr = provider.qr();
+        let svg = match generate_backup_qr(&ctx, &qr).await {
+            Ok(svg) => svg,
+            Err(err) => {
+                ctx.stop_ongoing().await;
+                return Err(err);
+            }
+        };
+        Ok(svg)
+    }
+
+    /// Gets a backup from a remote provider.
+    ///
+    /// Can be cancelled by stopping the ongoing process.
+    async fn get_backup(&self, account_id: u32, qr_text: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = qr::check_qr(&ctx, &qr_text).await?;
+        imex::get_backup(&ctx, qr).await?;
+        Ok(())
     }
 
     // ---------------------------------------------

@@ -33,7 +33,7 @@ pub enum QrObject {
         domain: String,
     },
     Backup {
-        ticket: Vec<u8>,
+        ticket: String,
     },
     WebrtcInstance {
         domain: String,
@@ -130,7 +130,7 @@ impl From<Qr> for QrObject {
             Qr::FprWithoutAddr { fingerprint } => QrObject::FprWithoutAddr { fingerprint },
             Qr::Account { domain } => QrObject::Account { domain },
             Qr::Backup { ticket } => QrObject::Backup {
-                ticket: ticket.to_bytes(),
+                ticket: ticket.to_string(),
             },
             Qr::WebrtcInstance {
                 domain,
