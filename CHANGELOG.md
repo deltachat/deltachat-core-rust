@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- deltachat-rpc-client: use `dataclass` for `Account`, `Chat`, `Contact` and `Message` #4042
 
 ### Fixes
 - deltachat-rpc-server: do not block stdin while processing the request. #4041
