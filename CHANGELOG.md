@@ -113,6 +113,7 @@
 - Run `cargo-deny` in CI. #4101
 - Check provider database with CI. #4099 
 - Switch to DEFERRED transactions #4100
+- Remove metadata from avatars and JPEG images before sending #4037
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079
