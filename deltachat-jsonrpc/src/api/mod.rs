@@ -45,6 +45,7 @@ use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
+use self::types::message::MessageLoadResult;
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
     location::JsonrpcLocation,
@@ -465,7 +466,7 @@ impl CommandApi {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
                         id: entry.0,
-                        error: format!("{err:?}"),
+                        error: format!("{err:#}"),
                     },
                 },
             );
@@ -945,17 +946,27 @@ impl CommandApi {
         MsgId::new(message_id).get_html(&ctx).await
     }
 
+    /// get multiple messages in one call,
+    /// if loading one message fails the error is stored in the result object in it's place.
+    ///
+    /// this is the batch variant of [get_message]
     async fn get_messages(
         &self,
         account_id: u32,
         message_ids: Vec<u32>,
-    ) -> Result<HashMap<u32, MessageObject>> {
+    ) -> Result<HashMap<u32, MessageLoadResult>> {
         let ctx = self.get_context(account_id).await?;
-        let mut messages: HashMap<u32, MessageObject> = HashMap::new();
+        let mut messages: HashMap<u32, MessageLoadResult> = HashMap::new();
         for message_id in message_ids {
+            let message_result = MessageObject::from_message_id(&ctx, message_id).await;
             messages.insert(
                 message_id,
-                MessageObject::from_message_id(&ctx, message_id).await?,
+                match message_result {
+                    Ok(message) => MessageLoadResult::Message(message),
+                    Err(error) => MessageLoadResult::LoadingError {
+                        error: format!("{error:#}"),
+                    },
+                },
             );
         }
         Ok(messages)

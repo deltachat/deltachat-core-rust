@@ -81,7 +81,9 @@ async function run() {
         messageIds
       );
       for (const [_messageId, message] of Object.entries(messages)) {
-        write($main, `<p>${message.text}</p>`);
+        if (message.variant === "message")
+          write($main, `<p>${message.text}</p>`);
+        else write($main, `<p>loading error: ${message.error}</p>`);
       }
     }
   }

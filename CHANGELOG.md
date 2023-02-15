@@ -10,7 +10,9 @@
   deltachat-rpc-server now reads the next request as soon as previous request handler is spawned.
 
 ### API-Changes
+
 - Remove `MimeMessage::from_bytes()` public interface. #4033
+- BREAKING Types: jsonrpc: `get_messages` now returns a map with `MessageLoadResult` instead of failing completely if one of the requested messages could not be loaded. #4038
 
 
 ## 1.108.0
