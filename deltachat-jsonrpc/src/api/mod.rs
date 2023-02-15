@@ -461,7 +461,7 @@ impl CommandApi {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
                         id: entry.0,
-                        error: format!("{err:?}"),
+                        error: format!("{err:#}"),
                     },
                 },
             );
@@ -943,7 +943,7 @@ impl CommandApi {
 
     /// get multiple messages in one call,
     /// if loading one message fails the error is stored in the result object in it's place.
-    /// 
+    ///
     /// this is the batch variant of [get_message]
     async fn get_messages(
         &self,
@@ -957,9 +957,9 @@ impl CommandApi {
             messages.insert(
                 message_id,
                 match message_result {
-                    Ok(message) => MessageLoadResult::Message (message ),
+                    Ok(message) => MessageLoadResult::Message(message),
                     Err(error) => MessageLoadResult::LoadingError {
-                        error: format!("{error:?}"),
+                        error: format!("{error:#}"),
                     },
                 },
             );
