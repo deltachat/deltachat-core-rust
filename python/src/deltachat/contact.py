@@ -9,7 +9,7 @@ from .chat import Chat
 from .cutil import from_dc_charpointer, from_optional_dc_charpointer
 
 
-class Contact(object):
+class Contact:
     """Delta-Chat Contact.
 
     You obtain instances of it through :class:`deltachat.account.Account`.

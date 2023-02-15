@@ -12,7 +12,7 @@ from .cutil import as_dc_charpointer, from_dc_charpointer, from_optional_dc_char
 from .reactions import Reactions
 
 
-class Message(object):
+class Message:
     """Message object.
 
     You obtain instances of it through :class:`deltachat.account.Account` or

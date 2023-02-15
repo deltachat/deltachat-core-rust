@@ -4,7 +4,7 @@ from .capi import ffi, lib
 from .cutil import from_dc_charpointer, iter_array
 
 
-class Reactions(object):
+class Reactions:
     """Reactions object.
 
     You obtain instances of it through :class:`deltachat.message.Message`.

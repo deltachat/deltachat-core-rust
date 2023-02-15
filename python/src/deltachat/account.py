@@ -53,7 +53,7 @@ def get_dc_info_as_dict(dc_context):
     return info_dict
 
 
-class Account(object):
+class Account:
     """Each account is tied to a sqlite database file which is fully managed
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
