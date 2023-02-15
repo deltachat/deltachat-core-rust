@@ -36,6 +36,11 @@ dynamic = [
 [project.entry-points.pytest11]
 "deltachat.testplugin" = "deltachat.testplugin"
 
+[tool.setuptools.package-data]
+deltachat = [
+    "py.typed"
+]
+
 [tool.setuptools_scm]
 root = ".."
 tag_regex = '^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$'

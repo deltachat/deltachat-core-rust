@@ -4,6 +4,7 @@
 
 ### Changes
 - deltachat-rpc-client: use `dataclass` for `Account`, `Chat`, `Contact` and `Message` #4042
+- python: mark bindings as supporting typing according to PEP 561 #4045
 
 ### Fixes
 - deltachat-rpc-server: do not block stdin while processing the request. #4041
