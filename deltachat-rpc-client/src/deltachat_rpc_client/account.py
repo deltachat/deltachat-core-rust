@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from dataclasses import dataclass
 
 from ._utils import AttrDict
 from .chat import Chat
@@ -11,27 +12,16 @@ if TYPE_CHECKING:
     from .deltachat import DeltaChat
 
 
+@dataclass
 class Account:
     """Delta Chat account."""
 
-    def __init__(self, manager: "DeltaChat", account_id: int) -> None:
-        self.manager = manager
-        self.id = account_id
+    manager: "DeltaChat"
+    id: int
 
     @property
     def _rpc(self) -> Rpc:
         return self.manager.rpc
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, Account):
-            return False
-        return self.id == other.id and self.manager == other.manager
-
-    def __ne__(self, other) -> bool:
-        return not self == other
-
-    def __repr__(self) -> str:
-        return f"<Account id={self.id}>"
 
     async def wait_for_event(self) -> AttrDict:
         """Wait until the next event and return it."""

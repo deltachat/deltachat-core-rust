@@ -103,18 +103,26 @@ pub enum Config {
     /// Own avatar filename.
     Selfavatar,
 
+    /// Send BCC copy to self.
+    ///
+    /// Should be enabled for multidevice setups.
     #[strum(props(default = "1"))]
     BccSelf,
 
+    /// True if encryption is preferred according to Autocrypt standard.
     #[strum(props(default = "1"))]
     E2eeEnabled,
 
+    /// True if Message Delivery Notifications (read receipts) should
+    /// be sent and requested.
     #[strum(props(default = "1"))]
     MdnsEnabled,
 
+    /// True if "Sent" folder should be watched for changes.
     #[strum(props(default = "0"))]
     SentboxWatch,
 
+    /// True if chat messages should be moved to a separate folder.
     #[strum(props(default = "1"))]
     MvboxMove,
 
@@ -125,9 +133,11 @@ pub enum Config {
     #[strum(props(default = "0"))]
     OnlyFetchMvbox,
 
-    #[strum(props(default = "0"))] // also change ShowEmails.default() on changes
+    /// Whether to show classic emails or only chat messages.
+    #[strum(props(default = "2"))] // also change ShowEmails.default() on changes
     ShowEmails,
 
+    /// Quality of the media files to send.
     #[strum(props(default = "0"))] // also change MediaQuality.default() on changes
     MediaQuality,
 
@@ -142,6 +152,7 @@ pub enum Config {
     #[strum(props(default = "1"))]
     FetchedExistingMsgs,
 
+    /// Type of the OpenPGP key to generate.
     #[strum(props(default = "0"))]
     KeyGenType,
 
@@ -164,7 +175,9 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DeleteDeviceAfter,
 
+    /// Save raw MIME messages with headers in the database if true.
     SaveMimeHeaders,
+
     /// The primary email address. Also see `SecondaryAddrs`.
     ConfiguredAddr,
 
@@ -196,14 +209,19 @@ pub enum Config {
     /// Configured SMTP server port.
     ConfiguredSendPort,
     ConfiguredSmtpCertificateChecks,
+
+    /// Whether OAuth 2 is used with configured provider.
     ConfiguredServerFlags,
     ConfiguredSendSecurity,
-    ConfiguredE2EEEnabled,
     ConfiguredInboxFolder,
     ConfiguredMvboxFolder,
     ConfiguredSentboxFolder,
     ConfiguredTimestamp,
+
+    /// ID of the configured provider from the provider database.
     ConfiguredProvider,
+
+    /// True if account is configured.
     Configured,
 
     /// All secondary self addresses separated by spaces
@@ -219,6 +237,7 @@ pub enum Config {
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 
+    /// True if it is a bot account.
     Bot,
 
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
@@ -293,28 +312,33 @@ impl Context {
         }
     }
 
+    /// Returns 32-bit signed integer configuration value for the given key.
     pub async fn get_config_int(&self, key: Config) -> Result<i32> {
         self.get_config(key)
             .await
             .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
     }
 
+    /// Returns 64-bit signed integer configuration value for the given key.
     pub async fn get_config_i64(&self, key: Config) -> Result<i64> {
         self.get_config(key)
             .await
             .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
     }
 
+    /// Returns 64-bit unsigned integer configuration value for the given key.
     pub async fn get_config_u64(&self, key: Config) -> Result<u64> {
         self.get_config(key)
             .await
             .map(|s: Option<String>| s.and_then(|s| s.parse().ok()).unwrap_or_default())
     }
 
+    /// Returns boolean configuration value for the given key.
     pub async fn get_config_bool(&self, key: Config) -> Result<bool> {
         Ok(self.get_config_int(key).await? != 0)
     }
 
+    /// Returns true if movebox ("DeltaChat" folder) should be watched.
     pub(crate) async fn should_watch_mvbox(&self) -> Result<bool> {
         Ok(self.get_config_bool(Config::MvboxMove).await?
             || self.get_config_bool(Config::OnlyFetchMvbox).await?)

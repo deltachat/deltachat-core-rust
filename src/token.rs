@@ -13,19 +13,14 @@ use crate::tools::{create_id, time};
 
 /// Token namespace
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
 )]
 #[repr(u32)]
 pub enum Namespace {
+    #[default]
     Unknown = 0,
     Auth = 110,
     InviteNumber = 100,
-}
-
-impl Default for Namespace {
-    fn default() -> Self {
-        Namespace::Unknown
-    }
 }
 
 /// Saves a token to the database.

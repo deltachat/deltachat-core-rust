@@ -287,7 +287,6 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 mod tests {
     use super::*;
     use crate::chat::get_chat_msgs;
-    use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
@@ -343,7 +342,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_receive_reaction() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("2")).await?;
 
         // Alice receives BCC-self copy of a message sent to Bob.
         receive_imf(

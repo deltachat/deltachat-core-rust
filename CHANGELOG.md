@@ -2,18 +2,32 @@
 
 ## Unreleased
 
-## Changes
+### Changes
+- deltachat-rpc-client: use `dataclass` for `Account`, `Chat`, `Contact` and `Message` #4042
+
+### Fixes
+- deltachat-rpc-server: do not block stdin while processing the request. #4041
+  deltachat-rpc-server now reads the next request as soon as previous request handler is spawned.
+
+### API-Changes
+- Remove `MimeMessage::from_bytes()` public interface. #4033
+
+
+## 1.108.0
+
+### Changes
 - Use read/write timeouts instead of per-command timeouts for SMTP #3985
 - Cache DNS results for SMTP connections #3985
 - Prefer TLS over STARTTLS during autoconfiguration #4021
 - Use SOCKS5 configuration for HTTP requests #4017
+- Show non-deltachat emails by default for new installations #4019
 
-## Fixes
+### Fixes
 - Fix Securejoin for multiple devices on a joining side #3982
 - python: handle NULL value returned from `dc_get_msg()` #4020
   Account.`get_message_by_id` may return `None` in this case.
 
-## API-Changes
+### API-Changes
 - Remove bitflags from `get_chat_msgs()` interface #4022
   C interface is not changed.
   Rust and JSON-RPC API have `flags` integer argument

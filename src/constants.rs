@@ -12,6 +12,7 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
 
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -26,79 +27,54 @@ pub static DC_VERSION_STR: Lazy<String> = Lazy::new(|| env!("CARGO_PKG_VERSION")
 )]
 #[repr(i8)]
 pub enum Blocked {
+    #[default]
     Not = 0,
     Yes = 1,
     Request = 2,
 }
 
-impl Default for Blocked {
-    fn default() -> Self {
-        Blocked::Not
-    }
-}
-
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
 #[repr(u8)]
 pub enum ShowEmails {
     Off = 0,
     AcceptedContacts = 1,
+    #[default] // also change Config.ShowEmails props(default) on changes
     All = 2,
 }
 
-impl Default for ShowEmails {
-    fn default() -> Self {
-        ShowEmails::Off // also change Config.ShowEmails props(default) on changes
-    }
-}
-
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
 #[repr(u8)]
 pub enum MediaQuality {
+    #[default] // also change Config.MediaQuality props(default) on changes
     Balanced = 0,
     Worse = 1,
 }
 
-impl Default for MediaQuality {
-    fn default() -> Self {
-        MediaQuality::Balanced // also change Config.MediaQuality props(default) on changes
-    }
-}
-
 /// Type of the key to generate.
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
 #[repr(u8)]
 pub enum KeyGenType {
+    #[default]
     Default = 0,
     Rsa2048 = 1,
     Ed25519 = 2,
 }
 
-impl Default for KeyGenType {
-    fn default() -> Self {
-        KeyGenType::Default
-    }
-}
-
 #[derive(
-    Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql,
 )]
 #[repr(i8)]
 pub enum VideochatType {
+    #[default]
     Unknown = 0,
     BasicWebrtc = 1,
     Jitsi = 2,
-}
-
-impl Default for VideochatType {
-    fn default() -> Self {
-        VideochatType::Unknown
-    }
 }
 
 pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
@@ -135,6 +111,7 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -150,17 +127,12 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 )]
 #[repr(u32)]
 pub enum Chattype {
+    #[default]
     Undefined = 0,
     Single = 100,
     Group = 120,
     Mailinglist = 140,
     Broadcast = 160,
-}
-
-impl Default for Chattype {
-    fn default() -> Self {
-        Chattype::Undefined
-    }
 }
 
 pub const DC_MSG_ID_DAYMARKER: u32 = 9;
@@ -244,7 +216,7 @@ mod tests {
     #[test]
     fn test_showemails_values() {
         // values may be written to disk and must not change
-        assert_eq!(ShowEmails::Off, ShowEmails::default());
+        assert_eq!(ShowEmails::All, ShowEmails::default());
         assert_eq!(ShowEmails::Off, ShowEmails::from_i32(0).unwrap());
         assert_eq!(
             ShowEmails::AcceptedContacts,

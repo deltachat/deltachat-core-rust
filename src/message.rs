@@ -244,12 +244,18 @@ pub struct Message {
 
     /// ID of the first contact in the `To:` header.
     pub(crate) to_id: ContactId,
+
+    /// ID of the chat message belongs to.
     pub(crate) chat_id: ChatId,
+
+    /// Type of the message.
     pub(crate) viewtype: Viewtype,
 
     /// State of the message.
     pub(crate) state: MessageState,
     pub(crate) download_state: DownloadState,
+
+    /// Whether the message is hidden.
     pub(crate) hidden: bool,
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
@@ -257,8 +263,14 @@ pub struct Message {
     pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
     pub(crate) text: Option<String>,
+
+    /// Message subject.
     pub(crate) subject: String,
+
+    /// `Message-ID` header value.
     pub(crate) rfc724_mid: String,
+
+    /// `In-Reply-To` header value.
     pub(crate) in_reply_to: Option<String>,
     pub(crate) is_dc_message: MessengerMessage,
     pub(crate) mime_modified: bool,
@@ -969,6 +981,7 @@ impl Message {
 /// For outgoing message, the message could be pending, already delivered or confirmed.
 #[derive(
     Debug,
+    Default,
     Clone,
     Copy,
     PartialEq,
@@ -985,6 +998,7 @@ impl Message {
 #[repr(u32)]
 pub enum MessageState {
     /// Undefined message state.
+    #[default]
     Undefined = 0,
 
     /// Incoming *fresh* message. Fresh messages are neither noticed
@@ -1025,12 +1039,6 @@ pub enum MessageState {
     /// Outgoing message read by the recipient (two checkmarks; this
     /// requires goodwill on the receiver's side)
     OutMdnRcvd = 28,
-}
-
-impl Default for MessageState {
-    fn default() -> Self {
-        MessageState::Undefined
-    }
 }
 
 impl std::fmt::Display for MessageState {
@@ -1902,6 +1910,7 @@ pub(crate) async fn rfc724_mid_exists(
 /// How a message is primarily displayed.
 #[derive(
     Debug,
+    Default,
     Display,
     Clone,
     Copy,
@@ -1917,6 +1926,7 @@ pub(crate) async fn rfc724_mid_exists(
 #[repr(u32)]
 pub enum Viewtype {
     /// Unknown message type.
+    #[default]
     Unknown = 0,
 
     /// Text message.
@@ -1968,12 +1978,6 @@ pub enum Viewtype {
 
     /// Message is an webxdc instance.
     Webxdc = 80,
-}
-
-impl Default for Viewtype {
-    fn default() -> Self {
-        Viewtype::Unknown
-    }
 }
 
 impl Viewtype {

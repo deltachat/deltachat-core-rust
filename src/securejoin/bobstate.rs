@@ -236,7 +236,7 @@ impl BobState {
     /// stage is returned.  Once [`BobHandshakeStage::Completed`] or
     /// [`BobHandshakeStage::Terminated`] are reached this [`BobState`] should be destroyed,
     /// further calling it will just result in the messages being unused by this handshake.
-    pub async fn handle_message(
+    pub(crate) async fn handle_message(
         &mut self,
         context: &Context,
         mime_message: &MimeMessage,

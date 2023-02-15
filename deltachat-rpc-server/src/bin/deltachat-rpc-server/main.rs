@@ -51,7 +51,10 @@ async fn main() -> Result<()> {
         let mut lines = BufReader::new(stdin).lines();
         while let Some(message) = lines.next_line().await? {
             log::trace!("RPC recv {}", message);
-            session.handle_incoming(&message).await;
+            let session = session.clone();
+            tokio::spawn(async move {
+                session.handle_incoming(&message).await;
+            });
         }
         log::info!("EOF reached on stdin");
         Ok(())

@@ -240,7 +240,7 @@ fn mimepart_to_data_url(mail: &mailparse::ParsedMail<'_>) -> Result<String> {
 }
 
 impl MsgId {
-    /// Get HTML from a message-id.
+    /// Get HTML by database message id.
     /// This requires `mime_headers` field to be set for the message;
     /// this is the case at least when `Message.has_html()` returns true
     /// (we do not save raw mime unconditionally in the database to save space).
@@ -435,7 +435,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     async fn test_html_forwarding() {
         // alice receives a non-delta html-message
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("2")).await.ok();
         let chat = alice
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
@@ -481,10 +480,13 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_html_forwarding_encrypted() {
         // Alice receives a non-delta html-message
-        // (`ShowEmails=1` lets Alice actually receive non-delta messages for known contacts,
-        // the contact is marked as known by creating a chat using `chat_with_contact()`)
+        // (`ShowEmails=AcceptedContacts` lets Alice actually receive non-delta messages for known
+        // contacts, the contact is marked as known by creating a chat using `chat_with_contact()`)
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("1")).await.ok();
+        alice
+            .set_config(Config::ShowEmails, Some("1"))
+            .await
+            .unwrap();
         let chat = alice
             .create_chat_with_contact("", "sender@testrun.org")
             .await;
@@ -502,7 +504,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // receive the message on another device
         let alice = TestContext::new_alice().await;
-        assert_eq!(alice.get_config_int(Config::ShowEmails).await.unwrap(), 0); // set to "1" above, make sure it is another db
+        alice
+            .set_config(Config::ShowEmails, Some("0"))
+            .await
+            .unwrap();
         let msg = alice.recv_msg(&msg).await;
         assert_eq!(msg.chat_id, alice.get_self_chat().await.id);
         assert_eq!(msg.get_from_id(), ContactId::SELF);
@@ -550,7 +555,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_cp1252_html() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config(Config::ShowEmails, Some("2")).await?;
         receive_imf(
             &t,
             include_bytes!("../test-data/message/cp1252-html.eml"),

@@ -223,12 +223,24 @@ pub struct Contact {
 
 /// Possible origins of a contact.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
 )]
 #[repr(u32)]
 pub enum Origin {
     /// Unknown origin. Can be used as a minimum origin to specify that the caller does not care
     /// about origin of the contact.
+    #[default]
     Unknown = 0,
 
     /// The contact is a mailing list address, needed to unblock mailing lists
@@ -285,12 +297,6 @@ pub enum Origin {
 
     /// contact added manually by create_contact(), this should be the largest origin as otherwise the user cannot modify the names
     ManuallyCreated = 0x0400_0000,
-}
-
-impl Default for Origin {
-    fn default() -> Self {
-        Origin::Unknown
-    }
 }
 
 impl Origin {
@@ -1515,7 +1521,6 @@ fn split_address_book(book: &str) -> Vec<(&str, &str)> {
     book.lines()
         .collect::<Vec<&str>>()
         .chunks(2)
-        .into_iter()
         .filter_map(|chunk| {
             let name = chunk.first()?;
             let addr = chunk.get(1)?;

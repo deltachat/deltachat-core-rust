@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+import asyncio
 
 from deltachat_rpc_client import EventType, events
 from deltachat_rpc_client.rpc import JsonRpcError
@@ -11,6 +12,17 @@ async def test_system_info(rpc) -> None:
     system_info = await rpc.get_system_info()
     assert "arch" in system_info
     assert "deltachat_core_version" in system_info
+
+
+@pytest.mark.asyncio()
+async def test_sleep(rpc) -> None:
+    """Test that long-running task does not block short-running task from completion."""
+    sleep_5_task = asyncio.create_task(rpc.sleep(5.0))
+    sleep_3_task = asyncio.create_task(rpc.sleep(3.0))
+    done, pending = await asyncio.wait([sleep_5_task, sleep_3_task], return_when=asyncio.FIRST_COMPLETED)
+    assert sleep_3_task in done
+    assert sleep_5_task in pending
+    sleep_5_task.cancel()
 
 
 @pytest.mark.asyncio()

@@ -59,13 +59,13 @@ export async function startServer(): Promise<RpcServerHandle> {
 
 export async function createTempUser(url: string) {
   const response = await fetch(url, {
-    method: "POST", 
+    method: "POST",
     headers: {
       "cache-control": "no-cache",
     },
   });
-  if (!response.ok) throw new Error('Received invalid response')
-  return response.json(); 
+  if (!response.ok) throw new Error("Received invalid response");
+  return response.json();
 }
 
 function getTargetDir(): Promise<string> {
@@ -89,4 +89,3 @@ function getTargetDir(): Promise<string> {
     );
   });
 }
-

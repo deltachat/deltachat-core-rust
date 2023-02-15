@@ -1,7 +1,5 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://countermitm.readthedocs.io/en/stable/new.html#setup-contact-protocol).
 
-#![allow(missing_docs)]
-
 use std::convert::TryFrom;
 
 use anyhow::{bail, Context as _, Error, Result};
@@ -35,6 +33,7 @@ use qrinvite::QrInvite;
 
 use crate::token::Namespace;
 
+/// Set of characters to percent-encode in email addresses and names.
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
 macro_rules! inviter_progress {
@@ -1387,7 +1386,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_adhoc_group_no_qr() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice.set_config(Config::ShowEmails, Some("2")).await?;
 
         let mime = br#"Subject: First thread
 Message-ID: first@example.org

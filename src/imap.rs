@@ -2534,7 +2534,6 @@ mod tests {
         t.ctx
             .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
             .await?;
-        t.ctx.set_config(Config::ShowEmails, Some("2")).await?;
 
         if accepted_chat {
             let contact_id = Contact::create(&t.ctx, "", "bob@example.net").await?;

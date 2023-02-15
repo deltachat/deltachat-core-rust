@@ -86,6 +86,11 @@ impl CommandApi {
 
 #[rpc(all_positional, ts_outdir = "typescript/generated")]
 impl CommandApi {
+    /// Test function.
+    async fn sleep(&self, delay: f64) {
+        tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await
+    }
+
     // ---------------------------------------------
     //  Misc top level functions
     // ---------------------------------------------

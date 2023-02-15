@@ -11,18 +11,13 @@ use anyhow::{bail, Context as _, Error, Result};
 use crate::key::{DcKey, SignedPublicKey};
 
 /// Possible values for encryption preference
-#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, ToPrimitive)]
+#[derive(PartialEq, Eq, Debug, Default, Clone, Copy, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum EncryptPreference {
+    #[default]
     NoPreference = 0,
     Mutual = 1,
     Reset = 20,
-}
-
-impl Default for EncryptPreference {
-    fn default() -> Self {
-        EncryptPreference::NoPreference
-    }
 }
 
 impl fmt::Display for EncryptPreference {
