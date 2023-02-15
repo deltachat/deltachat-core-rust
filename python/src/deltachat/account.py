@@ -301,7 +301,7 @@ class Account:
         elif isinstance(obj, str):
             displayname, addr = parseaddr(obj)
         else:
-            raise TypeError("don't know how to create chat for %r" % (obj,))
+            raise TypeError(f"don't know how to create chat for {obj!r}")
 
         if name is None and displayname:
             name = displayname

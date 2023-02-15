@@ -14,7 +14,7 @@ def test_db_busy_error(acfactory, tmpdir):
 
     def log(string):
         with log_lock:
-            print("%3.2f %s" % (time.time() - starttime, string))
+            print(f"{time.time() - starttime:3.2f} {string}")
 
     # make a number of accounts
     accounts = acfactory.get_many_online_accounts(3)
