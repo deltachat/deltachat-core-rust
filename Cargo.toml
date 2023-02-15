@@ -65,7 +65,7 @@ regex = "1.7"
 rusqlite = { version = "0.27", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 sanitize-filename = "0.4"
-sendme = { git = "https://github.com/n0-computer/sendme", branch = "flub/debug-ci2", default-features = false }
+sendme = { git = "https://github.com/n0-computer/sendme", branch = "master", default-features = false }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 sha-1 = "0.10"
