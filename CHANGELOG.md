@@ -4,6 +4,7 @@
 
 ### Changes
 - deltachat-rpc-client: use `dataclass` for `Account`, `Chat`, `Contact` and `Message` #4042
+- ability to send backup over network and QR code to setup second device #4007
 
 ### Fixes
 - deltachat-rpc-server: do not block stdin while processing the request. #4041
