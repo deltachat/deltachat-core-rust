@@ -10,13 +10,14 @@ checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
 name = "abao"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e19aae7996efbfa033c10ce360f73c87e70af3401282e724cd04346973c36069"
+checksum = "fa67f56b146a784d8feb9f5e4dc5e309fdbf7e3f6631a9c6d709348536abc628"
 dependencies = [
  "arrayref",
  "arrayvec",
  "blake3",
+ "futures",
  "tokio",
 ]
 
@@ -3774,7 +3775,7 @@ dependencies = [
 [[package]]
 name = "sendme"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/sendme?branch=main#c0fafdbcbac6e1e5578a9dde5ee2061150e2486d"
+source = "git+https://github.com/n0-computer/sendme?branch=main#2edb528007dd773e7f00fd4dd460506c8abf1681"
 dependencies = [
  "abao",
  "anyhow",
