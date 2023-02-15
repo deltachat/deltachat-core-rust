@@ -9,6 +9,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
+name = "abao"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e19aae7996efbfa033c10ce360f73c87e70af3401282e724cd04346973c36069"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "blake3",
+ "tokio",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -402,17 +414,6 @@ dependencies = [
  "miniz_oxide",
  "object",
  "rustc-demangle",
-]
-
-[[package]]
-name = "bao"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3663af8a469bf3a2d818b8c1a7b62e4dc55c4547b4c14f5dab35fc9e707bef83"
-dependencies = [
- "arrayref",
- "arrayvec",
- "blake3",
 ]
 
 [[package]]
@@ -3773,10 +3774,10 @@ dependencies = [
 [[package]]
 name = "sendme"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/sendme?branch=flub/debug-ci2#b50020f0ebca744514b1c5270259a2aef8d6dad5"
+source = "git+https://github.com/n0-computer/sendme?branch=main#21a5cfd47e5c6de968ca5882838e24b08572412d"
 dependencies = [
+ "abao",
  "anyhow",
- "bao",
  "base64 0.21.0",
  "blake3",
  "bytes",
