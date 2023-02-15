@@ -1,6 +1,5 @@
 """Account class implementation."""
 
-from __future__ import print_function
 
 import os
 from array import array
