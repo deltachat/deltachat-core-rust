@@ -1,7 +1,7 @@
 name: Build & Deploy Documentation on rs.delta.chat
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
 #   push:
 #     branches:
 #       - master

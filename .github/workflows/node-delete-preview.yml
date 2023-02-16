@@ -2,7 +2,7 @@
 name: Delete node PR previews
 
 on:
-  workflow_dispatch
+  workflow_dispatch:
 #   pull_request:
 #     types: [closed]
 
