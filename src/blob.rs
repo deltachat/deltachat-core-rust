@@ -4,13 +4,16 @@ use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
 use std::io::Cursor;
+use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
+use futures::StreamExt;
 use image::{DynamicImage, ImageFormat};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
+use tokio_stream::wrappers::ReadDirStream;
 
 use crate::config::Config;
 use crate::constants::{
@@ -467,6 +470,94 @@ impl<'a> fmt::Display for BlobObject<'a> {
         write!(f, "$BLOBDIR/{}", self.name)
     }
 }
+
+/// All files in the blobdir.
+///
+/// This exists so we can have a [`BlobDirIter`] which needs something to own the data of
+/// it's `&Path`.  Use [`BlobDirContents::iter`] to create the iterator.
+///
+/// Additionally pre-allocating this means we get a length for progress report.
+pub(crate) struct BlobDirContents<'a> {
+    inner: Vec<PathBuf>,
+    context: &'a Context,
+}
+
+impl<'a> BlobDirContents<'a> {
+    pub(crate) async fn new(context: &'a Context) -> Result<BlobDirContents<'a>> {
+        let readdir = fs::read_dir(context.get_blobdir()).await?;
+        let inner = ReadDirStream::new(readdir)
+            .filter_map(|entry| async move {
+                match entry {
+                    Ok(entry) => Some(entry),
+                    Err(err) => {
+                        error!(context, "Failed to read blob file: {err}");
+                        None
+                    }
+                }
+            })
+            .filter_map(|entry| async move {
+                match entry.file_type().await.ok()?.is_file() {
+                    true => Some(entry.path()),
+                    false => {
+                        warn!(
+                            context,
+                            "Export: Found blob dir entry {} that is not a file, ignoring",
+                            entry.path().display()
+                        );
+                        None
+                    }
+                }
+            })
+            .collect()
+            .await;
+        Ok(Self { inner, context })
+    }
+
+    pub(crate) fn iter(&self) -> BlobDirIter<'_> {
+        BlobDirIter::new(self.context, &self.inner)
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+/// A iterator over all the [`BlobObject`]s in the blobdir.
+pub(crate) struct BlobDirIter<'a> {
+    paths: &'a [PathBuf],
+    offset: usize,
+    context: &'a Context,
+}
+
+impl<'a> BlobDirIter<'a> {
+    fn new(context: &'a Context, paths: &'a [PathBuf]) -> BlobDirIter<'a> {
+        Self {
+            paths,
+            offset: 0,
+            context,
+        }
+    }
+}
+
+impl<'a> Iterator for BlobDirIter<'a> {
+    type Item = BlobObject<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(path) = self.paths.get(self.offset) {
+            self.offset += 1;
+
+            // In theory this can error but we'd have corrupted filenames in the blobdir, so
+            // silently skipping them is fine.
+            match BlobObject::from_path(self.context, path) {
+                Ok(blob) => return Some(blob),
+                Err(err) => warn!(self.context, "{err}"),
+            }
+        }
+        None
+    }
+}
+
+impl FusedIterator for BlobDirIter<'_> {}
 
 fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
     encoded.clear();

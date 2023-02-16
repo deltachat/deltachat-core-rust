@@ -2,7 +2,6 @@
 
 use std::any::Any;
 use std::ffi::OsStr;
-use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
@@ -11,10 +10,9 @@ use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
 use tokio::fs::{self, File};
-use tokio_stream::wrappers::ReadDirStream;
 use tokio_tar::Archive;
 
-use crate::blob::BlobObject;
+use crate::blob::{BlobDirContents, BlobObject};
 use crate::chat::{self, delete_and_reset_all_device_msgs, ChatId};
 use crate::config::Config;
 use crate::contact::ContactId;
@@ -570,10 +568,17 @@ async fn export_backup_inner(
         .await?;
 
     let blobdir = BlobDirContents::new(context).await?;
-    for blob in blobdir.iter() {
+    let mut last_progress = 0;
+
+    for (i, blob) in blobdir.iter().enumerate() {
         let mut file = File::open(blob.to_abs_path()).await?;
         let path_in_archive = PathBuf::from(BLOBS_BACKUP_NAME).join(blob.as_name());
         builder.append_file(path_in_archive, &mut file).await?;
+        let progress = 1000 * i / blobdir.len();
+        if progress != last_progress && progress > 10 && progress < 1000 {
+            context.emit_event(EventType::ImexProgress(progress));
+            last_progress = progress;
+        }
     }
 
     builder.finish().await?;
@@ -760,105 +765,6 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
         .with_context(|| format!("failed to backup database to {}", dest.display()))?;
     Ok(())
 }
-
-/// All files in the blobdir.
-///
-/// This exists so we can have a [`BlobDirIter`] which needs something to own the data of
-/// it's `&Path`.  Use [`BlobDirContents::iter`] to create the iterator.
-///
-/// Additionally pre-allocating this means we get a length for progress report.
-struct BlobDirContents<'a> {
-    inner: Vec<PathBuf>,
-    context: &'a Context,
-}
-
-impl<'a> BlobDirContents<'a> {
-    async fn new(context: &'a Context) -> Result<BlobDirContents<'a>> {
-        let readdir = fs::read_dir(context.get_blobdir()).await?;
-        let inner = ReadDirStream::new(readdir)
-            .filter_map(|entry| async move {
-                match entry {
-                    Ok(entry) => Some(entry),
-                    Err(err) => {
-                        error!(context, "Failed to read blob file: {err}");
-                        None
-                    }
-                }
-            })
-            .filter_map(|entry| async move {
-                match entry.file_type().await.ok()?.is_file() {
-                    true => Some(entry.path()),
-                    false => {
-                        warn!(
-                            context,
-                            "Export: Found blob dir entry {} that is not a file, ignoring",
-                            entry.path().display()
-                        );
-                        None
-                    }
-                }
-            })
-            .collect()
-            .await;
-        Ok(Self { inner, context })
-    }
-
-    fn iter(&self) -> BlobDirIter<'_> {
-        BlobDirIter::new(self.context, &self.inner)
-    }
-}
-
-/// A stream for [`BlobObject`]s.
-///
-/// The stream emits [`EventType::ImexProgress`] events as it being consumed.
-///
-/// Because we like to know the total number of blobs to emit progress all the blobs are
-/// read up front and stored.  Luckily this also makes our life easier, since we now only
-/// need to implement `Iterator` and not `Stream`.
-struct BlobDirIter<'a> {
-    paths: &'a [PathBuf],
-    offset: usize,
-    last_progress: usize,
-    context: &'a Context,
-}
-
-impl<'a> BlobDirIter<'a> {
-    fn new(context: &'a Context, paths: &'a [PathBuf]) -> BlobDirIter<'a> {
-        Self {
-            paths,
-            offset: 0,
-            last_progress: 0,
-            context,
-        }
-    }
-}
-
-impl<'a> Iterator for BlobDirIter<'a> {
-    type Item = BlobObject<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(path) = self.paths.get(self.offset) {
-            self.offset += 1;
-
-            // In theory this can error but we'd have corrupted filenames in the blobdir, so
-            // silently skipping them is fine.
-            match BlobObject::from_path(self.context, path) {
-                Ok(blob) => {
-                    let progress = 1000 * self.offset / self.paths.len();
-                    if progress != self.last_progress && progress > 10 && progress < 1000 {
-                        self.context.emit_event(EventType::ImexProgress(progress));
-                        self.last_progress = progress;
-                    }
-                    return Some(blob);
-                }
-                Err(err) => warn!(self.context, "{err}"),
-            }
-        }
-        None
-    }
-}
-
-impl FusedIterator for BlobDirIter<'_> {}
 
 #[cfg(test)]
 mod tests {

@@ -39,12 +39,13 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReadDirStream;
 
+use crate::blob::BlobDirContents;
 use crate::chat::delete_and_reset_all_device_msgs;
 use crate::context::Context;
 use crate::qr::Qr;
 use crate::{e2ee, EventType};
 
-use super::{export_database, BlobDirContents, DeleteOnDrop, DBFILE_BACKUP_NAME};
+use super::{export_database, DeleteOnDrop, DBFILE_BACKUP_NAME};
 
 /// Provide or send a backup of this device.
 ///
