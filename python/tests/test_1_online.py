@@ -1604,7 +1604,7 @@ def test_add_remove_member_remote_events(acfactory, lp):
     in_list = queue.Queue()
 
     class EventHolder:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             self.__dict__.update(kwargs)
 
     class InPlugin:

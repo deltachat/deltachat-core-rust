@@ -19,7 +19,7 @@ class Message:
     :class:`deltachat.chat.Chat`.
     """
 
-    def __init__(self, account, dc_msg):
+    def __init__(self, account, dc_msg) -> None:
         self.account = account
         assert isinstance(self.account._dc_context, ffi.CData)
         assert isinstance(dc_msg, ffi.CData)
@@ -33,7 +33,7 @@ class Message:
             return False
         return self.account == other.account and self.id == other.id
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         c = self.get_sender_contact()
         typ = "outgoing" if self.is_outgoing() else "incoming"
         return (

@@ -121,7 +121,7 @@ class Account:
         """re-enable logging."""
         self._logging = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Account path={self.db_path}>"
 
     # def __del__(self):
@@ -363,12 +363,12 @@ class Account:
         :returns: list of :class:`deltachat.contact.Contact` objects.
         """
         flags = 0
-        query = as_dc_charpointer(query)
+        query_c = as_dc_charpointer(query)
         if only_verified:
             flags |= const.DC_GCL_VERIFIED_ONLY
         if with_self:
             flags |= const.DC_GCL_ADD_SELF
-        dc_array = ffi.gc(lib.dc_get_contacts(self._dc_context, flags, query), lib.dc_array_unref)
+        dc_array = ffi.gc(lib.dc_get_contacts(self._dc_context, flags, query_c), lib.dc_array_unref)
         return list(iter_array(dc_array, lambda x: Contact(self, x)))
 
     def get_fresh_messages(self) -> Generator[Message, None, None]:
@@ -767,7 +767,7 @@ class Account:
 
 
 class ScannedQRCode:
-    def __init__(self, dc_lot):
+    def __init__(self, dc_lot) -> None:
         self._dc_lot = dc_lot
 
     def is_ask_verifycontact(self):

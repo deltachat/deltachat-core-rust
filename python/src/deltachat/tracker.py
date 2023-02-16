@@ -1,7 +1,11 @@
 from queue import Queue
 from threading import Event
+from typing import List, TYPE_CHECKING
 
 from .hookspec import Global, account_hookimpl
+
+if TYPE_CHECKING:
+    from .events import FFIEvent
 
 
 class ImexFailed(RuntimeError):
@@ -9,11 +13,13 @@ class ImexFailed(RuntimeError):
 
 
 class ImexTracker:
-    def __init__(self):
+    _imex_events: Queue
+
+    def __init__(self) -> None:
         self._imex_events = Queue()
 
     @account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event: "FFIEvent") -> None:
         if ffi_event.name == "DC_EVENT_IMEX_PROGRESS":
             self._imex_events.put(ffi_event.data1)
         elif ffi_event.name == "DC_EVENT_IMEX_FILE_WRITTEN":
@@ -50,7 +56,13 @@ class ConfigureFailed(RuntimeError):
 class ConfigureTracker:
     ConfigureFailed = ConfigureFailed
 
-    def __init__(self, account):
+    _configure_events: Queue
+    _smtp_finished: Event
+    _imap_finished: Event
+    _ffi_events: List["FFIEvent"]
+    _progress: Queue
+
+    def __init__(self, account) -> None:
         self.account = account
         self._configure_events = Queue()
         self._smtp_finished = Event()
@@ -60,7 +72,7 @@ class ConfigureTracker:
         self._gm = Global._get_plugin_manager()
 
     @account_hookimpl
-    def ac_process_ffi_event(self, ffi_event):
+    def ac_process_ffi_event(self, ffi_event: "FFIEvent") -> None:
         self._ffi_events.append(ffi_event)
         if ffi_event.name == "DC_EVENT_SMTP_CONNECTED":
             self._smtp_finished.set()

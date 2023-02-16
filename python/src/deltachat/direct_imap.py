@@ -191,7 +191,7 @@ class DirectImap:
 
 
 class IdleManager:
-    def __init__(self, direct_imap):
+    def __init__(self, direct_imap) -> None:
         self.direct_imap = direct_imap
         self.log = direct_imap.account.log
         # fetch latest messages before starting idle so that it only

@@ -25,12 +25,12 @@ def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
 
 
 class FFIEvent:
-    def __init__(self, name: str, data1, data2):
+    def __init__(self, name: str, data1, data2) -> None:
         self.name = name
         self.data1 = data1
         self.data2 = data2
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.name == "DC_EVENT_INFO":
             return f"INFO {self.data2}"
         if self.name == "DC_EVENT_WARNING":
@@ -84,7 +84,10 @@ class FFIEventLogger:
 
 
 class FFIEventTracker:
-    def __init__(self, account, timeout=None):
+    account: Account
+    _event_queue: Queue
+
+    def __init__(self, account: Account, timeout=None) -> None:
         self.account = account
         self._timeout = timeout
         self._event_queue = Queue()
