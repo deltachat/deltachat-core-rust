@@ -47,7 +47,7 @@ impl Smtp {
         let chunk_size = context
             .get_configured_provider()
             .await?
-            .and_then(|provider| provider.max_smtp_rcpt_to)
+            .and_then(|provider| provider.opt.max_smtp_rcpt_to)
             .map_or(DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
 
         for recipients_chunk in recipients.chunks(chunk_size) {

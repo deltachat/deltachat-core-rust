@@ -249,7 +249,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
                                         }
                                     }
                                 },
-                                strict_tls: Some(provider.strict_tls),
+                                strict_tls: Some(provider.opt.strict_tls),
                             })
                             .collect();
 
@@ -338,7 +338,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .collect();
     let provider_strict_tls = param
         .provider
-        .map_or(socks5_config.is_some(), |provider| provider.strict_tls);
+        .map_or(socks5_config.is_some(), |provider| provider.opt.strict_tls);
 
     let smtp_config_task = task::spawn(async move {
         let mut smtp_configured = false;
