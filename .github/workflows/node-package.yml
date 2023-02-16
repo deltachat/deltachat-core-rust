@@ -1,5 +1,4 @@
 name: 'node.js build'
-
 on:
   pull_request:
   push:

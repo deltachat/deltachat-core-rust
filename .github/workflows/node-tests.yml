@@ -1,5 +1,4 @@
 name: 'node.js tests'
-
 on:
   pull_request:
   push:
