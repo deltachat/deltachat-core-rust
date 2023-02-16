@@ -1,12 +1,11 @@
 name: 'node.js build'
 
 on:
-  workflow_dispatch:
-#   pull_request:
-#   push:
-#     tags:
-#     - '*'
-#     - '!py-*'
+  pull_request:
+  push:
+    tags:
+    - '*'
+    - '!py-*'
 
 
 jobs:

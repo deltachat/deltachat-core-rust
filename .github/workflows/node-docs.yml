@@ -1,10 +1,9 @@
 name: Generate & upload node.js documentation
 
 on:
-  workflow_dispatch:
-#   push:
-#     branches:
-#       - master
+  push:
+    branches:
+      - master
 
 jobs:
   generate:

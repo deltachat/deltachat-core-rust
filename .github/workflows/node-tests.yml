@@ -1,13 +1,12 @@
 name: 'node.js tests'
 
 on:
-  workflow_dispatch:
-#   pull_request:
-#   push:
-#     branches:
-#       - master
-#       - staging
-#       - trying
+  pull_request:
+  push:
+    branches:
+      - master
+      - staging
+      - trying
 
 jobs:
   tests:

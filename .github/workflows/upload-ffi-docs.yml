@@ -1,11 +1,10 @@
 name: Build & Deploy Documentation on cffi.delta.chat
 
 on:
-  workflow_dispatch:
-#   push:
-#     branches:
-#       - master
-#       - docs-gh-action
+  push:
+    branches:
+      - master
+      - docs-gh-action
 
 jobs:
   build:
