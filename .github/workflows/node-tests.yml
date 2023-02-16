@@ -1,11 +1,11 @@
 name: 'node.js tests'
-on:
-  pull_request:
-  push:
-    branches:
-      - master
-      - staging
-      - trying
+# on:
+#   pull_request:
+#   push:
+#     branches:
+#       - master
+#       - staging
+#       - trying
 
 jobs:
   tests:

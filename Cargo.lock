@@ -3775,7 +3775,7 @@ dependencies = [
 [[package]]
 name = "sendme"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/sendme?branch=main#2edb528007dd773e7f00fd4dd460506c8abf1681"
+source = "git+https://github.com/n0-computer/sendme?branch=flub/debug-ci#fc368a5b3070029488c0380c37eec1fc92f972eb"
 dependencies = [
  "abao",
  "anyhow",

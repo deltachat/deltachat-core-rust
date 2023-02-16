@@ -1,9 +1,9 @@
 # documentation: https://github.com/deltachat/sysadmin/tree/master/download.delta.chat
 name: Delete node PR previews
 
-on:
-  pull_request:
-    types: [closed]
+# on:
+#   pull_request:
+#     types: [closed]
 
 jobs:
   delete:

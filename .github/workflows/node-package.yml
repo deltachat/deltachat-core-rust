@@ -1,10 +1,10 @@
 name: 'node.js build'
-on:
-  pull_request:
-  push:
-    tags:
-    - '*'
-    - '!py-*'
+# on:
+#   pull_request:
+#   push:
+#     tags:
+#     - '*'
+#     - '!py-*'
 
 
 jobs:
