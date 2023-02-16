@@ -101,8 +101,9 @@ impl Smtp {
             &lp.smtp,
             &lp.socks5_config,
             &lp.addr,
-            lp.provider
-                .map_or(lp.socks5_config.is_some(), |provider| provider.strict_tls),
+            lp.provider.map_or(lp.socks5_config.is_some(), |provider| {
+                provider.opt.strict_tls
+            }),
         )
         .await
     }

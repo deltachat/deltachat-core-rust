@@ -35,8 +35,6 @@ static P_163: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -65,8 +63,6 @@ static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -84,8 +80,6 @@ static P_AOL: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.aol.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -115,8 +109,6 @@ static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -145,8 +137,6 @@ static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -175,8 +165,6 @@ static P_BLINDZELN_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -205,8 +193,6 @@ static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -235,8 +221,6 @@ static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -265,8 +249,6 @@ static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -280,8 +262,6 @@ static P_COMCAST: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/comcast",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -295,8 +275,6 @@ static P_DISMAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/dismail-de",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -325,8 +303,6 @@ static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -355,8 +331,6 @@ static P_E_EMAIL: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -370,8 +344,6 @@ static P_ESPIV_NET: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/espiv-net",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -389,8 +361,6 @@ static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Starttls, hostname: "smtp.example.com", port: 1337, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -421,8 +391,6 @@ static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -438,8 +406,6 @@ static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
     server: vec![
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -467,8 +433,6 @@ static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
     ]),
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -486,8 +450,6 @@ static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Starttls, hostname: "mx.freenet.de", port: 587, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -506,11 +468,10 @@ static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.gmail.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
     opt: ProviderOptions {
         delete_to_trash: true,
+        ..Default::default()
     },
 }
 });
@@ -546,8 +507,6 @@ static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -574,10 +533,11 @@ static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
             value: "2",
         },
     ]),
-    strict_tls: false,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
-    opt: Default::default(),
+    opt: ProviderOptions {
+        strict_tls: false,
+        ..Default::default()
+    },
 });
 
 // hey.com.md: hey.com
@@ -591,8 +551,6 @@ static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
     server: vec![
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -607,8 +565,6 @@ static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/i-ua",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -622,8 +578,6 @@ static P_I3_NET: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/i3-net",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -652,8 +606,6 @@ static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -682,10 +634,11 @@ static P_INFOMANIAK_COM: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: Some(10),
     oauth2_authorizer: None,
-    opt: Default::default(),
+    opt: ProviderOptions {
+        max_smtp_rcpt_to: Some(10),
+        ..Default::default()
+    },
 });
 
 // kolst.com.md: kolst.com
@@ -697,8 +650,6 @@ static P_KOLST_COM: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/kolst-com",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -712,8 +663,6 @@ static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/kontent-com",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -742,8 +691,6 @@ static P_MAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -761,8 +708,6 @@ static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.ru", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -792,8 +737,6 @@ static P_MAIL2TOR: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -822,8 +765,6 @@ static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -852,8 +793,6 @@ static P_MAILO_COM: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -907,10 +846,12 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
     ]),
-    strict_tls: false,
-    max_smtp_rcpt_to: Some(20),
     oauth2_authorizer: None,
-    opt: Default::default(),
+    opt: ProviderOptions {
+        strict_tls: false,
+        max_smtp_rcpt_to: Some(20),
+        ..Default::default()
+    },
 });
 
 // naver.md: naver.com
@@ -937,8 +878,6 @@ static P_NAVER: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -967,8 +906,6 @@ static P_NUBO_COOP: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -997,8 +934,6 @@ static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1027,8 +962,6 @@ static P_OUVATON_COOP: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1057,8 +990,6 @@ static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1074,8 +1005,6 @@ static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
     server: vec![
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1094,8 +1023,6 @@ static P_QQ: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.qq.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1125,8 +1052,6 @@ static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1140,8 +1065,6 @@ static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/rogers-com",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1170,8 +1093,6 @@ static P_SYSTEMAUSFALL_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1200,8 +1121,6 @@ static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1219,8 +1138,6 @@ static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "securesmtp.t-online.de", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1270,8 +1187,6 @@ static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
             value: "0",
         },
     ]),
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1300,8 +1215,6 @@ static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1317,8 +1230,6 @@ static P_TUTANOTA: Lazy<Provider> = Lazy::new(|| {
     server: vec![
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1333,8 +1244,6 @@ static P_UKR_NET: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/ukr-net",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1363,8 +1272,6 @@ static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1378,8 +1285,6 @@ static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
     overview_page: "https://providers.delta.chat/vfemail",
     server: vec![],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1408,8 +1313,6 @@ static P_VIVALDI: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1438,8 +1341,6 @@ static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1458,8 +1359,6 @@ static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Starttls, hostname: "smtp.web.de", port: 587, username_pattern: Emaillocalpart },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1478,8 +1377,6 @@ static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: Email },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1509,8 +1406,6 @@ static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
     opt: Default::default(),
 });
@@ -1530,8 +1425,6 @@ static P_YGGMAIL: Lazy<Provider> = Lazy::new(|| {
     config_defaults: Some(vec![
         ConfigDefault { key: Config::MvboxMove, value: "0" },
     ]),
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 }
@@ -1561,8 +1454,6 @@ static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });
@@ -1591,8 +1482,6 @@ static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ],
     config_defaults: None,
-    strict_tls: true,
-    max_smtp_rcpt_to: None,
     oauth2_authorizer: None,
     opt: Default::default(),
 });

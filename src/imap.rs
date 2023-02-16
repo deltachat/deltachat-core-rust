@@ -274,7 +274,7 @@ impl Imap {
             param
                 .provider
                 .map_or(param.socks5_config.is_some(), |provider| {
-                    provider.strict_tls
+                    provider.opt.strict_tls
                 }),
             idle_interrupt_receiver,
         )?;
