@@ -129,7 +129,17 @@ impl From<Qr> for QrObject {
             }
             Qr::FprWithoutAddr { fingerprint } => QrObject::FprWithoutAddr { fingerprint },
             Qr::Account { domain } => QrObject::Account { domain },
+            /// Provides a backup that can be retrieve.
+            ///
+            /// This contains all the data needed to connect to a device and download a
+            /// backup from it to configure the receiving device with the same account.
             Qr::Backup { ticket } => QrObject::Backup {
+                /// Printable version of the provider information.
+                ///
+                /// This is the printable version of a `sendme` ticket, which contains all
+                /// the information to connect to and authenticate a backup provider.
+                ///
+                /// The format is somewhat opaque, but `sendme` can deserialise this.
                 ticket: ticket.to_string(),
             },
             Qr::WebrtcInstance {
