@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 
@@ -1351,10 +1350,10 @@ impl CommandApi {
     /// This **stops IO**.  After completion `start_io` must be called to restart IO.
     ///
     /// Returns the QR code as a rendered SVG image.
-    async fn provide_backup(&self, account_id: u32, path: String) -> Result<String> {
+    async fn provide_backup(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
-        let provider = imex::BackupProvider::prepare(&ctx, Path::new(&path)).await?;
+        let provider = imex::BackupProvider::prepare(&ctx).await?;
         let qr = provider.qr();
         let svg = match generate_backup_qr(&ctx, &qr).await {
             Ok(svg) => svg,

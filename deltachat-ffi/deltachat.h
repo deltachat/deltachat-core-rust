@@ -2659,14 +2659,11 @@ void dc_str_unref (char* str);
  *
  * @memberof dc_backup_sender_t
  * @param context The context.
- * @param folder A Path to a temporary directory where the encrypted database
- *    export will be created.  The directory is not automatically cleaned
- *    after the backup is sent.
  * @return Opaque object for sending the backup.
  *    On errors, NULL is returned and dc_get_last_error()returns an error that
  *    should be shown to the user.
  */
-dc_backup_provider_t* dc_provide_backup (dc_context_t* context, const char* folder);
+dc_backup_provider_t* dc_provide_backup (dc_context_t* context);
 
 
 /**

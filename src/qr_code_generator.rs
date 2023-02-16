@@ -322,7 +322,7 @@ mod tests {
         let dir = testdir!();
         let mut tcm = TestContextManager::new();
         let ctx = tcm.alice().await;
-        let provider = BackupProvider::prepare(&ctx, &dir).await.unwrap();
+        let provider = BackupProvider::prepare(&ctx).await.unwrap();
         let qr = provider.qr();
 
         println!("{}", format_backup(&qr).unwrap());

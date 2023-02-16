@@ -4136,16 +4136,14 @@ pub type dc_backup_provider_t = BackupProvider;
 #[no_mangle]
 pub unsafe extern "C" fn dc_provide_backup(
     context: *mut dc_context_t,
-    folder: *const libc::c_char,
 ) -> *mut dc_backup_provider_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_send_backup()");
         return ptr::null_mut();
     }
     let ctx = &*context;
-    let dir = as_path(folder);
     block_on(async move {
-        BackupProvider::prepare(ctx, dir)
+        BackupProvider::prepare(ctx)
             .await
             .map(|provider| Box::into_raw(Box::new(provider)))
             .log_err(ctx, "BackupProvider failed")
