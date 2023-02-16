@@ -1,6 +1,6 @@
 //! # QR code generation module.
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use base64::Engine as _;
 use qrcodegen::{QrCode, QrCodeEcc};
 
@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     contact::{Contact, ContactId},
     context::Context,
-    qr::{Qr, DCBACKUP_SCHEME},
+    qr::{self, Qr},
     securejoin,
     stock_str::{self, backup_transfer_qr},
 };
@@ -62,11 +62,7 @@ async fn generate_verification_qr(context: &Context) -> Result<String> {
 
 /// Renders a [`Qr::Backup`] QR code as an SVG image.
 pub async fn generate_backup_qr(context: &Context, qr: &Qr) -> Result<String> {
-    let ticket = match qr {
-        Qr::Backup { ticket } => ticket,
-        _ => bail!("QR code not a backup"),
-    };
-    let content = format!("{DCBACKUP_SCHEME}{ticket}");
+    let content = qr::format_backup(qr)?;
     let (avatar, displayname, _addr, color) = self_info(context).await?;
     let description = backup_transfer_qr(context).await?;
 
