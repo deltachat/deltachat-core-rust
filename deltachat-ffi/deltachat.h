@@ -5777,7 +5777,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_INCOMING_MSG             2005
 
 /**
- * Downloading a bunch of messages just finished. This is an experimental
+ * Downloading a bunch of messages just finished. This is an
  * event to allow the UI to only show one notification per message bunch,
  * instead of cluttering the user with many notifications.
  * For each of the msg_ids, an additional #DC_EVENT_INCOMING_MSG event was emitted before.

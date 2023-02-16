@@ -8,7 +8,7 @@ class ProviderNotFoundError(Exception):
     """The provider information was not found."""
 
 
-class Provider(object):
+class Provider:
     """
     Provider information.
 

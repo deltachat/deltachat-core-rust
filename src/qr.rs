@@ -1,7 +1,5 @@
 //! # QR code module.
 
-#![allow(missing_docs)]
-
 mod dclogin_scheme;
 use std::collections::BTreeMap;
 
@@ -38,34 +36,73 @@ const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
 pub(crate) const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
+/// Scanned QR code.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Qr {
+    /// Ask the user whether to verify the contact.
+    ///
+    /// If the user agrees, pass this QR code to [`crate::securejoin::join_securejoin`].
     AskVerifyContact {
+        /// ID of the contact.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
+
+    /// Ask the user whether to join the group.
     AskVerifyGroup {
+        /// Group name.
         grpname: String,
+
+        /// Group ID.
         grpid: String,
+
+        /// ID of the contact.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
+
+    /// Contact fingerprint is verified.
+    ///
+    /// Ask the user if they want to start chatting.
     FprOk {
+        /// Contact ID.
         contact_id: ContactId,
     },
+
+    /// Scanned fingerprint does not match the last seen fingerprint.
     FprMismatch {
+        /// Contact ID.
         contact_id: Option<ContactId>,
     },
+
+    /// The scanned QR code contains a fingerprint but no e-mail address.
     FprWithoutAddr {
+        /// Key fingerprint.
         fingerprint: String,
     },
+
+    /// Ask the user if they want to create an account on the given domain.
     Account {
+        /// Server domain name.
         domain: String,
     },
+
     /// Provides a backup that can be retrieve.
     ///
     /// This contains all the data needed to connect to a device and download a backup from
@@ -79,52 +116,124 @@ pub enum Qr {
         /// The format is somewhat opaque, but `sendme` can deserialise this.
         ticket: sendme::provider::Ticket,
     },
+
+    /// Ask the user if they want to use the given service for video chats.
     WebrtcInstance {
+        /// Server domain name.
         domain: String,
+
+        /// URL pattern for video chat rooms.
         instance_pattern: String,
     },
+
+    /// Contact address is scanned.
+    ///
+    /// Optionally, a draft message could be provided.
+    /// Ask the user if they want to start chatting.
     Addr {
+        /// Contact ID.
         contact_id: ContactId,
+
+        /// Draft message.
         draft: Option<String>,
     },
+
+    /// URL scanned.
+    ///
+    /// Ask the user if they want to open a browser or copy the URL to clipboard.
     Url {
+        /// URL.
         url: String,
     },
+
+    /// Text scanned.
+    ///
+    /// Ask the user if they want to copy the text to clipboard.
     Text {
+        /// Scanned text.
         text: String,
     },
+
+    /// Ask the user if they want to withdraw their own QR code.
     WithdrawVerifyContact {
+        /// Contact ID.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
+
+    /// Ask the user if they want to withdraw their own group invite QR code.
     WithdrawVerifyGroup {
+        /// Group name.
         grpname: String,
+
+        /// Group ID.
         grpid: String,
+
+        /// Contact ID.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
+
+    /// Ask the user if they want to revive their own QR code.
     ReviveVerifyContact {
+        /// Contact ID.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
+
+    /// Ask the user if they want to revive their own group invite QR code.
     ReviveVerifyGroup {
+        /// Group name.
         grpname: String,
+
+        /// Group ID.
         grpid: String,
+
+        /// Contact ID.
         contact_id: ContactId,
+
+        /// Fingerprint of the contact key as scanned from the QR code.
         fingerprint: Fingerprint,
+
+        /// Invite number.
         invitenumber: String,
+
+        /// Authentication code.
         authcode: String,
     },
 
     /// `dclogin:` scheme parameters.
+    ///
+    /// Ask the user if they want to login with the email address.
     Login {
+        /// Email address.
         address: String,
+
+        /// Login parameters.
         options: LoginOptions,
     },
 }
@@ -133,7 +242,8 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
     string.to_lowercase().starts_with(&pattern.to_lowercase())
 }
 
-/// Check a scanned QR code.
+/// Checks a scanned QR code.
+///
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
 pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
@@ -456,6 +566,7 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     }
 }
 
+/// Sets configuration values from a QR code.
 pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
     match check_qr(context, qr).await? {
         Qr::Account { .. } => set_account_from_qr(context, qr).await?,
@@ -658,6 +769,9 @@ async fn decode_vcard(context: &Context, qr: &str) -> Result<Qr> {
 }
 
 impl Qr {
+    /// Creates a new scanned QR code of a contact address.
+    ///
+    /// May contain a message draft.
     pub async fn from_address(
         context: &Context,
         name: &str,

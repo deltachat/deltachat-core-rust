@@ -1,17 +1,18 @@
 //! # List of email headers.
 
-#![allow(missing_docs)]
-
 use mailparse::{MailHeader, MailHeaderMap};
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, IntoStaticStr)]
 #[strum(serialize_all = "kebab_case")]
+#[allow(missing_docs)]
 pub enum HeaderDef {
     MessageId,
     Subject,
     Date,
     From_,
     To,
+
+    /// Carbon copy.
     Cc,
     Disposition,
 
@@ -34,11 +35,18 @@ pub enum HeaderDef {
     /// header, so it can be used to ignore such messages.
     XMozillaDraftInfo,
 
+    /// Mailing list ID defined in [RFC 2919](https://tools.ietf.org/html/rfc2919).
     ListId,
     ListPost,
     References,
+
+    /// In-Reply-To header containing Message-ID of the parent message.
     InReplyTo,
+
+    /// Used to detect mailing lists if contains "list" value
+    /// as described in [RFC 3834](https://tools.ietf.org/html/rfc3834)
     Precedence,
+
     ContentType,
     ContentId,
     ChatVersion,
@@ -52,9 +60,14 @@ pub enum HeaderDef {
     ChatGroupMemberRemoved,
     ChatGroupMemberAdded,
     ChatContent,
+
+    /// Duration of the attached media file.
     ChatDuration,
+
     ChatDispositionNotificationTo,
     ChatWebrtcRoom,
+
+    /// [Autocrypt](https://autocrypt.org/) header.
     Autocrypt,
     AutocryptSetupMessage,
     SecureJoin,
@@ -63,6 +76,8 @@ pub enum HeaderDef {
     SecureJoinInvitenumber,
     SecureJoinAuth,
     Sender,
+
+    /// Ephemeral message timer.
     EphemeralTimer,
     Received,
 
@@ -81,8 +96,12 @@ impl HeaderDef {
     }
 }
 
+#[allow(missing_docs)]
 pub trait HeaderDefMap {
+    /// Returns requested header value if it exists.
     fn get_header_value(&self, headerdef: HeaderDef) -> Option<String>;
+
+    /// Returns requested header if it exists.
     fn get_header(&self, headerdef: HeaderDef) -> Option<&MailHeader>;
 }
 

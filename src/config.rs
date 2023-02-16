@@ -1,7 +1,5 @@
 //! # Key-value configuration management.
 
-#![allow(missing_docs)]
-
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
@@ -195,6 +193,8 @@ pub enum Config {
 
     /// Configured IMAP server security (e.g. TLS, STARTTLS).
     ConfiguredMailSecurity,
+
+    /// How to check IMAP server TLS certificates.
     ConfiguredImapCertificateChecks,
 
     /// Configured SMTP server hostname.
@@ -208,14 +208,26 @@ pub enum Config {
 
     /// Configured SMTP server port.
     ConfiguredSendPort,
+
+    /// How to check SMTP server TLS certificates.
     ConfiguredSmtpCertificateChecks,
 
     /// Whether OAuth 2 is used with configured provider.
     ConfiguredServerFlags,
+
+    /// Configured SMTP server security (e.g. TLS, STARTTLS).
     ConfiguredSendSecurity,
+
+    /// Configured folder for incoming messages.
     ConfiguredInboxFolder,
+
+    /// Configured folder for chat messages.
     ConfiguredMvboxFolder,
+
+    /// Configured "Sent" folder.
     ConfiguredSentboxFolder,
+
+    /// Unix timestamp of the last successful configuration.
     ConfiguredTimestamp,
 
     /// ID of the configured provider from the provider database.
@@ -228,12 +240,15 @@ pub enum Config {
     /// (`addr1@example.org addr2@exapmle.org addr3@example.org`)
     SecondaryAddrs,
 
+    /// Read-only core version string.
     #[strum(serialize = "sys.version")]
     SysVersion,
 
+    /// Maximal recommended attachment size in bytes.
     #[strum(serialize = "sys.msgsize_max_recommended")]
     SysMsgsizeMaxRecommended,
 
+    /// Space separated list of all config keys available.
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
 
@@ -419,6 +434,7 @@ impl Context {
         Ok(())
     }
 
+    /// Set the given config to a boolean value.
     pub async fn set_config_bool(&self, key: Config, value: bool) -> Result<()> {
         self.set_config(key, if value { Some("1") } else { Some("0") })
             .await?;

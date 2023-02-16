@@ -1,7 +1,5 @@
 //! Module to work with translatable stock strings.
 
-#![allow(missing_docs)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -21,6 +19,7 @@ use crate::message::{Message, Viewtype};
 use crate::param::Param;
 use crate::tools::timestamp_to_str;
 
+/// Storage for string translations.
 #[derive(Debug, Clone)]
 pub struct StockStrings {
     /// Map from stock string ID to the translation.
@@ -35,6 +34,7 @@ pub struct StockStrings {
 /// See the `stock_*` methods on [Context] to use these.
 ///
 /// [Context]: crate::context::Context
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, EnumProperty)]
 #[repr(u32)]
 pub enum StockMessage {
@@ -425,6 +425,7 @@ impl Default for StockStrings {
 }
 
 impl StockStrings {
+    /// Creates a new translated string storage.
     pub fn new() -> Self {
         Self {
             translated_stockstrings: Arc::new(RwLock::new(Default::default())),

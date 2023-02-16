@@ -1,6 +1,5 @@
 """Account class implementation."""
 
-from __future__ import print_function
 
 import os
 from array import array
@@ -53,7 +52,7 @@ def get_dc_info_as_dict(dc_context):
     return info_dict
 
 
-class Account(object):
+class Account:
     """Each account is tied to a sqlite database file which is fully managed
     by the underlying deltachat core library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
@@ -302,7 +301,7 @@ class Account(object):
         elif isinstance(obj, str):
             displayname, addr = parseaddr(obj)
         else:
-            raise TypeError("don't know how to create chat for %r" % (obj,))
+            raise TypeError(f"don't know how to create chat for {obj!r}")
 
         if name is None and displayname:
             name = displayname

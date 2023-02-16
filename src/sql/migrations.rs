@@ -723,13 +723,13 @@ impl Sql {
 
     async fn execute_migration(&self, query: &'static str, version: i32) -> Result<()> {
         self.transaction(move |transaction| {
-            transaction.execute_batch(query)?;
-
             // set raw config inside the transaction
             transaction.execute(
                 "UPDATE config SET value=? WHERE keyname=?;",
                 paramsv![format!("{version}"), VERSION_CFG],
             )?;
+
+            transaction.execute_batch(query)?;
 
             Ok(())
         })

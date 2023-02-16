@@ -1,7 +1,5 @@
 //! Internet Message Format reception pipeline.
 
-#![allow(missing_docs)]
-
 use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;
@@ -48,8 +46,13 @@ use crate::{contact, imap};
 /// all have the same chat_id, state and sort_timestamp.
 #[derive(Debug)]
 pub struct ReceivedMsg {
+    /// Chat the message is assigned to.
     pub chat_id: ChatId,
+
+    /// Received message state.
     pub state: MessageState,
+
+    /// Message timestamp for sorting.
     pub sort_timestamp: i64,
 
     /// IDs of inserted rows in messages table.

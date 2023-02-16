@@ -36,6 +36,11 @@ dynamic = [
 [project.entry-points.pytest11]
 "deltachat.testplugin" = "deltachat.testplugin"
 
+[tool.setuptools.package-data]
+deltachat = [
+    "py.typed"
+]
+
 [tool.setuptools_scm]
 root = ".."
 tag_regex = '^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$'
@@ -45,7 +50,7 @@ git_describe_command = "git describe --dirty --tags --long --match py-*.*"
 line-length = 120
 
 [tool.ruff]
-select = ["E", "F", "W", "YTT", "C4", "ISC", "ICN", "TID", "DTZ", "PLC", "PLE", "PLW", "PIE", "COM", "UP032"]
+select = ["E", "F", "W", "YTT", "C4", "ISC", "ICN", "TID", "DTZ", "PLC", "PLE", "PLW", "PIE", "COM", "UP004", "UP010", "UP031", "UP032"]
 line-length = 120
 
 [tool.isort]

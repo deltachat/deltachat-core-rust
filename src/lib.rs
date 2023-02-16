@@ -1,4 +1,4 @@
-//! # Delta Chat Core Library.
+//! # Delta Chat Core Library
 
 #![recursion_limit = "256"]
 #![forbid(unsafe_code)]
@@ -111,7 +111,7 @@ pub mod tools;
 pub mod accounts;
 pub mod reaction;
 
-/// if set imap/incoming and smtp/outgoing MIME messages will be printed
+/// If set IMAP/incoming and SMTP/outgoing MIME messages will be printed.
 pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
 
 #[cfg(test)]

@@ -239,7 +239,7 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     ac1_clone.start_io()
     assert_folders_configured(ac1_clone)
 
-    lp.sec("check that ac2 contact was fetchted during configure")
+    lp.sec("check that ac2 contact was fetched during configure")
     ac1_clone._evtracker.get_matching("DC_EVENT_CONTACTS_CHANGED")
     ac2_addr = ac2.get_config("addr")
     assert any(c.addr == ac2_addr for c in ac1_clone.get_contacts())

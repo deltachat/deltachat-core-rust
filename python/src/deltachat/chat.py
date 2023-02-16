@@ -18,7 +18,7 @@ from .cutil import (
 from .message import Message
 
 
-class Chat(object):
+class Chat:
     """Chat object which manages members and through which you can send and retrieve messages.
 
     You obtain instances of it through :class:`deltachat.account.Account`.
