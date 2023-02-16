@@ -15,7 +15,7 @@ class Contact:
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
 
-    def __init__(self, account, id):
+    def __init__(self, account, id) -> None:
         from .account import Account
 
         assert isinstance(account, Account), repr(account)
@@ -27,10 +27,10 @@ class Contact:
             return False
         return self.account._dc_context == other.account._dc_context and self.id == other.id
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self == other
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Contact id={self.id} addr={self.addr} dc_context={self.account._dc_context}>"
 
     @property

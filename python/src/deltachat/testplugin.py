@@ -9,7 +9,7 @@ import threading
 import time
 import weakref
 from queue import Queue
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Dict, Set
 
 import pytest
 import requests
@@ -65,8 +65,8 @@ def pytest_configure(config):
     # Additionally make the acfactory use a logging/no-logging default.
 
     class LoggingAspect:
-        def __init__(self):
-            self._accounts = weakref.WeakSet()
+        def __init__(self) -> None:
+            self._accounts: weakref.WeakSet = weakref.WeakSet()
 
         @deltachat.global_hookimpl
         def dc_account_init(self, account):
@@ -143,10 +143,12 @@ def testprocess(request):
 class TestProcess:
     """A pytest session-scoped instance to help with managing "live" account configurations."""
 
-    def __init__(self, pytestconfig):
+    _addr2files: Dict[str, Dict[pathlib.Path, bytes]]
+
+    def __init__(self, pytestconfig) -> None:
         self.pytestconfig = pytestconfig
         self._addr2files = {}
-        self._configlist = []
+        self._configlist: List[Dict[str, str]] = []
 
     def get_liveconfig_producer(self):
         """provide live account configs, cached on a per-test-process scope
@@ -277,10 +279,10 @@ class ACSetup:
 
     _configured_events: Queue
 
-    def __init__(self, testprocess, init_time):
+    def __init__(self, testprocess, init_time) -> None:
         self._configured_events = Queue()
-        self._account2state = {}
-        self._imap_cleaned = set()
+        self._account2state: Dict[Account, str] = {}
+        self._imap_cleaned: Set[str] = set()
         self.testprocess = testprocess
         self.init_time = init_time
 
