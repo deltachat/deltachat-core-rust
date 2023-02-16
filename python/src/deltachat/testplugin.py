@@ -275,6 +275,8 @@ class ACSetup:
     CONFIGURED = "CONFIGURED"
     IDLEREADY = "IDLEREADY"
 
+    _configured_events: Queue
+
     def __init__(self, testprocess, init_time):
         self._configured_events = Queue()
         self._account2state = {}
@@ -376,8 +378,13 @@ class ACSetup:
 
 
 class ACFactory:
+    """Account factory"""
+
+    init_time: float
     _finalizers: List[Callable[[], None]]
     _accounts: List[Account]
+    _acsetup: ACSetup
+    _preconfigured_keys: List[str]
 
     def __init__(self, request, testprocess, tmpdir, data) -> None:
         self.init_time = time.time()
@@ -429,14 +436,15 @@ class ACFactory:
         assert "addr" in configdict and "mail_pw" in configdict
         return configdict
 
-    def _get_cached_account(self, addr):
+    def _get_cached_account(self, addr) -> Optional[Account]:
         if addr in self.testprocess._addr2files:
             return self._getaccount(addr)
+        return None
 
-    def get_unconfigured_account(self, closed=False):
+    def get_unconfigured_account(self, closed=False) -> Account:
         return self._getaccount(closed=closed)
 
-    def _getaccount(self, try_cache_addr=None, closed=False):
+    def _getaccount(self, try_cache_addr=None, closed=False) -> Account:
         logid = f"ac{len(self._accounts) + 1}"
         # we need to use fixed database basename for maybe_cache_* functions to work
         path = self.tmpdir.mkdir(logid).join("dc.db")
@@ -450,10 +458,10 @@ class ACFactory:
         self._accounts.append(ac)
         return ac
 
-    def set_logging_default(self, logging):
+    def set_logging_default(self, logging) -> None:
         self._logging = bool(logging)
 
-    def remove_preconfigured_keys(self):
+    def remove_preconfigured_keys(self) -> None:
         self._preconfigured_keys = []
 
     def _preconfigure_key(self, account, addr):
@@ -491,7 +499,7 @@ class ACFactory:
         self._acsetup.init_logging(ac)
         return ac
 
-    def new_online_configuring_account(self, cloned_from=None, cache=False, **kwargs):
+    def new_online_configuring_account(self, cloned_from=None, cache=False, **kwargs) -> Account:
         if cloned_from is None:
             configdict = self.get_next_liveconfig()
         else:
@@ -513,7 +521,7 @@ class ACFactory:
         self._acsetup.start_configure(ac)
         return ac
 
-    def prepare_account_from_liveconfig(self, configdict):
+    def prepare_account_from_liveconfig(self, configdict) -> Account:
         ac = self.get_unconfigured_account()
         assert "addr" in configdict and "mail_pw" in configdict, configdict
         configdict.setdefault("bcc_self", False)
@@ -523,11 +531,11 @@ class ACFactory:
         self._preconfigure_key(ac, configdict["addr"])
         return ac
 
-    def wait_configured(self, account):
+    def wait_configured(self, account) -> None:
         """Wait until the specified account has successfully completed configure."""
         self._acsetup.wait_one_configured(account)
 
-    def bring_accounts_online(self):
+    def bring_accounts_online(self) -> None:
         print("bringing accounts online")
         self._acsetup.bring_online()
         print("all accounts online")
