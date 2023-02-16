@@ -118,7 +118,10 @@ impl BackupProvider {
             cancel_token,
             dbfile,
         ));
-        Ok(Self { handle, ticket })
+        let slf = Self { handle, ticket };
+        let qr = slf.qr();
+        *context.export_provider.lock().expect("poisoned lock") = Some(qr);
+        Ok(slf)
     }
 
     /// Creates the provider task.
@@ -128,7 +131,7 @@ impl BackupProvider {
         // Generate the token up front: we also use it to encrypt the database.
         let token = AuthToken::generate();
         context.emit_event(SendProgress::Started.into());
-        export_database(context, &dbfile, token.to_string())
+        export_database(context, dbfile, token.to_string())
             .await
             .context("Database export failed")?;
         context.emit_event(SendProgress::DatabaseExported.into());
@@ -171,7 +174,6 @@ impl BackupProvider {
         cancel_token: Receiver<()>,
         dbfile: PathBuf,
     ) -> Result<()> {
-        context.emit_event(SendProgress::ProviderListening.into());
         let mut events = provider.subscribe();
         let res = loop {
             tokio::select! {
@@ -194,7 +196,6 @@ impl BackupProvider {
                                     provider.shutdown();
                                 }
                                 Event::TransferAborted { .. } => {
-                                    context.emit_event(SendProgress::Failed.into());
                                     provider.shutdown();
                                     break Err(anyhow!("BackupSender transfer aborted"));
                                 }
@@ -221,7 +222,15 @@ impl BackupProvider {
         if let Err(err) = fs::remove_file(&dbfile).await {
             error!(context, "Failed to remove database export: {err:#}");
         }
-        context.emit_event(SendProgress::Completed.into());
+        context
+            .export_provider
+            .lock()
+            .expect("poisoned lock")
+            .take();
+        match &res {
+            Ok(_) => context.emit_event(SendProgress::Completed.into()),
+            Err(_) => context.emit_event(SendProgress::Failed.into()),
+        }
         context.free_ongoing().await;
         res
     }
