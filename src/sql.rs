@@ -213,7 +213,7 @@ impl Sql {
                      PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
                      PRAGMA foreign_keys=on;
                      ",
-                    Duration::from_secs(10).as_millis()
+                    Duration::from_secs(60).as_millis()
                 ))?;
                 c.pragma_update(None, "key", passphrase.clone())?;
                 // Try to enable auto_vacuum. This will only be
