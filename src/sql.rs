@@ -4,10 +4,9 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{self, config::DbConfig, Connection};
+use rusqlite::{self, config::DbConfig, Connection, OpenFlags};
 use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
@@ -47,10 +46,10 @@ pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &d
     iter.iter().map(|item| item as &dyn crate::ToSql)
 }
 
-mod connection_manager;
 mod migrations;
+mod pool;
 
-use connection_manager::ConnectionManager;
+use pool::{Pool, PooledConnection};
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -59,7 +58,7 @@ pub struct Sql {
     pub(crate) dbfile: PathBuf,
 
     /// SQL connection pool.
-    pool: RwLock<Option<r2d2::Pool<ConnectionManager>>>,
+    pool: RwLock<Option<Pool>>,
 
     /// None if the database is not open, true if it is open with passphrase and false if it is
     /// open without a passphrase.
@@ -195,17 +194,15 @@ impl Sql {
         })
     }
 
-    fn new_pool(dbfile: &Path, passphrase: String) -> Result<r2d2::Pool<ConnectionManager>> {
-        // this actually creates min_idle database handles just now.
-        // therefore, with_init() must not try to modify the database as otherwise
-        // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
-        let mgr = ConnectionManager::new(dbfile.to_path_buf(), passphrase);
-        let pool = r2d2::Pool::builder()
-            .min_idle(Some(2))
-            .max_size(10)
-            .connection_timeout(Duration::from_secs(60))
-            .build(mgr)
-            .context("Can't build SQL connection pool")?;
+    /// Creates a new connection pool.
+    fn new_pool(dbfile: &Path, passphrase: String) -> Result<Pool> {
+        let mut connections = Vec::new();
+        for _ in 0..3 {
+            let connection = new_connection(dbfile, &passphrase)?;
+            connections.push(connection);
+        }
+
+        let pool = Pool::new(connections);
         Ok(pool)
     }
 
@@ -363,10 +360,10 @@ impl Sql {
     }
 
     /// Allocates a connection from the connection pool and returns it.
-    pub(crate) async fn get_conn(&self) -> Result<r2d2::PooledConnection<ConnectionManager>> {
+    pub(crate) async fn get_conn(&self) -> Result<PooledConnection> {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().context("no SQL connection")?;
-        let conn = pool.get()?;
+        let conn = pool.get();
 
         Ok(conn)
     }
@@ -608,6 +605,42 @@ impl Sql {
     pub fn config_cache(&self) -> &RwLock<HashMap<String, Option<String>>> {
         &self.config_cache
     }
+}
+
+/// Creates a new SQLite connection.
+///
+/// `path` is the database path.
+///
+/// `passphrase` is the SQLCipher database passphrase.
+/// Empty string if database is not encrypted.
+fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
+    let mut flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
+    flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
+
+    let conn = Connection::open_with_flags(path, flags)?;
+    conn.execute_batch(
+        "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
+         PRAGMA secure_delete=on;
+         PRAGMA busy_timeout = 60000; -- 60 seconds
+         PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+         PRAGMA foreign_keys=on;
+         ",
+    )?;
+    conn.pragma_update(None, "key", passphrase)?;
+    // Try to enable auto_vacuum. This will only be
+    // applied if the database is new or after successful
+    // VACUUM, which usually happens before backup export.
+    // When auto_vacuum is INCREMENTAL, it is possible to
+    // use PRAGMA incremental_vacuum to return unused
+    // database pages to the filesystem.
+    conn.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
+
+    conn.pragma_update(None, "journal_mode", "WAL".to_string())?;
+    // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
+    conn.pragma_update(None, "synchronous", "NORMAL".to_string())?;
+
+    Ok(conn)
 }
 
 /// Cleanup the account to restore some storage and optimize the database.
