@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{config::DbConfig, Connection, OpenFlags};
+use rusqlite::{self, config::DbConfig, Connection};
 use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
@@ -47,7 +47,10 @@ pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &d
     iter.iter().map(|item| item as &dyn crate::ToSql)
 }
 
+mod connection_manager;
 mod migrations;
+
+use connection_manager::ConnectionManager;
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -56,7 +59,7 @@ pub struct Sql {
     pub(crate) dbfile: PathBuf,
 
     /// SQL connection pool.
-    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    pool: RwLock<Option<r2d2::Pool<ConnectionManager>>>,
 
     /// None if the database is not open, true if it is open with passphrase and false if it is
     /// open without a passphrase.
@@ -192,44 +195,11 @@ impl Sql {
         })
     }
 
-    fn new_pool(
-        dbfile: &Path,
-        passphrase: String,
-    ) -> Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
-        let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-        open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
-        open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
-
+    fn new_pool(dbfile: &Path, passphrase: String) -> Result<r2d2::Pool<ConnectionManager>> {
         // this actually creates min_idle database handles just now.
         // therefore, with_init() must not try to modify the database as otherwise
         // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
-        let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile)
-            .with_flags(open_flags)
-            .with_init(move |c| {
-                c.execute_batch(&format!(
-                    "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
-                     PRAGMA secure_delete=on;
-                     PRAGMA busy_timeout = {};
-                     PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-                     PRAGMA foreign_keys=on;
-                     ",
-                    Duration::from_secs(60).as_millis()
-                ))?;
-                c.pragma_update(None, "key", passphrase.clone())?;
-                // Try to enable auto_vacuum. This will only be
-                // applied if the database is new or after successful
-                // VACUUM, which usually happens before backup export.
-                // When auto_vacuum is INCREMENTAL, it is possible to
-                // use PRAGMA incremental_vacuum to return unused
-                // database pages to the filesystem.
-                c.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
-
-                c.pragma_update(None, "journal_mode", "WAL".to_string())?;
-                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                c.pragma_update(None, "synchronous", "NORMAL".to_string())?;
-                Ok(())
-            });
-
+        let mgr = ConnectionManager::new(dbfile.to_path_buf(), passphrase);
         let pool = r2d2::Pool::builder()
             .min_idle(Some(2))
             .max_size(10)
@@ -393,9 +363,7 @@ impl Sql {
     }
 
     /// Allocates a connection from the connection pool and returns it.
-    pub async fn get_conn(
-        &self,
-    ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
+    pub(crate) async fn get_conn(&self) -> Result<r2d2::PooledConnection<ConnectionManager>> {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().context("no SQL connection")?;
         let conn = pool.get()?;

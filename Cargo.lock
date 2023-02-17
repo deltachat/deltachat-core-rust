@@ -935,7 +935,6 @@ dependencies = [
  "qrcodegen",
  "quick-xml",
  "r2d2",
- "r2d2_sqlite",
  "rand 0.8.5",
  "ratelimit",
  "regex",
@@ -2814,16 +2813,6 @@ dependencies = [
  "log",
  "parking_lot",
  "scheduled-thread-pool",
-]
-
-[[package]]
-name = "r2d2_sqlite"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fdc8e4da70586127893be32b7adf21326a4c6b1aba907611edf467d13ffe895"
-dependencies = [
- "r2d2",
- "rusqlite",
 ]
 
 [[package]]
