@@ -44,6 +44,7 @@ impl Drop for PooledConnection {
         // Put the connection back unless the pool is already dropped.
         if let Some(pool) = self.pool.upgrade() {
             if let Some(conn) = self.conn.take() {
+                conn.release_memory().ok();
                 pool.put(conn);
             }
         }
