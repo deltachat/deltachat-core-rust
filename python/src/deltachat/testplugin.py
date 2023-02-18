@@ -309,7 +309,7 @@ class ACSetup:
     def wait_one_configured(self, account):
         """wait until this account has successfully configured."""
         if self._account2state[account] == self.CONFIGURING:
-            while 1:
+            while True:
                 acc = self._pop_config_success()
                 if acc == account:
                     break
@@ -638,7 +638,7 @@ class BotProcess:
 
     def _run_stdout_thread(self) -> None:
         try:
-            while 1:
+            while True:
                 line = self.popen.stdout.readline()
                 if not line:
                     break
@@ -659,7 +659,7 @@ class BotProcess:
         for next_pattern in patterns:
             print("+++FNMATCH:", next_pattern)
             ignored = []
-            while 1:
+            while True:
                 line = self.stdout_queue.get()
                 if line is None:
                     if ignored:
