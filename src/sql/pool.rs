@@ -7,10 +7,13 @@ use std::sync::{Arc, Weak};
 use parking_lot::{Condvar, Mutex};
 use rusqlite::Connection;
 
+/// Total size of the connection pool.
+pub const POOL_SIZE: usize = 3;
+
 /// Inner connection pool.
 struct InnerPool {
     /// Available connections.
-    connections: Mutex<Vec<Connection>>,
+    connections: Mutex<[Option<Connection>; POOL_SIZE]>,
 
     /// Conditional variable to notify about added connections.
     ///
@@ -24,7 +27,19 @@ impl InnerPool {
     /// The connection could be new or returned back.
     fn put(&self, connection: Connection) {
         let mut connections = self.connections.lock();
-        connections.push(connection);
+        let mut found_one = false;
+        for c in &mut *connections {
+            if c.is_none() {
+                *c = Some(connection);
+                found_one = true;
+                break;
+            }
+        }
+        assert!(
+            found_one,
+            "attempted to put more connections than available"
+        );
+
         drop(connections);
         self.cond.notify_one();
     }
@@ -79,7 +94,7 @@ impl fmt::Debug for Pool {
 
 impl Pool {
     /// Creates a new connection pool.
-    pub fn new(connections: Vec<Connection>) -> Self {
+    pub fn new(connections: [Option<Connection>; POOL_SIZE]) -> Self {
         let inner = Arc::new(InnerPool {
             connections: Mutex::new(connections),
             cond: Condvar::new(),
@@ -92,7 +107,7 @@ impl Pool {
         let mut connections = self.inner.connections.lock();
 
         loop {
-            if let Some(conn) = connections.pop() {
+            if let Some(conn) = get_next(&mut *connections) {
                 return PooledConnection {
                     pool: Arc::downgrade(&self.inner),
                     conn: Some(conn),
@@ -102,4 +117,17 @@ impl Pool {
             self.inner.cond.wait(&mut connections);
         }
     }
+}
+
+/// Returns the first available connection.
+///
+/// `None` if no connection is availble.
+fn get_next(connections: &mut [Option<Connection>; POOL_SIZE]) -> Option<Connection> {
+    for c in &mut *connections {
+        if c.is_some() {
+            return c.take();
+        }
+    }
+
+    None
 }

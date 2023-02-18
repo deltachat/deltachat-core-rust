@@ -196,12 +196,12 @@ impl Sql {
 
     /// Creates a new connection pool.
     fn new_pool(dbfile: &Path, passphrase: String) -> Result<Pool> {
-        let mut connections = Vec::new();
-        for _ in 0..3 {
-            let connection = new_connection(dbfile, &passphrase)?;
-            connections.push(connection);
-        }
+        let mut connections = [None, None, None]; // array from iter is not stable yet
 
+        for c in &mut connections {
+            let connection = new_connection(dbfile, &passphrase)?;
+            *c = Some(connection);
+        }
         let pool = Pool::new(connections);
         Ok(pool)
     }
