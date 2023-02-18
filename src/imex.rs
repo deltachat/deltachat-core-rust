@@ -540,25 +540,27 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         .to_str()
         .with_context(|| format!("path {temp_db_path:?} is not valid unicode"))?;
 
-    let conn = context.sql.get_conn().await?;
-    tokio::task::block_in_place(move || {
-        if let Err(err) = conn.execute("VACUUM", params![]) {
-            info!(context, "Vacuum failed, exporting anyway: {:#}.", err);
-        }
-        conn.execute(
-            "ATTACH DATABASE ? AS backup KEY ?",
-            paramsv![path_str, passphrase],
-        )
-        .context("failed to attach backup database")?;
-        let res = conn
-            .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
-            .context("failed to export to attached backup database");
-        conn.execute("DETACH DATABASE backup", [])
-            .context("failed to detach backup database")?;
-        res?;
+    context
+        .sql
+        .call(|conn| {
+            if let Err(err) = conn.execute("VACUUM", params![]) {
+                info!(context, "Vacuum failed, exporting anyway: {:#}.", err);
+            }
+            conn.execute(
+                "ATTACH DATABASE ? AS backup KEY ?",
+                paramsv![path_str, passphrase],
+            )
+            .context("failed to attach backup database")?;
+            let res = conn
+                .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
+                .context("failed to export to attached backup database");
+            conn.execute("DETACH DATABASE backup", [])
+                .context("failed to detach backup database")?;
+            res?;
 
-        Ok::<_, Error>(())
-    })?;
+            Ok::<_, Error>(())
+        })
+        .await?;
 
     let res = export_backup_inner(context, &temp_db_path, &temp_path).await;
 

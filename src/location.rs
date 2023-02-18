@@ -601,32 +601,38 @@ pub(crate) async fn save(
             ..
         } = location;
 
-        let conn = context.sql.get_conn().await?;
-        let mut stmt_test =
-            conn.prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
-        let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
+        context
+            .sql
+            .call(|conn| {
+                let mut stmt_test = conn
+                    .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
+                let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
 
-        let exists = stmt_test.exists(paramsv![timestamp, contact_id])?;
+                let exists = stmt_test.exists(paramsv![timestamp, contact_id])?;
 
-        if independent || !exists {
-            stmt_insert.execute(paramsv![
-                timestamp,
-                contact_id,
-                chat_id,
-                latitude,
-                longitude,
-                accuracy,
-                independent,
-            ])?;
+                if independent || !exists {
+                    stmt_insert.execute(paramsv![
+                        timestamp,
+                        contact_id,
+                        chat_id,
+                        latitude,
+                        longitude,
+                        accuracy,
+                        independent,
+                    ])?;
 
-            if timestamp > newest_timestamp {
-                // okay to drop, as we use cached prepared statements
-                drop(stmt_test);
-                drop(stmt_insert);
-                newest_timestamp = timestamp;
-                newest_location_id = Some(u32::try_from(conn.last_insert_rowid())?);
-            }
-        }
+                    if timestamp > newest_timestamp {
+                        // okay to drop, as we use cached prepared statements
+                        drop(stmt_test);
+                        drop(stmt_insert);
+                        newest_timestamp = timestamp;
+                        newest_location_id = Some(u32::try_from(conn.last_insert_rowid())?);
+                    }
+                }
+
+                Ok(())
+            })
+            .await?;
     }
 
     Ok(newest_location_id)

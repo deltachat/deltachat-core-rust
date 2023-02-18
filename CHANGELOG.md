@@ -7,6 +7,7 @@
 - Organize the connection pool as a stack rather than a queue to ensure that
   connection page cache is reused more often. #4065
 - Use transaction in `update_blocked_mailinglist_contacts`. #4058
+- Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
