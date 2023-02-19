@@ -265,6 +265,8 @@ pub struct Message {
     pub(crate) text: Option<String>,
 
     /// Message subject.
+    ///
+    /// If empty, a default subject will be generated when sending.
     pub(crate) subject: String,
 
     /// `Message-ID` header value.
