@@ -1,24 +1,24 @@
 # Changelog
 
-## Unreleased
+## 1.109.0
 
 ### Changes
 - deltachat-rpc-client: use `dataclass` for `Account`, `Chat`, `Contact` and `Message` #4042
-- python: mark bindings as supporting typing according to PEP 561 #4045
-- retry filesystem operations during account migration #4043
-- replace `r2d2` and `r2d2_sqlite` dependencies with an own connection pool #4050 #4053
 
 ### Fixes
 - deltachat-rpc-server: do not block stdin while processing the request. #4041
   deltachat-rpc-server now reads the next request as soon as previous request handler is spawned.
-- enable `auto_vacuum` on all SQL connections #2955
-- use semaphore for connection pool #4061
+- Enable `auto_vacuum` on all SQL connections. #2955
+- Replace `r2d2` connection pool with an own implementation. #4050 #4053 #4043 #4061
+  This change improves reliability
+  by closing all database connections immediately when the context is closed.
 
 ### API-Changes
 
 - Remove `MimeMessage::from_bytes()` public interface. #4033
 - BREAKING Types: jsonrpc: `get_messages` now returns a map with `MessageLoadResult` instead of failing completely if one of the requested messages could not be loaded. #4038
-- Add dc_msg_set_subject() C-FFI #4057
+- Add `dc_msg_set_subject()`. C-FFI #4057
+- Mark python bindings as supporting typing according to PEP 561 #4045
 
 
 ## 1.108.0
