@@ -2003,12 +2003,10 @@ pub unsafe extern "C" fn dc_create_contact(
     let ctx = &*context;
     let name = to_string_lossy(name);
 
-    block_on(async move {
-        Contact::create(ctx, &name, &to_string_lossy(addr))
-            .await
-            .map(|id| id.to_u32())
-            .unwrap_or(0)
-    })
+    block_on(Contact::create(ctx, &name, &to_string_lossy(addr)))
+        .log_err(ctx, "Cannot create contact")
+        .map(|id| id.to_u32())
+        .unwrap_or(0)
 }
 
 #[no_mangle]
