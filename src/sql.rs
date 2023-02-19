@@ -363,7 +363,7 @@ impl Sql {
     pub(crate) async fn get_conn(&self) -> Result<PooledConnection> {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().context("no SQL connection")?;
-        let conn = pool.get();
+        let conn = pool.get().await;
 
         Ok(conn)
     }

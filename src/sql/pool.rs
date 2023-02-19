@@ -4,18 +4,19 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Weak};
 
-use parking_lot::{Condvar, Mutex};
+use crossbeam_queue::ArrayQueue;
 use rusqlite::Connection;
+use tokio::sync::Notify;
 
 /// Inner connection pool.
 struct InnerPool {
     /// Available connections.
-    connections: Mutex<Vec<Connection>>,
+    connections: ArrayQueue<Connection>,
 
-    /// Conditional variable to notify about added connections.
+    /// Notifies about added connections.
     ///
     /// Used to wait for available connection when the pool is empty.
-    cond: Condvar,
+    notify: Notify,
 }
 
 impl InnerPool {
@@ -23,10 +24,8 @@ impl InnerPool {
     ///
     /// The connection could be new or returned back.
     fn put(&self, connection: Connection) {
-        let mut connections = self.connections.lock();
-        connections.push(connection);
-        drop(connections);
-        self.cond.notify_one();
+        self.connections.force_push(connection);
+        self.notify.notify_one();
     }
 }
 
@@ -81,25 +80,26 @@ impl Pool {
     /// Creates a new connection pool.
     pub fn new(connections: Vec<Connection>) -> Self {
         let inner = Arc::new(InnerPool {
-            connections: Mutex::new(connections),
-            cond: Condvar::new(),
+            connections: ArrayQueue::new(connections.len()),
+            notify: Notify::new(),
         });
+        for connection in connections {
+            inner.connections.force_push(connection);
+        }
         Pool { inner }
     }
 
     /// Retrieves a connection from the pool.
-    pub fn get(&self) -> PooledConnection {
-        let mut connections = self.inner.connections.lock();
-
+    pub async fn get(&self) -> PooledConnection {
         loop {
-            if let Some(conn) = connections.pop() {
+            if let Some(conn) = self.inner.connections.pop() {
                 return PooledConnection {
                     pool: Arc::downgrade(&self.inner),
                     conn: Some(conn),
                 };
             }
 
-            self.inner.cond.wait(&mut connections);
+            self.inner.notify.notified().await;
         }
     }
 }
