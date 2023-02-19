@@ -239,7 +239,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acee9fd5073ab6b045a275b3e709c163dd36c90685219cb21804a147b58dba43"
 dependencies = [
  "async-trait",
- "axum-core 0.2.9",
+ "axum-core",
  "base64 0.13.1",
  "bitflags",
  "bytes",
@@ -248,7 +248,7 @@ dependencies = [
  "http-body",
  "hyper",
  "itoa",
- "matchit 0.5.0",
+ "matchit",
  "memchr",
  "mime",
  "percent-encoding",
@@ -259,43 +259,7 @@ dependencies = [
  "sha-1",
  "sync_wrapper",
  "tokio",
- "tokio-tungstenite 0.17.2",
- "tower",
- "tower-http",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "axum"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5694b64066a2459918d8074c2ce0d5a88f409431994c2356617c8ae0c4721fc"
-dependencies = [
- "async-trait",
- "axum-core 0.3.2",
- "base64 0.20.0",
- "bitflags",
- "bytes",
- "futures-util",
- "http",
- "http-body",
- "hyper",
- "itoa",
- "matchit 0.7.0",
- "memchr",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "rustversion",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "serde_urlencoded",
- "sha1",
- "sync_wrapper",
- "tokio",
- "tokio-tungstenite 0.18.0",
+ "tokio-tungstenite",
  "tower",
  "tower-http",
  "tower-layer",
@@ -314,23 +278,6 @@ dependencies = [
  "http",
  "http-body",
  "mime",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "axum-core"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cae3e661676ffbacb30f1a824089a8c9150e71017f7e1e38f2aa32009188d34"
-dependencies = [
- "async-trait",
- "bytes",
- "futures-util",
- "http",
- "http-body",
- "mime",
- "rustversion",
  "tower-layer",
  "tower-service",
 ]
@@ -367,12 +314,6 @@ name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
-
-[[package]]
-name = "base64"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "base64"
@@ -969,7 +910,7 @@ version = "1.108.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "axum 0.6.4",
+ "axum",
  "deltachat",
  "env_logger 0.10.0",
  "futures",
@@ -2159,12 +2100,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73cbba799671b762df5a175adf59ce145165747bb891505c43d09aefbbf38beb"
 
 [[package]]
-name = "matchit"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b87248edafb776e59e6ee64a79086f65890d3510f2c656c000bf2a7e8a0aea40"
-
-[[package]]
 name = "md-5"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3221,15 +3156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_path_to_error"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "184c643044780f7ceb59104cef98a5a6f12cb2288a7bc701ab93a362b49fd47d"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_spanned"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3638,19 +3564,7 @@ dependencies = [
  "futures-util",
  "log",
  "tokio",
- "tungstenite 0.17.3",
-]
-
-[[package]]
-name = "tokio-tungstenite"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54319c93411147bced34cb5609a80e0a8e44c5999c93903a81cd866630ec0bfd"
-dependencies = [
- "futures-util",
- "log",
- "tokio",
- "tungstenite 0.18.0",
+ "tungstenite",
 ]
 
 [[package]]
@@ -3855,25 +3769,6 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "sha-1",
- "thiserror",
- "url",
- "utf-8",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30ee6ab729cd4cf0fd55218530c4522ed30b7b6081752839b68fcec8d0960788"
-dependencies = [
- "base64 0.13.1",
- "byteorder",
- "bytes",
- "http",
- "httparse",
- "log",
- "rand 0.8.5",
- "sha1",
  "thiserror",
  "url",
  "utf-8",
@@ -4339,7 +4234,7 @@ dependencies = [
  "async-channel",
  "async-mutex",
  "async-trait",
- "axum 0.5.17",
+ "axum",
  "futures",
  "futures-util",
  "log",
