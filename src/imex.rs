@@ -5,7 +5,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use ::pgp::types::KeyTrait;
-use anyhow::{bail, ensure, format_err, Context as _, Result};
+use anyhow::{bail, ensure, format_err, Context as _, Error, Result};
 use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
@@ -508,6 +508,9 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
     bail!("could not create backup file, disk full?");
 }
 
+/// Exports the database to a separate file with the given passphrase.
+///
+/// Set passphrase to empty string to export the database unencrypted.
 async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
@@ -521,13 +524,6 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         .await?;
     sql::housekeeping(context).await.ok_or_log(context);
 
-    context
-        .sql
-        .execute("VACUUM;", paramsv![])
-        .await
-        .map_err(|e| warn!(context, "Vacuum failed, exporting anyway {}", e))
-        .ok();
-
     ensure!(
         context.scheduler.read().await.is_none(),
         "cannot export backup, IO is running"
@@ -540,11 +536,29 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
         dest_path.display(),
     );
 
-    context
-        .sql
-        .export(&temp_db_path, passphrase)
-        .await
-        .with_context(|| format!("failed to backup plaintext database to {temp_db_path:?}"))?;
+    let path_str = temp_db_path
+        .to_str()
+        .with_context(|| format!("path {temp_db_path:?} is not valid unicode"))?;
+
+    let conn = context.sql.get_conn().await?;
+    tokio::task::block_in_place(move || {
+        if let Err(err) = conn.execute("VACUUM", params![]) {
+            info!(context, "Vacuum failed, exporting anyway: {:#}.", err);
+        }
+        conn.execute(
+            "ATTACH DATABASE ? AS backup KEY ?",
+            paramsv![path_str, passphrase],
+        )
+        .context("failed to attach backup database")?;
+        let res = conn
+            .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
+            .context("failed to export to attached backup database");
+        conn.execute("DETACH DATABASE backup", [])
+            .context("failed to detach backup database")?;
+        res?;
+
+        Ok::<_, Error>(())
+    })?;
 
     let res = export_backup_inner(context, &temp_db_path, &temp_path).await;
 

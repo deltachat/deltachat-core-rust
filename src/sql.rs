@@ -124,31 +124,6 @@ impl Sql {
         // drop closes the connection
     }
 
-    /// Exports the database to a separate file with the given passphrase.
-    ///
-    /// Set passphrase to empty string to export the database unencrypted.
-    pub(crate) async fn export(&self, path: &Path, passphrase: String) -> Result<()> {
-        let path_str = path
-            .to_str()
-            .with_context(|| format!("path {path:?} is not valid unicode"))?;
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
-            conn.execute(
-                "ATTACH DATABASE ? AS backup KEY ?",
-                paramsv![path_str, passphrase],
-            )
-            .context("failed to attach backup database")?;
-            let res = conn
-                .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
-                .context("failed to export to attached backup database");
-            conn.execute("DETACH DATABASE backup", [])
-                .context("failed to detach backup database")?;
-            res?;
-
-            Ok(())
-        })
-    }
-
     /// Imports the database from a separate file with the given passphrase.
     pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
