@@ -224,8 +224,32 @@ impl MimeMessage {
 
         // Parse hidden headers.
         let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+        let (part, mimetype) =
+            if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "signed" {
+                if let Some(part) = mail.subparts.first() {
+                    // We don't remove "subject" from `headers` because currently just signed
+                    // messages are shown as unencrypted anyway.
+
+                    MimeMessage::merge_headers(
+                        context,
+                        &mut headers,
+                        &mut recipients,
+                        &mut from,
+                        &mut list_post,
+                        &mut chat_disposition_notification_to,
+                        &part.headers,
+                    );
+                    (part, part.ctype.mimetype.parse::<Mime>()?)
+                } else {
+                    // If it's a partially fetched message, there are no subparts.
+                    (&mail, mimetype)
+                }
+            } else {
+                // Currently we do not sign unencrypted messages by default.
+                (&mail, mimetype)
+            };
         if mimetype.type_() == mime::MULTIPART && mimetype.subtype().as_str() == "mixed" {
-            if let Some(part) = mail.subparts.first() {
+            if let Some(part) = part.subparts.first() {
                 for field in &part.headers {
                     let key = field.get_key().to_lowercase();
 
