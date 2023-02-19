@@ -3599,6 +3599,16 @@ pub unsafe extern "C" fn dc_msg_set_html(msg: *mut dc_msg_t, html: *const libc::
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_subject(msg: *mut dc_msg_t, subject: *const libc::c_char) {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_subject()");
+        return;
+    }
+    let ffi_msg = &mut *msg;
+    ffi_msg.message.set_subject(to_string_lossy(subject));
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_override_sender_name(
     msg: *mut dc_msg_t,
     name: *const libc::c_char,

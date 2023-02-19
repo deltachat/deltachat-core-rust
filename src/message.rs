@@ -795,6 +795,12 @@ impl Message {
         self.text = text;
     }
 
+    /// Sets the email's subject. If it's empty, a default subject
+    /// will be used ("e.g. Message from Alice" or "Re: <last subject>").
+    pub fn set_subject(&mut self, subject: String) {
+        self.subject = subject;
+    }
+
     /// Sets the file associated with a message.
     ///
     /// This function does not use the file or check if it exists,
