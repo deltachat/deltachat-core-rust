@@ -4329,7 +4329,7 @@ void            dc_msg_set_html               (dc_msg_t* msg, const char* html);
 
 /**
  * Sets the email's subject. If it's empty, a default subject
- * will be used ("e.g. Message from Alice" or "Re: <last subject>").
+ * will be used (e.g. `Message from Alice` or `Re: <last subject>`).
  * This does not alter any information in the database.
  *
  * @memberof dc_msg_t

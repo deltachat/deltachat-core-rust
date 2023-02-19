@@ -796,7 +796,7 @@ impl Message {
     }
 
     /// Sets the email's subject. If it's empty, a default subject
-    /// will be used ("e.g. Message from Alice" or "Re: <last subject>").
+    /// will be used (e.g. `Message from Alice` or `Re: <last subject>`).
     pub fn set_subject(&mut self, subject: String) {
         self.subject = subject;
     }
