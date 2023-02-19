@@ -1,6 +1,5 @@
 //! Connection pool.
 
-use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Weak};
 
@@ -9,6 +8,7 @@ use rusqlite::Connection;
 use tokio::sync::Notify;
 
 /// Inner connection pool.
+#[derive(Debug)]
 struct InnerPool {
     /// Available connections.
     connections: ArrayQueue<Connection>,
@@ -64,16 +64,10 @@ impl DerefMut for PooledConnection {
 }
 
 /// Connection pool.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Pool {
     /// Reference to the actual connection pool.
     inner: Arc<InnerPool>,
-}
-
-impl fmt::Debug for Pool {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "Pool")
-    }
 }
 
 impl Pool {
