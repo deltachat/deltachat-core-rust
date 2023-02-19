@@ -10,26 +10,20 @@ env:
   RUSTFLAGS: -Dwarnings
    
 jobs:
-
-  fmt:
-    name: Rustfmt
+  lint:
+    name: Rustfmt and Clippy
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.67.1
     steps:
       - uses: actions/checkout@v3
-      - run: cargo fmt --all -- --check
-
-  run_clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install clippy
-        run: rustup toolchain install 1.67.1 --component clippy
+      - name: Install rustfmt and clippy
+        run: rustup toolchain install $RUSTUP_TOOLCHAIN --component rustfmt --component clippy
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
       - name: Run clippy
-        env:
-          RUSTUP_TOOLCHAIN: 1.67.1
         run: scripts/clippy.sh
 
   docs:
