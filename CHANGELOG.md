@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- use transaction in `Contact::add_or_lookup()` #4059
 
 ### Fixes
 
