@@ -17,6 +17,7 @@
 
 - Remove `MimeMessage::from_bytes()` public interface. #4033
 - BREAKING Types: jsonrpc: `get_messages` now returns a map with `MessageLoadResult` instead of failing completely if one of the requested messages could not be loaded. #4038
+- Add dc_msg_set_subject() C-FFI #4057
 
 
 ## 1.108.0
