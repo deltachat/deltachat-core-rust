@@ -869,47 +869,45 @@ impl Contact {
         Ok(ret)
     }
 
-    // add blocked mailinglists as contacts
-    // to allow unblocking them as if they are contacts
-    // (this way, only one unblock-ffi is needed and only one set of ui-functions,
-    // from the users perspective,
-    // there is not much difference in an email- and a mailinglist-address)
+    /// Adds blocked mailinglists as contacts
+    /// to allow unblocking them as if they are contacts
+    /// (this way, only one unblock-ffi is needed and only one set of ui-functions,
+    /// from the users perspective,
+    /// there is not much difference in an email- and a mailinglist-address)
     async fn update_blocked_mailinglist_contacts(context: &Context) -> Result<()> {
-        let blocked_mailinglists = context
+        context
             .sql
-            .query_map(
-                "SELECT name, grpid FROM chats WHERE type=? AND blocked=?;",
-                paramsv![Chattype::Mailinglist, Blocked::Yes],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-                |rows| {
-                    rows.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
-            )
+            .transaction(move |transaction| {
+                let mut stmt = transaction
+                    .prepare("SELECT name, grpid FROM chats WHERE type=? AND blocked=?")?;
+                let rows = stmt.query_map(params![Chattype::Mailinglist, Blocked::Yes], |row| {
+                    let name: String = row.get(0)?;
+                    let grpid: String = row.get(1)?;
+                    Ok((name, grpid))
+                })?;
+                let blocked_mailinglists = rows.collect::<std::result::Result<Vec<_>, _>>()?;
+                for (name, grpid) in blocked_mailinglists {
+                    let count = transaction.query_row(
+                        "SELECT COUNT(id) FROM contacts WHERE addr=?",
+                        [&grpid],
+                        |row| {
+                            let count: isize = row.get(0)?;
+                            Ok(count)
+                        },
+                    )?;
+                    if count == 0 {
+                        transaction.execute("INSERT INTO contacts (addr) VALUES (?)", [&grpid])?;
+                    }
+
+                    // Always do an update in case the blocking is reset or name is changed.
+                    transaction.execute(
+                        "UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?",
+                        params![&name, Origin::MailinglistAddress, &grpid],
+                    )?;
+                }
+                Ok(())
+            })
             .await?;
-        for (name, grpid) in blocked_mailinglists {
-            if !context
-                .sql
-                .exists(
-                    "SELECT COUNT(id) FROM contacts WHERE addr=?;",
-                    paramsv![grpid],
-                )
-                .await?
-            {
-                context
-                    .sql
-                    .execute("INSERT INTO contacts (addr) VALUES (?);", paramsv![grpid])
-                    .await?;
-            }
-            // always do an update in case the blocking is reset or name is changed
-            context
-                .sql
-                .execute(
-                    "UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?;",
-                    paramsv![name, Origin::MailinglistAddress, grpid],
-                )
-                .await?;
-        }
         Ok(())
     }
 
