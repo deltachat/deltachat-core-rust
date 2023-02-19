@@ -763,6 +763,12 @@ impl Context {
                 .await?
                 .unwrap_or_default(),
         );
+        res.insert(
+            "sign_unencrypted",
+            self.get_config_int(Config::SignUnencrypted)
+                .await?
+                .to_string(),
+        );
 
         res.insert(
             "debug_logging",
