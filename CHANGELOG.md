@@ -23,6 +23,7 @@
 - Updated provider database.
 - Disable DKIM-Checks again #4076
 - Switch from "X.Y.Z" and "py-X.Y.Z" to "vX.Y.Z" tags. #4089
+- mimeparser: handle headers from the signed part of unencrypted signed message #4013
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
