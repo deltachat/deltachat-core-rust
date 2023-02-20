@@ -1,6 +1,6 @@
 import sys
 
-from pkg_resources import DistributionNotFound, get_distribution
+from importlib.metadata import PackageNotFoundError, version
 
 from . import capi, events, hookspec  # noqa
 from .account import Account, get_core_info  # noqa
@@ -11,8 +11,8 @@ from .hookspec import account_hookimpl, global_hookimpl  # noqa
 from .message import Message  # noqa
 
 try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
+    __version__ = version(__name__)
+except PackageNotFoundError:
     # package is not installed
     __version__ = "0.0.0.dev0-unknown"
 
