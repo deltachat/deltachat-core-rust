@@ -5,22 +5,22 @@ mergeable:
     validate:
       - do: or
         validate:
-        - do: description
-          must_include:
-            regex: '#skip-changelog'
-        - do: and
-          validate:
-            - do: dependent
-              changed:
-                file: 'src/**'
-                required: ['CHANGELOG.md']
-            - do: dependent
-              changed:
-                file: 'deltachat-ffi/src/**'
-                required: ['CHANGELOG.md']
+          - do: description
+            must_include:
+              regex: "#skip-changelog"
+          - do: and
+            validate:
+              - do: dependent
+                changed:
+                  file: "src/**"
+                  required: ["CHANGELOG.md"]
+              - do: dependent
+                changed:
+                  file: "deltachat-ffi/src/**"
+                  required: ["CHANGELOG.md"]
     fail:
       - do: checks
-        status: 'action_required' 
+        status: "action_required"
         payload:
           title: Changelog might need an update
           summary: "Check if CHANGELOG.md needs an update or add #skip-changelog to the PR description."

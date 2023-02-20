@@ -13,6 +13,7 @@ use async_channel::{self as channel, Receiver, Sender};
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tokio::task;
 use tokio::time::{timeout, Duration};
@@ -520,8 +521,6 @@ impl Contact {
     /// Depending on the origin, both, "row_name" and "row_authname" are updated from "name".
     ///
     /// Returns the contact_id and a `Modifier` value indicating if a modification occurred.
-    ///
-    /// Returns None if the contact with such address cannot exist.
     pub(crate) async fn add_or_lookup(
         context: &Context,
         name: &str,
@@ -566,14 +565,12 @@ impl Contact {
         );
 
         let mut update_addr = false;
-        let mut row_id = 0;
 
-        if let Some((id, row_name, row_addr, row_origin, row_authname)) = context
-            .sql
-            .query_row_optional(
-                "SELECT id, name, addr, origin, authname \
-            FROM contacts WHERE addr=? COLLATE NOCASE;",
-                paramsv![addr.to_string()],
+        let row_id = context.sql.transaction(|transaction| {
+            let row = transaction.query_row(
+                "SELECT id, name, addr, origin, authname
+                 FROM contacts WHERE addr=? COLLATE NOCASE",
+                 [addr.to_string()],
                 |row| {
                     let row_id: isize = row.get(0)?;
                     let row_name: String = row.get(1)?;
@@ -582,120 +579,130 @@ impl Contact {
                     let row_authname: String = row.get(4)?;
 
                     Ok((row_id, row_name, row_addr, row_origin, row_authname))
-                },
-            )
-            .await?
-        {
-            let update_name = manual && name != row_name;
-            let update_authname = !manual
-                && name != row_authname
-                && !name.is_empty()
-                && (origin >= row_origin
-                    || origin == Origin::IncomingUnknownFrom
-                    || row_authname.is_empty());
+                }).optional()?;
 
-            row_id = u32::try_from(id)?;
-            if origin >= row_origin && addr.as_ref() != row_addr {
-                update_addr = true;
-            }
-            if update_name || update_authname || update_addr || origin > row_origin {
-                let new_name = if update_name {
-                    name.to_string()
-                } else {
-                    row_name
-                };
+            let row_id;
+            if let Some((id, row_name, row_addr, row_origin, row_authname)) = row {
+                let update_name = manual && name != row_name;
+                let update_authname = !manual
+                    && name != row_authname
+                    && !name.is_empty()
+                    && (origin >= row_origin
+                        || origin == Origin::IncomingUnknownFrom
+                        || row_authname.is_empty());
 
-                context
-                    .sql
-                    .execute(
-                        "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                        paramsv![
-                            new_name,
-                            if update_addr {
-                                addr.to_string()
-                            } else {
-                                row_addr
-                            },
-                            if origin > row_origin {
-                                origin
-                            } else {
-                                row_origin
-                            },
-                            if update_authname {
-                                name.to_string()
-                            } else {
-                                row_authname
-                            },
-                            row_id
-                        ],
-                    )
-                    .await
-                    .ok();
+                row_id = u32::try_from(id)?;
+                if origin >= row_origin && addr.as_ref() != row_addr {
+                    update_addr = true;
+                }
+                if update_name || update_authname || update_addr || origin > row_origin {
+                    let new_name = if update_name {
+                        name.to_string()
+                    } else {
+                        row_name
+                    };
 
-                if update_name || update_authname {
-                    // Update the contact name also if it is used as a group name.
-                    // This is one of the few duplicated data, however, getting the chat list is easier this way.
-                    let chat_id: Option<i32> = context.sql.query_get_value(
-                        "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
-                        paramsv![Chattype::Single, isize::try_from(row_id)?]
-                    ).await?;
-                    if let Some(chat_id) = chat_id {
-                        let contact = Contact::get_by_id(context, ContactId::new(row_id)).await?;
-                        let chat_name = contact.get_display_name();
-                        match context
-                            .sql
-                            .execute(
-                                "UPDATE chats SET name=?1 WHERE id=?2 AND name!=?3",
-                                paramsv![chat_name, chat_id, chat_name],
-                            )
-                            .await
-                        {
-                            Err(err) => warn!(context, "Can't update chat name: {}", err),
-                            Ok(count) => {
-                                if count > 0 {
-                                    // Chat name updated
-                                    context.emit_event(EventType::ChatModified(ChatId::new(
-                                        chat_id.try_into()?,
-                                    )));
-                                }
+                    transaction
+                        .execute(
+                            "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
+                            paramsv![
+                                new_name,
+                                if update_addr {
+                                    addr.to_string()
+                                } else {
+                                    row_addr
+                                },
+                                if origin > row_origin {
+                                    origin
+                                } else {
+                                    row_origin
+                                },
+                                if update_authname {
+                                    name.to_string()
+                                } else {
+                                    row_authname
+                                },
+                                row_id
+                            ],
+                        )?;
+
+                    if update_name || update_authname {
+                        // Update the contact name also if it is used as a group name.
+                        // This is one of the few duplicated data, however, getting the chat list is easier this way.
+                        let chat_id: Option<ChatId> = transaction.query_row(
+                            "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
+                            params![Chattype::Single, isize::try_from(row_id)?],
+                            |row| {
+                                let chat_id: ChatId = row.get(0)?;
+                                Ok(chat_id)
+                            }
+                        ).optional()?;
+
+                        if let Some(chat_id) = chat_id {
+                            let contact_id = ContactId::new(row_id);
+                            let (addr, name, authname) =
+                                transaction.query_row(
+                                    "SELECT addr, name, authname
+                                     FROM contacts
+                                     WHERE id=?",
+                                     params![contact_id],
+                                |row| {
+                                    let addr: String = row.get(0)?;
+                                    let name: String = row.get(1)?;
+                                    let authname: String = row.get(2)?;
+                                    Ok((addr, name, authname))
+                                })?;
+
+                            let chat_name = if !name.is_empty() {
+                                name
+                            } else if !authname.is_empty() {
+                                authname
+                            } else {
+                                addr
+                            };
+
+                            let count = transaction.execute(
+                                    "UPDATE chats SET name=?1 WHERE id=?2 AND name!=?1",
+                                    params![chat_name, chat_id])?;
+
+                            if count > 0 {
+                                // Chat name updated
+                                context.emit_event(EventType::ChatModified(chat_id));
                             }
                         }
                     }
+                    sth_modified = Modifier::Modified;
                 }
-                sth_modified = Modifier::Modified;
-            }
-        } else {
-            let update_name = manual;
-            let update_authname = !manual;
-
-            if let Ok(new_row_id) = context
-                .sql
-                .insert(
-                    "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
-                    paramsv![
-                        if update_name {
-                            name.to_string()
-                        } else {
-                            "".to_string()
-                        },
-                        addr,
-                        origin,
-                        if update_authname {
-                            name.to_string()
-                        } else {
-                            "".to_string()
-                        }
-                    ],
-                )
-                .await
-            {
-                row_id = u32::try_from(new_row_id)?;
-                sth_modified = Modifier::Created;
-                info!(context, "added contact id={} addr={}", row_id, &addr);
             } else {
-                error!(context, "Cannot add contact.");
+                let update_name = manual;
+                let update_authname = !manual;
+
+                transaction
+                    .execute(
+                        "INSERT INTO contacts (name, addr, origin, authname)
+                         VALUES (?, ?, ?, ?);",
+                        params![
+                            if update_name {
+                                name.to_string()
+                            } else {
+                                "".to_string()
+                            },
+                            addr,
+                            origin,
+                            if update_authname {
+                                name.to_string()
+                            } else {
+                                "".to_string()
+                            }
+                        ],
+                    )?;
+
+                sth_modified = Modifier::Created;
+                row_id = u32::try_from(transaction.last_insert_rowid())?;
+                info!(context, "added contact id={} addr={}", row_id, &addr);
             }
-        }
+            Ok(row_id)
+        }).await?;
 
         Ok((ContactId::new(row_id), sth_modified))
     }

@@ -1,11 +1,10 @@
-name: 'node.js build'
+name: "node.js build"
 on:
   pull_request:
   push:
     tags:
-    - '*'
-    - '!py-*'
-
+      - "*"
+      - "!py-*"
 
 jobs:
   prebuild:
@@ -19,7 +18,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
       - name: System info
         run: |
           rustc -vV
@@ -74,7 +73,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/setup-node@v2
         with:
-          node-version: '16'
+          node-version: "16"
       - name: Get tag
         id: tag
         uses: dawidd6/action-get-tag@v1
@@ -152,8 +151,8 @@ jobs:
         if: steps.upload-preview.outcome == 'success'
         run: node ./node/scripts/postLinksToDetails.js
         env:
-         URL: preview/${{ env.DELTACHAT_NODE_TAR_GZ }}
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          URL: preview/${{ env.DELTACHAT_NODE_TAR_GZ }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Upload to download.delta.chat/node/
       - name: Upload deltachat-node build to download.delta.chat/node/
         if: ${{ steps.tag.outputs.tag }}

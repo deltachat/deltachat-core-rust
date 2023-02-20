@@ -6,7 +6,7 @@ from array import array
 from contextlib import contextmanager
 from email.utils import parseaddr
 from threading import Event
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any, Dict, Generator, List, Optional, Union, TYPE_CHECKING
 
 from . import const, hookspec
 from .capi import ffi, lib
@@ -21,6 +21,9 @@ from .cutil import (
 )
 from .message import Message
 from .tracker import ConfigureTracker, ImexTracker
+
+if TYPE_CHECKING:
+    from .events import FFIEventTracker
 
 
 class MissingCredentials(ValueError):
@@ -59,6 +62,9 @@ class Account:
     """
 
     MissingCredentials = MissingCredentials
+
+    _logid: str
+    _evtracker: "FFIEventTracker"
 
     def __init__(self, db_path, os_name=None, logging=True, closed=False) -> None:
         from .events import EventThread

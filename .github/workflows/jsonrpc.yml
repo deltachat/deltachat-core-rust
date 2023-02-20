@@ -35,6 +35,10 @@ jobs:
           npm run test
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+      - name: make sure websocket server version still builds
+        run: |
+          cd deltachat-jsonrpc
+          cargo build --bin deltachat-jsonrpc-server --features webserver
       - name: Run linter
         run: |
           cd deltachat-jsonrpc/typescript

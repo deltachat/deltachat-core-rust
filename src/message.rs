@@ -265,6 +265,8 @@ pub struct Message {
     pub(crate) text: Option<String>,
 
     /// Message subject.
+    ///
+    /// If empty, a default subject will be generated when sending.
     pub(crate) subject: String,
 
     /// `Message-ID` header value.
@@ -793,6 +795,12 @@ impl Message {
     /// Sets or unsets message text.
     pub fn set_text(&mut self, text: Option<String>) {
         self.text = text;
+    }
+
+    /// Sets the email's subject. If it's empty, a default subject
+    /// will be used (e.g. `Message from Alice` or `Re: <last subject>`).
+    pub fn set_subject(&mut self, subject: String) {
+        self.subject = subject;
     }
 
     /// Sets the file associated with a message.

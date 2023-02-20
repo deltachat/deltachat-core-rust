@@ -4,10 +4,9 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{config::DbConfig, Connection, OpenFlags};
+use rusqlite::{self, config::DbConfig, Connection, OpenFlags, TransactionBehavior};
 use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
@@ -48,6 +47,9 @@ pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &d
 }
 
 mod migrations;
+mod pool;
+
+use pool::{Pool, PooledConnection};
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -56,7 +58,7 @@ pub struct Sql {
     pub(crate) dbfile: PathBuf,
 
     /// SQL connection pool.
-    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    pool: RwLock<Option<Pool>>,
 
     /// None if the database is not open, true if it is open with passphrase and false if it is
     /// open without a passphrase.
@@ -122,31 +124,6 @@ impl Sql {
         // drop closes the connection
     }
 
-    /// Exports the database to a separate file with the given passphrase.
-    ///
-    /// Set passphrase to empty string to export the database unencrypted.
-    pub(crate) async fn export(&self, path: &Path, passphrase: String) -> Result<()> {
-        let path_str = path
-            .to_str()
-            .with_context(|| format!("path {path:?} is not valid unicode"))?;
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
-            conn.execute(
-                "ATTACH DATABASE ? AS backup KEY ?",
-                paramsv![path_str, passphrase],
-            )
-            .context("failed to attach backup database")?;
-            let res = conn
-                .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
-                .context("failed to export to attached backup database");
-            conn.execute("DETACH DATABASE backup", [])
-                .context("failed to detach backup database")?;
-            res?;
-
-            Ok(())
-        })
-    }
-
     /// Imports the database from a separate file with the given passphrase.
     pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
@@ -192,50 +169,15 @@ impl Sql {
         })
     }
 
-    fn new_pool(
-        dbfile: &Path,
-        passphrase: String,
-    ) -> Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
-        let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
-        open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
-        open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
+    /// Creates a new connection pool.
+    fn new_pool(dbfile: &Path, passphrase: String) -> Result<Pool> {
+        let mut connections = Vec::new();
+        for _ in 0..3 {
+            let connection = new_connection(dbfile, &passphrase)?;
+            connections.push(connection);
+        }
 
-        // this actually creates min_idle database handles just now.
-        // therefore, with_init() must not try to modify the database as otherwise
-        // we easily get busy-errors (eg. table-creation, journal_mode etc. should be done on only one handle)
-        let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile)
-            .with_flags(open_flags)
-            .with_init(move |c| {
-                c.execute_batch(&format!(
-                    "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
-                     PRAGMA secure_delete=on;
-                     PRAGMA busy_timeout = {};
-                     PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
-                     PRAGMA foreign_keys=on;
-                     ",
-                    Duration::from_secs(10).as_millis()
-                ))?;
-                c.pragma_update(None, "key", passphrase.clone())?;
-                // Try to enable auto_vacuum. This will only be
-                // applied if the database is new or after successful
-                // VACUUM, which usually happens before backup export.
-                // When auto_vacuum is INCREMENTAL, it is possible to
-                // use PRAGMA incremental_vacuum to return unused
-                // database pages to the filesystem.
-                c.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
-
-                c.pragma_update(None, "journal_mode", "WAL".to_string())?;
-                // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
-                c.pragma_update(None, "synchronous", "NORMAL".to_string())?;
-                Ok(())
-            });
-
-        let pool = r2d2::Pool::builder()
-            .min_idle(Some(2))
-            .max_size(10)
-            .connection_timeout(Duration::from_secs(60))
-            .build(mgr)
-            .context("Can't build SQL connection pool")?;
+        let pool = Pool::new(connections);
         Ok(pool)
     }
 
@@ -393,12 +335,10 @@ impl Sql {
     }
 
     /// Allocates a connection from the connection pool and returns it.
-    pub async fn get_conn(
-        &self,
-    ) -> Result<r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>> {
+    pub(crate) async fn get_conn(&self) -> Result<PooledConnection> {
         let lock = self.pool.read().await;
         let pool = lock.as_ref().context("no SQL connection")?;
-        let conn = pool.get()?;
+        let conn = pool.get().await?;
 
         Ok(conn)
     }
@@ -437,6 +377,12 @@ impl Sql {
     ///
     /// If the function returns an error, the transaction will be rolled back. If it does not return an
     /// error, the transaction will be committed.
+    ///
+    /// Transactions started use IMMEDIATE behavior
+    /// rather than default DEFERRED behavior
+    /// to avoid "database is busy" errors
+    /// which may happen when DEFERRED transaction
+    /// is attempted to be promoted to a write transaction.
     pub async fn transaction<G, H>(&self, callback: G) -> Result<H>
     where
         H: Send + 'static,
@@ -444,7 +390,7 @@ impl Sql {
     {
         let mut conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
-            let mut transaction = conn.transaction()?;
+            let mut transaction = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let ret = callback(&mut transaction);
 
             match ret {
@@ -640,6 +586,42 @@ impl Sql {
     pub fn config_cache(&self) -> &RwLock<HashMap<String, Option<String>>> {
         &self.config_cache
     }
+}
+
+/// Creates a new SQLite connection.
+///
+/// `path` is the database path.
+///
+/// `passphrase` is the SQLCipher database passphrase.
+/// Empty string if database is not encrypted.
+fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
+    let mut flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
+    flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
+
+    let conn = Connection::open_with_flags(path, flags)?;
+    conn.execute_batch(
+        "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
+         PRAGMA secure_delete=on;
+         PRAGMA busy_timeout = 60000; -- 60 seconds
+         PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+         PRAGMA foreign_keys=on;
+         ",
+    )?;
+    conn.pragma_update(None, "key", passphrase)?;
+    // Try to enable auto_vacuum. This will only be
+    // applied if the database is new or after successful
+    // VACUUM, which usually happens before backup export.
+    // When auto_vacuum is INCREMENTAL, it is possible to
+    // use PRAGMA incremental_vacuum to return unused
+    // database pages to the filesystem.
+    conn.pragma_update(None, "auto_vacuum", "INCREMENTAL".to_string())?;
+
+    conn.pragma_update(None, "journal_mode", "WAL".to_string())?;
+    // Default synchronous=FULL is much slower. NORMAL is sufficient for WAL mode.
+    conn.pragma_update(None, "synchronous", "NORMAL".to_string())?;
+
+    Ok(conn)
 }
 
 /// Cleanup the account to restore some storage and optimize the database.

@@ -85,7 +85,7 @@ class ConfigureTracker:
         self._imap_finished.wait()
 
     def wait_progress(self, data1=None):
-        while 1:
+        while True:
             evdata = self._progress.get()
             if data1 is None or evdata == data1:
                 break

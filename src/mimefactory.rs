@@ -1613,6 +1613,22 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_manually_set_subject() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_subject("Subjeeeeect".to_string());
+
+        let sent_msg = t.send_msg(chat.id, &mut msg).await;
+        let payload = sent_msg.payload();
+
+        assert_eq!(payload.match_indices("Subject: Subjeeeeect").count(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_subject_from_mua() {
         // 1.: Receive a mail from an MUA
         assert_eq!(

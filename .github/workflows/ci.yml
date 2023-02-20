@@ -8,28 +8,22 @@ on:
 
 env:
   RUSTFLAGS: -Dwarnings
-   
+
 jobs:
-
-  fmt:
-    name: Rustfmt
+  lint:
+    name: Rustfmt and Clippy
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: 1.67.1
     steps:
       - uses: actions/checkout@v3
-      - run: cargo fmt --all -- --check
-
-  run_clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install clippy
-        run: rustup toolchain install 1.67.1 --component clippy
+      - name: Install rustfmt and clippy
+        run: rustup toolchain install $RUSTUP_TOOLCHAIN --component rustfmt --component clippy
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
+      - name: Run rustfmt
+        run: cargo fmt --all -- --check
       - name: Run clippy
-        env:
-          RUSTUP_TOOLCHAIN: 1.67.1
         run: scripts/clippy.sh
 
   docs:
@@ -69,73 +63,73 @@ jobs:
             python: 3.7
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@master
+      - uses: actions/checkout@master
 
-    - name: Install Rust ${{ matrix.rust }}
-      run: rustup toolchain install ${{ matrix.rust }}
-    - run: rustup override set ${{ matrix.rust }}
+      - name: Install Rust ${{ matrix.rust }}
+        run: rustup toolchain install ${{ matrix.rust }}
+      - run: rustup override set ${{ matrix.rust }}
 
-    - name: Cache rust cargo artifacts
-      uses: swatinem/rust-cache@v2
+      - name: Cache rust cargo artifacts
+        uses: swatinem/rust-cache@v2
 
-    - name: Check
-      run: cargo check --workspace --bins --examples --tests --benches
+      - name: Check
+        run: cargo check --workspace --bins --examples --tests --benches
 
-    - name: Tests
-      run: cargo test --workspace
+      - name: Tests
+        run: cargo test --workspace
 
-    - name: Test cargo vendor
-      run: cargo vendor
+      - name: Test cargo vendor
+        run: cargo vendor
 
-    - name: Install python
-      if: ${{ matrix.python }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python }}
+      - name: Install python
+        if: ${{ matrix.python }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
 
-    - name: Install tox
-      if: ${{ matrix.python }}
-      run: pip install tox
+      - name: Install tox
+        if: ${{ matrix.python }}
+        run: pip install tox
 
-    - name: Build C library
-      if: ${{ matrix.python }}
-      run: cargo build -p deltachat_ffi --features jsonrpc
+      - name: Build C library
+        if: ${{ matrix.python }}
+        run: cargo build -p deltachat_ffi --features jsonrpc
 
-    - name: Run python tests
-      if: ${{ matrix.python }}
-      env:
-        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
-        DCC_RS_TARGET: debug
-        DCC_RS_DEV: ${{ github.workspace }}
-      working-directory: python
-      run: tox -e lint,mypy,doc,py3
+      - name: Run python tests
+        if: ${{ matrix.python }}
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          DCC_RS_TARGET: debug
+          DCC_RS_DEV: ${{ github.workspace }}
+        working-directory: python
+        run: tox -e lint,mypy,doc,py3
 
-    - name: Build deltachat-rpc-server
-      if: ${{ matrix.python }}
-      run: cargo build -p deltachat-rpc-server
+      - name: Build deltachat-rpc-server
+        if: ${{ matrix.python }}
+        run: cargo build -p deltachat-rpc-server
 
-    - name: Add deltachat-rpc-server to path
-      if: ${{ matrix.python }}
-      run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
+      - name: Add deltachat-rpc-server to path
+        if: ${{ matrix.python }}
+        run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
 
-    - name: Run deltachat-rpc-client tests
-      if: ${{ matrix.python }}
-      env:
-        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
-      working-directory: deltachat-rpc-client
-      run: tox -e py3,lint
+      - name: Run deltachat-rpc-client tests
+        if: ${{ matrix.python }}
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+        working-directory: deltachat-rpc-client
+        run: tox -e py3,lint
 
-    - name: Install pypy
-      if: ${{ matrix.python }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: 'pypy${{ matrix.python }}'
+      - name: Install pypy
+        if: ${{ matrix.python }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: "pypy${{ matrix.python }}"
 
-    - name: Run pypy tests
-      if: ${{ matrix.python }}
-      env:
-        DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
-        DCC_RS_TARGET: debug
-        DCC_RS_DEV: ${{ github.workspace }}
-      working-directory: python
-      run: tox -e pypy3
+      - name: Run pypy tests
+        if: ${{ matrix.python }}
+        env:
+          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          DCC_RS_TARGET: debug
+          DCC_RS_DEV: ${{ github.workspace }}
+        working-directory: python
+        run: tox -e pypy3

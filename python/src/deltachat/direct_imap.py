@@ -207,14 +207,14 @@ class IdleManager:
         return res
 
     def wait_for_new_message(self, timeout=None) -> bytes:
-        while 1:
+        while True:
             for item in self.check(timeout=timeout):
                 if b"EXISTS" in item or b"RECENT" in item:
                     return item
 
     def wait_for_seen(self, timeout=None) -> int:
         """Return first message with SEEN flag from a running idle-stream."""
-        while 1:
+        while True:
             for item in self.check(timeout=timeout):
                 if FETCH in item:
                     self.log(str(item))

@@ -108,7 +108,7 @@ class FFIEventTracker:
         return ev
 
     def iter_events(self, timeout=None, check_error=True):
-        while 1:
+        while True:
             yield self.get(timeout=timeout, check_error=check_error)
 
     def get_matching(self, event_name_regex, check_error=True, timeout=None):
@@ -119,14 +119,14 @@ class FFIEventTracker:
 
     def get_info_contains(self, regex: str) -> FFIEvent:
         rex = re.compile(regex)
-        while 1:
+        while True:
             ev = self.get_matching("DC_EVENT_INFO")
             if rex.search(ev.data2):
                 return ev
 
     def get_info_regex_groups(self, regex, check_error=True):
         rex = re.compile(regex)
-        while 1:
+        while True:
             ev = self.get_matching("DC_EVENT_INFO", check_error=check_error)
             m = rex.match(ev.data2)
             if m is not None:
@@ -137,7 +137,7 @@ class FFIEventTracker:
         This only works reliably if the connectivity doesn't change
         again too quickly, otherwise we might miss it.
         """
-        while 1:
+        while True:
             if self.account.get_connectivity() == connectivity:
                 return
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
@@ -146,7 +146,7 @@ class FFIEventTracker:
         """Wait until the connectivity changes to `expected_next`.
         Fails the test if it changes to something else.
         """
-        while 1:
+        while True:
             current = self.account.get_connectivity()
             if current == expected_next:
                 return
@@ -156,7 +156,7 @@ class FFIEventTracker:
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
     def wait_for_all_work_done(self):
-        while 1:
+        while True:
             if self.account.all_work_done():
                 return
             self.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
@@ -164,7 +164,7 @@ class FFIEventTracker:
     def ensure_event_not_queued(self, event_name_regex):
         __tracebackhide__ = True
         rex = re.compile(f"(?:{event_name_regex}).*")
-        while 1:
+        while True:
             try:
                 ev = self._event_queue.get(False)
             except Empty:
@@ -173,7 +173,7 @@ class FFIEventTracker:
                 assert not rex.match(ev.name), f"event found {ev}"
 
     def wait_securejoin_inviter_progress(self, target):
-        while 1:
+        while True:
             event = self.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
             if event.data2 >= target:
                 print(f"** SECUREJOINT-INVITER PROGRESS {target}", self.account)
