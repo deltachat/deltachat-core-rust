@@ -491,12 +491,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "send-backup" => {
             let provider = BackupProvider::prepare(&context).await?;
             let qr = provider.qr();
-            let rendered = deltachat::qr_code_generator::generate_backup_qr(&context, &qr).await?;
-            let tdir = tempfile::TempDir::new()?;
-            let dir = tdir.path();
-            let file = dir.join("qr.svg");
-            tokio::fs::write(&file, rendered).await?;
-            println!("The QR code is at: {}", file.display());
+            println!("QR code: {}", format_backup(&qr)?);
             provider.join().await?;
         }
         "receive-backup" => {
