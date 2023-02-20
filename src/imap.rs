@@ -728,8 +728,6 @@ impl Imap {
         };
         let read_cnt = msgs.len();
 
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
-            .unwrap_or_default();
         let download_limit = context.download_limit().await?;
         let mut uids_fetch = Vec::<(_, bool /* partially? */)>::with_capacity(msgs.len() + 1);
         let mut uid_message_ids = BTreeMap::new();
@@ -778,7 +776,6 @@ impl Imap {
                     &headers,
                     &message_id,
                     fetch_response.flags(),
-                    show_emails,
                 )
                 .await.context("prefetch_should_download")?
             {
@@ -2055,7 +2052,6 @@ pub(crate) async fn prefetch_should_download(
     headers: &[mailparse::MailHeader<'_>],
     message_id: &str,
     mut flags: impl Iterator<Item = Flag<'_>>,
-    show_emails: ShowEmails,
 ) -> Result<bool> {
     if message::rfc724_mid_exists(context, message_id)
         .await?
@@ -2114,6 +2110,9 @@ pub(crate) async fn prefetch_should_download(
             MessengerMessage::Yes | MessengerMessage::Reply => true,
         })
         .unwrap_or_default();
+
+    let show_emails =
+        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
 
     let show = is_autocrypt_setup_message
         || match show_emails {
