@@ -234,7 +234,7 @@ pub struct InnerContext {
     /// If debug logging is enabled, this contains all neccesary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
 
-    /// Qr code for currently running [`BackupProvider`].
+    /// QR code for currently running [`BackupProvider`].
     ///
     /// This is only available if a backup export is currently running, it will also be
     /// holding the ongoing process while running.
