@@ -3,7 +3,7 @@
   "dependencies": {
     "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
-    "yerpc": "^0.3.3"
+    "yerpc": "^0.4.2"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",
