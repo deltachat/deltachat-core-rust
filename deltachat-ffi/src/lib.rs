@@ -4142,13 +4142,10 @@ pub unsafe extern "C" fn dc_backup_provider_new(
         return ptr::null_mut();
     }
     let ctx = &*context;
-    block_on(async move {
-        BackupProvider::prepare(ctx)
-            .await
-            .map(|provider| Box::into_raw(Box::new(provider)))
-            .log_err(ctx, "BackupProvider failed")
-            .unwrap_or(ptr::null_mut())
-    })
+    block_on(BackupProvider::prepare(ctx))
+        .map(|provider| Box::into_raw(Box::new(provider)))
+        .log_err(ctx, "BackupProvider failed")
+        .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]
@@ -4168,17 +4165,14 @@ pub unsafe extern "C" fn dc_backup_provider_qr_svg(
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_send_backup()");
+        eprintln!("ignoring careless call to dc_backup_provider_qr_svg()");
         return ptr::null_mut();
     }
     let ctx = &*context;
     let provider = &*provider;
-    block_on(async move {
-        generate_backup_qr(ctx, &provider.qr())
-            .await
-            .unwrap_or_default()
-            .strdup()
-    })
+    block_on(generate_backup_qr(ctx, &provider.qr()))
+        .unwrap_or_default()
+        .strdup()
 }
 
 #[no_mangle]
@@ -4187,18 +4181,14 @@ pub unsafe extern "C" fn dc_backup_provider_wait(
     provider: *mut dc_backup_provider_t,
 ) {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_send_backup()");
+        eprintln!("ignoring careless call to dc_backup_provider_wait()");
         return;
     }
     let ctx = &*context;
     let provider = Box::from_raw(provider);
-    block_on(async move {
-        provider
-            .join()
-            .await
-            .log_err(ctx, "Failed to join provider")
-            .ok();
-    });
+    block_on(provider.join())
+        .log_err(ctx, "Failed to join provider")
+        .ok();
 }
 
 #[no_mangle]
@@ -4207,7 +4197,7 @@ pub unsafe extern "C" fn dc_receive_backup(
     qr: *const libc::c_char,
 ) -> libc::c_int {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_send_backup()");
+        eprintln!("ignoring careless call to dc_receive_backup()");
         return 0;
     }
     let ctx = &*context;
