@@ -81,8 +81,11 @@ jobs:
       - name: Check
         run: cargo check --workspace --bins --examples --tests --benches
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Tests
-        run: cargo test --workspace
+        run: cargo nextest run --workspace
 
       - name: Test cargo vendor
         run: cargo vendor
