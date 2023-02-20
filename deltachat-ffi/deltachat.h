@@ -2649,9 +2649,9 @@ void dc_str_unref (char* str);
  * by a QR-code.  The backup contains the entire state of the account
  * including credentials.  This can be used to setup a new device.
  *
- * Once this function returns the backup is being offered to remove devices.
- * To wait until one device transferred the backup, use
- * dc_backup_provider_done().  Alternatively abort the operation using
+ * Once this function returns, the backup is being offered to remove devices.
+ * To wait until one device received the backup, use
+ * dc_backup_provider_wait().  Alternatively abort the operation using
  * dc_stop_ongoing_process().
  *
  * During execution of the job #DC_EVENT_IMEX_PROGRESS is sent out to indicate
@@ -2663,7 +2663,7 @@ void dc_str_unref (char* str);
  *    On errors, NULL is returned and dc_get_last_error()returns an error that
  *    should be shown to the user.
  */
-dc_backup_provider_t* dc_provide_backup (dc_context_t* context);
+dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
 
 
 /**
@@ -2679,7 +2679,7 @@ dc_backup_provider_t* dc_provide_backup (dc_context_t* context);
  * @memberof dc_backup_provider_t
  * @param context The context.
  * @param backup_provider The backup provider object as created by
- *    dc_provide_backup().
+ *    dc_backup_provider_new().
  * @return The text that should be put in the QR code.
  *    On errors and empty QR code is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
@@ -2696,8 +2696,8 @@ char* dc_backup_provider_qr (dc_context_t* context, const dc_backup_provider_t* 
  * @memberof dc_backup_provider_t
  * @param context The context.
  * @param backup_provider The backup provider object as created by
- *    dc_provide_backup().
- * @return The text that should be put in the QR code.
+ *    dc_backup_provider_new().
+ * @return The QR code rendered as SVG.
  *    On errors and empty QR code is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
@@ -2708,10 +2708,10 @@ char * dc_backup_provider_qr_svg (dc_context_t* context, const dc_backup_provide
  *
  * @memberof dc_backup_sender_t
  * @param context The context.
- * @param backup_sender The backup sender object as created by dc_send_backup().
- *    If NULL is given nothing is done.
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().  If NULL is given nothing is done.
  */
-void dc_backup_provider_done (dc_context_t* context, dc_backup_provider_t* backup_provider);
+void dc_backup_provider_wait (dc_context_t* context, dc_backup_provider_t* backup_provider);
 
 
 /**
@@ -2721,18 +2721,20 @@ void dc_backup_provider_done (dc_context_t* context, dc_backup_provider_t* backu
  * dc_backup_sender_qr() or dc_backup_sender_qr_svg().  Typically this is a
  * different device than that which provides the backup.
  *
- * While dc_receive_backup() returns immediately the started job make take a
- * while.  Use dc_stop_ongoing_process() to abort it early.
+ * This call will block while the backup is being transferred and only
+ * complete on success or failure.  Use dc_stop_ongoing_process() to abort it
+ * early.
  *
  * During execution of the job #DC_EVENT_IMEX_PROGRESS is sent out to indicate
- * state and progress.
+ * state and progress.  The process is finished when the event emits either 0
+ * or 1000, 0 means it failed and 1000 means it succeeded.  These events are
+ * for showing progress and informational only, success and failure is also
+ * shown in the return code of this function.
  *
  * @param context The context.
  * @param qr The qr code text, dc_check_qr() must have returned DC_QR_BACKUP
  *    on this text.
- * @return 0=failure, 1=success.  Success only means the progress was started
- *    correctly, final success or failure is via the #DC_EVENT_IMEX_PROGRESS
- *    events.
+ * @return 0=failure, 1=success.
  */
 int dc_receive_backup (dc_context_t* context, const char* qr);
 

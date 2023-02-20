@@ -284,6 +284,8 @@ impl From<SendProgress> for EventType {
 /// using the [`BackupProvider`].  Once connected it will authenticate using the secrets in
 /// the QR code and retrieve the backup.
 ///
+/// This is a long running operation which will only when completed.
+///
 /// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
 /// does avoid having [`sendme::provider::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.

@@ -4134,7 +4134,7 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
 pub type dc_backup_provider_t = BackupProvider;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_provide_backup(
+pub unsafe extern "C" fn dc_backup_provider_new(
     context: *mut dc_context_t,
 ) -> *mut dc_backup_provider_t {
     if context.is_null() {
@@ -4182,7 +4182,7 @@ pub unsafe extern "C" fn dc_backup_provider_qr_svg(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_backup_provider_done(
+pub unsafe extern "C" fn dc_backup_provider_wait(
     context: *mut dc_context_t,
     provider: *mut dc_backup_provider_t,
 ) {
