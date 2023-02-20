@@ -250,7 +250,7 @@ def data(request):
                 fn = os.path.join(path, *bn.split("/"))
                 if os.path.exists(fn):
                     return fn
-            print(f"WARNING: path does not exist: {fn!r}")
+            print(f"WARNING: path does not exist: {request!r}")
             return None
 
         def read_path(self, bn, mode="r"):

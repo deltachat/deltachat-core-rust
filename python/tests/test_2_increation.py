@@ -1,6 +1,7 @@
 import os.path
 import shutil
 from filecmp import cmp
+from typing import Optional
 
 import pytest
 
@@ -13,7 +14,7 @@ def wait_msg_delivered(account, msg_list):
         msg_list.remove((ev.data1, ev.data2))
 
 
-def wait_msgs_changed(account, msgs_list):
+def wait_msgs_changed(account, msgs_list: list[tuple[int, Optional[int]]]):
     """wait for one or more MSGS_CHANGED events to match msgs_list contents."""
     account.log(f"waiting for msgs_list={msgs_list}")
     msgs_list = list(msgs_list)

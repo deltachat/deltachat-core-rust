@@ -111,11 +111,12 @@ class FFIEventTracker:
         while True:
             yield self.get(timeout=timeout, check_error=check_error)
 
-    def get_matching(self, event_name_regex, check_error=True, timeout=None):
+    def get_matching(self, event_name_regex, check_error=True, timeout=None) -> FFIEvent:
         rex = re.compile(f"^(?:{event_name_regex})$")
         for ev in self.iter_events(timeout=timeout, check_error=check_error):
             if rex.match(ev.name):
                 return ev
+        assert False
 
     def get_info_contains(self, regex: str) -> FFIEvent:
         rex = re.compile(regex)
@@ -123,6 +124,7 @@ class FFIEventTracker:
             ev = self.get_matching("DC_EVENT_INFO")
             if rex.search(ev.data2):
                 return ev
+        assert False
 
     def get_info_regex_groups(self, regex, check_error=True):
         rex = re.compile(regex)

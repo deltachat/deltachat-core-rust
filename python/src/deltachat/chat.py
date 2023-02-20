@@ -463,9 +463,10 @@ class Chat:
         :returns: None
         """
         contact = self.account.get_contact(obj)
-        ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
-        if ret != 1:
-            raise ValueError(f"could not remove contact {contact!r} from chat")
+        if contact:
+            ret = lib.dc_remove_contact_from_chat(self.account._dc_context, self.id, contact.id)
+            if ret != 1:
+                raise ValueError("could not remove contact {contact!r} from chat")
 
     def get_contacts(self):
         """get all contacts for this chat.

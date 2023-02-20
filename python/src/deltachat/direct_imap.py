@@ -147,7 +147,7 @@ class DirectImap:
                     log("Message", msg.uid, "has empty body")
                     continue
 
-                path = pathlib.Path(str(dir)).joinpath("IMAP", self.logid, imapfolder)
+                path = pathlib.Path(str(dir)).joinpath("IMAP", str(self.logid), imapfolder)
                 path.mkdir(parents=True, exist_ok=True)
                 fn = path.joinpath(str(msg.uid))
                 fn.write_bytes(body)
