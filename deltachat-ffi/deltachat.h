@@ -2706,13 +2706,21 @@ char * dc_backup_provider_qr_svg (dc_context_t* context, const dc_backup_provide
 /**
  * Waits for the sending to finish and frees the backup provider object.
  *
- * @memberof dc_backup_sender_t
+ * This should only be called once.
+ *
+ * @memberof dc_backup_provider_t
  * @param context The context.
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().  If NULL is given nothing is done.
  */
 void dc_backup_provider_wait (dc_context_t* context, dc_backup_provider_t* backup_provider);
 
+/**
+ * Frees a dc_backup_provider_t object.
+ *
+ * @memberof dc_backup_provider_t
+ */
+void dc_backup_prvider_unref (dc_backup_provider_t* backup_provider);
 
 /**
  * Gets a backup offered by a dc_backup_provider_t object on another device.

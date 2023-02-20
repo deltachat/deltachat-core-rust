@@ -492,7 +492,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let provider = BackupProvider::prepare(&context).await?;
             let qr = provider.qr();
             println!("QR code: {}", format_backup(&qr)?);
-            provider.join().await?;
+            provider.await?;
         }
         "receive-backup" => {
             ensure!(!arg1.is_empty(), "Argument <qr> is missing.");

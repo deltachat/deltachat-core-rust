@@ -4185,10 +4185,15 @@ pub unsafe extern "C" fn dc_backup_provider_wait(
         return;
     }
     let ctx = &*context;
-    let provider = Box::from_raw(provider);
-    block_on(provider.join())
+    let provider = &mut *provider;
+    block_on(provider)
         .log_err(ctx, "Failed to join provider")
         .ok();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_unref(provider: *mut dc_backup_provider_t) {
+    drop(Box::from_raw(provider));
 }
 
 #[no_mangle]

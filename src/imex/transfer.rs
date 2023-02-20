@@ -22,7 +22,10 @@
 //! getter can not connect to an impersonated provider and the provider does not offer the
 //! download to an impersonated getter.
 
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::task::Poll;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
@@ -57,6 +60,9 @@ use super::{export_database, DeleteOnDrop, DBFILE_BACKUP_NAME};
 ///
 /// This starts a task which acquires the global "ongoing" mutex.  If you need to stop the
 /// task use the [`Context::stop_ongoing`] mechanism.
+///
+/// The task implements [`Future`] and awaiting it will complete once a transfer has been
+/// either completed or aborted.
 #[derive(Debug)]
 pub struct BackupProvider {
     /// The supervisor task, run by [`BackupProvider::watch_provider`].
@@ -244,15 +250,13 @@ impl BackupProvider {
             ticket: self.ticket.clone(),
         }
     }
+}
 
-    /// Awaits the [`BackupProvider`] until it is finished.
-    ///
-    /// This waits until someone connected to the sender and finished transferring a backup.
-    /// A failed transfer also counts as a finished transfer.  If the [`BackupProvider`]
-    /// task results in an error it will be returned here.
-    pub async fn join(self) -> Result<()> {
-        self.handle.await??;
-        Ok(())
+impl Future for BackupProvider {
+    type Output = Result<()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.handle).poll(cx)?
     }
 }
 
@@ -507,7 +511,7 @@ mod tests {
         get_backup(&ctx1, provider.qr()).await.unwrap();
 
         // Make sure the provider finishes without an error.
-        tokio::time::timeout(Duration::from_secs(30), provider.join())
+        tokio::time::timeout(Duration::from_secs(30), provider)
             .await
             .expect("timed out")
             .expect("error in provider");

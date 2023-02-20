@@ -1371,7 +1371,7 @@ impl CommandApi {
                 return Err(err);
             }
         };
-        let res = provider.join().await;
+        let res = provider.await;
         ctx.start_io().await;
         res
     }
