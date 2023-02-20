@@ -11,13 +11,13 @@ jobs:
     name: Build REPL example
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Build
-      run: cargo build -p deltachat-repl --features vendored
+      - name: Build
+        run: cargo build -p deltachat-repl --features vendored
 
-    - name: Upload binary
-      uses: actions/upload-artifact@v3
-      with:
-        name: repl.exe
-        path: 'target/debug/deltachat-repl.exe'
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: repl.exe
+          path: "target/debug/deltachat-repl.exe"

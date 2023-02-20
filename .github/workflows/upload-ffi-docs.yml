@@ -8,20 +8,18 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build the documentation with cargo
-      run: |
-        cargo doc --package deltachat_ffi --no-deps
-    - name: Upload to cffi.delta.chat
-      uses: up9cloud/action-rsync@v1.3
-      env:
-        USER: ${{ secrets.USERNAME }}
-        KEY: ${{ secrets.KEY }}
-        HOST: "delta.chat"
-        SOURCE: "target/doc"
-        TARGET: "/var/www/html/cffi/"
-
+      - uses: actions/checkout@v3
+      - name: Build the documentation with cargo
+        run: |
+          cargo doc --package deltachat_ffi --no-deps
+      - name: Upload to cffi.delta.chat
+        uses: up9cloud/action-rsync@v1.3
+        env:
+          USER: ${{ secrets.USERNAME }}
+          KEY: ${{ secrets.KEY }}
+          HOST: "delta.chat"
+          SOURCE: "target/doc"
+          TARGET: "/var/www/html/cffi/"
