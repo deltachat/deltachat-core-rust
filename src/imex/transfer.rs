@@ -247,8 +247,9 @@ impl BackupProvider {
 
     /// Awaits the [`BackupProvider`] until it is finished.
     ///
-    /// This waits until someone connected to the sender and transferred a backup.  If the
-    /// [`BackupProvider`] task results in an error it will be returned here.
+    /// This waits until someone connected to the sender and finished transferring a backup.
+    /// A failed transfer also counts as a finished transfer.  If the [`BackupProvider`]
+    /// task results in an error it will be returned here.
     pub async fn join(self) -> Result<()> {
         self.handle.await??;
         Ok(())
