@@ -6,7 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{self, config::DbConfig, Connection, OpenFlags};
+use rusqlite::{self, config::DbConfig, Connection, OpenFlags, TransactionBehavior};
 use tokio::sync::RwLock;
 
 use crate::blob::BlobObject;
@@ -377,6 +377,12 @@ impl Sql {
     ///
     /// If the function returns an error, the transaction will be rolled back. If it does not return an
     /// error, the transaction will be committed.
+    ///
+    /// Transactions started use IMMEDIATE behavior
+    /// rather than default DEFERRED behavior
+    /// to avoid "database is busy" errors
+    /// which may happen when DEFERRED transaction
+    /// is attempted to be promoted to a write transaction.
     pub async fn transaction<G, H>(&self, callback: G) -> Result<H>
     where
         H: Send + 'static,
@@ -384,7 +390,7 @@ impl Sql {
     {
         let mut conn = self.get_conn().await?;
         tokio::task::block_in_place(move || {
-            let mut transaction = conn.transaction()?;
+            let mut transaction = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let ret = callback(&mut transaction);
 
             match ret {

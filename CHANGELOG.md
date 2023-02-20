@@ -6,6 +6,7 @@
 - use transaction in `Contact::add_or_lookup()` #4059
 
 ### Fixes
+- Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
 
 ### API-Changes
 
