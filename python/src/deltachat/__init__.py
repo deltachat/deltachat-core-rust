@@ -1,6 +1,9 @@
 import sys
 
-from importlib.metadata import PackageNotFoundError, version
+try:
+    from importlib.metadata import PackageNotFoundError, version
+except ImportError:
+    from importlib_metadata import PackageNotFoundError, version
 
 from . import capi, events, hookspec  # noqa
 from .account import Account, get_core_info  # noqa
