@@ -2026,7 +2026,7 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msg.viewtype.has_file() {
-        let blob = msg
+        let mut blob = msg
             .param
             .get_blob(Param::File, context, !msg.is_increation())
             .await?
