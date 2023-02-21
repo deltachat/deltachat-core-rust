@@ -39,7 +39,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release -p deltachat-rpc-server
+        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.target }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
