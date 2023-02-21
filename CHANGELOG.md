@@ -9,6 +9,7 @@
   This speeds up tests by 28%, real usage will have lower speedup. #4065
 - Use transaction in `update_blocked_mailinglist_contacts`. #4058
 - Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
+- Updated provider database.
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
