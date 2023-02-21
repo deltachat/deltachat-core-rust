@@ -5,7 +5,8 @@
 ### Changes
 - use transaction in `Contact::add_or_lookup()` #4059
 - Organize the connection pool as a stack rather than a queue to ensure that
-  connection page cache is reused more often. #4065
+  connection page cache is reused more often.
+  This speeds up tests by 28%, real usage will have lower speedup. #4065
 - Use transaction in `update_blocked_mailinglist_contacts`. #4058
 - Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
 
