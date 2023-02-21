@@ -13,7 +13,7 @@ class DeltaChat:
     This is the root of the object oriented API.
     """
 
-    def __init__(self, rpc: Rpc) -> None:
+    def __init__(self, rpc: "Rpc") -> None:
         self.rpc = rpc
 
     async def add_account(self) -> Account:

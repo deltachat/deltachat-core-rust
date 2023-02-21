@@ -21,7 +21,7 @@ class Contact:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def block(self) -> None:

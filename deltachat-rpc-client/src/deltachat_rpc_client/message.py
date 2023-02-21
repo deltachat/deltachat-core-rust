@@ -18,7 +18,7 @@ class Message:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def send_reaction(self, *reaction: str):

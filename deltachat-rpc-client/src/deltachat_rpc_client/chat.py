@@ -22,7 +22,7 @@ class Chat:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def delete(self) -> None:
@@ -218,8 +218,8 @@ class Chat:
     async def get_locations(
         self,
         contact: Optional[Contact] = None,
-        timestamp_from: Optional[datetime] = None,
-        timestamp_to: Optional[datetime] = None,
+        timestamp_from: Optional["datetime"] = None,
+        timestamp_to: Optional["datetime"] = None,
     ) -> List[AttrDict]:
         """Get list of location snapshots for the given contact in the given timespan."""
         time_from = calendar.timegm(timestamp_from.utctimetuple()) if timestamp_from else 0

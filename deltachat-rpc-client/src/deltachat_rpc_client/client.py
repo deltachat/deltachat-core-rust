@@ -39,7 +39,7 @@ class Client:
 
     def __init__(
         self,
-        account: Account,
+        account: "Account",
         hooks: Optional[Iterable[Tuple[Callable, Union[type, EventFilter]]]] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:

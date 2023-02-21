@@ -20,7 +20,7 @@ class Account:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.manager.rpc
 
     async def wait_for_event(self) -> AttrDict:
