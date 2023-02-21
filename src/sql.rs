@@ -129,43 +129,49 @@ impl Sql {
             .to_str()
             .with_context(|| format!("path {path:?} is not valid unicode"))?
             .to_string();
-        self.call(move |conn| {
-            // Check that backup passphrase is correct before resetting our database.
-            conn.execute(
-                "ATTACH DATABASE ? AS backup KEY ?",
-                paramsv![path_str, passphrase],
-            )
-            .context("failed to attach backup database")?;
-            if let Err(err) = conn
-                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
-                .context("backup passphrase is not correct")
-            {
+        let res = self
+            .call(move |conn| {
+                // Check that backup passphrase is correct before resetting our database.
+                conn.execute(
+                    "ATTACH DATABASE ? AS backup KEY ?",
+                    paramsv![path_str, passphrase],
+                )
+                .context("failed to attach backup database")?;
+                if let Err(err) = conn
+                    .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                    .context("backup passphrase is not correct")
+                {
+                    conn.execute("DETACH DATABASE backup", [])
+                        .context("failed to detach backup database")?;
+                    return Err(err);
+                }
+
+                // Reset the database without reopening it. We don't want to reopen the database because we
+                // don't have main database passphrase at this point.
+                // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
+                // Without resetting import may fail due to existing tables.
+                conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
+                    .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
+                conn.execute("VACUUM", [])
+                    .context("failed to vacuum the database")?;
+                conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
+                    .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
+                let res = conn
+                    .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
+                        Ok(())
+                    })
+                    .context("failed to import from attached backup database");
                 conn.execute("DETACH DATABASE backup", [])
                     .context("failed to detach backup database")?;
-                return Err(err);
-            }
+                res?;
+                Ok(())
+            })
+            .await;
 
-            // Reset the database without reopening it. We don't want to reopen the database because we
-            // don't have main database passphrase at this point.
-            // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
-            // Without resetting import may fail due to existing tables.
-            conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
-                .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
-            conn.execute("VACUUM", [])
-                .context("failed to vacuum the database")?;
-            conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
-                .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
-            let res = conn
-                .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
-                    Ok(())
-                })
-                .context("failed to import from attached backup database");
-            conn.execute("DETACH DATABASE backup", [])
-                .context("failed to detach backup database")?;
-            res?;
-            Ok(())
-        })
-        .await
+        // The config cache is wrong now that we have a different database
+        self.config_cache.write().await.clear();
+
+        res
     }
 
     /// Creates a new connection pool.
