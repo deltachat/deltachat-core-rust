@@ -256,26 +256,27 @@ impl MimeMessage {
         hop_info += &decryption_info.dkim_results.to_string();
 
         let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
-        let (mail, mut signatures, encrypted) =
-            match try_decrypt(context, &mail, &private_keyring, &public_keyring) {
-                Ok(Some((raw, signatures))) => {
-                    mail_raw = raw;
-                    let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
-                    if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
-                        info!(
-                            context,
-                            "decrypted message mime-body:\n{}",
-                            String::from_utf8_lossy(&mail_raw),
-                        );
-                    }
-                    (Ok(decrypted_mail), signatures, true)
+        let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
+            try_decrypt(context, &mail, &private_keyring, &public_keyring)
+        }) {
+            Ok(Some((raw, signatures))) => {
+                mail_raw = raw;
+                let decrypted_mail = mailparse::parse_mail(&mail_raw)?;
+                if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
+                    info!(
+                        context,
+                        "decrypted message mime-body:\n{}",
+                        String::from_utf8_lossy(&mail_raw),
+                    );
                 }
-                Ok(None) => (Ok(mail), HashSet::new(), false),
-                Err(err) => {
-                    warn!(context, "decryption failed: {:#}", err);
-                    (Err(err), HashSet::new(), false)
-                }
-            };
+                (Ok(decrypted_mail), signatures, true)
+            }
+            Ok(None) => (Ok(mail), HashSet::new(), false),
+            Err(err) => {
+                warn!(context, "decryption failed: {:#}", err);
+                (Err(err), HashSet::new(), false)
+            }
+        };
         let mail = mail.as_ref().map(|mail| {
             let (content, signatures_detached) = validate_detached_signature(mail, &public_keyring)
                 .unwrap_or((mail, Default::default()));
