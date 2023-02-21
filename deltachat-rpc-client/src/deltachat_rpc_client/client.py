@@ -2,6 +2,7 @@
 import inspect
 import logging
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Coroutine,
     Dict,
@@ -12,8 +13,6 @@ from typing import (
     Type,
     Union,
 )
-
-from deltachat_rpc_client.account import Account
 
 from ._utils import (
     AttrDict,
@@ -30,6 +29,9 @@ from .events import (
     NewMessage,
     RawEvent,
 )
+
+if TYPE_CHECKING:
+    from deltachat_rpc_client.account import Account
 
 
 class Client:

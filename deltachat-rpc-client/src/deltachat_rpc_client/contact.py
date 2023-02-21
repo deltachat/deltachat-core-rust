@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ._utils import AttrDict
-from .rpc import Rpc
 
 if TYPE_CHECKING:
     from .account import Account
     from .chat import Chat
+    from .rpc import Rpc
 
 
 @dataclass

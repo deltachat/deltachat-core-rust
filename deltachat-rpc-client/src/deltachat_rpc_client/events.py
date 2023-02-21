@@ -2,10 +2,12 @@
 import inspect
 import re
 from abc import ABC, abstractmethod
-from typing import Callable, Iterable, Iterator, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Optional, Set, Tuple, Union
 
-from ._utils import AttrDict
 from .const import EventType
+
+if TYPE_CHECKING:
+    from ._utils import AttrDict
 
 
 def _tuple_of(obj, type_: type) -> tuple:

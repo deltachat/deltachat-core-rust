@@ -1,8 +1,10 @@
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 from ._utils import AttrDict
 from .account import Account
-from .rpc import Rpc
+
+if TYPE_CHECKING:
+    from .rpc import Rpc
 
 
 class DeltaChat:

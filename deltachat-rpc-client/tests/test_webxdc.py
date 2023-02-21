@@ -1,5 +1,4 @@
 import pytest
-
 from deltachat_rpc_client import EventType
 
 
