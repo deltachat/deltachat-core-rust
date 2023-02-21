@@ -9,21 +9,17 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
 use futures::StreamExt;
-use image::{DynamicImage, ImageFormat};
+use image::{DynamicImage, ImageFormat, ImageOutputFormat};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
 use tokio_stream::wrappers::ReadDirStream;
 
 use crate::config::Config;
-use crate::constants::{
-    MediaQuality, BALANCED_AVATAR_SIZE, BALANCED_IMAGE_SIZE, WORSE_AVATAR_SIZE, WORSE_IMAGE_SIZE,
-};
+use crate::constants::{self, MediaQuality};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::log::LogExt;
-use crate::message;
-use crate::message::Viewtype;
 
 /// Represents a file in the blob directory.
 ///
@@ -323,66 +319,60 @@ impl<'a> BlobObject<'a> {
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
             {
-                MediaQuality::Balanced => BALANCED_AVATAR_SIZE,
-                MediaQuality::Worse => WORSE_AVATAR_SIZE,
+                MediaQuality::Balanced => constants::BALANCED_AVATAR_SIZE,
+                MediaQuality::Worse => constants::WORSE_AVATAR_SIZE,
             };
 
+        let strict_limits = true;
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) = self.recode_to_size(context, blob_abs, img_wh, Some(20_000))? {
+        if let Some(new_name) =
+            self.recode_to_size(context, blob_abs, img_wh, 20_000, strict_limits)?
+        {
             self.name = new_name;
         }
         Ok(())
     }
 
-    pub async fn recode_to_image_size(&self, context: &Context) -> Result<()> {
+    pub async fn recode_to_image_size(&mut self, context: &Context) -> Result<()> {
         let blob_abs = self.to_abs_path();
-        if message::guess_msgtype_from_suffix(Path::new(&blob_abs))
-            != Some((Viewtype::Image, "image/jpeg"))
-        {
-            return Ok(());
-        }
-
-        let img_wh =
+        let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
                 .unwrap_or_default()
             {
-                MediaQuality::Balanced => BALANCED_IMAGE_SIZE,
-                MediaQuality::Worse => WORSE_IMAGE_SIZE,
+                MediaQuality::Balanced => (
+                    constants::BALANCED_IMAGE_SIZE,
+                    constants::BALANCED_IMAGE_BYTES,
+                ),
+                MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
             };
-
-        if self
-            .recode_to_size(context, blob_abs, img_wh, None)?
-            .is_some()
+        let strict_limits = false;
+        if let Some(new_name) =
+            self.recode_to_size(context, blob_abs, img_wh, max_bytes, strict_limits)?
         {
-            return Err(format_err!(
-                "Internal error: recode_to_size(..., None) shouldn't change the name of the image"
-            ));
+            self.name = new_name;
         }
         Ok(())
     }
 
+    /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
+    /// proceed with the result.
     fn recode_to_size(
         &self,
         context: &Context,
         mut blob_abs: PathBuf,
         mut img_wh: u32,
-        max_bytes: Option<usize>,
+        max_bytes: usize,
+        strict_limits: bool,
     ) -> Result<Option<String>> {
         tokio::task::block_in_place(move || {
-            let mut img = image::open(&blob_abs).context("image recode failure")?;
-            let exif = self.get_exif().ok();
+            let mut img = image::open(&blob_abs).context("image decode failure")?;
+            let (nr_bytes, exif) = self.metadata()?;
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
             let mut changed_name = None;
 
-            let exceeds_width = img.width() > img_wh || img.height() > img_wh;
-
-            let do_scale =
-                exceeds_width || encoded_img_exceeds_bytes(context, &img, max_bytes, &mut encoded)?;
-            let do_rotate = matches!(orientation, Some(90) | Some(180) | Some(270));
-
-            if do_rotate {
+            if matches!(orientation, Some(90) | Some(180) | Some(270)) {
                 img = match orientation {
                     Some(90) => img.rotate90(),
                     Some(180) => img.rotate180(),
@@ -391,30 +381,62 @@ impl<'a> BlobObject<'a> {
                 }
             }
 
+            let exceeds_wh = img.width() > img_wh || img.height() > img_wh;
+            let exceeds_max_bytes = nr_bytes > max_bytes as u64;
+
+            let fmt = ImageFormat::from_path(&blob_abs);
+            let ofmt = match fmt {
+                Ok(ImageFormat::Png) if !exceeds_max_bytes => ImageOutputFormat::Png,
+                _ => ImageOutputFormat::Jpeg(75),
+            };
+            // We need to rewrite images with Exif to remove metadata such as location,
+            // camera model, etc.
+            //
+            // TODO: Fix lost animation and transparency when recoding using the `image` crate. And
+            // also `Viewtype::Gif` (maybe renamed to `Animation`) should be used for animated
+            // images.
+            let do_scale = exceeds_max_bytes
+                || strict_limits
+                    && (exceeds_wh
+                        || exif.is_some()
+                            && encoded_img_exceeds_bytes(
+                                context,
+                                &img,
+                                ofmt.clone(),
+                                max_bytes,
+                                &mut encoded,
+                            )?);
+
             if do_scale {
-                if !exceeds_width {
-                    // The image is already smaller than img_wh, but exceeds max_bytes
-                    // We can directly start with trying to scale down to 2/3 of its current width
-                    img_wh = max(img.width(), img.height()) * 2 / 3
+                if !exceeds_wh {
+                    img_wh = max(img.width(), img.height());
+                    // PNGs and WebPs may be huge because of animation, which is lost by the `image`
+                    // crate when recoding, so don't scale them down.
+                    if matches!(fmt, Ok(ImageFormat::Jpeg)) || !encoded.is_empty() {
+                        img_wh = img_wh * 2 / 3;
+                    }
                 }
 
                 loop {
                     let new_img = img.thumbnail(img_wh, img_wh);
 
-                    if encoded_img_exceeds_bytes(context, &new_img, max_bytes, &mut encoded)? {
+                    if encoded_img_exceeds_bytes(
+                        context,
+                        &new_img,
+                        ofmt.clone(),
+                        max_bytes,
+                        &mut encoded,
+                    )? && strict_limits
+                    {
                         if img_wh < 20 {
                             return Err(format_err!(
                                 "Failed to scale image to below {}B.",
-                                max_bytes.unwrap_or_default()
+                                max_bytes,
                             ));
                         }
 
                         img_wh = img_wh * 2 / 3;
                     } else {
-                        if encoded.is_empty() {
-                            encode_img(&new_img, &mut encoded)?;
-                        }
-
                         info!(
                             context,
                             "Final scaled-down image size: {}B ({}px).",
@@ -426,19 +448,19 @@ impl<'a> BlobObject<'a> {
                 }
             }
 
-            // We also need to rewrite the file to remove metadata such as location, camera model,
-            // etc. if any
-            if do_rotate || do_scale || exif.is_some() {
-                // The file format is JPEG now, we may have to change the file extension
-                if !matches!(ImageFormat::from_path(&blob_abs), Ok(ImageFormat::Jpeg)) {
+            if do_scale || exif.is_some() {
+                // The file format is JPEG/PNG now, we may have to change the file extension
+                if !matches!(fmt, Ok(ImageFormat::Jpeg))
+                    && matches!(ofmt, ImageOutputFormat::Jpeg(_))
+                {
                     blob_abs = blob_abs.with_extension("jpg");
-                    let file_name = blob_abs.file_name().context("No avatar file name (???)")?;
+                    let file_name = blob_abs.file_name().context("No image file name (???)")?;
                     let file_name = file_name.to_str().context("Filename is no UTF-8 (???)")?;
                     changed_name = Some(format!("$BLOBDIR/{file_name}"));
                 }
 
                 if encoded.is_empty() {
-                    encode_img(&img, &mut encoded)?;
+                    encode_img(&img, ofmt, &mut encoded)?;
                 }
 
                 std::fs::write(&blob_abs, &encoded)
@@ -449,11 +471,13 @@ impl<'a> BlobObject<'a> {
         })
     }
 
-    pub fn get_exif(&self) -> Result<exif::Exif> {
+    /// Returns image file size and Exif.
+    pub fn metadata(&self) -> Result<(u64, Option<exif::Exif>)> {
         let file = std::fs::File::open(self.to_abs_path())?;
+        let len = file.metadata()?.len();
         let mut bufreader = std::io::BufReader::new(&file);
-        let exifreader = exif::Reader::new();
-        Ok(exifreader.read_from_container(&mut bufreader)?)
+        let exif = exif::Reader::new().read_from_container(&mut bufreader).ok();
+        Ok((len, exif))
     }
 }
 
@@ -558,31 +582,35 @@ impl<'a> Iterator for BlobDirIter<'a> {
 
 impl FusedIterator for BlobDirIter<'_> {}
 
-fn encode_img(img: &DynamicImage, encoded: &mut Vec<u8>) -> anyhow::Result<()> {
+fn encode_img(
+    img: &DynamicImage,
+    fmt: ImageOutputFormat,
+    encoded: &mut Vec<u8>,
+) -> anyhow::Result<()> {
     encoded.clear();
     let mut buf = Cursor::new(encoded);
-    img.write_to(&mut buf, image::ImageFormat::Jpeg)?;
+    img.write_to(&mut buf, fmt)?;
     Ok(())
 }
+
 fn encoded_img_exceeds_bytes(
     context: &Context,
     img: &DynamicImage,
-    max_bytes: Option<usize>,
+    fmt: ImageOutputFormat,
+    max_bytes: usize,
     encoded: &mut Vec<u8>,
 ) -> anyhow::Result<bool> {
-    if let Some(max_bytes) = max_bytes {
-        encode_img(img, encoded)?;
-        if encoded.len() > max_bytes {
-            info!(
-                context,
-                "Image size {}B ({}x{}px) exceeds {}B, need to scale down.",
-                encoded.len(),
-                img.width(),
-                img.height(),
-                max_bytes,
-            );
-            return Ok(true);
-        }
+    encode_img(img, fmt, encoded)?;
+    if encoded.len() > max_bytes {
+        info!(
+            context,
+            "Image size {}B ({}x{}px) exceeds {}B, need to scale down.",
+            encoded.len(),
+            img.width(),
+            img.height(),
+            max_bytes,
+        );
+        return Ok(true);
     }
     Ok(false)
 }
@@ -595,7 +623,7 @@ mod tests {
 
     use super::*;
     use crate::chat::{self, create_group_chat, ProtectionStatus};
-    use crate::message::Message;
+    use crate::message::{Message, Viewtype};
     use crate::test_utils::{self, TestContext};
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
@@ -820,7 +848,11 @@ mod tests {
         assert_eq!(avatar_cfg, avatar_blob.to_str().map(|s| s.to_string()));
 
         check_image_size(avatar_src, 1000, 1000);
-        check_image_size(&avatar_blob, BALANCED_AVATAR_SIZE, BALANCED_AVATAR_SIZE);
+        check_image_size(
+            &avatar_blob,
+            constants::BALANCED_AVATAR_SIZE,
+            constants::BALANCED_AVATAR_SIZE,
+        );
 
         async fn file_size(path_buf: &Path) -> u64 {
             let file = File::open(path_buf).await.unwrap();
@@ -828,8 +860,8 @@ mod tests {
         }
 
         let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
-
-        blob.recode_to_size(&t, blob.to_abs_path(), 1000, Some(3000))
+        let strict_limits = true;
+        blob.recode_to_size(&t, blob.to_abs_path(), 1000, 3000, strict_limits)
             .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
@@ -856,10 +888,14 @@ mod tests {
         let avatar_cfg = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         assert_eq!(
             avatar_cfg,
-            avatar_src.with_extension("jpg").to_str().unwrap()
+            avatar_src.with_extension("png").to_str().unwrap()
         );
 
-        check_image_size(avatar_cfg, BALANCED_AVATAR_SIZE, BALANCED_AVATAR_SIZE);
+        check_image_size(
+            avatar_cfg,
+            constants::BALANCED_AVATAR_SIZE,
+            constants::BALANCED_AVATAR_SIZE,
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -885,10 +921,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
-        // BALANCED_IMAGE_SIZE > 1000, the original image size, so the image is not scaled down:
         send_image_check_mediaquality(
             Some("0"),
             bytes,
+            "jpg",
             true, // has Exif
             1000,
             1000,
@@ -901,12 +937,13 @@ mod tests {
         send_image_check_mediaquality(
             Some("1"),
             bytes,
+            "jpg",
             true, // has Exif
             1000,
             1000,
             0,
-            WORSE_IMAGE_SIZE,
-            WORSE_IMAGE_SIZE,
+            1000,
+            1000,
         )
         .await
         .unwrap();
@@ -919,90 +956,87 @@ mod tests {
         let img_rotated = send_image_check_mediaquality(
             Some("0"),
             bytes,
+            "jpg",
             true, // has Exif
             2000,
             1800,
             270,
-            BALANCED_IMAGE_SIZE * 1800 / 2000,
-            BALANCED_IMAGE_SIZE,
+            1800,
+            2000,
         )
         .await
         .unwrap();
         assert_correct_rotation(&img_rotated);
 
         let mut buf = Cursor::new(vec![]);
-        img_rotated
-            .write_to(&mut buf, image::ImageFormat::Jpeg)
-            .unwrap();
+        img_rotated.write_to(&mut buf, ImageFormat::Jpeg).unwrap();
         let bytes = buf.into_inner();
-
-        // Do this in parallel to speed up the test a bit
-        // (it still takes very long though)
-        let bytes2 = bytes.clone();
-        let join_handle = tokio::task::spawn(async move {
-            let img_rotated = send_image_check_mediaquality(
-                Some("0"),
-                &bytes2,
-                false, // no Exif
-                BALANCED_IMAGE_SIZE * 1800 / 2000,
-                BALANCED_IMAGE_SIZE,
-                0,
-                BALANCED_IMAGE_SIZE * 1800 / 2000,
-                BALANCED_IMAGE_SIZE,
-            )
-            .await
-            .unwrap();
-            assert_correct_rotation(&img_rotated);
-        });
 
         let img_rotated = send_image_check_mediaquality(
             Some("1"),
             &bytes,
+            "jpg",
             false, // no Exif
-            BALANCED_IMAGE_SIZE * 1800 / 2000,
-            BALANCED_IMAGE_SIZE,
+            1800,
+            2000,
             0,
-            WORSE_IMAGE_SIZE * 1800 / 2000,
-            WORSE_IMAGE_SIZE,
+            1800,
+            2000,
         )
         .await
         .unwrap();
         assert_correct_rotation(&img_rotated);
-
-        join_handle.await.unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_recode_image_3() {
-        let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
-        let img_rotated = send_image_check_mediaquality(
+    async fn test_recode_image_balanced_png() {
+        let bytes = include_bytes!("../test-data/image/screenshot.png");
+
+        send_image_check_mediaquality(
             Some("0"),
             bytes,
-            true, // has Exif
-            200,
-            180,
-            270,
-            180,
-            200,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            1920,
+            1080,
         )
         .await
         .unwrap();
-        assert_correct_rotation(&img_rotated);
 
-        let bytes = include_bytes!("../test-data/image/rectangle200x180-rotated.jpg");
-        let img_rotated = send_image_check_mediaquality(
+        send_image_check_mediaquality(
             Some("1"),
             bytes,
-            true, // has Exif
-            200,
-            180,
-            270,
-            180,
-            200,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            constants::WORSE_IMAGE_SIZE,
+            constants::WORSE_IMAGE_SIZE * 1080 / 1920,
         )
         .await
         .unwrap();
-        assert_correct_rotation(&img_rotated);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_recode_image_huge_jpg() {
+        let bytes = include_bytes!("../test-data/image/screenshot.jpg");
+        send_image_check_mediaquality(
+            Some("0"),
+            bytes,
+            "jpg",
+            true, // has Exif
+            1920,
+            1080,
+            0,
+            constants::BALANCED_IMAGE_SIZE,
+            constants::BALANCED_IMAGE_SIZE * 1080 / 1920,
+        )
+        .await
+        .unwrap();
     }
 
     fn assert_correct_rotation(img: &DynamicImage) {
@@ -1026,6 +1060,7 @@ mod tests {
     async fn send_image_check_mediaquality(
         media_quality_config: Option<&str>,
         bytes: &[u8],
+        extension: &str,
         has_exif: bool,
         original_width: u32,
         original_height: u32,
@@ -1038,7 +1073,7 @@ mod tests {
         alice
             .set_config(Config::MediaQuality, media_quality_config)
             .await?;
-        let file = alice.get_blobdir().join("file.jpg");
+        let file = alice.get_blobdir().join("file").with_extension(extension);
 
         fs::write(&file, &bytes)
             .await
@@ -1046,12 +1081,12 @@ mod tests {
         check_image_size(&file, original_width, original_height);
 
         let blob = BlobObject::new_from_path(&alice, &file).await?;
-        let exif = blob.get_exif();
+        let (_, exif) = blob.metadata()?;
         if has_exif {
             let exif = exif.unwrap();
             assert_eq!(exif_orientation(&exif, &alice), orientation);
         } else {
-            assert!(exif.is_err());
+            assert!(exif.is_none());
         }
 
         let mut msg = Message::new(Viewtype::Image);
@@ -1073,7 +1108,8 @@ mod tests {
         let file = bob_msg.get_file(&bob).unwrap();
 
         let blob = BlobObject::new_from_path(&bob, &file).await?;
-        assert!(blob.get_exif().is_err());
+        let (_, exif) = blob.metadata()?;
+        assert!(exif.is_none());
 
         let img = check_image_size(file, compressed_width, compressed_height);
         Ok(img)

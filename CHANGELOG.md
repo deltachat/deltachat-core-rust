@@ -22,6 +22,8 @@
   in favor of `get_next_msgs()` and `wait_next_msgs()`.
 - New Python bindings API `Account.wait_next_incoming_message()`.
 - New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
+- Remove metadata from avatars and JPEG images before sending #4037
+- Reduce + recode images to JPEG if they are > 500K in size #4037
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
@@ -113,7 +115,6 @@
 - Run `cargo-deny` in CI. #4101
 - Check provider database with CI. #4099 
 - Switch to DEFERRED transactions #4100
-- Remove metadata from avatars and JPEG images before sending #4037
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079
