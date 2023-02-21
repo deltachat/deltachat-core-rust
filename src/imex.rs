@@ -427,8 +427,6 @@ async fn import_backup(
         context.get_dbfile().display()
     );
 
-    context.sql.config_cache.write().await.clear();
-
     let mut archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
