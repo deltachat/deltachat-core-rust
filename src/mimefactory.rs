@@ -250,7 +250,7 @@ impl<'a> MimeFactory<'a> {
             .get_config(Config::Selfstatus)
             .await?
             .unwrap_or_default();
-        let timestamp = create_smeared_timestamp(context).await;
+        let timestamp = create_smeared_timestamp(context);
 
         let res = MimeFactory::<'a> {
             from_addr,

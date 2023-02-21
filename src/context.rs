@@ -27,6 +27,7 @@ use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
+use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{duration_to_str, time};
 
 /// Builder for the [`Context`].
@@ -189,7 +190,7 @@ pub struct InnerContext {
     /// Blob directory path
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
-    pub(crate) last_smeared_timestamp: RwLock<i64>,
+    pub(crate) smeared_timestamp: SmearedTimestamp,
     running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
     pub(crate) generating_key_mutex: Mutex<()>,
@@ -360,7 +361,7 @@ impl Context {
             blobdir,
             running_state: RwLock::new(Default::default()),
             sql: Sql::new(dbfile),
-            last_smeared_timestamp: RwLock::new(0),
+            smeared_timestamp: SmearedTimestamp::new(),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),

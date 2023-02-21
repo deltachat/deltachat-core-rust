@@ -3,7 +3,6 @@
 
 #![allow(missing_docs)]
 
-use core::cmp::{max, min};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::Cursor;
@@ -140,63 +139,27 @@ pub(crate) fn gm2local_offset() -> i64 {
     i64::from(lt.offset().local_minus_utc())
 }
 
-// timesmearing
-// - as e-mails typically only use a second-based-resolution for timestamps,
-//   the order of two mails sent withing one second is unclear.
-//   this is bad eg. when forwarding some messages from a chat -
-//   these messages will appear at the recipient easily out of order.
-// - we work around this issue by not sending out two mails with the same timestamp.
-// - for this purpose, in short, we track the last timestamp used in `last_smeared_timestamp`
-//   when another timestamp is needed in the same second, we use `last_smeared_timestamp+1`
-// - after some moments without messages sent out,
-//   `last_smeared_timestamp` is again in sync with the normal time.
-// - however, we do not do all this for the far future,
-//   but at max `MAX_SECONDS_TO_LEND_FROM_FUTURE`
-pub(crate) const MAX_SECONDS_TO_LEND_FROM_FUTURE: i64 = 5;
-
 /// Returns the current smeared timestamp,
 ///
 /// The returned timestamp MUST NOT be sent out.
-pub(crate) async fn smeared_time(context: &Context) -> i64 {
-    let mut now = time();
-    let ts = *context.last_smeared_timestamp.read().await;
-    if ts >= now {
-        now = ts + 1;
-    }
-
-    now
+pub(crate) fn smeared_time(context: &Context) -> i64 {
+    let now = time();
+    let ts = context.smeared_timestamp.current();
+    std::cmp::max(ts, now)
 }
 
 /// Returns a timestamp that is guaranteed to be unique.
-pub(crate) async fn create_smeared_timestamp(context: &Context) -> i64 {
+pub(crate) fn create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
-    let mut ret = now;
-
-    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().await;
-    if ret <= *last_smeared_timestamp {
-        ret = *last_smeared_timestamp + 1;
-        if ret - now > MAX_SECONDS_TO_LEND_FROM_FUTURE {
-            ret = now + MAX_SECONDS_TO_LEND_FROM_FUTURE
-        }
-    }
-
-    *last_smeared_timestamp = ret;
-    ret
+    context.smeared_timestamp.create(now)
 }
 
 // creates `count` timestamps that are guaranteed to be unique.
-// the frist created timestamps is returned directly,
+// the first created timestamps is returned directly,
 // get the other timestamps just by adding 1..count-1
-pub(crate) async fn create_smeared_timestamps(context: &Context, count: usize) -> i64 {
+pub(crate) fn create_smeared_timestamps(context: &Context, count: usize) -> i64 {
     let now = time();
-    let count = count as i64;
-    let mut start = now + min(count, MAX_SECONDS_TO_LEND_FROM_FUTURE) - count;
-
-    let mut last_smeared_timestamp = context.last_smeared_timestamp.write().await;
-    start = max(*last_smeared_timestamp + 1, start);
-
-    *last_smeared_timestamp = start + count - 1;
-    start
+    context.smeared_timestamp.create_n(now, count as i64)
 }
 
 // if the system time is not plausible, once a day, add a device message.
@@ -1069,36 +1032,6 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
 
         assert!(delete_file(context, &fn0).await.is_ok());
         assert!(!file_exist!(context, &fn0));
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_create_smeared_timestamp() {
-        let t = TestContext::new().await;
-        assert_ne!(
-            create_smeared_timestamp(&t).await,
-            create_smeared_timestamp(&t).await
-        );
-        assert!(
-            create_smeared_timestamp(&t).await
-                >= SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs() as i64
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_create_smeared_timestamps() {
-        let t = TestContext::new().await;
-        let count = MAX_SECONDS_TO_LEND_FROM_FUTURE - 1;
-        let start = create_smeared_timestamps(&t, count as usize).await;
-        let next = smeared_time(&t).await;
-        assert!((start + count - 1) < next);
-
-        let count = MAX_SECONDS_TO_LEND_FROM_FUTURE + 30;
-        let start = create_smeared_timestamps(&t, count as usize).await;
-        let next = smeared_time(&t).await;
-        assert!((start + count - 1) < next);
     }
 
     #[test]

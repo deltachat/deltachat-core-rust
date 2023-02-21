@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Make smeared timestamp generation non-async. #4075
 
 ### Fixes
 

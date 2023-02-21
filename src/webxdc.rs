@@ -408,7 +408,7 @@ impl Context {
             .create_status_update_record(
                 &mut instance,
                 update_str,
-                create_smeared_timestamp(self).await,
+                create_smeared_timestamp(self),
                 send_now,
                 ContactId::SELF,
             )
