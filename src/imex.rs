@@ -427,8 +427,6 @@ async fn import_backup(
         context.get_dbfile().display()
     );
 
-    context.sql.config_cache.write().await.clear();
-
     let mut archive = Archive::new(backup_file);
 
     let mut entries = archive.entries()?;
@@ -785,7 +783,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use ::pgp::armor::BlockType;
+    use tokio::task;
 
     use super::*;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
@@ -929,6 +930,46 @@ mod tests {
             context2.get_config(Config::Addr).await?,
             Some("alice@example.org".to_string())
         );
+
+        Ok(())
+    }
+
+    /// This is a regression test for
+    /// https://github.com/deltachat/deltachat-android/issues/2263
+    /// where the config cache wasn't reset properly after a backup.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_import_backup_reset_config_cache() -> Result<()> {
+        let backup_dir = tempfile::tempdir()?;
+        let context1 = TestContext::new_alice().await;
+        let context2 = TestContext::new().await;
+        assert!(!context2.is_configured().await?);
+
+        // export from context1
+        imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None).await?;
+
+        // import to context2
+        let backup = has_backup(&context2, backup_dir.path()).await?;
+        let context2_cloned = context2.clone();
+        let handle = task::spawn(async move {
+            imex(
+                &context2_cloned,
+                ImexMode::ImportBackup,
+                backup.as_ref(),
+                None,
+            )
+            .await
+            .unwrap();
+        });
+
+        while !handle.is_finished() {
+            // The database is still unconfigured;
+            // fill the config cache with the old value.
+            context2.is_configured().await.ok();
+            tokio::time::sleep(Duration::from_micros(1)).await;
+        }
+
+        // Assert that the config cache has the new value now.
+        assert!(context2.is_configured().await?);
 
         Ok(())
     }
