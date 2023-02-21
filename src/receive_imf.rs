@@ -203,7 +203,7 @@ pub(crate) async fn receive_imf_inner(
     )
     .await?;
 
-    let rcvd_timestamp = smeared_time(context).await;
+    let rcvd_timestamp = smeared_time(context);
 
     // Sender timestamp is allowed to be a bit in the future due to
     // unsynchronized clocks, but not too much.
@@ -1380,7 +1380,7 @@ async fn calc_sort_timestamp(
         }
     }
 
-    Ok(min(sort_timestamp, smeared_time(context).await))
+    Ok(min(sort_timestamp, smeared_time(context)))
 }
 
 async fn lookup_chat_by_reply(

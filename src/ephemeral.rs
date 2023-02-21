@@ -650,7 +650,7 @@ mod tests {
     use crate::download::DownloadState;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
-    use crate::tools::MAX_SECONDS_TO_LEND_FROM_FUTURE;
+    use crate::timesmearing::MAX_SECONDS_TO_LEND_FROM_FUTURE;
     use crate::{
         chat::{self, create_group_chat, send_text_msg, Chat, ChatItem, ProtectionStatus},
         tools::IsNoneOrEmpty,
