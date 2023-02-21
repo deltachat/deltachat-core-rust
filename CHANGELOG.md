@@ -10,6 +10,7 @@
 - Use transaction in `update_blocked_mailinglist_contacts`. #4058
 - Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
 - Updated provider database.
+- Disable DKIM-Checks again #4076
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
