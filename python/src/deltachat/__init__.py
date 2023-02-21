@@ -1,8 +1,8 @@
 import sys
 
-try:
+if sys.version_info >= (3, 8):
     from importlib.metadata import PackageNotFoundError, version
-except ImportError:
+else:
     from importlib_metadata import PackageNotFoundError, version
 
 from . import capi, events, hookspec  # noqa
