@@ -6,6 +6,7 @@
 - Make smeared timestamp generation non-async. #4075
 
 ### Fixes
+- Do not block async task executor while decrypting the messages. #4079
 
 ### API-Changes
 
