@@ -13,7 +13,7 @@ categories = ["cryptography", "std", "email"]
 name = "deltachat-rpc-server"
 
 [dependencies]
-deltachat-jsonrpc = { path = "../deltachat-jsonrpc" }
+deltachat-jsonrpc = { path = "../deltachat-jsonrpc", default-features = false }
 
 anyhow = "1"
 env_logger = { version = "0.10.0" }
@@ -26,4 +26,4 @@ yerpc = { version = "0.4.0", features = ["anyhow_expose"] }
 
 [features]
 default = ["vendored"]
-vendored = ["deltachat/vendored"]
+vendored = ["deltachat-jsonrpc/vendored"]
