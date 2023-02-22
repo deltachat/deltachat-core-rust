@@ -504,7 +504,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 /// Decodes a [`DCBACKUP_SCHEME`] QR code.
 ///
 /// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
-/// [`sendme::provider::Ticket`]'s `Display` impl.
+/// [`iroh::provider::Ticket`]'s `Display` impl.
 fn decode_backup(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP_SCHEME)

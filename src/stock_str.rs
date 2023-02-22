@@ -1247,6 +1247,8 @@ pub(crate) async fn aeap_explanation_and_link(
 ///
 /// The default is "Scan to set up second device for <account name (account addr)>".  The
 /// account name and address are looked up from the context.
+///
+/// [`Qr::Backup`]: crate::qr::Qr::Backup
 pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
     let contact = Contact::get_by_id(context, ContactId::SELF).await?;
     let addr = contact.get_addr();

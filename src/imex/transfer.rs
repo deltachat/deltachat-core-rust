@@ -78,9 +78,8 @@ impl BackupProvider {
     /// or database are happening, this is done by calling the [`Accounts::stop_io`] or
     /// [`Context::stop_io`] APIs first.
     ///
-    /// This will acquire the global "ongoing process" mutex.  You must call
-    /// [`BackupProvider::join`] after creating this struct, otherwise this will not respect
-    /// the possible cancellation of the "ongoing process".
+    /// This will acquire the global "ongoing process" mutex, which can be used to cancel
+    /// the process.
     ///
     /// [`Accounts::stop_io`]: crate::accounts::Accounts::stop_io
     pub async fn prepare(context: &Context) -> Result<Self> {
@@ -292,7 +291,7 @@ impl From<SendProgress> for EventType {
 /// This is a long running operation which will only when completed.
 ///
 /// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
-/// does avoid having [`sendme::provider::Ticket`] in the primary API however, without
+/// does avoid having [`iroh::provider::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     ensure!(
