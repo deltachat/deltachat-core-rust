@@ -1,4 +1,5 @@
 use std::iter::{self, once};
+use std::sync::atomic::Ordering;
 
 use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -128,6 +129,13 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     info = Default::default();
                 }
                 None => {
+                    let requested = ctx.quota_update_request.swap(false, Ordering::Relaxed);
+                    if requested {
+                        if let Err(err) = ctx.update_recent_quota(&mut connection).await {
+                            warn!(ctx, "Failed to update quota: {:#}.", err);
+                        }
+                    }
+
                     maybe_add_time_based_warnings(&ctx).await;
 
                     match ctx.get_config_i64(Config::LastHousekeeping).await {

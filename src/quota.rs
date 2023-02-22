@@ -1,6 +1,7 @@
 //! # Support for IMAP QUOTA extension.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::Ordering;
 
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
@@ -11,11 +12,10 @@ use crate::context::Context;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
 use crate::imap::Imap;
-use crate::job::{Action, Status};
 use crate::message::{Message, Viewtype};
-use crate::param::Params;
+use crate::scheduler::InterruptInfo;
 use crate::tools::time;
-use crate::{job, stock_str, EventType};
+use crate::{stock_str, EventType};
 
 /// warn about a nearly full mailbox after this usage percentage is reached.
 /// quota icon is "yellow".
@@ -112,12 +112,10 @@ pub fn needs_quota_warning(curr_percentage: u64, warned_at_percentage: u64) -> b
 impl Context {
     // Adds a job to update `quota.recent`
     pub(crate) async fn schedule_quota_update(&self) -> Result<()> {
-        if !job::action_exists(self, Action::UpdateRecentQuota).await? {
-            job::add(
-                self,
-                job::Job::new(Action::UpdateRecentQuota, 0, Params::new(), 0),
-            )
-            .await?;
+        let requested = self.quota_update_request.swap(true, Ordering::Relaxed);
+        if !requested {
+            // Quota update was not requested before.
+            self.interrupt_inbox(InterruptInfo::new(false)).await;
         }
         Ok(())
     }
@@ -132,10 +130,10 @@ impl Context {
     /// and new space is allocated as needed.
     ///
     /// Called in response to `Action::UpdateRecentQuota`.
-    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<Status> {
+    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<()> {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:#}", err);
-            return Ok(Status::RetryNow);
+            return Ok(());
         }
 
         let session = imap.session.as_mut().context("no session")?;
@@ -166,13 +164,16 @@ impl Context {
             }
         }
 
+        // Clear the request to update quota.
+        self.quota_update_request.store(false, Ordering::Relaxed);
+
         *self.quota.write().await = Some(QuotaInfo {
             recent: quota,
             modified: time(),
         });
 
         self.emit_event(EventType::ConnectivityChanged);
-        Ok(Status::Finished(Ok(())))
+        Ok(())
     }
 }
 
