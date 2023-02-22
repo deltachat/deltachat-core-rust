@@ -45,5 +45,5 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server-${{ matrix.artfiact }}
+          name: deltachat-rpc-server-${{ matrix.artifact }}
           path: ${{ matrix.path }}
