@@ -14,22 +14,22 @@ jobs:
         include:
           - os: ubuntu-22.04
             artifact: gnu-linux-x86_64
-            path: "target/release/deltachat-rpc-server"
+            path: deltachat-rpc-server
             target: x86_64-unknown-linux-gnu
 
           - os: ubuntu-22.04
             artifact: gnu-linux-i686
-            path: "target/release/deltachat-rpc-server"
+            path: deltachat-rpc-server
             target: i686-unknown-linux-gnu
 
           - os: windows-latest
             artifact: win32.exe
-            path: "target/release/deltachat-rpc-server.exe"
+            path: deltachat-rpc-server.exe
             target: i686-pc-windows-msvc
 
           - os: windows-latest
             artifact: win64.exe
-            path: "target/release/deltachat-rpc-server.exe"
+            path: deltachat-rpc-server.exe
             target: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.os }}
@@ -46,4 +46,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: deltachat-rpc-server-${{ matrix.artifact }}
-          path: ${{ matrix.path }}
+          path: target/${{ matrix.target}}/release/${{ matrix.path }}
