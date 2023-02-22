@@ -1,4 +1,9 @@
+#[cfg(feature = "tls-native")]
 use async_native_tls::TlsStream;
+
+#[cfg(feature = "tls-rustls")]
+use tokio_rustls::client::TlsStream;
+
 use fast_socks5::client::Socks5Stream;
 use std::pin::Pin;
 use std::time::Duration;
@@ -17,11 +22,21 @@ impl SessionStream for Box<dyn SessionStream> {
         self.as_mut().set_read_timeout(timeout);
     }
 }
+
+#[cfg(feature = "tls-native")]
 impl<T: SessionStream> SessionStream for TlsStream<T> {
     fn set_read_timeout(&mut self, timeout: Option<Duration>) {
         self.get_mut().set_read_timeout(timeout);
     }
 }
+
+#[cfg(feature = "tls-rustls")]
+impl<T: SessionStream> SessionStream for TlsStream<T> {
+    fn set_read_timeout(&mut self, timeout: Option<Duration>) {
+        self.get_mut().0.set_read_timeout(timeout);
+    }
+}
+
 impl<T: SessionStream> SessionStream for BufWriter<T> {
     fn set_read_timeout(&mut self, timeout: Option<Duration>) {
         self.get_mut().set_read_timeout(timeout);

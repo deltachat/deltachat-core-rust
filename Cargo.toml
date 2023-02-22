@@ -31,7 +31,7 @@ ratelimit = { path = "./deltachat-ratelimit" }
 anyhow = "1"
 async-channel = "1.8.0"
 async-imap = { git = "https://github.com/async-email/async-imap", branch = "master", default-features = false, features = ["runtime-tokio"] }
-async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"] }
+async-native-tls = { version = "0.4", default-features = false, features = ["runtime-tokio"], optional = true }
 async-smtp = { version = "0.8", default-features = false, features = ["runtime-tokio"] }
 async_zip = { version = "0.0.9", default-features = false, features = ["deflate"] }
 backtrace = "0.3"
@@ -51,6 +51,7 @@ kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
 mailparse = "0.14"
+native-tls = { version = "0.2", optional = true }
 num_cpus = "1.15"
 num-derive = "0.3"
 num-traits = "0.2"
@@ -63,7 +64,7 @@ qrcodegen = "1.7.0"
 quick-xml = "0.27"
 rand = "0.8"
 regex = "1.7"
-reqwest = { version = "0.11.14", features = ["json"] }
+reqwest = { version = "0.11.14", features = ["json"], default-features = false }
 rusqlite = { version = "0.28", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
 sanitize-filename = "0.4"
@@ -77,6 +78,7 @@ strum_macros = "0.24"
 tagger = "4.3.4"
 textwrap = "0.16.0"
 thiserror = "1"
+tokio-rustls = { version = "0.23", optional = true }
 tokio-io-timeout = "1.2.0"
 tokio-stream = { version = "0.1.11", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
@@ -85,6 +87,7 @@ toml = "0.7"
 trust-dns-resolver = "0.22"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
+webpki-roots = { version = "0.22", optional = true }
 
 [dev-dependencies]
 ansi_term = "0.12.0"
@@ -141,10 +144,12 @@ name = "send_events"
 harness = false
 
 [features]
-default = ["vendored"]
+default = ["vendored", "tls-native"]
 internals = []
 vendored = [
-  "async-native-tls/vendored",
+  "async-native-tls?/vendored",
   "rusqlite/bundled-sqlcipher-vendored-openssl",
-  "reqwest/native-tls-vendored"
+  "native-tls?/vendored"
 ]
+tls-native = ["async-native-tls", "reqwest/native-tls"]
+tls-rustls = ["tokio-rustls", "webpki-roots", "reqwest/rustls-tls-webpki-roots"]

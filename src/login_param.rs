@@ -3,8 +3,6 @@
 use std::fmt;
 
 use anyhow::{ensure, Result};
-use async_native_tls::Certificate;
-use once_cell::sync::Lazy;
 
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
 use crate::provider::{get_provider_by_id, Provider};
@@ -306,28 +304,6 @@ fn unset_empty(s: &str) -> &str {
     }
 }
 
-// this certificate is missing on older android devices (eg. lg with android6 from 2017)
-// certificate downloaded from https://letsencrypt.org/certificates/
-static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
-    Certificate::from_der(include_bytes!(
-        "../assets/root-certificates/letsencrypt/isrgrootx1.der"
-    ))
-    .unwrap()
-});
-
-pub fn build_tls(strict_tls: bool) -> async_native_tls::TlsConnector {
-    let tls_builder =
-        async_native_tls::TlsConnector::new().add_root_certificate(LETSENCRYPT_ROOT.clone());
-
-    if strict_tls {
-        tls_builder
-    } else {
-        tls_builder
-            .danger_accept_invalid_hostnames(true)
-            .danger_accept_invalid_certs(true)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,15 +352,6 @@ mod tests {
         let loaded = LoginParam::load_configured_params(&t).await?;
 
         assert_eq!(param, loaded);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_build_tls() -> Result<()> {
-        // we are using some additional root certificates.
-        // make sure, they do not break construction of TlsConnector
-        let _ = build_tls(true);
-        let _ = build_tls(false);
         Ok(())
     }
 }

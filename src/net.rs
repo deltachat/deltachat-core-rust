@@ -14,6 +14,15 @@ use crate::tools::time;
 
 pub(crate) mod session;
 
+mod tls_native;
+mod tls_rustls;
+
+#[cfg(feature = "tls-native")]
+pub use crate::net::tls_native::wrap_tls;
+
+#[cfg(feature = "tls-rustls")]
+pub use crate::net::tls_rustls::wrap_tls;
+
 async fn connect_tcp_inner(addr: SocketAddr, timeout_val: Duration) -> Result<TcpStream> {
     let tcp_stream = timeout(timeout_val, TcpStream::connect(addr))
         .await

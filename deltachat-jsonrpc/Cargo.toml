@@ -13,7 +13,7 @@ required-features = ["webserver"]
 
 [dependencies]
 anyhow = "1"
-deltachat = { path = ".." }
+deltachat = { path = "..", default-features = false }
 num-traits = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 tempfile = "3.3.0"
@@ -36,6 +36,8 @@ tokio = { version = "1.25.0", features = ["full", "rt-multi-thread"] }
 
 
 [features]
-default = ["vendored"]
+default = ["vendored", "tls-native"]
 webserver = ["env_logger", "axum", "tokio/full", "yerpc/support-axum"]
 vendored = ["deltachat/vendored"]
+tls-native = ["deltachat/tls-native"]
+tls-rustls = ["deltachat/tls-rustls"]

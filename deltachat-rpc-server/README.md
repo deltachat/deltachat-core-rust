@@ -11,6 +11,11 @@ To install run:
 cargo install --path ../deltachat-rpc-server
 ```
 
+Optionally, install with Rustls instead of native TLS:
+```
+cargo install --path ../deltachat-rpc-server --no-default-features --features tls-rustls,vendored
+```
+
 The `deltachat-rpc-server` executable will be installed into `$HOME/.cargo/bin` that should be available
 in your `PATH`.
 

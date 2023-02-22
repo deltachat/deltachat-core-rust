@@ -11,9 +11,8 @@ use tokio::io::BufWriter;
 use super::capabilities::Capabilities;
 use super::session::Session;
 use crate::context::Context;
-use crate::login_param::build_tls;
-use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
+use crate::net::{connect_tcp, wrap_tls};
 use crate::socks::Socks5Config;
 
 /// IMAP write and read timeout.
@@ -95,8 +94,7 @@ impl Client {
         strict_tls: bool,
     ) -> Result<Self> {
         let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(hostname, tcp_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
@@ -142,9 +140,7 @@ impl Client {
             .context("STARTTLS command failed")?;
         let tcp_stream = client.into_inner();
 
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls
-            .connect(hostname, tcp_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;
 
@@ -165,8 +161,7 @@ impl Client {
         let socks5_stream = socks5_config
             .connect(context, domain, port, IMAP_TIMEOUT, strict_tls)
             .await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(domain, socks5_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, domain, socks5_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
@@ -221,9 +216,7 @@ impl Client {
             .context("STARTTLS command failed")?;
         let socks5_stream = client.into_inner();
 
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls
-            .connect(hostname, socks5_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, socks5_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufWriter::new(tls_stream);

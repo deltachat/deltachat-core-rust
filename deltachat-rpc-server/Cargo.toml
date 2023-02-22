@@ -25,5 +25,7 @@ tokio = { version = "1.25.0", features = ["io-std"] }
 yerpc = { version = "0.4.0", features = ["anyhow_expose"] }
 
 [features]
-default = ["vendored"]
+default = ["vendored", "tls-native"]
 vendored = ["deltachat-jsonrpc/vendored"]
+tls-native = ["deltachat-jsonrpc/tls-native"]
+tls-rustls = ["deltachat-jsonrpc/tls-rustls"]
