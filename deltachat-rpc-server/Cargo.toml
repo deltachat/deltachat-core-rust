@@ -23,3 +23,7 @@ serde_json = "1.0.91"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.25.0", features = ["io-std"] }
 yerpc = { version = "0.4.0", features = ["anyhow_expose"] }
+
+[features]
+default = ["vendored"]
+vendored = ["deltachat/vendored"]
