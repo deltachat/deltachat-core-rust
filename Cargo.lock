@@ -864,7 +864,6 @@ dependencies = [
  "libc",
  "log",
  "mailparse",
- "native-tls",
  "num-derive",
  "num-traits",
  "num_cpus",
