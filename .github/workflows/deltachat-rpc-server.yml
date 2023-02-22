@@ -17,11 +17,6 @@ jobs:
             path: deltachat-rpc-server
             target: x86_64-unknown-linux-gnu
 
-          - os: ubuntu-22.04
-            artifact: gnu-linux-i686
-            path: deltachat-rpc-server
-            target: i686-unknown-linux-gnu
-
           - os: windows-latest
             artifact: win32.exe
             path: deltachat-rpc-server.exe
