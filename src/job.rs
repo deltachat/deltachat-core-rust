@@ -58,9 +58,6 @@ macro_rules! job_try {
 )]
 #[repr(u32)]
 pub enum Action {
-    // this is user initiated so it should have a fairly high priority
-    UpdateRecentQuota = 140,
-
     // This job will download partially downloaded messages completely
     // and is added when download_full() is called.
     // Most messages are downloaded automatically on fetch
@@ -202,17 +199,6 @@ pub async fn kill_action(context: &Context, action: Action) -> Result<()> {
     Ok(())
 }
 
-pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
-    let exists = context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM jobs WHERE action=?;",
-            paramsv![action],
-        )
-        .await?;
-    Ok(exists)
-}
-
 pub(crate) enum Connection<'a> {
     Inbox(&'a mut Imap),
 }
@@ -240,7 +226,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
             if tries < JOB_RETRIES {
                 info!(context, "increase job {} tries to {}", job, tries);
                 job.tries = tries;
-                let time_offset = get_backoff_time_offset(tries, job.action);
+                let time_offset = get_backoff_time_offset(tries);
                 job.desired_timestamp = time() + time_offset;
                 info!(
                     context,
@@ -289,10 +275,6 @@ async fn perform_job_action(
 
     let try_res = match job.action {
         Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
-        Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
-            Ok(status) => status,
-            Err(err) => Status::Finished(Err(err)),
-        },
         Action::DownloadMsg => job.download_msg(context, connection.inbox()).await,
     };
 
@@ -301,24 +283,16 @@ async fn perform_job_action(
     try_res
 }
 
-fn get_backoff_time_offset(tries: u32, action: Action) -> i64 {
-    match action {
-        // Just try every 10s to update the quota
-        // If all retries are exhausted, a new job will be created when the quota information is needed
-        Action::UpdateRecentQuota => 10,
-
-        _ => {
-            // Exponential backoff
-            let n = 2_i32.pow(tries - 1) * 60;
-            let mut rng = thread_rng();
-            let r: i32 = rng.gen();
-            let mut seconds = r % (n + 1);
-            if seconds < 1 {
-                seconds = 1;
-            }
-            i64::from(seconds)
-        }
+fn get_backoff_time_offset(tries: u32) -> i64 {
+    // Exponential backoff
+    let n = 2_i32.pow(tries - 1) * 60;
+    let mut rng = thread_rng();
+    let r: i32 = rng.gen();
+    let mut seconds = r % (n + 1);
+    if seconds < 1 {
+        seconds = 1;
     }
+    i64::from(seconds)
 }
 
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
@@ -339,7 +313,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
 
     if delay_seconds == 0 {
         match action {
-            Action::ResyncFolders | Action::UpdateRecentQuota | Action::DownloadMsg => {
+            Action::ResyncFolders | Action::DownloadMsg => {
                 info!(context, "interrupt: imap");
                 context.interrupt_inbox(InterruptInfo::new(false)).await;
             }
