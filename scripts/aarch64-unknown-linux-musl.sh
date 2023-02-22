@@ -1,4 +1,6 @@
 #!/bin/sh
+#
+# Build statically linked deltachat-rpc-server for aarch64-unknown-linux-musl.
 
 set -x
 set -e
