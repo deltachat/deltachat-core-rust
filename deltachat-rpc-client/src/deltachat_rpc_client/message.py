@@ -1,13 +1,13 @@
 import json
-from typing import TYPE_CHECKING, Union
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Union
 
 from ._utils import AttrDict
 from .contact import Contact
-from .rpc import Rpc
 
 if TYPE_CHECKING:
     from .account import Account
+    from .rpc import Rpc
 
 
 @dataclass
@@ -18,7 +18,7 @@ class Message:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def send_reaction(self, *reaction: str):

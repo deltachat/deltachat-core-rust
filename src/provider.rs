@@ -129,6 +129,16 @@ pub struct Provider {
     /// Default configuration values to set when provider is configured.
     pub config_defaults: Option<Vec<ConfigDefault>>,
 
+    /// Type of OAuth 2 authorization if provider supports it.
+    pub oauth2_authorizer: Option<Oauth2Authorizer>,
+
+    /// Options with good defaults.
+    pub opt: ProviderOptions,
+}
+
+/// Provider options with good defaults.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ProviderOptions {
     /// True if provider is known to use use proper,
     /// not self-signed certificates.
     pub strict_tls: bool,
@@ -136,8 +146,18 @@ pub struct Provider {
     /// Maximum number of recipients the provider allows to send a single email to.
     pub max_smtp_rcpt_to: Option<u16>,
 
-    /// Type of OAuth 2 authorization if provider supports it.
-    pub oauth2_authorizer: Option<Oauth2Authorizer>,
+    /// Move messages to the Trash folder instead of marking them "\Deleted".
+    pub delete_to_trash: bool,
+}
+
+impl Default for ProviderOptions {
+    fn default() -> Self {
+        Self {
+            strict_tls: true,
+            max_smtp_rcpt_to: None,
+            delete_to_trash: false,
+        }
+    }
 }
 
 /// Get resolver to query MX records.

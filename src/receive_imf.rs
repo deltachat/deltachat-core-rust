@@ -342,11 +342,12 @@ pub(crate) async fn receive_imf_inner(
         if received_msg.needs_delete_job
             || (delete_server_after == Some(0) && is_partial_download.is_none())
         {
+            let target = context.get_delete_msgs_target().await?;
             context
                 .sql
                 .execute(
-                    "UPDATE imap SET target='' WHERE rfc724_mid=?",
-                    paramsv![rfc724_mid],
+                    "UPDATE imap SET target=? WHERE rfc724_mid=?",
+                    paramsv![target, rfc724_mid],
                 )
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
@@ -1084,8 +1085,6 @@ async fn add_parts(
 
     let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
-    let conn = context.sql.get_conn().await?;
-
     for part in &mime_parser.parts {
         if part.is_reaction {
             set_msg_reaction(
@@ -1117,39 +1116,6 @@ async fn add_parts(
         }
 
         let mut txt_raw = "".to_string();
-        let mut stmt = conn.prepare_cached(
-            r#"
-INSERT INTO msgs
-  (
-    id,
-    rfc724_mid, chat_id,
-    from_id, to_id, timestamp, timestamp_sent, 
-    timestamp_rcvd, type, state, msgrmsg, 
-    txt, subject, txt_raw, param, 
-    bytes, mime_headers, mime_in_reply_to,
-    mime_references, mime_modified, error, ephemeral_timer,
-    ephemeral_timestamp, download_state, hop_info
-  )
-  VALUES (
-    ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?,
-    ?, ?, ?, ?
-  )
-ON CONFLICT (id) DO UPDATE
-SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
-    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
-    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
-    txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
-    bytes=excluded.bytes, mime_headers=excluded.mime_headers, mime_in_reply_to=excluded.mime_in_reply_to,
-    mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
-    ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
-"#,
-        )?;
-
         let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
             (better_msg, Viewtype::Text)
         } else {
@@ -1183,7 +1149,38 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         // also change `MsgId::trash()` and `delete_expired_messages()`
         let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
 
-        stmt.execute(paramsv![
+        let row_id = context.sql.insert(
+            r#"
+INSERT INTO msgs
+  (
+    id,
+    rfc724_mid, chat_id,
+    from_id, to_id, timestamp, timestamp_sent, 
+    timestamp_rcvd, type, state, msgrmsg, 
+    txt, subject, txt_raw, param, 
+    bytes, mime_headers, mime_in_reply_to,
+    mime_references, mime_modified, error, ephemeral_timer,
+    ephemeral_timestamp, download_state, hop_info
+  )
+  VALUES (
+    ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?
+  )
+ON CONFLICT (id) DO UPDATE
+SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
+    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
+    bytes=excluded.bytes, mime_headers=excluded.mime_headers, mime_in_reply_to=excluded.mime_in_reply_to,
+    mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
+    ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
+"#,
+            paramsv![
             replace_msg_id,
             rfc724_mid,
             if trash { DC_CHAT_ID_TRASH } else { chat_id },
@@ -1222,17 +1219,14 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
                 DownloadState::Done
             },
             mime_parser.hop_info
-        ])?;
+        ]).await?;
 
         // We only replace placeholder with a first part,
         // afterwards insert additional parts.
         replace_msg_id = None;
-        let row_id = conn.last_insert_rowid();
 
-        drop(stmt);
         created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
     }
-    drop(conn);
 
     // check all parts whether they contain a new logging webxdc
     for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {

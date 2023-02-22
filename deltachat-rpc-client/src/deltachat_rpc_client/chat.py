@@ -1,16 +1,17 @@
 import calendar
-from datetime import datetime
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from ._utils import AttrDict
 from .const import ChatVisibility
 from .contact import Contact
 from .message import Message
-from .rpc import Rpc
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from .account import Account
+    from .rpc import Rpc
 
 
 @dataclass
@@ -21,7 +22,7 @@ class Chat:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def delete(self) -> None:
@@ -217,8 +218,8 @@ class Chat:
     async def get_locations(
         self,
         contact: Optional[Contact] = None,
-        timestamp_from: Optional[datetime] = None,
-        timestamp_to: Optional[datetime] = None,
+        timestamp_from: Optional["datetime"] = None,
+        timestamp_to: Optional["datetime"] = None,
     ) -> List[AttrDict]:
         """Get list of location snapshots for the given contact in the given timespan."""
         time_from = calendar.timegm(timestamp_from.utctimetuple()) if timestamp_from else 0

@@ -1,8 +1,7 @@
+import asyncio
 from unittest.mock import MagicMock
 
 import pytest
-import asyncio
-
 from deltachat_rpc_client import EventType, events
 from deltachat_rpc_client.rpc import JsonRpcError
 

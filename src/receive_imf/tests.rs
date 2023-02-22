@@ -5,7 +5,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::get_chat_contacts;
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
-use crate::constants::{ShowEmails, DC_GCL_NO_SPECIALS};
+use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
@@ -647,15 +647,11 @@ async fn test_parse_ndn(
 
     // Check that the ndn would be downloaded:
     let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
-    assert!(prefetch_should_download(
-        &t,
-        &headers,
-        "some-other-message-id",
-        std::iter::empty(),
-        ShowEmails::Off,
-    )
-    .await
-    .unwrap());
+    assert!(
+        prefetch_should_download(&t, &headers, "some-other-message-id", std::iter::empty(),)
+            .await
+            .unwrap()
+    );
 
     receive_imf(&t, raw_ndn, false).await.unwrap();
     let msg = Message::load_from_db(&t, msg_id).await.unwrap();

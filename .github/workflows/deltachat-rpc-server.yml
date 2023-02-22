@@ -1,0 +1,45 @@
+# Manually triggered action to build deltachat-rpc-server binaries.
+
+name: Build deltachat-rpc-server binaries
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_server:
+    name: Build deltachat-rpc-server
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            artifact: gnu-linux-x86_64
+            path: deltachat-rpc-server
+            target: x86_64-unknown-linux-gnu
+
+          - os: windows-latest
+            artifact: win32.exe
+            path: deltachat-rpc-server.exe
+            target: i686-pc-windows-msvc
+
+          - os: windows-latest
+            artifact: win64.exe
+            path: deltachat-rpc-server.exe
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.target }} --features vendored
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-${{ matrix.artifact }}
+          path: target/${{ matrix.target}}/release/${{ matrix.path }}
+          if-no-files-found: error

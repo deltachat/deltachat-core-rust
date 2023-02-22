@@ -113,13 +113,15 @@ impl async_imap::Authenticator for OAuth2 {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum FolderMeaning {
+#[derive(Debug, Display, PartialEq, Eq, Clone, Copy)]
+pub enum FolderMeaning {
     Unknown,
     Spam,
+    Inbox,
+    Mvbox,
     Sent,
+    Trash,
     Drafts,
-    Other,
 
     /// Virtual folders.
     ///
@@ -131,13 +133,15 @@ enum FolderMeaning {
 }
 
 impl FolderMeaning {
-    fn to_config(self) -> Option<Config> {
+    pub fn to_config(self) -> Option<Config> {
         match self {
             FolderMeaning::Unknown => None,
             FolderMeaning::Spam => None,
+            FolderMeaning::Inbox => Some(Config::ConfiguredInboxFolder),
+            FolderMeaning::Mvbox => Some(Config::ConfiguredMvboxFolder),
             FolderMeaning::Sent => Some(Config::ConfiguredSentboxFolder),
+            FolderMeaning::Trash => Some(Config::ConfiguredTrashFolder),
             FolderMeaning::Drafts => None,
-            FolderMeaning::Other => None,
             FolderMeaning::Virtual => None,
         }
     }
@@ -270,7 +274,7 @@ impl Imap {
             param
                 .provider
                 .map_or(param.socks5_config.is_some(), |provider| {
-                    provider.strict_tls
+                    provider.opt.strict_tls
                 }),
             idle_interrupt_receiver,
         )?;
@@ -449,7 +453,7 @@ impl Imap {
         &mut self,
         context: &Context,
         watch_folder: &str,
-        is_spam_folder: bool,
+        folder_meaning: FolderMeaning,
     ) -> Result<()> {
         if !context.sql.is_open().await {
             // probably shutdown
@@ -458,7 +462,7 @@ impl Imap {
         self.prepare(context).await?;
 
         let msgs_fetched = self
-            .fetch_new_messages(context, watch_folder, is_spam_folder, false)
+            .fetch_new_messages(context, watch_folder, folder_meaning, false)
             .await
             .context("fetch_new_messages")?;
         if msgs_fetched && context.get_config_delete_device_after().await?.is_some() {
@@ -490,49 +494,60 @@ impl Imap {
     pub(crate) async fn resync_folder_uids(
         &mut self,
         context: &Context,
-        folder: String,
+        folder: &str,
+        folder_meaning: FolderMeaning,
     ) -> Result<()> {
         // Collect pairs of UID and Message-ID.
-        let mut msg_ids = BTreeMap::new();
+        let mut msgs = BTreeMap::new();
 
         let session = self
             .session
             .as_mut()
             .context("IMAP No connection established")?;
 
-        session.select_folder(context, Some(&folder)).await?;
+        session.select_folder(context, Some(folder)).await?;
 
         let mut list = session
             .uid_fetch("1:*", RFC724MID_UID)
             .await
             .with_context(|| format!("can't resync folder {folder}"))?;
         while let Some(fetch) = list.next().await {
-            let msg = fetch?;
+            let fetch = fetch?;
+            let headers = match get_fetch_headers(&fetch) {
+                Ok(headers) => headers,
+                Err(err) => {
+                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    continue;
+                }
+            };
+            let message_id = prefetch_get_message_id(&headers);
 
-            // Get Message-ID
-            let message_id =
-                get_fetch_headers(&msg).map_or(None, |headers| prefetch_get_message_id(&headers));
-
-            if let (Some(uid), Some(rfc724_mid)) = (msg.uid, message_id) {
-                msg_ids.insert(uid, rfc724_mid);
+            if let (Some(uid), Some(rfc724_mid)) = (fetch.uid, message_id) {
+                msgs.insert(
+                    uid,
+                    (
+                        rfc724_mid,
+                        target_folder(context, folder, folder_meaning, &headers).await?,
+                    ),
+                );
             }
         }
 
         info!(
             context,
             "Resync: collected {} message IDs in folder {}",
-            msg_ids.len(),
-            &folder
+            msgs.len(),
+            folder,
         );
 
-        let uid_validity = get_uidvalidity(context, &folder).await?;
+        let uid_validity = get_uidvalidity(context, folder).await?;
 
         // Write collected UIDs to SQLite database.
         context
             .sql
             .transaction(move |transaction| {
                 transaction.execute("DELETE FROM imap WHERE folder=?", params![folder])?;
-                for (uid, rfc724_mid) in &msg_ids {
+                for (uid, (rfc724_mid, target)) in &msgs {
                     // This may detect previously undetected moved
                     // messages, so we update server_folder too.
                     transaction.execute(
@@ -541,7 +556,7 @@ impl Imap {
                          ON CONFLICT(folder, uid, uidvalidity)
                          DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
                                        target=excluded.target",
-                        params![rfc724_mid, folder, uid, uid_validity, folder],
+                        params![rfc724_mid, folder, uid, uid_validity, target],
                     )?;
                 }
                 Ok(())
@@ -683,10 +698,10 @@ impl Imap {
         &mut self,
         context: &Context,
         folder: &str,
-        is_spam_folder: bool,
+        folder_meaning: FolderMeaning,
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
-        if should_ignore_folder(context, folder, is_spam_folder).await? {
+        if should_ignore_folder(context, folder, folder_meaning).await? {
             info!(context, "Not fetching from {}", folder);
             return Ok(false);
         }
@@ -713,8 +728,6 @@ impl Imap {
         };
         let read_cnt = msgs.len();
 
-        let show_emails = ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?)
-            .unwrap_or_default();
         let download_limit = context.download_limit().await?;
         let mut uids_fetch = Vec::<(_, bool /* partially? */)>::with_capacity(msgs.len() + 1);
         let mut uid_message_ids = BTreeMap::new();
@@ -732,14 +745,7 @@ impl Imap {
 
             // Get the Message-ID or generate a fake one to identify the message in the database.
             let message_id = prefetch_get_or_create_message_id(&headers);
-
-            let target = match target_folder(context, folder, is_spam_folder, &headers).await? {
-                Some(config) => match context.get_config(config).await? {
-                    Some(target) => target,
-                    None => folder.to_string(),
-                },
-                None => folder.to_string(),
-            };
+            let target = target_folder(context, folder, folder_meaning, &headers).await?;
 
             context
                 .sql
@@ -763,14 +769,13 @@ impl Imap {
                 // Never download messages directly from the spam folder.
                 // If the sender is known, the message will be moved to the Inbox or Mvbox
                 // and then we download the message from there.
-                // Also see `spam_target_folder()`.
-                && !is_spam_folder
+                // Also see `spam_target_folder_cfg()`.
+                && folder_meaning != FolderMeaning::Spam
                 && prefetch_should_download(
                     context,
                     &headers,
                     &message_id,
                     fetch_response.flags(),
-                    show_emails,
                 )
                 .await.context("prefetch_should_download")?
             {
@@ -870,17 +875,21 @@ impl Imap {
             .context("failed to get recipients from the inbox")?;
 
         if context.get_config_bool(Config::FetchExistingMsgs).await? {
-            for config in &[
-                Config::ConfiguredMvboxFolder,
-                Config::ConfiguredInboxFolder,
-                Config::ConfiguredSentboxFolder,
+            for meaning in [
+                FolderMeaning::Mvbox,
+                FolderMeaning::Inbox,
+                FolderMeaning::Sent,
             ] {
-                if let Some(folder) = context.get_config(*config).await? {
+                let config = match meaning.to_config() {
+                    Some(c) => c,
+                    None => continue,
+                };
+                if let Some(folder) = context.get_config(config).await? {
                     info!(
                         context,
                         "Fetching existing messages from folder \"{}\"", folder
                     );
-                    self.fetch_new_messages(context, &folder, false, true)
+                    self.fetch_new_messages(context, &folder, meaning, true)
                         .await
                         .context("could not fetch existing messages")?;
                 }
@@ -952,44 +961,60 @@ impl Session {
                     return Ok(());
                 }
                 Err(err) => {
+                    if context.should_delete_to_trash().await? {
+                        error!(
+                            context,
+                            "Cannot move messages {} to {}, no fallback to COPY/DELETE because \
+                            delete_to_trash is set. Error: {:#}",
+                            set,
+                            target,
+                            err,
+                        );
+                        return Err(err.into());
+                    }
                     warn!(
                         context,
-                        "Cannot move message, fallback to COPY/DELETE {} to {}: {}",
+                        "Cannot move messages, fallback to COPY/DELETE {} to {}: {}",
                         set,
                         target,
                         err
                     );
                 }
             }
-        } else {
+        }
+
+        // Server does not support MOVE or MOVE failed.
+        // Copy messages to the destination folder if needed and mark records for deletion.
+        let copy = !context.is_trash(target).await?;
+        if copy {
             info!(
                 context,
                 "Server does not support MOVE, fallback to COPY/DELETE {} to {}", set, target
             );
+            self.uid_copy(&set, &target).await?;
+        } else {
+            error!(
+                context,
+                "Server does not support MOVE, fallback to DELETE {} to {}", set, target,
+            );
         }
-
-        // Server does not support MOVE or MOVE failed.
-        // Copy the message to the destination folder and mark the record for deletion.
-        match self.uid_copy(&set, &target).await {
-            Ok(()) => {
-                context
-                    .sql
-                    .execute(
-                        &format!(
-                            "UPDATE imap SET target='' WHERE id IN ({})",
-                            sql::repeat_vars(row_ids.len())
-                        ),
-                        rusqlite::params_from_iter(row_ids),
-                    )
-                    .await
-                    .context("cannot plan deletion of copied messages")?;
-                context.emit_event(EventType::ImapMessageMoved(format!(
-                    "IMAP messages {set} copied to {target}"
-                )));
-                Ok(())
-            }
-            Err(err) => Err(err.into()),
+        context
+            .sql
+            .execute(
+                &format!(
+                    "UPDATE imap SET target='' WHERE id IN ({})",
+                    sql::repeat_vars(row_ids.len())
+                ),
+                rusqlite::params_from_iter(row_ids),
+            )
+            .await
+            .context("cannot plan deletion of messages")?;
+        if copy {
+            context.emit_event(EventType::ImapMessageMoved(format!(
+                "IMAP messages {set} copied to {target}"
+            )));
         }
+        Ok(())
     }
 
     /// Moves and deletes messages as planned in the `imap` table.
@@ -1644,7 +1669,7 @@ impl Imap {
                 }
             }
 
-            let folder_meaning = get_folder_meaning(&folder);
+            let folder_meaning = get_folder_meaning_by_attrs(folder.attributes());
             let folder_name_meaning = get_folder_meaning_by_name(folder.name());
             if let Some(config) = folder_meaning.to_config() {
                 // Always takes precedence
@@ -1776,7 +1801,7 @@ async fn should_move_out_of_spam(
 /// If this returns None, the message will not be moved out of the
 /// Spam folder, and as `fetch_new_messages()` doesn't download
 /// messages from the Spam folder, the message will be ignored.
-async fn spam_target_folder(
+async fn spam_target_folder_cfg(
     context: &Context,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
@@ -1797,22 +1822,37 @@ async fn spam_target_folder(
 
 /// Returns `ConfiguredInboxFolder`, `ConfiguredMvboxFolder` or `ConfiguredSentboxFolder` if
 /// the message needs to be moved from `folder`. Otherwise returns `None`.
-pub async fn target_folder(
+pub async fn target_folder_cfg(
     context: &Context,
     folder: &str,
-    is_spam_folder: bool,
+    folder_meaning: FolderMeaning,
     headers: &[mailparse::MailHeader<'_>],
 ) -> Result<Option<Config>> {
     if context.is_mvbox(folder).await? {
         return Ok(None);
     }
 
-    if is_spam_folder {
-        spam_target_folder(context, headers).await
+    if folder_meaning == FolderMeaning::Spam {
+        spam_target_folder_cfg(context, headers).await
     } else if needs_move_to_mvbox(context, headers).await? {
         Ok(Some(Config::ConfiguredMvboxFolder))
     } else {
         Ok(None)
+    }
+}
+
+pub async fn target_folder(
+    context: &Context,
+    folder: &str,
+    folder_meaning: FolderMeaning,
+    headers: &[mailparse::MailHeader<'_>],
+) -> Result<String> {
+    match target_folder_cfg(context, folder, folder_meaning, headers).await? {
+        Some(config) => match context.get_config(config).await? {
+            Some(target) => Ok(target),
+            None => Ok(folder.to_string()),
+        },
+        None => Ok(folder.to_string()),
     }
 }
 
@@ -1940,10 +1980,10 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
     }
 }
 
-fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
-    for attr in folder_name.attributes() {
+fn get_folder_meaning_by_attrs(folder_attrs: &[NameAttribute]) -> FolderMeaning {
+    for attr in folder_attrs {
         match attr {
-            NameAttribute::Trash => return FolderMeaning::Other,
+            NameAttribute::Trash => return FolderMeaning::Trash,
             NameAttribute::Sent => return FolderMeaning::Sent,
             NameAttribute::Junk => return FolderMeaning::Spam,
             NameAttribute::Drafts => return FolderMeaning::Drafts,
@@ -1959,6 +1999,13 @@ fn get_folder_meaning(folder_name: &Name) -> FolderMeaning {
         }
     }
     FolderMeaning::Unknown
+}
+
+pub(crate) fn get_folder_meaning(folder: &Name) -> FolderMeaning {
+    match get_folder_meaning_by_attrs(folder.attributes()) {
+        FolderMeaning::Unknown => get_folder_meaning_by_name(folder.name()),
+        meaning => meaning,
+    }
 }
 
 /// Parses the headers from the FETCH result.
@@ -2005,7 +2052,6 @@ pub(crate) async fn prefetch_should_download(
     headers: &[mailparse::MailHeader<'_>],
     message_id: &str,
     mut flags: impl Iterator<Item = Flag<'_>>,
-    show_emails: ShowEmails,
 ) -> Result<bool> {
     if message::rfc724_mid_exists(context, message_id)
         .await?
@@ -2064,6 +2110,9 @@ pub(crate) async fn prefetch_should_download(
             MessengerMessage::Yes | MessengerMessage::Reply => true,
         })
         .unwrap_or_default();
+
+    let show_emails =
+        ShowEmails::from_i32(context.get_config_int(Config::ShowEmails).await?).unwrap_or_default();
 
     let show = is_autocrypt_setup_message
         || match show_emails {
@@ -2272,7 +2321,7 @@ pub async fn get_config_last_seen_uid(context: &Context, folder: &str) -> Result
 async fn should_ignore_folder(
     context: &Context,
     folder: &str,
-    is_spam_folder: bool,
+    folder_meaning: FolderMeaning,
 ) -> Result<bool> {
     if !context.get_config_bool(Config::OnlyFetchMvbox).await? {
         return Ok(false);
@@ -2281,7 +2330,7 @@ async fn should_ignore_folder(
         // Still respect the SentboxWatch setting.
         return Ok(!context.get_config_bool(Config::SentboxWatch).await?);
     }
-    Ok(!(context.is_mvbox(folder).await? || is_spam_folder))
+    Ok(!(context.is_mvbox(folder).await? || folder_meaning == FolderMeaning::Spam))
 }
 
 /// Builds a list of sequence/uid sets. The returned sets have each no more than around 1000
@@ -2564,14 +2613,13 @@ mod tests {
         };
 
         let (headers, _) = mailparse::parse_headers(bytes)?;
-
-        let is_spam_folder = folder == "Spam";
-        let actual =
-            if let Some(config) = target_folder(&t, folder, is_spam_folder, &headers).await? {
-                t.get_config(config).await?
-            } else {
-                None
-            };
+        let actual = if let Some(config) =
+            target_folder_cfg(&t, folder, get_folder_meaning_by_name(folder), &headers).await?
+        {
+            t.get_config(config).await?
+        } else {
+            None
+        };
 
         let expected = if expected_destination == folder {
             None

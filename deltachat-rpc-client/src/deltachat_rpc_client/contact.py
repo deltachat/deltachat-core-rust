@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ._utils import AttrDict
-from .rpc import Rpc
 
 if TYPE_CHECKING:
     from .account import Account
     from .chat import Chat
+    from .rpc import Rpc
 
 
 @dataclass
@@ -21,7 +21,7 @@ class Contact:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.account._rpc
 
     async def block(self) -> None:

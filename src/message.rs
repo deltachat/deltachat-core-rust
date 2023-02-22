@@ -1386,11 +1386,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id: *msg_id });
         }
 
+        let target = context.get_delete_msgs_target().await?;
         context
             .sql
             .execute(
-                "UPDATE imap SET target='' WHERE rfc724_mid=?",
-                paramsv![msg.rfc724_mid],
+                "UPDATE imap SET target=? WHERE rfc724_mid=?",
+                paramsv![target, msg.rfc724_mid],
             )
             .await?;
 

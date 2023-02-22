@@ -2,6 +2,7 @@
 import inspect
 import logging
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Coroutine,
     Dict,
@@ -12,8 +13,6 @@ from typing import (
     Type,
     Union,
 )
-
-from deltachat_rpc_client.account import Account
 
 from ._utils import (
     AttrDict,
@@ -31,13 +30,16 @@ from .events import (
     RawEvent,
 )
 
+if TYPE_CHECKING:
+    from deltachat_rpc_client.account import Account
+
 
 class Client:
     """Simple Delta Chat client that listen to events of a single account."""
 
     def __init__(
         self,
-        account: Account,
+        account: "Account",
         hooks: Optional[Iterable[Tuple[Callable, Union[type, EventFilter]]]] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:

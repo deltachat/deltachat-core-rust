@@ -907,7 +907,8 @@ impl ChatId {
 
     async fn parent_query<T, F>(self, context: &Context, fields: &str, f: F) -> Result<Option<T>>
     where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+        F: Send + FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+        T: Send + 'static,
     {
         let sql = &context.sql;
         let query = format!(

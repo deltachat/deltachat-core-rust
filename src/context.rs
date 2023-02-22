@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, RwLock};
@@ -655,6 +655,10 @@ impl Context {
             .get_config(Config::ConfiguredMvboxFolder)
             .await?
             .unwrap_or_else(|| "<unset>".to_string());
+        let configured_trash_folder = self
+            .get_config(Config::ConfiguredTrashFolder)
+            .await?
+            .unwrap_or_else(|| "<unset>".to_string());
 
         let mut res = get_info();
 
@@ -721,6 +725,7 @@ impl Context {
         res.insert("configured_inbox_folder", configured_inbox_folder);
         res.insert("configured_sentbox_folder", configured_sentbox_folder);
         res.insert("configured_mvbox_folder", configured_mvbox_folder);
+        res.insert("configured_trash_folder", configured_trash_folder);
         res.insert("mdns_enabled", mdns_enabled.to_string());
         res.insert("e2ee_enabled", e2ee_enabled.to_string());
         res.insert(
@@ -753,6 +758,12 @@ impl Context {
             self.get_config_int(Config::DeleteServerAfter)
                 .await?
                 .to_string(),
+        );
+        res.insert(
+            "delete_to_trash",
+            self.get_config(Config::DeleteToTrash)
+                .await?
+                .unwrap_or_else(|| "<unset>".to_string()),
         );
         res.insert(
             "last_housekeeping",
@@ -917,6 +928,33 @@ impl Context {
     pub async fn is_mvbox(&self, folder_name: &str) -> Result<bool> {
         let mvbox = self.get_config(Config::ConfiguredMvboxFolder).await?;
         Ok(mvbox.as_deref() == Some(folder_name))
+    }
+
+    /// Returns true if given folder name is the name of the trash folder.
+    pub async fn is_trash(&self, folder_name: &str) -> Result<bool> {
+        let trash = self.get_config(Config::ConfiguredTrashFolder).await?;
+        Ok(trash.as_deref() == Some(folder_name))
+    }
+
+    pub(crate) async fn should_delete_to_trash(&self) -> Result<bool> {
+        if let Some(v) = self.get_config_bool_opt(Config::DeleteToTrash).await? {
+            return Ok(v);
+        }
+        if let Some(provider) = self.get_configured_provider().await? {
+            return Ok(provider.opt.delete_to_trash);
+        }
+        Ok(false)
+    }
+
+    /// Returns `target` for deleted messages as per `imap` table. Empty string means "delete w/o
+    /// moving to trash".
+    pub(crate) async fn get_delete_msgs_target(&self) -> Result<String> {
+        if !self.should_delete_to_trash().await? {
+            return Ok("".into());
+        }
+        self.get_config(Config::ConfiguredTrashFolder)
+            .await?
+            .context("No configured trash folder")
     }
 
     pub(crate) fn derive_blobdir(dbfile: &Path) -> PathBuf {

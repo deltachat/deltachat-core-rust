@@ -40,6 +40,23 @@ def file2url(f):
     return "https://providers.delta.chat/" + f
 
 
+def process_opt(data):
+    if not "opt" in data:
+        return "Default::default()"
+    opt = "ProviderOptions {\n"
+    opt_data = data.get("opt", "")
+    for key in opt_data:
+        value = str(opt_data[key])
+        if key == "max_smtp_rcpt_to":
+            value = "Some(" + value + ")"
+        if value in {"True", "False"}:
+            value = value.lower()
+        opt += "        " + key + ": " + value + ",\n"
+    opt += "        ..Default::default()\n"
+    opt += "    }"
+    return opt
+
+
 def process_config_defaults(data):
     if not "config_defaults" in data:
         return "None"
@@ -106,13 +123,8 @@ def process_data(data, file):
             server += ("        Server { protocol: " + protocol.capitalize() + ", socket: " + socket.capitalize() + ", hostname: \""
             + hostname + "\", port: " + str(port) + ", username_pattern: " + username_pattern.capitalize() + " },\n")
 
+    opt = process_opt(data)
     config_defaults = process_config_defaults(data)
-
-    strict_tls = data.get("strict_tls", True)
-    strict_tls = "true" if strict_tls else "false"
-
-    max_smtp_rcpt_to = data.get("max_smtp_rcpt_to", 0)
-    max_smtp_rcpt_to = "Some(" + str(max_smtp_rcpt_to) + ")" if max_smtp_rcpt_to != 0 else "None"
 
     oauth2 = data.get("oauth2", "")
     oauth2 = "Some(Oauth2Authorizer::" + camel(oauth2) + ")" if oauth2 != "" else "None"
@@ -128,9 +140,8 @@ def process_data(data, file):
         provider += "    after_login_hint: \"" + after_login_hint + "\",\n"
         provider += "    overview_page: \"" + file2url(file) + "\",\n"
         provider += "    server: vec![\n" + server + "    ],\n"
+        provider += "    opt: " + opt + ",\n"
         provider += "    config_defaults: " + config_defaults + ",\n"
-        provider += "    strict_tls: " + strict_tls + ",\n"
-        provider += "    max_smtp_rcpt_to: " + max_smtp_rcpt_to + ",\n"
         provider += "    oauth2_authorizer: " + oauth2 + ",\n"
         provider += "});\n\n"
     else:
@@ -174,7 +185,9 @@ if __name__ == "__main__":
     "use crate::provider::Protocol::*;\n"
     "use crate::provider::Socket::*;\n"
     "use crate::provider::UsernamePattern::*;\n"
-    "use crate::provider::{Config, ConfigDefault, Oauth2Authorizer, Provider, Server, Status};\n"
+    "use crate::provider::{\n"
+    "    Config, ConfigDefault, Oauth2Authorizer, Provider, ProviderOptions, Server, Status,\n"
+    "};\n"
     "use std::collections::HashMap;\n\n"
     "use once_cell::sync::Lazy;\n\n")
 

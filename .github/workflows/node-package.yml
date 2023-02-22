@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-latest, windows-latest]
+        os: [ubuntu-20.04, macos-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -65,7 +65,7 @@ jobs:
   pack-module:
     needs: prebuild
     name: Package deltachat-node and upload to download.delta.chat
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Install tree
         run: sudo apt install tree
@@ -99,7 +99,7 @@ jobs:
       - name: Download Ubuntu prebuild
         uses: actions/download-artifact@v1
         with:
-          name: ubuntu-18.04
+          name: ubuntu-20.04
       - name: Download macOS prebuild
         uses: actions/download-artifact@v1
         with:
@@ -111,11 +111,11 @@ jobs:
       - shell: bash
         run: |
           mkdir node/prebuilds
-          tar -xvzf ubuntu-18.04/ubuntu-18.04.tar.gz -C node/prebuilds
+          tar -xvzf ubuntu-20.04/ubuntu-20.04.tar.gz -C node/prebuilds
           tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
           tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
-          rm -rf ubuntu-18.04 macos-latest windows-latest
+          rm -rf ubuntu-20.04 macos-latest windows-latest
       - name: Install dependencies without running scripts
         run: |
           npm install --ignore-scripts

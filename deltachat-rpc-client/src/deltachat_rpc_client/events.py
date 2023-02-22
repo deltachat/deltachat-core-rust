@@ -2,10 +2,12 @@
 import inspect
 import re
 from abc import ABC, abstractmethod
-from typing import Callable, Iterable, Iterator, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Optional, Set, Tuple, Union
 
-from ._utils import AttrDict
 from .const import EventType
+
+if TYPE_CHECKING:
+    from ._utils import AttrDict
 
 
 def _tuple_of(obj, type_: type) -> tuple:
@@ -80,7 +82,7 @@ class RawEvent(EventFilter):
             return (self.types, self.func) == (other.types, other.func)
         return False
 
-    async def filter(self, event: AttrDict) -> bool:
+    async def filter(self, event: "AttrDict") -> bool:
         if self.types and event.type not in self.types:
             return False
         return await self._call_func(event)
@@ -118,7 +120,7 @@ class NewMessage(EventFilter):
         command: Optional[str] = None,
         is_bot: Optional[bool] = False,
         is_info: Optional[bool] = None,
-        func: Optional[Callable[[AttrDict], bool]] = None,
+        func: Optional[Callable[["AttrDict"], bool]] = None,
     ) -> None:
         super().__init__(func=func)
         self.is_bot = is_bot
@@ -157,7 +159,7 @@ class NewMessage(EventFilter):
             )
         return False
 
-    async def filter(self, event: AttrDict) -> bool:
+    async def filter(self, event: "AttrDict") -> bool:
         if self.is_bot is not None and self.is_bot != event.message_snapshot.is_bot:
             return False
         if self.is_info is not None and self.is_info != event.message_snapshot.is_info:
@@ -199,7 +201,7 @@ class MemberListChanged(EventFilter):
             return (self.added, self.func) == (other.added, other.func)
         return False
 
-    async def filter(self, event: AttrDict) -> bool:
+    async def filter(self, event: "AttrDict") -> bool:
         if self.added is not None and self.added != event.member_added:
             return False
         return await self._call_func(event)
@@ -231,7 +233,7 @@ class GroupImageChanged(EventFilter):
             return (self.deleted, self.func) == (other.deleted, other.func)
         return False
 
-    async def filter(self, event: AttrDict) -> bool:
+    async def filter(self, event: "AttrDict") -> bool:
         if self.deleted is not None and self.deleted != event.image_deleted:
             return False
         return await self._call_func(event)
@@ -256,7 +258,7 @@ class GroupNameChanged(EventFilter):
             return self.func == other.func
         return False
 
-    async def filter(self, event: AttrDict) -> bool:
+    async def filter(self, event: "AttrDict") -> bool:
         return await self._call_func(event)
 
 

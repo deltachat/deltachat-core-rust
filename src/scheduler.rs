@@ -1,6 +1,8 @@
+use std::iter::{self, once};
+
 use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
-use futures::try_join;
+use futures::future::try_join_all;
 use futures_lite::FutureExt;
 use tokio::task;
 
@@ -9,7 +11,7 @@ use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
 use crate::ephemeral::{self, delete_expired_imap_messages};
-use crate::imap::Imap;
+use crate::imap::{FolderMeaning, Imap};
 use crate::job;
 use crate::location;
 use crate::log::LogExt;
@@ -20,15 +22,19 @@ use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
 
 pub(crate) mod connectivity;
 
+#[derive(Debug)]
+struct SchedBox {
+    meaning: FolderMeaning,
+    conn_state: ImapConnectionState,
+    handle: task::JoinHandle<()>,
+}
+
 /// Job and connection scheduler.
 #[derive(Debug)]
 pub(crate) struct Scheduler {
-    inbox: ImapConnectionState,
-    inbox_handle: task::JoinHandle<()>,
-    mvbox: ImapConnectionState,
-    mvbox_handle: Option<task::JoinHandle<()>>,
-    sentbox: ImapConnectionState,
-    sentbox_handle: Option<task::JoinHandle<()>>,
+    inbox: SchedBox,
+    /// Optional boxes -- mvbox, sentbox.
+    oboxes: Vec<SchedBox>,
     smtp: SmtpConnectionState,
     smtp_handle: task::JoinHandle<()>,
     ephemeral_handle: task::JoinHandle<()>,
@@ -161,7 +167,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                         }
                     }
 
-                    info = fetch_idle(&ctx, &mut connection, Config::ConfiguredInboxFolder).await;
+                    info = fetch_idle(&ctx, &mut connection, FolderMeaning::Inbox).await;
                 }
             }
         }
@@ -182,7 +188,20 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
 /// handling all the errors. In case of an error, it is logged, but not propagated upwards. If
 /// critical operation fails such as fetching new messages fails, connection is reset via
 /// `trigger_reconnect`, so a fresh one can be opened.
-async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config) -> InterruptInfo {
+async fn fetch_idle(
+    ctx: &Context,
+    connection: &mut Imap,
+    folder_meaning: FolderMeaning,
+) -> InterruptInfo {
+    let folder_config = match folder_meaning.to_config() {
+        Some(c) => c,
+        None => {
+            error!(ctx, "Bad folder meaning: {}", folder_meaning);
+            return connection
+                .fake_idle(ctx, None, FolderMeaning::Unknown)
+                .await;
+        }
+    };
     let folder = match ctx.get_config(folder_config).await {
         Ok(folder) => folder,
         Err(err) => {
@@ -190,7 +209,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
                 ctx,
                 "Can not watch {} folder, failed to retrieve config: {:#}", folder_config, err
             );
-            return connection.fake_idle(ctx, None).await;
+            return connection
+                .fake_idle(ctx, None, FolderMeaning::Unknown)
+                .await;
         }
     };
 
@@ -199,7 +220,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     } else {
         connection.connectivity.set_not_configured(ctx).await;
         info!(ctx, "Can not watch {} folder, not set", folder_config);
-        return connection.fake_idle(ctx, None).await;
+        return connection
+            .fake_idle(ctx, None, FolderMeaning::Unknown)
+            .await;
     };
 
     // connect and fake idle if unable to connect
@@ -210,7 +233,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
     {
         warn!(ctx, "{:#}", err);
         connection.trigger_reconnect(ctx);
-        return connection.fake_idle(ctx, Some(watch_folder)).await;
+        return connection
+            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .await;
     }
 
     if folder_config == Config::ConfiguredInboxFolder {
@@ -227,7 +252,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
 
     // Fetch the watched folder.
     if let Err(err) = connection
-        .fetch_move_delete(ctx, &watch_folder, false)
+        .fetch_move_delete(ctx, &watch_folder, folder_meaning)
         .await
         .context("fetch_move_delete")
     {
@@ -265,7 +290,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
                 // no new messages. We want to select the watched folder anyway before going IDLE
                 // there, so this does not take additional protocol round-trip.
                 if let Err(err) = connection
-                    .fetch_move_delete(ctx, &watch_folder, false)
+                    .fetch_move_delete(ctx, &watch_folder, folder_meaning)
                     .await
                     .context("fetch_move_delete after scan_folders")
                 {
@@ -293,7 +318,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
                 ctx,
                 "IMAP session does not support IDLE, going to fake idle."
             );
-            return connection.fake_idle(ctx, Some(watch_folder)).await;
+            return connection
+                .fake_idle(ctx, Some(watch_folder), folder_meaning)
+                .await;
         }
 
         info!(ctx, "IMAP session supports IDLE, using it.");
@@ -318,7 +345,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_config: Config)
         }
     } else {
         warn!(ctx, "No IMAP session, going to fake idle.");
-        connection.fake_idle(ctx, Some(watch_folder)).await
+        connection
+            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .await
     }
 }
 
@@ -326,11 +355,11 @@ async fn simple_imap_loop(
     ctx: Context,
     started: Sender<()>,
     inbox_handlers: ImapConnectionHandlers,
-    folder_config: Config,
+    folder_meaning: FolderMeaning,
 ) {
     use futures::future::FutureExt;
 
-    info!(ctx, "starting simple loop for {}", folder_config);
+    info!(ctx, "starting simple loop for {}", folder_meaning);
     let ImapConnectionHandlers {
         mut connection,
         stop_receiver,
@@ -346,7 +375,7 @@ async fn simple_imap_loop(
         }
 
         loop {
-            fetch_idle(&ctx, &mut connection, folder_config).await;
+            fetch_idle(&ctx, &mut connection, folder_meaning).await;
         }
     };
 
@@ -443,75 +472,56 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
 impl Scheduler {
     /// Start the scheduler.
     pub async fn start(ctx: Context) -> Result<Self> {
-        let (mvbox, mvbox_handlers) = ImapConnectionState::new(&ctx).await?;
-        let (sentbox, sentbox_handlers) = ImapConnectionState::new(&ctx).await?;
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
-        let (inbox, inbox_handlers) = ImapConnectionState::new(&ctx).await?;
 
-        let (inbox_start_send, inbox_start_recv) = channel::bounded(1);
-        let (mvbox_start_send, mvbox_start_recv) = channel::bounded(1);
-        let mut mvbox_handle = None;
-        let (sentbox_start_send, sentbox_start_recv) = channel::bounded(1);
-        let mut sentbox_handle = None;
         let (smtp_start_send, smtp_start_recv) = channel::bounded(1);
         let (ephemeral_interrupt_send, ephemeral_interrupt_recv) = channel::bounded(1);
         let (location_interrupt_send, location_interrupt_recv) = channel::bounded(1);
 
-        let inbox_handle = {
+        let mut oboxes = Vec::new();
+        let mut start_recvs = Vec::new();
+
+        let (conn_state, inbox_handlers) = ImapConnectionState::new(&ctx).await?;
+        let (inbox_start_send, inbox_start_recv) = channel::bounded(1);
+        let handle = {
             let ctx = ctx.clone();
             task::spawn(async move { inbox_loop(ctx, inbox_start_send, inbox_handlers).await })
         };
+        let inbox = SchedBox {
+            meaning: FolderMeaning::Inbox,
+            conn_state,
+            handle,
+        };
+        start_recvs.push(inbox_start_recv);
 
-        if ctx.should_watch_mvbox().await? {
-            let ctx = ctx.clone();
-            mvbox_handle = Some(task::spawn(async move {
-                simple_imap_loop(
-                    ctx,
-                    mvbox_start_send,
-                    mvbox_handlers,
-                    Config::ConfiguredMvboxFolder,
-                )
-                .await
-            }));
-        } else {
-            mvbox_start_send
-                .send(())
-                .await
-                .context("mvbox start send, missing receiver")?;
-            mvbox_handlers
-                .connection
-                .connectivity
-                .set_not_configured(&ctx)
-                .await
-        }
-
-        if ctx.get_config_bool(Config::SentboxWatch).await? {
-            let ctx = ctx.clone();
-            sentbox_handle = Some(task::spawn(async move {
-                simple_imap_loop(
-                    ctx,
-                    sentbox_start_send,
-                    sentbox_handlers,
-                    Config::ConfiguredSentboxFolder,
-                )
-                .await
-            }));
-        } else {
-            sentbox_start_send
-                .send(())
-                .await
-                .context("sentbox start send, missing receiver")?;
-            sentbox_handlers
-                .connection
-                .connectivity
-                .set_not_configured(&ctx)
-                .await
+        for (meaning, should_watch) in [
+            (FolderMeaning::Mvbox, ctx.should_watch_mvbox().await),
+            (
+                FolderMeaning::Sent,
+                ctx.get_config_bool(Config::SentboxWatch).await,
+            ),
+        ] {
+            if should_watch? {
+                let (conn_state, handlers) = ImapConnectionState::new(&ctx).await?;
+                let (start_send, start_recv) = channel::bounded(1);
+                let ctx = ctx.clone();
+                let handle = task::spawn(async move {
+                    simple_imap_loop(ctx, start_send, handlers, meaning).await
+                });
+                oboxes.push(SchedBox {
+                    meaning,
+                    conn_state,
+                    handle,
+                });
+                start_recvs.push(start_recv);
+            }
         }
 
         let smtp_handle = {
             let ctx = ctx.clone();
             task::spawn(async move { smtp_loop(ctx, smtp_start_send, smtp_handlers).await })
         };
+        start_recvs.push(smtp_start_recv);
 
         let ephemeral_handle = {
             let ctx = ctx.clone();
@@ -531,12 +541,8 @@ impl Scheduler {
 
         let res = Self {
             inbox,
-            mvbox,
-            sentbox,
+            oboxes,
             smtp,
-            inbox_handle,
-            mvbox_handle,
-            sentbox_handle,
             smtp_handle,
             ephemeral_handle,
             ephemeral_interrupt_send,
@@ -546,12 +552,7 @@ impl Scheduler {
         };
 
         // wait for all loops to be started
-        if let Err(err) = try_join!(
-            inbox_start_recv.recv(),
-            mvbox_start_recv.recv(),
-            sentbox_start_recv.recv(),
-            smtp_start_recv.recv()
-        ) {
+        if let Err(err) = try_join_all(start_recvs.iter().map(|r| r.recv())).await {
             bail!("failed to start scheduler: {}", err);
         }
 
@@ -559,30 +560,26 @@ impl Scheduler {
         Ok(res)
     }
 
+    fn boxes(&self) -> iter::Chain<iter::Once<&SchedBox>, std::slice::Iter<'_, SchedBox>> {
+        once(&self.inbox).chain(self.oboxes.iter())
+    }
+
     fn maybe_network(&self) {
-        self.interrupt_inbox(InterruptInfo::new(true));
-        self.interrupt_mvbox(InterruptInfo::new(true));
-        self.interrupt_sentbox(InterruptInfo::new(true));
+        for b in self.boxes() {
+            b.conn_state.interrupt(InterruptInfo::new(true));
+        }
         self.interrupt_smtp(InterruptInfo::new(true));
     }
 
     fn maybe_network_lost(&self) {
-        self.interrupt_inbox(InterruptInfo::new(false));
-        self.interrupt_mvbox(InterruptInfo::new(false));
-        self.interrupt_sentbox(InterruptInfo::new(false));
+        for b in self.boxes() {
+            b.conn_state.interrupt(InterruptInfo::new(false));
+        }
         self.interrupt_smtp(InterruptInfo::new(false));
     }
 
     fn interrupt_inbox(&self, info: InterruptInfo) {
-        self.inbox.interrupt(info);
-    }
-
-    fn interrupt_mvbox(&self, info: InterruptInfo) {
-        self.mvbox.interrupt(info);
-    }
-
-    fn interrupt_sentbox(&self, info: InterruptInfo) {
-        self.sentbox.interrupt(info);
+        self.inbox.conn_state.interrupt(info);
     }
 
     fn interrupt_smtp(&self, info: InterruptInfo) {
@@ -605,29 +602,17 @@ impl Scheduler {
     ///
     /// It consumes the scheduler and never fails to stop it. In the worst case, long-running tasks
     /// are forcefully terminated if they cannot shutdown within the timeout.
-    pub(crate) async fn stop(mut self, context: &Context) {
+    pub(crate) async fn stop(self, context: &Context) {
         // Send stop signals to tasks so they can shutdown cleanly.
-        self.inbox.stop().await.ok_or_log(context);
-        if self.mvbox_handle.is_some() {
-            self.mvbox.stop().await.ok_or_log(context);
-        }
-        if self.sentbox_handle.is_some() {
-            self.sentbox.stop().await.ok_or_log(context);
+        for b in self.boxes() {
+            b.conn_state.stop().await.ok_or_log(context);
         }
         self.smtp.stop().await.ok_or_log(context);
 
         // Actually shutdown tasks.
         let timeout_duration = std::time::Duration::from_secs(30);
-        tokio::time::timeout(timeout_duration, self.inbox_handle)
-            .await
-            .ok_or_log(context);
-        if let Some(mvbox_handle) = self.mvbox_handle.take() {
-            tokio::time::timeout(timeout_duration, mvbox_handle)
-                .await
-                .ok_or_log(context);
-        }
-        if let Some(sentbox_handle) = self.sentbox_handle.take() {
-            tokio::time::timeout(timeout_duration, sentbox_handle)
+        for b in once(self.inbox).chain(self.oboxes.into_iter()) {
+            tokio::time::timeout(timeout_duration, b.handle)
                 .await
                 .ok_or_log(context);
         }

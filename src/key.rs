@@ -289,39 +289,41 @@ pub async fn store_self_keypair(
     keypair: &KeyPair,
     default: KeyPairUse,
 ) -> Result<()> {
-    let mut conn = context.sql.get_conn().await?;
-    let transaction = conn.transaction()?;
+    context
+        .sql
+        .transaction(|transaction| {
+            let public_key = DcKey::to_bytes(&keypair.public);
+            let secret_key = DcKey::to_bytes(&keypair.secret);
+            transaction
+                .execute(
+                    "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
+                    paramsv![public_key, secret_key],
+                )
+                .context("failed to remove old use of key")?;
+            if default == KeyPairUse::Default {
+                transaction
+                    .execute("UPDATE keypairs SET is_default=0;", paramsv![])
+                    .context("failed to clear default")?;
+            }
+            let is_default = match default {
+                KeyPairUse::Default => i32::from(true),
+                KeyPairUse::ReadOnly => i32::from(false),
+            };
 
-    let public_key = DcKey::to_bytes(&keypair.public);
-    let secret_key = DcKey::to_bytes(&keypair.secret);
-    transaction
-        .execute(
-            "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-            paramsv![public_key, secret_key],
-        )
-        .context("failed to remove old use of key")?;
-    if default == KeyPairUse::Default {
-        transaction
-            .execute("UPDATE keypairs SET is_default=0;", paramsv![])
-            .context("failed to clear default")?;
-    }
-    let is_default = match default {
-        KeyPairUse::Default => i32::from(true),
-        KeyPairUse::ReadOnly => i32::from(false),
-    };
+            let addr = keypair.addr.to_string();
+            let t = time();
 
-    let addr = keypair.addr.to_string();
-    let t = time();
-
-    transaction
-        .execute(
-            "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
+            transaction
+                .execute(
+                    "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
-            paramsv![addr, is_default, public_key, secret_key, t],
-        )
-        .context("failed to insert keypair")?;
+                    paramsv![addr, is_default, public_key, secret_key, t],
+                )
+                .context("failed to insert keypair")?;
 
-    transaction.commit()?;
+            Ok(())
+        })
+        .await?;
 
     Ok(())
 }

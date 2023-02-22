@@ -12,7 +12,7 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::imap::Imap;
+use crate::imap::{get_folder_meaning, FolderMeaning, Imap};
 use crate::param::Params;
 use crate::scheduler::InterruptInfo;
 use crate::tools::time;
@@ -172,8 +172,12 @@ impl Job {
         let mut any_failed = false;
 
         for folder in all_folders {
+            let folder_meaning = get_folder_meaning(&folder);
+            if folder_meaning == FolderMeaning::Virtual {
+                continue;
+            }
             if let Err(e) = imap
-                .resync_folder_uids(context, folder.name().to_string())
+                .resync_folder_uids(context, folder.name(), folder_meaning)
                 .await
             {
                 warn!(context, "{:#}", e);

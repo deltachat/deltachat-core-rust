@@ -186,7 +186,7 @@ impl Peerstate {
     async fn from_stmt(
         context: &Context,
         query: &str,
-        params: impl rusqlite::Params,
+        params: impl rusqlite::Params + Send,
     ) -> Result<Option<Peerstate>> {
         let peerstate = context
             .sql

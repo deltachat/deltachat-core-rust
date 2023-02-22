@@ -1,15 +1,15 @@
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from ._utils import AttrDict
 from .chat import Chat
 from .const import ChatlistFlag, ContactFlag, SpecialContactId
 from .contact import Contact
 from .message import Message
-from .rpc import Rpc
 
 if TYPE_CHECKING:
     from .deltachat import DeltaChat
+    from .rpc import Rpc
 
 
 @dataclass
@@ -20,7 +20,7 @@ class Account:
     id: int
 
     @property
-    def _rpc(self) -> Rpc:
+    def _rpc(self) -> "Rpc":
         return self.manager.rpc
 
     async def wait_for_event(self) -> AttrDict:

@@ -1,8 +1,8 @@
+import asyncio
 import json
 import os
 from typing import AsyncGenerator, List, Optional
 
-import asyncio
 import aiohttp
 import pytest_asyncio
 

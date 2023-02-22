@@ -2,8 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
 use rusqlite::{self, config::DbConfig, Connection, OpenFlags, TransactionBehavior};
@@ -49,7 +48,7 @@ pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &d
 mod migrations;
 mod pool;
 
-use pool::{Pool, PooledConnection};
+use pool::Pool;
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -128,45 +127,51 @@ impl Sql {
     pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
             .to_str()
-            .with_context(|| format!("path {path:?} is not valid unicode"))?;
-        let conn = self.get_conn().await?;
+            .with_context(|| format!("path {path:?} is not valid unicode"))?
+            .to_string();
+        let res = self
+            .call(move |conn| {
+                // Check that backup passphrase is correct before resetting our database.
+                conn.execute(
+                    "ATTACH DATABASE ? AS backup KEY ?",
+                    paramsv![path_str, passphrase],
+                )
+                .context("failed to attach backup database")?;
+                if let Err(err) = conn
+                    .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                    .context("backup passphrase is not correct")
+                {
+                    conn.execute("DETACH DATABASE backup", [])
+                        .context("failed to detach backup database")?;
+                    return Err(err);
+                }
 
-        tokio::task::block_in_place(move || {
-            // Check that backup passphrase is correct before resetting our database.
-            conn.execute(
-                "ATTACH DATABASE ? AS backup KEY ?",
-                paramsv![path_str, passphrase],
-            )
-            .context("failed to attach backup database")?;
-            if let Err(err) = conn
-                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
-                .context("backup passphrase is not correct")
-            {
+                // Reset the database without reopening it. We don't want to reopen the database because we
+                // don't have main database passphrase at this point.
+                // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
+                // Without resetting import may fail due to existing tables.
+                conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
+                    .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
+                conn.execute("VACUUM", [])
+                    .context("failed to vacuum the database")?;
+                conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
+                    .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
+                let res = conn
+                    .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
+                        Ok(())
+                    })
+                    .context("failed to import from attached backup database");
                 conn.execute("DETACH DATABASE backup", [])
                     .context("failed to detach backup database")?;
-                return Err(err);
-            }
+                res?;
+                Ok(())
+            })
+            .await;
 
-            // Reset the database without reopening it. We don't want to reopen the database because we
-            // don't have main database passphrase at this point.
-            // See <https://sqlite.org/c3ref/c_dbconfig_enable_fkey.html> for documentation.
-            // Without resetting import may fail due to existing tables.
-            conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, true)
-                .context("failed to set SQLITE_DBCONFIG_RESET_DATABASE")?;
-            conn.execute("VACUUM", [])
-                .context("failed to vacuum the database")?;
-            conn.set_db_config(DbConfig::SQLITE_DBCONFIG_RESET_DATABASE, false)
-                .context("failed to unset SQLITE_DBCONFIG_RESET_DATABASE")?;
-            let res = conn
-                .query_row("SELECT sqlcipher_export('main', 'backup')", [], |_row| {
-                    Ok(())
-                })
-                .context("failed to import from attached backup database");
-            conn.execute("DETACH DATABASE backup", [])
-                .context("failed to detach backup database")?;
-            res?;
-            Ok(())
-        })
+        // The config cache is wrong now that we have a different database
+        self.config_cache.write().await.clear();
+
+        res
     }
 
     /// Creates a new connection pool.
@@ -294,22 +299,41 @@ impl Sql {
         }
     }
 
+    /// Allocates a connection and calls given function with the connection.
+    ///
+    /// Returns the result of the function.
+    pub async fn call<'a, F, R>(&'a self, function: F) -> Result<R>
+    where
+        F: 'a + FnOnce(&mut Connection) -> Result<R> + Send,
+        R: Send + 'static,
+    {
+        let lock = self.pool.read().await;
+        let pool = lock.as_ref().context("no SQL connection")?;
+        let mut conn = pool.get().await?;
+        let res = tokio::task::block_in_place(move || function(&mut conn))?;
+        Ok(res)
+    }
+
     /// Execute the given query, returning the number of affected rows.
-    pub async fn execute(&self, query: &str, params: impl rusqlite::Params) -> Result<usize> {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+    pub async fn execute(
+        &self,
+        query: &str,
+        params: impl rusqlite::Params + Send,
+    ) -> Result<usize> {
+        self.call(move |conn| {
             let res = conn.execute(query, params)?;
             Ok(res)
         })
+        .await
     }
 
     /// Executes the given query, returning the last inserted row ID.
-    pub async fn insert(&self, query: &str, params: impl rusqlite::Params) -> Result<i64> {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+    pub async fn insert(&self, query: &str, params: impl rusqlite::Params + Send) -> Result<i64> {
+        self.call(move |conn| {
             conn.execute(query, params)?;
             Ok(conn.last_insert_rowid())
         })
+        .await
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.
@@ -318,40 +342,32 @@ impl Sql {
     pub async fn query_map<T, F, G, H>(
         &self,
         sql: &str,
-        params: impl rusqlite::Params,
+        params: impl rusqlite::Params + Send,
         f: F,
         mut g: G,
     ) -> Result<H>
     where
-        F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
-        G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
+        F: Send + FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
+        G: Send + FnMut(rusqlite::MappedRows<F>) -> Result<H>,
+        H: Send + 'static,
     {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+        self.call(move |conn| {
             let mut stmt = conn.prepare(sql)?;
             let res = stmt.query_map(params, f)?;
             g(res)
         })
-    }
-
-    /// Allocates a connection from the connection pool and returns it.
-    pub(crate) async fn get_conn(&self) -> Result<PooledConnection> {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().context("no SQL connection")?;
-        let conn = pool.get().await?;
-
-        Ok(conn)
+        .await
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns the resulting count.
-    pub async fn count(&self, query: &str, params: impl rusqlite::Params) -> Result<usize> {
+    pub async fn count(&self, query: &str, params: impl rusqlite::Params + Send) -> Result<usize> {
         let count: isize = self.query_row(query, params, |row| row.get(0)).await?;
         Ok(usize::try_from(count)?)
     }
 
     /// Used for executing `SELECT COUNT` statements only. Returns `true`, if the count is at least
     /// one, `false` otherwise.
-    pub async fn exists(&self, sql: &str, params: impl rusqlite::Params) -> Result<bool> {
+    pub async fn exists(&self, sql: &str, params: impl rusqlite::Params + Send) -> Result<bool> {
         let count = self.count(sql, params).await?;
         Ok(count > 0)
     }
@@ -360,17 +376,18 @@ impl Sql {
     pub async fn query_row<T, F>(
         &self,
         query: &str,
-        params: impl rusqlite::Params,
+        params: impl rusqlite::Params + Send,
         f: F,
     ) -> Result<T>
     where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T> + Send,
+        T: Send + 'static,
     {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+        self.call(move |conn| {
             let res = conn.query_row(query, params, f)?;
             Ok(res)
         })
+        .await
     }
 
     /// Execute the function inside a transaction.
@@ -388,8 +405,7 @@ impl Sql {
         H: Send + 'static,
         G: Send + FnOnce(&mut rusqlite::Transaction<'_>) -> Result<H>,
     {
-        let mut conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+        self.call(move |conn| {
             let mut transaction = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let ret = callback(&mut transaction);
 
@@ -404,12 +420,12 @@ impl Sql {
                 }
             }
         })
+        .await
     }
 
     /// Query the database if the requested table already exists.
     pub async fn table_exists(&self, name: &str) -> Result<bool> {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+        self.call(move |conn| {
             let mut exists = false;
             conn.pragma(None, "table_info", name.to_string(), |_row| {
                 // will only be executed if the info was found
@@ -419,12 +435,12 @@ impl Sql {
 
             Ok(exists)
         })
+        .await
     }
 
     /// Check if a column exists in a given table.
     pub async fn col_exists(&self, table_name: &str, col_name: &str) -> Result<bool> {
-        let conn = self.get_conn().await?;
-        tokio::task::block_in_place(move || {
+        self.call(move |conn| {
             let mut exists = false;
             // `PRAGMA table_info` returns one row per column,
             // each row containing 0=cid, 1=name, 2=type, 3=notnull, 4=dflt_value
@@ -438,29 +454,27 @@ impl Sql {
 
             Ok(exists)
         })
+        .await
     }
 
     /// Execute a query which is expected to return zero or one row.
     pub async fn query_row_optional<T, F>(
         &self,
         sql: &str,
-        params: impl rusqlite::Params,
+        params: impl rusqlite::Params + Send,
         f: F,
     ) -> Result<Option<T>>
     where
-        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+        F: Send + FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+        T: Send + 'static,
     {
-        let conn = self.get_conn().await?;
-        let res =
-            tokio::task::block_in_place(move || match conn.query_row(sql.as_ref(), params, f) {
-                Ok(res) => Ok(Some(res)),
-                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-                Err(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null)) => {
-                    Ok(None)
-                }
-                Err(err) => Err(err),
-            })?;
-        Ok(res)
+        self.call(move |conn| match conn.query_row(sql.as_ref(), params, f) {
+            Ok(res) => Ok(Some(res)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null)) => Ok(None),
+            Err(err) => Err(err.into()),
+        })
+        .await
     }
 
     /// Executes a query which is expected to return one row and one
@@ -469,10 +483,10 @@ impl Sql {
     pub async fn query_get_value<T>(
         &self,
         query: &str,
-        params: impl rusqlite::Params,
+        params: impl rusqlite::Params + Send,
     ) -> Result<Option<T>>
     where
-        T: rusqlite::types::FromSql,
+        T: rusqlite::types::FromSql + Send + 'static,
     {
         self.query_row_optional(query, params, |row| row.get::<_, T>(0))
             .await
@@ -935,11 +949,16 @@ mod tests {
     async fn test_auto_vacuum() -> Result<()> {
         let t = TestContext::new().await;
 
-        let conn = t.sql.get_conn().await?;
-        let auto_vacuum = conn.pragma_query_value(None, "auto_vacuum", |row| {
-            let auto_vacuum: i32 = row.get(0)?;
-            Ok(auto_vacuum)
-        })?;
+        let auto_vacuum = t
+            .sql
+            .call(|conn| {
+                let auto_vacuum = conn.pragma_query_value(None, "auto_vacuum", |row| {
+                    let auto_vacuum: i32 = row.get(0)?;
+                    Ok(auto_vacuum)
+                })?;
+                Ok(auto_vacuum)
+            })
+            .await?;
 
         // auto_vacuum=2 is the same as auto_vacuum=INCREMENTAL
         assert_eq!(auto_vacuum, 2);
