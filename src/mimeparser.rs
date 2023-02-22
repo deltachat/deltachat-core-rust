@@ -342,7 +342,8 @@ impl MimeMessage {
             if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
                 if message_time > peerstate.last_seen_autocrypt
                     && mail.ctype.mimetype != "multipart/report"
-                    && decryption_info.dkim_results.allow_keychange
+                // Disallowing keychanges is disabled for now:
+                // && decryption_info.dkim_results.allow_keychange
                 {
                     peerstate.degrade_encryption(message_time);
                 }
@@ -413,11 +414,12 @@ impl MimeMessage {
         parser.heuristically_parse_ndn(context).await;
         parser.parse_headers(context).await?;
 
-        if !parser.decryption_info.dkim_results.allow_keychange {
-            for part in parser.parts.iter_mut() {
-                part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
-            }
-        }
+        // Disallowing keychanges is disabled for now
+        // if !decryption_info.dkim_results.allow_keychange {
+        //     for part in parser.parts.iter_mut() {
+        //         part.error = Some("Seems like DKIM failed, this either is an attack or (more likely) a bug in Authentication-Results checking. Please tell us about this at https://support.delta.chat.".to_string());
+        //     }
+        // }
 
         if parser.is_mime_modified {
             parser.decoded_data = mail_raw;

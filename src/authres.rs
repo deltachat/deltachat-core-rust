@@ -644,6 +644,7 @@ Authentication-Results: dkim=";
             .unwrap();
     }
 
+    #[ignore = "Disallowing keychanges is disabled for now"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_handle_authres_fails() -> Result<()> {
         let mut tcm = TestContextManager::new();
@@ -821,7 +822,8 @@ Authentication-Results: dkim=";
             .insert_str(0, "Authentication-Results: example.net; dkim=fail\n");
         let rcvd = bob.recv_msg(&sent).await;
 
-        assert!(rcvd.error.unwrap().contains("DKIM failed"));
+        // Disallowing keychanges is disabled for now:
+        // assert!(rcvd.error.unwrap().contains("DKIM failed"));
         // The message info should contain a warning:
         assert!(message::get_msg_info(&bob, rcvd.id)
             .await
