@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
-        run: rustup toolchain install $RUSTUP_TOOLCHAIN --component rustfmt --component clippy
+        run: rustup toolchain install $RUSTUP_TOOLCHAIN --profile minimal --component rustfmt --component clippy
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
       - name: Run rustfmt
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@master
 
       - name: Install Rust ${{ matrix.rust }}
-        run: rustup toolchain install ${{ matrix.rust }}
+        run: rustup toolchain install --profile minimal ${{ matrix.rust }}
       - run: rustup override set ${{ matrix.rust }}
 
       - name: Cache rust cargo artifacts
