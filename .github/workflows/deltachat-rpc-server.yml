@@ -47,3 +47,4 @@ jobs:
         with:
           name: deltachat-rpc-server-${{ matrix.artifact }}
           path: target/${{ matrix.target}}/release/${{ matrix.path }}
+          if-no-files-found: error
