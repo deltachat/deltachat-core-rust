@@ -31,6 +31,22 @@ jobs:
           path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
           if-no-files-found: error
 
+  build_aarch64_linux:
+    name: Cross-compile deltachat-rpc-server for aarch64 Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build
+        run: sh scripts/aarch64-unknown-linux-musl.sh
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server
+          path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
+          if-no-files-found: error
+
   build_windows:
     name: Build deltachat-rpc-server for Windows
     strategy:
