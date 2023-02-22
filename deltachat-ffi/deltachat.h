@@ -2720,7 +2720,7 @@ void dc_backup_provider_wait (dc_context_t* context, dc_backup_provider_t* backu
  *
  * @memberof dc_backup_provider_t
  */
-void dc_backup_prvider_unref (dc_backup_provider_t* backup_provider);
+void dc_backup_provider_unref (dc_backup_provider_t* backup_provider);
 
 /**
  * Gets a backup offered by a dc_backup_provider_t object on another device.
