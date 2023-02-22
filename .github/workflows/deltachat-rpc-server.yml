@@ -9,6 +9,7 @@ jobs:
   build_server:
     name: Build deltachat-rpc-server
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-22.04
