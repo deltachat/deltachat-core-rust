@@ -30,11 +30,11 @@ use std::task::Poll;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use futures_lite::StreamExt;
-use sendme::get::{DataStream, Options};
-use sendme::progress::ProgressEmitter;
-use sendme::protocol::AuthToken;
-use sendme::provider::{DataSource, Event, Provider, Ticket};
-use sendme::Hash;
+use iroh::get::{DataStream, Options};
+use iroh::progress::ProgressEmitter;
+use iroh::protocol::AuthToken;
+use iroh::provider::{DataSource, Event, Provider, Ticket};
+use iroh::Hash;
 use tokio::fs::{self, File};
 use tokio::io::{self, AsyncWriteExt, BufWriter};
 use tokio::sync::broadcast;
@@ -156,7 +156,7 @@ impl BackupProvider {
         }
 
         // Start listening.
-        let (db, hash) = sendme::provider::create_collection(files).await?;
+        let (db, hash) = iroh::provider::create_collection(files).await?;
         context.emit_event(SendProgress::CollectionCreated.into());
         let provider = Provider::builder(db).auth_token(token).spawn()?;
         context.emit_event(SendProgress::ProviderListening.into());
@@ -328,6 +328,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
     let opts = Options {
         addr: ticket.addr,
         peer_id: Some(ticket.peer),
+        keylog: false,
     };
     let progress = ProgressEmitter::new(0, ReceiveProgress::max_blob_progress());
     spawn_progress_proxy(context.clone(), progress.subscribe());
@@ -336,7 +337,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
         async { Ok(()) }
     };
     let on_blob = |hash, reader, name| on_blob(context, &progress, &ticket, hash, reader, name);
-    let res = sendme::get::run(
+    let res = iroh::get::run(
         ticket.hash,
         ticket.token,
         opts,

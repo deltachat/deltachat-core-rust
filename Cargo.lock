@@ -1021,6 +1021,7 @@ dependencies = [
  "hex",
  "humansize",
  "image",
+ "iroh",
  "kamadak-exif",
  "lettre_email",
  "libc",
@@ -1044,7 +1045,6 @@ dependencies = [
  "rusqlite",
  "rust-hsluv",
  "sanitize-filename",
- "sendme",
  "serde",
  "serde_json",
  "sha-1",
@@ -2174,6 +2174,41 @@ name = "ipnet"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879d54834c8c76457ef4293a689b2a8c59b076067ad77b15efafbb05f92a592b"
+
+[[package]]
+name = "iroh"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d7849b9b19f7f05a21aa4ed1d2b344f9154be5ac1c7de119c9263091bc7505d"
+dependencies = [
+ "abao",
+ "anyhow",
+ "base64 0.21.0",
+ "blake3",
+ "bytes",
+ "der",
+ "ed25519-dalek",
+ "futures",
+ "portable-atomic",
+ "postcard",
+ "quinn",
+ "rand 0.7.3",
+ "rcgen",
+ "ring",
+ "rustls",
+ "serde",
+ "ssh-key",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-futures",
+ "tracing-subscriber",
+ "webpki",
+ "x509-parser",
+ "zeroize",
+]
 
 [[package]]
 name = "is-terminal"
@@ -3662,40 +3697,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58bc9567378fc7690d6b2addae4e60ac2eeea07becb2c64b9f218b53865cba2a"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "sendme"
-version = "0.1.0"
-source = "git+https://github.com/n0-computer/sendme?branch=main#153073a93740a214731181e42d69328652081cda"
-dependencies = [
- "abao",
- "anyhow",
- "base64 0.21.0",
- "blake3",
- "bytes",
- "der",
- "ed25519-dalek",
- "futures",
- "portable-atomic",
- "postcard",
- "quinn",
- "rand 0.7.3",
- "rcgen",
- "ring",
- "rustls",
- "serde",
- "ssh-key",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-futures",
- "tracing-subscriber",
- "webpki",
- "x509-parser",
- "zeroize",
 ]
 
 [[package]]
