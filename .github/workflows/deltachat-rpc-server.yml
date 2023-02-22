@@ -27,7 +27,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server
+          name: deltachat-rpc-server-x86_64
           path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
           if-no-files-found: error
 
@@ -43,7 +43,7 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server
+          name: deltachat-rpc-server-aarch64
           path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
           if-no-files-found: error
 
