@@ -182,19 +182,23 @@ class Chat:
         """Add contacts to this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                cnt = (await self.account.create_contact(cnt)).id
+                contact_id = (await self.account.create_contact(cnt)).id
             elif not isinstance(cnt, int):
-                cnt = cnt.id
-            await self._rpc.add_contact_to_chat(self.account.id, self.id, cnt)
+                contact_id = cnt.id
+            else:
+                contact_id = cnt
+            await self._rpc.add_contact_to_chat(self.account.id, self.id, contact_id)
 
     async def remove_contact(self, *contact: Union[int, str, Contact]) -> None:
         """Remove members from this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                cnt = (await self.account.create_contact(cnt)).id
+                contact_id = (await self.account.create_contact(cnt)).id
             elif not isinstance(cnt, int):
-                cnt = cnt.id
-            await self._rpc.remove_contact_from_chat(self.account.id, self.id, cnt)
+                contact_id = cnt.id
+            else:
+                contact_id = cnt
+            await self._rpc.remove_contact_from_chat(self.account.id, self.id, contact_id)
 
     async def get_contacts(self) -> List[Contact]:
         """Get the contacts belonging to this chat.
@@ -230,9 +234,9 @@ class Chat:
         locations = []
         contacts: Dict[int, Contact] = {}
         for loc in result:
-            loc = AttrDict(loc)
-            loc["chat"] = self
-            loc["contact"] = contacts.setdefault(loc.contact_id, Contact(self.account, loc.contact_id))
-            loc["message"] = Message(self.account, loc.msg_id)
-            locations.append(loc)
+            location = AttrDict(loc)
+            location["chat"] = self
+            location["contact"] = contacts.setdefault(location.contact_id, Contact(self.account, location.contact_id))
+            location["message"] = Message(self.account, location.msg_id)
+            locations.append(location)
         return locations
