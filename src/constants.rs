@@ -190,11 +190,11 @@ pub const DC_LP_AUTH_NORMAL: i32 = 0x4;
 pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 
 /// How many existing messages shall be fetched after configuration.
-pub const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
+pub(crate) const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
 
 // max. width/height of an avatar
-pub const BALANCED_AVATAR_SIZE: u32 = 256;
-pub const WORSE_AVATAR_SIZE: u32 = 128;
+pub(crate) const BALANCED_AVATAR_SIZE: u32 = 256;
+pub(crate) const WORSE_AVATAR_SIZE: u32 = 128;
 
 // max. width/height of images
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
