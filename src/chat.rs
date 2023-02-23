@@ -1881,7 +1881,10 @@ pub(crate) async fn update_special_chat_names(context: &Context) -> Result<()> {
 /// [`Deref`]: std::ops::Deref
 #[derive(Debug)]
 pub(crate) struct ChatIdBlocked {
+    /// Chat ID.
     pub id: ChatId,
+
+    /// Whether the chat is blocked, unblocked or a contact request.
     pub blocked: Blocked,
 }
 

@@ -592,6 +592,8 @@ pub(crate) fn improve_single_line_input(input: &str) -> String {
 }
 
 pub(crate) trait IsNoneOrEmpty<T> {
+    /// Returns true if an Option does not contain a string
+    /// or contains an empty string.
     fn is_none_or_empty(&self) -> bool;
 }
 impl<T> IsNoneOrEmpty<T> for Option<T>

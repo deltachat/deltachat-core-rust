@@ -646,10 +646,14 @@ async fn try_smtp_one_param(
     }
 }
 
+/// Failure to connect and login with email client configuration.
 #[derive(Debug, thiserror::Error)]
 #[error("Trying {config}…\nError: {msg}")]
 pub struct ConfigurationError {
+    /// Tried configuration description.
     config: String,
+
+    /// Error message.
     msg: String,
 }
 

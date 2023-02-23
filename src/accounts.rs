@@ -476,10 +476,13 @@ impl Config {
 struct AccountConfig {
     /// Unique id.
     pub id: u32,
+
     /// Root directory for all data for this account.
     ///
     /// The path is relative to the account manager directory.
     pub dir: std::path::PathBuf,
+
+    /// Universally unique account identifier.
     pub uuid: Uuid,
 }
 

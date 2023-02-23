@@ -1,3 +1,5 @@
+//! # IMAP folder selection module.
+
 use anyhow::Context as _;
 
 use super::session::Session as ImapSession;
