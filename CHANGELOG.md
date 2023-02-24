@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.110.0
 
 ### Changes
 - use transaction in `Contact::add_or_lookup()` #4059
