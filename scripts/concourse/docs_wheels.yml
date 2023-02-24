@@ -12,7 +12,7 @@ resources:
   source:
     branch: master
     uri: https://github.com/deltachat/deltachat-core-rust.git
-    tag_filter: "py-*"
+    tag_filter: "v*"
 
 jobs:
 - name: doxygen

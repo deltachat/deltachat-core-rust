@@ -115,10 +115,8 @@ def main():
 
     print("after commit, on master make sure to: ")
     print("")
-    print(f"   git tag -a {newversion}")
-    print(f"   git push origin {newversion}")
-    print(f"   git tag -a py-{newversion}")
-    print(f"   git push origin py-{newversion}")
+    print(f"   git tag -a v{newversion}")
+    print(f"   git push origin v{newversion}")
     print("")
 
 
