@@ -2134,6 +2134,76 @@ Original signature updated",
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ignore_old_status_updates() -> Result<()> {
+    let t = TestContext::new_alice().await;
+    let bob_id = Contact::add_or_lookup(
+        &t,
+        "",
+        ContactAddress::new("bob@example.net")?,
+        Origin::AddressBook,
+    )
+    .await?
+    .0;
+
+    receive_imf(
+        &t,
+        b"From: Bob <bob@example.net>
+To: Alice <alice@example.org>
+Message-ID: <2@example.org>
+Date: Wed, 22 Feb 2023 20:00:00 +0000
+
+body
+
+--
+sig wednesday",
+        false,
+    )
+    .await?;
+    let chat_id = t.get_last_msg().await.chat_id;
+    let bob = Contact::load_from_db(&t, bob_id).await?;
+    assert_eq!(bob.get_status(), "sig wednesday");
+    assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 1);
+
+    receive_imf(
+        &t,
+        b"From: Bob <bob@example.net>
+To: Alice <alice@example.org>
+Message-ID: <1@example.org>
+Date: Tue, 21 Feb 2023 20:00:00 +0000
+
+body
+
+--
+sig tuesday",
+        false,
+    )
+    .await?;
+    let bob = Contact::load_from_db(&t, bob_id).await?;
+    assert_eq!(bob.get_status(), "sig wednesday");
+    assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 2);
+
+    receive_imf(
+        &t,
+        b"From: Bob <bob@example.net>
+To: Alice <alice@example.org>
+Message-ID: <3@example.org>
+Date: Thu, 23 Feb 2023 20:00:00 +0000
+
+body
+
+--
+sig thursday",
+        false,
+    )
+    .await?;
+    let bob = Contact::load_from_db(&t, bob_id).await?;
+    assert_eq!(bob.get_status(), "sig thursday");
+    assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 3);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_chat_assignment_private_classical_reply() {
     for outgoing_is_classical in &[true, false] {
         let t = TestContext::new_alice().await;
