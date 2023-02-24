@@ -11,6 +11,7 @@
 - Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
 - Updated provider database.
 - Disable DKIM-Checks again #4076
+- Switch from "X.Y.Z" and "py-X.Y.Z" to "vX.Y.Z" tags. #4089
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
