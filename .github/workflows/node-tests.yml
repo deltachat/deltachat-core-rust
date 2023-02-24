@@ -11,8 +11,6 @@ on:
   push:
     branches:
       - master
-      - staging
-      - trying
 
 jobs:
   tests:
