@@ -1,6 +1,7 @@
 [package]
 name = "deltachat-repl"
 version = "1.110.0"
+license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
