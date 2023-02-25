@@ -85,7 +85,7 @@ impl MsgId {
             DownloadState::Available | DownloadState::Failure => {
                 self.update_download_state(context, DownloadState::InProgress)
                     .await?;
-                job::add(context, Job::new(Action::DownloadMsg, self.to_u32(), 0)).await?;
+                job::add(context, Job::new(Action::DownloadMsg, self.to_u32())).await?;
             }
         }
         Ok(())

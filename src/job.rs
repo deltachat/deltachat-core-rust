@@ -85,14 +85,14 @@ impl fmt::Display for Job {
 }
 
 impl Job {
-    pub fn new(action: Action, foreign_id: u32, delay_seconds: i64) -> Self {
+    pub fn new(action: Action, foreign_id: u32) -> Self {
         let timestamp = time();
 
         Self {
             job_id: 0,
             action,
             foreign_id,
-            desired_timestamp: timestamp + delay_seconds,
+            desired_timestamp: timestamp,
             added_timestamp: timestamp,
             tries: 0,
         }
@@ -292,7 +292,7 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
 
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
     kill_action(context, Action::ResyncFolders).await?;
-    add(context, Job::new(Action::ResyncFolders, 0, 0)).await?;
+    add(context, Job::new(Action::ResyncFolders, 0)).await?;
     Ok(())
 }
 
