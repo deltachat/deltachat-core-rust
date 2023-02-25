@@ -98,10 +98,6 @@ impl Job {
         }
     }
 
-    pub fn delay_seconds(&self) -> i64 {
-        self.desired_timestamp - self.added_timestamp
-    }
-
     /// Deletes the job from the database.
     async fn delete(self, context: &Context) -> Result<()> {
         if self.job_id != 0 {
@@ -298,13 +294,10 @@ pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
 
 /// Adds a job to the database, scheduling it.
 pub async fn add(context: &Context, job: Job) -> Result<()> {
-    let delay_seconds = job.delay_seconds();
     job.save(context).await.context("failed to save job")?;
 
-    if delay_seconds == 0 {
-        info!(context, "interrupt: imap");
-        context.interrupt_inbox(InterruptInfo::new(false)).await;
-    }
+    info!(context, "interrupt: imap");
+    context.interrupt_inbox(InterruptInfo::new(false)).await;
     Ok(())
 }
 
