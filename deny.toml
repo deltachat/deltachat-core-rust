@@ -1,0 +1,16 @@
+[advisories]
+ignore = [
+    "RUSTSEC-2020-0071",
+]
+
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "MIT",
+    "BSL-1.0", # Boost Software License 1.0
+    "Unicode-DFS-2016",
+]
