@@ -431,6 +431,7 @@ impl Context {
     async fn pop_smtp_status_update(
         &self,
     ) -> Result<Option<(MsgId, StatusUpdateSerial, StatusUpdateSerial, String)>> {
+        let _lock = self.sql.write_lock().await;
         let res = self
             .sql
             .query_row_optional(

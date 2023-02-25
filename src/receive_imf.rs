@@ -1151,7 +1151,7 @@ async fn add_parts(
 
         let row_id = context
             .sql
-            .call(|conn| {
+            .call_write(|conn| {
                 let mut stmt = conn.prepare_cached(
             r#"
 INSERT INTO msgs
