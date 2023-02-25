@@ -904,6 +904,24 @@ impl Imap {
         info!(context, "Done fetching existing messages.");
         Ok(())
     }
+
+    /// Synchronizes UIDs for all folders.
+    pub(crate) async fn resync_folders(&mut self, context: &Context) -> Result<()> {
+        self.prepare(context).await?;
+
+        let all_folders = self
+            .list_folders(context)
+            .await
+            .context("listing folders for resync")?;
+        for folder in all_folders {
+            let folder_meaning = get_folder_meaning(&folder);
+            if folder_meaning != FolderMeaning::Virtual {
+                self.resync_folder_uids(context, folder.name(), folder_meaning)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Session {

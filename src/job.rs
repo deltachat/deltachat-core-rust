@@ -6,13 +6,14 @@
 #![allow(missing_docs)]
 
 use std::fmt;
+use std::sync::atomic::Ordering;
 
 use anyhow::{Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::imap::{get_folder_meaning, FolderMeaning, Imap};
+use crate::imap::Imap;
 use crate::scheduler::InterruptInfo;
 use crate::tools::time;
 
@@ -24,7 +25,6 @@ const JOB_RETRIES: u32 = 17;
 pub enum Status {
     Finished(Result<()>),
     RetryNow,
-    RetryLater,
 }
 
 #[macro_export]
@@ -62,10 +62,6 @@ pub enum Action {
     // Most messages are downloaded automatically on fetch
     // and do not go through this job.
     DownloadMsg = 250,
-
-    // UID synchronization is high-priority to make sure correct UIDs
-    // are used by message moving/deletion.
-    ResyncFolders = 300,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,52 +138,6 @@ impl Job {
 
         Ok(())
     }
-    /// Synchronizes UIDs for all folders.
-    async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:#}", err);
-            return Status::RetryLater;
-        }
-
-        let all_folders = match imap.list_folders(context).await {
-            Ok(v) => v,
-            Err(e) => {
-                warn!(context, "Listing folders for resync failed: {:#}", e);
-                return Status::RetryLater;
-            }
-        };
-
-        let mut any_failed = false;
-
-        for folder in all_folders {
-            let folder_meaning = get_folder_meaning(&folder);
-            if folder_meaning == FolderMeaning::Virtual {
-                continue;
-            }
-            if let Err(e) = imap
-                .resync_folder_uids(context, folder.name(), folder_meaning)
-                .await
-            {
-                warn!(context, "{:#}", e);
-                any_failed = true;
-            }
-        }
-
-        if any_failed {
-            Status::RetryLater
-        } else {
-            Status::Finished(Ok(()))
-        }
-    }
-}
-
-/// Delete all pending jobs with the given action.
-pub async fn kill_action(context: &Context, action: Action) -> Result<()> {
-    context
-        .sql
-        .execute("DELETE FROM jobs WHERE action=?;", paramsv![action])
-        .await?;
-    Ok(())
 }
 
 pub(crate) enum Connection<'a> {
@@ -211,7 +161,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
     };
 
     match try_res {
-        Status::RetryNow | Status::RetryLater => {
+        Status::RetryNow => {
             let tries = job.tries + 1;
 
             if tries < JOB_RETRIES {
@@ -265,7 +215,6 @@ async fn perform_job_action(
     info!(context, "begin immediate try {} of job {}", tries, job);
 
     let try_res = match job.action {
-        Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
         Action::DownloadMsg => job.download_msg(context, connection.inbox()).await,
     };
 
@@ -287,8 +236,12 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
 }
 
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
-    kill_action(context, Action::ResyncFolders).await?;
-    add(context, Job::new(Action::ResyncFolders, 0)).await?;
+    context.resync_request.store(true, Ordering::Relaxed);
+    context
+        .interrupt_inbox(InterruptInfo {
+            probe_network: false,
+        })
+        .await;
     Ok(())
 }
 

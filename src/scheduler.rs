@@ -129,10 +129,18 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                     info = Default::default();
                 }
                 None => {
-                    let requested = ctx.quota_update_request.swap(false, Ordering::Relaxed);
-                    if requested {
+                    let quota_requested = ctx.quota_update_request.swap(false, Ordering::Relaxed);
+                    if quota_requested {
                         if let Err(err) = ctx.update_recent_quota(&mut connection).await {
                             warn!(ctx, "Failed to update quota: {:#}.", err);
+                        }
+                    }
+
+                    let resync_requested = ctx.resync_request.swap(false, Ordering::Relaxed);
+                    if resync_requested {
+                        if let Err(err) = connection.resync_folders(&ctx).await {
+                            warn!(ctx, "Failed to resync folders: {:#}.", err);
+                            ctx.resync_request.store(true, Ordering::Relaxed);
                         }
                     }
 
