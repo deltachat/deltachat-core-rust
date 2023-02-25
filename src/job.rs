@@ -13,7 +13,6 @@ use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::imap::{get_folder_meaning, FolderMeaning, Imap};
-use crate::param::Params;
 use crate::scheduler::InterruptInfo;
 use crate::tools::time;
 
@@ -77,7 +76,6 @@ pub struct Job {
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: u32,
-    pub param: Params,
 }
 
 impl fmt::Display for Job {
@@ -87,7 +85,7 @@ impl fmt::Display for Job {
 }
 
 impl Job {
-    pub fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
+    pub fn new(action: Action, foreign_id: u32, delay_seconds: i64) -> Self {
         let timestamp = time();
 
         Self {
@@ -97,7 +95,6 @@ impl Job {
             desired_timestamp: timestamp + delay_seconds,
             added_timestamp: timestamp,
             tries: 0,
-            param,
         }
     }
 
@@ -127,23 +124,21 @@ impl Job {
             context
                 .sql
                 .execute(
-                    "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
+                    "UPDATE jobs SET desired_timestamp=?, tries=? WHERE id=?;",
                     paramsv![
                         self.desired_timestamp,
                         i64::from(self.tries),
-                        self.param.to_string(),
                         self.job_id as i32,
                     ],
                 )
                 .await?;
         } else {
             context.sql.execute(
-                "INSERT INTO jobs (added_timestamp, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?);",
+                "INSERT INTO jobs (added_timestamp, action, foreign_id, desired_timestamp) VALUES (?,?,?,?);",
                 paramsv![
                     self.added_timestamp,
                     self.action,
                     self.foreign_id,
-                    self.param.to_string(),
                     self.desired_timestamp
                 ]
             ).await?;
@@ -297,11 +292,7 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
 
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
     kill_action(context, Action::ResyncFolders).await?;
-    add(
-        context,
-        Job::new(Action::ResyncFolders, 0, Params::new(), 0),
-    )
-    .await?;
+    add(context, Job::new(Action::ResyncFolders, 0, 0)).await?;
     Ok(())
 }
 
@@ -370,7 +361,6 @@ LIMIT 1;
                     desired_timestamp: row.get("desired_timestamp")?,
                     added_timestamp: row.get("added_timestamp")?,
                     tries: row.get("tries")?,
-                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
                 };
 
                 Ok(job)
@@ -410,8 +400,8 @@ mod tests {
             .sql
             .execute(
                 "INSERT INTO jobs
-                   (added_timestamp, action, foreign_id, param, desired_timestamp)
-                 VALUES (?, ?, ?, ?, ?);",
+                   (added_timestamp, action, foreign_id, desired_timestamp)
+                 VALUES (?, ?, ?, ?);",
                 paramsv![
                     now,
                     if valid {
@@ -420,7 +410,6 @@ mod tests {
                         -1
                     },
                     foreign_id,
-                    Params::new().to_string(),
                     now
                 ],
             )

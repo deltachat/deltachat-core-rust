@@ -13,7 +13,6 @@ use crate::imap::{Imap, ImapActionResult};
 use crate::job::{self, Action, Job, Status};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::param::Params;
 use crate::tools::time;
 use crate::{job_try, stock_str, EventType};
 
@@ -86,11 +85,7 @@ impl MsgId {
             DownloadState::Available | DownloadState::Failure => {
                 self.update_download_state(context, DownloadState::InProgress)
                     .await?;
-                job::add(
-                    context,
-                    Job::new(Action::DownloadMsg, self.to_u32(), Params::new(), 0),
-                )
-                .await?;
+                job::add(context, Job::new(Action::DownloadMsg, self.to_u32(), 0)).await?;
             }
         }
         Ok(())
