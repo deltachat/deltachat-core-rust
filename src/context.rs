@@ -211,6 +211,9 @@ pub struct InnerContext {
     /// Set to true if quota update is requested.
     pub(crate) quota_update_request: AtomicBool,
 
+    /// IMAP UID resync request.
+    pub(crate) resync_request: AtomicBool,
+
     /// Server ID response if ID capability is supported
     /// and the server returned non-NIL on the inbox connection.
     /// <https://datatracker.ietf.org/doc/html/rfc2971>
@@ -371,6 +374,7 @@ impl Context {
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
             quota_update_request: AtomicBool::new(false),
+            resync_request: AtomicBool::new(false),
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
