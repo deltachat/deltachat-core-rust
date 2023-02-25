@@ -298,7 +298,6 @@ pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
 
 /// Adds a job to the database, scheduling it.
 pub async fn add(context: &Context, job: Job) -> Result<()> {
-    let action = job.action;
     let delay_seconds = job.delay_seconds();
     job.save(context).await.context("failed to save job")?;
 
