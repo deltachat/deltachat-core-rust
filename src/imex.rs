@@ -540,7 +540,7 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
 
     context
         .sql
-        .call(|conn| {
+        .call_write(|conn| {
             if let Err(err) = conn.execute("VACUUM", params![]) {
                 info!(context, "Vacuum failed, exporting anyway: {:#}.", err);
             }

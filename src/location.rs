@@ -603,7 +603,7 @@ pub(crate) async fn save(
 
         context
             .sql
-            .call(|conn| {
+            .call_write(|conn| {
                 let mut stmt_test = conn
                     .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
                 let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
