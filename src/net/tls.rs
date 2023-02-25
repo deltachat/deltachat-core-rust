@@ -1,7 +1,7 @@
 //! TLS support.
 
 use anyhow::Result;
-use async_native_tls::{Certificate, TlsConnector, TlsStream};
+use async_native_tls::{Certificate, Protocol, TlsConnector, TlsStream};
 use once_cell::sync::Lazy;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -15,7 +15,9 @@ static LETSENCRYPT_ROOT: Lazy<Certificate> = Lazy::new(|| {
 });
 
 pub fn build_tls(strict_tls: bool) -> TlsConnector {
-    let tls_builder = TlsConnector::new().add_root_certificate(LETSENCRYPT_ROOT.clone());
+    let tls_builder = TlsConnector::new()
+        .min_protocol_version(Some(Protocol::Tlsv12))
+        .add_root_certificate(LETSENCRYPT_ROOT.clone());
 
     if strict_tls {
         tls_builder

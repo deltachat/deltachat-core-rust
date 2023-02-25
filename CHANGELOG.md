@@ -4,6 +4,7 @@
 
 ### Changes
 - Make smeared timestamp generation non-async. #4075
+- Set minimum TLS version to 1.2. #4096
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079
