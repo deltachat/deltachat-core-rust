@@ -303,12 +303,8 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
     job.save(context).await.context("failed to save job")?;
 
     if delay_seconds == 0 {
-        match action {
-            Action::ResyncFolders | Action::DownloadMsg => {
-                info!(context, "interrupt: imap");
-                context.interrupt_inbox(InterruptInfo::new(false)).await;
-            }
-        }
+        info!(context, "interrupt: imap");
+        context.interrupt_inbox(InterruptInfo::new(false)).await;
     }
     Ok(())
 }
