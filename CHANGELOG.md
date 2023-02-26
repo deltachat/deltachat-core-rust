@@ -6,6 +6,7 @@
 - Make smeared timestamp generation non-async. #4075
 - Set minimum TLS version to 1.2. #4096
 - Run `cargo-deny` in CI. #4101
+- Check provider database with CI. #4099 
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079

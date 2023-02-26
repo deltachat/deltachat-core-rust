@@ -41,6 +41,14 @@ jobs:
         with:
           arguments: --all-features --workspace
 
+  provider_database:
+    name: Check provider database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check provider database
+        run: scripts/update-provider-database.sh
+
   docs:
     name: Rust doc comments
     runs-on: ubuntu-latest
