@@ -983,7 +983,7 @@ mod tests {
         assert_eq!(avatar_bytes, &tokio::fs::read(&a).await.unwrap()[..]);
 
         t.sql.close().await;
-        housekeeping(&t).await.unwrap_err(); // housekeeping should fail as the db is closed
+        housekeeping(&t).await.unwrap(); // housekeeping should emit warnings but not fail
         t.sql.open(&t, "".to_string()).await.unwrap();
 
         let a = t.get_config(Config::Selfavatar).await.unwrap().unwrap();

@@ -300,6 +300,9 @@ pub enum Config {
     /// See `crate::authres::update_authservid_candidates`.
     AuthservIdCandidates,
 
+    /// Make all outgoing messages with Autocrypt header "multipart/signed".
+    SignUnencrypted,
+
     /// Let the core save all events to the database.
     /// This value is used internally to remember the MsgId of the logging xdc
     #[strum(props(default = "0"))]

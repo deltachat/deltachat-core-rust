@@ -1,11 +1,16 @@
 name: "node.js tests"
+
+# Cancel previously started workflow runs
+# when the branch is updated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
   push:
     branches:
       - master
-      - staging
-      - trying
 
 jobs:
   tests:

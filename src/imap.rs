@@ -116,6 +116,8 @@ impl async_imap::Authenticator for OAuth2 {
 #[derive(Debug, Display, PartialEq, Eq, Clone, Copy)]
 pub enum FolderMeaning {
     Unknown,
+
+    /// Spam folder.
     Spam,
     Inbox,
     Mvbox,
@@ -149,8 +151,11 @@ impl FolderMeaning {
 
 #[derive(Debug)]
 struct ImapConfig {
+    /// Email address.
     pub addr: String,
     pub lp: ServerLoginParam,
+
+    /// SOCKS 5 configuration.
     pub socks5_config: Option<Socks5Config>,
     pub strict_tls: bool,
 }

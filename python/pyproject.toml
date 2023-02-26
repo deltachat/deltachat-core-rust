@@ -44,8 +44,8 @@ deltachat = [
 
 [tool.setuptools_scm]
 root = ".."
-tag_regex = '^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$'
-git_describe_command = "git describe --dirty --tags --long --match py-*.*"
+tag_regex = '^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$'
+git_describe_command = "git describe --dirty --tags --long --match v*.*"
 
 [tool.black]
 line-length = 120

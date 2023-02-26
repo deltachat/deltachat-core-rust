@@ -262,6 +262,20 @@ pub async fn pk_encrypt(
         .await?
 }
 
+/// Signs `plain` text using `private_key_for_signing`.
+pub fn pk_calc_signature(
+    plain: &[u8],
+    private_key_for_signing: &SignedSecretKey,
+) -> Result<String> {
+    let msg = Message::new_literal_bytes("", plain).sign(
+        private_key_for_signing,
+        || "".into(),
+        Default::default(),
+    )?;
+    let signature = msg.into_signature().to_armored_string(None)?;
+    Ok(signature)
+}
+
 /// Decrypts the message with keys from the private key keyring.
 ///
 /// Receiver private keys are provided in

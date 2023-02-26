@@ -1771,13 +1771,8 @@ async fn ndn_maybe_add_info_msg(
                 // Tell the user which of the recipients failed if we know that (because in
                 // a group, this might otherwise be unclear)
                 let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
-                chat::add_info_msg(
-                    context,
-                    chat_id,
-                    &text,
-                    create_smeared_timestamp(context).await,
-                )
-                .await?;
+                chat::add_info_msg(context, chat_id, &text, create_smeared_timestamp(context))
+                    .await?;
                 context.emit_event(EventType::ChatModified(chat_id));
             }
         }

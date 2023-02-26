@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Changes
+- Make smeared timestamp generation non-async. #4075
+
+### Fixes
+- Do not block async task executor while decrypting the messages. #4079
+
+### API-Changes
+
+
+## 1.110.0
+
+### Changes
 - use transaction in `Contact::add_or_lookup()` #4059
 - Organize the connection pool as a stack rather than a queue to ensure that
   connection page cache is reused more often.
@@ -11,12 +22,15 @@
 - Remove `Sql.get_conn()` interface in favor of `.call()` and `.transaction()`. #4055
 - Updated provider database.
 - Disable DKIM-Checks again #4076
+- Switch from "X.Y.Z" and "py-X.Y.Z" to "vX.Y.Z" tags. #4089
+- mimeparser: handle headers from the signed part of unencrypted signed message #4013
 
 ### Fixes
 - Start SQL transactions with IMMEDIATE behaviour rather than default DEFERRED one. #4063
 - Fix a problem with Gmail where (auto-)deleted messages would get archived instead of deleted.
   Move them to the Trash folder for Gmail which auto-deletes trashed messages in 30 days #3972
 - Clear config cache after backup import. This bug sometimes resulted in the import to seemingly work at first. #4067
+- Update timestamps in `param` columns with transactions. #4083
 
 ### API-Changes
 - jsonrpc: add more advanced API to send a message.
@@ -51,6 +65,7 @@
 - Prefer TLS over STARTTLS during autoconfiguration #4021
 - Use SOCKS5 configuration for HTTP requests #4017
 - Show non-deltachat emails by default for new installations #4019
+- Re-enabled SMTP pipelining after disabling it in #4006
 
 ### Fixes
 - Fix Securejoin for multiple devices on a joining side #3982
@@ -438,7 +453,7 @@
 - Auto accept contact requests if `Config::Bot` is set for a client #3567 
 - Don't prepend the subject to chat messages in mailinglists
 - fix `set_core_version.py` script to also update version in `deltachat-jsonrpc/typescript/package.json` #3585
-- Reject webxcd-updates from contacts who are not group members #3568
+- Reject webxdc-updates from contacts who are not group members #3568
 
 
 ## 1.93.0

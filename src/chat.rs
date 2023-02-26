@@ -276,7 +276,7 @@ impl ChatId {
                     grpname,
                     grpid,
                     create_blocked,
-                    create_smeared_timestamp(context).await,
+                    create_smeared_timestamp(context),
                     create_protected,
                     param.unwrap_or_default(),
                 ],
@@ -482,7 +482,7 @@ impl ChatId {
                 self,
                 &msg_text,
                 cmd,
-                create_smeared_timestamp(context).await,
+                create_smeared_timestamp(context),
                 None,
                 None,
                 None,
@@ -1881,7 +1881,10 @@ pub(crate) async fn update_special_chat_names(context: &Context) -> Result<()> {
 /// [`Deref`]: std::ops::Deref
 #[derive(Debug)]
 pub(crate) struct ChatIdBlocked {
+    /// Chat ID.
     pub id: ChatId,
+
+    /// Whether the chat is blocked, unblocked or a contact request.
     pub blocked: Blocked,
 }
 
@@ -1953,7 +1956,6 @@ impl ChatIdBlocked {
             _ => (),
         }
 
-        let created_timestamp = create_smeared_timestamp(context).await;
         let chat_id = context
             .sql
             .transaction(move |transaction| {
@@ -1966,7 +1968,7 @@ impl ChatIdBlocked {
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        created_timestamp,
+                        create_smeared_timestamp(context)
                     ],
                 )?;
                 let chat_id = ChatId::new(
@@ -2114,7 +2116,7 @@ async fn prepare_msg_common(
             context,
             msg,
             update_msg_id,
-            create_smeared_timestamp(context).await,
+            create_smeared_timestamp(context),
         )
         .await?;
     msg.chat_id = chat_id;
@@ -2839,7 +2841,7 @@ pub async fn create_group_chat(
                 Chattype::Group,
                 chat_name,
                 grpid,
-                create_smeared_timestamp(context).await,
+                create_smeared_timestamp(context),
             ],
         )
         .await?;
@@ -2897,7 +2899,7 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
                 Chattype::Broadcast,
                 chat_name,
                 grpid,
-                create_smeared_timestamp(context).await,
+                create_smeared_timestamp(context),
             ],
         )
         .await?;
@@ -3358,7 +3360,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         if let Some(reason) = chat.why_cant_send(context).await? {
             bail!("cannot send to {}: {}", chat_id, reason);
         }
-        curr_timestamp = create_smeared_timestamps(context, msg_ids.len()).await;
+        curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
         let ids = context
             .sql
             .query_map(
@@ -3560,7 +3562,7 @@ pub async fn add_device_msg_with_importance(
         msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
 
-        let timestamp_sent = create_smeared_timestamp(context).await;
+        let timestamp_sent = create_smeared_timestamp(context);
 
         // makes sure, the added message is the last one,
         // even if the date is wrong (useful esp. when warning about bad dates)
@@ -4088,7 +4090,6 @@ mod tests {
         send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
 
         add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
         let add1 = alice.pop_sent_msg().await;
 
         add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
@@ -4107,29 +4108,18 @@ mod tests {
 
         remove_contact_from_chat(&alice, alice_chat_id, daisy_id).await?;
         let remove2 = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
 
         assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
 
         // Bob receives the add and deletion messages out of order
         let bob = TestContext::new_bob().await;
         bob.recv_msg(&add1).await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
         bob.recv_msg(&add3).await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
         let bob_chat_id = bob.recv_msg(&add2).await.chat_id;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 4);
 
         bob.recv_msg(&remove2).await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
         bob.recv_msg(&remove1).await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
         assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
 
         Ok(())

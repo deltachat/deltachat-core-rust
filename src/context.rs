@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -26,6 +27,7 @@ use crate::quota::QuotaInfo;
 use crate::scheduler::Scheduler;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
+use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{duration_to_str, time};
 
 /// Builder for the [`Context`].
@@ -188,7 +190,7 @@ pub struct InnerContext {
     /// Blob directory path
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
-    pub(crate) last_smeared_timestamp: RwLock<i64>,
+    pub(crate) smeared_timestamp: SmearedTimestamp,
     running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
     pub(crate) generating_key_mutex: Mutex<()>,
@@ -205,6 +207,9 @@ pub struct InnerContext {
     /// Recently loaded quota information, if any.
     /// Set to `None` if quota was never tried to load.
     pub(crate) quota: RwLock<Option<QuotaInfo>>,
+
+    /// Set to true if quota update is requested.
+    pub(crate) quota_update_request: AtomicBool,
 
     /// Server ID response if ID capability is supported
     /// and the server returned non-NIL on the inbox connection.
@@ -356,7 +361,7 @@ impl Context {
             blobdir,
             running_state: RwLock::new(Default::default()),
             sql: Sql::new(dbfile),
-            last_smeared_timestamp: RwLock::new(0),
+            smeared_timestamp: SmearedTimestamp::new(),
             generating_key_mutex: Mutex::new(()),
             oauth2_mutex: Mutex::new(()),
             wrong_pw_warning_mutex: Mutex::new(()),
@@ -365,6 +370,7 @@ impl Context {
             scheduler: RwLock::new(None),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
+            quota_update_request: AtomicBool::new(false),
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
@@ -756,6 +762,12 @@ impl Context {
             self.get_config(Config::AuthservIdCandidates)
                 .await?
                 .unwrap_or_default(),
+        );
+        res.insert(
+            "sign_unencrypted",
+            self.get_config_int(Config::SignUnencrypted)
+                .await?
+                .to_string(),
         );
 
         res.insert(
