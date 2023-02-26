@@ -19,6 +19,7 @@
 - Clear config cache after backup import. This bug sometimes resulted in the import to seemingly work at first. #4067
 
 ### API-Changes
+- jsonrpc: add more advanced API to send a message.
 
 
 ## 1.109.0

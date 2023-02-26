@@ -41,6 +41,7 @@ use types::account::Account;
 use types::chat::FullChat;
 use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
+use types::message::DraftMessage;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
@@ -1509,6 +1510,54 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" ")).await?;
         Ok(message_id.to_u32())
+    }
+
+    async fn send_msg(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        draft: DraftMessage,
+    ) -> Result<(u32, MessageObject)> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = Message::new(if let Some(viewtype) = draft.viewtype {
+            viewtype.into()
+        } else if draft.file.is_some() {
+            Viewtype::File
+        } else {
+            Viewtype::Text
+        });
+        if draft.text.is_some() {
+            message.set_text(draft.text);
+        }
+        if draft.html.is_some() {
+            message.set_html(draft.html);
+        }
+        if draft.override_sender_name.is_some() {
+            message.set_override_sender_name(draft.override_sender_name);
+        }
+        if let Some(file) = draft.file {
+            message.set_file(file, None);
+        }
+        if let Some((latitude, longitude)) = draft.location {
+            message.set_location(latitude, longitude);
+        }
+        if let Some(id) = draft.quoted_message_id {
+            message
+                .set_quote(
+                    &ctx,
+                    Some(
+                        &Message::load_from_db(&ctx, MsgId::new(id))
+                            .await
+                            .context("message to quote could not be loaded")?,
+                    ),
+                )
+                .await?;
+        }
+        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+            .await?
+            .to_u32();
+        let message = MessageObject::from_message_id(&ctx, msg_id).await?;
+        Ok((msg_id, message))
     }
 
     // ---------------------------------------------

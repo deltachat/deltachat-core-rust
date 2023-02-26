@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from ._utils import AttrDict
-from .const import ChatVisibility
+from .const import ChatVisibility, ViewType
 from .contact import Contact
 from .message import Message
 
@@ -108,15 +108,27 @@ class Chat:
     async def send_message(
         self,
         text: Optional[str] = None,
+        html: Optional[str] = None,
+        viewtype: Optional[ViewType] = None,
         file: Optional[str] = None,
         location: Optional[Tuple[float, float]] = None,
+        override_sender_name: Optional[str] = None,
         quoted_msg: Optional[Union[int, Message]] = None,
     ) -> Message:
         """Send a message and return the resulting Message instance."""
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
 
-        msg_id, _ = await self._rpc.misc_send_msg(self.account.id, self.id, text, file, location, quoted_msg)
+        draft = {
+            "text": text,
+            "html": html,
+            "viewtype": viewtype,
+            "file": file,
+            "location": location,
+            "overrideSenderName": override_sender_name,
+            "quotedMsg": quoted_msg,
+        }
+        msg_id, _ = await self._rpc.send_msg(self.account.id, self.id, draft)
         return Message(self.account, msg_id)
 
     async def send_text(self, text: str) -> Message:

@@ -502,3 +502,15 @@ impl From<ChatItem> for JSONRPCMessageListItem {
         }
     }
 }
+
+#[derive(Deserialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftMessage {
+    pub text: Option<String>,
+    pub html: Option<String>,
+    pub viewtype: Option<MessageViewtype>,
+    pub file: Option<String>,
+    pub location: Option<(f64, f64)>,
+    pub override_sender_name: Option<String>,
+    pub quoted_message_id: Option<u32>,
+}
