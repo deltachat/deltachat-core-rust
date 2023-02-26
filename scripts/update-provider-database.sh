@@ -14,7 +14,7 @@ git clone --filter=blob:none https://github.com/deltachat/provider-db.git "$TMP"
 cd "$TMP"
 git checkout "$REV"
 DATE=$(git show -s --format=%cs)
-"$CORE_ROOT"/scripts/update-provider-database.py "$TMP/_providers" "$DATE" >"$CORE_ROOT/src/provider/data.rs"
+"$CORE_ROOT"/scripts/create-provider-data-rs.py "$TMP/_providers" "$DATE" >"$CORE_ROOT/src/provider/data.rs"
 rustfmt "$CORE_ROOT/src/provider/data.rs"
 rm -fr "$TMP"
 
