@@ -201,7 +201,10 @@ if __name__ == "__main__":
     out_all += out_ids;
     out_all += "].iter().copied().collect());\n\n"
 
-    now = datetime.datetime.utcnow()
+    if len(sys.argv) < 3:
+        now = datetime.datetime.utcnow()
+    else:
+        now = datetime.datetime.fromisoformat(sys.argv[2])
     out_all += "pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> = "\
                "Lazy::new(|| chrono::NaiveDate::from_ymd_opt("+str(now.year)+", "+str(now.month)+", "+str(now.day)+").unwrap());\n"
 
