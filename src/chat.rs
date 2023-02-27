@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::{bail, ensure, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
+use mail_builder::mime::MimePart;
 
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
@@ -1573,7 +1574,13 @@ impl Chat {
             } else {
                 msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
-            html.map(|html| new_html_mimepart(html).build().as_string())
+            if let Some(html) = html {
+                let mut output = Vec::new();
+                MimePart::new_html(html).write_part(&mut output)?;
+                Some(String::from_utf8(output).unwrap_or_default())
+            } else {
+                None
+            }
         } else {
             None
         };

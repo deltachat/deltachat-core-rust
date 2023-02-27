@@ -6,7 +6,7 @@ use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
 use format_flowed::{format_flowed, format_flowed_quote};
-use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use lettre_email::{mime, Address, Header, PartBuilder};
 use mail_builder::{mime::MimePart, MessageBuilder};
 use tokio::fs;
 
