@@ -505,7 +505,7 @@ impl From<ChatItem> for JSONRPCMessageListItem {
 
 #[derive(Deserialize, TypeDef)]
 #[serde(rename_all = "camelCase")]
-pub struct DraftMessage {
+pub struct MessageData {
     pub text: Option<String>,
     pub html: Option<String>,
     pub viewtype: Option<MessageViewtype>,

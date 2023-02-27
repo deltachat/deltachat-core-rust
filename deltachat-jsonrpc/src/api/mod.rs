@@ -41,7 +41,7 @@ use types::account::Account;
 use types::chat::FullChat;
 use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
-use types::message::DraftMessage;
+use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
@@ -1512,31 +1512,31 @@ impl CommandApi {
         Ok(message_id.to_u32())
     }
 
-    async fn send_msg(&self, account_id: u32, chat_id: u32, draft: DraftMessage) -> Result<u32> {
+    async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let mut message = Message::new(if let Some(viewtype) = draft.viewtype {
+        let mut message = Message::new(if let Some(viewtype) = data.viewtype {
             viewtype.into()
-        } else if draft.file.is_some() {
+        } else if data.file.is_some() {
             Viewtype::File
         } else {
             Viewtype::Text
         });
-        if draft.text.is_some() {
-            message.set_text(draft.text);
+        if data.text.is_some() {
+            message.set_text(data.text);
         }
-        if draft.html.is_some() {
-            message.set_html(draft.html);
+        if data.html.is_some() {
+            message.set_html(data.html);
         }
-        if draft.override_sender_name.is_some() {
-            message.set_override_sender_name(draft.override_sender_name);
+        if data.override_sender_name.is_some() {
+            message.set_override_sender_name(data.override_sender_name);
         }
-        if let Some(file) = draft.file {
+        if let Some(file) = data.file {
             message.set_file(file, None);
         }
-        if let Some((latitude, longitude)) = draft.location {
+        if let Some((latitude, longitude)) = data.location {
             message.set_location(latitude, longitude);
         }
-        if let Some(id) = draft.quoted_message_id {
+        if let Some(id) = data.quoted_message_id {
             message
                 .set_quote(
                     &ctx,
