@@ -1463,6 +1463,23 @@ impl CommandApi {
         WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
     }
 
+    /// Get blob encoded as base64 from a webxdc message
+    ///
+    /// path is the path of the file within webxdc archive
+    async fn get_webxdc_blob(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        path: String,
+    ) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
+        let blob = message.get_webxdc_blob(&ctx, &path).await?;
+
+        use base64::{engine::general_purpose, Engine as _};
+        Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
+    }
+
     /// Forward messages to another chat.
     ///
     /// All types of messages can be forwarded,
