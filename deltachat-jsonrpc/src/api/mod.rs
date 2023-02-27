@@ -1464,7 +1464,7 @@ impl CommandApi {
     }
 
     /// Get blob encoded as base64 from a webxdc message
-    /// 
+    ///
     /// path is the path of the file within webxdc archive
     async fn get_webxdc_blob(
         &self,
