@@ -670,8 +670,10 @@ impl Message {
         Ok(archive)
     }
 
-    /// Return file form inside an archive.
+    /// Return file from inside an archive.
     /// Currently, this works only if the message is an webxdc instance.
+    ///
+    /// `name` is the filename within the archive, e.g. `index.html`.
     pub async fn get_webxdc_blob(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
 
