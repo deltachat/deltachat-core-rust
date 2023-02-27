@@ -128,7 +128,7 @@ class Chat:
             "overrideSenderName": override_sender_name,
             "quotedMsg": quoted_msg,
         }
-        msg_id, _ = await self._rpc.send_msg(self.account.id, self.id, draft)
+        msg_id = await self._rpc.send_msg(self.account.id, self.id, draft)
         return Message(self.account, msg_id)
 
     async def send_text(self, text: str) -> Message:

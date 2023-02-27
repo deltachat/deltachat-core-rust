@@ -1512,12 +1512,7 @@ impl CommandApi {
         Ok(message_id.to_u32())
     }
 
-    async fn send_msg(
-        &self,
-        account_id: u32,
-        chat_id: u32,
-        draft: DraftMessage,
-    ) -> Result<(u32, MessageObject)> {
+    async fn send_msg(&self, account_id: u32, chat_id: u32, draft: DraftMessage) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let mut message = Message::new(if let Some(viewtype) = draft.viewtype {
             viewtype.into()
@@ -1556,8 +1551,7 @@ impl CommandApi {
         let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
             .await?
             .to_u32();
-        let message = MessageObject::from_message_id(&ctx, msg_id).await?;
-        Ok((msg_id, message))
+        Ok(msg_id)
     }
 
     // ---------------------------------------------
