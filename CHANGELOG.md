@@ -12,6 +12,7 @@
 - Do not block async task executor while decrypting the messages. #4079
 
 ### API-Changes
+- jsonrpc: add more advanced API to send a message. #4097
 
 
 ## 1.110.0
@@ -36,7 +37,6 @@
 - Update timestamps in `param` columns with transactions. #4083
 
 ### API-Changes
-- jsonrpc: add more advanced API to send a message.
 
 
 ## 1.109.0
