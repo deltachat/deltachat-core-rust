@@ -13,7 +13,7 @@
 
 ### API-Changes
 - jsonrpc: add more advanced API to send a message. #4097
-
+- jsonrpc: add get webxdc blob API `getWebxdcBlob` #4070
 
 ## 1.110.0
 
