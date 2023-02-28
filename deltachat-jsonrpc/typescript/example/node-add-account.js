@@ -14,7 +14,7 @@ async function run() {
     throw new Error(
       "USAGE: node node-add-account.js <EMAILADDRESS> <PASSWORD>"
     );
-  console.log(`creating acccount for ${email}`);
+  console.log(`creating account for ${email}`);
   const id = await delta.rpc.addAccount();
   console.log(`created account id ${id}`);
   await delta.rpc.setConfig(id, "addr", email);

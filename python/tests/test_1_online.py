@@ -1484,7 +1484,7 @@ def test_import_export_online_all(acfactory, tmpdir, data, lp):
 
 def test_ac_setup_message(acfactory, lp):
     # note that the receiving account needs to be configured and running
-    # before ther setup message is send. DC does not read old messages
+    # before the setup message is send. DC does not read old messages
     # as of Jul2019
     ac1 = acfactory.new_online_configuring_account()
     ac2 = acfactory.new_online_configuring_account(cloned_from=ac1)

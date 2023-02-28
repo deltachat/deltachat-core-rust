@@ -434,9 +434,9 @@ mod tests {
             .parse_sync_items(
                 r#"{"items":[
 {"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"yip-in","auth":"a"}}},
-{"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"delete unexistant, shall continue"}}},
+{"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"delete unexistent, shall continue"}}},
 {"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"yip-auth"}}},
-{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"foo","grpid":"non-existant"}}},
+{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"foo","grpid":"non-existent"}}},
 {"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":"directly deleted"}}},
 {"timestamp":1631781316,"data":{"DeleteQrToken":{"invitenumber":"in","auth":"directly deleted"}}}
 ]}"#
@@ -447,7 +447,7 @@ mod tests {
 
         assert!(token::exists(&t, Namespace::InviteNumber, "yip-in").await);
         assert!(token::exists(&t, Namespace::Auth, "yip-auth").await);
-        assert!(!token::exists(&t, Namespace::Auth, "non-existant").await);
+        assert!(!token::exists(&t, Namespace::Auth, "non-existent").await);
         assert!(!token::exists(&t, Namespace::Auth, "directly deleted").await);
 
         Ok(())

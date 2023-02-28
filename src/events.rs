@@ -70,7 +70,7 @@ impl Events {
 pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
-    /// Async recv of an event. Return `None` if the `Sender` has been droped.
+    /// Async recv of an event. Return `None` if the `Sender` has been dropped.
     pub async fn recv(&self) -> Option<Event> {
         self.0.recv().await.ok()
     }
@@ -89,7 +89,7 @@ impl futures::stream::Stream for EventEmitter {
 
 /// The event emitted by a [`Context`] from an [`EventEmitter`].
 ///
-/// Events are documented on the C/FFI API in `deltachat.h` as `DC_EVENT_*` contants.  The
+/// Events are documented on the C/FFI API in `deltachat.h` as `DC_EVENT_*` constants.  The
 /// context emits them in relation to various operations happening, a lot of these are again
 /// documented in `deltachat.h`.
 ///

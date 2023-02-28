@@ -53,7 +53,7 @@ describe("basic tests", () => {
     ]);
   });
 
-  describe("account managment", () => {
+  describe("account management", () => {
     it("should create account", async () => {
       const res = await dc.rpc.addAccount();
       assert((await dc.rpc.getAllAccountIds()).length === 1);
@@ -73,7 +73,7 @@ describe("basic tests", () => {
     });
   });
 
-  describe("contact managment", function () {
+  describe("contact management", function () {
     let accountId: number;
     before(async () => {
       accountId = await dc.rpc.addAccount();
@@ -103,7 +103,7 @@ describe("basic tests", () => {
       accountId = await dc.rpc.addAccount();
     });
 
-    it("set and retrive", async function () {
+    it("set and retrieve", async function () {
       await dc.rpc.setConfig(accountId, "addr", "valid@email");
       assert((await dc.rpc.getConfig(accountId, "addr")) == "valid@email");
     });
@@ -115,11 +115,11 @@ describe("basic tests", () => {
       await expect(dc.rpc.getConfig(accountId, "invalid_key")).to.be.eventually
         .rejected;
     });
-    it("set and retrive ui.*", async function () {
+    it("set and retrieve ui.*", async function () {
       await dc.rpc.setConfig(accountId, "ui.chat_bg", "color:red");
       assert((await dc.rpc.getConfig(accountId, "ui.chat_bg")) == "color:red");
     });
-    it("set and retrive (batch)", async function () {
+    it("set and retrieve (batch)", async function () {
       const config = { addr: "valid@email", mail_pw: "1234" };
       await dc.rpc.batchSetConfig(accountId, config);
       const retrieved = await dc.rpc.batchGetConfig(
@@ -128,7 +128,7 @@ describe("basic tests", () => {
       );
       expect(retrieved).to.deep.equal(config);
     });
-    it("set and retrive ui.* (batch)", async function () {
+    it("set and retrieve ui.* (batch)", async function () {
       const config = {
         "ui.chat_bg": "color:green",
         "ui.enter_key_sends": "true",
@@ -140,7 +140,7 @@ describe("basic tests", () => {
       );
       expect(retrieved).to.deep.equal(config);
     });
-    it("set and retrive mixed(ui and core) (batch)", async function () {
+    it("set and retrieve mixed(ui and core) (batch)", async function () {
       const config = {
         "ui.chat_bg": "color:yellow",
         "ui.enter_key_sends": "false",

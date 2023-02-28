@@ -46,7 +46,7 @@ use crate::{location, sql};
 pub enum ChatItem {
     /// Chat message stored in the database.
     Message {
-        /// Database ID of the messsage.
+        /// Database ID of the message.
         msg_id: MsgId,
     },
 
@@ -1206,7 +1206,10 @@ impl Chat {
                         }
                     }
                     Err(err) => {
-                        error!(context, "faild to load contacts for {}: {:#}", chat.id, err);
+                        error!(
+                            context,
+                            "failed to load contacts for {}: {:#}", chat.id, err
+                        );
                     }
                 }
                 chat.name = chat_name;
@@ -2147,7 +2150,7 @@ pub async fn is_contact_in_chat(
 
 /// Sends a message object to a chat.
 ///
-/// Sends the event #DC_EVENT_MSGS_CHANGED on succcess.
+/// Sends the event #DC_EVENT_MSGS_CHANGED on success.
 /// However, this does not imply, the message really reached the recipient -
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
@@ -2511,7 +2514,7 @@ pub async fn get_chat_msgs_ex(
         context
             .sql
             .query_map(
-        // GLOB is used here instead of LIKE becase it is case-sensitive
+        // GLOB is used here instead of LIKE because it is case-sensitive
                 "SELECT m.id AS id, m.timestamp AS timestamp, m.param AS param, m.from_id AS from_id, m.to_id AS to_id
                FROM msgs m
               WHERE m.chat_id=?
@@ -3662,7 +3665,7 @@ pub async fn was_device_msg_ever_added(context: &Context, label: &str) -> Result
 // - deletion in `msgs` with `ContactId::DEVICE` makes sure,
 //   no wrong information are shown in the device chat
 // - deletion in `devmsglabels` makes sure,
-//   deleted messages are resetted and useful messages can be added again
+//   deleted messages are reset and useful messages can be added again
 // - we reset the config-option `QuotaExceeding`
 //   that is used as a helper to drive the corresponding device message.
 pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Result<()> {
@@ -4431,7 +4434,7 @@ mod tests {
             .unwrap();
         assert!(msg_id2.is_unset());
 
-        // ... unless everything is deleted and resetted - as needed eg. on device switch
+        // ... unless everything is deleted and reset - as needed eg. on device switch
         delete_and_reset_all_device_msgs(&t).await.unwrap();
         assert!(!was_device_msg_ever_added(&t, "some-label").await.unwrap());
         let msg_id3 = add_device_msg(&t, Some("some-label"), Some(&mut msg))

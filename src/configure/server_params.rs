@@ -4,7 +4,7 @@ use crate::provider::{Protocol, Socket};
 
 /// Set of variable parameters to try during configuration.
 ///
-/// Can be loaded from offline provider database, online configuraiton
+/// Can be loaded from offline provider database, online configuration
 /// or derived from user entered parameters.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ServerParams {

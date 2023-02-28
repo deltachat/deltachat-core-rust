@@ -99,7 +99,7 @@ fn inner_generate_secure_join_qr_code(
         Ok(())
     })?
     .build(|w| {
-        // White Background apears like a card
+        // White Background appears like a card
         w.single("rect", |d| {
             d.attr("x", card_border_size)?;
             d.attr("y", card_border_size)?;

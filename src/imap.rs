@@ -1394,7 +1394,7 @@ impl Imap {
                 // Check if FETCH response is already in `uid_msgs`.
                 let mut fetch_response = uid_msgs.remove(&request_uid);
 
-                // Try to find a requsted UID in returned FETCH responses.
+                // Try to find a requested UID in returned FETCH responses.
                 while fetch_response.is_none() {
                     let next_fetch_response =
                         if let Some(next_fetch_response) = fetch_responses.next().await {
@@ -2204,11 +2204,11 @@ async fn mark_seen_by_uid(
                 .with_context(|| format!("failed to start ephemeral timer for message {msg_id}"))?;
             Ok(Some(chat_id))
         } else {
-            // Message state has not chnaged.
+            // Message state has not changed.
             Ok(None)
         }
     } else {
-        // There is no message is `msgs` table matchng the given UID.
+        // There is no message is `msgs` table matching the given UID.
         Ok(None)
     }
 }

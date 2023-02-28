@@ -27,7 +27,7 @@ def _to_attrdict(obj):
 
 
 class AttrDict(dict):
-    """Dictionary that allows accessing values usin the "dot notation" as attributes."""
+    """Dictionary that allows accessing values using the "dot notation" as attributes."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__({_camel_to_snake(key): _to_attrdict(value) for key, value in dict(*args, **kwargs).items()})

@@ -539,7 +539,7 @@ impl SecureJoinStep {
                 false
             }
             SecureJoinStep::Completed => {
-                warn!(context, "Complted state for next securejoin step");
+                warn!(context, "Completed state for next securejoin step");
                 false
             }
         }

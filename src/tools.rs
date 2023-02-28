@@ -387,7 +387,7 @@ pub(crate) async fn create_folder(
     }
 }
 
-/// Write a the given content to provied file path.
+/// Write a the given content to provided file path.
 pub(crate) async fn write_file(
     context: &Context,
     path: impl AsRef<Path>,

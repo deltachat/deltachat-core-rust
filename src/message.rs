@@ -610,7 +610,7 @@ impl Message {
     // It's a little unfortunate that the UI has to first call `dc_msg_get_override_sender_name` and then if it was `NULL`, call
     // `dc_contact_get_display_name` but this was the best solution:
     // - We could load a Contact struct from the db here to call `dc_get_display_name` instead of returning `None`, but then we had a db
-    //   call everytime (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
+    //   call every time (and this fn is called a lot while the user is scrolling through a group), so performance would be bad
     // - We could pass both a Contact struct and a Message struct in the FFI, but at least on Android we would need to handle raw
     //   C-data in the Java code (i.e. a `long` storing a C pointer)
     // - We can't make a param `SenderDisplayname` for messages as sometimes the display name of a contact changes, and we want to show

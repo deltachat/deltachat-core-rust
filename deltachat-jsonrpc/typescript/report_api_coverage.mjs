@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-// only checks for the coverge of the api functions in bindings.ts for now
+// only checks for the coverage of the api functions in bindings.ts for now
 const generatedFile = "typescript/generated/client.ts";
 const json = JSON.parse(readFileSync("./coverage/coverage-final.json"));
 const jsonCoverage =

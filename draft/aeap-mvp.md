@@ -66,13 +66,13 @@ Note that usually a mail is signed by a key that has a UID matching the from add
 
 #### Upsides:
 - With this approach, it's easy to switch to a model where the info about the transition is encoded in the PGP key. Since the key is gossiped, the information about the transition will spread virally.
-- Faster transation: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.
+- Faster transition: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.
 
 ### Alternatives and old discussions/plans:
 
 - Change the contact instead of rewriting the group member lists. This seems to call for more trouble since we will end up with multiple contacts having the same email address.
 
-- If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the neccessary checks and handling of error cases). Instead, we only check for the `Chat-Version` header to prevent accidental transitions when an MUA user sends a message from another email address with the same key.
+- If needed, we could add a header a) indicating that the sender did an address transition or b) listing all the secondary (old) addresses.  For now, there is no big enough benefit to warrant introducing another header and its processing on the receiver side (including all the necessary checks and handling of error cases). Instead, we only check for the `Chat-Version` header to prevent accidental transitions when an MUA user sends a message from another email address with the same key.
 
 - The condition for a transition temporarily was:
 
@@ -107,7 +107,7 @@ The most obvious alternative would be to create a new contact with the new addre
 
 #### Upsides:
 - With this approach, it's easier to switch to a model where the info about the transition is encoded in the PGP key. Since the key is gossiped, the information about the transition will spread virally.
-- (Also, less important: Slightly faster transation: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.)
+- (Also, less important: Slightly faster transition: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.)
 - It's easier to implement (if too many problems turn up, we can still switch to another approach and didn't wast that much development time.)
 
 [full messages](https://github.com/deltachat/deltachat-core-rust/pull/2896#discussion_r852002161)

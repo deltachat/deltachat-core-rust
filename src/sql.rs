@@ -687,7 +687,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
-            "Housekeeping: cannot remove unusued files: {:#}", err
+            "Housekeeping: cannot remove unused files: {:#}", err
         );
     }
 

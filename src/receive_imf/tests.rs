@@ -2485,7 +2485,7 @@ Reply to all"#,
 
 /// Tests that replies to similar ad hoc groups are correctly assigned to chats.
 ///
-/// The difficutly here is that ad hoc groups don't have unique group IDs, because both
+/// The difficulty here is that ad hoc groups don't have unique group IDs, because both
 /// messages have the same recipient lists and only differ in the subject and message contents.
 /// The messages can be properly assigned to chats only using the In-Reply-To or References
 /// headers.

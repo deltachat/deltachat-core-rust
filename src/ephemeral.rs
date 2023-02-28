@@ -1273,7 +1273,7 @@ mod tests {
         // protection.
         //
         // Previously Delta Chat fallen back to using <first@example.com> in this case and
-        // compared received timer value to the timer value of the <first@examle.com>. Because
+        // compared received timer value to the timer value of the <first@example.com>. Because
         // their timer values are the same ("disabled"), Delta Chat assumed that the timer was not
         // changed explicitly and the change should be ignored.
         //

@@ -480,7 +480,7 @@ mod tests {
     static CTEXT_SIGNED: OnceCell<String> = OnceCell::const_new();
     static CTEXT_UNSIGNED: OnceCell<String> = OnceCell::const_new();
 
-    /// A cyphertext encrypted to Alice & Bob, signed by Alice.
+    /// A ciphertext encrypted to Alice & Bob, signed by Alice.
     async fn ctext_signed() -> &'static String {
         CTEXT_SIGNED
             .get_or_init(|| async {
@@ -495,7 +495,7 @@ mod tests {
             .await
     }
 
-    /// A cyphertext encrypted to Alice & Bob, not signed.
+    /// A ciphertext encrypted to Alice & Bob, not signed.
     async fn ctext_unsigned() -> &'static String {
         CTEXT_UNSIGNED
             .get_or_init(|| async {

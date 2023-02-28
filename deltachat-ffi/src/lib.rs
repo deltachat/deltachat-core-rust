@@ -2661,7 +2661,7 @@ pub unsafe fn dc_array_is_independent(
 ///
 /// This is the structure behind [dc_chatlist_t] which is the opaque
 /// structure representing a chatlist in the FFI API.  It exists
-/// because the FFI API has a refernce from the message to the
+/// because the FFI API has a reference from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
 pub struct ChatlistWrapper {
@@ -2805,7 +2805,7 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 ///
 /// This is the structure behind [dc_chat_t] which is the opaque
 /// structure representing a chat in the FFI API.  It exists
-/// because the FFI API has a refernce from the message to the
+/// because the FFI API has a reference from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
 pub struct ChatWrapper {
@@ -3061,7 +3061,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
 ///
 /// This is the structure behind [dc_msg_t] which is the opaque
 /// structure representing a message in the FFI API.  It exists
-/// because the FFI API has a refernce from the message to the
+/// because the FFI API has a reference from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
 pub struct MessageWrapper {
@@ -3814,7 +3814,7 @@ pub unsafe extern "C" fn dc_msg_force_plaintext(msg: *mut dc_msg_t) {
 ///
 /// This is the structure behind [dc_contact_t] which is the opaque
 /// structure representing a contact in the FFI API.  It exists
-/// because the FFI API has a refernce from the message to the
+/// because the FFI API has a reference from the message to the
 /// context, but the Rust API does not, so the FFI layer needs to glue
 /// these together.
 pub struct ContactWrapper {

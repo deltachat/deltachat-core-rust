@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Get Pullrequest ID
+      - name: Get Pull Request ID
         id: getid
         run: |
           export PULLREQUEST_ID=$(jq .number < $GITHUB_EVENT_PATH)

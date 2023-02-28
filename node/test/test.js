@@ -769,7 +769,7 @@ describe('Integration tests', function () {
   this.beforeAll(async function () {
     if (!process.env.DCC_NEW_TMP_EMAIL) {
       console.log(
-        'Missing DCC_NEW_TMP_EMAIL environment variable!, skip intergration tests'
+        'Missing DCC_NEW_TMP_EMAIL environment variable!, skip integration tests'
       )
       this.skip()
     }
@@ -777,7 +777,7 @@ describe('Integration tests', function () {
     account = await createTempUser(process.env.DCC_NEW_TMP_EMAIL)
     if (!account || !account.email || !account.password) {
       console.log(
-        "We didn't got back an account from the api, skip intergration tests"
+        "We didn't got back an account from the api, skip integration tests"
       )
       this.skip()
     }

@@ -249,7 +249,7 @@ async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
         // TODO: define this as a stockstring once the wording is settled.
         msg.text = Some(
             "It seems you are using multiple devices with Delta Chat. Great!\n\n\
-             If you also want to synchronize outgoing messages accross all devices, \
+             If you also want to synchronize outgoing messages across all devices, \
              go to the settings and enable \"Send copy to self\"."
                 .to_string(),
         );
@@ -800,7 +800,7 @@ mod tests {
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
         // In particular note the mixing of `\r\n` and `\n` depending
-        // on who generated the stings.
+        // on who generated the strings.
         assert!(msg.contains("<title>Autocrypt Setup Message</title"));
         assert!(msg.contains("<h1>Autocrypt Setup Message</h1>"));
         assert!(msg.contains("<p>This is the Autocrypt Setup Message used to"));

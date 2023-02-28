@@ -357,7 +357,7 @@ impl MimeMessage {
                     // where this would be useful.
                     warn!(
                         context,
-                        "From header in signed part does't match the outer one",
+                        "From header in signed part doesn't match the outer one",
                     );
                 }
             }
@@ -525,7 +525,7 @@ impl MimeMessage {
         }
     }
 
-    /// Squashes mutlipart chat messages with attachment into single-part messages.
+    /// Squashes mutitpart chat messages with attachment into single-part messages.
     ///
     /// Delta Chat sends attachments, such as images, in two-part messages, with the first message
     /// containing a description. If such a message is detected, text from the first part can be
@@ -855,9 +855,9 @@ impl MimeMessage {
         let mut any_part_added = false;
         let mimetype = get_mime_type(mail)?.0;
         match (mimetype.type_(), mimetype.subtype().as_str()) {
-            /* Most times, mutlipart/alternative contains true alternatives
+            /* Most times, multipart/alternative contains true alternatives
             as text/plain and text/html.  If we find a multipart/mixed
-            inside mutlipart/alternative, we use this (happens eg in
+            inside multipart/alternative, we use this (happens eg in
             apple mail: "plaintext" as an alternative to "html+PDF attachment") */
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
@@ -1682,7 +1682,7 @@ impl MimeMessage {
 
 /// Parses `Autocrypt-Gossip` headers from the email and applies them to peerstates.
 /// Params:
-/// from: The address which sent the message currently beeing parsed
+/// from: The address which sent the message currently being parsed
 ///
 /// Returns the set of mail recipient addresses for which valid gossip headers were found.
 async fn update_gossip_peerstates(

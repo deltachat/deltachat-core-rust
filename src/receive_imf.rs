@@ -150,7 +150,7 @@ pub(crate) async fn receive_imf_inner(
         if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
-                // the mesage was partially downloaded before and is fully downloaded now.
+                // the message was partially downloaded before and is fully downloaded now.
                 info!(
                     context,
                     "Message already partly in DB, replacing by full message."
@@ -422,7 +422,7 @@ pub async fn from_field_to_contact_id(
 }
 
 /// Creates a `ReceivedMsg` from given parts which might consist of
-/// mulitple messages (if there are multiple attachments).
+/// multiple messages (if there are multiple attachments).
 /// Every entry in `mime_parser.parts` produces a new row in the `msgs` table.
 #[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 async fn add_parts(
@@ -550,7 +550,7 @@ async fn add_parts(
             }
         }
 
-        // signals wether the current user is a bot
+        // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
         if chat_id.is_none() {
@@ -1981,7 +1981,7 @@ async fn apply_mailinglist_changes(
         if let Some(old_list_post) = chat.param.get(Param::ListPost) {
             if list_post.as_ref() != old_list_post {
                 // Apparently the mailing list is using a different List-Post header in each message.
-                // Make the mailing list read-only because we would't know which message the user wants to reply to.
+                // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
                 chat.param.remove(Param::ListPost);
                 chat.update_param(context).await?;
             }
@@ -2296,7 +2296,7 @@ pub(crate) async fn get_prefetch_parent_message(
 ///
 /// * param `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
 /// mailing lists: In some mailing lists, many users write from the same address but with different
-/// display names. We don't want the display name to change everytime the user gets a new email from
+/// display names. We don't want the display name to change every time the user gets a new email from
 /// a mailing list.
 async fn add_or_lookup_contacts_by_address_list(
     context: &Context,

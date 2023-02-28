@@ -339,13 +339,13 @@ only on image changes.
 
 In older specs, the profile-image was sent as an attachment
 and `Chat-User-Avatar:` specified its name.
-However, it turned out that these attachements are kind of unuexpected to users,
+However, it turned out that these attachments are kind of unuexpected to users,
 therefore the profile-image go to the header now.
 
 
 # Locations
 
-Locations can be attachted to messages using
+Locations can be attached to messages using
 [standard kml-files](https://www.opengeospatial.org/standards/kml/)
 with well-known names.
 

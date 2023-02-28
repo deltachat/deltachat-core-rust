@@ -159,7 +159,7 @@ class Account:
         """set stock translation string.
 
         :param id: id of stock string (const.DC_STR_*)
-        :param value: string to set as new transalation
+        :param value: string to set as new translation
         :returns: None
         """
         bytestring = string.encode("utf8")
@@ -628,7 +628,7 @@ class Account:
             configtracker = self.configure()
             configtracker.wait_finish()
 
-        # start IO threads and configure if neccessary
+        # start IO threads and configure if necessary
         self.start_io()
 
     def add_account_plugin(self, plugin, name=None):

@@ -60,7 +60,7 @@ def pytest_configure(config):
 
     # Make sure we don't get garbled output because threads keep running
     # collect all ever created accounts in a weakref-set (so we don't
-    # keep objects unneccessarily alive) and enable/disable logging
+    # keep objects unnecessarily alive) and enable/disable logging
     # for each pytest test phase # (setup/call/teardown).
     # Additionally make the acfactory use a logging/no-logging default.
 
@@ -129,7 +129,7 @@ def pytest_report_header(config, startdir):
     if cfg:
         if "?" in cfg:
             url, token = cfg.split("?", 1)
-            summary.append(f"Liveconfig provider: {url}?<token ommitted>")
+            summary.append(f"Liveconfig provider: {url}?<token omitted>")
         else:
             summary.append(f"Liveconfig file: {cfg}")
     return summary
