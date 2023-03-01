@@ -123,7 +123,7 @@ dependencies = [
 [[package]]
 name = "async-imap"
 version = "0.6.0"
-source = "git+https://github.com/async-email/async-imap?branch=master#85ff7a3d9d71a3715354fabf2fc1a8d047b5710e"
+source = "git+https://github.com/async-email/async-imap?branch=master#90270474a5a494669e7c63c13471d189afdc98ae"
 dependencies = [
  "async-channel",
  "async-native-tls",
