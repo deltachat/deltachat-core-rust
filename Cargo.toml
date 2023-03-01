@@ -78,7 +78,7 @@ tagger = "4.3.4"
 textwrap = "0.16.0"
 thiserror = "1"
 tokio-io-timeout = "1.2.0"
-tokio-stream = { version = "0.1.11", features = ["fs"] }
+tokio-stream = { version = "0.1.12", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 toml = "0.7"
