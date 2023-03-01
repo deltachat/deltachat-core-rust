@@ -1376,7 +1376,19 @@ impl CommandApi {
         res
     }
 
-    /// Returns the QR code for the running [`CommandApi::provide_backup`].
+    /// Returns the text of the QR code for the running [`CommandApi::provide_backup`].
+    ///
+    /// This QR code text can be used in [`CommandApi::get_backup`] on a second device to
+    /// retrieve the backup and setup this second device.
+    async fn get_backup_qr(&self, account_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = ctx
+            .backup_export_qr()
+            .ok_or(anyhow!("no backup being exported"))?;
+        qr::format_backup(&qr)
+    }
+
+    /// Returns the rendered QR code for the running [`CommandApi::provide_backup`].
     ///
     /// This QR code can be used in [`CommandApi::get_backup`] on a second device to
     /// retrieve the backup and setup this second device.
