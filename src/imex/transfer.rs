@@ -188,7 +188,7 @@ impl BackupProvider {
             tokio::select! {
                 biased;
                 res = &mut provider => {
-                    break res.context("BackupSender failed");
+                    break res.context("BackupProvider failed");
                 },
                 maybe_event = events.recv() => {
                     match maybe_event {
@@ -206,7 +206,7 @@ impl BackupProvider {
                                 }
                                 Event::TransferAborted { .. } => {
                                     provider.shutdown();
-                                    break Err(anyhow!("BackupSender transfer aborted"));
+                                    break Err(anyhow!("BackupProvider transfer aborted"));
                                 }
                             }
                         }
@@ -218,7 +218,7 @@ impl BackupProvider {
                             // We really shouldn't be lagging, if we did we may have missed
                             // a completion event.
                             provider.shutdown();
-                            break Err(anyhow!("Missed events from BackupSender"));
+                            break Err(anyhow!("Missed events from BackupProvider"));
                         }
                     }
                 },
@@ -235,7 +235,10 @@ impl BackupProvider {
             .take();
         match &res {
             Ok(_) => context.emit_event(SendProgress::Completed.into()),
-            Err(_) => context.emit_event(SendProgress::Failed.into()),
+            Err(err) => {
+                error!(context, "Backup transfer failure: {err:#}");
+                context.emit_event(SendProgress::Failed.into())
+            }
         }
         context.free_ongoing().await;
         res
