@@ -538,7 +538,7 @@ impl<'a> Iterator for BlobDirIter<'a> {
     type Item = BlobObject<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(path) = self.iter.next() {
+        for path in self.iter.as_ref() {
             // In theory this can error but we'd have corrupted filenames in the blobdir, so
             // silently skipping them is fine.
             match BlobObject::from_path(self.context, path) {
