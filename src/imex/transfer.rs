@@ -152,7 +152,7 @@ impl BackupProvider {
         let blobdir = BlobDirContents::new(context).await?;
         for blob in blobdir.iter() {
             let path = blob.to_abs_path();
-            let name = format!("blob/P{}", blob.as_file_name());
+            let name = format!("blob/{}", blob.as_file_name());
             files.push(DataSource::with_name(path, name));
         }
 
@@ -537,6 +537,13 @@ mod tests {
         msg.set_text(Some("hi there".to_string()));
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
+        // Send an attachment in the self chat
+        let file = ctx0.get_blobdir().join("hello.txt");
+        fs::write(&file, "i am attachment").await.unwrap();
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file(file.to_str().unwrap(), Some("text/plain"));
+        send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
+
         // Prepare to transfer backup.
         let provider = BackupProvider::prepare(&ctx0).await.unwrap();
 
@@ -553,7 +560,7 @@ mod tests {
         // Check that we have the self message.
         let self_chat = ctx1.get_self_chat().await;
         let msgs = get_chat_msgs(&ctx1, self_chat.id).await.unwrap();
-        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs.len(), 2);
         let msgid = match msgs.get(0).unwrap() {
             ChatItem::Message { msg_id } => msg_id,
             _ => panic!("wrong chat item"),
@@ -561,6 +568,14 @@ mod tests {
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
         let text = msg.get_text().unwrap();
         assert_eq!(text, "hi there");
+        let msgid = match msgs.get(1).unwrap() {
+            ChatItem::Message { msg_id } => msg_id,
+            _ => panic!("wrong chat item"),
+        };
+        let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
+        let path = msg.get_file(&ctx1).unwrap();
+        let text = fs::read_to_string(&path).await.unwrap();
+        assert_eq!(text, "i am attachment");
 
         // Check that both received the ImexProgress events.
         ctx0.evtracker
