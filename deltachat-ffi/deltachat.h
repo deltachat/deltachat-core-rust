@@ -2649,7 +2649,7 @@ void dc_str_unref (char* str);
  * by a QR-code.  The backup contains the entire state of the account
  * including credentials.  This can be used to setup a new device.
  *
- * Once this function returns, the backup is being offered to remove devices.
+ * Once this function returns, the backup is being offered to remote devices.
  * To wait until one device received the backup, use
  * dc_backup_provider_wait().  Alternatively abort the operation using
  * dc_stop_ongoing_process().

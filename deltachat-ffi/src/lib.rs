@@ -4146,7 +4146,7 @@ pub unsafe extern "C" fn dc_backup_provider_new(
     context: *mut dc_context_t,
 ) -> *mut dc_backup_provider_t {
     if context.is_null() {
-        eprintln!("ignoring careless call to dc_send_backup()");
+        eprintln!("ignoring careless call to dc_backup_provider_new()");
         return ptr::null_mut();
     }
     let ctx = &*context;
