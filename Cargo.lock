@@ -126,7 +126,7 @@ version = "0.6.0"
 source = "git+https://github.com/async-email/async-imap?branch=master#90270474a5a494669e7c63c13471d189afdc98ae"
 dependencies = [
  "async-channel",
- "async-native-tls",
+ "async-native-tls 0.4.0",
  "base64 0.13.1",
  "byte-pool",
  "chrono",
@@ -156,6 +156,18 @@ name = "async-native-tls"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d57d4cec3c647232e1094dc013546c0b33ce785d8aeb251e1f20dfaf8a9a13fe"
+dependencies = [
+ "native-tls",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "async-native-tls"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9343dc5acf07e79ff82d0c37899f079db3534d99f189a1837c8e549c99405bec"
 dependencies = [
  "native-tls",
  "thiserror",
@@ -895,7 +907,7 @@ dependencies = [
  "anyhow",
  "async-channel",
  "async-imap",
- "async-native-tls",
+ "async-native-tls 0.5.0",
  "async-smtp",
  "async_zip",
  "backtrace",
