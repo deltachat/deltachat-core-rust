@@ -514,7 +514,7 @@ impl<'a> BlobDirContents<'a> {
     }
 
     pub(crate) fn iter(&self) -> BlobDirIter<'_> {
-        BlobDirIter::new(self.context, &self.inner)
+        BlobDirIter::new(self.context, self.inner.iter())
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -524,18 +524,13 @@ impl<'a> BlobDirContents<'a> {
 
 /// A iterator over all the [`BlobObject`]s in the blobdir.
 pub(crate) struct BlobDirIter<'a> {
-    paths: &'a [PathBuf],
-    offset: usize,
+    iter: std::slice::Iter<'a, PathBuf>,
     context: &'a Context,
 }
 
 impl<'a> BlobDirIter<'a> {
-    fn new(context: &'a Context, paths: &'a [PathBuf]) -> BlobDirIter<'a> {
-        Self {
-            paths,
-            offset: 0,
-            context,
-        }
+    fn new(context: &'a Context, iter: std::slice::Iter<'a, PathBuf>) -> BlobDirIter<'a> {
+        Self { iter, context }
     }
 }
 
@@ -543,9 +538,7 @@ impl<'a> Iterator for BlobDirIter<'a> {
     type Item = BlobObject<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(path) = self.paths.get(self.offset) {
-            self.offset += 1;
-
+        while let Some(path) = self.iter.next() {
             // In theory this can error but we'd have corrupted filenames in the blobdir, so
             // silently skipping them is fine.
             match BlobObject::from_path(self.context, path) {
