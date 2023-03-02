@@ -1,14 +1,14 @@
 //! Transfer a backup to an other device.
 //!
-//! This module provides support for using n0's sendme tool to initiate transfer of a backup
+//! This module provides support for using n0's iroh tool to initiate transfer of a backup
 //! to another device using a QR code.
 //!
-//! Using the sendme terminology there are two parties to this:
+//! Using the iroh terminology there are two parties to this:
 //!
 //! - The *Provider*, which starts a server and listens for connections.
 //! - The *Getter*, which connects to the server and retrieves the data.
 //!
-//! Sendme is designed around the idea of verifying hashes, the downloads are verified as
+//! Iroh is designed around the idea of verifying hashes, the downloads are verified as
 //! they are retrieved.  The entire transfer is initiated by requesting the data of a single
 //! root hash.
 //!
@@ -166,7 +166,7 @@ impl BackupProvider {
         Ok((provider, ticket))
     }
 
-    /// Supervises the sendme [`Provider`], terminating it when needed.
+    /// Supervises the iroh [`Provider`], terminating it when needed.
     ///
     /// This will watch the provider and terminate it when:
     ///
