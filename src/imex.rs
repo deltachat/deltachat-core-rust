@@ -34,7 +34,7 @@ use crate::{e2ee, tools};
 
 // Name of the database file in the backup.
 const DBFILE_BACKUP_NAME: &str = "dc_database_backup.sqlite";
-const BLOBS_BACKUP_NAME: &str = "blobs_backup";
+pub(crate) const BLOBS_BACKUP_NAME: &str = "blobs_backup";
 
 /// Import/export command.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
