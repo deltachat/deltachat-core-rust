@@ -1,5 +1,11 @@
 name: Rust CI
 
+# Cancel previously started workflow runs
+# when the branch is updated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
   push:
@@ -25,6 +31,23 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run clippy
         run: scripts/clippy.sh
+
+  cargo_deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          arguments: --all-features --workspace
+
+  provider_database:
+    name: Check provider database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check provider database
+        run: scripts/update-provider-database.sh
 
   docs:
     name: Rust doc comments

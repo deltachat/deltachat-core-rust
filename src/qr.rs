@@ -515,11 +515,15 @@ fn decode_backup(qr: &str) -> Result<Qr> {
 
 #[derive(Debug, Deserialize)]
 struct CreateAccountSuccessResponse {
+    /// Email address.
     email: String,
+
+    /// Password.
     password: String,
 }
 #[derive(Debug, Deserialize)]
 struct CreateAccountErrorResponse {
+    /// Reason for the failure to create account returned by the server.
     reason: String,
 }
 

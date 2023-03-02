@@ -203,7 +203,7 @@ pub(crate) async fn receive_imf_inner(
     )
     .await?;
 
-    let rcvd_timestamp = smeared_time(context).await;
+    let rcvd_timestamp = smeared_time(context);
 
     // Sender timestamp is allowed to be a bit in the future due to
     // unsynchronized clocks, but not too much.
@@ -1149,7 +1149,10 @@ async fn add_parts(
         // also change `MsgId::trash()` and `delete_expired_messages()`
         let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
 
-        let row_id = context.sql.insert(
+        let row_id = context
+            .sql
+            .call_write(|conn| {
+                let mut stmt = conn.prepare_cached(
             r#"
 INSERT INTO msgs
   (
@@ -1179,47 +1182,51 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     bytes=excluded.bytes, mime_headers=excluded.mime_headers, mime_in_reply_to=excluded.mime_in_reply_to,
     mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
     ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
-"#,
-            paramsv![
-            replace_msg_id,
-            rfc724_mid,
-            if trash { DC_CHAT_ID_TRASH } else { chat_id },
-            if trash { ContactId::UNDEFINED } else { from_id },
-            if trash { ContactId::UNDEFINED } else { to_id },
-            sort_timestamp,
-            sent_timestamp,
-            rcvd_timestamp,
-            typ,
-            state,
-            is_dc_message,
-            if trash { "" } else { msg },
-            if trash { "" } else { &subject },
-            // txt_raw might contain invalid utf8
-            if trash { "" } else { &txt_raw },
-            if trash {
-                "".to_string()
-            } else {
-                param.to_string()
-            },
-            part.bytes as isize,
-            if (save_mime_headers || mime_modified) && !trash {
-                mime_headers.clone()
-            } else {
-                Vec::new()
-            },
-            mime_in_reply_to,
-            mime_references,
-            mime_modified,
-            part.error.as_deref().unwrap_or_default(),
-            ephemeral_timer,
-            ephemeral_timestamp,
-            if is_partial_download.is_some() {
-                DownloadState::Available
-            } else {
-                DownloadState::Done
-            },
-            mime_parser.hop_info
-        ]).await?;
+"#)?;
+                stmt.execute(params![
+                    replace_msg_id,
+                    rfc724_mid,
+                    if trash { DC_CHAT_ID_TRASH } else { chat_id },
+                    if trash { ContactId::UNDEFINED } else { from_id },
+                    if trash { ContactId::UNDEFINED } else { to_id },
+                    sort_timestamp,
+                    sent_timestamp,
+                    rcvd_timestamp,
+                    typ,
+                    state,
+                    is_dc_message,
+                    if trash { "" } else { msg },
+                    if trash { "" } else { &subject },
+                    // txt_raw might contain invalid utf8
+                    if trash { "" } else { &txt_raw },
+                    if trash {
+                        "".to_string()
+                    } else {
+                        param.to_string()
+                    },
+                    part.bytes as isize,
+                    if (save_mime_headers || mime_modified) && !trash {
+                        mime_headers.clone()
+                    } else {
+                        Vec::new()
+                    },
+                    mime_in_reply_to,
+                    mime_references,
+                    mime_modified,
+                    part.error.as_deref().unwrap_or_default(),
+                    ephemeral_timer,
+                    ephemeral_timestamp,
+                    if is_partial_download.is_some() {
+                        DownloadState::Available
+                    } else {
+                        DownloadState::Done
+                    },
+                    mime_parser.hop_info
+                ])?;
+                let row_id = conn.last_insert_rowid();
+                Ok(row_id)
+            })
+            .await?;
 
         // We only replace placeholder with a first part,
         // afterwards insert additional parts.
@@ -1373,7 +1380,7 @@ async fn calc_sort_timestamp(
         }
     }
 
-    Ok(min(sort_timestamp, smeared_time(context).await))
+    Ok(min(sort_timestamp, smeared_time(context)))
 }
 
 async fn lookup_chat_by_reply(

@@ -408,7 +408,7 @@ impl Context {
             .create_status_update_record(
                 &mut instance,
                 update_str,
-                create_smeared_timestamp(self).await,
+                create_smeared_timestamp(self),
                 send_now,
                 ContactId::SELF,
             )
@@ -431,6 +431,7 @@ impl Context {
     async fn pop_smtp_status_update(
         &self,
     ) -> Result<Option<(MsgId, StatusUpdateSerial, StatusUpdateSerial, String)>> {
+        let _lock = self.sql.write_lock().await;
         let res = self
             .sql
             .query_row_optional(
@@ -670,8 +671,10 @@ impl Message {
         Ok(archive)
     }
 
-    /// Return file form inside an archive.
+    /// Return file from inside an archive.
     /// Currently, this works only if the message is an webxdc instance.
+    ///
+    /// `name` is the filename within the archive, e.g. `index.html`.
     pub async fn get_webxdc_blob(&self, context: &Context, name: &str) -> Result<Vec<u8>> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
 

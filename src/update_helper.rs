@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 
-use crate::chat::{Chat, ChatId};
-use crate::contact::{Contact, ContactId};
+use crate::chat::ChatId;
+use crate::contact::ContactId;
 use crate::context::Context;
 use crate::param::{Param, Params};
 
@@ -17,12 +17,26 @@ impl Context {
         scope: Param,
         new_timestamp: i64,
     ) -> Result<bool> {
-        let mut contact = Contact::load_from_db(self, contact_id).await?;
-        if contact.param.update_timestamp(scope, new_timestamp)? {
-            contact.update_param(self).await?;
-            return Ok(true);
-        }
-        Ok(false)
+        self.sql
+            .transaction(|transaction| {
+                let mut param: Params = transaction.query_row(
+                    "SELECT param FROM contacts WHERE id=?",
+                    [contact_id],
+                    |row| {
+                        let param: String = row.get(0)?;
+                        Ok(param.parse().unwrap_or_default())
+                    },
+                )?;
+                let update = param.update_timestamp(scope, new_timestamp)?;
+                if update {
+                    transaction.execute(
+                        "UPDATE contacts SET param=? WHERE id=?",
+                        params![param.to_string(), contact_id],
+                    )?;
+                }
+                Ok(update)
+            })
+            .await
     }
 }
 
@@ -35,12 +49,24 @@ impl ChatId {
         scope: Param,
         new_timestamp: i64,
     ) -> Result<bool> {
-        let mut chat = Chat::load_from_db(context, *self).await?;
-        if chat.param.update_timestamp(scope, new_timestamp)? {
-            chat.update_param(context).await?;
-            return Ok(true);
-        }
-        Ok(false)
+        context
+            .sql
+            .transaction(|transaction| {
+                let mut param: Params =
+                    transaction.query_row("SELECT param FROM chats WHERE id=?", [self], |row| {
+                        let param: String = row.get(0)?;
+                        Ok(param.parse().unwrap_or_default())
+                    })?;
+                let update = param.update_timestamp(scope, new_timestamp)?;
+                if update {
+                    transaction.execute(
+                        "UPDATE chats SET param=? WHERE id=?",
+                        params![param.to_string(), self],
+                    )?;
+                }
+                Ok(update)
+            })
+            .await
     }
 }
 
@@ -60,6 +86,7 @@ impl Params {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chat::Chat;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
     use crate::tools::time;

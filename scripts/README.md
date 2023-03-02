@@ -20,6 +20,8 @@ and an own build machine.
 
 - `run_all.sh` builds Python wheels
 
+- `aarch64-unknown-linux-musl.sh` cross-compiles static `deltachat-rpc-server` for aarch64
+
 ## Triggering runs on the build machine locally (fast!)
 
 There is experimental support for triggering a remote Python or Rust test run 

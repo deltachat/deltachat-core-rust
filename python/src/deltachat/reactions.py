@@ -10,14 +10,14 @@ class Reactions:
     You obtain instances of it through :class:`deltachat.message.Message`.
     """
 
-    def __init__(self, account, dc_reactions):
+    def __init__(self, account, dc_reactions) -> None:
         assert isinstance(account._dc_context, ffi.CData)
         assert isinstance(dc_reactions, ffi.CData)
         assert dc_reactions != ffi.NULL
         self.account = account
         self._dc_reactions = dc_reactions
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Reactions dc_reactions={self._dc_reactions}>"
 
     @classmethod

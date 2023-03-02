@@ -1604,7 +1604,7 @@ def test_add_remove_member_remote_events(acfactory, lp):
     in_list = queue.Queue()
 
     class EventHolder:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             self.__dict__.update(kwargs)
 
     class InPlugin:
@@ -1987,13 +1987,16 @@ def test_delete_multiple_messages(acfactory, lp):
     lp.sec("ac2: deleting all messages except third")
     assert len(to_delete) == len(texts) - 1
     ac2.delete_messages(to_delete)
-    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
-
-    ac2._evtracker.get_info_contains("close/expunge succeeded")
 
     lp.sec("ac2: test that only one message is left")
-    ac2.direct_imap.select_config_folder("inbox")
-    assert len(ac2.direct_imap.get_all_messages()) == 1
+    while 1:
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+        ac2._evtracker.get_info_contains("close/expunge succeeded")
+        ac2.direct_imap.select_config_folder("inbox")
+        nr_msgs = len(ac2.direct_imap.get_all_messages())
+        assert nr_msgs > 0
+        if nr_msgs == 1:
+            break
 
 
 def test_trash_multiple_messages(acfactory, lp):
@@ -2017,11 +2020,15 @@ def test_trash_multiple_messages(acfactory, lp):
     lp.sec("ac2: deleting all messages except second")
     assert len(to_delete) == len(texts) - 1
     ac2.delete_messages(to_delete)
-    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
     lp.sec("ac2: test that only one message is left")
-    ac2.direct_imap.select_config_folder("inbox")
-    assert len(ac2.direct_imap.get_all_messages()) == 1
+    while 1:
+        ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+        ac2.direct_imap.select_config_folder("inbox")
+        nr_msgs = len(ac2.direct_imap.get_all_messages())
+        assert nr_msgs > 0
+        if nr_msgs == 1:
+            break
 
 
 def test_configure_error_msgs_wrong_pw(acfactory):

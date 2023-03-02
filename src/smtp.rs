@@ -13,12 +13,13 @@ use tokio::task;
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::events::EventType;
-use crate::login_param::{build_tls, CertificateChecks, LoginParam, ServerLoginParam};
+use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::Message;
 use crate::message::{self, MsgId};
 use crate::mimefactory::MimeFactory;
 use crate::net::connect_tcp;
 use crate::net::session::SessionStream;
+use crate::net::tls::wrap_tls;
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
 use crate::socks::Socks5Config;
@@ -119,8 +120,7 @@ impl Smtp {
         let socks5_stream = socks5_config
             .connect(context, hostname, port, SMTP_TIMEOUT, strict_tls)
             .await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(hostname, socks5_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, hostname, socks5_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true);
@@ -144,9 +144,7 @@ impl Smtp {
         let client = smtp::SmtpClient::new().smtp_utf8(true);
         let transport = SmtpTransport::new(client, socks5_stream).await?;
         let tcp_stream = transport.starttls().await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls
-            .connect(hostname, tcp_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufWriter::new(tls_stream);
@@ -181,8 +179,7 @@ impl Smtp {
         strict_tls: bool,
     ) -> Result<SmtpTransport<Box<dyn SessionStream>>> {
         let tcp_stream = connect_tcp(context, hostname, port, SMTP_TIMEOUT, false).await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls.connect(hostname, tcp_stream).await?;
+        let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream).await?;
         let buffered_stream = BufWriter::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let client = smtp::SmtpClient::new().smtp_utf8(true);
@@ -203,9 +200,7 @@ impl Smtp {
         let client = smtp::SmtpClient::new().smtp_utf8(true);
         let transport = SmtpTransport::new(client, tcp_stream).await?;
         let tcp_stream = transport.starttls().await?;
-        let tls = build_tls(strict_tls);
-        let tls_stream = tls
-            .connect(hostname, tcp_stream)
+        let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;
         let buffered_stream = BufWriter::new(tls_stream);

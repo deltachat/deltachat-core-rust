@@ -250,7 +250,7 @@ impl<'a> MimeFactory<'a> {
             .get_config(Config::Selfstatus)
             .await?
             .unwrap_or_default();
-        let timestamp = create_smeared_timestamp(context).await;
+        let timestamp = create_smeared_timestamp(context);
 
         let res = MimeFactory::<'a> {
             from_addr,
@@ -779,10 +779,36 @@ impl<'a> MimeFactory<'a> {
             };
 
             // Store protected headers in the outer message.
-            headers
+            let message = headers
                 .protected
                 .into_iter()
-                .fold(message, |message, header| message.header(header))
+                .fold(message, |message, header| message.header(header));
+
+            if self.should_skip_autocrypt()
+                || !context.get_config_bool(Config::SignUnencrypted).await?
+            {
+                message
+            } else {
+                let (payload, signature) = encrypt_helper.sign(context, message).await?;
+                PartBuilder::new()
+                    .header((
+                        "Content-Type".to_string(),
+                        "multipart/signed; protocol=\"application/pgp-signature\"".to_string(),
+                    ))
+                    .child(payload)
+                    .child(
+                        PartBuilder::new()
+                            .content_type(
+                                &"application/pgp-signature; name=\"signature.asc\""
+                                    .parse::<mime::Mime>()
+                                    .unwrap(),
+                            )
+                            .header(("Content-Description", "OpenPGP digital signature"))
+                            .header(("Content-Disposition", "attachment; filename=\"signature\";"))
+                            .body(signature)
+                            .build(),
+                    )
+            }
         };
 
         // Store the unprotected headers on the outer message.
@@ -2138,6 +2164,96 @@ mod tests {
         assert_eq!(body.match_indices("Subject:").count(), 0);
 
         Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_selfavatar_unencrypted_signed() {
+        // create chat with bob, set selfavatar
+        let t = TestContext::new_alice().await;
+        t.set_config(Config::SignUnencrypted, Some("1"))
+            .await
+            .unwrap();
+        let chat = t.create_chat_with_contact("bob", "bob@example.org").await;
+
+        let file = t.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await.unwrap();
+        t.set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await
+            .unwrap();
+
+        // send message to bob: that should get multipart/mixed because of the avatar moved to inner header;
+        // make sure, `Subject:` stays in the outer header (imf header)
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text(Some("this is the text!".to_string()));
+
+        let sent_msg = t.send_msg(chat.id, &mut msg).await;
+        let mut payload = sent_msg.payload().splitn(4, "\r\n\r\n");
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("multipart/signed").count(), 1);
+        assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("Autocrypt:").count(), 1);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("multipart/mixed").count(), 1);
+        assert_eq!(part.match_indices("Subject:").count(), 1);
+        assert_eq!(part.match_indices("Autocrypt:").count(), 0);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 1);
+        assert_eq!(part.match_indices("Subject:").count(), 0);
+
+        let body = payload.next().unwrap();
+        assert_eq!(body.match_indices("this is the text!").count(), 1);
+
+        let bob = TestContext::new_bob().await;
+        bob.recv_msg(&sent_msg).await;
+        let alice_id = Contact::lookup_id_by_addr(&bob.ctx, "alice@example.org", Origin::Unknown)
+            .await
+            .unwrap()
+            .unwrap();
+        let alice_contact = Contact::load_from_db(&bob.ctx, alice_id).await.unwrap();
+        assert!(alice_contact
+            .get_profile_image(&bob.ctx)
+            .await
+            .unwrap()
+            .is_some());
+
+        // if another message is sent, that one must not contain the avatar
+        // and no artificial multipart/mixed nesting
+        let sent_msg = t.send_msg(chat.id, &mut msg).await;
+        let mut payload = sent_msg.payload().splitn(3, "\r\n\r\n");
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("multipart/signed").count(), 1);
+        assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("Autocrypt:").count(), 1);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(part.match_indices("Subject:").count(), 1);
+        assert_eq!(part.match_indices("Autocrypt:").count(), 0);
+        assert_eq!(part.match_indices("multipart/mixed").count(), 0);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+
+        let body = payload.next().unwrap();
+        assert_eq!(body.match_indices("this is the text!").count(), 1);
+        assert_eq!(body.match_indices("text/plain").count(), 0);
+        assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
+        assert_eq!(body.match_indices("Subject:").count(), 0);
+
+        bob.recv_msg(&sent_msg).await;
+        let alice_contact = Contact::load_from_db(&bob.ctx, alice_id).await.unwrap();
+        assert!(alice_contact
+            .get_profile_image(&bob.ctx)
+            .await
+            .unwrap()
+            .is_some());
     }
 
     /// Test that removed member address does not go into the `To:` field.

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 from ._utils import AttrDict
-from .const import ChatVisibility
+from .const import ChatVisibility, ViewType
 from .contact import Contact
 from .message import Message
 
@@ -108,15 +108,27 @@ class Chat:
     async def send_message(
         self,
         text: Optional[str] = None,
+        html: Optional[str] = None,
+        viewtype: Optional[ViewType] = None,
         file: Optional[str] = None,
         location: Optional[Tuple[float, float]] = None,
+        override_sender_name: Optional[str] = None,
         quoted_msg: Optional[Union[int, Message]] = None,
     ) -> Message:
         """Send a message and return the resulting Message instance."""
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
 
-        msg_id, _ = await self._rpc.misc_send_msg(self.account.id, self.id, text, file, location, quoted_msg)
+        draft = {
+            "text": text,
+            "html": html,
+            "viewtype": viewtype,
+            "file": file,
+            "location": location,
+            "overrideSenderName": override_sender_name,
+            "quotedMsg": quoted_msg,
+        }
+        msg_id = await self._rpc.send_msg(self.account.id, self.id, draft)
         return Message(self.account, msg_id)
 
     async def send_text(self, text: str) -> Message:
@@ -182,19 +194,23 @@ class Chat:
         """Add contacts to this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                cnt = (await self.account.create_contact(cnt)).id
+                contact_id = (await self.account.create_contact(cnt)).id
             elif not isinstance(cnt, int):
-                cnt = cnt.id
-            await self._rpc.add_contact_to_chat(self.account.id, self.id, cnt)
+                contact_id = cnt.id
+            else:
+                contact_id = cnt
+            await self._rpc.add_contact_to_chat(self.account.id, self.id, contact_id)
 
     async def remove_contact(self, *contact: Union[int, str, Contact]) -> None:
         """Remove members from this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                cnt = (await self.account.create_contact(cnt)).id
+                contact_id = (await self.account.create_contact(cnt)).id
             elif not isinstance(cnt, int):
-                cnt = cnt.id
-            await self._rpc.remove_contact_from_chat(self.account.id, self.id, cnt)
+                contact_id = cnt.id
+            else:
+                contact_id = cnt
+            await self._rpc.remove_contact_from_chat(self.account.id, self.id, contact_id)
 
     async def get_contacts(self) -> List[Contact]:
         """Get the contacts belonging to this chat.
@@ -230,9 +246,9 @@ class Chat:
         locations = []
         contacts: Dict[int, Contact] = {}
         for loc in result:
-            loc = AttrDict(loc)
-            loc["chat"] = self
-            loc["contact"] = contacts.setdefault(loc.contact_id, Contact(self.account, loc.contact_id))
-            loc["message"] = Message(self.account, loc.msg_id)
-            locations.append(loc)
+            location = AttrDict(loc)
+            location["chat"] = self
+            location["contact"] = contacts.setdefault(location.contact_id, Contact(self.account, location.contact_id))
+            location["message"] = Message(self.account, location.msg_id)
+            locations.append(location)
         return locations

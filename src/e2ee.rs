@@ -124,6 +124,19 @@ impl EncryptHelper {
 
         Ok(ctext)
     }
+
+    /// Signs the passed-in `mail` using the private key from `context`.
+    /// Returns the payload and the signature.
+    pub async fn sign(
+        self,
+        context: &Context,
+        mail: lettre_email::PartBuilder,
+    ) -> Result<(lettre_email::MimeMessage, String)> {
+        let sign_key = SignedSecretKey::load_self(context).await?;
+        let mime_message = mail.build();
+        let signature = pgp::pk_calc_signature(mime_message.as_string().as_bytes(), &sign_key)?;
+        Ok((mime_message, signature))
+    }
 }
 
 /// Ensures a private key exists for the configured user.

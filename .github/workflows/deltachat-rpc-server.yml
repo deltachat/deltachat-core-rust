@@ -2,21 +2,105 @@
 
 name: Build deltachat-rpc-server binaries
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
 
 jobs:
-  build_server:
-    name: Build deltachat-rpc-server
+  # Build a version statically linked against musl libc
+  # to avoid problems with glibc version incompatibility.
+  build_static_linux:
+    name: Build deltachat-rpc-server for Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup rust target
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Install musl-gcc
+        run: sudo apt install musl-tools
+
+      - name: Build
+        env:
+          RUSTFLAGS: "-C link-arg=-s"
+        run: cargo build --release --target x86_64-unknown-linux-musl -p deltachat-rpc-server --features vendored
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-x86_64
+          path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
+          if-no-files-found: error
+
+  build_aarch64_linux:
+    name: Cross-compile deltachat-rpc-server for aarch64 Linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build
+        run: sh scripts/aarch64-unknown-linux-musl.sh
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-aarch64
+          path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
+          if-no-files-found: error
+
+  build_android:
+    name: Cross-compile deltachat-rpc-server for Android (armeabi-v7a, arm64-v8a, x86 and x86_64)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r21d
+
+      - name: Build
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: sh scripts/android-rpc-server.sh
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-android-armv7
+          path: target/armv7-linux-androideabi/release/deltachat-rpc-server
+          if-no-files-found: error
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-android-aarch64
+          path: target/aarch64-linux-android/release/deltachat-rpc-server
+          if-no-files-found: error
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-android-i686
+          path: target/i686-linux-android/release/deltachat-rpc-server
+          if-no-files-found: error
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-android-x86_64
+          path: target/x86_64-linux-android/release/deltachat-rpc-server
+          if-no-files-found: error
+
+  build_windows:
+    name: Build deltachat-rpc-server for Windows
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
-            artifact: gnu-linux-x86_64
-            path: deltachat-rpc-server
-            target: x86_64-unknown-linux-gnu
-
           - os: windows-latest
             artifact: win32.exe
             path: deltachat-rpc-server.exe

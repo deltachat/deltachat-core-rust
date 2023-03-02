@@ -24,7 +24,7 @@ class Chat:
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
 
-    def __init__(self, account, id) -> None:
+    def __init__(self, account, id: int) -> None:
         from .account import Account
 
         assert isinstance(account, Account), repr(account)
@@ -162,8 +162,8 @@ class Chat:
         :param name: as a unicode string.
         :returns: True on success, False otherwise
         """
-        name = as_dc_charpointer(name)
-        return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name))
+        name_c = as_dc_charpointer(name)
+        return bool(lib.dc_set_chat_name(self.account._dc_context, self.id, name_c))
 
     def get_color(self):
         """return the color of the chat.
@@ -532,13 +532,13 @@ class Chat:
 
     # ------  location streaming API ------------------------------
 
-    def is_sending_locations(self):
+    def is_sending_locations(self) -> bool:
         """return True if this chat has location-sending enabled currently.
         :returns: True if location sending is enabled.
         """
-        return lib.dc_is_sending_locations_to_chat(self.account._dc_context, self.id)
+        return bool(lib.dc_is_sending_locations_to_chat(self.account._dc_context, self.id))
 
-    def enable_sending_locations(self, seconds):
+    def enable_sending_locations(self, seconds) -> None:
         """enable sending locations for this chat.
 
         all subsequent messages will carry a location with them.
@@ -572,7 +572,7 @@ class Chat:
 
 
 class Location:
-    def __init__(self, latitude, longitude, accuracy, timestamp, marker):
+    def __init__(self, latitude, longitude, accuracy, timestamp, marker) -> None:
         assert isinstance(timestamp, datetime)
         self.latitude = latitude
         self.longitude = longitude
@@ -580,5 +580,5 @@ class Location:
         self.timestamp = timestamp
         self.marker = marker
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return self.__dict__ == other.__dict__

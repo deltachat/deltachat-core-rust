@@ -760,7 +760,7 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
     sql::housekeeping(context).await.ok_or_log(context);
     context
         .sql
-        .call(|conn| {
+        .call_write(|conn| {
             conn.execute("VACUUM;", params![])
                 .map_err(|err| warn!(context, "Vacuum failed, exporting anyway {err}"))
                 .ok();

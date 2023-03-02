@@ -1952,4 +1952,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2023, 2, 21).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2023, 2, 20).unwrap());

@@ -116,6 +116,8 @@ impl async_imap::Authenticator for OAuth2 {
 #[derive(Debug, Display, PartialEq, Eq, Clone, Copy)]
 pub enum FolderMeaning {
     Unknown,
+
+    /// Spam folder.
     Spam,
     Inbox,
     Mvbox,
@@ -149,8 +151,11 @@ impl FolderMeaning {
 
 #[derive(Debug)]
 struct ImapConfig {
+    /// Email address.
     pub addr: String,
     pub lp: ServerLoginParam,
+
+    /// SOCKS 5 configuration.
     pub socks5_config: Option<Socks5Config>,
     pub strict_tls: bool,
 }
@@ -897,6 +902,24 @@ impl Imap {
         }
 
         info!(context, "Done fetching existing messages.");
+        Ok(())
+    }
+
+    /// Synchronizes UIDs for all folders.
+    pub(crate) async fn resync_folders(&mut self, context: &Context) -> Result<()> {
+        self.prepare(context).await?;
+
+        let all_folders = self
+            .list_folders(context)
+            .await
+            .context("listing folders for resync")?;
+        for folder in all_folders {
+            let folder_meaning = get_folder_meaning(&folder);
+            if folder_meaning != FolderMeaning::Virtual {
+                self.resync_folder_uids(context, folder.name(), folder_meaning)
+                    .await?;
+            }
+        }
         Ok(())
     }
 }

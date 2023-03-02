@@ -3,7 +3,7 @@
   "dependencies": {
     "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
-    "yerpc": "^0.3.3"
+    "yerpc": "^0.4.3"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",
@@ -26,8 +26,8 @@
   },
   "exports": {
     ".": {
-      "require": "./dist/deltachat.cjs",
-      "import": "./dist/deltachat.js"
+      "import": "./dist/deltachat.js",
+      "require": "./dist/deltachat.cjs"
     }
   },
   "license": "MPL-2.0",
@@ -36,8 +36,8 @@
   "scripts": {
     "build": "run-s generate-bindings extract-constants build:tsc build:bundle build:cjs",
     "build:bundle": "esbuild --format=esm --bundle dist/deltachat.js --outfile=dist/deltachat.bundle.js",
-    "build:tsc": "tsc",
     "build:cjs": "esbuild --format=cjs --bundle --packages=external dist/deltachat.js --outfile=dist/deltachat.cjs",
+    "build:tsc": "tsc",
     "docs": "typedoc --out docs deltachat.ts",
     "example": "run-s build example:build example:start",
     "example:build": "esbuild --bundle dist/example/example.js --outfile=dist/example.bundle.js",
@@ -55,5 +55,5 @@
   },
   "type": "module",
   "types": "dist/deltachat.d.ts",
-  "version": "1.109.0"
+  "version": "1.110.0"
 }

@@ -4697,33 +4697,22 @@ mod jsonrpc {
             return ptr::null_mut();
         }
 
-        let cmd_api =
-            deltachat_jsonrpc::api::CommandApi::from_arc((*account_manager).inner.clone());
+        let account_manager = &*account_manager;
+        let events = block_on(account_manager.read()).get_event_emitter();
+        let cmd_api = deltachat_jsonrpc::api::CommandApi::from_arc(account_manager.inner.clone());
 
         let (request_handle, receiver) = RpcClient::new();
-        let request_handle2 = request_handle.clone();
-        let handle = RpcSession::new(request_handle, cmd_api);
+        let handle = RpcSession::new(request_handle.clone(), cmd_api);
 
-        let events = block_on({
-            async {
-                let am = (*account_manager).inner.clone();
-                let ev = am.read().await.get_event_emitter();
-                drop(am);
-                ev
+        let event_thread = spawn(async move {
+            while let Some(event) = events.recv().await {
+                let event = event_to_json_rpc_notification(event);
+                request_handle
+                    .send_notification("event", Some(event))
+                    .await?;
             }
-        });
-
-        let event_thread = spawn({
-            async move {
-                while let Some(event) = events.recv().await {
-                    let event = event_to_json_rpc_notification(event);
-                    request_handle2
-                        .send_notification("event", Some(event))
-                        .await?;
-                }
-                let res: Result<(), anyhow::Error> = Ok(());
-                res
-            }
+            let res: Result<(), anyhow::Error> = Ok(());
+            res
         });
 
         let instance = dc_jsonrpc_instance_t {

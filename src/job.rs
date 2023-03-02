@@ -6,14 +6,14 @@
 #![allow(missing_docs)]
 
 use std::fmt;
+use std::sync::atomic::Ordering;
 
 use anyhow::{Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::imap::{get_folder_meaning, FolderMeaning, Imap};
-use crate::param::Params;
+use crate::imap::Imap;
 use crate::scheduler::InterruptInfo;
 use crate::tools::time;
 
@@ -25,7 +25,6 @@ const JOB_RETRIES: u32 = 17;
 pub enum Status {
     Finished(Result<()>),
     RetryNow,
-    RetryLater,
 }
 
 #[macro_export]
@@ -58,18 +57,11 @@ macro_rules! job_try {
 )]
 #[repr(u32)]
 pub enum Action {
-    // this is user initiated so it should have a fairly high priority
-    UpdateRecentQuota = 140,
-
     // This job will download partially downloaded messages completely
     // and is added when download_full() is called.
     // Most messages are downloaded automatically on fetch
     // and do not go through this job.
     DownloadMsg = 250,
-
-    // UID synchronization is high-priority to make sure correct UIDs
-    // are used by message moving/deletion.
-    ResyncFolders = 300,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +72,6 @@ pub struct Job {
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: u32,
-    pub param: Params,
 }
 
 impl fmt::Display for Job {
@@ -90,22 +81,17 @@ impl fmt::Display for Job {
 }
 
 impl Job {
-    pub fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
+    pub fn new(action: Action, foreign_id: u32) -> Self {
         let timestamp = time();
 
         Self {
             job_id: 0,
             action,
             foreign_id,
-            desired_timestamp: timestamp + delay_seconds,
+            desired_timestamp: timestamp,
             added_timestamp: timestamp,
             tries: 0,
-            param,
         }
-    }
-
-    pub fn delay_seconds(&self) -> i64 {
-        self.desired_timestamp - self.added_timestamp
     }
 
     /// Deletes the job from the database.
@@ -130,23 +116,21 @@ impl Job {
             context
                 .sql
                 .execute(
-                    "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
+                    "UPDATE jobs SET desired_timestamp=?, tries=? WHERE id=?;",
                     paramsv![
                         self.desired_timestamp,
                         i64::from(self.tries),
-                        self.param.to_string(),
                         self.job_id as i32,
                     ],
                 )
                 .await?;
         } else {
             context.sql.execute(
-                "INSERT INTO jobs (added_timestamp, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?);",
+                "INSERT INTO jobs (added_timestamp, action, foreign_id, desired_timestamp) VALUES (?,?,?,?);",
                 paramsv![
                     self.added_timestamp,
                     self.action,
                     self.foreign_id,
-                    self.param.to_string(),
                     self.desired_timestamp
                 ]
             ).await?;
@@ -154,63 +138,6 @@ impl Job {
 
         Ok(())
     }
-    /// Synchronizes UIDs for all folders.
-    async fn resync_folders(&mut self, context: &Context, imap: &mut Imap) -> Status {
-        if let Err(err) = imap.prepare(context).await {
-            warn!(context, "could not connect: {:#}", err);
-            return Status::RetryLater;
-        }
-
-        let all_folders = match imap.list_folders(context).await {
-            Ok(v) => v,
-            Err(e) => {
-                warn!(context, "Listing folders for resync failed: {:#}", e);
-                return Status::RetryLater;
-            }
-        };
-
-        let mut any_failed = false;
-
-        for folder in all_folders {
-            let folder_meaning = get_folder_meaning(&folder);
-            if folder_meaning == FolderMeaning::Virtual {
-                continue;
-            }
-            if let Err(e) = imap
-                .resync_folder_uids(context, folder.name(), folder_meaning)
-                .await
-            {
-                warn!(context, "{:#}", e);
-                any_failed = true;
-            }
-        }
-
-        if any_failed {
-            Status::RetryLater
-        } else {
-            Status::Finished(Ok(()))
-        }
-    }
-}
-
-/// Delete all pending jobs with the given action.
-pub async fn kill_action(context: &Context, action: Action) -> Result<()> {
-    context
-        .sql
-        .execute("DELETE FROM jobs WHERE action=?;", paramsv![action])
-        .await?;
-    Ok(())
-}
-
-pub async fn action_exists(context: &Context, action: Action) -> Result<bool> {
-    let exists = context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM jobs WHERE action=?;",
-            paramsv![action],
-        )
-        .await?;
-    Ok(exists)
 }
 
 pub(crate) enum Connection<'a> {
@@ -234,13 +161,13 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
     };
 
     match try_res {
-        Status::RetryNow | Status::RetryLater => {
+        Status::RetryNow => {
             let tries = job.tries + 1;
 
             if tries < JOB_RETRIES {
                 info!(context, "increase job {} tries to {}", job, tries);
                 job.tries = tries;
-                let time_offset = get_backoff_time_offset(tries, job.action);
+                let time_offset = get_backoff_time_offset(tries);
                 job.desired_timestamp = time() + time_offset;
                 info!(
                     context,
@@ -288,11 +215,6 @@ async fn perform_job_action(
     info!(context, "begin immediate try {} of job {}", tries, job);
 
     let try_res = match job.action {
-        Action::ResyncFolders => job.resync_folders(context, connection.inbox()).await,
-        Action::UpdateRecentQuota => match context.update_recent_quota(connection.inbox()).await {
-            Ok(status) => status,
-            Err(err) => Status::Finished(Err(err)),
-        },
         Action::DownloadMsg => job.download_msg(context, connection.inbox()).await,
     };
 
@@ -301,50 +223,34 @@ async fn perform_job_action(
     try_res
 }
 
-fn get_backoff_time_offset(tries: u32, action: Action) -> i64 {
-    match action {
-        // Just try every 10s to update the quota
-        // If all retries are exhausted, a new job will be created when the quota information is needed
-        Action::UpdateRecentQuota => 10,
-
-        _ => {
-            // Exponential backoff
-            let n = 2_i32.pow(tries - 1) * 60;
-            let mut rng = thread_rng();
-            let r: i32 = rng.gen();
-            let mut seconds = r % (n + 1);
-            if seconds < 1 {
-                seconds = 1;
-            }
-            i64::from(seconds)
-        }
+fn get_backoff_time_offset(tries: u32) -> i64 {
+    // Exponential backoff
+    let n = 2_i32.pow(tries - 1) * 60;
+    let mut rng = thread_rng();
+    let r: i32 = rng.gen();
+    let mut seconds = r % (n + 1);
+    if seconds < 1 {
+        seconds = 1;
     }
+    i64::from(seconds)
 }
 
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
-    kill_action(context, Action::ResyncFolders).await?;
-    add(
-        context,
-        Job::new(Action::ResyncFolders, 0, Params::new(), 0),
-    )
-    .await?;
+    context.resync_request.store(true, Ordering::Relaxed);
+    context
+        .interrupt_inbox(InterruptInfo {
+            probe_network: false,
+        })
+        .await;
     Ok(())
 }
 
 /// Adds a job to the database, scheduling it.
 pub async fn add(context: &Context, job: Job) -> Result<()> {
-    let action = job.action;
-    let delay_seconds = job.delay_seconds();
     job.save(context).await.context("failed to save job")?;
 
-    if delay_seconds == 0 {
-        match action {
-            Action::ResyncFolders | Action::UpdateRecentQuota | Action::DownloadMsg => {
-                info!(context, "interrupt: imap");
-                context.interrupt_inbox(InterruptInfo::new(false)).await;
-            }
-        }
-    }
+    info!(context, "interrupt: imap");
+    context.interrupt_inbox(InterruptInfo::new(false)).await;
     Ok(())
 }
 
@@ -396,7 +302,6 @@ LIMIT 1;
                     desired_timestamp: row.get("desired_timestamp")?,
                     added_timestamp: row.get("added_timestamp")?,
                     tries: row.get("tries")?,
-                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
                 };
 
                 Ok(job)
@@ -436,8 +341,8 @@ mod tests {
             .sql
             .execute(
                 "INSERT INTO jobs
-                   (added_timestamp, action, foreign_id, param, desired_timestamp)
-                 VALUES (?, ?, ?, ?, ?);",
+                   (added_timestamp, action, foreign_id, desired_timestamp)
+                 VALUES (?, ?, ?, ?);",
                 paramsv![
                     now,
                     if valid {
@@ -446,7 +351,6 @@ mod tests {
                         -1
                     },
                     foreign_id,
-                    Params::new().to_string(),
                     now
                 ],
             )

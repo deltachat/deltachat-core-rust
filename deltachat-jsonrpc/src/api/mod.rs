@@ -41,6 +41,7 @@ use types::account::Account;
 use types::chat::FullChat;
 use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
+use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
@@ -1525,6 +1526,23 @@ impl CommandApi {
         WebxdcMessageInfo::get_for_message(&ctx, MsgId::new(instance_msg_id)).await
     }
 
+    /// Get blob encoded as base64 from a webxdc message
+    ///
+    /// path is the path of the file within webxdc archive
+    async fn get_webxdc_blob(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        path: String,
+    ) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(instance_msg_id)).await?;
+        let blob = message.get_webxdc_blob(&ctx, &path).await?;
+
+        use base64::{engine::general_purpose, Engine as _};
+        Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
+    }
+
     /// Forward messages to another chat.
     ///
     /// All types of messages can be forwarded,
@@ -1572,6 +1590,48 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" ")).await?;
         Ok(message_id.to_u32())
+    }
+
+    async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        let mut message = Message::new(if let Some(viewtype) = data.viewtype {
+            viewtype.into()
+        } else if data.file.is_some() {
+            Viewtype::File
+        } else {
+            Viewtype::Text
+        });
+        if data.text.is_some() {
+            message.set_text(data.text);
+        }
+        if data.html.is_some() {
+            message.set_html(data.html);
+        }
+        if data.override_sender_name.is_some() {
+            message.set_override_sender_name(data.override_sender_name);
+        }
+        if let Some(file) = data.file {
+            message.set_file(file, None);
+        }
+        if let Some((latitude, longitude)) = data.location {
+            message.set_location(latitude, longitude);
+        }
+        if let Some(id) = data.quoted_message_id {
+            message
+                .set_quote(
+                    &ctx,
+                    Some(
+                        &Message::load_from_db(&ctx, MsgId::new(id))
+                            .await
+                            .context("message to quote could not be loaded")?,
+                    ),
+                )
+                .await?;
+        }
+        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+            .await?
+            .to_u32();
+        Ok(msg_id)
     }
 
     // ---------------------------------------------

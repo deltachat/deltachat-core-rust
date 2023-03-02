@@ -77,7 +77,7 @@ class ReportType:
 
 
 class AutoReplier:
-    def __init__(self, account, log, num_send, num_bigfiles, report_func):
+    def __init__(self, account, log, num_send, num_bigfiles, report_func) -> None:
         self.account = account
         self._log = log
         self.report_func = report_func
@@ -90,7 +90,7 @@ class AutoReplier:
         self._thread.setDaemon(True)
         self._thread.start()
 
-    def log(self, message):
+    def log(self, message) -> None:
         self._log(f"{self.addr} {message}")
 
     def thread_stats(self):
