@@ -15,6 +15,7 @@ use crate::constants::DC_CHAT_ID_TRASH;
 use crate::context::Context;
 use crate::debug_logging::set_debug_logging_xdc;
 use crate::ephemeral::start_ephemeral_timers;
+use crate::imex::BLOBS_BACKUP_NAME;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
@@ -792,74 +793,93 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         .context("housekeeping: failed to SELECT value FROM config")?;
 
     info!(context, "{} files in use.", files_in_use.len(),);
-    /* go through directory and delete unused files */
-    let p = context.get_blobdir();
-    match tokio::fs::read_dir(p).await {
-        Ok(mut dir_handle) => {
-            /* avoid deletion of files that are just created to build a message object */
-            let diff = std::time::Duration::from_secs(60 * 60);
-            let keep_files_newer_than = std::time::SystemTime::now()
-                .checked_sub(diff)
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    /* go through directories and delete unused files */
+    let blobdir = context.get_blobdir();
+    for p in [&blobdir.join(BLOBS_BACKUP_NAME), blobdir] {
+        match tokio::fs::read_dir(p).await {
+            Ok(mut dir_handle) => {
+                /* avoid deletion of files that are just created to build a message object */
+                let diff = std::time::Duration::from_secs(60 * 60);
+                let keep_files_newer_than = std::time::SystemTime::now()
+                    .checked_sub(diff)
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
-            while let Ok(Some(entry)) = dir_handle.next_entry().await {
-                let name_f = entry.file_name();
-                let name_s = name_f.to_string_lossy();
+                while let Ok(Some(entry)) = dir_handle.next_entry().await {
+                    let name_f = entry.file_name();
+                    let name_s = name_f.to_string_lossy();
 
-                if is_file_in_use(&files_in_use, None, &name_s)
-                    || is_file_in_use(&files_in_use, Some(".increation"), &name_s)
-                    || is_file_in_use(&files_in_use, Some(".waveform"), &name_s)
-                    || is_file_in_use(&files_in_use, Some("-preview.jpg"), &name_s)
-                {
-                    continue;
-                }
-
-                unreferenced_count += 1;
-
-                if let Ok(stats) = tokio::fs::metadata(entry.path()).await {
-                    let recently_created =
-                        stats.created().map_or(false, |t| t > keep_files_newer_than);
-                    let recently_modified = stats
-                        .modified()
-                        .map_or(false, |t| t > keep_files_newer_than);
-                    let recently_accessed = stats
-                        .accessed()
-                        .map_or(false, |t| t > keep_files_newer_than);
-
-                    if recently_created || recently_modified || recently_accessed {
-                        info!(
-                            context,
-                            "Housekeeping: Keeping new unreferenced file #{}: {:?}",
-                            unreferenced_count,
-                            entry.file_name(),
-                        );
+                    if p == blobdir
+                        && (is_file_in_use(&files_in_use, None, &name_s)
+                            || is_file_in_use(&files_in_use, Some(".increation"), &name_s)
+                            || is_file_in_use(&files_in_use, Some(".waveform"), &name_s)
+                            || is_file_in_use(&files_in_use, Some("-preview.jpg"), &name_s))
+                    {
                         continue;
                     }
-                }
-                info!(
-                    context,
-                    "Housekeeping: Deleting unreferenced file #{}: {:?}",
-                    unreferenced_count,
-                    entry.file_name()
-                );
-                let path = entry.path();
-                if let Err(err) = delete_file(context, &path).await {
-                    error!(
+
+                    if let Ok(stats) = tokio::fs::metadata(entry.path()).await {
+                        if stats.is_dir() {
+                            if let Err(e) = tokio::fs::remove_dir(entry.path()).await {
+                                // The dir could be created not by a user, but by a desktop
+                                // environment f.e. So, no warning.
+                                info!(
+                                    context,
+                                    "Housekeeping: Cannot rmdir {}: {:#}",
+                                    entry.path().display(),
+                                    e
+                                );
+                            }
+                            continue;
+                        }
+                        unreferenced_count += 1;
+                        let recently_created =
+                            stats.created().map_or(false, |t| t > keep_files_newer_than);
+                        let recently_modified = stats
+                            .modified()
+                            .map_or(false, |t| t > keep_files_newer_than);
+                        let recently_accessed = stats
+                            .accessed()
+                            .map_or(false, |t| t > keep_files_newer_than);
+
+                        if p == blobdir
+                            && (recently_created || recently_modified || recently_accessed)
+                        {
+                            info!(
+                                context,
+                                "Housekeeping: Keeping new unreferenced file #{}: {:?}",
+                                unreferenced_count,
+                                entry.file_name(),
+                            );
+                            continue;
+                        }
+                    } else {
+                        unreferenced_count += 1;
+                    }
+                    info!(
                         context,
-                        "Failed to delete unused file {}: {:#}.",
-                        path.display(),
-                        err
+                        "Housekeeping: Deleting unreferenced file #{}: {:?}",
+                        unreferenced_count,
+                        entry.file_name()
                     );
+                    let path = entry.path();
+                    if let Err(err) = delete_file(context, &path).await {
+                        error!(
+                            context,
+                            "Failed to delete unused file {}: {:#}.",
+                            path.display(),
+                            err
+                        );
+                    }
                 }
             }
-        }
-        Err(err) => {
-            warn!(
-                context,
-                "Housekeeping: Cannot open {}. ({})",
-                context.get_blobdir().display(),
-                err
-            );
+            Err(err) => {
+                warn!(
+                    context,
+                    "Housekeeping: Cannot read dir {}: {:#}",
+                    p.display(),
+                    err
+                );
+            }
         }
     }
 
@@ -1059,6 +1079,18 @@ mod tests {
 
         let loaded_draft = chat.id.get_draft(&t).await.unwrap();
         assert_eq!(loaded_draft.unwrap().text.unwrap(), "This is my draft");
+    }
+
+    /// Tests that `housekeeping` deletes the blobs backup dir which is created normally by
+    /// `imex::import_backup`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_housekeeping_delete_blobs_backup_dir() {
+        let t = TestContext::new_alice().await;
+        let dir = t.get_blobdir().join(BLOBS_BACKUP_NAME);
+        tokio::fs::create_dir(&dir).await.unwrap();
+        tokio::fs::write(dir.join("f"), "").await.unwrap();
+        housekeeping(&t).await.unwrap();
+        tokio::fs::create_dir(&dir).await.unwrap();
     }
 
     /// Regression test.
