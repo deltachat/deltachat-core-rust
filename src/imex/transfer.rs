@@ -23,6 +23,7 @@
 //! download to an impersonated getter.
 
 use std::future::Future;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::task::Poll;
@@ -98,6 +99,7 @@ impl BackupProvider {
             fs::remove_file(&dbfile).await?;
             warn!(context, "Previous database export deleted");
         }
+        let dbfile = TempPathGuard::new(dbfile);
         let res = tokio::select! {
             biased;
             res = Self::prepare_inner(context, &dbfile) => {
@@ -178,8 +180,9 @@ impl BackupProvider {
         context: Context,
         mut provider: Provider,
         cancel_token: Receiver<()>,
-        dbfile: PathBuf,
+        _dbfile: TempPathGuard,
     ) -> Result<()> {
+        // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
         let res = loop {
             tokio::select! {
@@ -225,9 +228,6 @@ impl BackupProvider {
                 },
             }
         };
-        if let Err(err) = fs::remove_file(&dbfile).await {
-            error!(context, "Failed to remove database export: {err:#}");
-        }
         context
             .export_provider
             .lock()
@@ -256,6 +256,37 @@ impl Future for BackupProvider {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.handle).poll(cx)?
+    }
+}
+
+/// A guard which will remove the path when dropped.
+///
+/// It implements [`Deref`] it it can be used as a `&Path`.
+#[derive(Debug)]
+struct TempPathGuard {
+    path: PathBuf,
+}
+
+impl TempPathGuard {
+    fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl Drop for TempPathGuard {
+    fn drop(&mut self) {
+        let path = self.path.clone();
+        tokio::spawn(async move {
+            fs::remove_file(&path).await.ok();
+        });
+    }
+}
+
+impl Deref for TempPathGuard {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.path
     }
 }
 
