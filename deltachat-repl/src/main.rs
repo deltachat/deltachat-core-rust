@@ -352,7 +352,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
             match readline {
                 Ok(line) => {
                     // TODO: ignore "set mail_pw"
-                    rl.add_history_entry(line.as_str());
+                    rl.add_history_entry(line.as_str())?;
                     let contine = Handle::current().block_on(async {
                         match handle_cmd(line.trim(), ctx.clone(), &mut selected_chat).await {
                             Ok(ExitResult::Continue) => true,

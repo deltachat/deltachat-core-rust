@@ -4,3 +4,9 @@ docs
 coverage
 yarn*
 package-lock.json
+.prettierignore
+example.html
+report_api_coverage.mjs
+scripts
+dist/example
+dist/test

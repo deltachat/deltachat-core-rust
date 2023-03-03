@@ -1,4 +1,4 @@
-#![warn(unused, clippy::all, clippy::missing_docs_in_private_items)]
+#![warn(unused, clippy::all)]
 #![allow(
     non_camel_case_types,
     non_snake_case,
