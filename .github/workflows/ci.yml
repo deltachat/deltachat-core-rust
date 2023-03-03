@@ -40,6 +40,8 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
           arguments: --all-features --workspace
+          command: check
+          command-arguments: "-Dwarnings"
 
   provider_database:
     name: Check provider database

@@ -1,7 +1,40 @@
 [advisories]
+unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
+
+    # Only affects windows if using non-default allocator (and unmaintained).
+    "RUSTSEC-2021-0145",
 ]
+
+[bans]
+# Accept some duplicate versions, ideally we work towards this list
+# becoming empty.  Adding versions forces us to revisit this at least
+# when upgrading.
+skip = [
+     { name = "windows-sys", version = "<0.45" },
+     { name = "wasi", version = "<0.11" },
+     { name = "version_check", version = "<0.9" },
+     { name = "uuid", version = "<1.3" },
+     { name = "sha2", version = "<0.10" },
+     { name = "rand_core", version = "<0.6" },
+     { name = "rand_chacha", version = "<0.3" },
+     { name = "rand", version = "<0.8" },
+     { name = "nom", version = "<7.1" },
+     { name = "idna", version = "<0.3" },
+     { name = "humantime", version = "<2.1" },
+     { name = "hermit-abi", version = "<0.3" },
+     { name = "getrandom", version = "<0.2" },
+     { name = "quick-error", version = "<2.0" },
+     { name = "env_logger", version = "<0.10" },
+     { name = "digest", version = "<0.10" },
+     { name = "darling_macro", version = "<0.14" },
+     { name = "darling_core", version = "<0.14" },
+     { name = "darling", version = "<0.14" },
+     { name = "block-buffer", version = "<0.10" },
+     { name = "base64", version = "<0.21" },
+]
+
 
 [licenses]
 allow = [
@@ -13,4 +46,12 @@ allow = [
     "MIT",
     "BSL-1.0", # Boost Software License 1.0
     "Unicode-DFS-2016",
+    "MPL-2.0",
+]
+
+[sources.allow-org]
+# Organisations which we allow git sources from.
+github = [
+       "async-email",
+       "deltachat",
 ]
