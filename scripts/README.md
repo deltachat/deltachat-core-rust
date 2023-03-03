@@ -6,9 +6,17 @@ and an own build machine.
 
 ## Description of scripts 
 
+Scripts should be ran from the root of the repository,
+for example:
+```
+$ scripts/clippy.sh
+```
+
 - `clippy.sh` runs `cargo clippy` for all Rust code in the project.
 
 - `deny.sh` runs `cargo deny` for all Rust code in the project.
+
+- `benchmark-tests.sh`
 
 - `../.github/workflows` contains jobs run by GitHub Actions.
 
