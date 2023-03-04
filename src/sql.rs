@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{self, config::DbConfig, Connection, OpenFlags};
+use rusqlite::{self, config::DbConfig, types::ValueRef, Connection, OpenFlags, Row};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
 
 use crate::blob::BlobObject;
@@ -57,7 +57,7 @@ pub struct Sql {
     /// Database file path
     pub(crate) dbfile: PathBuf,
 
-    /// Write transaction mutex.
+    /// Write transactions mutex.
     ///
     /// See [`Self::write_lock`].
     write_mtx: Mutex<()>,
@@ -696,6 +696,15 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
 
 /// Cleanup the account to restore some storage and optimize the database.
 pub async fn housekeeping(context: &Context) -> Result<()> {
+    // Setting `Config::LastHousekeeping` at the beginning avoids endless loops when things do not
+    // work out for whatever reason or are interrupted by the OS.
+    if let Err(e) = context
+        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
+        .await
+    {
+        warn!(context, "Can't set config: {e:#}.");
+    }
+
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
@@ -743,13 +752,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         }
     }
 
-    if let Err(e) = context
-        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
-        .await
-    {
-        warn!(context, "Can't set config: {e:#}.");
-    }
-
     context
         .sql
         .execute(
@@ -763,6 +765,16 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
 
     info!(context, "Housekeeping done.");
     Ok(())
+}
+
+/// Get the value of a column `idx` of the `row` as `Vec<u8>`.
+pub fn row_get_vec(row: &Row, idx: usize) -> rusqlite::Result<Vec<u8>> {
+    row.get(idx).or_else(|err| match row.get_ref(idx)? {
+        ValueRef::Null => Ok(Vec::new()),
+        ValueRef::Text(text) => Ok(text.to_vec()),
+        ValueRef::Blob(blob) => Ok(blob.to_vec()),
+        ValueRef::Integer(_) | ValueRef::Real(_) => Err(err),
+    })
 }
 
 /// Enumerates used files in the blobdir and removes unused ones.

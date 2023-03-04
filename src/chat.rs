@@ -35,8 +35,9 @@ use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::tools::{
-    create_id, create_outgoing_rfc724_mid, create_smeared_timestamp, create_smeared_timestamps,
-    get_abs_path, gm2local_offset, improve_single_line_input, time, IsNoneOrEmpty,
+    buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
+    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input, time,
+    IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
@@ -1580,7 +1581,12 @@ impl Chat {
             } else {
                 msg.param.get(Param::SendHtml).map(|s| s.to_string())
             };
-            html.map(|html| new_html_mimepart(html).build().as_string())
+            match html {
+                Some(html) => Some(tokio::task::block_in_place(move || {
+                    buf_compress(new_html_mimepart(html).build().as_string().as_bytes())
+                })?),
+                None => None,
+            }
         } else {
             None
         };
@@ -1594,7 +1600,8 @@ impl Chat {
                      SET rfc724_mid=?, chat_id=?, from_id=?, to_id=?, timestamp=?, type=?,
                          state=?, txt=?, subject=?, param=?,
                          hidden=?, mime_in_reply_to=?, mime_references=?, mime_modified=?,
-                         mime_headers=?, location_id=?, ephemeral_timer=?, ephemeral_timestamp=?
+                         mime_headers=?, mime_compressed=1, location_id=?, ephemeral_timer=?,
+                         ephemeral_timestamp=?
                      WHERE id=?;",
                     paramsv![
                         new_rfc724_mid,
@@ -1640,10 +1647,11 @@ impl Chat {
                         mime_references,
                         mime_modified,
                         mime_headers,
+                        mime_compressed,
                         location_id,
                         ephemeral_timer,
                         ephemeral_timestamp)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?);",
                     paramsv![
                         new_rfc724_mid,
                         self.id,
