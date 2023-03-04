@@ -5,7 +5,8 @@
 
 use std::borrow::Cow;
 use std::fmt;
-use std::io::Cursor;
+use std::io::{Cursor, Write};
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use std::time::{Duration, SystemTime};
@@ -652,6 +653,42 @@ pub(crate) fn single_value<T>(collection: impl IntoIterator<Item = T>) -> Option
         }
     }
     None
+}
+
+/// Compressor/decompressor buffer size.
+const BROTLI_BUFSZ: usize = 4096;
+
+/// Compresses `buf` to `Vec` using `brotli`.
+/// Note that it handles an empty `buf` as a special value that remains empty after compression,
+/// otherwise brotli would add its metadata to it which is not nice because this function is used
+/// for compression of strings stored in the db and empty strings are common there. This approach is
+/// not strictly correct because nowhere in the brotli documentation is said that an empty buffer
+/// can't be a result of compression of some input, but i think this will never break.
+pub(crate) fn buf_compress(buf: &[u8]) -> Result<Vec<u8>> {
+    if buf.is_empty() {
+        return Ok(Vec::new());
+    }
+    // level 4 is 2x faster than level 6 (and 54x faster than 10, for comparison).
+    // with the adaptiveness, we aim to not slow down processing
+    // single large files too much, esp. on low-budget devices.
+    // in tests (see #4129), this makes a difference, without compressing much worse.
+    let q: u32 = if buf.len() > 1_000_000 { 4 } else { 6 };
+    let lgwin: u32 = 22; // log2(LZ77 window size), it's the default for brotli CLI tool.
+    let mut compressor = brotli::CompressorWriter::new(Vec::new(), BROTLI_BUFSZ, q, lgwin);
+    compressor.write_all(buf)?;
+    Ok(compressor.into_inner())
+}
+
+/// Decompresses `buf` to `Vec` using `brotli`.
+/// See `buf_compress()` for why we don't pass an empty buffer to brotli decompressor.
+pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
+    if buf.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut decompressor = brotli::DecompressorWriter::new(Vec::new(), BROTLI_BUFSZ);
+    decompressor.write_all(buf)?;
+    decompressor.flush()?;
+    Ok(mem::take(decompressor.get_mut()))
 }
 
 #[cfg(test)]

@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
-use rusqlite::types::ValueRef;
 use serde::{Deserialize, Serialize};
 
 use crate::chat::{self, Chat, ChatId};
@@ -29,8 +28,8 @@ use crate::sql;
 use crate::stock_str;
 use crate::summary::Summary;
 use crate::tools::{
-    create_smeared_timestamp, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
-    timestamp_to_str, truncate,
+    buf_compress, buf_decompress, create_smeared_timestamp, get_filebytes, get_filemeta,
+    gm2local_offset, read_file, time, timestamp_to_str, truncate,
 };
 
 /// Message ID, including reserved IDs.
@@ -1350,21 +1349,52 @@ pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
 /// e.g. because of save_mime_headers is not set
 /// or the message is not incoming.
 pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8>> {
-    let headers = context
+    let (headers, compressed) = context
         .sql
         .query_row(
-            "SELECT mime_headers FROM msgs WHERE id=?;",
+            "SELECT mime_headers, mime_compressed FROM msgs WHERE id=?",
             paramsv![msg_id],
             |row| {
-                row.get(0).or_else(|err| match row.get_ref(0)? {
-                    ValueRef::Null => Ok(Vec::new()),
-                    ValueRef::Text(text) => Ok(text.to_vec()),
-                    ValueRef::Blob(blob) => Ok(blob.to_vec()),
-                    ValueRef::Integer(_) | ValueRef::Real(_) => Err(err),
-                })
+                let headers = sql::row_get_vec(row, 0)?;
+                let compressed: bool = row.get(1)?;
+                Ok((headers, compressed))
             },
         )
         .await?;
+    if compressed {
+        return buf_decompress(&headers);
+    }
+
+    let headers2 = headers.clone();
+    let compressed = match tokio::task::block_in_place(move || buf_compress(&headers2)) {
+        Err(e) => {
+            warn!(context, "get_mime_headers: buf_compress() failed: {}", e);
+            return Ok(headers);
+        }
+        Ok(o) => o,
+    };
+    let update = |conn: &mut rusqlite::Connection| {
+        match conn.execute(
+            "\
+            UPDATE msgs SET mime_headers=?, mime_compressed=1 \
+            WHERE id=? AND mime_headers!='' AND mime_compressed=0",
+            params![compressed, msg_id],
+        ) {
+            Ok(rows_updated) => ensure!(rows_updated <= 1),
+            Err(e) => {
+                warn!(context, "get_mime_headers: UPDATE failed: {}", e);
+                return Err(e.into());
+            }
+        }
+        Ok(())
+    };
+    if let Err(e) = context.sql.call_write(update).await {
+        warn!(
+            context,
+            "get_mime_headers: failed to update mime_headers: {}", e
+        );
+    }
+
     Ok(headers)
 }
 
