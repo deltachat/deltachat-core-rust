@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.111.0
 
 ### Changes
 - Make smeared timestamp generation non-async. #4075
