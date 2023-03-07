@@ -2701,7 +2701,7 @@ char* dc_backup_provider_get_qr (const dc_backup_provider_t* backup_provider);
  *    On errors an empty string is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
-char * dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider);
+char* dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider);
 
 /**
  * Waits for the sending to finish and frees the backup provider object.
