@@ -23,7 +23,7 @@ pub enum Param {
 
     /// For messages: This name should be shown instead of contact.get_display_name()
     /// (used if this is a mailinglist
-    /// or explictly set using set_override_sender_name(), eg. by bots)
+    /// or explicitly set using set_override_sender_name(), eg. by bots)
     OverrideSenderDisplayname = b'O',
 
     /// For Messages
@@ -129,7 +129,7 @@ pub enum Param {
     ProfileImage = b'i',
 
     /// For Chats
-    /// Signals wheter the chat is the `saved messages` chat
+    /// Signals whether the chat is the `saved messages` chat
     Selftalk = b'K',
 
     /// For Chats: On sending a new message we set the subject to `Re: <last subject>`.
@@ -341,7 +341,7 @@ impl Params {
     /// returned.
     ///
     /// Note that in the [ParamsFile::FsPath] case the blob can be
-    /// created without copying if the path already referes to a valid
+    /// created without copying if the path already refers to a valid
     /// blob.  If so a [BlobObject] will be returned regardless of the
     /// `create` argument.
     #[allow(clippy::needless_lifetimes)]
@@ -389,13 +389,13 @@ impl Params {
             .map(MsgId::new)
     }
 
-    /// Set the given paramter to the passed in `i32`.
+    /// Set the given parameter to the passed in `i32`.
     pub fn set_int(&mut self, key: Param, value: i32) -> &mut Self {
         self.set(key, format!("{value}"));
         self
     }
 
-    /// Set the given paramter to the passed in `i64`.
+    /// Set the given parameter to the passed in `i64`.
     pub fn set_i64(&mut self, key: Param, value: i64) -> &mut Self {
         self.set(key, value.to_string());
         self

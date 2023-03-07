@@ -151,7 +151,7 @@ def test_markseen_invalid_message_ids(acfactory):
     ac1 = acfactory.get_pseudo_configured_account()
     contact1 = ac1.create_contact("some1@example.com", name="some1")
     chat = contact1.create_chat()
-    chat.send_text("one messae")
+    chat.send_text("one message")
     ac1._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
     msg_ids = [9]
     lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))

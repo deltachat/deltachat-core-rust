@@ -62,5 +62,5 @@ Notes/Questions:
 
   and design such that we can cover all imap flags.
 
-- It might not be neccessary to keep needs_send_mdn state in this table
+- It might not be necessary to keep needs_send_mdn state in this table
   if this can be decided rather when we succeed with mark_seen/mark_delete.

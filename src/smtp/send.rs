@@ -9,7 +9,7 @@ use crate::events::EventType;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is splitted to chunks.
+// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is split to chunks.
 // this does not affect MIME'e `To:` header.
 // can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
 pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;

@@ -436,7 +436,7 @@ pub(crate) async fn smtp_send(
                             // Any extended smtp status codes like x.1.1, x.1.2 or x.1.3 that we
                             // receive as a transient error are misconfigurations of the smtp server.
                             // See <https://tools.ietf.org/html/rfc3463#section-3.2>
-                            info!(context, "Received extended status code {} for a transient error. This looks like a misconfigured smtp server, let's fail immediatly", first_word);
+                            info!(context, "Received extended status code {} for a transient error. This looks like a misconfigured SMTP server, let's fail immediately", first_word);
                             SendResult::Failure(format_err!("Permanent SMTP error: {}", err))
                         } else {
                             info!(
@@ -656,7 +656,7 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
     }
 
     // although by slow sending, ratelimit may have been expired meanwhile,
-    // do not attempt to send MDNs if ratelimited happend before on status-updates/sync:
+    // do not attempt to send MDNs if ratelimited happened before on status-updates/sync:
     // instead, let the caller recall this function so that more important status-updates/sync are sent out.
     if !ratelimited {
         send_mdns(context, connection)

@@ -35,7 +35,7 @@ The server can be configured with environment variables:
 |`DC_PORT`|`20808`|port to listen on|
 |`DC_ACCOUNTS_PATH`|`./accounts`|path to storage directory|
 
-If you are targetting other architectures (like KaiOS or Android), the webserver binary can be cross-compiled easily with [rust-cross](https://github.com/cross-rs/cross):
+If you are targeting other architectures (like KaiOS or Android), the webserver binary can be cross-compiled easily with [rust-cross](https://github.com/cross-rs/cross):
 
 ```sh
 cross build --features=webserver --target armv7-linux-androideabi --release

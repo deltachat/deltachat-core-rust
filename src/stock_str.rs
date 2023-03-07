@@ -804,7 +804,7 @@ pub(crate) async fn sync_msg_subject(context: &Context) -> String {
     translated(context, StockMessage::SyncMsgSubject).await
 }
 
-/// Stock string: `This message is used to synchronize data betweeen your devices.`.
+/// Stock string: `This message is used to synchronize data between your devices.`.
 pub(crate) async fn sync_msg_body(context: &Context) -> String {
     translated(context, StockMessage::SyncMsgBody).await
 }

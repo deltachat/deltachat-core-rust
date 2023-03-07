@@ -30,7 +30,7 @@ use crate::message::{rfc724_mid_exists, Message, MsgId, Viewtype};
 /// It is guaranteed to have all emojis sorted and deduplicated inside.
 #[derive(Debug, Default, Clone)]
 pub struct Reaction {
-    /// Canonical represntation of reaction as a string of space-separated emojis.
+    /// Canonical representation of reaction as a string of space-separated emojis.
     reaction: String,
 }
 
@@ -195,7 +195,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
     reaction_msg.in_reply_to = Some(msg.rfc724_mid);
     reaction_msg.hidden = true;
 
-    // Send messsage first.
+    // Send message first.
     let reaction_msg_id = send_msg(context, chat_id, &mut reaction_msg).await?;
 
     // Only set reaction if we successfully sent the message.

@@ -124,7 +124,7 @@ $ npm run test
 ```
 
 (when using [fnm](https://github.com/Schniz/fnm) instead of nvm, you can select the architecture)
-If your node and electron are already build for arm64 you can also try bulding for arm:
+If your node and electron are already build for arm64 you can also try building for arm:
 
 ```
 $ fnm install 16 --arch arm64
@@ -182,7 +182,7 @@ this example can also be found in the examples folder [examples/send_message.js]
 
 ### Generating Docs
 
-We are curently migrating to automaticaly generated documentation.
+We are currently migrating to automatically generated documentation.
 You can find the old documentation at [old_docs](./old_docs).
 
 to generate the documentation, run:

@@ -68,7 +68,7 @@ async fn get_unique_quota_roots_and_usage(
                     .cloned()
                     .context("quota_root should have a quota")?;
                 // replace old quotas, because between fetching quotaroots for folders,
-                // messages could be recieved and so the usage could have been changed
+                // messages could be received and so the usage could have been changed
                 *unique_quota_roots
                     .entry(quota_root_name.clone())
                     .or_insert_with(Vec::new) = quota.resources;

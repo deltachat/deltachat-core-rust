@@ -613,7 +613,7 @@ int             dc_all_work_done             (dc_context_t* context);
  * While dc_configure() returns immediately,
  * the started configuration-job may take a while.
  *
- * During configuration, #DC_EVENT_CONFIGURE_PROGRESS events are emmited;
+ * During configuration, #DC_EVENT_CONFIGURE_PROGRESS events are emitted;
  * they indicate a successful configuration as well as errors
  * and may be used to create a progress bar.
  *
@@ -870,7 +870,7 @@ uint32_t        dc_get_chat_id_by_contact_id (dc_context_t* context, uint32_t co
  * @param context The context object as returned from dc_context_new().
  * @param chat_id The chat ID to send the message to.
  * @param msg The message object to send to the chat defined by the chat ID.
- *     On succcess, msg_id and state of the object are set up,
+ *     On success, msg_id and state of the object are set up,
  *     The function does not take ownership of the object,
  *     so you have to free it using dc_msg_unref() as usual.
  * @return The ID of the message that is being prepared.
@@ -881,7 +881,7 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
 /**
  * Send a message defined by a dc_msg_t object to a chat.
  *
- * Sends the event #DC_EVENT_MSGS_CHANGED on succcess.
+ * Sends the event #DC_EVENT_MSGS_CHANGED on success.
  * However, this does not imply, the message really reached the recipient -
  * sending may be delayed e.g. due to network problems. However, from your
  * view, you're done with the message. Sooner or later it will find its way.
@@ -910,7 +910,7 @@ uint32_t        dc_prepare_msg               (dc_context_t* context, uint32_t ch
  * @param chat_id The chat ID to send the message to.
  *     If dc_prepare_msg() was called before, this parameter can be 0.
  * @param msg The message object to send to the chat defined by the chat ID.
- *     On succcess, msg_id of the object is set up,
+ *     On success, msg_id of the object is set up,
  *     The function does not take ownership of the object,
  *     so you have to free it using dc_msg_unref() as usual.
  * @return The ID of the message that is about to be sent. 0 in case of errors.
@@ -927,7 +927,7 @@ uint32_t        dc_send_msg                  (dc_context_t* context, uint32_t ch
  * @param chat_id The chat ID to send the message to.
  *     If dc_prepare_msg() was called before, this parameter can be 0.
  * @param msg The message object to send to the chat defined by the chat ID.
- *     On succcess, msg_id of the object is set up,
+ *     On success, msg_id of the object is set up,
  *     The function does not take ownership of the object,
  *     so you have to free it using dc_msg_unref() as usual.
  * @return The ID of the message that is about to be sent. 0 in case of errors.
@@ -938,7 +938,7 @@ uint32_t        dc_send_msg_sync                  (dc_context_t* context, uint32
 /**
  * Send a simple text message a given chat.
  *
- * Sends the event #DC_EVENT_MSGS_CHANGED on succcess.
+ * Sends the event #DC_EVENT_MSGS_CHANGED on success.
  * However, this does not imply, the message really reached the recipient -
  * sending may be delayed e.g. due to network problems. However, from your
  * view, you're done with the message. Sooner or later it will find its way.
@@ -1147,7 +1147,7 @@ void            dc_set_draft                 (dc_context_t* context, uint32_t ch
  *     // not now and not when this code is executed again
  *     dc_add_device_msg(context, "update-123", NULL);
  * } else {
- *     // welcome message was not added now, this is an oder installation,
+ *     // welcome message was not added now, this is an older installation,
  *     // add a changelog
  *     dc_add_device_msg(context, "update-123", changelog_msg);
  * }
@@ -3300,7 +3300,7 @@ dc_lot_t*        dc_chatlist_get_summary     (const dc_chatlist_t* chatlist, siz
  * it takes the chat ID and the message ID as returned by dc_chatlist_get_chat_id() and dc_chatlist_get_msg_id()
  * as arguments. The chatlist object itself is not needed directly.
  *
- * This maybe useful if you convert the complete object into a different represenation
+ * This maybe useful if you convert the complete object into a different representation
  * as done e.g. in the node-bindings.
  * If you have access to the chatlist object in some way, using this function is not recommended,
  * use dc_chatlist_get_summary() in this case instead.
@@ -6457,7 +6457,7 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used in status messages.
 ///
-/// @deperecated 2022-09-10
+/// @deprecated 2022-09-10
 #define DC_STR_EPHEMERAL_MINUTE           77
 
 /// "Message deletion timer is set to 1 hour."

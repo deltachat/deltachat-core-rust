@@ -64,7 +64,7 @@
 - use new experimental full-Rust Delta Chat core
 - support Autocrypt Setup Messages 
 - remove synchronous events 
-- use CircleCI for continous integration and packaging of Linux wheels
+- use CircleCI for continuous integration and packaging of Linux wheels
 - use docker image for building wheels
 - fix code documentation links 
 

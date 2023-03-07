@@ -427,7 +427,7 @@ impl Config {
         Ok(cfg)
     }
 
-    /// Removes an existing acccount entirely.
+    /// Removes an existing account entirely.
     pub async fn remove_account(&mut self, id: u32) -> Result<()> {
         {
             if let Some(idx) = self.inner.accounts.iter().position(|e| e.id == id) {
@@ -487,7 +487,7 @@ struct AccountConfig {
 }
 
 impl AccountConfig {
-    /// Get the canoncial dbfile name for this configuration.
+    /// Get the canonical dbfile name for this configuration.
     pub fn dbfile(&self, accounts_dir: &Path) -> std::path::PathBuf {
         accounts_dir.join(&self.dir).join(DB_NAME)
     }

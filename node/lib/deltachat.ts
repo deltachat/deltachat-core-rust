@@ -217,7 +217,7 @@ export class AccountManager extends EventEmitter {
   /** get information about the provider
    *
    * This function creates a temporary context to be standalone,
-   * if posible use `Context.getProviderFromEmail` instead. (otherwise potential proxy settings are not used)
+   * if possible use `Context.getProviderFromEmail` instead. (otherwise potential proxy settings are not used)
    * @deprecated
    */
   static getProviderFromEmail(email: string) {

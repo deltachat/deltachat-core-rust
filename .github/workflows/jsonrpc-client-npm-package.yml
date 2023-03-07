@@ -22,7 +22,7 @@ jobs:
         id: tag
         uses: dawidd6/action-get-tag@v1
         continue-on-error: true
-      - name: Get Pullrequest ID
+      - name: Get Pull Request ID
         id: prepare
         run: |
           tag=${{ steps.tag.outputs.tag }}

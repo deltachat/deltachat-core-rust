@@ -29,7 +29,7 @@ use tokio::fs;
 
 /// Reset database tables.
 /// Argument is a bitmask, executing single or multiple actions in one call.
-/// e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
+/// e.g. bitmask 7 triggers actions defined with bits 1, 2 and 4.
 async fn reset_tables(context: &Context, bits: i32) {
     println!("Resetting tables ({bits})...");
     if 0 != bits & 1 {
@@ -882,7 +882,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             if continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {
-                println!("Success, streaming can be stoppped.");
+                println!("Success, streaming can be stopped.");
             }
         }
         "dellocations" => {

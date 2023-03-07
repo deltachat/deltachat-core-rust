@@ -1,7 +1,7 @@
 //! # Time smearing.
 //!
 //! As e-mails typically only use a second-based-resolution for timestamps,
-//! the order of two mails sent withing one second is unclear.
+//! the order of two mails sent within one second is unclear.
 //! This is bad e.g. when forwarding some messages from a chat -
 //! these messages will appear at the recipient easily out of order.
 //!

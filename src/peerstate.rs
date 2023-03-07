@@ -595,7 +595,7 @@ impl Peerstate {
                         Err(err) => {
                             warn!(
                                 context,
-                                "New address {:?} is not vaild, not doing AEAP: {:#}.",
+                                "New address {:?} is not valid, not doing AEAP: {:#}.",
                                 new_addr,
                                 err
                             )

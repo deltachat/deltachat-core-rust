@@ -1,6 +1,6 @@
 [package]
 name = "deltachat-jsonrpc"
-version = "1.110.0"
+version = "1.111.0"
 description = "DeltaChat JSON-RPC API"
 edition = "2021"
 default-run = "deltachat-jsonrpc-server"
@@ -38,5 +38,5 @@ tokio = { version = "1.25.0", features = ["full", "rt-multi-thread"] }
 
 [features]
 default = ["vendored"]
-webserver = ["env_logger", "axum", "tokio/full", "yerpc/support-axum"]
+webserver = ["dep:env_logger", "dep:axum", "tokio/full", "yerpc/support-axum"]
 vendored = ["deltachat/vendored"]

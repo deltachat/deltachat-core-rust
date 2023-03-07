@@ -543,7 +543,7 @@ export class Context extends EventEmitter {
 
   /**
    *
-   * @deprectated please use `AccountManager.getSystemInfo()` instead
+   * @deprecated please use `AccountManager.getSystemInfo()` instead
    */
   static getSystemInfo() {
     return AccountManager.getSystemInfo()
@@ -818,7 +818,7 @@ export class Context extends EventEmitter {
    *     Must be given in number of seconds since 00:00 hours, Jan 1, 1970 UTC.
    *     0 for "all up to now".
    * @return Array of locations, NULL is never returned.
-   *     The array is sorted decending;
+   *     The array is sorted descending;
    *     the first entry in the array is the location with the newest timestamp.
    *
    * Examples:

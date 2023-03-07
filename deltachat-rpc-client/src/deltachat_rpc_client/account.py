@@ -158,7 +158,7 @@ class Account:
         :param contact: if a contact is specified only chats including this contact are returned.
         :param archived_only: if True only archived chats are returned.
         :param for_forwarding: if True the chat list is sorted with "Saved messages" at the top
-                               and withot "Device chat" and contact requests.
+                               and without "Device chat" and contact requests.
         :param no_specials: if True archive link is not added to the list.
         :param alldone_hint: if True the "all done hint" special chat will be added to the list
                              as needed.

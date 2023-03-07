@@ -658,7 +658,7 @@ async fn get_blob(archive: &mut async_zip::read::fs::ZipFileReader, name: &str) 
 
 impl Message {
     /// Get handle to a webxdc ZIP-archive.
-    /// To check for file existance use archive.by_name(), to read a file, use get_blob(archive).
+    /// To check for file existence use archive.by_name(), to read a file, use get_blob(archive).
     async fn get_webxdc_archive(
         &self,
         context: &Context,

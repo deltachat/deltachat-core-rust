@@ -115,7 +115,7 @@ impl ContextBuilder {
     /// Sets the event channel for this [`Context`].
     ///
     /// Mostly useful when using multiple [`Context`]s, this allows creating one [`Events`]
-    /// channel and passing it to all [`Context`]s so all events are recieved on the same
+    /// channel and passing it to all [`Context`]s so all events are received on the same
     /// channel.
     ///
     /// Note that the [account manager](crate::accounts::Accounts) is designed to handle the
@@ -201,7 +201,7 @@ pub struct InnerContext {
     pub(crate) generating_key_mutex: Mutex<()>,
     /// Mutex to enforce only a single running oauth2 is running.
     pub(crate) oauth2_mutex: Mutex<()>,
-    /// Mutex to prevent a race condition when a "your pw is wrong" warning is sent, resulting in multiple messeges being sent.
+    /// Mutex to prevent a race condition when a "your pw is wrong" warning is sent, resulting in multiple messages being sent.
     pub(crate) wrong_pw_warning_mutex: Mutex<()>,
     pub(crate) translated_stockstrings: StockStrings,
     pub(crate) events: Events,
@@ -239,7 +239,7 @@ pub struct InnerContext {
     /// `last_error` should be used to avoid races with the event thread.
     pub(crate) last_error: std::sync::RwLock<String>,
 
-    /// If debug logging is enabled, this contains all neccesary information
+    /// If debug logging is enabled, this contains all necessary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
 
     /// QR code for currently running [`BackupProvider`].
@@ -255,7 +255,7 @@ pub struct InnerContext {
 pub(crate) struct DebugLogging {
     /// The message containing the logging xdc
     pub(crate) msg_id: MsgId,
-    /// Handle to the background task responisble for sending
+    /// Handle to the background task responsible for sending
     pub(crate) loop_handle: task::JoinHandle<()>,
     /// Channel that log events should be send to
     /// A background loop will receive and handle them

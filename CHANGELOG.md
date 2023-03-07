@@ -3,15 +3,20 @@
 ## Unreleased
 
 ### Changes
+- Ability to send backup over network and QR code to setup second device #4007
+
+## 1.111.0
+
+### Changes
 - Make smeared timestamp generation non-async. #4075
 - Set minimum TLS version to 1.2. #4096
 - Run `cargo-deny` in CI. #4101
 - Check provider database with CI. #4099 
 - Switch to DEFERRED transactions #4100
-- Ability to send backup over network and QR code to setup second device #4007
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079
+- Housekeeping: delete the blobs backup dir #4123
 
 ### API-Changes
 - jsonrpc: add more advanced API to send a message. #4097
@@ -102,7 +107,7 @@
 
 ### Fixes
 - Securejoin: Fix adding and handling Autocrypt-Gossip headers #3914
-- fix verifier-by addr was empty string intead of None #3961
+- fix verifier-by addr was empty string instead of None #3961
 - Emit DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK when the number of archived chats with
   unread messages increases #3959
 - Fix Peerstate comparison #3962
@@ -203,7 +208,7 @@
 - jsonrpc: Add async Python client #3734
 
 ### Fixes
-- Make sure malformed messsages will never block receiving further messages anymore #3771
+- Make sure malformed messages will never block receiving further messages anymore #3771
 - strip leading/trailing whitespace from "Chat-Group-Name{,-Changed}:" headers content #3650
 - Assume all Thunderbird users prefer encryption #3774
 - refactor peerstate handling to ensure no duplicate peerstates #3776
@@ -355,7 +360,7 @@
   - `importBackup()`
   - `getMessageHtml()` #3671
   - `miscGetStickerFolder` and `miscGetStickers` #3672
-- breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListItems()` the latter returns a new `MessageListItem` type, which is the now prefered way of using the message list.
+- breaking: jsonrpc: remove function `messageListGetMessageIds()`, it is replaced by `getMessageIds()` and `getMessageListItems()` the latter returns a new `MessageListItem` type, which is the now preferred way of using the message list.
 - jsonrpc: add type: #3641, #3645
   - `MessageSearchResult`
   - `Location`
@@ -381,7 +386,7 @@
 - jsonrpc js client:
   - Change package name from `deltachat-jsonrpc-client` to `@deltachat/jsonrpc-client`
   - remove relative file dependency to it from `deltachat-node` (because it did not work anyway and broke the nix build of desktop)
-  - ci: add github ci action to upload it to our download server automaticaly on realease
+  - ci: add github ci action to upload it to our download server automatically on release
 
 ## 1.95.0
 
@@ -681,7 +686,7 @@
 
 ### Fixes
 - node: throw error when getting context with an invalid account id
-- node: throw error when instanciating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
+- node: throw error when instantiating a wrapper class on `null` (Context, Message, Chat, ChatList and so on)
 - use same contact-color if email address differ only in upper-/lowercase #3327
 - repair encrypted mails "mixed up" by Google Workspace "Append footer" function #3315
 
@@ -769,7 +774,7 @@
 - hopefully fix a bug where outgoing messages appear twice with Amazon SES #3077
 - do not delete messages without Message-IDs as duplicates #3095
 - assign replies from a different email address to the correct chat #3119
-- assing outgoing private replies to the correct chat #3177
+- assign outgoing private replies to the correct chat #3177
 - start ephemeral timer when seen status is synchronized via IMAP #3122
 - do not create empty contact requests with "setup changed" messages;
   instead, send a "setup changed" message into all chats we share with the peer #3187
@@ -822,7 +827,7 @@
 - don't watch Sent folder by default #3025
 - use webxdc app name in chatlist/quotes/replies etc. #3027
 - make it possible to cancel message sending by removing the message #3034,
-  this was previosuly removed in 1.71.0 #2939
+  this was previously removed in 1.71.0 #2939
 - synchronize Seen flags only on watched folders to speed up
   folder scanning #3041
 - remove direct dependency on `byteorder` crate #3031
@@ -2044,7 +2049,7 @@
 - #1043 avoid potential crashes in malformed From/Chat-Disposition... headers  
 
 - #1045 #1041 #1038 #1035 #1034 #1029 #1025 various cleanups and doc
-  improvments 
+  improvements
 
 ## 1.0.0-beta.16
 
@@ -2123,7 +2128,7 @@
 - trigger reconnect more often on imap error states.  Should fix an 
   issue observed when trying to empty a folder.  @hpk42
 
-- un-split qr tests: we fixed qr-securejoin protocol flakyness 
+- un-split qr tests: we fixed qr-securejoin protocol flakiness 
   last weeks. @hpk42
 
 ## 1.0.0-beta.10
@@ -2161,7 +2166,7 @@
 
 - fix moving self-sent messages, thanks @r10s, @flub, @hpk42
 
-- fix flakyness/sometimes-failing verified/join-protocols, 
+- fix flakiness/sometimes-failing verified/join-protocols, 
   thanks @flub, @r10s, @hpk42
 
 - fix reply-to-encrypted message to keep encryption 
@@ -2180,7 +2185,7 @@
 
 - fixes imap-protocol parsing bugs that lead to infinitely
   repeated crashing while trying to receive messages with
-  a subjec that contained non-utf8. thanks @link2xt
+  a subject that contained non-utf8. thanks @link2xt
 
 - fixed logic to find encryption subkey -- previously 
   delta chat would use the primary key for encryption

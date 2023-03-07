@@ -22,7 +22,7 @@ use crate::{job_try, stock_str, EventType};
 /// need to be downloaded completely to handle them correctly,
 /// eg. to assign them to the correct chat.
 /// As these messages are typically small,
-/// they're catched by `MIN_DOWNLOAD_LIMIT`.
+/// they're caught by `MIN_DOWNLOAD_LIMIT`.
 const MIN_DOWNLOAD_LIMIT: u32 = 32768;
 
 /// If a message is downloaded only partially

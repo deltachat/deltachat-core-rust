@@ -1932,7 +1932,7 @@ mod tests {
 
         // These two combinations are different: If `message_arrives_inbetween` is true, but
         // `reply` is false, the core is actually expected to use the subject of the message
-        // that arrived inbetween.
+        // that arrived in between.
         assert_eq!(
             "Re: Some other, completely unrelated subject",
             msg_to_subject_str_inner(imf_raw, false, false, true).await

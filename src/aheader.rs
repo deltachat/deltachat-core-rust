@@ -235,7 +235,7 @@ mod tests {
         assert!(Aheader::from_str("foo").is_err());
         assert!(Aheader::from_str("\n\n\n").is_err());
         assert!(Aheader::from_str(" ;;").is_err());
-        assert!(Aheader::from_str("addr=a@t.de; unknwon=1; keydata=jau").is_err());
+        assert!(Aheader::from_str("addr=a@t.de; unknown=1; keydata=jau").is_err());
     }
 
     #[test]

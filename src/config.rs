@@ -246,7 +246,7 @@ pub enum Config {
     Configured,
 
     /// All secondary self addresses separated by spaces
-    /// (`addr1@example.org addr2@exapmle.org addr3@example.org`)
+    /// (`addr1@example.org addr2@example.org addr3@example.org`)
     SecondaryAddrs,
 
     /// Read-only core version string.
