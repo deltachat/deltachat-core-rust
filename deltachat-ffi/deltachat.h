@@ -2684,7 +2684,7 @@ dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
  *    On errors an empty string is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
-char* dc_backup_provider_qr (dc_context_t* context, const dc_backup_provider_t* backup_provider);
+char* dc_backup_provider_qr (const dc_backup_provider_t* backup_provider);
 
 
 /**
@@ -2701,7 +2701,7 @@ char* dc_backup_provider_qr (dc_context_t* context, const dc_backup_provider_t* 
  *    On errors an empty string is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
-char * dc_backup_provider_qr_svg (dc_context_t* context, const dc_backup_provider_t* backup_provider);
+char * dc_backup_provider_qr_svg (const dc_backup_provider_t* backup_provider);
 
 /**
  * Waits for the sending to finish and frees the backup provider object.
@@ -2713,7 +2713,7 @@ char * dc_backup_provider_qr_svg (dc_context_t* context, const dc_backup_provide
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().  If NULL is given nothing is done.
  */
-void dc_backup_provider_wait (dc_context_t* context, dc_backup_provider_t* backup_provider);
+void dc_backup_provider_wait (dc_backup_provider_t* backup_provider);
 
 /**
  * Frees a dc_backup_provider_t object.
