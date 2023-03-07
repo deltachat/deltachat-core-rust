@@ -4166,7 +4166,7 @@ pub unsafe extern "C" fn dc_backup_provider_new(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_backup_provider_qr(
+pub unsafe extern "C" fn dc_backup_provider_get_qr(
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
     if provider.is_null() {
@@ -4180,7 +4180,7 @@ pub unsafe extern "C" fn dc_backup_provider_qr(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_backup_provider_qr_svg(
+pub unsafe extern "C" fn dc_backup_provider_get_qr_svg(
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
     if provider.is_null() {
