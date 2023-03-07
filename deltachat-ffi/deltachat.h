@@ -2646,8 +2646,8 @@ void dc_str_unref (char* str);
  * Creates an object for sending a backup to another device.
  *
  * Before calling this function IO must be stopped using dc_accounts_stop_io()
- * or dc_stop_io().  IO should only be restarted once
- * dc_backup_provider_wait() has returned.
+ * or dc_stop_io() so that no changes to the blobs or database are happening.
+ * IO should only be restarted once dc_backup_provider_wait() has returned.
  *
  * The backup is sent to through a peer-to-peer channel which is bootstrapped
  * by a QR-code.  The backup contains the entire state of the account
