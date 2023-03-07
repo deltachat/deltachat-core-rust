@@ -2660,7 +2660,7 @@ void dc_str_unref (char* str);
  * @memberof dc_backup_sender_t
  * @param context The context.
  * @return Opaque object for sending the backup.
- *    On errors, NULL is returned and dc_get_last_error()returns an error that
+ *    On errors, NULL is returned and dc_get_last_error() returns an error that
  *    should be shown to the user.
  */
 dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
@@ -2673,7 +2673,7 @@ dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
  * authentication for both the provider and the recipient.
  *
  * The scanning device should call the scanned text to dc_check_qr().  If
- * dc_check_qr() returns DC_QR_BACKUP the backup transfer can be started using
+ * dc_check_qr() returns DC_QR_BACKUP, the backup transfer can be started using
  * dc_get_backup().
  *
  * @memberof dc_backup_provider_t
@@ -2681,7 +2681,7 @@ dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().
  * @return The text that should be put in the QR code.
- *    On errors and empty QR code is returned, NULL is never returned.
+ *    On errors an empty string is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
 char* dc_backup_provider_qr (dc_context_t* context, const dc_backup_provider_t* backup_provider);
@@ -2698,7 +2698,7 @@ char* dc_backup_provider_qr (dc_context_t* context, const dc_backup_provider_t* 
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().
  * @return The QR code rendered as SVG.
- *    On errors and empty QR code is returned, NULL is never returned.
+ *    On errors an empty string is returned, NULL is never returned.
  *    the returned string must be released using dc_str_unref() after usage.
  */
 char * dc_backup_provider_qr_svg (dc_context_t* context, const dc_backup_provider_t* backup_provider);
