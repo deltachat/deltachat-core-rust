@@ -4139,7 +4139,12 @@ pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
 }
 
-pub type dc_backup_provider_t = BackupProvider;
+pub struct BackupProviderWrapper {
+    context: *const dc_context_t,
+    provider: BackupProvider,
+}
+
+pub type dc_backup_provider_t = BackupProviderWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_backup_provider_new(
@@ -4151,49 +4156,54 @@ pub unsafe extern "C" fn dc_backup_provider_new(
     }
     let ctx = &*context;
     block_on(BackupProvider::prepare(ctx))
-        .map(|provider| Box::into_raw(Box::new(provider)))
+        .map(|provider| BackupProviderWrapper {
+            context: ctx,
+            provider,
+        })
+        .map(|ffi_provider| Box::into_raw(Box::new(ffi_provider)))
         .log_err(ctx, "BackupProvider failed")
         .unwrap_or(ptr::null_mut())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_backup_provider_qr(
-    _context: *mut dc_context_t,
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
-    let provider = &*provider;
-    deltachat::qr::format_backup(&provider.qr())
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_qr");
+        return ptr::null_mut();
+    }
+    let ffi_provider = &*provider;
+    deltachat::qr::format_backup(&ffi_provider.provider.qr())
         .unwrap_or_default()
         .strdup()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_backup_provider_qr_svg(
-    context: *mut dc_context_t,
     provider: *const dc_backup_provider_t,
 ) -> *mut libc::c_char {
-    if context.is_null() {
+    if provider.is_null() {
         eprintln!("ignoring careless call to dc_backup_provider_qr_svg()");
         return ptr::null_mut();
     }
-    let ctx = &*context;
-    let provider = &*provider;
+    let ffi_provider = &*provider;
+    let ctx = &*ffi_provider.context;
+    let provider = &ffi_provider.provider;
     block_on(generate_backup_qr(ctx, &provider.qr()))
         .unwrap_or_default()
         .strdup()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_backup_provider_wait(
-    context: *mut dc_context_t,
-    provider: *mut dc_backup_provider_t,
-) {
-    if context.is_null() {
+pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provider_t) {
+    if provider.is_null() {
         eprintln!("ignoring careless call to dc_backup_provider_wait()");
         return;
     }
-    let ctx = &*context;
-    let provider = &mut *provider;
+    let ffi_provider = &mut *provider;
+    let ctx = &*ffi_provider.context;
+    let provider = &mut ffi_provider.provider;
     block_on(provider)
         .log_err(ctx, "Failed to join provider")
         .ok();
