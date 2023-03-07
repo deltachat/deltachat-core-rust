@@ -2645,12 +2645,17 @@ void dc_str_unref (char* str);
 /**
  * Creates an object for sending a backup to another device.
  *
+ * Before calling this function IO must be stopped using dc_accounts_stop_io()
+ * or dc_stop_io().  IO should only be restarted once
+ * dc_backup_provider_wait() has returned.
+ *
  * The backup is sent to through a peer-to-peer channel which is bootstrapped
  * by a QR-code.  The backup contains the entire state of the account
  * including credentials.  This can be used to setup a new device.
  *
- * Once this function returns, the backup is being offered to remote devices.
- * To wait until one device received the backup, use
+ * This is a blocking call as some preparations are made like e.g. exporting
+ * the database.  Once this function returns, the backup is being offered to
+ * remote devices.  To wait until one device received the backup, use
  * dc_backup_provider_wait().  Alternatively abort the operation using
  * dc_stop_ongoing_process().
  *
@@ -2706,7 +2711,9 @@ char* dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider
 /**
  * Waits for the sending to finish and frees the backup provider object.
  *
- * This should only be called once.
+ * This is a blocking call and should only be called once.  Once this function
+ * returns IO can be started again using dc_accounts_start_io() or
+ * dc_start_io().
  *
  * @memberof dc_backup_provider_t
  * @param context The context.

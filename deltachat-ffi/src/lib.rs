@@ -4171,7 +4171,7 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr(
 ) -> *mut libc::c_char {
     if provider.is_null() {
         eprintln!("ignoring careless call to dc_backup_provider_qr");
-        return ptr::null_mut();
+        return "".strdup();
     }
     let ffi_provider = &*provider;
     deltachat::qr::format_backup(&ffi_provider.provider.qr())
@@ -4185,7 +4185,7 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr_svg(
 ) -> *mut libc::c_char {
     if provider.is_null() {
         eprintln!("ignoring careless call to dc_backup_provider_qr_svg()");
-        return ptr::null_mut();
+        return "".strdup();
     }
     let ffi_provider = &*provider;
     let ctx = &*ffi_provider.context;
