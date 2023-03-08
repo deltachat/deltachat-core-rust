@@ -1325,7 +1325,6 @@ impl CommandApi {
         passphrase: Option<String>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_io().await;
         let result = imex::imex(
             &ctx,
             imex::ImexMode::ExportBackup,
@@ -1333,7 +1332,6 @@ impl CommandApi {
             passphrase,
         )
         .await;
-        ctx.start_io().await;
         result
     }
 
