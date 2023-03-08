@@ -170,7 +170,9 @@ Language bindings are available for:
   - over cffi (legacy): \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
   - over jsonrpc built with napi.rs: \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
-- **Go**[^1] \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
+- **Go**
+  - over jsonrpc: \[[📂 source](https://github.com/deltachat/deltachat-rpc-client-go/)\]
+  - over cffi[^1]: \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
 - **Free Pascal**[^1] \[[📂 source](https://github.com/deltachat/deltachat-fp/)\]
 - **Java** and **Swift** (contained in the Android/iOS repos)
 
