@@ -599,7 +599,6 @@ impl TestContext {
     /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
     /// the message.
     pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage<'_> {
-        chat::prepare_msg(self, chat_id, msg).await.unwrap();
         let msg_id = chat::send_msg(self, chat_id, msg).await.unwrap();
         let res = self.pop_sent_msg().await;
         assert_eq!(
