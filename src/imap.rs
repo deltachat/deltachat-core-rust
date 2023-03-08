@@ -475,7 +475,7 @@ impl Imap {
             // Note that the `Config::DeleteDeviceAfter` timer starts as soon as the messages are
             // fetched while the per-chat ephemeral timers start as soon as the messages are marked
             // as noticed.
-            context.interrupt_ephemeral_task().await;
+            context.scheduler.interrupt_ephemeral_task().await;
         }
 
         let session = self
@@ -2224,7 +2224,10 @@ pub(crate) async fn markseen_on_imap_table(context: &Context, message_id: &str) 
             paramsv![message_id],
         )
         .await?;
-    context.interrupt_inbox(InterruptInfo::new(false)).await;
+    context
+        .scheduler
+        .interrupt_inbox(InterruptInfo::new(false))
+        .await;
 
     Ok(())
 }

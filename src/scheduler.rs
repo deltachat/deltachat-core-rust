@@ -5,6 +5,7 @@ use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use futures::future::try_join_all;
 use futures_lite::FutureExt;
+use tokio::sync::{RwLock, RwLockWriteGuard};
 use tokio::task;
 
 use self::connectivity::ConnectivityStore;
@@ -22,6 +23,208 @@ use crate::tools::time;
 use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
 
 pub(crate) mod connectivity;
+
+/// State of the IO scheduler, as stored on the [`Context`].
+///
+/// The IO scheduler can be stopped or started, but core can also pause it.  After pausing
+/// the IO scheduler will be restarted only if it was running before paused or
+/// [`Context::start_io`] was called in the meantime while it was paused.
+#[derive(Debug, Default)]
+pub(crate) struct SchedulerState {
+    inner: RwLock<InnerSchedulerState>,
+}
+
+impl SchedulerState {
+    pub(crate) fn new() -> Self {
+        Default::default()
+    }
+
+    /// Whether the scheduler is currently running.
+    pub(crate) async fn is_running(&self) -> bool {
+        let inner = self.inner.read().await;
+        inner.scheduler.is_some()
+    }
+
+    /// Starts the scheduler if it is not yet started.
+    pub(crate) async fn start(&self, context: Context) {
+        let mut inner = self.inner.write().await;
+        inner.started = true;
+        if inner.scheduler.is_none() {
+            Self::do_start(inner, context).await;
+        }
+    }
+
+    /// Starts the scheduler if it is not yet started.
+    async fn do_start(mut inner: RwLockWriteGuard<'_, InnerSchedulerState>, context: Context) {
+        info!(context, "starting IO");
+        let ctx = context.clone();
+        match Scheduler::start(context).await {
+            Ok(scheduler) => inner.scheduler = Some(scheduler),
+            Err(err) => error!(&ctx, "Failed to start IO: {:#}", err),
+        }
+    }
+
+    /// Stops the scheduler if it is currently running.
+    pub(crate) async fn stop(&self, context: &Context) {
+        let mut inner = self.inner.write().await;
+        inner.started = false;
+        Self::do_stop(inner, context).await;
+    }
+
+    /// Stops the scheduler if it is currently running.
+    async fn do_stop(mut inner: RwLockWriteGuard<'_, InnerSchedulerState>, context: &Context) {
+        // Sending an event wakes up event pollers (get_next_event)
+        // so the caller of stop_io() can arrange for proper termination.
+        // For this, the caller needs to instruct the event poller
+        // to terminate on receiving the next event and then call stop_io()
+        // which will emit the below event(s)
+        info!(context, "stopping IO");
+        if let Some(debug_logging) = context.debug_logging.read().await.as_ref() {
+            debug_logging.loop_handle.abort();
+        }
+        if let Some(scheduler) = inner.scheduler.take() {
+            scheduler.stop(context).await;
+        }
+    }
+
+    /// Pauses the scheduler.
+    ///
+    /// If it is currently running the scheduler will be stopped.  When
+    /// [`IoPausedGuard::resume`] is called the scheduler is started again.  If in the
+    /// meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called resume will
+    /// do the right thing.
+    pub(crate) async fn pause<'a>(&'_ self, context: &'a Context) -> IoPausedGuard<'a> {
+        let mut inner = self.inner.write().await;
+        inner.paused = true;
+        Self::do_stop(inner, context).await;
+        IoPausedGuard {
+            context,
+            done: false,
+        }
+    }
+
+    /// Restarts the scheduler, only if it is running.
+    pub(crate) async fn restart(&self, context: &Context) {
+        info!(context, "restarting IO");
+        if self.is_running().await {
+            self.stop(context).await;
+            self.start(context.clone()).await;
+        }
+    }
+
+    /// Indicate that the network likely has come back.
+    pub(crate) async fn maybe_network(&self) {
+        let inner = self.inner.read().await;
+        let (inbox, oboxes) = match inner.scheduler {
+            Some(ref scheduler) => {
+                scheduler.maybe_network();
+                let inbox = scheduler.inbox.conn_state.state.connectivity.clone();
+                let oboxes = scheduler
+                    .oboxes
+                    .iter()
+                    .map(|b| b.conn_state.state.connectivity.clone())
+                    .collect::<Vec<_>>();
+                (inbox, oboxes)
+            }
+            None => return,
+        };
+        drop(inner);
+        // TODO: maybe this called code should move into scheduler.maybe_network() instead?
+        connectivity::idle_interrupted(inbox, oboxes).await;
+    }
+
+    /// Indicate that the network likely is lost.
+    pub(crate) async fn maybe_network_lost(&self, context: &Context) {
+        let inner = self.inner.read().await;
+        let stores = match inner.scheduler {
+            Some(ref scheduler) => {
+                scheduler.maybe_network_lost();
+                scheduler
+                    .boxes()
+                    .map(|b| b.conn_state.state.connectivity.clone())
+                    .collect()
+            }
+            None => return,
+        };
+        drop(inner);
+        // TODO; maybe this called code should move into scheduler.maybe_network_lost()
+        // instead?
+        connectivity::maybe_network_lost(context, stores).await;
+    }
+
+    pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
+        let inner = self.inner.read().await;
+        if let Some(ref scheduler) = inner.scheduler {
+            scheduler.interrupt_inbox(info);
+        }
+    }
+
+    pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
+        let inner = self.inner.read().await;
+        if let Some(ref scheduler) = inner.scheduler {
+            scheduler.interrupt_smtp(info);
+        }
+    }
+
+    pub(crate) async fn interrupt_ephemeral_task(&self) {
+        let inner = self.inner.read().await;
+        if let Some(ref scheduler) = inner.scheduler {
+            scheduler.interrupt_ephemeral_task();
+        }
+    }
+
+    pub(crate) async fn interrupt_location(&self) {
+        let inner = self.inner.read().await;
+        if let Some(ref scheduler) = inner.scheduler {
+            scheduler.interrupt_location();
+        }
+    }
+
+    pub(crate) async fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
+        let inner = self.inner.read().await;
+        if let Some(ref scheduler) = inner.scheduler {
+            scheduler.interrupt_recently_seen(contact_id, timestamp);
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct InnerSchedulerState {
+    scheduler: Option<Scheduler>,
+    started: bool,
+    paused: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct IoPausedGuard<'a> {
+    context: &'a Context,
+    done: bool,
+}
+
+impl<'a> IoPausedGuard<'a> {
+    pub(crate) async fn resume(&mut self) {
+        self.done = true;
+        let inner = self.context.scheduler.inner.write().await;
+        if inner.started && inner.scheduler.is_none() {
+            SchedulerState::do_start(inner, self.context.clone()).await;
+        }
+    }
+}
+
+impl<'a> Drop for IoPausedGuard<'a> {
+    fn drop(&mut self) {
+        if self.done {
+            return;
+        }
+        let context = self.context.clone();
+        tokio::spawn(async move {
+            let inner = context.scheduler.inner.write().await;
+            if inner.started && inner.scheduler.is_none() {
+                SchedulerState::do_start(inner, context.clone()).await;
+            }
+        });
+    }
+}
 
 #[derive(Debug)]
 struct SchedBox {
@@ -44,56 +247,6 @@ pub(crate) struct Scheduler {
     location_interrupt_send: Sender<()>,
 
     recently_seen_loop: RecentlySeenLoop,
-}
-
-impl Context {
-    /// Indicate that the network likely has come back.
-    pub async fn maybe_network(&self) {
-        let lock = self.scheduler.read().await;
-        if let Some(scheduler) = &*lock {
-            scheduler.maybe_network();
-        }
-        connectivity::idle_interrupted(lock).await;
-    }
-
-    /// Indicate that the network likely is lost.
-    pub async fn maybe_network_lost(&self) {
-        let lock = self.scheduler.read().await;
-        if let Some(scheduler) = &*lock {
-            scheduler.maybe_network_lost();
-        }
-        connectivity::maybe_network_lost(self, lock).await;
-    }
-
-    pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_inbox(info);
-        }
-    }
-
-    pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_smtp(info);
-        }
-    }
-
-    pub(crate) async fn interrupt_ephemeral_task(&self) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_ephemeral_task();
-        }
-    }
-
-    pub(crate) async fn interrupt_location(&self) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_location();
-        }
-    }
-
-    pub(crate) async fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
-        if let Some(scheduler) = &*self.scheduler.read().await {
-            scheduler.interrupt_recently_seen(contact_id, timestamp);
-        }
-    }
 }
 
 async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConnectionHandlers) {

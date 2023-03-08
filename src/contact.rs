@@ -1466,7 +1466,10 @@ pub(crate) async fn update_last_seen(
         > 0
         && timestamp > time() - SEEN_RECENTLY_SECONDS
     {
-        context.interrupt_recently_seen(contact_id, timestamp).await;
+        context
+            .scheduler
+            .interrupt_recently_seen(contact_id, timestamp)
+            .await;
     }
     Ok(())
 }

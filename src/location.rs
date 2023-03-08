@@ -267,7 +267,7 @@ pub async fn send_locations_to_chat(
     }
     context.emit_event(EventType::ChatModified(chat_id));
     if 0 != seconds {
-        context.interrupt_location().await;
+        context.scheduler.interrupt_location().await;
     }
     Ok(())
 }

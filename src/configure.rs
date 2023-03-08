@@ -59,7 +59,7 @@ impl Context {
     /// Configures this account with the currently set parameters.
     pub async fn configure(&self) -> Result<()> {
         ensure!(
-            self.scheduler.read().await.is_none(),
+            !self.scheduler.is_running().await,
             "cannot configure, already running"
         );
         ensure!(
@@ -469,7 +469,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     ctx.set_config_bool(Config::FetchedExistingMsgs, false)
         .await?;
-    ctx.interrupt_inbox(InterruptInfo::new(false)).await;
+    ctx.scheduler
+        .interrupt_inbox(InterruptInfo::new(false))
+        .await;
 
     progress!(ctx, 940);
     update_device_chats_handle.await??;

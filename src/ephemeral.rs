@@ -317,7 +317,7 @@ impl MsgId {
                     paramsv![ephemeral_timestamp, ephemeral_timestamp, self],
                 )
                 .await?;
-            context.interrupt_ephemeral_task().await;
+            context.scheduler.interrupt_ephemeral_task().await;
         }
         Ok(())
     }
@@ -345,7 +345,7 @@ pub(crate) async fn start_ephemeral_timers_msgids(
         )
         .await?;
     if count > 0 {
-        context.interrupt_ephemeral_task().await;
+        context.scheduler.interrupt_ephemeral_task().await;
     }
     Ok(())
 }

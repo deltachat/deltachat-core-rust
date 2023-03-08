@@ -271,14 +271,14 @@ impl Accounts {
     /// Notifies all accounts that the network may have become available.
     pub async fn maybe_network(&self) {
         for account in self.accounts.values() {
-            account.maybe_network().await;
+            account.scheduler.maybe_network().await;
         }
     }
 
     /// Notifies all accounts that the network connection may have been lost.
     pub async fn maybe_network_lost(&self) {
         for account in self.accounts.values() {
-            account.maybe_network_lost().await;
+            account.scheduler.maybe_network_lost(account).await;
         }
     }
 
