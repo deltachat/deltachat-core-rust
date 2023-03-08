@@ -49,7 +49,7 @@ impl SchedulerState {
     pub(crate) async fn start(&self, context: Context) {
         let mut inner = self.inner.write().await;
         inner.started = true;
-        if inner.scheduler.is_none() {
+        if inner.scheduler.is_none() && !inner.paused {
             Self::do_start(inner, context).await;
         }
     }
@@ -204,7 +204,8 @@ pub(crate) struct IoPausedGuard<'a> {
 impl<'a> IoPausedGuard<'a> {
     pub(crate) async fn resume(&mut self) {
         self.done = true;
-        let inner = self.context.scheduler.inner.write().await;
+        let mut inner = self.context.scheduler.inner.write().await;
+        inner.paused = false;
         if inner.started && inner.scheduler.is_none() {
             SchedulerState::do_start(inner, self.context.clone()).await;
         }
@@ -218,7 +219,8 @@ impl<'a> Drop for IoPausedGuard<'a> {
         }
         let context = self.context.clone();
         tokio::spawn(async move {
-            let inner = context.scheduler.inner.write().await;
+            let mut inner = context.scheduler.inner.write().await;
+            inner.paused = false;
             if inner.started && inner.scheduler.is_none() {
                 SchedulerState::do_start(inner, context.clone()).await;
             }
