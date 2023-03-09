@@ -2709,7 +2709,7 @@ char* dc_backup_provider_get_qr (const dc_backup_provider_t* backup_provider);
 char* dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider);
 
 /**
- * Waits for the sending to finish and frees the backup provider object.
+ * Waits for the sending to finish.
  *
  * This is a blocking call and should only be called once.  Once this function
  * returns IO can be started again using dc_accounts_start_io() or
