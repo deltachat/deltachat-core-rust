@@ -24,7 +24,7 @@ use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
-use crate::scheduler::{IoPausedGuard, SchedulerState};
+use crate::scheduler::SchedulerState;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
@@ -407,16 +407,6 @@ impl Context {
     /// when it is not running this is an no-op
     pub async fn restart_io_if_running(&self) {
         self.scheduler.restart(self).await;
-    }
-
-    /// Pauses the IO scheduler.
-    ///
-    /// This temporarily pauses the IO scheduler and will make sure calls to
-    /// [`Context::start_io`] are no-ops while being paused.
-    ///
-    /// It is recommended to call [`IoPausedGuard::resume`] rather than simply dropping it.
-    pub(crate) async fn pause_io(&self) -> IoPausedGuard<'_> {
-        self.scheduler.pause(self).await
     }
 
     /// Indicate that the network likely has come back.

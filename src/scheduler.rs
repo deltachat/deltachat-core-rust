@@ -87,12 +87,14 @@ impl SchedulerState {
         }
     }
 
-    /// Pauses the scheduler.
+    /// Pauses the IO scheduler.
     ///
     /// If it is currently running the scheduler will be stopped.  When
-    /// [`IoPausedGuard::resume`] is called the scheduler is started again.  If in the
-    /// meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called resume will
-    /// do the right thing.
+    /// [`IoPausedGuard::resume`] is called the scheduler is started again.
+    ///
+    /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
+    /// resume will do the right thing and restore the scheduler to the state requested by
+    /// the last call.
     pub(crate) async fn pause<'a>(&'_ self, context: &'a Context) -> IoPausedGuard<'a> {
         let mut inner = self.inner.write().await;
         inner.paused = true;
