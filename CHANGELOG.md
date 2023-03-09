@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- Drop unused SQL columns #4141
+
+
 ## 1.111.0
 
 ### Changes
@@ -8,7 +14,6 @@
 - Run `cargo-deny` in CI. #4101
 - Check provider database with CI. #4099 
 - Switch to DEFERRED transactions #4100
-- Drop unused SQL columns #4141
 
 ### Fixes
 - Do not block async task executor while decrypting the messages. #4079
@@ -17,6 +22,7 @@
 ### API-Changes
 - jsonrpc: add more advanced API to send a message. #4097
 - jsonrpc: add get webxdc blob API `getWebxdcBlob` #4070
+
 
 ## 1.110.0
 
