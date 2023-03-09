@@ -362,18 +362,61 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
         Qr::Backup { ticket } => ticket,
         _ => bail!("QR code for backup must be of type DCBACKUP"),
     };
-    let opts = Options {
-        addr: ticket.addr,
-        peer_id: Some(ticket.peer),
-        keylog: false,
-    };
+    for addr in ticket.addrs.iter() {
+        let opts = Options {
+            addr: *addr,
+            peer_id: Some(ticket.peer),
+            keylog: false,
+        };
+        match transfer_from_provider(context, &ticket, opts).await {
+            Ok(_) => {
+                delete_and_reset_all_device_msgs(context).await?;
+                context.emit_event(ReceiveProgress::Completed.into());
+                return Ok(());
+            }
+            Err(TransferError::ConnectionError(_)) => continue,
+            Err(TransferError::Other(err)) => {
+                // Clean up any blobs we already wrote.
+                let readdir = fs::read_dir(context.get_blobdir()).await?;
+                let mut readdir = ReadDirStream::new(readdir);
+                while let Some(dirent) = readdir.next().await {
+                    if let Ok(dirent) = dirent {
+                        fs::remove_file(dirent.path()).await.ok();
+                    }
+                }
+                context.emit_event(ReceiveProgress::Failed.into());
+                return Err(err);
+            }
+        }
+    }
+    Err(anyhow!("failed to contact provider"))
+}
+
+/// Error during a single transfer attempt.
+///
+/// Mostly exists to distinguish between `ConnectionError` and any other errors.
+#[derive(Debug, thiserror::Error)]
+enum TransferError {
+    #[error("connection error")]
+    ConnectionError(#[source] anyhow::Error),
+    #[error("other")]
+    Other(#[source] anyhow::Error),
+}
+
+async fn transfer_from_provider(
+    context: &Context,
+    ticket: &Ticket,
+    opts: Options,
+) -> Result<(), TransferError> {
     let progress = ProgressEmitter::new(0, ReceiveProgress::max_blob_progress());
     spawn_progress_proxy(context.clone(), progress.subscribe());
+    let mut connected = false;
     let on_connected = || {
         context.emit_event(ReceiveProgress::Connected.into());
+        connected = true;
         async { Ok(()) }
     };
-    let on_blob = |hash, reader, name| on_blob(context, &progress, &ticket, hash, reader, name);
+    let on_blob = |hash, reader, name| on_blob(context, &progress, ticket, hash, reader, name);
     let res = iroh::get::run(
         ticket.hash,
         ticket.token,
@@ -388,25 +431,10 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
     )
     .await;
     drop(progress);
-    match res {
-        Ok(_) => {
-            delete_and_reset_all_device_msgs(context).await?;
-            context.emit_event(ReceiveProgress::Completed.into());
-            Ok(())
-        }
-        Err(err) => {
-            // Clean up any blobs we already wrote.
-            let readdir = fs::read_dir(context.get_blobdir()).await?;
-            let mut readdir = ReadDirStream::new(readdir);
-            while let Some(dirent) = readdir.next().await {
-                if let Ok(dirent) = dirent {
-                    fs::remove_file(dirent.path()).await.ok();
-                }
-            }
-            context.emit_event(ReceiveProgress::Failed.into());
-            Err(err)
-        }
-    }
+    res.map(|_| ()).map_err(|err| match connected {
+        true => TransferError::Other(err),
+        false => TransferError::ConnectionError(err),
+    })
 }
 
 /// Get callback when a blob is received from the provider.
