@@ -8,6 +8,10 @@
 - Support non-persistent configuration with DELTACHAT_* env
 - Print deltachat-repl errors with causes. #4166
 - Increase MSRV to 1.64. #4167
+- Core takes of stopping and re-starting IO itself where needed,
+  e.g. during backup creation.  It is no longer needed to call
+  dc_stop_io().  dc_start_io() can now be called at any time without
+  harm. #4138
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
