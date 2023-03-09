@@ -23,6 +23,7 @@
 //! download to an impersonated getter.
 
 use std::future::Future;
+use std::net::Ipv4Addr;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -159,7 +160,10 @@ impl BackupProvider {
         // Start listening.
         let (db, hash) = iroh::provider::create_collection(files).await?;
         context.emit_event(SendProgress::CollectionCreated.into());
-        let provider = Provider::builder(db).auth_token(token).spawn()?;
+        let provider = Provider::builder(db)
+            .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
+            .auth_token(token)
+            .spawn()?;
         context.emit_event(SendProgress::ProviderListening.into());
         info!(context, "Waiting for remote to connect");
         let ticket = provider.ticket(hash);
