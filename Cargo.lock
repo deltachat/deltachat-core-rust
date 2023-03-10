@@ -5476,3 +5476,8 @@ dependencies = [
  "syn",
  "synstructure",
 ]
+
+[[patch.unused]]
+name = "default-net"
+version = "0.13.0"
+source = "git+https://github.com/dignifiedquire/default-net.git?branch=feat-android#5c5fd8f0d425af673405428f77203ee370d4d6cf"

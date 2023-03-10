@@ -24,6 +24,9 @@ lto = true
 panic = 'abort'
 opt-level = "z"
 
+[patch.crates-io]
+default-net = { git = "https://github.com/dignifiedquire/default-net.git", branch="feat-android" }
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 format-flowed = { path = "./format-flowed" }
