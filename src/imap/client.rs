@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Context as _, Result};
 use async_imap::Client as ImapClient;
 use async_imap::Session as ImapSession;
-use tokio::io::BufWriter;
+use tokio::io::BufStream;
 
 use super::capabilities::Capabilities;
 use super::session::Session;
@@ -96,7 +96,7 @@ impl Client {
     ) -> Result<Self> {
         let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, strict_tls).await?;
         let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream).await?;
-        let buffered_stream = BufWriter::new(tls_stream);
+        let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
 
@@ -110,7 +110,7 @@ impl Client {
 
     pub async fn connect_insecure(context: &Context, hostname: &str, port: u16) -> Result<Self> {
         let tcp_stream = connect_tcp(context, hostname, port, IMAP_TIMEOUT, false).await?;
-        let buffered_stream = BufWriter::new(tcp_stream);
+        let buffered_stream = BufStream::new(tcp_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
         let _greeting = client
@@ -145,7 +145,7 @@ impl Client {
             .await
             .context("STARTTLS upgrade failed")?;
 
-        let buffered_stream = BufWriter::new(tls_stream);
+        let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let client = ImapClient::new(session_stream);
 
@@ -163,7 +163,7 @@ impl Client {
             .connect(context, domain, port, IMAP_TIMEOUT, strict_tls)
             .await?;
         let tls_stream = wrap_tls(strict_tls, domain, socks5_stream).await?;
-        let buffered_stream = BufWriter::new(tls_stream);
+        let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
         let _greeting = client
@@ -183,7 +183,7 @@ impl Client {
         let socks5_stream = socks5_config
             .connect(context, domain, port, IMAP_TIMEOUT, false)
             .await?;
-        let buffered_stream = BufWriter::new(socks5_stream);
+        let buffered_stream = BufStream::new(socks5_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let mut client = ImapClient::new(session_stream);
         let _greeting = client
@@ -220,7 +220,7 @@ impl Client {
         let tls_stream = wrap_tls(strict_tls, hostname, socks5_stream)
             .await
             .context("STARTTLS upgrade failed")?;
-        let buffered_stream = BufWriter::new(tls_stream);
+        let buffered_stream = BufStream::new(tls_stream);
         let session_stream: Box<dyn SessionStream> = Box::new(buffered_stream);
         let client = ImapClient::new(session_stream);
 
