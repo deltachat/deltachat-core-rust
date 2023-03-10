@@ -20,7 +20,7 @@ jobs:
     name: Rustfmt and Clippy
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.67.1
+      RUSTUP_TOOLCHAIN: 1.68.0
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
@@ -72,10 +72,10 @@ jobs:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            rust: 1.64.0
+            rust: 1.68.0
             python: 3.9
           - os: windows-latest
-            rust: 1.64.0
+            rust: 1.68.0
             python: false # Python bindings compilation on Windows is not supported.
 
           # Minimum Supported Rust Version = 1.63.0
