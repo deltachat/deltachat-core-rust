@@ -604,7 +604,7 @@ async fn add_parts(
                     // to the sender's name, indicating to the user that he/she is not part of the group.
                     let from = &mime_parser.from;
                     let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
-                    for part in mime_parser.parts.iter_mut() {
+                    for part in &mut mime_parser.parts {
                         part.param.set(Param::OverrideSenderDisplayname, name);
                     }
                 }
@@ -668,7 +668,7 @@ async fn add_parts(
         // we use name from From:-header as override name
         if prevent_rename {
             if let Some(name) = &mime_parser.from.display_name {
-                for part in mime_parser.parts.iter_mut() {
+                for part in &mut mime_parser.parts {
                     part.param.set(Param::OverrideSenderDisplayname, name);
                 }
             }

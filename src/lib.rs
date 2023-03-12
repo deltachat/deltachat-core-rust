@@ -12,7 +12,8 @@
     clippy::wildcard_imports,
     clippy::needless_borrow,
     clippy::cast_lossless,
-    clippy::unused_async
+    clippy::unused_async,
+    clippy::explicit_iter_loop
 )]
 #![allow(
     clippy::match_bool,

@@ -57,7 +57,7 @@ async fn lookup_host_with_cache(
         }
     };
 
-    for addr in resolved_addrs.iter() {
+    for addr in &resolved_addrs {
         let ip_string = addr.ip().to_string();
         if ip_string == hostname {
             // IP address resolved into itself, not interesting to cache.

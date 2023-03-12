@@ -1390,7 +1390,7 @@ impl Imap {
             let mut uid_msgs = HashMap::with_capacity(request_uids.len());
 
             let mut count = 0;
-            for &request_uid in request_uids.iter() {
+            for &request_uid in &request_uids {
                 // Check if FETCH response is already in `uid_msgs`.
                 let mut fetch_response = uid_msgs.remove(&request_uid);
 

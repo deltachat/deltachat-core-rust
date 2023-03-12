@@ -124,7 +124,7 @@ impl HtmlMsgParser {
         async move {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
-                    for cur_data in mail.subparts.iter() {
+                    for cur_data in &mail.subparts {
                         self.collect_texts_recursive(cur_data).await?
                     }
                     Ok(())
@@ -180,7 +180,7 @@ impl HtmlMsgParser {
         async move {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
-                    for cur_data in mail.subparts.iter() {
+                    for cur_data in &mail.subparts {
                         self.cid_to_data_recursive(context, cur_data).await?;
                     }
                     Ok(())

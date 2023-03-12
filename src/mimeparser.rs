@@ -640,7 +640,7 @@ impl MimeMessage {
         }
 
         if self.is_forwarded {
-            for part in self.parts.iter_mut() {
+            for part in &mut self.parts {
                 part.param.set_int(Param::Forwarded, 1);
             }
         }
@@ -943,7 +943,7 @@ impl MimeMessage {
                             }
 
                             // Add all parts (we need another part, preferably text/plain, to show as an error message)
-                            for cur_data in mail.subparts.iter() {
+                            for cur_data in &mail.subparts {
                                 if self
                                     .parse_mime_recursive(context, cur_data, is_related)
                                     .await?
@@ -977,7 +977,7 @@ impl MimeMessage {
             _ => {
                 // Add all parts (in fact, AddSinglePartIfKnown() later check if
                 // the parts are really supported)
-                for cur_data in mail.subparts.iter() {
+                for cur_data in &mail.subparts {
                     if self
                         .parse_mime_recursive(context, cur_data, is_related)
                         .await?
