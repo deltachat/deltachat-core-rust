@@ -727,7 +727,7 @@ impl Contact {
     pub async fn add_address_book(context: &Context, addr_book: &str) -> Result<usize> {
         let mut modify_cnt = 0;
 
-        for (name, addr) in split_address_book(addr_book).into_iter() {
+        for (name, addr) in split_address_book(addr_book) {
             let (name, addr) = sanitize_name_and_addr(name, addr);
             let name = normalize_name(&name);
             match ContactAddress::new(&addr) {

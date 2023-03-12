@@ -1502,7 +1502,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         curr_rfc724_mid,
         curr_blocked,
         _curr_ephemeral_timer,
-    ) in msgs.into_iter()
+    ) in msgs
     {
         if curr_blocked == Blocked::Not
             && (curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed)
@@ -1741,7 +1741,7 @@ pub(crate) async fn handle_ndn(
     };
 
     let mut first = true;
-    for msg in msgs.into_iter() {
+    for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
         set_msg_failed(context, msg_id, &error).await;
         if first {

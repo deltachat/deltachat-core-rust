@@ -2162,7 +2162,7 @@ async fn check_verified_properties(
         )
         .await?;
 
-    for (to_addr, mut is_verified) in rows.into_iter() {
+    for (to_addr, mut is_verified) in rows {
         info!(
             context,
             "check_verified_properties: {:?} self={:?}",

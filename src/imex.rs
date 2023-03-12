@@ -602,7 +602,7 @@ async fn export_backup_inner(
     let mut written_files = 0;
 
     let mut last_progress = 0;
-    for entry in read_dir.into_iter() {
+    for entry in read_dir {
         let name = entry.file_name();
         if !entry.file_type().await?.is_file() {
             warn!(

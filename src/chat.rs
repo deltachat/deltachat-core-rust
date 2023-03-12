@@ -418,7 +418,7 @@ impl ChatId {
             ProtectionStatus::Protected => match chat.typ {
                 Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                     let contact_ids = get_chat_contacts(context, self).await?;
-                    for contact_id in contact_ids.into_iter() {
+                    for contact_id in contact_ids {
                         let contact = Contact::get_by_id(context, contact_id).await?;
                         if contact.is_verified(context).await? != VerifiedStatus::BidirectVerified {
                             bail!("{} is not verified.", contact.get_display_name());
