@@ -177,13 +177,12 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7384febcabdd07a498c9f4fbaa7e488ff4eb60d0ade14b47b09ec44b8f645301"
+checksum = "8709c0d4432be428a88a06746689a9cb543e8e27ef7f61ca4d0455003a3d8c5b"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
- "bufstream",
  "futures",
  "hostname",
  "log",
@@ -400,12 +399,6 @@ dependencies = [
  "memchr",
  "safemem",
 ]
-
-[[package]]
-name = "bufstream"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40e38929add23cdf8a366df9b0e088953150724bcbe5fc330b0d8eb3b328eec8"
 
 [[package]]
 name = "bumpalo"
