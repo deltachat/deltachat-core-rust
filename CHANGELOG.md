@@ -4,6 +4,7 @@
 
 ### Changes
 - Drop unused SQL columns #4141
+- "full message view" not needed because of footers that go to contact status #4151
 
 
 ## 1.111.0
