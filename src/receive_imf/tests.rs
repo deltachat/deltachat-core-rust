@@ -2085,9 +2085,11 @@ Original signature",
         false,
     )
     .await?;
-    let one2one_chat_id = t.get_last_msg().await.chat_id;
+    let msg = t.get_last_msg().await;
+    let one2one_chat_id = msg.chat_id;
     let bob = Contact::load_from_db(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "Original signature");
+    assert!(!msg.has_html());
 
     receive_imf(
         &t,
