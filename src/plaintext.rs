@@ -34,8 +34,13 @@ impl PlainText {
 
         let lines = split_lines(&self.text);
 
-        let mut ret =
-            "<!DOCTYPE html>\n<html><head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" /></head><body>\n".to_string();
+        let mut ret = r#"<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
+"#
+        .to_string();
 
         for line in lines {
             let is_quote = line.starts_with('>');
@@ -118,7 +123,10 @@ http://link-at-start-of-line.org
         assert_eq!(
             html,
             r##"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 line 1<br/>
 line 2<br/>
 line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a> and <a href="http://link-end-of-line.com/file?foo=bar%20">http://link-end-of-line.com/file?foo=bar%20</a><br/>
@@ -140,7 +148,10 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.link/?foo=_bar</a>&gt; here!<br/>
 </body></html>
 "#
@@ -158,7 +169,10 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 line with nohttp://no.link here<br/>
 </body></html>
 "#
@@ -176,7 +190,10 @@ line with nohttp://no.link here<br/>
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:another@one.de">another@one.de</a><br/>
 </body></html>
 "#
@@ -194,7 +211,10 @@ just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:an
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 line still line<br/>
 <em>&gt;quote </em><br/>
 <em>&gt;still quote</em><br/>
@@ -215,7 +235,10 @@ line still line<br/>
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 linestill line<br/>
 <em>&gt;quote </em><br/>
 <em>&gt;still quote</em><br/>
@@ -236,7 +259,10 @@ linestill line<br/>
         assert_eq!(
             html,
             r#"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 line <br/>
 still line<br/>
 <em>&gt;quote </em><br/>
