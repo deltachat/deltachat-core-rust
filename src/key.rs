@@ -531,9 +531,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_generate_public() {
         let t = TestContext::new().await;
-        t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
+        t.set_raw_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .await;
         let key = SignedPublicKey::load_self(&t).await;
         assert!(key.is_ok());
     }
@@ -541,9 +540,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_load_self_generate_secret() {
         let t = TestContext::new().await;
-        t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
+        t.set_raw_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .await;
         let key = SignedSecretKey::load_self(&t).await;
         assert!(key.is_ok());
     }
@@ -553,9 +551,8 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         use std::thread;
 
         let t = TestContext::new().await;
-        t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
-            .await
-            .unwrap();
+        t.set_raw_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .await;
         let thr0 = {
             let ctx = t.clone();
             thread::spawn(move || {

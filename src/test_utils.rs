@@ -381,20 +381,20 @@ impl TestContext {
         self.event_senders.write().await.push(sink)
     }
 
+    /// Set private configuration value for testing purposes.
+    pub async fn set_raw_config(&self, key: Config, value: Option<&str>) {
+        self.sql.set_raw_config(key.as_ref(), value).await.unwrap()
+    }
+
     /// Configure as a given email address.
     ///
     /// The context will be configured but the key will not be pre-generated so if a key is
     /// used the fingerprint will be different every time.
     pub async fn configure_addr(&self, addr: &str) {
         self.ctx.set_config(Config::Addr, Some(addr)).await.unwrap();
-        self.ctx
-            .set_config(Config::ConfiguredAddr, Some(addr))
-            .await
-            .unwrap();
-        self.ctx
-            .set_config(Config::Configured, Some("1"))
-            .await
-            .unwrap();
+        self.set_raw_config(Config::ConfiguredAddr, Some(addr))
+            .await;
+        self.set_raw_config(Config::Configured, Some("1")).await;
         if let Some(name) = addr.split('@').next() {
             self.set_name(name);
         }

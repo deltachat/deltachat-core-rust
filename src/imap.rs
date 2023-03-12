@@ -1754,16 +1754,21 @@ impl Imap {
             .context("failed to configure mvbox")?;
 
         context
-            .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
+            .sql
+            .set_raw_config(Config::ConfiguredInboxFolder.as_ref(), Some("INBOX"))
             .await?;
         if let Some(mvbox_folder) = mvbox_folder {
             info!(context, "Setting MVBOX FOLDER TO {}", &mvbox_folder);
             context
-                .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
+                .sql
+                .set_raw_config(Config::ConfiguredMvboxFolder.as_ref(), Some(mvbox_folder))
                 .await?;
         }
         for (config, name) in folder_configs {
-            context.set_config(config, Some(&name)).await?;
+            context
+                .sql
+                .set_raw_config(config.as_ref(), Some(&name))
+                .await?;
         }
         context
             .sql
@@ -2652,15 +2657,12 @@ mod tests {
         println!("Testing: For folder {folder}, mvbox_move {mvbox_move}, chat_msg {chat_msg}, accepted {accepted_chat}, outgoing {outgoing}, setupmessage {setupmessage}");
 
         let t = TestContext::new_alice().await;
-        t.ctx
-            .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
-            .await?;
-        t.ctx
-            .set_config(Config::ConfiguredSentboxFolder, Some("Sent"))
-            .await?;
-        t.ctx
-            .set_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
-            .await?;
+        t.set_raw_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
+            .await;
+        t.set_raw_config(Config::ConfiguredSentboxFolder, Some("Sent"))
+            .await;
+        t.set_raw_config(Config::MvboxMove, Some(if mvbox_move { "1" } else { "0" }))
+            .await;
 
         if accepted_chat {
             let contact_id = Contact::create(&t.ctx, "", "bob@example.net").await?;

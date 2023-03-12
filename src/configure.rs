@@ -472,7 +472,11 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // the trailing underscore is correct
     param.save_as_configured_params(ctx).await?;
-    ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
+    ctx.sql
+        .set_raw_config(
+            Config::ConfiguredTimestamp.as_ref(),
+            Some(&time().to_string()),
+        )
         .await?;
 
     progress!(ctx, 920);

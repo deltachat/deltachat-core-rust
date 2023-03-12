@@ -1948,19 +1948,16 @@ mod tests {
         use crate::config::Config;
 
         let d = test::TestContext::new().await;
-        let ctx = &d.ctx;
-
-        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await
-            .unwrap();
+        d.set_raw_config(Config::ConfiguredAddr, Some("self@example.com"))
+            .await;
 
         let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
 
-        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
+        let msg_id = chat::prepare_msg(&d, chat.id, &mut msg).await.unwrap();
 
-        let _msg2 = Message::load_from_db(ctx, msg_id).await.unwrap();
+        let _msg2 = Message::load_from_db(&d, msg_id).await.unwrap();
         assert_eq!(_msg2.get_filemime(), None);
     }
 
@@ -2088,11 +2085,8 @@ mod tests {
         use crate::config::Config;
 
         let d = test::TestContext::new().await;
-        let ctx = &d.ctx;
-
-        ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"))
-            .await
-            .unwrap();
+        d.set_raw_config(Config::ConfiguredAddr, Some("self@example.com"))
+            .await;
 
         let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
@@ -2101,18 +2095,18 @@ mod tests {
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
-        let msg_id = chat::prepare_msg(ctx, chat.id, &mut msg).await.unwrap();
-        let msg = Message::load_from_db(ctx, msg_id).await.unwrap();
+        let msg_id = chat::prepare_msg(&d, chat.id, &mut msg).await.unwrap();
+        let msg = Message::load_from_db(&d, msg_id).await.unwrap();
         assert!(!msg.rfc724_mid.is_empty());
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_quote(ctx, Some(&msg))
+        msg2.set_quote(&d, Some(&msg))
             .await
             .expect("can't set quote");
         assert_eq!(msg2.quoted_text().unwrap(), msg.get_text());
 
         let quoted_msg = msg2
-            .quoted_message(ctx)
+            .quoted_message(&d)
             .await
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
