@@ -72,6 +72,19 @@ def test_configure_canceled(acfactory):
         pass
 
 
+def test_configure_unref(tmpdir):
+    """Test that removing the last reference to the context during ongoing configuration
+    does not result in use-after-free."""
+    from deltachat.capi import ffi, lib
+
+    path = tmpdir.mkdir("test_configure_unref").join("dc.db").strpath
+    dc_context = lib.dc_context_new(ffi.NULL, path.encode("utf8"), ffi.NULL)
+    lib.dc_set_config(dc_context, "addr".encode("utf8"), "foo@x.testrun.org".encode("utf8"))
+    lib.dc_set_config(dc_context, "mail_pw".encode("utf8"), "abc".encode("utf8"))
+    lib.dc_configure(dc_context)
+    lib.dc_context_unref(dc_context)
+
+
 def test_export_import_self_keys(acfactory, tmpdir, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
 
