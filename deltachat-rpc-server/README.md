@@ -5,10 +5,13 @@ over standard I/O.
 
 ## Install
 
-To install run:
+To download binary pre-builds check the [releases page](https://github.com/deltachat/deltachat-core-rust/releases).
+Rename the downloaded binary to `deltachat-rpc-server` and add it to your `PATH`.
+
+To install from source run:
 
 ```sh
-cargo install --path ../deltachat-rpc-server
+cargo install --git https://github.com/deltachat/deltachat-core-rust/ deltachat-rpc-server
 ```
 
 The `deltachat-rpc-server` executable will be installed into `$HOME/.cargo/bin` that should be available
