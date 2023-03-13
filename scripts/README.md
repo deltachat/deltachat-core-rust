@@ -20,7 +20,9 @@ and an own build machine.
 
 - `run_all.sh` builds Python wheels
 
-- `aarch64-unknown-linux-musl.sh` cross-compiles static `deltachat-rpc-server` for aarch64
+- `zig-rpc-server.sh` compiles binaries of `deltachat-rpc-server` using Zig toolchain statically linked against musl libc.
+
+- `android-rpc-server.sh` compiles binaries of `deltachat-rpc-server` using Android NDK.
 
 ## Triggering runs on the build machine locally (fast!)
 
