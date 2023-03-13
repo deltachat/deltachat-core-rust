@@ -2197,13 +2197,14 @@ pub unsafe extern "C" fn dc_imex(
     };
     let passphrase = to_opt_string_lossy(param2);
 
-    let ctx = &*context;
+    // Clone the context Arc so we do not use the reference after dc_imex() returns.
+    let ctx = (*context).clone();
 
     if let Some(param1) = to_opt_string_lossy(param1) {
         spawn(async move {
-            imex::imex(ctx, what, param1.as_ref(), passphrase)
+            imex::imex(&ctx, what, param1.as_ref(), passphrase)
                 .await
-                .log_err(ctx, "IMEX failed")
+                .log_err(&ctx, "IMEX failed")
         });
     } else {
         eprintln!("dc_imex called without a valid directory");
