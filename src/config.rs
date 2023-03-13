@@ -1,5 +1,6 @@
 //! # Key-value configuration management.
 
+use std::env;
 use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
@@ -317,6 +318,11 @@ impl Context {
 
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
     pub async fn get_config(&self, key: Config) -> Result<Option<String>> {
+        let env_key = format!("DELTACHAT_{}", key.as_ref().to_uppercase());
+        if let Ok(value) = env::var(env_key) {
+            return Ok(Some(value));
+        }
+
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_raw_config(key.as_ref()).await?;
