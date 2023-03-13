@@ -421,6 +421,10 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     })
 }
 
+fn spawn_configure(ctx: Context) {
+    spawn(async move { ctx.configure().await.log_err(&ctx, "Configure failed") });
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     if context.is_null() {
@@ -428,10 +432,8 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         return;
     }
 
-    // Clone the context Arc so we do not use the reference after dc_configure() returns.
-    let ctx = (*context).clone();
-
-    spawn(async move { ctx.configure().await.log_err(&ctx, "Configure failed") });
+    let ctx = &*context;
+    spawn_configure(ctx.clone());
 }
 
 #[no_mangle]
@@ -2177,6 +2179,14 @@ pub unsafe extern "C" fn dc_get_contact(
     })
 }
 
+fn spawn_imex(ctx: Context, what: imex::ImexMode, param1: String, passphrase: Option<String>) {
+    spawn(async move {
+        imex::imex(&ctx, what, param1.as_ref(), passphrase)
+            .await
+            .log_err(&ctx, "IMEX failed")
+    });
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
@@ -2197,15 +2207,10 @@ pub unsafe extern "C" fn dc_imex(
     };
     let passphrase = to_opt_string_lossy(param2);
 
-    // Clone the context Arc so we do not use the reference after dc_imex() returns.
-    let ctx = (*context).clone();
+    let ctx = &*context;
 
     if let Some(param1) = to_opt_string_lossy(param1) {
-        spawn(async move {
-            imex::imex(&ctx, what, param1.as_ref(), passphrase)
-                .await
-                .log_err(&ctx, "IMEX failed")
-        });
+        spawn_imex(ctx.clone(), what, param1, passphrase);
     } else {
         eprintln!("dc_imex called without a valid directory");
     }
@@ -4643,6 +4648,12 @@ mod jsonrpc {
         drop(Box::from_raw(jsonrpc_instance));
     }
 
+    fn spawn_handle_jsonrpc_request(handle: RpcSession<CommandApi>, request: String) {
+        spawn(async move {
+            handle.handle_incoming(&request).await;
+        });
+    }
+
     #[no_mangle]
     pub unsafe extern "C" fn dc_jsonrpc_request(
         jsonrpc_instance: *mut dc_jsonrpc_instance_t,
@@ -4654,15 +4665,8 @@ mod jsonrpc {
         }
 
         let handle = &(*jsonrpc_instance).handle;
-
-        // Clone the handle so we do not use the reference
-        // in spawned task after return from dc_jsonrpc_request().
-        let handle = handle.clone();
-
         let request = to_string_lossy(request);
-        spawn(async move {
-            handle.handle_incoming(&request).await;
-        });
+        spawn_handle_jsonrpc_request(handle.clone(), request);
     }
 
     #[no_mangle]
