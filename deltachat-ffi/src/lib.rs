@@ -4653,8 +4653,12 @@ mod jsonrpc {
             return;
         }
 
-        let api = &*jsonrpc_instance;
-        let handle = &api.handle;
+        let handle = &(*jsonrpc_instance).handle;
+
+        // Clone the handle so we do not use the reference
+        // in spawned task after return from dc_jsonrpc_request().
+        let handle = handle.clone();
+
         let request = to_string_lossy(request);
         spawn(async move {
             handle.handle_incoming(&request).await;
