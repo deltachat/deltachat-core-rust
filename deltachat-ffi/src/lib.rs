@@ -428,9 +428,10 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         return;
     }
 
-    let ctx = &*context;
+    // Clone the context Arc so we do not use the reference after dc_configure() returns.
+    let ctx = (*context).clone();
 
-    spawn(async move { ctx.configure().await.log_err(ctx, "Configure failed") });
+    spawn(async move { ctx.configure().await.log_err(&ctx, "Configure failed") });
 }
 
 #[no_mangle]
