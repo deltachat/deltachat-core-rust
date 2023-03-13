@@ -7,6 +7,12 @@
 - "full message view" not needed because of footers that go to contact status #4151
 - Pick up system's light/dark mode in generated message HTML #4150
 
+### Fixes
+- Fix segmentation fault if `dc_context_unref()` is called during
+  background process spawned by `dc_configure()` or `dc_imex()`
+  or `dc_jsonrpc_instance_t` is unreferenced
+  during handling the JSON-RPC request. #4153
+
 
 ## 1.111.0
 
