@@ -51,7 +51,7 @@ git_describe_command = "git describe --dirty --tags --long --match v*.*"
 line-length = 120
 
 [tool.ruff]
-select = ["E", "F", "W", "YTT", "C4", "ISC", "ICN", "TID", "DTZ", "PLC", "PLE", "PLW", "PIE", "COM", "UP004", "UP010", "UP031", "UP032", "ANN204"]
+select = ["E", "F", "W", "YTT", "C40", "ISC", "ICN", "TID", "DTZ", "PLC", "PLE", "PLW", "PIE", "COM", "UP004", "UP010", "UP031", "UP032", "ANN204"]
 line-length = 120
 
 [tool.isort]

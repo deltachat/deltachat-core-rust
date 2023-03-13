@@ -217,13 +217,13 @@ def test_html_message(acfactory, lp):
     lp.sec("ac1: prepare and send text message to ac2")
     msg1 = chat.send_text("message0")
     assert not msg1.has_html()
-    assert msg1.html == ""
+    assert not msg1.html
 
     lp.sec("wait for ac2 to receive message")
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.text == "message0"
     assert not msg2.has_html()
-    assert msg2.html == ""
+    assert not msg2.html
 
     lp.sec("ac1: prepare and send HTML+text message to ac2")
     msg1 = Message.new_empty(ac1, "text")
@@ -2150,7 +2150,7 @@ def test_status(acfactory):
     chat12.send_text("hello")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.text == "hello"
-    assert msg.get_sender_contact().status == ""
+    assert not msg.get_sender_contact().status
 
 
 def test_group_quote(acfactory, lp):
