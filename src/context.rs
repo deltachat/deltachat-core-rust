@@ -1455,4 +1455,15 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn send_missing_key_event() -> Result<()> {
+        let raw = include_bytes!("../test-data/message/missing_key.eml");
+        let t = TestContext::new_alice().await;
+        receive_imf(&t, raw, false).await?;
+        t.evtracker
+            .get_matching(|evt| matches!(evt, EventType::ErrorMissingKey))
+            .await;
+        Ok(())
+    }
 }

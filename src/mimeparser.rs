@@ -297,6 +297,11 @@ impl MimeMessage {
             }
             Ok(None) => (Ok(mail), HashSet::new(), false),
             Err(err) => {
+                if let Some(err) = err.downcast_ref::<pgp::errors::Error>() {
+                    if let pgp::errors::Error::MissingKey = err {
+                        context.emit_event(EventType::ErrorMissingKey)
+                    }
+                }
                 warn!(context, "decryption failed: {:#}", err);
                 (Err(err), HashSet::new(), false)
             }

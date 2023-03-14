@@ -164,6 +164,11 @@ pub enum EventType {
     /// dc_send_text_msg() or another sending function.
     ErrorSelfNotInGroup(String),
 
+    /// A message was received, but DC is missing the key to decript that message.
+    /// This event can be used by bots to send any message to the client so that
+    /// the client can catch up with the new key.
+    ErrorMissingKey,
+
     /// Messages or chats changed.  One or more messages or chats changed for various
     /// reasons in the database:
     /// - Messages sent, received or removed
