@@ -1461,9 +1461,14 @@ mod tests {
         let raw = include_bytes!("../test-data/message/missing_key.eml");
         let t = TestContext::new_alice().await;
         receive_imf(&t, raw, false).await?;
-        t.evtracker
-            .get_matching(|evt| matches!(evt, EventType::ErrorMissingKey))
+        let event = t.evtracker
+            .get_matching(|evt| matches!(evt, EventType::ErrorMissingKey(_)))
             .await;
+        
+        if let EventType::ErrorMissingKey(addr) = event {
+            assert_eq!(addr.as_str(), "xrxve@testrun.org")
+        }
+        
         Ok(())
     }
 }

@@ -5648,6 +5648,15 @@ void dc_event_unref(dc_event_t* event);
  */
 #define DC_EVENT_ERROR_SELF_NOT_IN_GROUP  410
 
+/**
+ * A message was received, but DC is missing the key to decript that message.
+ * This event can be used by bots to send any message to the client so that
+ * the client can catch up with the new key.
+ * @param data1: 0
+ * @param data2 (char*) The address of the sender* An action cannot be performed because the user is not in the group.
+ */
+#define DC_EVENT_ERROR_SELF_NOT_IN_GROUP  410
+
 
 /**
  * Messages or chats changed. One or more messages or chats changed for various

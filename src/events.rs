@@ -167,7 +167,8 @@ pub enum EventType {
     /// A message was received, but DC is missing the key to decript that message.
     /// This event can be used by bots to send any message to the client so that
     /// the client can catch up with the new key.
-    ErrorMissingKey,
+    /// @param: String containing the address of the sender
+    ErrorMissingKey(String),
 
     /// Messages or chats changed.  One or more messages or chats changed for various
     /// reasons in the database:

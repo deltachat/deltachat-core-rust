@@ -299,7 +299,7 @@ impl MimeMessage {
             Err(err) => {
                 if let Some(err) = err.downcast_ref::<pgp::errors::Error>() {
                     if let pgp::errors::Error::MissingKey = err {
-                        context.emit_event(EventType::ErrorMissingKey)
+                        context.emit_event(EventType::ErrorMissingKey(from.addr.clone()))
                     }
                 }
                 warn!(context, "decryption failed: {:#}", err);

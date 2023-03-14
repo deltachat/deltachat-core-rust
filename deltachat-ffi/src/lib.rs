@@ -504,6 +504,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::Warning(_) => 300,
         EventType::Error(_) => 400,
         EventType::ErrorSelfNotInGroup(_) => 410,
+        EventType::ErrorMissingKey(_) => 410,
         EventType::MsgsChanged { .. } => 2000,
         EventType::ReactionsChanged { .. } => 2001,
         EventType::IncomingMsg { .. } => 2005,
@@ -550,7 +551,8 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
         | EventType::IncomingMsgBunch { .. }
-        | EventType::ErrorSelfNotInGroup(_) => 0,
+        | EventType::ErrorSelfNotInGroup(_)
+        | EventType::ErrorMissingKey(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -598,6 +600,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::Warning(_)
         | EventType::Error(_)
         | EventType::ErrorSelfNotInGroup(_)
+        | EventType::ErrorMissingKey(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)
         | EventType::ConfigureProgress { .. }
@@ -645,7 +648,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::DeletedBlobFile(msg)
         | EventType::Warning(msg)
         | EventType::Error(msg)
-        | EventType::ErrorSelfNotInGroup(msg) => {
+        | EventType::ErrorSelfNotInGroup(msg)
+        | EventType::ErrorMissingKey(msg) => {
             let data2 = msg.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
