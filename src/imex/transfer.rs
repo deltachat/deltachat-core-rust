@@ -362,12 +362,16 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
         Qr::Backup { ticket } => ticket,
         _ => bail!("QR code for backup must be of type DCBACKUP"),
     };
+    if ticket.addrs.is_empty() {
+        bail!("ticket is missing addresses to dial");
+    }
     for addr in ticket.addrs.iter() {
         let opts = Options {
             addr: *addr,
             peer_id: Some(ticket.peer),
             keylog: false,
         };
+        info!(context, "attempting to contact {}", addr);
         match transfer_from_provider(context, &ticket, opts).await {
             Ok(_) => {
                 delete_and_reset_all_device_msgs(context).await?;
