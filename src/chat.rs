@@ -6092,23 +6092,19 @@ mod tests {
         .await?;
 
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file("./test-data/image/avatar64x64.png", None);
-        info!(alice, "{:#?}, {:?}", msg.param, msg.viewtype);
+        msg.set_file("./test-data/webxdc/chess.xdc", None);
 
-        send_msg(&alice, chat_id, &mut msg).await?;
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
-
+        let file_send = alice.send_msg(chat_id, &mut msg).await;
+        let msg = bob.recv_msg(&file_send).await;
         info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
-        //bob_chat_id.accept(&bob).await?;
 
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file("./test-data/image/avatar64x64.png", None);
-        info!(alice, "{:#?}, {:?}", msg.param, msg.viewtype);
+        msg.set_file("./test-data/webxdc/chess.xdc", None);
 
-        send_msg(&alice, chat_id, &mut msg).await?;
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
-
+        let file_send = alice.send_msg(chat_id, &mut msg).await;
+        let msg = bob.recv_msg(&file_send).await;
         info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
+
 
         Ok(())
     }
