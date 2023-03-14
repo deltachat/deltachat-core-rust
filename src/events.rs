@@ -118,27 +118,6 @@ pub enum EventType {
     /// that.
     Info(String),
 
-    /// Emitted when SMTP connection is established and login was successful.
-    SmtpConnected(String),
-
-    /// Emitted when IMAP connection is established and login was successful.
-    ImapConnected(String),
-
-    /// Emitted when a message was successfully sent to the SMTP server.
-    SmtpMessageSent(String),
-
-    /// Emitted when an IMAP message has been marked as deleted
-    ImapMessageDeleted(String),
-
-    /// Emitted when an IMAP message has been moved
-    ImapMessageMoved(String),
-
-    /// Emitted when an new file in the $BLOBDIR was created
-    NewBlobFile(String),
-
-    /// Emitted when an file in the $BLOBDIR was deleted
-    DeletedBlobFile(String),
-
     /// The library-user should write a warning string to the log.
     ///
     /// This event should *not* be reported to the end-user using a popup or something like
@@ -163,6 +142,27 @@ pub enum EventType {
     /// dc_add_contact_to_chat(), dc_remove_contact_from_chat(),
     /// dc_send_text_msg() or another sending function.
     ErrorSelfNotInGroup(String),
+
+    /// Emitted when SMTP connection is established and login was successful.
+    SmtpConnected(String),
+
+    /// Emitted when a message was successfully sent to the SMTP server.
+    SmtpMessageSent(String),
+
+    /// Emitted when IMAP connection is established and login was successful.
+    ImapConnected(String),
+
+    /// Emitted when an IMAP message has been marked as deleted
+    ImapMessageDeleted(String),
+
+    /// Emitted when an IMAP message has been moved
+    ImapMessageMoved(String),
+
+    /// Emitted when an new file in the $BLOBDIR was created
+    NewBlobFile(String),
+
+    /// Emitted when an file in the $BLOBDIR was deleted
+    DeletedBlobFile(String),
 
     /// Messages or chats changed.  One or more messages or chats changed for various
     /// reasons in the database:
