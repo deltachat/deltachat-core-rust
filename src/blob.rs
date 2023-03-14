@@ -31,6 +31,7 @@ use crate::message::Viewtype;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlobObject<'a> {
     blobdir: &'a Path,
+    origininal_name: Option<String>,
     name: String,
 }
 
@@ -49,17 +50,18 @@ impl<'a> BlobObject<'a> {
     ) -> Result<BlobObject<'a>> {
         let blobdir = context.get_blobdir();
         let (stem, ext) = BlobObject::sanitise_name(suggested_name);
-        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
+        let (name, mut file, obfuscated) =
+            BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
         file.write_all(data).await.context("file write failure")?;
 
-        // workaround a bug in async-std
-        // (the executor does not handle blocking operation in Drop correctly,
-        // see <https://github.com/async-rs/async-std/issues/900>)
         let _ = file.flush().await;
+
+        warn!(context, "obfuscation: {obfuscated}");
 
         let blob = BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{name}"),
+            origininal_name: obfuscated.then_some(format!("{stem}:{ext}")),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
@@ -71,10 +73,11 @@ impl<'a> BlobObject<'a> {
         dir: &Path,
         stem: &str,
         ext: &str,
-    ) -> Result<(String, fs::File)> {
+    ) -> Result<(String, fs::File, bool)> {
         const MAX_ATTEMPT: u32 = 16;
         let mut attempt = 0;
         let mut name = format!("{stem}{ext}");
+        let mut obfuscated = false;
         loop {
             attempt += 1;
             let path = dir.join(&name);
@@ -84,7 +87,7 @@ impl<'a> BlobObject<'a> {
                 .open(&path)
                 .await
             {
-                Ok(file) => return Ok((name, file)),
+                Ok(file) => return Ok((name, file, obfuscated)),
                 Err(err) => {
                     if attempt >= MAX_ATTEMPT {
                         return Err(err).context("failed to create file");
@@ -92,6 +95,7 @@ impl<'a> BlobObject<'a> {
                         fs::create_dir_all(dir).await.ok_or_log(context);
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
+                        obfuscated = true;
                     }
                 }
             }
@@ -109,7 +113,7 @@ impl<'a> BlobObject<'a> {
             .await
             .with_context(|| format!("failed to open file {}", src.display()))?;
         let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
-        let (name, mut dst_file) =
+        let (name, mut dst_file, obfuscated) =
             BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
         let name_for_err = name.clone();
         if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
@@ -121,10 +125,11 @@ impl<'a> BlobObject<'a> {
 
         // workaround, see create() for details
         let _ = dst_file.flush().await;
-
+        warn!(context, "obfuscation: {obfuscated}");
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{name}"),
+            origininal_name: obfuscated.then_some(format!("{stem}:{ext}")),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
@@ -185,6 +190,7 @@ impl<'a> BlobObject<'a> {
         Ok(BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{name}"),
+            origininal_name: None,
         })
     }
 
@@ -204,6 +210,10 @@ impl<'a> BlobObject<'a> {
     /// [Params]: crate::param::Params
     pub fn as_name(&self) -> &str {
         &self.name
+    }
+
+    pub fn as_original_name(&self) -> Option<&str> {
+        self.origininal_name.as_ref().map(|x| &**x)
     }
 
     /// Returns the filename of the blob.

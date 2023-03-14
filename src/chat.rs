@@ -2033,6 +2033,11 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
                 warn!(context, "Cannot recode image, using original data: {:?}", e);
             }
         }
+
+        if let Some(name) = blob.as_original_name() {
+            msg.param.set(Param::OriginalName, name);
+        }
+
         msg.param.set(Param::File, blob.as_name());
 
         if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
@@ -6070,6 +6075,40 @@ mod tests {
             .len(),
             4
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blob_renaming() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        add_contact_to_chat(
+            &alice,
+            chat_id,
+            Contact::create(&alice, "bob", "bob@example.net").await?,
+        )
+        .await?;
+
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/image/avatar64x64.png", None);
+        info!(alice, "{:#?}, {:?}", msg.param, msg.viewtype);
+
+        send_msg(&alice, chat_id, &mut msg).await?;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
+        //bob_chat_id.accept(&bob).await?;
+
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/image/avatar64x64.png", None);
+        info!(alice, "{:#?}, {:?}", msg.param, msg.viewtype);
+
+        send_msg(&alice, chat_id, &mut msg).await?;
+        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
 
         Ok(())
     }

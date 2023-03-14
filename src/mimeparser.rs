@@ -1246,6 +1246,9 @@ impl MimeMessage {
         part.mimetype = Some(mime_type);
         part.bytes = decoded_data.len();
         part.param.set(Param::File, blob.as_name());
+        if let Some(name) = blob.as_original_name() {
+            part.param.set(Param::OriginalName, name);
+        }
         part.param.set(Param::MimeType, raw_mime);
         part.is_related = is_related;
 

@@ -21,6 +21,9 @@ pub enum Param {
     /// For messages and jobs
     File = b'f',
 
+    /// For messages
+    OriginalName = b'#',
+
     /// For messages: This name should be shown instead of contact.get_display_name()
     /// (used if this is a mailinglist
     /// or explicitly set using set_override_sender_name(), eg. by bots)
@@ -335,7 +338,7 @@ impl Params {
     /// Gets the parameter and returns a [BlobObject] for it.
     ///
     /// This parses the parameter value as a [ParamsFile] and than
-    /// tries to return a [BlobObject] for that file.  If the file is
+    /// tries to return a [BlobObject] for that file. If the file is
     /// not yet a valid blob, one will be created by copying the file
     /// only if `create` is set to `true`, otherwise an error is
     /// returned.
@@ -344,7 +347,6 @@ impl Params {
     /// created without copying if the path already refers to a valid
     /// blob.  If so a [BlobObject] will be returned regardless of the
     /// `create` argument.
-    #[allow(clippy::needless_lifetimes)]
     pub async fn get_blob<'a>(
         &self,
         key: Param,
