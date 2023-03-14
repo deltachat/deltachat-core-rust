@@ -378,7 +378,10 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
                 context.emit_event(ReceiveProgress::Completed.into());
                 return Ok(());
             }
-            Err(TransferError::ConnectionError(_)) => continue,
+            Err(TransferError::ConnectionError(err)) => {
+                warn!(context, "Connection error: {err:#}.");
+                continue;
+            },
             Err(TransferError::Other(err)) => {
                 // Clean up any blobs we already wrote.
                 let readdir = fs::read_dir(context.get_blobdir()).await?;
