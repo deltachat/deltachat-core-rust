@@ -26,6 +26,8 @@ opt-level = "z"
 
 [patch.crates-io]
 default-net = { git = "https://github.com/dignifiedquire/default-net.git", branch="feat-android" }
+quinn-udp = { git = "https://github.com/link2xt/quinn", branch="android-no-tos" }
+quinn-proto = { git = "https://github.com/link2xt/quinn", branch="android-no-tos" }
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
