@@ -216,7 +216,7 @@ impl<'a> BlobObject<'a> {
     }
 
     pub fn as_original_name(&self) -> Option<&str> {
-        self.original_name.as_ref().map(|x| &**x)
+        self.original_name.as_deref()
     }
 
     pub fn set_original_name(&mut self, name: String) {
