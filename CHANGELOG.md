@@ -13,6 +13,7 @@
   background process spawned by `dc_configure()` or `dc_imex()`
   or `dc_jsonrpc_instance_t` is unreferenced
   during handling the JSON-RPC request. #4153
+- Delete expired messages using multiple SQL requests. #4158
 
 
 ## 1.111.0

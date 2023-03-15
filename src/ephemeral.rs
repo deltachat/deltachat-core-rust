@@ -68,7 +68,7 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{ensure, Context as _, Result};
+use anyhow::{ensure, Result};
 use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
 use tokio::time::timeout;
@@ -433,37 +433,40 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
     let rows = select_expired_messages(context, now).await?;
 
     if !rows.is_empty() {
-        context
+        info!(context, "Attempting to delete {} messages.", rows.len());
+
+        let (msgs_changed, webxdc_deleted) = context
             .sql
-            .execute(
+            .transaction(|transaction| {
+                let mut msgs_changed = Vec::with_capacity(rows.len());
+                let mut webxdc_deleted = Vec::new();
+
                 // If you change which information is removed here, also change MsgId::trash() and
                 // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                &format!(
-                    r#"
-UPDATE msgs
-SET
-  chat_id=?, txt='', subject='', txt_raw='',
-  mime_headers='', from_id=0, to_id=0, param=''
-WHERE id IN ({})
-"#,
-                    sql::repeat_vars(rows.len())
-                ),
-                rusqlite::params_from_iter(
-                    std::iter::once(&DC_CHAT_ID_TRASH as &dyn crate::ToSql).chain(
-                        rows.iter()
-                            .map(|(msg_id, _chat_id, _viewtype)| msg_id as &dyn crate::ToSql),
-                    ),
-                ),
-            )
-            .await
-            .context("update failed")?;
+                for (msg_id, chat_id, viewtype) in rows {
+                    transaction.execute(
+                        "UPDATE msgs
+                     SET chat_id=?, txt='', subject='', txt_raw='',
+                         mime_headers='', from_id=0, to_id=0, param=''
+                     WHERE id=?",
+                        params![DC_CHAT_ID_TRASH, msg_id],
+                    )?;
 
-        for (msg_id, chat_id, viewtype) in rows {
+                    msgs_changed.push((chat_id, msg_id));
+                    if viewtype == Viewtype::Webxdc {
+                        webxdc_deleted.push(msg_id)
+                    }
+                }
+                Ok((msgs_changed, webxdc_deleted))
+            })
+            .await?;
+
+        for (chat_id, msg_id) in msgs_changed {
             context.emit_msgs_changed(chat_id, msg_id);
+        }
 
-            if viewtype == Viewtype::Webxdc {
-                context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
-            }
+        for msg_id in webxdc_deleted {
+            context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
         }
     }
 
