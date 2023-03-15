@@ -1173,7 +1173,7 @@ mod tests {
         // No other messages are marked for deletion.
         assert_eq!(
             t.sql
-                .count("SELECT COUNT(*) FROM imap WHERE target=''", paramsv![],)
+                .count("SELECT COUNT(*) FROM imap WHERE target=''", ())
                 .await?,
             0
         );
@@ -1187,10 +1187,7 @@ mod tests {
             .update_download_state(&t, DownloadState::Available)
             .await?;
         t.sql
-            .execute(
-                "UPDATE imap SET target=folder WHERE rfc724_mid='1000'",
-                paramsv![],
-            )
+            .execute("UPDATE imap SET target=folder WHERE rfc724_mid='1000'", ())
             .await?;
         delete_expired_imap_messages(&t).await?;
         test_marked_for_deletion(&t, 1000).await?; // Delete downloadable anyway.
@@ -1201,10 +1198,7 @@ mod tests {
         delete_expired_imap_messages(&t).await?;
         test_marked_for_deletion(&t, 1010).await?;
         t.sql
-            .execute(
-                "UPDATE imap SET target=folder WHERE rfc724_mid='1010'",
-                paramsv![],
-            )
+            .execute("UPDATE imap SET target=folder WHERE rfc724_mid='1010'", ())
             .await?;
 
         MsgId::new(1010)
@@ -1214,7 +1208,7 @@ mod tests {
         // Keep downloadable for now.
         assert_eq!(
             t.sql
-                .count("SELECT COUNT(*) FROM imap WHERE target=''", paramsv![],)
+                .count("SELECT COUNT(*) FROM imap WHERE target=''", ())
                 .await?,
             0
         );

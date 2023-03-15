@@ -853,7 +853,7 @@ impl ChatId {
                     AND c.blocked=0
                     AND c.archived=1
                     ",
-                    paramsv![],
+                    (),
                 )
                 .await?
         } else {
@@ -2578,7 +2578,7 @@ pub async fn marknoticed_chat(context: &Context, chat_id: ChatId) -> Result<()> 
                 "SELECT DISTINCT(m.chat_id) FROM msgs m
                     LEFT JOIN chats c ON m.chat_id=c.id
                     WHERE m.state=10 AND m.hidden=0 AND m.chat_id>9 AND c.blocked=0 AND c.archived=1",
-                paramsv![],
+                    (),
                 |row| row.get::<_, ChatId>(0),
                 |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
             )
@@ -3500,10 +3500,7 @@ pub(crate) async fn get_chat_cnt(context: &Context) -> Result<usize> {
         // no database, no chats - this is no error (needed eg. for information)
         let count = context
             .sql
-            .count(
-                "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
-                paramsv![],
-            )
+            .count("SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;", ())
             .await?;
         Ok(count)
     } else {
@@ -3676,17 +3673,14 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
             paramsv![ContactId::DEVICE],
         )
         .await?;
-    context
-        .sql
-        .execute("DELETE FROM devmsglabels;", paramsv![])
-        .await?;
+    context.sql.execute("DELETE FROM devmsglabels;", ()).await?;
 
     // Insert labels for welcome messages to avoid them being readded on reconfiguration.
     context
         .sql
         .execute(
             r#"INSERT INTO devmsglabels (label) VALUES ("core-welcome-image"), ("core-welcome")"#,
-            paramsv![],
+            (),
         )
         .await?;
     context.set_config(Config::QuotaExceeding, None).await?;

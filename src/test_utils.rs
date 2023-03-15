@@ -398,7 +398,7 @@ impl TestContext {
                     SELECT id, msg_id, mime, recipients
                     FROM smtp
                     ORDER BY id DESC"#,
-                    paramsv![],
+                    (),
                     |row| {
                         let rowid: i64 = row.get(0)?;
                         let msg_id: MsgId = row.get(1)?;

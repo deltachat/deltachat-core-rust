@@ -391,7 +391,7 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
         sql.execute(
             r#"
 CREATE TABLE imap_sync (folder TEXT PRIMARY KEY, uidvalidity INTEGER DEFAULT 0, uid_next INTEGER DEFAULT 0);"#,
-paramsv![]
+()
         )
             .await?;
         for c in &[

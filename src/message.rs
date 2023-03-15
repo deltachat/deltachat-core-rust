@@ -1794,7 +1794,7 @@ pub async fn get_unblocked_msg_cnt(context: &Context) -> usize {
             "SELECT COUNT(*) \
          FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
-            paramsv![],
+            (),
         )
         .await
     {
@@ -1814,7 +1814,7 @@ pub async fn get_request_msg_cnt(context: &Context) -> usize {
             "SELECT COUNT(*) \
          FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
          WHERE c.blocked=2;",
-            paramsv![],
+            (),
         )
         .await
     {

@@ -220,7 +220,7 @@ impl Sql {
             let addrs = self
                 .query_map(
                     "SELECT addr FROM acpeerstates;",
-                    paramsv![],
+                    (),
                     |row| row.get::<_, String>(0),
                     |addrs| {
                         addrs
@@ -742,7 +742,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .sql
         .execute(
             "DELETE FROM msgs_mdns WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            paramsv![],
+            (),
         )
         .await
         .ok_or_log_msg(context, "failed to remove old MDNs");
@@ -790,7 +790,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         .sql
         .query_map(
             "SELECT value FROM config;",
-            paramsv![],
+            (),
             |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
@@ -925,7 +925,7 @@ async fn maybe_add_from_param(
 ) -> Result<()> {
     sql.query_map(
         query,
-        paramsv![],
+        (),
         |row| row.get::<_, String>(0),
         |rows| {
             for row in rows {

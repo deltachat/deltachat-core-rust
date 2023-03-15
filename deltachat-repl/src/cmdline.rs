@@ -35,7 +35,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 1 {
         context
             .sql()
-            .execute("DELETE FROM jobs;", paramsv![])
+            .execute("DELETE FROM jobs;", ())
             .await
             .unwrap();
         println!("(1) Jobs reset.");
@@ -43,7 +43,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 2 {
         context
             .sql()
-            .execute("DELETE FROM acpeerstates;", paramsv![])
+            .execute("DELETE FROM acpeerstates;", ())
             .await
             .unwrap();
         println!("(2) Peerstates reset.");
@@ -51,7 +51,7 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 4 {
         context
             .sql()
-            .execute("DELETE FROM keypairs;", paramsv![])
+            .execute("DELETE FROM keypairs;", ())
             .await
             .unwrap();
         println!("(4) Private keypairs reset.");
@@ -59,36 +59,36 @@ async fn reset_tables(context: &Context, bits: i32) {
     if 0 != bits & 8 {
         context
             .sql()
-            .execute("DELETE FROM contacts WHERE id>9;", paramsv![])
+            .execute("DELETE FROM contacts WHERE id>9;", ())
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats WHERE id>9;", paramsv![])
+            .execute("DELETE FROM chats WHERE id>9;", ())
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM chats_contacts;", paramsv![])
+            .execute("DELETE FROM chats_contacts;", ())
             .await
             .unwrap();
         context
             .sql()
-            .execute("DELETE FROM msgs WHERE id>9;", paramsv![])
+            .execute("DELETE FROM msgs WHERE id>9;", ())
             .await
             .unwrap();
         context
             .sql()
             .execute(
                 "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
-                paramsv![],
+                (),
             )
             .await
             .unwrap();
         context.sql().config_cache().write().await.clear();
         context
             .sql()
-            .execute("DELETE FROM leftgrps;", paramsv![])
+            .execute("DELETE FROM leftgrps;", ())
             .await
             .unwrap();
         println!("(8) Rest but server config reset.");

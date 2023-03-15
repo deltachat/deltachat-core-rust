@@ -718,7 +718,7 @@ pub(crate) async fn deduplicate_peerstates(sql: &Sql) -> Result<()> {
          FROM acpeerstates
          GROUP BY addr
          )",
-        paramsv![],
+        (),
     )
     .await?;
 

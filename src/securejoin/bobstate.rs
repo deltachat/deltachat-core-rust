@@ -163,7 +163,7 @@ impl BobState {
         // guaranteed to only have one row.
         sql.query_row_optional(
             "SELECT id, invite, next_step, chat_id FROM bobstate;",
-            paramsv![],
+            (),
             |row| {
                 let s = BobState {
                     id: row.get(0)?,

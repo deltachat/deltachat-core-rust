@@ -697,7 +697,7 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         .sql
         .query_map(
             "SELECT id, public_key, private_key, is_default FROM keypairs;",
-            paramsv![],
+            (),
             |row| {
                 let id = row.get(0)?;
                 let public_key_blob: Vec<u8> = row.get(1)?;
