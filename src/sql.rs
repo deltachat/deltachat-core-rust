@@ -713,12 +713,22 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
 
     // Try to clear the freelist to free some space on the disk. This
     // only works if auto_vacuum is enabled.
-    if let Err(err) = context
+    match context
         .sql
-        .execute("PRAGMA incremental_vacuum", paramsv![])
+        .query_row_optional("PRAGMA incremental_vacuum", (), |_row| Ok(()))
         .await
     {
-        warn!(context, "Failed to run incremental vacuum: {}", err);
+        Err(err) => {
+            warn!(context, "Failed to run incremental vacuum: {err:#}");
+        }
+        Ok(Some(())) => {
+            // Incremental vacuum returns a zero-column result if it did anything.
+            info!(context, "Successfully ran incremental vacuum.");
+        }
+        Ok(None) => {
+            // Incremental vacuum returned `SQLITE_DONE` immediately,
+            // there were no pages to remove.
+        }
     }
 
     if let Err(e) = context
