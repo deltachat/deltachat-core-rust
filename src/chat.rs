@@ -6078,34 +6078,4 @@ mod tests {
 
         Ok(())
     }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_blob_renaming() -> Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
-        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
-        add_contact_to_chat(
-            &alice,
-            chat_id,
-            Contact::create(&alice, "bob", "bob@example.net").await?,
-        )
-        .await?;
-
-        let mut msg = Message::new(Viewtype::File);
-        msg.set_file("./test-data/webxdc/chess.xdc", None);
-
-        let file_send = alice.send_msg(chat_id, &mut msg).await;
-        let msg = bob.recv_msg(&file_send).await;
-        info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
-
-        let mut msg = Message::new(Viewtype::File);
-        msg.set_file("./test-data/webxdc/chess.xdc", None);
-
-        let file_send = alice.send_msg(chat_id, &mut msg).await;
-        let msg = bob.recv_msg(&file_send).await;
-        info!(bob, "{:#?}, {:?}", msg.param, msg.viewtype);
-
-
-        Ok(())
-    }
 }

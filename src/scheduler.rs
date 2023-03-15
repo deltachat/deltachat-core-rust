@@ -432,7 +432,7 @@ async fn smtp_loop(ctx: Context, started: Sender<()>, smtp_handlers: SmtpConnect
                 if !duration_until_can_send.is_zero() {
                     info!(
                         ctx,
-                        "smtp got rate limited, waiting for {} until can send again",
+                        "smtp got rate limited, waiting for {} until resend",
                         duration_to_str(duration_until_can_send)
                     );
                     tokio::time::timeout(duration_until_can_send, async {

@@ -31,7 +31,7 @@ use crate::message::Viewtype;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlobObject<'a> {
     blobdir: &'a Path,
-    origininal_name: Option<String>,
+    original_name: Option<String>,
     name: String,
 }
 
@@ -56,12 +56,10 @@ impl<'a> BlobObject<'a> {
 
         let _ = file.flush().await;
 
-        warn!(context, "obfuscation: {obfuscated}");
-
         let blob = BlobObject {
             blobdir,
             name: format!("$BLOBDIR/{name}"),
-            origininal_name: obfuscated.then_some(format!("{stem}:{ext}")),
+            original_name: obfuscated.then_some(format!("{stem}{ext}")),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
@@ -125,11 +123,10 @@ impl<'a> BlobObject<'a> {
 
         // workaround, see create() for details
         let _ = dst_file.flush().await;
-        warn!(context, "obfuscation: {obfuscated}");
         let blob = BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{name}"),
-            origininal_name: obfuscated.then_some(format!("{stem}:{ext}")),
+            original_name: obfuscated.then_some(format!("{stem}{ext}")),
         };
         context.emit_event(EventType::NewBlobFile(blob.as_name().to_string()));
         Ok(blob)
@@ -190,7 +187,7 @@ impl<'a> BlobObject<'a> {
         Ok(BlobObject {
             blobdir: context.get_blobdir(),
             name: format!("$BLOBDIR/{name}"),
-            origininal_name: None,
+            original_name: None,
         })
     }
 
@@ -212,13 +209,18 @@ impl<'a> BlobObject<'a> {
         &self.name
     }
 
-    pub fn as_original_name(&self) -> Option<&str> {
-        self.origininal_name.as_ref().map(|x| &**x)
-    }
-
     /// Returns the filename of the blob.
     pub fn as_file_name(&self) -> &str {
-        self.name.rsplit('/').next().unwrap_or_default()
+        let name = self.original_name.as_ref().unwrap_or(&self.name);
+        name.rsplit('/').next().unwrap_or_default()
+    }
+
+    pub fn as_original_name(&self) -> Option<&str> {
+        self.original_name.as_ref().map(|x| &**x)
+    }
+
+    pub fn set_original_name(&mut self, name: String) {
+        self.original_name = Some(name)
     }
 
     /// The path relative in the blob directory.
@@ -514,8 +516,10 @@ mod tests {
     use image::{GenericImageView, Pixel};
 
     use super::*;
-    use crate::chat::{self, create_group_chat, ProtectionStatus};
+    use crate::chat::{self, add_contact_to_chat, create_group_chat, ProtectionStatus};
+    use crate::contact::Contact;
     use crate::message::Message;
+    use crate::param::Param;
     use crate::test_utils::{self, TestContext};
 
     fn check_image_size(path: impl AsRef<Path>, width: u32, height: u32) -> image::DynamicImage {
@@ -990,6 +994,53 @@ mod tests {
         let mut msg = Message::new(Viewtype::File);
         msg.set_file(file.to_str().unwrap(), None);
         assert!(chat::prepare_msg(&t, chat_id, &mut msg).await.is_err());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blob_renaming() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        add_contact_to_chat(
+            &alice,
+            chat_id,
+            Contact::create(&alice, "bob", "bob@example.net").await?,
+        )
+        .await?;
+
+        // alice sends file to bob where no obfuscation should happen
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/webxdc/chess.xdc", None);
+        let file_send = alice.send_msg(chat_id, &mut msg).await;
+        let msg = Message::load_from_db(&alice, msg.id).await?;
+        assert_eq!(msg.param.get(Param::OriginalName), None);
+
+        let msg = bob.recv_msg(&file_send).await;
+        assert_eq!(msg.param.get(Param::OriginalName), None);
+
+        // alice sends same file again so obfuscation happens but the original filename
+        // is stored and used for sending
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/webxdc/chess.xdc", None);
+        let file_send = alice.send_msg(chat_id, &mut msg).await;
+        let msg = Message::load_from_db(&alice, msg.id).await?;
+        assert_eq!(msg.param.get(Param::OriginalName), Some("chess.xdc"));
+
+        let msg = bob.recv_msg(&file_send).await;
+        assert_eq!(msg.param.get(Param::OriginalName), Some("chess.xdc"));
+
+        // bob sends file with same name to alice, file names should be preserved
+        msg.chat_id.accept(&bob).await?;
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/webxdc/chess.xdc", None);
+        let file_send = bob.send_msg(chat_id, &mut msg).await;
+        let msg = Message::load_from_db(&bob, msg.id).await?;
+        assert_eq!(msg.param.get(Param::OriginalName), Some("chess.xdc"));
+
+        let msg = alice.recv_msg(&file_send).await;
+        assert_eq!(msg.param.get(Param::OriginalName), Some("chess.xdc"));
 
         Ok(())
     }

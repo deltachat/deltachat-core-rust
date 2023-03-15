@@ -1383,11 +1383,16 @@ async fn build_body_file(
     msg: &Message,
     base_name: &str,
 ) -> Result<(PartBuilder, String)> {
-    let blob = msg
+    let mut blob = msg
         .param
         .get_blob(Param::File, context, true)
         .await?
         .context("msg has no filename")?;
+
+    if let Some(name) = msg.param.get(Param::OriginalName) {
+        blob.set_original_name(name.to_string());
+    };
+
     let suffix = blob.suffix().unwrap_or("dat");
 
     // Get file name to use for sending.  For privacy purposes, we do
