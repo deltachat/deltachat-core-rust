@@ -7,6 +7,7 @@
 - "full message view" not needed because of footers that go to contact status #4151
 - Pick up system's light/dark mode in generated message HTML #4150
 - Support non-persistent configuration with DELTACHAT_* env
+- Improve obfuscation behaviour for known files #4159
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
