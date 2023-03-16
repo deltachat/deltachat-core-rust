@@ -155,7 +155,7 @@ impl Context {
             .sql
             .query_map(
                 "SELECT id, item FROM multi_device_sync ORDER BY id;",
-                paramsv![],
+                (),
                 |row| Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?)),
                 |rows| {
                     let mut ids = vec![];
@@ -201,7 +201,7 @@ impl Context {
         self.sql
             .execute(
                 &format!("DELETE FROM multi_device_sync WHERE id IN ({ids});"),
-                paramsv![],
+                (),
             )
             .await?;
         Ok(())

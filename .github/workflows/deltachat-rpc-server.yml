@@ -35,20 +35,27 @@ jobs:
           path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
           if-no-files-found: error
 
-  build_aarch64_linux:
-    name: Cross-compile deltachat-rpc-server for aarch64 Linux
+  build_linux:
+    name: Cross-compile deltachat-rpc-server for aarch64 and armv7 Linux
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
 
       - name: Build
-        run: sh scripts/aarch64-unknown-linux-musl.sh
+        run: sh scripts/zig-rpc-server.sh
 
-      - name: Upload binary
+      - name: Upload aarch64 binary
         uses: actions/upload-artifact@v3
         with:
           name: deltachat-rpc-server-aarch64
           path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
+          if-no-files-found: error
+
+      - name: Upload armv7 binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-armv7
+          path: target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server
           if-no-files-found: error
 
   build_android:

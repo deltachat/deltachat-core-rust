@@ -604,7 +604,7 @@ async fn add_parts(
                     // to the sender's name, indicating to the user that he/she is not part of the group.
                     let from = &mime_parser.from;
                     let name: &str = from.display_name.as_ref().unwrap_or(&from.addr);
-                    for part in mime_parser.parts.iter_mut() {
+                    for part in &mut mime_parser.parts {
                         part.param.set(Param::OverrideSenderDisplayname, name);
                     }
                 }
@@ -668,7 +668,7 @@ async fn add_parts(
         // we use name from From:-header as override name
         if prevent_rename {
             if let Some(name) = &mime_parser.from.display_name {
-                for part in mime_parser.parts.iter_mut() {
+                for part in &mut mime_parser.parts {
                     part.param.set(Param::OverrideSenderDisplayname, name);
                 }
             }
@@ -737,7 +737,7 @@ async fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        to_id = to_ids.get(0).cloned().unwrap_or_default();
+        to_id = to_ids.get(0).copied().unwrap_or_default();
 
         let self_sent =
             from_id == ContactId::SELF && to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
@@ -2162,7 +2162,7 @@ async fn check_verified_properties(
         )
         .await?;
 
-    for (to_addr, mut is_verified) in rows.into_iter() {
+    for (to_addr, mut is_verified) in rows {
         info!(
             context,
             "check_verified_properties: {:?} self={:?}",

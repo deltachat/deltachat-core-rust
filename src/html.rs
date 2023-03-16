@@ -124,7 +124,7 @@ impl HtmlMsgParser {
         async move {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
-                    for cur_data in mail.subparts.iter() {
+                    for cur_data in &mail.subparts {
                         self.collect_texts_recursive(cur_data).await?
                     }
                     Ok(())
@@ -180,7 +180,7 @@ impl HtmlMsgParser {
         async move {
             match get_mime_multipart_type(&mail.ctype) {
                 MimeMultipartType::Multiple => {
-                    for cur_data in mail.subparts.iter() {
+                    for cur_data in &mail.subparts {
                         self.cid_to_data_recursive(context, cur_data).await?;
                     }
                     Ok(())
@@ -292,7 +292,10 @@ mod tests {
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 This message does not have Content-Type nor Subject.<br/>
 <br/>
 </body></html>
@@ -308,7 +311,10 @@ This message does not have Content-Type nor Subject.<br/>
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
 <br/>
 </body></html>
@@ -325,7 +331,10 @@ message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 This line ends with a space and will be merged with the next one due to format=flowed.<br/>
 <br/>
 This line does not end with a space<br/>
@@ -344,7 +353,10 @@ and will be wrapped as usual.<br/>
         assert_eq!(
             parser.html,
             r##"<!DOCTYPE html>
-<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /></head><body>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
 mime-modified should not be set set as there is no html and no special stuff;<br/>
 although not being a delta-message.<br/>
 test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x27; :)<br/>

@@ -485,7 +485,7 @@ impl<'a> MimeFactory<'a> {
                     None
                 };
 
-            for (name, addr) in self.recipients.iter() {
+            for (name, addr) in &self.recipients {
                 if let Some(email_to_remove) = email_to_remove {
                     if email_to_remove == addr {
                         continue;

@@ -1,14 +1,24 @@
 
+:root {
+	--accent: hsl(0 0% 85%);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--accent: hsl(0 0% 25%);
+	}
+}
+
 /* the code snippet frame, defaults to white which tends to get badly readable in combination with explaining text around */
 div.fragment {
-	background-color: #e0e0e0;
+	background-color: var(--accent);
 	border: 0;
 	padding: 1em;
 	border-radius: 6px;
 }
 
 code {
-	background-color: #e0e0e0;
+	background-color: var(--accent);
 	padding-left: .5em;
 	padding-right: .5em;
 	border-radius: 6px;

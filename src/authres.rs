@@ -334,7 +334,7 @@ async fn set_dkim_works_timestamp(
 async fn clear_dkim_works(context: &Context) -> Result<()> {
     context
         .sql
-        .execute("DELETE FROM sending_domains", paramsv![])
+        .execute("DELETE FROM sending_domains", ())
         .await?;
     Ok(())
 }

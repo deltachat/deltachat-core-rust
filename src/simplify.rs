@@ -80,7 +80,8 @@ pub(crate) struct SimplifiedText {
     /// True if the message is forwarded.
     pub is_forwarded: bool,
 
-    /// True if nonstandard footer was removed.
+    /// True if nonstandard footer was removed
+    /// or if the message contains quotes other than `top_quote`.
     pub is_cut: bool,
 
     /// Top quote, if any.
@@ -103,7 +104,6 @@ pub(crate) fn simplify(mut input: String, is_chat_message: bool) -> SimplifiedTe
     let original_lines = &lines;
     let (lines, footer_lines) = remove_message_footer(lines);
     let footer = footer_lines.map(|footer_lines| render_message(footer_lines, false));
-    is_cut = is_cut || footer.is_some();
 
     let text = if is_chat_message {
         render_message(lines, false)
@@ -330,7 +330,7 @@ mod tests {
         } = simplify(input, true);
         assert_eq!(text, "Hi! How are you?\n\n---\n\nI am good.");
         assert!(!is_forwarded);
-        assert!(is_cut);
+        assert!(!is_cut);
         assert_eq!(
             footer.unwrap(),
             "Sent with my Delta Chat Messenger: https://delta.chat"
@@ -365,7 +365,7 @@ mod tests {
 
         assert_eq!(text, "Forwarded message");
         assert!(is_forwarded);
-        assert!(is_cut);
+        assert!(!is_cut);
         assert_eq!(footer.unwrap(), "Signature goes here");
     }
 
@@ -442,7 +442,7 @@ mod tests {
             ..
         } = simplify(input, true);
         assert_eq!(text, "text\n\n--\nno footer");
-        assert!(is_cut);
+        assert!(!is_cut);
         assert_eq!(footer.unwrap(), "footer");
 
         let input = "text\n\n--\ntreated as footer when unescaped".to_string();
@@ -453,7 +453,7 @@ mod tests {
             ..
         } = simplify(input.clone(), true);
         assert_eq!(text, "text"); // see remove_message_footer() for some explanations
-        assert!(is_cut);
+        assert!(!is_cut);
         assert_eq!(footer.unwrap(), "treated as footer when unescaped");
         let escaped = escape_message_footer_marks(&input);
         let SimplifiedText {
@@ -495,7 +495,7 @@ mod tests {
             ..
         } = simplify(input.clone(), true);
         assert_eq!(text, ""); // see remove_message_footer() for some explanations
-        assert!(is_cut);
+        assert!(!is_cut);
         assert_eq!(footer.unwrap(), "treated as footer when unescaped");
 
         let escaped = escape_message_footer_marks(&input);

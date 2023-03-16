@@ -6746,7 +6746,7 @@ void dc_event_unref(dc_event_t* event);
 
 /// "You changed your email address from %1$s to %2$s.
 /// If you now send a message to a group, contacts there will automatically
-/// replace the old with your new address.\n\nIt's highly advised to set up 
+/// replace the old with your new address.\n\n It's highly advised to set up 
 /// your old email provider to forward all emails to your new email address. 
 /// Otherwise you might miss messages of contacts who did not get your new 
 /// address yet." + the link to the AEAP blog post

@@ -19,7 +19,7 @@ $ curl https://sh.rustup.rs -sSf | sh
 Compile and run Delta Chat Core command line utility, using `cargo`:
 
 ```
-$ RUST_LOG=repl=info cargo run -p deltachat-repl -- ~/deltachat-db
+$ RUST_LOG=deltachat_repl=info cargo run -p deltachat-repl -- ~/deltachat-db
 ```
 where ~/deltachat-db is the database file. Delta Chat will create it if it does not exist.
 
@@ -113,7 +113,7 @@ $ cargo build -p deltachat_ffi --release
 
 - `DCC_MIME_DEBUG`: if set outgoing and incoming message will be printed 
 
-- `RUST_LOG=repl=info,async_imap=trace,async_smtp=trace`: enable IMAP and
+- `RUST_LOG=deltachat_repl=info,async_imap=trace,async_smtp=trace`: enable IMAP and
 SMTP tracing in addition to info messages.
 
 ### Expensive tests
@@ -170,7 +170,9 @@ Language bindings are available for:
   - over cffi (legacy): \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
   - over jsonrpc built with napi.rs: \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
-- **Go**[^1] \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
+- **Go**
+  - over jsonrpc: \[[📂 source](https://github.com/deltachat/deltachat-rpc-client-go/)\]
+  - over cffi[^1]: \[[📂 source](https://github.com/deltachat/go-deltachat/)\]
 - **Free Pascal**[^1] \[[📂 source](https://github.com/deltachat/deltachat-fp/)\]
 - **Java** and **Swift** (contained in the Android/iOS repos)
 

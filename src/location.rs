@@ -434,10 +434,7 @@ fn is_marker(txt: &str) -> bool {
 
 /// Deletes all locations from the database.
 pub async fn delete_all(context: &Context) -> Result<()> {
-    context
-        .sql
-        .execute("DELETE FROM locations;", paramsv![])
-        .await?;
+    context.sql.execute("DELETE FROM locations;", ()).await?;
     context.emit_event(EventType::LocationChanged(None));
     Ok(())
 }

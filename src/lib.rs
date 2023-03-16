@@ -12,7 +12,10 @@
     clippy::wildcard_imports,
     clippy::needless_borrow,
     clippy::cast_lossless,
-    clippy::unused_async
+    clippy::unused_async,
+    clippy::explicit_iter_loop,
+    clippy::explicit_into_iter_loop,
+    clippy::cloned_instead_of_copied
 )]
 #![allow(
     clippy::match_bool,

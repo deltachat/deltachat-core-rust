@@ -293,12 +293,12 @@ pub unsafe extern "C" fn dc_set_stock_translation(
             Some(id) => match ctx.set_stock_translation(id, msg).await {
                 Ok(()) => 1,
                 Err(err) => {
-                    warn!(ctx, "set_stock_translation failed: {}", err);
+                    warn!(ctx, "set_stock_translation failed: {err:#}");
                     0
                 }
             },
             None => {
-                warn!(ctx, "invalid stock message id {}", stock_id);
+                warn!(ctx, "invalid stock message id {stock_id}");
                 0
             }
         }
@@ -321,7 +321,7 @@ pub unsafe extern "C" fn dc_set_config_from_qr(
         match qr::set_config_from_qr(ctx, &qr).await {
             Ok(()) => 1,
             Err(err) => {
-                error!(ctx, "Failed to create account from QR code: {}", err);
+                error!(ctx, "Failed to create account from QR code: {err:#}");
                 0
             }
         }
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn dc_get_info(context: *const dc_context_t) -> *mut libc:
         match ctx.get_info().await {
             Ok(info) => render_info(info).unwrap_or_default().strdup(),
             Err(err) => {
-                warn!(ctx, "failed to get info: {}", err);
+                warn!(ctx, "failed to get info: {err:#}");
                 "".strdup()
             }
         }
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn dc_get_connectivity_html(
         match ctx.get_connectivity_html().await {
             Ok(html) => html.strdup(),
             Err(err) => {
-                error!(ctx, "Failed to get connectivity html: {}", err);
+                error!(ctx, "Failed to get connectivity html: {err:#}");
                 "".strdup()
             }
         }
@@ -422,6 +422,10 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     })
 }
 
+fn spawn_configure(ctx: Context) {
+    spawn(async move { ctx.configure().await.log_err(&ctx, "Configure failed") });
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     if context.is_null() {
@@ -430,8 +434,7 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     }
 
     let ctx = &*context;
-
-    spawn(async move { ctx.configure().await.log_err(ctx, "Configure failed") });
+    spawn_configure(ctx.clone());
 }
 
 #[no_mangle]
@@ -1138,7 +1141,7 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
             }
             Ok(None) => ptr::null_mut(),
             Err(err) => {
-                error!(ctx, "Failed to get draft for chat #{}: {}", chat_id, err);
+                error!(ctx, "Failed to get draft for chat #{chat_id}: {err:#}");
                 ptr::null_mut()
             }
         }
@@ -1728,7 +1731,7 @@ pub unsafe extern "C" fn dc_get_chat_encrinfo(
             .await
             .map(|s| s.strdup())
             .unwrap_or_else(|e| {
-                error!(ctx, "{}", e);
+                error!(ctx, "{e:#}");
                 ptr::null_mut()
             })
     })
@@ -1891,7 +1894,7 @@ pub unsafe extern "C" fn dc_resend_msgs(
     let msg_ids = convert_and_prune_message_ids(msg_ids, msg_cnt);
 
     if let Err(err) = block_on(chat::resend_msgs(ctx, &msg_ids)) {
-        error!(ctx, "Resending failed: {}", err);
+        error!(ctx, "Resending failed: {err:#}");
         0
     } else {
         1
@@ -1932,14 +1935,11 @@ pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context_t, msg_id: u32) -> 
                     // C-core API returns empty messages, do the same
                     warn!(
                         ctx,
-                        "dc_get_msg called with special msg_id={}, returning empty msg", msg_id
+                        "dc_get_msg called with special msg_id={msg_id}, returning empty msg"
                     );
                     message::Message::default()
                 } else {
-                    error!(
-                        ctx,
-                        "dc_get_msg could not retrieve msg_id {}: {}", msg_id, e
-                    );
+                    error!(ctx, "dc_get_msg could not retrieve msg_id {msg_id}: {e:#}");
                     return ptr::null_mut();
                 }
             }
@@ -2132,7 +2132,7 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
             .await
             .map(|s| s.strdup())
             .unwrap_or_else(|e| {
-                error!(ctx, "{}", e);
+                error!(ctx, "{e:#}");
                 ptr::null_mut()
             })
     })
@@ -2154,7 +2154,7 @@ pub unsafe extern "C" fn dc_delete_contact(
         match Contact::delete(ctx, contact_id).await {
             Ok(_) => 1,
             Err(err) => {
-                error!(ctx, "cannot delete contact: {}", err);
+                error!(ctx, "cannot delete contact: {err:#}");
                 0
             }
         }
@@ -2180,6 +2180,14 @@ pub unsafe extern "C" fn dc_get_contact(
     })
 }
 
+fn spawn_imex(ctx: Context, what: imex::ImexMode, param1: String, passphrase: Option<String>) {
+    spawn(async move {
+        imex::imex(&ctx, what, param1.as_ref(), passphrase)
+            .await
+            .log_err(&ctx, "IMEX failed")
+    });
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_imex(
     context: *mut dc_context_t,
@@ -2203,11 +2211,7 @@ pub unsafe extern "C" fn dc_imex(
     let ctx = &*context;
 
     if let Some(param1) = to_opt_string_lossy(param1) {
-        spawn(async move {
-            imex::imex(ctx, what, param1.as_ref(), passphrase)
-                .await
-                .log_err(ctx, "IMEX failed")
-        });
+        spawn_imex(ctx.clone(), what, param1, passphrase);
     } else {
         eprintln!("dc_imex called without a valid directory");
     }
@@ -2230,7 +2234,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
             Err(err) => {
                 // do not bubble up error to the user,
                 // the ui will expect that the file does not exist or cannot be accessed
-                warn!(ctx, "dc_imex_has_backup: {}", err);
+                warn!(ctx, "dc_imex_has_backup: {err:#}");
                 ptr::null_mut()
             }
         }
@@ -2249,7 +2253,7 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
         match imex::initiate_key_transfer(ctx).await {
             Ok(res) => res.strdup(),
             Err(err) => {
-                error!(ctx, "dc_initiate_key_transfer(): {}", err);
+                error!(ctx, "dc_initiate_key_transfer(): {err:#}");
                 ptr::null_mut()
             }
         }
@@ -2274,7 +2278,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
         {
             Ok(()) => 1,
             Err(err) => {
-                warn!(ctx, "dc_continue_key_transfer: {}", err);
+                warn!(ctx, "dc_continue_key_transfer: {err:#}");
                 0
             }
         }
@@ -2705,7 +2709,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     match ffi_list.list.get_chat_id(index) {
         Ok(chat_id) => chat_id.to_u32(),
         Err(err) => {
-            warn!(ctx, "get_chat_id failed: {}", err);
+            warn!(ctx, "get_chat_id failed: {err:#}");
             0
         }
     }
@@ -2725,7 +2729,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     match ffi_list.list.get_msg_id(index) {
         Ok(msg_id) => msg_id.map_or(0, |msg_id| msg_id.to_u32()),
         Err(err) => {
-            warn!(ctx, "get_msg_id failed: {}", err);
+            warn!(ctx, "get_msg_id failed: {err:#}");
             0
         }
     }
@@ -2884,7 +2888,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
             Ok(Some(p)) => p.to_string_lossy().strdup(),
             Ok(None) => ptr::null_mut(),
             Err(err) => {
-                error!(ctx, "failed to get profile image: {:?}", err);
+                error!(ctx, "failed to get profile image: {err:#}");
                 ptr::null_mut()
             }
         }
@@ -3036,7 +3040,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
         let chat = match chat::Chat::load_from_db(ctx, ChatId::new(chat_id)).await {
             Ok(chat) => chat,
             Err(err) => {
-                error!(ctx, "dc_get_chat_info_json() failed to load chat: {}", err);
+                error!(ctx, "dc_get_chat_info_json() failed to load chat: {err:#}");
                 return "".strdup();
             }
         };
@@ -3045,7 +3049,7 @@ pub unsafe extern "C" fn dc_chat_get_info_json(
             Err(err) => {
                 error!(
                     ctx,
-                    "dc_get_chat_info_json() failed to get chat info: {}", err
+                    "dc_get_chat_info_json() failed to get chat info: {err:#}"
                 );
                 return "".strdup();
             }
@@ -3284,7 +3288,7 @@ pub unsafe extern "C" fn dc_msg_get_webxdc_info(msg: *mut dc_msg_t) -> *mut libc
         let info = match ffi_msg.message.get_webxdc_info(ctx).await {
             Ok(info) => info,
             Err(err) => {
-                error!(ctx, "dc_msg_get_webxdc_info() failed to get info: {}", err);
+                error!(ctx, "dc_msg_get_webxdc_info() failed to get info: {err:#}");
                 return "".strdup();
             }
         };
@@ -4251,7 +4255,7 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
         match self {
             Ok(t) => t,
             Err(err) => {
-                error!(context, "{}: {}", message, err);
+                error!(context, "{message}: {err:#}");
                 Default::default()
             }
         }
@@ -4744,6 +4748,12 @@ mod jsonrpc {
         drop(Box::from_raw(jsonrpc_instance));
     }
 
+    fn spawn_handle_jsonrpc_request(handle: RpcSession<CommandApi>, request: String) {
+        spawn(async move {
+            handle.handle_incoming(&request).await;
+        });
+    }
+
     #[no_mangle]
     pub unsafe extern "C" fn dc_jsonrpc_request(
         jsonrpc_instance: *mut dc_jsonrpc_instance_t,
@@ -4754,12 +4764,9 @@ mod jsonrpc {
             return;
         }
 
-        let api = &*jsonrpc_instance;
-        let handle = &api.handle;
+        let handle = &(*jsonrpc_instance).handle;
         let request = to_string_lossy(request);
-        spawn(async move {
-            handle.handle_incoming(&request).await;
-        });
+        spawn_handle_jsonrpc_request(handle.clone(), request);
     }
 
     #[no_mangle]

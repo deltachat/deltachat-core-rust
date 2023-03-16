@@ -403,7 +403,7 @@ impl TestContext {
                     SELECT id, msg_id, mime, recipients
                     FROM smtp
                     ORDER BY id DESC"#,
-                    paramsv![],
+                    (),
                     |row| {
                         let rowid: i64 = row.get(0)?;
                         let msg_id: MsgId = row.get(1)?;
@@ -604,7 +604,6 @@ impl TestContext {
     /// [`TestContext::recv_msg`] with the returned [`SentMessage`] if it wants to receive
     /// the message.
     pub async fn send_msg(&self, chat_id: ChatId, msg: &mut Message) -> SentMessage<'_> {
-        chat::prepare_msg(self, chat_id, msg).await.unwrap();
         let msg_id = chat::send_msg(self, chat_id, msg).await.unwrap();
         let res = self.pop_sent_msg().await;
         assert_eq!(

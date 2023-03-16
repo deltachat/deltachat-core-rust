@@ -148,7 +148,7 @@ impl DcKey for SignedSecretKey {
                      WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
                        AND is_default=1;
                     "#,
-                    paramsv![],
+                    (),
                     |row| {
                         let bytes: Vec<u8> = row.get(0)?;
                         Ok(bytes)
@@ -302,7 +302,7 @@ pub async fn store_self_keypair(
                 .context("failed to remove old use of key")?;
             if default == KeyPairUse::Default {
                 transaction
-                    .execute("UPDATE keypairs SET is_default=0;", paramsv![])
+                    .execute("UPDATE keypairs SET is_default=0;", ())
                     .context("failed to clear default")?;
             }
             let is_default = match default {
@@ -592,7 +592,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
 
         let nrows = || async {
             ctx.sql
-                .count("SELECT COUNT(*) FROM keypairs;", paramsv![])
+                .count("SELECT COUNT(*) FROM keypairs;", ())
                 .await
                 .unwrap()
         };

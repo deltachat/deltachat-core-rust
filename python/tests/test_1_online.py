@@ -72,6 +72,19 @@ def test_configure_canceled(acfactory):
         pass
 
 
+def test_configure_unref(tmpdir):
+    """Test that removing the last reference to the context during ongoing configuration
+    does not result in use-after-free."""
+    from deltachat.capi import ffi, lib
+
+    path = tmpdir.mkdir("test_configure_unref").join("dc.db").strpath
+    dc_context = lib.dc_context_new(ffi.NULL, path.encode("utf8"), ffi.NULL)
+    lib.dc_set_config(dc_context, "addr".encode("utf8"), "foo@x.testrun.org".encode("utf8"))
+    lib.dc_set_config(dc_context, "mail_pw".encode("utf8"), "abc".encode("utf8"))
+    lib.dc_configure(dc_context)
+    lib.dc_context_unref(dc_context)
+
+
 def test_export_import_self_keys(acfactory, tmpdir, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
 
@@ -204,13 +217,13 @@ def test_html_message(acfactory, lp):
     lp.sec("ac1: prepare and send text message to ac2")
     msg1 = chat.send_text("message0")
     assert not msg1.has_html()
-    assert msg1.html == ""
+    assert not msg1.html
 
     lp.sec("wait for ac2 to receive message")
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.text == "message0"
     assert not msg2.has_html()
-    assert msg2.html == ""
+    assert not msg2.html
 
     lp.sec("ac1: prepare and send HTML+text message to ac2")
     msg1 = Message.new_empty(ac1, "text")
@@ -2137,7 +2150,7 @@ def test_status(acfactory):
     chat12.send_text("hello")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.text == "hello"
-    assert msg.get_sender_contact().status == ""
+    assert not msg.get_sender_contact().status
 
 
 def test_group_quote(acfactory, lp):

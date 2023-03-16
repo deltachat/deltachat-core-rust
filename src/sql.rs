@@ -220,7 +220,7 @@ impl Sql {
             let addrs = self
                 .query_map(
                     "SELECT addr FROM acpeerstates;",
-                    paramsv![],
+                    (),
                     |row| row.get::<_, String>(0),
                     |addrs| {
                         addrs
@@ -713,12 +713,22 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
 
     // Try to clear the freelist to free some space on the disk. This
     // only works if auto_vacuum is enabled.
-    if let Err(err) = context
+    match context
         .sql
-        .execute("PRAGMA incremental_vacuum", paramsv![])
+        .query_row_optional("PRAGMA incremental_vacuum", (), |_row| Ok(()))
         .await
     {
-        warn!(context, "Failed to run incremental vacuum: {}", err);
+        Err(err) => {
+            warn!(context, "Failed to run incremental vacuum: {err:#}");
+        }
+        Ok(Some(())) => {
+            // Incremental vacuum returns a zero-column result if it did anything.
+            info!(context, "Successfully ran incremental vacuum.");
+        }
+        Ok(None) => {
+            // Incremental vacuum returned `SQLITE_DONE` immediately,
+            // there were no pages to remove.
+        }
     }
 
     if let Err(e) = context
@@ -732,7 +742,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .sql
         .execute(
             "DELETE FROM msgs_mdns WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            paramsv![],
+            (),
         )
         .await
         .ok_or_log_msg(context, "failed to remove old MDNs");
@@ -780,7 +790,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         .sql
         .query_map(
             "SELECT value FROM config;",
-            paramsv![],
+            (),
             |row| row.get::<_, String>(0),
             |rows| {
                 for row in rows {
@@ -915,7 +925,7 @@ async fn maybe_add_from_param(
 ) -> Result<()> {
     sql.query_map(
         query,
-        paramsv![],
+        (),
         |row| row.get::<_, String>(0),
         |rows| {
             for row in rows {
