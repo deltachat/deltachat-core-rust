@@ -3558,7 +3558,7 @@ dependencies = [
 [[package]]
 name = "quinn-proto"
 version = "0.9.2"
-source = "git+https://github.com/link2xt/quinn?branch=android-no-tos#e67136966a4010564bd85861177029765a9ea811"
+source = "git+https://github.com/link2xt/quinn?branch=ecn-einval-fallback#b60a5474ae63fcc0cec0c7b104079a20b79c9ede"
 dependencies = [
  "bytes",
  "rand 0.8.5",
@@ -3576,7 +3576,7 @@ dependencies = [
 [[package]]
 name = "quinn-udp"
 version = "0.3.2"
-source = "git+https://github.com/link2xt/quinn?branch=android-no-tos#e67136966a4010564bd85861177029765a9ea811"
+source = "git+https://github.com/link2xt/quinn?branch=ecn-einval-fallback#b60a5474ae63fcc0cec0c7b104079a20b79c9ede"
 dependencies = [
  "libc",
  "quinn-proto",
