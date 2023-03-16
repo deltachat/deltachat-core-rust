@@ -10,9 +10,9 @@ checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
 name = "abao"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa67f56b146a784d8feb9f5e4dc5e309fdbf7e3f6631a9c6d709348536abc628"
+checksum = "2daa0989489b05a455a9707adbbbc17443edf7bbc902ce499cd3b84148d68a40"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -2460,7 +2460,7 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 [[package]]
 name = "iroh"
 version = "0.3.0"
-source = "git+https://github.com/n0-computer/iroh?branch=flub/ticket-multiple-addrs#2aa7f6c240e143979fbf337f02086300df884a37"
+source = "git+https://github.com/n0-computer/iroh?branch=flub/ticket-multiple-addrs#2149bc8c6819b044833f5af0b8fdac567ef93650"
 dependencies = [
  "abao",
  "anyhow",
