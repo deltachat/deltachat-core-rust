@@ -365,7 +365,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
     if ticket.addrs.is_empty() {
         bail!("ticket is missing addresses to dial");
     }
-    for addr in ticket.addrs.iter() {
+    for addr in &ticket.addrs {
         let opts = Options {
             addr: *addr,
             peer_id: Some(ticket.peer),
@@ -381,7 +381,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
             Err(TransferError::ConnectionError(err)) => {
                 warn!(context, "Connection error: {err:#}.");
                 continue;
-            },
+            }
             Err(TransferError::Other(err)) => {
                 // Clean up any blobs we already wrote.
                 let readdir = fs::read_dir(context.get_blobdir()).await?;
