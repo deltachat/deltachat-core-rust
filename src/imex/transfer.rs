@@ -188,6 +188,8 @@ impl BackupProvider {
     ) -> Result<()> {
         // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
+        let mut total_size = 0;
+        let mut current_size = 0;
         let res = loop {
             tokio::select! {
                 biased;
@@ -202,10 +204,26 @@ impl BackupProvider {
                                     context.emit_event(SendProgress::ClientConnected.into());
                                 }
                                 Event::RequestReceived { .. } => {
-                                    context.emit_event(SendProgress::TransferStarted.into());
                                 }
-                                Event::TransferCompleted { .. } => {
-                                    context.emit_event(SendProgress::TransferFinished.into());
+                                Event::TransferCollectionStarted { total_blobs_size, .. } => {
+                                    total_size = total_blobs_size;
+                                    context.emit_event(SendProgress::TransferInProgress {
+                                        current_size,
+                                        total_size,
+                                    }.into());
+                                }
+                                Event::TransferBlobCompleted { size, .. } => {
+                                    current_size += size;
+                                    context.emit_event(SendProgress::TransferInProgress {
+                                        current_size,
+                                        total_size,
+                                    }.into());
+                                }
+                                Event::TransferCollectionCompleted { .. } => {
+                                    context.emit_event(SendProgress::TransferInProgress {
+                                        current_size: total_size,
+                                        total_size
+                                    }.into());
                                     provider.shutdown();
                                 }
                                 Event::TransferAborted { .. } => {
@@ -301,22 +319,37 @@ impl Deref for TempPathGuard {
 ///
 /// Plus you get warnings if you don't use all variants.
 #[derive(Debug)]
-#[repr(u16)]
 enum SendProgress {
-    Failed = 0,
-    Started = 100,
-    DatabaseExported = 300,
-    CollectionCreated = 400,
-    ProviderListening = 500,
-    ClientConnected = 600,
-    TransferStarted = 650,
-    TransferFinished = 950,
-    Completed = 1000,
+    Failed,
+    Started,
+    DatabaseExported,
+    CollectionCreated,
+    ProviderListening,
+    ClientConnected,
+    TransferInProgress { current_size: u64, total_size: u64 },
+    Completed,
 }
 
 impl From<SendProgress> for EventType {
     fn from(source: SendProgress) -> Self {
-        Self::ImexProgress((source as u16).into())
+        use SendProgress::*;
+        let num: u16 = match source {
+            Failed => 0,
+            Started => 100,
+            DatabaseExported => 300,
+            CollectionCreated => 350,
+            ProviderListening => 400,
+            ClientConnected => 450,
+            TransferInProgress {
+                current_size,
+                total_size,
+            } => {
+                // the range is 450..=950
+                450 + ((current_size as f64 / total_size as f64) * 500.).floor() as u16
+            }
+            Completed => 1000,
+        };
+        Self::ImexProgress(num.into())
     }
 }
 
@@ -644,5 +677,23 @@ mod tests {
         ctx1.evtracker
             .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))
             .await;
+    }
+
+    #[test]
+    fn test_send_progress() {
+        let cases = [
+            ((0, 100), 450),
+            ((10, 100), 500),
+            ((50, 100), 700),
+            ((100, 100), 950),
+        ];
+
+        for ((current_size, total_size), progress) in cases {
+            let out = EventType::from(SendProgress::TransferInProgress {
+                current_size,
+                total_size,
+            });
+            assert_eq!(out, EventType::ImexProgress(progress));
+        }
     }
 }

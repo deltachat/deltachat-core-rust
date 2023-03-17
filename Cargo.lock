@@ -2460,7 +2460,7 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 [[package]]
 name = "iroh"
 version = "0.3.0"
-source = "git+https://github.com/n0-computer/iroh?branch=flub/ticket-multiple-addrs#2149bc8c6819b044833f5af0b8fdac567ef93650"
+source = "git+https://github.com/n0-computer/iroh?branch=flub/ticket-multiple-addrs#9038359f14496d5f4694c398c512cdcb5358771c"
 dependencies = [
  "abao",
  "anyhow",
@@ -2473,10 +2473,13 @@ dependencies = [
  "default-net",
  "der",
  "derive_more",
+ "dirs-next",
  "ed25519-dalek",
  "futures",
+ "hex",
  "indicatif",
  "multibase",
+ "num_cpus",
  "portable-atomic 1.0.1",
  "postcard",
  "quic-rpc",
