@@ -446,10 +446,20 @@ async fn transfer_from_provider(
     }
 
     drop(progress);
-    res.map(|_| ()).map_err(|err| match connected {
-        true => TransferError::Other(err),
-        false => TransferError::ConnectionError(err),
-    })
+    match res {
+        Ok(stats) => {
+            info!(
+                context,
+                "Backup transfer finished, transfer rate is {} Mbps.",
+                stats.mbits()
+            );
+            Ok(())
+        }
+        Err(err) => match connected {
+            true => Err(TransferError::Other(err)),
+            false => Err(TransferError::ConnectionError(err)),
+        },
+    }
 }
 
 /// Get callback when a blob is received from the provider.
