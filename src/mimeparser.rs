@@ -1976,10 +1976,10 @@ pub(crate) fn get_list_post(headers: &[MailHeader]) -> Option<String> {
         .map(|s| s.addr)
 }
 
-fn get_all_addresses_from_header<F>(headers: &[MailHeader], pred: F) -> Vec<SingleInfo>
-where
-    F: Fn(String) -> bool,
-{
+fn get_all_addresses_from_header(
+    headers: &[MailHeader],
+    pred: fn(String) -> bool,
+) -> Vec<SingleInfo> {
     let mut result: Vec<SingleInfo> = Default::default();
 
     headers
