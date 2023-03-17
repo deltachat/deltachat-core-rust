@@ -341,6 +341,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  export-keys\n\
                  import-keys\n\
                  export-setup\n\
+                 dump <filename>\n\n
+                 read <filename>\n\n
                  poke [<eml-file>|<folder>|<addr> <key-file>]\n\
                  reset <flags>\n\
                  stop\n\
@@ -517,6 +519,14 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 file_name.display(),
                 &setup_code,
             );
+        }
+        "dump" => {
+            ensure!(!arg1.is_empty(), "Argument <filename> missing.");
+            serialize_database(&context, arg1).await?;
+        }
+        "read" => {
+            ensure!(!arg1.is_empty(), "Argument <filename> missing.");
+            deserialize_database(&context, arg1).await?;
         }
         "poke" => {
             ensure!(poke_spec(&context, Some(arg1)).await, "Poke failed");

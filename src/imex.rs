@@ -10,6 +10,7 @@ use futures::StreamExt;
 use futures_lite::FutureExt;
 use rand::{thread_rng, Rng};
 use tokio::fs::{self, File};
+use tokio::io::BufWriter;
 use tokio_tar::Archive;
 
 use crate::blob::{BlobDirContents, BlobObject};
@@ -777,6 +778,20 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
             Ok(())
         })
         .await
+}
+
+/// Serializes the database to a file.
+pub async fn serialize_database(context: &Context, filename: &str) -> Result<()> {
+    let file = File::create(filename).await?;
+    context.sql.serialize(BufWriter::new(file)).await?;
+    Ok(())
+}
+
+/// Deserializes the database from a file.
+pub async fn deserialize_database(context: &Context, filename: &str) -> Result<()> {
+    let file = File::open(filename).await?;
+    context.sql.deserialize(file).await?;
+    Ok(())
 }
 
 #[cfg(test)]
