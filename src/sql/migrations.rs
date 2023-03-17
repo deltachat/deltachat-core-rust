@@ -691,18 +691,20 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         sql.set_db_version(98).await?;
     }
     if dbversion < 99 {
-        // sql.execute_migration(
-        //     "ALTER TABLE msgs DROP COLUMN server_folder;
-        //      ALTER TABLE msgs DROP COLUMN server_uid;
-        //      ALTER TABLE msgs DROP COLUMN move_state;
-        //      ALTER TABLE chats DROP COLUMN draft_timestamp;
-        //      ALTER TABLE chats DROP COLUMN draft_txt",
-        //     99,
-        // )
-        // .await?;
+        sql.execute_migration_parts(
+            [
+                "ALTER TABLE msgs DROP COLUMN server_folder;",
+                "ALTER TABLE msgs DROP COLUMN server_uid;",
+                "ALTER TABLE msgs DROP COLUMN move_state;",
+                "ALTER TABLE chats DROP COLUMN draft_timestamp;",
+                "ALTER TABLE chats DROP COLUMN draft_txt",
+            ],
+            99,
+        )
+        .await?;
 
         // Reverted above, as it requires to load the whole DB in memory.
-        sql.set_db_version(99).await?;
+        // sql.set_db_version(99).await?;
     }
 
     let new_version = sql
@@ -749,6 +751,39 @@ impl Sql {
         })
         .await
         .with_context(|| format!("execute_migration failed for version {version}"))?;
+
+        let mut lock = self.config_cache.write().await;
+        lock.insert(VERSION_CFG.to_string(), Some(format!("{version}")));
+        drop(lock);
+
+        Ok(())
+    }
+
+    async fn execute_migration_parts(
+        &self,
+        queries: impl IntoIterator<Item = &'static str>,
+        version: i32,
+    ) -> Result<()> {
+        for query in queries {
+            self.transaction(move |transaction| {
+                transaction.execute_batch(query)?;
+
+                Ok(())
+            })
+            .await
+            .with_context(|| format!("execute_migration failed for version {version}"))?;
+        }
+
+        self.transaction(move |transaction| {
+            // set raw config inside the transaction
+            transaction.execute(
+                "UPDATE config SET value=? WHERE keyname=?;",
+                paramsv![format!("{version}"), VERSION_CFG],
+            )?;
+            Ok(())
+        })
+        .await
+        .context("failed to set version")?;
 
         let mut lock = self.config_cache.write().await;
         lock.insert(VERSION_CFG.to_string(), Some(format!("{version}")));
