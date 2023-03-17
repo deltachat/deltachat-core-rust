@@ -501,7 +501,7 @@ impl Scheduler {
         let (inbox_start_send, inbox_start_recv) = channel::bounded(1);
         let handle = {
             let ctx = ctx.clone();
-            task::spawn(async move { inbox_loop(ctx, inbox_start_send, inbox_handlers).await })
+            task::spawn(inbox_loop(ctx, inbox_start_send, inbox_handlers))
         };
         let inbox = SchedBox {
             meaning: FolderMeaning::Inbox,
@@ -521,9 +521,7 @@ impl Scheduler {
                 let (conn_state, handlers) = ImapConnectionState::new(&ctx).await?;
                 let (start_send, start_recv) = channel::bounded(1);
                 let ctx = ctx.clone();
-                let handle = task::spawn(async move {
-                    simple_imap_loop(ctx, start_send, handlers, meaning).await
-                });
+                let handle = task::spawn(simple_imap_loop(ctx, start_send, handlers, meaning));
                 oboxes.push(SchedBox {
                     meaning,
                     conn_state,
@@ -535,7 +533,7 @@ impl Scheduler {
 
         let smtp_handle = {
             let ctx = ctx.clone();
-            task::spawn(async move { smtp_loop(ctx, smtp_start_send, smtp_handlers).await })
+            task::spawn(smtp_loop(ctx, smtp_start_send, smtp_handlers))
         };
         start_recvs.push(smtp_start_recv);
 

@@ -1552,7 +1552,7 @@ impl RecentlySeenLoop {
     pub(crate) fn new(context: Context) -> Self {
         let (interrupt_send, interrupt_recv) = channel::bounded(1);
 
-        let handle = task::spawn(async move { Self::run(context, interrupt_recv).await });
+        let handle = task::spawn(Self::run(context, interrupt_recv));
         Self {
             handle,
             interrupt_send,
