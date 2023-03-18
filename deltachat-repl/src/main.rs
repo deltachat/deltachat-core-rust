@@ -359,7 +359,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
                                 false
                             }
                             Err(err) => {
-                                println!("Error: {err}");
+                                println!("Error: {err:#}");
                                 true
                             }
                         }
@@ -374,7 +374,7 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
                     break;
                 }
                 Err(err) => {
-                    println!("Error: {err}");
+                    println!("Error: {err:#}");
                     break;
                 }
             }
