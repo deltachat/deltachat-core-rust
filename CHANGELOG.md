@@ -7,6 +7,7 @@
 - Pick up system's light/dark mode in generated message HTML #4150
 - Support non-persistent configuration with DELTACHAT_* env
 - Print deltachat-repl errors with causes. #4166
+- Increase MSRV to 1.64. #4167
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
