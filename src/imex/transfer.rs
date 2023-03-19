@@ -373,21 +373,20 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    ensure!(
-        !context.scheduler.is_running().await,
-        "cannot import backup, IO is running"
-    );
+    let mut guard = context.scheduler.pause(context).await;
 
     // Acquire global "ongoing" mutex.
     let cancel_token = context.alloc_ongoing().await?;
-    tokio::select! {
+    let res = tokio::select! {
         biased;
         res = get_backup_inner(context, qr) => {
             context.free_ongoing().await;
             res
         }
         _ = cancel_token.recv() => Err(format_err!("cancelled")),
-    }
+    };
+    guard.resume().await;
+    res
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
