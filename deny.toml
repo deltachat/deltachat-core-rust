@@ -34,6 +34,17 @@ skip = [
      { name = "version_check", version = "<0.9" },
      { name = "wasi", version = "<0.11" },
      { name = "windows-sys", version = "<0.45" },
+     { name = "windows_x86_64_msvc", version = "<0.42" },
+     { name = "windows_x86_64_gnu", version = "<0.42" },
+     { name = "windows_i686_msvc", version = "<0.42" },
+     { name = "windows_i686_gnu", version = "<0.42" },
+     { name = "windows_aarch64_msvc", version = "<0.42" },
+     { name = "unicode-xid", version = "<0.2.4" },
+     { name = "syn", version = "<1.0" },
+     { name = "quote", version = "<1.0" },
+     { name = "proc-macro2", version = "<1.0" },
+     { name = "portable-atomic", version = "<1.0" },
+     { name = "spin", version = "<0.9.6" },
 ]
 
 
