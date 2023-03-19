@@ -219,14 +219,9 @@ impl<'a> Drop for IoPausedGuard<'a> {
         if self.done {
             return;
         }
-        let context = self.context.clone();
-        tokio::spawn(async move {
-            let mut inner = context.scheduler.inner.write().await;
-            inner.paused = false;
-            if inner.started && inner.scheduler.is_none() {
-                SchedulerState::do_start(inner, context.clone()).await;
-            }
-        });
+        
+        // Async .resume() should be called manually due to lack of async drop.
+        error!(self.context, "Pause guard dropped without resuming.");
     }
 }
 
