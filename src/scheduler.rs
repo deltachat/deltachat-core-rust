@@ -229,6 +229,8 @@ impl<'a> Drop for IoPausedGuard<'a> {
 struct SchedBox {
     meaning: FolderMeaning,
     conn_state: ImapConnectionState,
+
+    /// IMAP loop task handle.
     handle: task::JoinHandle<()>,
 }
 
