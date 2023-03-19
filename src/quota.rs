@@ -115,7 +115,9 @@ impl Context {
         let requested = self.quota_update_request.swap(true, Ordering::Relaxed);
         if !requested {
             // Quota update was not requested before.
-            self.interrupt_inbox(InterruptInfo::new(false)).await;
+            self.scheduler
+                .interrupt_inbox(InterruptInfo::new(false))
+                .await;
         }
         Ok(())
     }

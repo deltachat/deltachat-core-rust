@@ -1419,7 +1419,10 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.
-    context.interrupt_inbox(InterruptInfo::new(false)).await;
+    context
+        .scheduler
+        .interrupt_inbox(InterruptInfo::new(false))
+        .await;
     Ok(())
 }
 
@@ -1531,7 +1534,10 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                         )
                         .await
                         .context("failed to insert into smtp_mdns")?;
-                    context.interrupt_smtp(InterruptInfo::new(false)).await;
+                    context
+                        .scheduler
+                        .interrupt_smtp(InterruptInfo::new(false))
+                        .await;
                 }
             }
             updated_chat_ids.insert(curr_chat_id);

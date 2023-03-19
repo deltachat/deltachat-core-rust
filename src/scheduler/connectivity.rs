@@ -3,7 +3,7 @@ use std::{iter::once, ops::Deref, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use humansize::{format_size, BINARY};
-use tokio::sync::{Mutex, RwLockReadGuard};
+use tokio::sync::Mutex;
 
 use crate::events::EventType;
 use crate::imap::{scan_folders::get_watched_folder_configs, FolderMeaning};
@@ -12,7 +12,7 @@ use crate::quota::{
 };
 use crate::tools::time;
 use crate::{context::Context, log::LogExt};
-use crate::{scheduler::Scheduler, stock_str, tools};
+use crate::{stock_str, tools};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
@@ -156,19 +156,7 @@ impl ConnectivityStore {
 /// Set all folder states to InterruptingIdle in case they were `Connected` before.
 /// Called during `dc_maybe_network()` to make sure that `dc_accounts_all_work_done()`
 /// returns false immediately after `dc_maybe_network()`.
-pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Option<Scheduler>>) {
-    let (inbox, oboxes) = match &*scheduler {
-        Some(Scheduler { inbox, oboxes, .. }) => (
-            inbox.conn_state.state.connectivity.clone(),
-            oboxes
-                .iter()
-                .map(|b| b.conn_state.state.connectivity.clone())
-                .collect::<Vec<_>>(),
-        ),
-        None => return,
-    };
-    drop(scheduler);
-
+pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<ConnectivityStore>) {
     let mut connectivity_lock = inbox.0.lock().await;
     // For the inbox, we also have to set the connectivity to InterruptingIdle if it was
     // NotConfigured before: If all folders are NotConfigured, dc_get_connectivity()
@@ -195,19 +183,7 @@ pub(crate) async fn idle_interrupted(scheduler: RwLockReadGuard<'_, Option<Sched
 /// Set the connectivity to "Not connected" after a call to dc_maybe_network_lost().
 /// If we did not do this, the connectivity would stay "Connected" for quite a long time
 /// after `maybe_network_lost()` was called.
-pub(crate) async fn maybe_network_lost(
-    context: &Context,
-    scheduler: RwLockReadGuard<'_, Option<Scheduler>>,
-) {
-    let stores: Vec<_> = match &*scheduler {
-        Some(sched) => sched
-            .boxes()
-            .map(|b| b.conn_state.state.connectivity.clone())
-            .collect(),
-        None => return,
-    };
-    drop(scheduler);
-
+pub(crate) async fn maybe_network_lost(context: &Context, stores: Vec<ConnectivityStore>) {
     for store in &stores {
         let mut connectivity_lock = store.0.lock().await;
         if !matches!(
@@ -249,9 +225,9 @@ impl Context {
     ///
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> Connectivity {
-        let lock = self.scheduler.read().await;
-        let stores: Vec<_> = match &*lock {
-            Some(sched) => sched
+        let lock = self.scheduler.inner.read().await;
+        let stores: Vec<_> = match lock.scheduler {
+            Some(ref sched) => sched
                 .boxes()
                 .map(|b| b.conn_state.state.connectivity.clone())
                 .collect(),
@@ -332,9 +308,9 @@ impl Context {
         //                              Get the states from the RwLock
         // =============================================================================================
 
-        let lock = self.scheduler.read().await;
-        let (folders_states, smtp) = match &*lock {
-            Some(sched) => (
+        let lock = self.scheduler.inner.read().await;
+        let (folders_states, smtp) = match lock.scheduler {
+            Some(ref sched) => (
                 sched
                     .boxes()
                     .map(|b| (b.meaning, b.conn_state.state.connectivity.clone()))
@@ -503,9 +479,9 @@ impl Context {
 
     /// Returns true if all background work is done.
     pub async fn all_work_done(&self) -> bool {
-        let lock = self.scheduler.read().await;
-        let stores: Vec<_> = match &*lock {
-            Some(sched) => sched
+        let lock = self.scheduler.inner.read().await;
+        let stores: Vec<_> = match lock.scheduler {
+            Some(ref sched) => sched
                 .boxes()
                 .map(|b| &b.conn_state.state)
                 .chain(once(&sched.smtp.state))

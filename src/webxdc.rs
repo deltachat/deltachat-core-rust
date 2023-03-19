@@ -421,7 +421,9 @@ impl Context {
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 paramsv![instance.id, status_update_serial, status_update_serial, descr],
             ).await?;
-            self.interrupt_smtp(InterruptInfo::new(false)).await;
+            self.scheduler
+                .interrupt_smtp(InterruptInfo::new(false))
+                .await;
         }
         Ok(())
     }

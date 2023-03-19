@@ -443,7 +443,7 @@ impl Context {
             Config::DeleteDeviceAfter => {
                 let ret = self.sql.set_raw_config(key.as_ref(), value).await;
                 // Interrupt ephemeral loop to delete old messages immediately.
-                self.interrupt_ephemeral_task().await;
+                self.scheduler.interrupt_ephemeral_task().await;
                 ret?
             }
             Config::Displayname => {
