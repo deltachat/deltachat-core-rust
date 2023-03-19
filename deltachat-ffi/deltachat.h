@@ -2661,7 +2661,7 @@ void dc_str_unref (char* str);
  * During execution of the job #DC_EVENT_IMEX_PROGRESS is sent out to indicate
  * state and progress.
  *
- * @memberof dc_backup_sender_t
+ * @memberof dc_backup_provider_t
  * @param context The context.
  * @return Opaque object for sending the backup.
  *    On errors, NULL is returned and dc_get_last_error() returns an error that
@@ -2681,7 +2681,6 @@ dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
  * dc_get_backup().
  *
  * @memberof dc_backup_provider_t
- * @param context The context.
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().
  * @return The text that should be put in the QR code.
@@ -2698,7 +2697,6 @@ char* dc_backup_provider_get_qr (const dc_backup_provider_t* backup_provider);
  * SVG image containing the QR code.
  *
  * @memberof dc_backup_provider_t
- * @param context The context.
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().
  * @return The QR code rendered as SVG.
@@ -2715,7 +2713,6 @@ char* dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider
  * dc_start_io().
  *
  * @memberof dc_backup_provider_t
- * @param context The context.
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().  If NULL is given nothing is done.
  */
@@ -2725,6 +2722,8 @@ void dc_backup_provider_wait (dc_backup_provider_t* backup_provider);
  * Frees a dc_backup_provider_t object.
  *
  * @memberof dc_backup_provider_t
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().
  */
 void dc_backup_provider_unref (dc_backup_provider_t* backup_provider);
 
@@ -2745,6 +2744,7 @@ void dc_backup_provider_unref (dc_backup_provider_t* backup_provider);
  * for showing progress and informational only, success and failure is also
  * shown in the return code of this function.
  *
+ * @memberof dc_context_t
  * @param context The context.
  * @param qr The qr code text, dc_check_qr() must have returned DC_QR_BACKUP
  *    on this text.
