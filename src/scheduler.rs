@@ -216,7 +216,7 @@ impl<'a> Drop for IoPausedGuard<'a> {
         if self.done {
             return;
         }
-        
+
         // Async .resume() should be called manually due to lack of async drop.
         error!(self.context, "Pause guard dropped without resuming.");
     }
