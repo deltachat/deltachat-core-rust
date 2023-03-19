@@ -1325,16 +1325,13 @@ impl CommandApi {
         passphrase: Option<String>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_io().await;
-        let result = imex::imex(
+        imex::imex(
             &ctx,
             imex::ImexMode::ExportBackup,
             destination.as_ref(),
             passphrase,
         )
-        .await;
-        ctx.start_io().await;
-        result
+        .await
     }
 
     async fn import_backup(

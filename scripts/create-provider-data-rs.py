@@ -220,13 +220,13 @@ if __name__ == "__main__":
 
     process_dir(Path(sys.argv[1]))
 
-    out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
+    out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| HashMap::from([\n"
     out_all += out_domains
-    out_all += "].iter().copied().collect());\n\n"
+    out_all += "]));\n\n"
 
-    out_all += "pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| [\n"
+    out_all += "pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| HashMap::from([\n"
     out_all += out_ids
-    out_all += "].iter().copied().collect());\n\n"
+    out_all += "]));\n\n"
 
     if len(sys.argv) < 3:
         now = datetime.datetime.utcnow()

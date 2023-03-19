@@ -25,7 +25,7 @@ use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::qr::Qr;
 use crate::quota::QuotaInfo;
-use crate::scheduler::Scheduler;
+use crate::scheduler::SchedulerState;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
@@ -206,7 +206,7 @@ pub struct InnerContext {
     pub(crate) translated_stockstrings: StockStrings,
     pub(crate) events: Events,
 
-    pub(crate) scheduler: RwLock<Option<Scheduler>>,
+    pub(crate) scheduler: SchedulerState,
     pub(crate) ratelimit: RwLock<Ratelimit>,
 
     /// Recently loaded quota information, if any.
@@ -383,7 +383,7 @@ impl Context {
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: stockstrings,
             events,
-            scheduler: RwLock::new(None),
+            scheduler: SchedulerState::new(),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
             quota: RwLock::new(None),
             quota_update_request: AtomicBool::new(false),
@@ -409,42 +409,23 @@ impl Context {
             warn!(self, "can not start io on a context that is not configured");
             return;
         }
-
-        info!(self, "starting IO");
-        let mut lock = self.inner.scheduler.write().await;
-        if lock.is_none() {
-            match Scheduler::start(self.clone()).await {
-                Err(err) => error!(self, "Failed to start IO: {:#}", err),
-                Ok(scheduler) => *lock = Some(scheduler),
-            }
-        }
+        self.scheduler.start(self.clone()).await;
     }
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
-        // Sending an event wakes up event pollers (get_next_event)
-        // so the caller of stop_io() can arrange for proper termination.
-        // For this, the caller needs to instruct the event poller
-        // to terminate on receiving the next event and then call stop_io()
-        // which will emit the below event(s)
-        info!(self, "stopping IO");
-        if let Some(debug_logging) = self.debug_logging.read().await.as_ref() {
-            debug_logging.loop_handle.abort();
-        }
-        if let Some(scheduler) = self.inner.scheduler.write().await.take() {
-            scheduler.stop(self).await;
-        }
+        self.scheduler.stop(self).await;
     }
 
     /// Restarts the IO scheduler if it was running before
     /// when it is not running this is an no-op
     pub async fn restart_io_if_running(&self) {
-        info!(self, "restarting IO");
-        let is_running = { self.inner.scheduler.read().await.is_some() };
-        if is_running {
-            self.stop_io().await;
-            self.start_io().await;
-        }
+        self.scheduler.restart(self).await;
+    }
+
+    /// Indicate that the network likely has come back.
+    pub async fn maybe_network(&self) {
+        self.scheduler.maybe_network().await;
     }
 
     /// Returns a reference to the underlying SQL instance.

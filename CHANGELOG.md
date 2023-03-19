@@ -6,6 +6,12 @@
 - "full message view" not needed because of footers that go to contact status #4151
 - Pick up system's light/dark mode in generated message HTML #4150
 - Support non-persistent configuration with DELTACHAT_* env
+- Print deltachat-repl errors with causes. #4166
+- Increase MSRV to 1.64. #4167
+- Core takes care of stopping and re-starting IO itself where needed,
+  e.g. during backup creation.  It is no longer needed to call
+  dc_stop_io().  dc_start_io() can now be called at any time without
+  harm. #4138
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during

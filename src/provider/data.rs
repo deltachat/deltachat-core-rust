@@ -1513,7 +1513,7 @@ static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
 });
 
 pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
-    [
+    HashMap::from([
         ("163.com", &*P_163),
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol.com", &*P_AOL),
@@ -1875,14 +1875,11 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("zohomail.eu", &*P_ZOHO),
         ("zohomail.com", &*P_ZOHO),
         ("zoho.com", &*P_ZOHO),
-    ]
-    .iter()
-    .copied()
-    .collect()
+    ])
 });
 
 pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
-    [
+    HashMap::from([
         ("163", &*P_163),
         ("aktivix.org", &*P_AKTIVIX_ORG),
         ("aol", &*P_AOL),
@@ -1945,10 +1942,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("yggmail", &*P_YGGMAIL),
         ("ziggo.nl", &*P_ZIGGO_NL),
         ("zoho", &*P_ZOHO),
-    ]
-    .iter()
-    .copied()
-    .collect()
+    ])
 });
 
 pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =

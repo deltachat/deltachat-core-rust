@@ -90,13 +90,17 @@ pub async fn imex(
 ) -> Result<()> {
     let cancel = context.alloc_ongoing().await?;
 
-    let res = imex_inner(context, what, path, passphrase)
-        .race(async {
-            cancel.recv().await.ok();
-            Err(format_err!("canceled"))
-        })
-        .await;
-
+    let res = {
+        let mut guard = context.scheduler.pause(context).await;
+        let res = imex_inner(context, what, path, passphrase)
+            .race(async {
+                cancel.recv().await.ok();
+                Err(format_err!("canceled"))
+            })
+            .await;
+        guard.resume().await;
+        res
+    };
     context.free_ongoing().await;
 
     if let Err(err) = res.as_ref() {
@@ -417,7 +421,7 @@ async fn import_backup(
         "Cannot import backups to accounts in use."
     );
     ensure!(
-        context.scheduler.read().await.is_none(),
+        !context.scheduler.is_running().await,
         "cannot import backup, IO is running"
     );
 

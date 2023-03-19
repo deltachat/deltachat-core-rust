@@ -238,6 +238,7 @@ fn get_backoff_time_offset(tries: u32) -> i64 {
 pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
     context.resync_request.store(true, Ordering::Relaxed);
     context
+        .scheduler
         .interrupt_inbox(InterruptInfo {
             probe_network: false,
         })
@@ -250,7 +251,10 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
     job.save(context).await.context("failed to save job")?;
 
     info!(context, "interrupt: imap");
-    context.interrupt_inbox(InterruptInfo::new(false)).await;
+    context
+        .scheduler
+        .interrupt_inbox(InterruptInfo::new(false))
+        .await;
     Ok(())
 }
 
