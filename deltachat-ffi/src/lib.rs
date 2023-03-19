@@ -28,9 +28,10 @@ use deltachat::constants::DC_MSG_ID_LAST_SPECIAL;
 use deltachat::contact::{Contact, ContactId, Origin};
 use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
+use deltachat::imex::BackupProvider;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
-use deltachat::qr_code_generator::get_securejoin_qr_svg;
+use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
 use deltachat::stock_str::StockStrings;
@@ -4140,6 +4141,105 @@ pub unsafe extern "C" fn dc_reactions_unref(reactions: *mut dc_reactions_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
+}
+
+pub struct BackupProviderWrapper {
+    context: *const dc_context_t,
+    provider: BackupProvider,
+}
+
+pub type dc_backup_provider_t = BackupProviderWrapper;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_new(
+    context: *mut dc_context_t,
+) -> *mut dc_backup_provider_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_new()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+    block_on(BackupProvider::prepare(ctx))
+        .map(|provider| BackupProviderWrapper {
+            context: ctx,
+            provider,
+        })
+        .map(|ffi_provider| Box::into_raw(Box::new(ffi_provider)))
+        .log_err(ctx, "BackupProvider failed")
+        .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_get_qr(
+    provider: *const dc_backup_provider_t,
+) -> *mut libc::c_char {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_qr");
+        return "".strdup();
+    }
+    let ffi_provider = &*provider;
+    deltachat::qr::format_backup(&ffi_provider.provider.qr())
+        .unwrap_or_default()
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_get_qr_svg(
+    provider: *const dc_backup_provider_t,
+) -> *mut libc::c_char {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_qr_svg()");
+        return "".strdup();
+    }
+    let ffi_provider = &*provider;
+    let ctx = &*ffi_provider.context;
+    let provider = &ffi_provider.provider;
+    block_on(generate_backup_qr(ctx, &provider.qr()))
+        .unwrap_or_default()
+        .strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provider_t) {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_wait()");
+        return;
+    }
+    let ffi_provider = &mut *provider;
+    let ctx = &*ffi_provider.context;
+    let provider = &mut ffi_provider.provider;
+    block_on(provider)
+        .log_err(ctx, "Failed to join provider")
+        .ok();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_backup_provider_unref(provider: *mut dc_backup_provider_t) {
+    drop(Box::from_raw(provider));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_receive_backup(
+    context: *mut dc_context_t,
+    qr: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_receive_backup()");
+        return 0;
+    }
+    let ctx = &*context;
+    let qr_text = to_string_lossy(qr);
+    let qr = match block_on(qr::check_qr(ctx, &qr_text)).log_err(ctx, "Invalid QR code") {
+        Ok(qr) => qr,
+        Err(_) => return 0,
+    };
+    spawn(async move {
+        imex::get_backup(ctx, qr)
+            .await
+            .log_err(ctx, "Get backup failed")
+            .ok();
+    });
+    1
 }
 
 trait ResultExt<T, E> {

@@ -24,6 +24,11 @@ lto = true
 panic = 'abort'
 opt-level = "z"
 
+[patch.crates-io]
+default-net = { git = "https://github.com/dignifiedquire/default-net.git", branch="feat-android" }
+quinn-udp = { git = "https://github.com/quinn-rs/quinn", branch="main" }
+quinn-proto = { git = "https://github.com/quinn-rs/quinn", branch="main" }
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 format-flowed = { path = "./format-flowed" }
@@ -48,6 +53,8 @@ futures-lite = "1.12.0"
 hex = "0.4.0"
 humansize = "2"
 image = { version = "0.24.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+# iroh = { version = "0.3.0", default-features = false }
+iroh = { git = 'https://github.com/n0-computer/iroh', branch = "flub/ticket-multiple-addrs" }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
@@ -95,6 +102,7 @@ log = "0.4"
 pretty_env_logger = "0.4"
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
+testdir = "0.7.2"
 tokio = { version = "1", features = ["parking_lot", "rt-multi-thread", "macros"] }
 
 [workspace]

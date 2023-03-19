@@ -32,6 +32,9 @@ pub enum QrObject {
     Account {
         domain: String,
     },
+    Backup {
+        ticket: String,
+    },
     WebrtcInstance {
         domain: String,
         instance_pattern: String,
@@ -126,6 +129,9 @@ impl From<Qr> for QrObject {
             }
             Qr::FprWithoutAddr { fingerprint } => QrObject::FprWithoutAddr { fingerprint },
             Qr::Account { domain } => QrObject::Account { domain },
+            Qr::Backup { ticket } => QrObject::Backup {
+                ticket: ticket.to_string(),
+            },
             Qr::WebrtcInstance {
                 domain,
                 instance_pattern,

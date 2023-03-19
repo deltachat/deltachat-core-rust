@@ -34,6 +34,7 @@ const VCARD_SCHEME: &str = "BEGIN:VCARD";
 const SMTP_SCHEME: &str = "SMTP:";
 const HTTP_SCHEME: &str = "http://";
 const HTTPS_SCHEME: &str = "https://";
+pub(crate) const DCBACKUP_SCHEME: &str = "DCBACKUP:";
 
 /// Scanned QR code.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,6 +101,20 @@ pub enum Qr {
     Account {
         /// Server domain name.
         domain: String,
+    },
+
+    /// Provides a backup that can be retrieve.
+    ///
+    /// This contains all the data needed to connect to a device and download a backup from
+    /// it to configure the receiving device with the same account.
+    Backup {
+        /// Printable version of the provider information.
+        ///
+        /// This is the printable version of a `sendme` ticket, which contains all the
+        /// information to connect to and authenticate a backup provider.
+        ///
+        /// The format is somewhat opaque, but `sendme` can deserialise this.
+        ticket: iroh::provider::Ticket,
     },
 
     /// Ask the user if they want to use the given service for video chats.
@@ -244,6 +259,8 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         dclogin_scheme::decode_login(qr)?
     } else if starts_with_ignore_case(qr, DCWEBRTC_SCHEME) {
         decode_webrtc_instance(context, qr)?
+    } else if starts_with_ignore_case(qr, DCBACKUP_SCHEME) {
+        decode_backup(qr)?
     } else if qr.starts_with(MAILTO_SCHEME) {
         decode_mailto(context, qr).await?
     } else if qr.starts_with(SMTP_SCHEME) {
@@ -262,6 +279,19 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         }
     };
     Ok(qrcode)
+}
+
+/// Formats the text of the [`Qr::Backup`] variant.
+///
+/// This is the inverse of [`check_qr`] for that variant only.
+///
+/// TODO: Refactor this so all variants have a correct [`Display`] and transform `check_qr`
+/// into `FromStr`.
+pub fn format_backup(qr: &Qr) -> Result<String> {
+    match qr {
+        Qr::Backup { ref ticket } => Ok(format!("{DCBACKUP_SCHEME}{ticket}")),
+        _ => Err(anyhow!("Not a backup QR code")),
+    }
 }
 
 /// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
@@ -469,6 +499,18 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
     } else {
         bail!("Bad URL scheme for WebRTC instance: {:?}", payload);
     }
+}
+
+/// Decodes a [`DCBACKUP_SCHEME`] QR code.
+///
+/// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
+/// [`iroh::provider::Ticket`]'s `Display` impl.
+fn decode_backup(qr: &str) -> Result<Qr> {
+    let payload = qr
+        .strip_prefix(DCBACKUP_SCHEME)
+        .ok_or(anyhow!("invalid DCBACKUP scheme"))?;
+    let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
+    Ok(Qr::Backup { ticket })
 }
 
 #[derive(Debug, Deserialize)]

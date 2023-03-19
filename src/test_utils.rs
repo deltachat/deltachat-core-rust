@@ -40,6 +40,11 @@ pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avata
 static CONTEXT_NAMES: Lazy<std::sync::RwLock<BTreeMap<u32, String>>> =
     Lazy::new(|| std::sync::RwLock::new(BTreeMap::new()));
 
+/// Manage multiple [`TestContext`]s in one place.
+///
+/// The main advantage is that the log records of the contexts will appear in the order they
+/// occurred rather than grouped by context like would happen when you use separate
+/// [`TestContext`]s without managing your own [`LogSink`].
 pub struct TestContextManager {
     log_tx: Sender<LogEvent>,
     _log_sink: LogSink,

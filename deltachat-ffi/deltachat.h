@@ -24,6 +24,7 @@ typedef struct _dc_provider  dc_provider_t;
 typedef struct _dc_event     dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_jsonrpc_instance dc_jsonrpc_instance_t;
+typedef struct _dc_backup_provider dc_backup_provider_t;
 
 // Alias for backwards compatibility, use dc_event_emitter_t instead.
 typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
@@ -2294,6 +2295,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
 #define         DC_QR_FPR_MISMATCH           220 // id=contact
 #define         DC_QR_FPR_WITHOUT_ADDR       230 // test1=formatted fingerprint
 #define         DC_QR_ACCOUNT                250 // text1=domain
+#define         DC_QR_BACKUP                 251
 #define         DC_QR_WEBRTC_INSTANCE        260 // text1=domain, text2=instance pattern
 #define         DC_QR_ADDR                   320 // id=contact
 #define         DC_QR_TEXT                   330 // text1=text
@@ -2319,7 +2321,7 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  *   ask whether to verify the contact;
  *   if so, start the protocol with dc_join_securejoin().
  *
- * - DC_QR_ASK_VERIFYGROUP withdc_lot_t::text1=Group name:
+ * - DC_QR_ASK_VERIFYGROUP with dc_lot_t::text1=Group name:
  *   ask whether to join the group;
  *   if so, start the protocol with dc_join_securejoin().
  *
@@ -2338,6 +2340,10 @@ void            dc_stop_ongoing_process      (dc_context_t* context);
  * - DC_QR_ACCOUNT dc_lot_t::text1=domain:
  *   ask the user if they want to create an account on the given domain,
  *   if so, call dc_set_config_from_qr() and then dc_configure().
+ *
+ * - DC_QR_BACKUP:
+ *   ask the user if they want to set up a new device.
+ *   If so, pass the qr-code to dc_receive_backup().
  *
  * - DC_QR_WEBRTC_INSTANCE with dc_lot_t::text1=domain:
  *   ask the user if they want to use the given service for video chats;
@@ -2628,6 +2634,123 @@ char* dc_get_last_error (dc_context_t* context);
  */
 void dc_str_unref (char* str);
 
+
+/**
+ * @class dc_backup_provider_t
+ *
+ * Set up another device.
+ */
+
+/**
+ * Creates an object for sending a backup to another device.
+ *
+ * Before calling this function IO must be stopped using dc_accounts_stop_io()
+ * or dc_stop_io() so that no changes to the blobs or database are happening.
+ * IO should only be restarted once dc_backup_provider_wait() has returned.
+ *
+ * The backup is sent to through a peer-to-peer channel which is bootstrapped
+ * by a QR-code.  The backup contains the entire state of the account
+ * including credentials.  This can be used to setup a new device.
+ *
+ * This is a blocking call as some preparations are made like e.g. exporting
+ * the database.  Once this function returns, the backup is being offered to
+ * remote devices.  To wait until one device received the backup, use
+ * dc_backup_provider_wait().  Alternatively abort the operation using
+ * dc_stop_ongoing_process().
+ *
+ * During execution of the job #DC_EVENT_IMEX_PROGRESS is sent out to indicate
+ * state and progress.
+ *
+ * @memberof dc_backup_provider_t
+ * @param context The context.
+ * @return Opaque object for sending the backup.
+ *    On errors, NULL is returned and dc_get_last_error() returns an error that
+ *    should be shown to the user.
+ */
+dc_backup_provider_t* dc_backup_provider_new (dc_context_t* context);
+
+
+/**
+ * Returns the QR code text that will offer the backup to other devices.
+ *
+ * The QR code contains a ticket which will validate the backup and provide
+ * authentication for both the provider and the recipient.
+ *
+ * The scanning device should call the scanned text to dc_check_qr().  If
+ * dc_check_qr() returns DC_QR_BACKUP, the backup transfer can be started using
+ * dc_get_backup().
+ *
+ * @memberof dc_backup_provider_t
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().
+ * @return The text that should be put in the QR code.
+ *    On errors an empty string is returned, NULL is never returned.
+ *    the returned string must be released using dc_str_unref() after usage.
+ */
+char* dc_backup_provider_get_qr (const dc_backup_provider_t* backup_provider);
+
+
+/**
+ * Returns the QR code SVG image that will offer the backup to other devices.
+ *
+ * This works like dc_backup_provider_qr() but returns the text of a rendered
+ * SVG image containing the QR code.
+ *
+ * @memberof dc_backup_provider_t
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().
+ * @return The QR code rendered as SVG.
+ *    On errors an empty string is returned, NULL is never returned.
+ *    the returned string must be released using dc_str_unref() after usage.
+ */
+char* dc_backup_provider_get_qr_svg (const dc_backup_provider_t* backup_provider);
+
+/**
+ * Waits for the sending to finish.
+ *
+ * This is a blocking call and should only be called once.  Once this function
+ * returns IO can be started again using dc_accounts_start_io() or
+ * dc_start_io().
+ *
+ * @memberof dc_backup_provider_t
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().  If NULL is given nothing is done.
+ */
+void dc_backup_provider_wait (dc_backup_provider_t* backup_provider);
+
+/**
+ * Frees a dc_backup_provider_t object.
+ *
+ * @memberof dc_backup_provider_t
+ * @param backup_provider The backup provider object as created by
+ *    dc_backup_provider_new().
+ */
+void dc_backup_provider_unref (dc_backup_provider_t* backup_provider);
+
+/**
+ * Gets a backup offered by a dc_backup_provider_t object on another device.
+ *
+ * This function is called on a device that scanned the QR code offered by
+ * dc_backup_sender_qr() or dc_backup_sender_qr_svg().  Typically this is a
+ * different device than that which provides the backup.
+ *
+ * This call will block while the backup is being transferred and only
+ * complete on success or failure.  Use dc_stop_ongoing_process() to abort it
+ * early.
+ *
+ * During execution of the job #DC_EVENT_IMEX_PROGRESS is sent out to indicate
+ * state and progress.  The process is finished when the event emits either 0
+ * or 1000, 0 means it failed and 1000 means it succeeded.  These events are
+ * for showing progress and informational only, success and failure is also
+ * shown in the return code of this function.
+ *
+ * @memberof dc_context_t
+ * @param context The context.
+ * @param qr The qr code text, dc_check_qr() must have returned DC_QR_BACKUP
+ *    on this text.
+ * @return 0=failure, 1=success.
+ */
+int dc_receive_backup (dc_context_t* context, const char* qr);
 
 /**
  * @class dc_accounts_t

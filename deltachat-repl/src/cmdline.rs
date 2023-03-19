@@ -336,6 +336,8 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  has-backup\n\
                  export-backup\n\
                  import-backup <backup-file>\n\
+                 send-backup\n\
+                 receive-backup <qr>\n\
                  export-keys\n\
                  import-keys\n\
                  export-setup\n\
@@ -485,6 +487,17 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Some(arg2.to_string()),
             )
             .await?;
+        }
+        "send-backup" => {
+            let provider = BackupProvider::prepare(&context).await?;
+            let qr = provider.qr();
+            println!("QR code: {}", format_backup(&qr)?);
+            provider.await?;
+        }
+        "receive-backup" => {
+            ensure!(!arg1.is_empty(), "Argument <qr> is missing.");
+            let qr = check_qr(&context, arg1).await?;
+            deltachat::imex::get_backup(&context, qr).await?;
         }
         "export-keys" => {
             let dir = dirs::home_dir().unwrap_or_default();

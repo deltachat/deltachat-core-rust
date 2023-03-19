@@ -22,7 +22,7 @@ use deltachat::{
     },
     provider::get_provider_info,
     qr,
-    qr_code_generator::get_securejoin_qr_svg,
+    qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg},
     reaction::send_reaction,
     securejoin,
     stock_str::StockMessage,
@@ -1348,6 +1348,69 @@ impl CommandApi {
             passphrase,
         )
         .await
+    }
+
+    /// Offers a backup for remote devices to retrieve.
+    ///
+    /// Can be cancelled by stopping the ongoing process.  Success or failure can be tracked
+    /// via the `ImexProgress` event which should either reach `1000` for success or `0` for
+    /// failure.
+    ///
+    /// This **stops IO** while it is running.
+    ///
+    /// Returns once a remote device has retrieved the backup.
+    async fn provide_backup(&self, account_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.stop_io().await;
+        let provider = match imex::BackupProvider::prepare(&ctx).await {
+            Ok(provider) => provider,
+            Err(err) => {
+                ctx.start_io().await;
+                return Err(err);
+            }
+        };
+        let res = provider.await;
+        ctx.start_io().await;
+        res
+    }
+
+    /// Returns the text of the QR code for the running [`CommandApi::provide_backup`].
+    ///
+    /// This QR code text can be used in [`CommandApi::get_backup`] on a second device to
+    /// retrieve the backup and setup this second device.
+    async fn get_backup_qr(&self, account_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = ctx
+            .backup_export_qr()
+            .ok_or(anyhow!("no backup being exported"))?;
+        qr::format_backup(&qr)
+    }
+
+    /// Returns the rendered QR code for the running [`CommandApi::provide_backup`].
+    ///
+    /// This QR code can be used in [`CommandApi::get_backup`] on a second device to
+    /// retrieve the backup and setup this second device.
+    ///
+    /// Returns the QR code rendered as an SVG image.
+    async fn get_backup_qr_svg(&self, account_id: u32) -> Result<String> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = ctx
+            .backup_export_qr()
+            .ok_or(anyhow!("no backup being exported"))?;
+        generate_backup_qr(&ctx, &qr).await
+    }
+
+    /// Gets a backup from a remote provider.
+    ///
+    /// This retrieves the backup from a remote device over the network and imports it into
+    /// the current device.
+    ///
+    /// Can be cancelled by stopping the ongoing process.
+    async fn get_backup(&self, account_id: u32, qr_text: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let qr = qr::check_qr(&ctx, &qr_text).await?;
+        imex::get_backup(&ctx, qr).await?;
+        Ok(())
     }
 
     // ---------------------------------------------

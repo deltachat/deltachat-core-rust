@@ -23,6 +23,7 @@ use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
+use crate::qr::Qr;
 use crate::quota::QuotaInfo;
 use crate::scheduler::SchedulerState;
 use crate::sql::Sql;
@@ -191,6 +192,10 @@ pub struct InnerContext {
     pub(crate) blobdir: PathBuf,
     pub(crate) sql: Sql,
     pub(crate) smeared_timestamp: SmearedTimestamp,
+    /// The global "ongoing" process state.
+    ///
+    /// This is a global mutex-like state for operations which should be modal in the
+    /// clients.
     running_state: RwLock<RunningState>,
     /// Mutex to avoid generating the key for the user more than once.
     pub(crate) generating_key_mutex: Mutex<()>,
@@ -236,6 +241,14 @@ pub struct InnerContext {
 
     /// If debug logging is enabled, this contains all necessary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
+
+    /// QR code for currently running [`BackupProvider`].
+    ///
+    /// This is only available if a backup export is currently running, it will also be
+    /// holding the ongoing process while running.
+    ///
+    /// [`BackupProvider`]: crate::imex::BackupProvider
+    pub(crate) export_provider: std::sync::Mutex<Option<Qr>>,
 }
 
 #[derive(Debug)]
@@ -380,6 +393,7 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: RwLock::new(None),
+            export_provider: std::sync::Mutex::new(None),
         };
 
         let ctx = Context {
@@ -502,6 +516,13 @@ impl Context {
 
     // Ongoing process allocation/free/check
 
+    /// Tries to acquire the global UI "ongoing" mutex.
+    ///
+    /// This is for modal operations during which no other user actions are allowed.  Only
+    /// one such operation is allowed at any given time.
+    ///
+    /// The return value is a cancel token, which will release the ongoing mutex when
+    /// dropped.
     pub(crate) async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
         let mut s = self.running_state.write().await;
         ensure!(
@@ -545,6 +566,17 @@ impl Context {
             RunningState::Running { .. } => false,
             RunningState::ShallStop | RunningState::Stopped => true,
         }
+    }
+
+    /// Returns the QR-code of the currently running [`BackupProvider`].
+    ///
+    /// [`BackupProvider`]: crate::imex::BackupProvider
+    pub fn backup_export_qr(&self) -> Option<Qr> {
+        self.export_provider
+            .lock()
+            .expect("poisoned lock")
+            .as_ref()
+            .cloned()
     }
 
     /*******************************************************************************
