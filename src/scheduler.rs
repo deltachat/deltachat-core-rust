@@ -131,7 +131,6 @@ impl SchedulerState {
             None => return,
         };
         drop(inner);
-        // TODO: maybe this called code should move into scheduler.maybe_network() instead?
         connectivity::idle_interrupted(inbox, oboxes).await;
     }
 
@@ -149,8 +148,6 @@ impl SchedulerState {
             None => return,
         };
         drop(inner);
-        // TODO; maybe this called code should move into scheduler.maybe_network_lost()
-        // instead?
         connectivity::maybe_network_lost(context, stores).await;
     }
 
