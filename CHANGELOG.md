@@ -12,6 +12,7 @@
   e.g. during backup creation.  It is no longer needed to call
   dc_stop_io().  dc_start_io() can now be called at any time without
   harm. #4138
+- Removed human-panic dependency. #4173
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during

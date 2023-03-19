@@ -9,9 +9,6 @@
     clippy::expect_fun_call
 )]
 
-#[macro_use]
-extern crate human_panic;
-
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::Write;
@@ -93,8 +90,6 @@ pub unsafe extern "C" fn dc_context_new(
     dbfile: *const libc::c_char,
     blobdir: *const libc::c_char,
 ) -> *mut dc_context_t {
-    setup_panic!();
-
     if dbfile.is_null() {
         eprintln!("ignoring careless call to dc_context_new()");
         return ptr::null_mut();
@@ -124,8 +119,6 @@ pub unsafe extern "C" fn dc_context_new(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_new_closed(dbfile: *const libc::c_char) -> *mut dc_context_t {
-    setup_panic!();
-
     if dbfile.is_null() {
         eprintln!("ignoring careless call to dc_context_new_closed()");
         return ptr::null_mut();
@@ -4318,8 +4311,6 @@ pub unsafe extern "C" fn dc_accounts_new(
     _os_name: *const libc::c_char,
     dbfile: *const libc::c_char,
 ) -> *mut dc_accounts_t {
-    setup_panic!();
-
     if dbfile.is_null() {
         eprintln!("ignoring careless call to dc_accounts_new()");
         return ptr::null_mut();
