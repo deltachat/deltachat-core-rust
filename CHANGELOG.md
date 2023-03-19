@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
 
 ### Changes
 - "full message view" not needed because of footers that go to contact status #4151
@@ -22,7 +22,7 @@
 - Do not emit "Failed to run incremental vacuum" warnings on success. #4160
 
 
-## 1.111.0
+## [1.111.0] - 2023-03-05
 
 ### Changes
 - Make smeared timestamp generation non-async. #4075
@@ -2311,3 +2311,6 @@
 For a full list of changes, please see our closed Pull Requests: 
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
+
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...HEAD
+[1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
