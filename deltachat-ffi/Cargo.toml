@@ -17,7 +17,7 @@ crate-type = ["cdylib", "staticlib"]
 deltachat = { path = "../", default-features = false }
 deltachat-jsonrpc = { path = "../deltachat-jsonrpc", optional = true }
 libc = "0.2"
-human-panic = "1"
+human-panic = { version = "1", default-features = false }
 num-traits = "0.2"
 serde_json = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread"] }
