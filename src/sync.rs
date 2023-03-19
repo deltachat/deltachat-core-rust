@@ -109,8 +109,8 @@ impl Context {
         Ok(())
     }
 
-    // Add deleted qr-code token to the list of items to be synced
-    // so that the token also gets deleted on the other devices.
+    /// Adds deleted qr-code token to the list of items to be synced
+    /// so that the token also gets deleted on the other devices.
     pub(crate) async fn sync_qr_code_token_deletion(
         &self,
         invitenumber: String,
