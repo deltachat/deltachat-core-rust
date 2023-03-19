@@ -374,7 +374,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         "Cannot import backups to accounts in use."
     );
     ensure!(
-        context.scheduler.read().await.is_none(),
+        !context.scheduler.is_running().await,
         "cannot import backup, IO is running"
     );
 

@@ -750,7 +750,7 @@ where
 /// This also verifies that IO is not running during the export.
 async fn export_database(context: &Context, dest: &Path, passphrase: String) -> Result<()> {
     ensure!(
-        context.scheduler.read().await.is_none(),
+        !context.scheduler.is_running().await,
         "cannot export backup, IO is running"
     );
     let now = time().try_into().context("32-bit UNIX time overflow")?;
