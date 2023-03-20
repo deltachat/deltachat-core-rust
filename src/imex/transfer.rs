@@ -91,7 +91,7 @@ impl BackupProvider {
 
         // Acquire global "ongoing" mutex.
         let cancel_token = context.alloc_ongoing().await?;
-        let mut paused_guard = context.scheduler.pause(context.clone()).await;
+        let paused_guard = context.scheduler.pause(context.clone()).await;
         let context_dir = context
             .get_blobdir()
             .parent()
@@ -119,7 +119,7 @@ impl BackupProvider {
             Ok((provider, ticket)) => (provider, ticket),
             Err(err) => {
                 context.free_ongoing().await;
-                paused_guard.resume().await;
+                paused_guard.resume();
                 return Err(err);
             }
         };
@@ -128,7 +128,7 @@ impl BackupProvider {
             tokio::spawn(async move {
                 let res = Self::watch_provider(&context, provider, cancel_token, dbfile).await;
                 context.free_ongoing().await;
-                paused_guard.resume().await;
+                paused_guard.resume();
                 res
             })
         };
@@ -377,7 +377,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    let mut guard = context.scheduler.pause(context.clone()).await;
+    let guard = context.scheduler.pause(context.clone()).await;
 
     // Acquire global "ongoing" mutex.
     let cancel_token = context.alloc_ongoing().await?;
@@ -389,7 +389,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         }
         _ = cancel_token.recv() => Err(format_err!("cancelled")),
     };
-    guard.resume().await;
+    guard.resume();
     res
 }
 

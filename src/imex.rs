@@ -91,14 +91,14 @@ pub async fn imex(
     let cancel = context.alloc_ongoing().await?;
 
     let res = {
-        let mut guard = context.scheduler.pause(context.clone()).await;
+        let guard = context.scheduler.pause(context.clone()).await;
         let res = imex_inner(context, what, path, passphrase)
             .race(async {
                 cancel.recv().await.ok();
                 Err(format_err!("canceled"))
             })
             .await;
-        guard.resume().await;
+        guard.resume();
         res
     };
     context.free_ongoing().await;

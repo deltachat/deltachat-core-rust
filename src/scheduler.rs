@@ -5,7 +5,7 @@ use anyhow::{bail, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use futures::future::try_join_all;
 use futures_lite::FutureExt;
-use tokio::sync::{RwLock, RwLockWriteGuard};
+use tokio::sync::{oneshot, RwLock, RwLockWriteGuard};
 use tokio::task;
 
 use self::connectivity::ConnectivityStore;
@@ -96,13 +96,21 @@ impl SchedulerState {
     /// resume will do the right thing and restore the scheduler to the state requested by
     /// the last call.
     pub(crate) async fn pause<'a>(&'_ self, context: Context) -> IoPausedGuard {
-        let mut inner = self.inner.write().await;
-        inner.paused = true;
-        Self::do_stop(inner, &context).await;
-        IoPausedGuard {
-            context,
-            done: false,
+        {
+            let mut inner = self.inner.write().await;
+            inner.paused = true;
+            Self::do_stop(inner, &context).await;
         }
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            rx.await.ok();
+            let mut inner = context.scheduler.inner.write().await;
+            inner.paused = false;
+            if inner.started && inner.scheduler.is_none() {
+                SchedulerState::do_start(inner, context.clone()).await;
+            }
+        });
+        IoPausedGuard { sender: Some(tx) }
     }
 
     /// Restarts the scheduler, only if it is running.
@@ -194,31 +202,30 @@ struct InnerSchedulerState {
     paused: bool,
 }
 
+/// Guard to make sure the IO Scheduler is resumed.
+///
+/// Returned by [`SchedulerState::pause`].  To resume the IO scheduler simply drop this
+/// guard.
 #[derive(Debug)]
 pub(crate) struct IoPausedGuard {
-    context: Context,
-    done: bool,
+    sender: Option<oneshot::Sender<()>>,
 }
 
 impl IoPausedGuard {
-    pub(crate) async fn resume(&mut self) {
-        self.done = true;
-        let mut inner = self.context.scheduler.inner.write().await;
-        inner.paused = false;
-        if inner.started && inner.scheduler.is_none() {
-            SchedulerState::do_start(inner, self.context.clone()).await;
-        }
+    /// Resume the scheduler explicitly.
+    ///
+    /// Does nothing special, simply drops this guard.
+    pub(crate) fn resume(self) {
+        drop(self)
     }
 }
 
 impl Drop for IoPausedGuard {
     fn drop(&mut self) {
-        if self.done {
-            return;
+        if let Some(sender) = self.sender.take() {
+            // Can only fail if receiver is dropped, but then we're already resumed.
+            sender.send(()).ok();
         }
-
-        // Async .resume() should be called manually due to lack of async drop.
-        error!(self.context, "Pause guard dropped without resuming.");
     }
 }
 
