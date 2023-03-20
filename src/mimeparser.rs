@@ -63,6 +63,8 @@ pub(crate) struct MimeMessage {
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
+    /// The List-Post address is only set for mailing lists. Users can send
+    /// messages to this address to post them to the list.
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decryption_info: DecryptionInfo,
@@ -768,6 +770,8 @@ impl MimeMessage {
         !self.signatures.is_empty()
     }
 
+    /// Returns whether the email contains a `chat-version` header.
+    /// This indicates that the email is a DC-email.
     pub(crate) fn has_chat_version(&self) -> bool {
         self.header.contains_key("chat-version")
     }

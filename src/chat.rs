@@ -1400,6 +1400,7 @@ impl Chat {
     }
 
     /// Returns true if the chat is promoted.
+    /// This means a message has been sent to it and it _not_ only exists on the users device.
     pub fn is_promoted(&self) -> bool {
         !self.is_unpromoted()
     }
@@ -2969,6 +2970,7 @@ pub(crate) async fn remove_from_chat_contacts_table(
 }
 
 /// Adds a contact to the chat.
+/// If the group is promoted, also sends out a system message to all group members
 pub async fn add_contact_to_chat(
     context: &Context,
     chat_id: ChatId,
@@ -2990,7 +2992,7 @@ pub(crate) async fn add_contact_to_chat_ex(
 
     chat_id.reset_gossiped_timestamp(context).await?;
 
-    /*this also makes sure, not contacts are added to special or normal chats*/
+    // this also makes sure, no contacts are added to special or normal chats
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
         chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast,
@@ -3012,7 +3014,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot add contact to group; self not in group.".into(),
         ));
-        bail!("can not add contact because our account is not part of it");
+        bail!("can not add contact because the account is not part of the group/broadcast");
     }
 
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
