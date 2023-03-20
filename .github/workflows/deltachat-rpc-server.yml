@@ -8,6 +8,8 @@ concurrency:
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   # Build a version statically linked against musl libc
@@ -134,3 +136,64 @@ jobs:
           name: deltachat-rpc-server-${{ matrix.artifact }}
           path: target/${{ matrix.target}}/release/${{ matrix.path }}
           if-no-files-found: error
+
+  publish:
+    name: Upload binaries to the release
+    needs:
+      ["build_static_linux", "build_linux", "build_android", "build_windows"]
+    permissions:
+      contents: write
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Download deltachat-rpc-server-x86_64
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-x86_64"
+
+      - name: Download deltachat-rpc-server-aarch64
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-aarch64"
+
+      - name: Download deltachat-rpc-server-armv7
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-armv7"
+
+      - name: Download deltachat-rpc-server-android-armv7
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-android-armv7"
+
+      - name: Download deltachat-rpc-server-android-aarch64
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-android-aarch64"
+
+      - name: Download deltachat-rpc-server-android-i686
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-android-i686"
+
+      - name: Download deltachat-rpc-server-android-x86_64
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-android-x86_64"
+
+      - name: Download deltachat-rpc-server-win32.exe
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-win32.exe"
+
+      - name: Download deltachat-rpc-server-win64.exe
+        uses: "actions/download-artifact@v3"
+        with:
+          name: "deltachat-rpc-server-win64.exe"
+
+      - name: Upload binaries to the GitHub release
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            deltachat-rpc-server-*
