@@ -258,7 +258,7 @@ async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
         msg.text = Some(
             "It seems you are using multiple devices with Delta Chat. Great!\n\n\
              If you also want to synchronize outgoing messages across all devices, \
-             go to \"Settings → Advanced\" and enable \"Send copy to self\"."
+             go to \"Settings → Advanced\" and enable \"Send Copy to Self\"."
                 .to_string(),
         );
         chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg)).await?;
