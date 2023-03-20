@@ -1482,6 +1482,7 @@ pub(crate) async fn update_last_seen(
 /// Normalize a name.
 ///
 /// - Remove quotes (come from some bad MUA implementations)
+/// - Trims the resulting string
 ///
 /// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
 pub fn normalize_name(full_name: &str) -> String {

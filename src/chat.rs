@@ -2216,11 +2216,11 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         }
     }
 
-    // protect all file messages againts LTRO attacks
-    if msg.viewtype == Viewtype::File {
+    // protect all messages containing a file against rtlo
+    if let Some(file_name) = msg.param.get(Param::File){
         msg.param.set(
             Param::File,
-            strip_rtlo_characters(msg.param.get(Param::File).unwrap_or_default()),
+            strip_rtlo_characters(file_name),
         );
     }
 
@@ -2863,7 +2863,7 @@ pub async fn create_group_chat(
     protect: ProtectionStatus,
     chat_name: &str,
 ) -> Result<ChatId> {
-    let chat_name = strip_rtlo_characters(improve_single_line_input(chat_name).as_str());
+    let chat_name = improve_single_line_input(chat_name);
     ensure!(!chat_name.is_empty(), "Invalid chat name");
 
     let grpid = create_id();
