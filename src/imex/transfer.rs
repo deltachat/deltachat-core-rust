@@ -91,6 +91,7 @@ impl BackupProvider {
 
         // Acquire global "ongoing" mutex.
         let cancel_token = context.alloc_ongoing().await?;
+        let mut paused_guard = context.scheduler.pause(context.clone()).await;
         let context_dir = context
             .get_blobdir()
             .parent()
@@ -118,15 +119,19 @@ impl BackupProvider {
             Ok((provider, ticket)) => (provider, ticket),
             Err(err) => {
                 context.free_ongoing().await;
+                paused_guard.resume().await;
                 return Err(err);
             }
         };
-        let handle = tokio::spawn(Self::watch_provider(
-            context.clone(),
-            provider,
-            cancel_token,
-            dbfile,
-        ));
+        let handle = {
+            let context = context.clone();
+            tokio::spawn(async move {
+                let res = Self::watch_provider(&context, provider, cancel_token, dbfile).await;
+                context.free_ongoing().await;
+                paused_guard.resume().await;
+                res
+            })
+        };
         let slf = Self { handle, ticket };
         let qr = slf.qr();
         *context.export_provider.lock().expect("poisoned lock") = Some(qr);
@@ -181,7 +186,7 @@ impl BackupProvider {
     /// The *cancel_token* is the handle for the ongoing process mutex, when this completes
     /// we must cancel this operation.
     async fn watch_provider(
-        context: Context,
+        context: &Context,
         mut provider: Provider,
         cancel_token: Receiver<()>,
         _dbfile: TempPathGuard,
@@ -262,7 +267,6 @@ impl BackupProvider {
                 context.emit_event(SendProgress::Failed.into())
             }
         }
-        context.free_ongoing().await;
         res
     }
 
@@ -373,7 +377,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    let mut guard = context.scheduler.pause(context).await;
+    let mut guard = context.scheduler.pause(context.clone()).await;
 
     // Acquire global "ongoing" mutex.
     let cancel_token = context.alloc_ongoing().await?;
