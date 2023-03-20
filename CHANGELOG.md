@@ -13,6 +13,8 @@
   dc_stop_io().  dc_start_io() can now be called at any time without
   harm. #4138
 - More accurate maybe_add_bcc_self device message text #4175
+- LogExt::log_err now calls Context::set_last_error so that the FFI
+  can use this and have consistent dc_get_last_error() reporting. #4187
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
