@@ -95,10 +95,10 @@ impl SchedulerState {
     /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
     /// resume will do the right thing and restore the scheduler to the state requested by
     /// the last call.
-    pub(crate) async fn pause<'a>(&'_ self, context: &'a Context) -> IoPausedGuard<'a> {
+    pub(crate) async fn pause<'a>(&'_ self, context: Context) -> IoPausedGuard {
         let mut inner = self.inner.write().await;
         inner.paused = true;
-        Self::do_stop(inner, context).await;
+        Self::do_stop(inner, &context).await;
         IoPausedGuard {
             context,
             done: false,
@@ -195,12 +195,12 @@ struct InnerSchedulerState {
 }
 
 #[derive(Debug)]
-pub(crate) struct IoPausedGuard<'a> {
-    context: &'a Context,
+pub(crate) struct IoPausedGuard {
+    context: Context,
     done: bool,
 }
 
-impl<'a> IoPausedGuard<'a> {
+impl IoPausedGuard {
     pub(crate) async fn resume(&mut self) {
         self.done = true;
         let mut inner = self.context.scheduler.inner.write().await;
@@ -211,7 +211,7 @@ impl<'a> IoPausedGuard<'a> {
     }
 }
 
-impl<'a> Drop for IoPausedGuard<'a> {
+impl Drop for IoPausedGuard {
     fn drop(&mut self) {
         if self.done {
             return;
