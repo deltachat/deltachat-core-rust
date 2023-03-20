@@ -147,6 +147,7 @@ impl<T, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
             );
             // We can't use the warn!() macro here as the file!() and line!() macros
             // don't work with #[track_caller]
+            context.set_last_error(&full);
             context.emit_event(crate::EventType::Warning(full));
         };
         self

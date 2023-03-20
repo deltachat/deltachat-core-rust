@@ -4178,7 +4178,9 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr(
         return "".strdup();
     }
     let ffi_provider = &*provider;
+    let ctx = &*ffi_provider.context;
     deltachat::qr::format_backup(&ffi_provider.provider.qr())
+        .log_err(ctx, "BackupProvider get_qr failed")
         .unwrap_or_default()
         .strdup()
 }
@@ -4195,6 +4197,7 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr_svg(
     let ctx = &*ffi_provider.context;
     let provider = &ffi_provider.provider;
     block_on(generate_backup_qr(ctx, &provider.qr()))
+        .log_err(ctx, "BackupProvider get_qr_svg failed")
         .unwrap_or_default()
         .strdup()
 }
@@ -4209,7 +4212,7 @@ pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provid
     let ctx = &*ffi_provider.context;
     let provider = &mut ffi_provider.provider;
     block_on(provider)
-        .log_err(ctx, "Failed to join provider")
+        .log_err(ctx, "Failed to await BackupProvider")
         .ok();
 }
 
