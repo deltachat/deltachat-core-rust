@@ -2217,11 +2217,8 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     }
 
     // protect all messages containing a file against rtlo
-    if let Some(file_name) = msg.param.get(Param::File){
-        msg.param.set(
-            Param::File,
-            strip_rtlo_characters(file_name),
-        );
+    if let Some(file_name) = msg.param.get(Param::File) {
+        msg.param.set(Param::File, strip_rtlo_characters(file_name));
     }
 
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
