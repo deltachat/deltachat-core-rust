@@ -88,26 +88,34 @@ jobs:
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-x86_64"
+          path: "dist/deltachat-rpc-server-x86_64"
 
       - name: Download deltachat-rpc-server-aarch64
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-aarch64"
+          path: "dist/deltachat-rpc-server-aarch64"
 
       - name: Download deltachat-rpc-server-armv7
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-armv7"
+          path: "dist/deltachat-rpc-server-armv7"
 
       - name: Download deltachat-rpc-server-win32.exe
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-win32.exe"
+          path: "dist/deltachat-rpc-server-win32.exe"
 
       - name: Download deltachat-rpc-server-win64.exe
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-win64.exe"
+          path: "dist/deltachat-rpc-server-win64.exe"
+
+      - name: List downloaded artifacts
+        run: ls -l dist/
 
       - name: Upload binaries to the GitHub release
         env:
@@ -115,4 +123,4 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            deltachat-rpc-server-*
+            dist/deltachat-rpc-server-*
