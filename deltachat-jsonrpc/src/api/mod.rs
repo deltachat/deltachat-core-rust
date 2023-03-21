@@ -178,7 +178,7 @@ impl CommandApi {
             .await
             .remove_account(account_id)
             .await?;
-        // self.states.remove(&account_id);
+        self.states.lock().await.remove(&account_id);
         Ok(())
     }
 
