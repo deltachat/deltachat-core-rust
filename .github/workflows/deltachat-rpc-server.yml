@@ -79,7 +79,7 @@ jobs:
 
   publish:
     name: Upload binaries to the release
-    needs: ["build_linux", "build_android", "build_windows"]
+    needs: ["build_linux", "build_windows"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
@@ -98,26 +98,6 @@ jobs:
         uses: "actions/download-artifact@v3"
         with:
           name: "deltachat-rpc-server-armv7"
-
-      - name: Download deltachat-rpc-server-android-armv7
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-android-armv7"
-
-      - name: Download deltachat-rpc-server-android-aarch64
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-android-aarch64"
-
-      - name: Download deltachat-rpc-server-android-i686
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-android-i686"
-
-      - name: Download deltachat-rpc-server-android-x86_64
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-android-x86_64"
 
       - name: Download deltachat-rpc-server-win32.exe
         uses: "actions/download-artifact@v3"
