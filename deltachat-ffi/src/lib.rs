@@ -4166,6 +4166,8 @@ pub unsafe extern "C" fn dc_backup_provider_new(
         })
         .map(|ffi_provider| Box::into_raw(Box::new(ffi_provider)))
         .log_err(ctx, "BackupProvider failed")
+        .context("BackupProvider failed")
+        .set_last_error(ctx)
         .unwrap_or(ptr::null_mut())
 }
 
@@ -4178,7 +4180,11 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr(
         return "".strdup();
     }
     let ffi_provider = &*provider;
+    let ctx = &*ffi_provider.context;
     deltachat::qr::format_backup(&ffi_provider.provider.qr())
+        .log_err(ctx, "BackupProvider get_qr failed")
+        .context("BackupProvider get_qr failed")
+        .set_last_error(ctx)
         .unwrap_or_default()
         .strdup()
 }
@@ -4195,6 +4201,9 @@ pub unsafe extern "C" fn dc_backup_provider_get_qr_svg(
     let ctx = &*ffi_provider.context;
     let provider = &ffi_provider.provider;
     block_on(generate_backup_qr(ctx, &provider.qr()))
+        .log_err(ctx, "BackupProvider get_qr_svg failed")
+        .context("BackupProvider get_qr_svg failed")
+        .set_last_error(ctx)
         .unwrap_or_default()
         .strdup()
 }
@@ -4209,7 +4218,9 @@ pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provid
     let ctx = &*ffi_provider.context;
     let provider = &mut ffi_provider.provider;
     block_on(provider)
-        .log_err(ctx, "Failed to join provider")
+        .log_err(ctx, "Failed to await BackupProvider")
+        .context("Failed to await BackupProvider")
+        .set_last_error(ctx)
         .ok();
 }
 
@@ -4259,6 +4270,56 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
                 Default::default()
             }
         }
+    }
+}
+
+trait ResultLastError<T, E>
+where
+    E: std::fmt::Display,
+{
+    /// Sets this `Err` value using [`Context::set_last_error`].
+    ///
+    /// Normally each FFI-API *should* call this if it handles an error from the Rust API:
+    /// errors which need to be reported to users in response to an API call need to be
+    /// propagated up the Rust API and at the FFI boundary need to be stored into the "last
+    /// error" so the FFI users can retrieve an appropriate error message on failure.  Often
+    /// you will want to combine this with a call to [`LogExt::log_err`].
+    ///
+    /// Since historically calls to the `deltachat::log::error!()` macro were (and sometimes
+    /// still are) shown as error toasts to the user, this macro also calls
+    /// [`Context::set_last_error`].  It is preferable however to rely on normal error
+    /// propagation in Rust code however and only use this `ResultExt::set_last_error` call
+    /// in the FFI layer.
+    ///
+    /// # Example
+    ///
+    /// Fully handling an error in the FFI code looks like this currently:
+    ///
+    /// ```no_compile
+    /// some_dc_rust_api_call_returning_result()
+    ///     .log_err(&context, "My API call failed")
+    ///     .context("My API call failed")
+    ///     .set_last_error(&context)
+    ///     .unwrap_or_default()
+    /// ```
+    ///
+    /// As shows it is a shame the `.log_err()` call currently needs a message instead of
+    /// relying on an implicit call to the [`anyhow::Context`] call if needed.  This stems
+    /// from a time before we fully embraced anyhow.  Some day we'll also fix that.
+    ///
+    /// [`Context::set_last_error`]: context::Context::set_last_error
+    fn set_last_error(self, context: &context::Context) -> Result<T, E>;
+}
+
+impl<T, E> ResultLastError<T, E> for Result<T, E>
+where
+    E: std::fmt::Display,
+{
+    fn set_last_error(self, context: &context::Context) -> Result<T, E> {
+        if let Err(ref err) = self {
+            context.set_last_error(&format!("{err:#}"));
+        }
+        self
     }
 }
 
