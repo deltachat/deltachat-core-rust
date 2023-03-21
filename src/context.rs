@@ -23,7 +23,6 @@ use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
-use crate::qr::Qr;
 use crate::quota::QuotaInfo;
 use crate::scheduler::SchedulerState;
 use crate::sql::Sql;
@@ -241,14 +240,6 @@ pub struct InnerContext {
 
     /// If debug logging is enabled, this contains all necessary information
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
-
-    /// QR code for currently running [`BackupProvider`].
-    ///
-    /// This is only available if a backup export is currently running, it will also be
-    /// holding the ongoing process while running.
-    ///
-    /// [`BackupProvider`]: crate::imex::BackupProvider
-    pub(crate) export_provider: std::sync::Mutex<Option<Qr>>,
 }
 
 #[derive(Debug)]
@@ -393,7 +384,6 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: RwLock::new(None),
-            export_provider: std::sync::Mutex::new(None),
         };
 
         let ctx = Context {
@@ -566,17 +556,6 @@ impl Context {
             RunningState::Running { .. } => false,
             RunningState::ShallStop | RunningState::Stopped => true,
         }
-    }
-
-    /// Returns the QR-code of the currently running [`BackupProvider`].
-    ///
-    /// [`BackupProvider`]: crate::imex::BackupProvider
-    pub fn backup_export_qr(&self) -> Option<Qr> {
-        self.export_provider
-            .lock()
-            .expect("poisoned lock")
-            .as_ref()
-            .cloned()
     }
 
     /*******************************************************************************
