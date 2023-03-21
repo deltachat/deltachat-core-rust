@@ -1361,7 +1361,6 @@ impl CommandApi {
     /// Returns once a remote device has retrieved the backup.
     async fn provide_backup(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_io().await;
         let provider = match imex::BackupProvider::prepare(&ctx).await {
             Ok(provider) => provider,
             Err(err) => {
@@ -1369,9 +1368,7 @@ impl CommandApi {
                 return Err(err);
             }
         };
-        let res = provider.await;
-        ctx.start_io().await;
-        res
+        provider.await
     }
 
     /// Returns the text of the QR code for the running [`CommandApi::provide_backup`].
