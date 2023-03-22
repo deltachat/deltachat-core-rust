@@ -4,6 +4,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
+use deltachat::qr::Qr;
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
@@ -29,7 +30,8 @@ use deltachat::{
     webxdc::StatusUpdateSerial,
 };
 use sanitize_filename::is_sanitized;
-use tokio::{fs, sync::RwLock};
+use tokio::fs;
+use tokio::sync::{watch, Mutex, RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
 
@@ -57,21 +59,45 @@ use self::types::{
 use crate::api::types::chat_list::{get_chat_list_item_by_id, ChatListItemFetchResult};
 use crate::api::types::qr::QrObject;
 
+#[derive(Debug)]
+struct AccountState {
+    /// The Qr code for current [`CommandApi::provide_backup`] call.
+    ///
+    /// If there currently is a call to [`CommandApi::provide_backup`] this will be
+    /// `Pending` or `Ready`, otherwise `NoProvider`.
+    backup_provider_qr: watch::Sender<ProviderQr>,
+}
+
+impl Default for AccountState {
+    fn default() -> Self {
+        let (tx, _rx) = watch::channel(ProviderQr::NoProvider);
+        Self {
+            backup_provider_qr: tx,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CommandApi {
     pub(crate) accounts: Arc<RwLock<Accounts>>,
+
+    states: Arc<Mutex<BTreeMap<u32, AccountState>>>,
 }
 
 impl CommandApi {
     pub fn new(accounts: Accounts) -> Self {
         CommandApi {
             accounts: Arc::new(RwLock::new(accounts)),
+            states: Arc::new(Mutex::new(BTreeMap::new())),
         }
     }
 
     #[allow(dead_code)]
     pub fn from_arc(accounts: Arc<RwLock<Accounts>>) -> Self {
-        CommandApi { accounts }
+        CommandApi {
+            accounts,
+            states: Arc::new(Mutex::new(BTreeMap::new())),
+        }
     }
 
     async fn get_context(&self, id: u32) -> Result<deltachat::context::Context> {
@@ -82,6 +108,38 @@ impl CommandApi {
             .get_account(id)
             .ok_or_else(|| anyhow!("account with id {} not found", id))?;
         Ok(sc)
+    }
+
+    async fn with_state<F, T>(&self, id: u32, with_state: F) -> T
+    where
+        F: FnOnce(&AccountState) -> T,
+    {
+        let mut states = self.states.lock().await;
+        let state = states.entry(id).or_insert_with(Default::default);
+        with_state(state)
+    }
+
+    async fn inner_get_backup_qr(&self, account_id: u32) -> Result<Qr> {
+        let mut receiver = self
+            .with_state(account_id, |state| state.backup_provider_qr.subscribe())
+            .await;
+
+        let val: ProviderQr = receiver.borrow_and_update().clone();
+        match val {
+            ProviderQr::NoProvider => bail!("No backup being provided"),
+            ProviderQr::Pending => loop {
+                if receiver.changed().await.is_err() {
+                    bail!("No backup being provided (account state dropped)");
+                }
+                let val: ProviderQr = receiver.borrow().clone();
+                match val {
+                    ProviderQr::NoProvider => bail!("No backup being provided"),
+                    ProviderQr::Pending => continue,
+                    ProviderQr::Ready(qr) => break Ok(qr),
+                };
+            },
+            ProviderQr::Ready(qr) => Ok(qr),
+        }
     }
 }
 
@@ -115,7 +173,13 @@ impl CommandApi {
     }
 
     async fn remove_account(&self, account_id: u32) -> Result<()> {
-        self.accounts.write().await.remove_account(account_id).await
+        self.accounts
+            .write()
+            .await
+            .remove_account(account_id)
+            .await?;
+        self.states.lock().await.remove(&account_id);
+        Ok(())
     }
 
     async fn get_all_account_ids(&self) -> Vec<u32> {
@@ -1358,31 +1422,35 @@ impl CommandApi {
     ///
     /// This **stops IO** while it is running.
     ///
-    /// Returns once a remote device has retrieved the backup.
+    /// Returns once a remote device has retrieved the backup, or is cancelled.
     async fn provide_backup(&self, account_id: u32) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.stop_io().await;
-        let provider = match imex::BackupProvider::prepare(&ctx).await {
-            Ok(provider) => provider,
-            Err(err) => {
-                ctx.start_io().await;
-                return Err(err);
-            }
-        };
-        let res = provider.await;
-        ctx.start_io().await;
-        res
+        self.with_state(account_id, |state| {
+            state.backup_provider_qr.send_replace(ProviderQr::Pending);
+        })
+        .await;
+
+        let provider = imex::BackupProvider::prepare(&ctx).await?;
+        self.with_state(account_id, |state| {
+            state
+                .backup_provider_qr
+                .send_replace(ProviderQr::Ready(provider.qr()));
+        })
+        .await;
+
+        provider.await
     }
 
     /// Returns the text of the QR code for the running [`CommandApi::provide_backup`].
     ///
     /// This QR code text can be used in [`CommandApi::get_backup`] on a second device to
     /// retrieve the backup and setup this second device.
+    ///
+    /// This call will fail if there is currently no concurrent call to
+    /// [`CommandApi::provide_backup`].  This call may block if the QR code is not yet
+    /// ready.
     async fn get_backup_qr(&self, account_id: u32) -> Result<String> {
-        let ctx = self.get_context(account_id).await?;
-        let qr = ctx
-            .backup_export_qr()
-            .ok_or(anyhow!("no backup being exported"))?;
+        let qr = self.inner_get_backup_qr(account_id).await?;
         qr::format_backup(&qr)
     }
 
@@ -1391,12 +1459,14 @@ impl CommandApi {
     /// This QR code can be used in [`CommandApi::get_backup`] on a second device to
     /// retrieve the backup and setup this second device.
     ///
+    /// This call will fail if there is currently no concurrent call to
+    /// [`CommandApi::provide_backup`].  This call may block if the QR code is not yet
+    /// ready.
+    ///
     /// Returns the QR code rendered as an SVG image.
     async fn get_backup_qr_svg(&self, account_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        let qr = ctx
-            .backup_export_qr()
-            .ok_or(anyhow!("no backup being exported"))?;
+        let qr = self.inner_get_backup_qr(account_id).await?;
         generate_backup_qr(&ctx, &qr).await
     }
 
@@ -1899,4 +1969,16 @@ async fn get_config(
         ctx.get_config(Config::from_str(key).with_context(|| format!("unknown key {key:?}"))?)
             .await
     }
+}
+
+/// Whether a QR code for a BackupProvider is currently available.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
+enum ProviderQr {
+    /// There is no provider, asking for a QR is an error.
+    NoProvider,
+    /// There is a provider, the QR code is pending.
+    Pending,
+    /// There is a provider and QR code.
+    Ready(Qr),
 }

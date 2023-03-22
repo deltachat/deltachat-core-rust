@@ -126,16 +126,14 @@ impl BackupProvider {
         let handle = {
             let context = context.clone();
             tokio::spawn(async move {
-                let res = Self::watch_provider(&context, provider, cancel_token, dbfile).await;
+                let res = Self::watch_provider(&context, provider, cancel_token).await;
                 context.free_ongoing().await;
                 paused_guard.resume().await;
+                drop(dbfile);
                 res
             })
         };
-        let slf = Self { handle, ticket };
-        let qr = slf.qr();
-        *context.export_provider.lock().expect("poisoned lock") = Some(qr);
-        Ok(slf)
+        Ok(Self { handle, ticket })
     }
 
     /// Creates the provider task.
@@ -189,7 +187,6 @@ impl BackupProvider {
         context: &Context,
         mut provider: Provider,
         cancel_token: Receiver<()>,
-        _dbfile: TempPathGuard,
     ) -> Result<()> {
         // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
@@ -255,11 +252,6 @@ impl BackupProvider {
                 },
             }
         };
-        context
-            .export_provider
-            .lock()
-            .expect("poisoned lock")
-            .take();
         match &res {
             Ok(_) => context.emit_event(SendProgress::Completed.into()),
             Err(err) => {
