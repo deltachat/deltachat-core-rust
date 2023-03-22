@@ -2427,7 +2427,7 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 [[package]]
 name = "iroh"
 version = "0.3.0"
-source = "git+https://github.com/n0-computer/iroh?branch=flub/ticket-multiple-addrs#aacd1d84e11b218e55e9622c4500973224904fe9"
+source = "git+https://github.com/n0-computer/iroh?branch=main#9ac4cf6e770879c8b2ec0dc6666fe531469e68e3"
 dependencies = [
  "abao",
  "anyhow",
@@ -2465,6 +2465,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
+ "walkdir",
  "webpki",
  "x509-parser",
  "zeroize",
