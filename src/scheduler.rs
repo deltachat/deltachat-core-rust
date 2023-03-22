@@ -89,8 +89,8 @@ impl SchedulerState {
 
     /// Pauses the IO scheduler.
     ///
-    /// If it is currently running the scheduler will be stopped.  When
-    /// [`IoPausedGuard::resume`] is called the scheduler is started again.
+    /// If it is currently running the scheduler will be stopped.  When the
+    /// [`IoPausedGuard`] is dropped the scheduler is started again.
     ///
     /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
     /// resume will do the right thing and restore the scheduler to the state requested by
