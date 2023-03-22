@@ -211,15 +211,6 @@ pub(crate) struct IoPausedGuard {
     sender: Option<oneshot::Sender<()>>,
 }
 
-impl IoPausedGuard {
-    /// Resume the scheduler explicitly.
-    ///
-    /// Does nothing special, simply drops this guard.
-    pub(crate) fn resume(self) {
-        drop(self)
-    }
-}
-
 impl Drop for IoPausedGuard {
     fn drop(&mut self) {
         if let Some(sender) = self.sender.take() {
