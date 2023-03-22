@@ -4248,10 +4248,11 @@ pub unsafe extern "C" fn dc_receive_backup(
         Ok(qr) => qr,
         Err(_) => return 0,
     };
+    let ctx = ctx.clone();
     spawn(async move {
-        imex::get_backup(ctx, qr)
+        imex::get_backup(&ctx, qr)
             .await
-            .log_err(ctx, "Get backup failed")
+            .log_err(&ctx, "Get backup failed")
             .ok();
     });
     1
