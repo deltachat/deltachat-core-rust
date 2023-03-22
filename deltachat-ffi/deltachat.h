@@ -6990,6 +6990,11 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by name and address of the contact.
 #define DC_STR_PROTECTION_DISABLED_BY_OTHER 161
 
+/// "Scan to set up second device for %1$s"
+///
+/// `%1$s` will be replaced by name and address of the account.
+#define DC_STR_BACKUP_TRANSFER_QR 162
+
 /**
  * @}
  */
