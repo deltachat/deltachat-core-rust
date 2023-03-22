@@ -23,6 +23,10 @@
 - Do not emit "Failed to run incremental vacuum" warnings on success. #4160
 - Ability to send backup over network and QR code to setup second device #4007
 - Disable buffering during STARTTLS setup. #4190
+- Add `DC_EVENT_IMAP_INBOX_IDLE` event to wait until the account
+  is ready for testing.
+  It is used to fix race condition between fetching
+  existing messages and starting the test.
 
 ## [1.111.0] - 2023-03-05
 

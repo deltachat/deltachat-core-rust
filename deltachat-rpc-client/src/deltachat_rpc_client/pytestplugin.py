@@ -55,6 +55,11 @@ class ACFactory:
     async def get_online_account(self) -> Account:
         account = await self.new_configured_account()
         await account.start_io()
+        while True:
+            event = await account.wait_for_event()
+            print(event)
+            if event.type == EventType.IMAP_INBOX_IDLE:
+                break
         return account
 
     async def get_online_accounts(self, num: int) -> List[Account]:

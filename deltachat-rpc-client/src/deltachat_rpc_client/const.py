@@ -31,6 +31,7 @@ class EventType(str, Enum):
     SMTP_MESSAGE_SENT = "SmtpMessageSent"
     IMAP_MESSAGE_DELETED = "ImapMessageDeleted"
     IMAP_MESSAGE_MOVED = "ImapMessageMoved"
+    IMAP_INBOX_IDLE = "ImapInboxIdle"
     NEW_BLOB_FILE = "NewBlobFile"
     DELETED_BLOB_FILE = "DeletedBlobFile"
     WARNING = "Warning"

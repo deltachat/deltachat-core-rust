@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
 use crate::ephemeral::{self, delete_expired_imap_messages};
+use crate::events::EventType;
 use crate::imap::{FolderMeaning, Imap};
 use crate::job;
 use crate::location;
@@ -477,6 +478,7 @@ async fn fetch_idle(
 
     connection.connectivity.set_connected(ctx).await;
 
+    ctx.emit_event(EventType::ImapInboxIdle);
     if let Some(session) = connection.session.take() {
         if !session.can_idle() {
             info!(

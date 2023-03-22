@@ -190,7 +190,7 @@ class FFIEventTracker:
         - ac2 is still running FetchExsistingMsgs job and thinks it's an existing, old message
         - therefore no DC_EVENT_INCOMING_MSG is sent
         """
-        self.get_info_contains("INBOX: Idle entering")
+        self.get_matching("DC_EVENT_IMAP_INBOX_IDLE")
 
     def wait_next_incoming_message(self):
         """wait for and return next incoming message."""

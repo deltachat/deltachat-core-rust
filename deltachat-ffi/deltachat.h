@@ -5706,6 +5706,14 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_IMAP_MESSAGE_MOVED   105
 
 /**
+ * Emitted before going into IDLE on the Inbox folder.
+ *
+ * @param data1 0
+ * @param data2 0
+ */
+#define DC_EVENT_IMAP_INBOX_IDLE 106
+
+/**
  * Emitted when a new blob file was successfully written
  *
  * @param data1 0

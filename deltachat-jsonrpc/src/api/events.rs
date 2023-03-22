@@ -47,6 +47,9 @@ pub enum JSONRPCEventType {
         msg: String,
     },
 
+    /// Emitted before going into IDLE on the Inbox folder.
+    ImapInboxIdle,
+
     /// Emitted when an new file in the $BLOBDIR was created
     NewBlobFile {
         file: String,
@@ -293,6 +296,7 @@ impl From<EventType> for JSONRPCEventType {
             EventType::SmtpMessageSent(msg) => SmtpMessageSent { msg },
             EventType::ImapMessageDeleted(msg) => ImapMessageDeleted { msg },
             EventType::ImapMessageMoved(msg) => ImapMessageMoved { msg },
+            EventType::ImapInboxIdle => ImapInboxIdle,
             EventType::NewBlobFile(file) => NewBlobFile { file },
             EventType::DeletedBlobFile(file) => DeletedBlobFile { file },
             EventType::Warning(msg) => Warning { msg },

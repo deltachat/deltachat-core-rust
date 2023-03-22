@@ -500,6 +500,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::SmtpMessageSent(_) => 103,
         EventType::ImapMessageDeleted(_) => 104,
         EventType::ImapMessageMoved(_) => 105,
+        EventType::ImapInboxIdle => 106,
         EventType::NewBlobFile(_) => 150,
         EventType::DeletedBlobFile(_) => 151,
         EventType::Warning(_) => 300,
@@ -544,6 +545,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
+        | EventType::ImapInboxIdle
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -594,6 +596,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::SmtpMessageSent(_)
         | EventType::ImapMessageDeleted(_)
         | EventType::ImapMessageMoved(_)
+        | EventType::ImapInboxIdle
         | EventType::NewBlobFile(_)
         | EventType::DeletedBlobFile(_)
         | EventType::Warning(_)
@@ -653,6 +656,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         EventType::MsgsChanged { .. }
         | EventType::ReactionsChanged { .. }
         | EventType::IncomingMsg { .. }
+        | EventType::ImapInboxIdle
         | EventType::MsgsNoticed(_)
         | EventType::MsgDelivered { .. }
         | EventType::MsgFailed { .. }
