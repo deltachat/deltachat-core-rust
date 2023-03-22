@@ -125,16 +125,16 @@ impl BackupProvider {
         let handle = {
             let context = context.clone();
             tokio::spawn(async move {
-                let res = Self::watch_provider(&context, provider, cancel_token, dbfile).await;
+                let res = Self::watch_provider(&context, provider, cancel_token).await;
                 context.free_ongoing().await;
-                drop(paused_guard); // Explicit drop to move the guard in this future.
+
+                // Explicit drop to move the guards into this future
+                drop(paused_guard);
+                drop(dbfile);
                 res
             })
         };
-        let slf = Self { handle, ticket };
-        let qr = slf.qr();
-        *context.export_provider.lock().expect("poisoned lock") = Some(qr);
-        Ok(slf)
+        Ok(Self { handle, ticket })
     }
 
     /// Creates the provider task.
@@ -188,7 +188,6 @@ impl BackupProvider {
         context: &Context,
         mut provider: Provider,
         cancel_token: Receiver<()>,
-        _dbfile: TempPathGuard,
     ) -> Result<()> {
         // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
@@ -254,11 +253,6 @@ impl BackupProvider {
                 },
             }
         };
-        context
-            .export_provider
-            .lock()
-            .expect("poisoned lock")
-            .take();
         match &res {
             Ok(_) => context.emit_event(SendProgress::Completed.into()),
             Err(err) => {
@@ -466,7 +460,7 @@ async fn transfer_from_provider(
         opts,
         on_connected,
         |collection| {
-            context.emit_event(ReceiveProgress::CollectionRecieved.into());
+            context.emit_event(ReceiveProgress::CollectionReceived.into());
             progress.set_total(collection.total_blobs_size());
             async { Ok(()) }
         },
@@ -577,7 +571,7 @@ fn spawn_progress_proxy(context: Context, mut rx: broadcast::Receiver<u16>) {
 #[derive(Debug)]
 enum ReceiveProgress {
     Connected,
-    CollectionRecieved,
+    CollectionReceived,
     /// A value between 0 and 85 interpreted as a percentage.
     ///
     /// Other values are already used by the other variants of this enum.
@@ -599,7 +593,7 @@ impl From<ReceiveProgress> for EventType {
     fn from(source: ReceiveProgress) -> Self {
         let val = match source {
             ReceiveProgress::Connected => 50,
-            ReceiveProgress::CollectionRecieved => 100,
+            ReceiveProgress::CollectionReceived => 100,
             ReceiveProgress::BlobProgress(val) => 100 + 10 * val,
             ReceiveProgress::Completed => 1000,
             ReceiveProgress::Failed => 0,

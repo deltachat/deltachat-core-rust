@@ -143,7 +143,7 @@ impl Smtp {
         // Run STARTTLS command and convert the client back into a stream.
         let client = smtp::SmtpClient::new().smtp_utf8(true);
         let transport = SmtpTransport::new(client, BufStream::new(socks5_stream)).await?;
-        let tcp_stream = transport.starttls().await?;
+        let tcp_stream = transport.starttls().await?.into_inner();
         let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;
@@ -199,7 +199,7 @@ impl Smtp {
         // Run STARTTLS command and convert the client back into a stream.
         let client = smtp::SmtpClient::new().smtp_utf8(true);
         let transport = SmtpTransport::new(client, BufStream::new(tcp_stream)).await?;
-        let tcp_stream = transport.starttls().await?;
+        let tcp_stream = transport.starttls().await?.into_inner();
         let tls_stream = wrap_tls(strict_tls, hostname, tcp_stream)
             .await
             .context("STARTTLS upgrade failed")?;

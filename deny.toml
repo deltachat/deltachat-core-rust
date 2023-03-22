@@ -30,7 +30,6 @@ skip = [
      { name = "rand_core", version = "<0.6" },
      { name = "sha2", version = "<0.10" },
      { name = "time", version = "<0.3" },
-     { name = "uuid", version = "<1.3" },
      { name = "version_check", version = "<0.9" },
      { name = "wasi", version = "<0.11" },
      { name = "windows-sys", version = "<0.45" },

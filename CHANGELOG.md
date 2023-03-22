@@ -12,6 +12,7 @@
   e.g. during backup creation.  It is no longer needed to call
   dc_stop_io().  dc_start_io() can now be called at any time without
   harm. #4138
+- More accurate maybe_add_bcc_self device message text #4175
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
@@ -21,6 +22,7 @@
 - Delete expired messages using multiple SQL requests. #4158
 - Do not emit "Failed to run incremental vacuum" warnings on success. #4160
 - Ability to send backup over network and QR code to setup second device #4007
+- Disable buffering during STARTTLS setup. #4190
 
 ## [1.111.0] - 2023-03-05
 

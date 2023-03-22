@@ -306,37 +306,49 @@ impl Sql {
         }
     }
 
-    /// Locks the write transactions mutex.
-    /// We do not make all transactions
-    /// [IMMEDIATE](https://www.sqlite.org/lang_transaction.html#deferred_immediate_and_exclusive_transactions)
-    /// for more parallelism -- at least read transactions can be made DEFERRED to run in parallel
-    /// w/o any drawbacks. But if we make write transactions DEFERRED also w/o any external locking,
-    /// then they are upgraded from read to write ones on the first write statement. This has some
-    /// drawbacks:
-    /// - If there are other write transactions, we block the thread and the db connection until
-    ///   upgraded. Also if some reader comes then, it has to get next, less used connection with a
-    ///   worse per-connection page cache.
-    /// - If a transaction is blocked for more than busy_timeout, it fails with SQLITE_BUSY.
-    /// - Configuring busy_timeout is not the best way to manage transaction timeouts, we would
-    ///   prefer it to be integrated with Rust/tokio asyncs. Moreover, SQLite implements waiting
-    ///   using sleeps.
-    /// - If upon a successful upgrade to a write transaction the db has been modified by another
-    ///   one, the transaction has to be rolled back and retried. It is an extra work in terms of
+    /// Locks the write transactions mutex in order to make sure that there never are
+    /// multiple write transactions at once.
+    ///
+    /// Doing the locking ourselves instead of relying on SQLite has these reasons:
+    ///
+    /// - SQLite's locking mechanism is non-async, blocking a thread
+    /// - SQLite's locking mechanism just sleeps in a loop, which is really inefficient
+    ///
+    /// ---
+    ///
+    /// More considerations on alternatives to the current approach:
+    ///
+    /// We use [DEFERRED](https://www.sqlite.org/lang_transaction.html#deferred_immediate_and_exclusive_transactions) transactions.
+    ///
+    /// In order to never get concurrency issues, we could make all transactions IMMEDIATE,
+    /// but this would mean that there can never be two simultaneous transactions.
+    ///
+    /// Read transactions can simply be made DEFERRED to run in parallel w/o any drawbacks.
+    ///
+    /// DEFERRED write transactions without doing the locking ourselves would have these drawbacks:
+    ///
+    /// 1. As mentioned above, SQLite's locking mechanism is non-async and sleeps in a loop.
+    /// 2. If there are other write transactions, we block the db connection until
+    ///   upgraded. If some reader comes then, it has to get the next, less used connection with a
+    ///   worse per-connection page cache (SQLite allows one write and any number of reads in parallel).
+    /// 3. If a transaction is blocked for more than `busy_timeout`, it fails with SQLITE_BUSY.
+    /// 4. If upon a successful upgrade to a write transaction the db has been modified,
+    ///   the transaction has to be rolled back and retried, which means extra work in terms of
     ///   CPU/battery.
-    /// - Maybe minor, but we lose some fairness in servicing write transactions, i.e. we service
-    ///   them in the order of the first write statement, not in the order they come.
-    /// The only pro of making write transactions DEFERRED w/o the external locking is some
-    /// parallelism between them. Also we have an option to make write transactions IMMEDIATE, also
-    /// w/o the external locking. But then the most of cons above are still valid. Instead, if we
-    /// perform all write transactions under an async mutex, the only cons is losing some
-    /// parallelism for write transactions.
+    ///
+    /// The only pro of making write transactions DEFERRED w/o the external locking would be some
+    /// parallelism between them.
+    ///
+    /// Another option would be to make write transactions IMMEDIATE, also
+    /// w/o the external locking. But then cons 1. - 3. above would still be valid.
     pub async fn write_lock(&self) -> MutexGuard<'_, ()> {
         self.write_mtx.lock().await
     }
 
     /// Allocates a connection and calls `function` with the connection. If `function` does write
-    /// queries, either a lock must be taken first using `write_lock()` or `call_write()` used
-    /// instead.
+    /// queries,
+    /// - either first take a lock using `write_lock()`
+    /// - or use `call_write()` instead.
     ///
     /// Returns the result of the function.
     async fn call<'a, F, R>(&'a self, function: F) -> Result<R>
