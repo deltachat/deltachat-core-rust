@@ -165,6 +165,19 @@ pub(crate) struct StatusUpdateItemAndSerial {
     max_serial: StatusUpdateSerial,
 }
 
+/// Returns an entry index and a reference.
+fn find_zip_entry<'a>(
+    file: &'a async_zip::ZipFile,
+    name: &str,
+) -> Option<(usize, &'a async_zip::StoredZipEntry)> {
+    for (i, ent) in file.entries().iter().enumerate() {
+        if ent.entry().filename() == name {
+            return Some((i, ent));
+        }
+    }
+    None
+}
+
 impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
     pub(crate) async fn is_webxdc_file(&self, filename: &str, file: &[u8]) -> Result<bool> {
@@ -180,7 +193,7 @@ impl Context {
             return Ok(false);
         }
 
-        let archive = match async_zip::read::mem::ZipFileReader::new(file).await {
+        let archive = match async_zip::read::mem::ZipFileReader::new(file.to_vec()).await {
             Ok(archive) => archive,
             Err(_) => {
                 info!(self, "{} cannot be opened as zip-file", &filename);
@@ -188,7 +201,7 @@ impl Context {
             }
         };
 
-        if archive.entry("index.html").is_none() {
+        if find_zip_entry(archive.file(), "index.html").is_none() {
             info!(self, "{} misses index.html", &filename);
             return Ok(false);
         }
@@ -215,7 +228,7 @@ impl Context {
 
         let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
             Ok(archive) => {
-                if archive.entry("index.html").is_none() {
+                if find_zip_entry(archive.file(), "index.html").is_none() {
                     info!(self, "{} misses index.html", filename);
                     false
                 } else {
@@ -649,10 +662,9 @@ fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
 }
 
 async fn get_blob(archive: &mut async_zip::read::fs::ZipFileReader, name: &str) -> Result<Vec<u8>> {
-    let (i, _) = archive
-        .entry(name)
+    let (i, _) = find_zip_entry(archive.file(), name)
         .ok_or_else(|| anyhow!("no entry found for {}", name))?;
-    let mut reader = archive.entry_reader(i).await?;
+    let mut reader = archive.entry(i).await?;
     let mut buf = Vec::new();
     reader.read_to_end(&mut buf).await?;
     Ok(buf)
@@ -754,9 +766,9 @@ impl Message {
             } else {
                 self.get_filename().unwrap_or_default()
             },
-            icon: if archive.entry("icon.png").is_some() {
+            icon: if find_zip_entry(archive.file(), "icon.png").is_some() {
                 "icon.png".to_string()
-            } else if archive.entry("icon.jpg").is_some() {
+            } else if find_zip_entry(archive.file(), "icon.jpg").is_some() {
                 "icon.jpg".to_string()
             } else {
                 WEBXDC_DEFAULT_ICON.to_string()
