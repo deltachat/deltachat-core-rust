@@ -3,16 +3,23 @@
 ## [Unreleased]
 
 ### Changes
-- "full message view" not needed because of footers that go to contact status #4151
-- Pick up system's light/dark mode in generated message HTML #4150
-- Support non-persistent configuration with DELTACHAT_* env
-- Print deltachat-repl errors with causes. #4166
+
+### Fixes
+
+
+## [1.112.0] - 2023-03-23
+
+### Changes
 - Increase MSRV to 1.64. #4167
 - Core takes care of stopping and re-starting IO itself where needed,
-  e.g. during backup creation.  It is no longer needed to call
-  dc_stop_io().  dc_start_io() can now be called at any time without
-  harm. #4138
-- More accurate maybe_add_bcc_self device message text #4175
+  e.g. during backup creation.
+  It is no longer needed to call `dc_stop_io()`.
+  `dc_start_io()` can now be called at any time without harm. #4138
+- Pick up system's light/dark mode in generated message HTML. #4150
+- More accurate `maybe_add_bcc_self` device message text. #4175
+- "Full message view" not needed because of footers that go to contact status. #4151
+- Support non-persistent configuration with `DELTACHAT_*` env. #4154
+- Print deltachat-repl errors with causes. #4166
 
 ### Fixes
 - Fix segmentation fault if `dc_context_unref()` is called during
@@ -26,7 +33,8 @@
 - Add `DC_EVENT_IMAP_INBOX_IDLE` event to wait until the account
   is ready for testing.
   It is used to fix race condition between fetching
-  existing messages and starting the test.
+  existing messages and starting the test. #4208
+
 
 ## [1.111.0] - 2023-03-05
 
@@ -2318,5 +2326,6 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...HEAD
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
+[1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0

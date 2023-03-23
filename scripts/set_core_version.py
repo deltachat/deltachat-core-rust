@@ -93,7 +93,7 @@ def main():
     if "alpha" not in newversion:
         for line in open("CHANGELOG.md"):
             ## 1.25.0
-            if line.startswith("## ") and line[2:].strip().startswith(newversion):
+            if line.startswith("## [") and line[4:].strip().startswith(newversion):
                 break
         else:
             raise SystemExit(
