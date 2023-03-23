@@ -77,6 +77,9 @@ jobs:
           - os: windows-latest
             rust: 1.68.0
             python: false # Python bindings compilation on Windows is not supported.
+          - os: macos-latest
+            rust: 1.68.0
+            python: 3.9
 
           # Minimum Supported Rust Version = 1.64.0
           #
