@@ -84,35 +84,15 @@ jobs:
       contents: write
     runs-on: "ubuntu-latest"
     steps:
-      - name: Download deltachat-rpc-server-x86_64
+      - name: Download built binaries
         uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-x86_64"
-          path: "dist/deltachat-rpc-server-x86_64"
 
-      - name: Download deltachat-rpc-server-aarch64
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-aarch64"
-          path: "dist/deltachat-rpc-server-aarch64"
-
-      - name: Download deltachat-rpc-server-armv7
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-armv7"
-          path: "dist/deltachat-rpc-server-armv7"
-
-      - name: Download deltachat-rpc-server-win32.exe
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-win32.exe"
-          path: "dist/deltachat-rpc-server-win32.exe"
-
-      - name: Download deltachat-rpc-server-win64.exe
-        uses: "actions/download-artifact@v3"
-        with:
-          name: "deltachat-rpc-server-win64.exe"
-          path: "dist/deltachat-rpc-server-win64.exe"
+      - name: Compose dist/ directory
+        run: |
+          mkdir dist
+          for x in x86_64 aarch64 armv7 win32.exe win64.exe; do
+            mv "deltachat-rpc-server-$x"/* "dist/deltachat-rpc-server-$x"
+          done
 
       - name: List downloaded artifacts
         run: ls -l dist/
@@ -123,4 +103,4 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            dist/deltachat-rpc-server-*
+            dist/*
