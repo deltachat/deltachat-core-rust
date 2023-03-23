@@ -4233,6 +4233,21 @@ pub unsafe extern "C" fn dc_backup_provider_unref(provider: *mut dc_backup_provi
     drop(Box::from_raw(provider));
 }
 
+fn receive_backup(ctx: Context, qr_text: String) -> libc::c_int {
+    let qr = match block_on(qr::check_qr(&ctx, &qr_text)).log_err(&ctx, "Invalid QR code") {
+        Ok(qr) => qr,
+        Err(_) => return 0,
+    };
+    spawn(async move {
+        let ctx = ctx;
+        imex::get_backup(&ctx, qr)
+            .await
+            .log_err(&ctx, "Get backup failed")
+            .ok();
+    });
+    1
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_receive_backup(
     context: *mut dc_context_t,
@@ -4244,17 +4259,7 @@ pub unsafe extern "C" fn dc_receive_backup(
     }
     let ctx = &*context;
     let qr_text = to_string_lossy(qr);
-    let qr = match block_on(qr::check_qr(ctx, &qr_text)).log_err(ctx, "Invalid QR code") {
-        Ok(qr) => qr,
-        Err(_) => return 0,
-    };
-    spawn(async move {
-        imex::get_backup(ctx, qr)
-            .await
-            .log_err(ctx, "Get backup failed")
-            .ok();
-    });
-    1
+    receive_backup(ctx.clone(), qr_text)
 }
 
 trait ResultExt<T, E> {
