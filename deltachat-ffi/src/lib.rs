@@ -4233,21 +4233,6 @@ pub unsafe extern "C" fn dc_backup_provider_unref(provider: *mut dc_backup_provi
     drop(Box::from_raw(provider));
 }
 
-fn receive_backup(ctx: Context, qr_text: String) -> libc::c_int {
-    let qr = match block_on(qr::check_qr(&ctx, &qr_text)).log_err(&ctx, "Invalid QR code") {
-        Ok(qr) => qr,
-        Err(_) => return 0,
-    };
-    spawn(async move {
-        let ctx = ctx;
-        imex::get_backup(&ctx, qr)
-            .await
-            .log_err(&ctx, "Get backup failed")
-            .ok();
-    });
-    1
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn dc_receive_backup(
     context: *mut dc_context_t,
@@ -4260,6 +4245,27 @@ pub unsafe extern "C" fn dc_receive_backup(
     let ctx = &*context;
     let qr_text = to_string_lossy(qr);
     receive_backup(ctx.clone(), qr_text)
+}
+
+// Because this is a long-running operation make sure we own the Context.  This stops a FFI
+// user from deallocating it by calling unref on the object while we are using it.
+fn receive_backup(ctx: Context, qr_text: String) -> libc::c_int {
+    let qr = match block_on(qr::check_qr(&ctx, &qr_text))
+        .log_err(&ctx, "Invalid QR code")
+        .context("Invalid QR code")
+        .set_last_error(&ctx)
+    {
+        Ok(qr) => qr,
+        Err(_) => return 0,
+    };
+    match block_on(imex::get_backup(&ctx, qr))
+        .log_err(&ctx, "Get backup failed")
+        .context("Get backup failed")
+        .set_last_error(&ctx)
+    {
+        Ok(_) => 1,
+        Err(_) => 0,
+    }
 }
 
 trait ResultExt<T, E> {
