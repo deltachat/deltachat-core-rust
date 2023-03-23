@@ -9,9 +9,6 @@ license = "MPL-2.0"
 keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
 categories = ["cryptography", "std", "email"]
 
-[[bin]]
-name = "deltachat-rpc-server"
-
 [dependencies]
 deltachat-jsonrpc = { path = "../deltachat-jsonrpc", default-features = false }
 
