@@ -25,7 +25,7 @@ panic = 'abort'
 opt-level = "z"
 
 [patch.crates-io]
-default-net = { git = "https://github.com/dignifiedquire/default-net.git", branch="feat-android" }
+default-net = { git = "https://github.com/shellrow/default-net.git", branch="main" }
 quinn-udp = { git = "https://github.com/quinn-rs/quinn", branch="main" }
 quinn-proto = { git = "https://github.com/quinn-rs/quinn", branch="main" }
 
