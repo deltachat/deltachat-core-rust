@@ -417,7 +417,7 @@ impl<'a> BlobObject<'a> {
 
                             info!(
                                 context,
-                                "Final scaled-down image size: {}B ({}px)",
+                                "Final scaled-down image size: {}B ({}px).",
                                 encoded.len(),
                                 img_wh
                             );
@@ -458,7 +458,7 @@ impl<'a> BlobObject<'a> {
                 Some(3) => return Ok(180),
                 Some(6) => return Ok(90),
                 Some(8) => return Ok(270),
-                other => warn!(context, "exif orientation value ignored: {:?}", other),
+                other => warn!(context, "Exif orientation value ignored: {other:?}."),
             }
         }
         Ok(0)
@@ -490,7 +490,7 @@ impl<'a> BlobDirContents<'a> {
                 match entry {
                     Ok(entry) => Some(entry),
                     Err(err) => {
-                        error!(context, "Failed to read blob file: {err}");
+                        error!(context, "Failed to read blob file: {err}.");
                         None
                     }
                 }
@@ -501,7 +501,7 @@ impl<'a> BlobDirContents<'a> {
                     false => {
                         warn!(
                             context,
-                            "Export: Found blob dir entry {} that is not a file, ignoring",
+                            "Export: Found blob dir entry {} that is not a file, ignoring.",
                             entry.path().display()
                         );
                         None
@@ -569,7 +569,7 @@ fn encoded_img_exceeds_bytes(
         if encoded.len() > max_bytes {
             info!(
                 context,
-                "image size {}B ({}x{}px) exceeds {}B, need to scale down",
+                "Image size {}B ({}x{}px) exceeds {}B, need to scale down.",
                 encoded.len(),
                 img.width(),
                 img.height(),

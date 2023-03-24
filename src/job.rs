@@ -153,7 +153,7 @@ impl<'a> Connection<'a> {
 }
 
 pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_>, mut job: Job) {
-    info!(context, "job {} started...", &job);
+    info!(context, "Job {} started...", &job);
 
     let try_res = match perform_job_action(context, &mut job, &mut connection, 0).await {
         Status::RetryNow => perform_job_action(context, &mut job, &mut connection, 1).await,
@@ -165,7 +165,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
             let tries = job.tries + 1;
 
             if tries < JOB_RETRIES {
-                info!(context, "increase job {} tries to {}", job, tries);
+                info!(context, "Increase job {job} tries to {tries}.");
                 job.tries = tries;
                 let time_offset = get_backoff_time_offset(tries);
                 job.desired_timestamp = time() + time_offset;
@@ -177,26 +177,23 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
                     time_offset
                 );
                 job.save(context).await.unwrap_or_else(|err| {
-                    error!(context, "failed to save job: {:#}", err);
+                    error!(context, "Failed to save job: {err:#}.");
                 });
             } else {
                 info!(
                     context,
-                    "remove job {} as it exhausted {} retries", job, JOB_RETRIES
+                    "Remove job {job} as it exhausted {JOB_RETRIES} retries."
                 );
                 job.delete(context).await.unwrap_or_else(|err| {
-                    error!(context, "failed to delete job: {:#}", err);
+                    error!(context, "Failed to delete job: {err:#}.");
                 });
             }
         }
         Status::Finished(res) => {
             if let Err(err) = res {
-                warn!(
-                    context,
-                    "remove job {} as it failed with error {:#}", job, err
-                );
+                warn!(context, "Remove job {job} as it failed with error {err:#}.");
             } else {
-                info!(context, "remove job {} as it succeeded", job);
+                info!(context, "Remove job {job} as it succeeded.");
             }
 
             job.delete(context).await.unwrap_or_else(|err| {
@@ -212,13 +209,13 @@ async fn perform_job_action(
     connection: &mut Connection<'_>,
     tries: u32,
 ) -> Status {
-    info!(context, "begin immediate try {} of job {}", tries, job);
+    info!(context, "Begin immediate try {tries} of job {job}.");
 
     let try_res = match job.action {
         Action::DownloadMsg => job.download_msg(context, connection.inbox()).await,
     };
 
-    info!(context, "Finished immediate try {} of job {}", tries, job);
+    info!(context, "Finished immediate try {tries} of job {job}.");
 
     try_res
 }
@@ -250,7 +247,7 @@ pub(crate) async fn schedule_resync(context: &Context) -> Result<()> {
 pub async fn add(context: &Context, job: Job) -> Result<()> {
     job.save(context).await.context("failed to save job")?;
 
-    info!(context, "interrupt: imap");
+    info!(context, "Interrupt: IMAP.");
     context
         .scheduler
         .interrupt_inbox(InterruptInfo::new(false))
@@ -264,7 +261,7 @@ pub async fn add(context: &Context, job: Job) -> Result<()> {
 /// jobs, this is tricky and probably wrong currently. Look at the
 /// SQL queries for details.
 pub(crate) async fn load_next(context: &Context, info: &InterruptInfo) -> Result<Option<Job>> {
-    info!(context, "loading job");
+    info!(context, "Loading job.");
 
     let query;
     let params;
@@ -316,19 +313,19 @@ LIMIT 1;
             Ok(job) => return Ok(job),
             Err(err) => {
                 // Remove invalid job from the DB
-                info!(context, "cleaning up job, because of {:#}", err);
+                info!(context, "Cleaning up job, because of {err:#}.");
 
                 // TODO: improve by only doing a single query
                 let id = context
                     .sql
                     .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
                     .await
-                    .context("Failed to retrieve invalid job ID from the database")?;
+                    .context("failed to retrieve invalid job ID from the database")?;
                 context
                     .sql
                     .execute("DELETE FROM jobs WHERE id=?;", paramsv![id])
                     .await
-                    .with_context(|| format!("Failed to delete invalid job {id}"))?;
+                    .with_context(|| format!("failed to delete invalid job {id}"))?;
             }
         }
     }

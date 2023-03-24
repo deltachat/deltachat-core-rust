@@ -699,26 +699,26 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     if let Err(err) = remove_unused_files(context).await {
         warn!(
             context,
-            "Housekeeping: cannot remove unused files: {:#}", err
+            "Housekeeping: cannot remove unused files: {:#}.", err
         );
     }
 
     if let Err(err) = start_ephemeral_timers(context).await {
         warn!(
             context,
-            "Housekeeping: cannot start ephemeral timers: {:#}", err
+            "Housekeeping: cannot start ephemeral timers: {:#}.", err
         );
     }
 
     if let Err(err) = prune_tombstones(&context.sql).await {
         warn!(
             context,
-            "Housekeeping: Cannot prune message tombstones: {:#}", err
+            "Housekeeping: Cannot prune message tombstones: {:#}.", err
         );
     }
 
     if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {:#}", err)
+        warn!(context, "Failed to deduplicate peerstates: {:#}.", err)
     }
 
     context.schedule_quota_update().await?;
@@ -731,7 +731,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .await
     {
         Err(err) => {
-            warn!(context, "Failed to run incremental vacuum: {err:#}");
+            warn!(context, "Failed to run incremental vacuum: {err:#}.");
         }
         Ok(Some(())) => {
             // Incremental vacuum returns a zero-column result if it did anything.
@@ -747,7 +747,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .set_config(Config::LastHousekeeping, Some(&time().to_string()))
         .await
     {
-        warn!(context, "Can't set config: {}", e);
+        warn!(context, "Can't set config: {e:#}.");
     }
 
     context
@@ -814,7 +814,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
         .await
         .context("housekeeping: failed to SELECT value FROM config")?;
 
-    info!(context, "{} files in use.", files_in_use.len(),);
+    info!(context, "{} files in use.", files_in_use.len());
     /* go through directories and delete unused files */
     let blobdir = context.get_blobdir();
     for p in [&blobdir.join(BLOBS_BACKUP_NAME), blobdir] {
@@ -846,7 +846,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                                 // environment f.e. So, no warning.
                                 info!(
                                     context,
-                                    "Housekeeping: Cannot rmdir {}: {:#}",
+                                    "Housekeeping: Cannot rmdir {}: {:#}.",
                                     entry.path().display(),
                                     e
                                 );
@@ -868,7 +868,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                         {
                             info!(
                                 context,
-                                "Housekeeping: Keeping new unreferenced file #{}: {:?}",
+                                "Housekeeping: Keeping new unreferenced file #{}: {:?}.",
                                 unreferenced_count,
                                 entry.file_name(),
                             );
@@ -879,7 +879,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                     }
                     info!(
                         context,
-                        "Housekeeping: Deleting unreferenced file #{}: {:?}",
+                        "Housekeeping: Deleting unreferenced file #{}: {:?}.",
                         unreferenced_count,
                         entry.file_name()
                     );
@@ -897,7 +897,7 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
             Err(err) => {
                 warn!(
                     context,
-                    "Housekeeping: Cannot read dir {}: {:#}",
+                    "Housekeeping: Cannot read dir {}: {:#}.",
                     p.display(),
                     err
                 );

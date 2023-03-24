@@ -176,7 +176,7 @@ impl Chatlist {
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
             if let Err(err) = update_special_chat_names(context).await {
-                warn!(context, "cannot update special chat names: {:?}", err)
+                warn!(context, "Cannot update special chat names: {err:#}.")
             }
 
             let str_like_cmd = format!("%{query}%");
