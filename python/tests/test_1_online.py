@@ -518,22 +518,22 @@ def test_send_and_receive_message_markseen(acfactory, lp):
     msg4 = ac2._evtracker.wait_next_incoming_message()
 
     lp.sec("mark messages as seen on ac2, wait for changes on ac1")
-    with ac1.direct_imap.idle() as idle1:
-        with ac2.direct_imap.idle() as idle2:
-            ac2.mark_seen_messages([msg2, msg4])
-            ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
-            assert msg2.chat.id == msg4.chat.id
-            assert ev.data1 == msg2.chat.id
-            assert ev.data2 == 0
-            idle2.wait_for_seen()
+    ac2.mark_seen_messages([msg2, msg4])
+    ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+    assert msg2.chat.id == msg4.chat.id
+    assert ev.data1 == msg2.chat.id
+    assert ev.data2 == 0
+    ac2._evtracker.get_info_contains("Marked messages .* in folder INBOX as seen.")
 
-        lp.step("1")
-        for _i in range(2):
-            ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
-            assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
-            assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
-        lp.step("2")
-        idle1.wait_for_seen()  # Check that ac1 marks the read receipt as read
+    lp.step("1")
+    for _i in range(2):
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
+        assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
+    lp.step("2")
+
+    # Check that ac1 marks the read receipt as read.
+    ac1._evtracker.get_info_contains("Marked messages .* in folder INBOX as seen.")
 
     assert msg1.is_out_mdn_received()
     assert msg3.is_out_mdn_received()
