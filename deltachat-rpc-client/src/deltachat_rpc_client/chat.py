@@ -126,7 +126,7 @@ class Chat:
             "file": file,
             "location": location,
             "overrideSenderName": override_sender_name,
-            "quotedMsg": quoted_msg,
+            "quotedMsgId": quoted_msg,
         }
         msg_id = await self._rpc.send_msg(self.account.id, self.id, draft)
         return Message(self.account, msg_id)
