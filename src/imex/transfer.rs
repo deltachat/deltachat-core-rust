@@ -394,6 +394,9 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
     if ticket.addrs.is_empty() {
         bail!("ticket is missing addresses to dial");
     }
+
+    // Crude sorting, most local wifi's are in the 192.168.0.0/24 range so this will try
+    // them first.
     ticket.addrs.sort_by(|a, b| {
         let a = a.to_string();
         let b = b.to_string();
