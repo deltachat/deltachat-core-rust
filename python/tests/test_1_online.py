@@ -518,22 +518,22 @@ def test_send_and_receive_message_markseen(acfactory, lp):
     msg4 = ac2._evtracker.wait_next_incoming_message()
 
     lp.sec("mark messages as seen on ac2, wait for changes on ac1")
-    with ac1.direct_imap.idle() as idle1:
-        with ac2.direct_imap.idle() as idle2:
-            ac2.mark_seen_messages([msg2, msg4])
-            ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
-            assert msg2.chat.id == msg4.chat.id
-            assert ev.data1 == msg2.chat.id
-            assert ev.data2 == 0
-            idle2.wait_for_seen()
+    ac2.mark_seen_messages([msg2, msg4])
+    ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_NOTICED")
+    assert msg2.chat.id == msg4.chat.id
+    assert ev.data1 == msg2.chat.id
+    assert ev.data2 == 0
+    ac2._evtracker.get_info_contains("Marked messages .* in folder INBOX as seen.")
 
-        lp.step("1")
-        for _i in range(2):
-            ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
-            assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
-            assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
-        lp.step("2")
-        idle1.wait_for_seen()  # Check that ac1 marks the read receipt as read
+    lp.step("1")
+    for _i in range(2):
+        ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
+        assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
+    lp.step("2")
+
+    # Check that ac1 marks the read receipt as read.
+    ac1._evtracker.get_info_contains("Marked messages .* in folder INBOX as seen.")
 
     assert msg1.is_out_mdn_received()
     assert msg3.is_out_mdn_received()
@@ -618,18 +618,24 @@ def test_markseen_message_and_mdn(acfactory, mvbox_move):
     # Do not send BCC to self, we only want to test MDN on ac1.
     ac1.set_config("bcc_self", "0")
 
+    acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+    msg = ac2._evtracker.wait_next_incoming_message()
+
+    ac2.mark_seen_messages([msg])
+
     folder = "mvbox" if mvbox_move else "inbox"
+    for ac in [ac1, ac2]:
+        if mvbox_move:
+            ac._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+        else:
+            ac._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     ac1.direct_imap.select_config_folder(folder)
     ac2.direct_imap.select_config_folder(folder)
-    with ac1.direct_imap.idle() as idle1:
-        with ac2.direct_imap.idle() as idle2:
-            acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
-            msg = ac2._evtracker.wait_next_incoming_message()
 
-            ac2.mark_seen_messages([msg])
-
-            idle2.wait_for_seen()  # Check original message is marked as seen
-            idle1.wait_for_seen()  # Check that the mdn is marked as seen
+    # Check that the mdn is marked as seen
+    assert len(list(ac1.direct_imap.conn.fetch(AND(seen=True)))) == 1
+    # Check original message is marked as seen
+    assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
 def test_reply_privately(acfactory):
@@ -683,22 +689,23 @@ def test_mdn_asymmetric(acfactory, lp):
 
     assert len(msg.chat.get_messages()) == 1
 
-    ac1.direct_imap.select_config_folder("mvbox")
-    with ac1.direct_imap.idle() as idle1:
-        lp.sec("ac2: mark incoming message as seen")
-        ac2.mark_seen_messages([msg])
+    lp.sec("ac2: mark incoming message as seen")
+    ac2.mark_seen_messages([msg])
 
-        lp.sec("ac1: waiting for incoming activity")
-        # MDN should be moved even though MDNs are already disabled
-        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+    lp.sec("ac1: waiting for incoming activity")
+    # MDN should be moved even though MDNs are already disabled
+    ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
-        assert len(chat.get_messages()) == 1
+    assert len(chat.get_messages()) == 1
 
-        # Wait for the message to be marked as seen on IMAP.
-        assert idle1.wait_for_seen()
+    # Wait for the message to be marked as seen on IMAP.
+    ac1._evtracker.get_info_contains("Marked messages 1 in folder DeltaChat as seen.")
 
     # MDN is received even though MDNs are already disabled
     assert msg_out.is_out_mdn_received()
+
+    ac1.direct_imap.select_config_folder("mvbox")
+    assert len(list(ac1.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
 def test_send_and_receive_will_encrypt_decrypt(acfactory, lp):

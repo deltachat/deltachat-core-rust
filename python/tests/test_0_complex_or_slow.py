@@ -220,16 +220,16 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     acfactory.bring_accounts_online()
     assert_folders_configured(ac1)
 
-    assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
-    with ac1.direct_imap.idle() as idle1:
-        lp.sec("send out message with bcc to ourselves")
-        ac1.set_config("bcc_self", "1")
-        chat = acfactory.get_accepted_chat(ac1, ac2)
-        chat.send_text("message text")
-        assert_folders_configured(ac1)
+    lp.sec("send out message with bcc to ourselves")
+    ac1.set_config("bcc_self", "1")
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+    chat.send_text("message text")
 
-        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
-        assert idle1.wait_for_seen()
+    lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
+    if mvbox_move:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+    else:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     assert_folders_configured(ac1)
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
@@ -271,12 +271,12 @@ def test_fetch_existing_msgs_group_and_single(acfactory, lp):
     ac1._evtracker.wait_next_incoming_message()
 
     lp.sec("send out message with bcc to ourselves")
-    with ac1.direct_imap.idle() as idle1:
-        ac1.set_config("bcc_self", "1")
-        ac1_ac2_chat = ac1.create_chat(ac2)
-        ac1_ac2_chat.send_text("outgoing, encrypted direct message, creating a chat")
-        # wait until the bcc_self message arrives
-        assert idle1.wait_for_seen()
+    ac1.set_config("bcc_self", "1")
+    ac1_ac2_chat = ac1.create_chat(ac2)
+    ac1_ac2_chat.send_text("outgoing, encrypted direct message, creating a chat")
+
+    # wait until the bcc_self message arrives
+    ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
 
     lp.sec("Clone online account and let it fetch the existing messages")
     ac1_clone = acfactory.new_online_configuring_account(cloned_from=ac1)
