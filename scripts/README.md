@@ -8,6 +8,8 @@ and an own build machine.
 
 - `clippy.sh` runs `cargo clippy` for all Rust code in the project.
 
+- `deny.sh` runs `cargo deny` for all Rust code in the project.
+
 - `../.github/workflows` contains jobs run by GitHub Actions.
 
 - `remote_tests_python.sh` rsyncs to a build machine and runs
