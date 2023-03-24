@@ -220,16 +220,16 @@ def test_fetch_existing(acfactory, lp, mvbox_move):
     acfactory.bring_accounts_online()
     assert_folders_configured(ac1)
 
-    assert ac1.direct_imap.select_config_folder("mvbox" if mvbox_move else "inbox")
-    with ac1.direct_imap.idle() as idle1:
-        lp.sec("send out message with bcc to ourselves")
-        ac1.set_config("bcc_self", "1")
-        chat = acfactory.get_accepted_chat(ac1, ac2)
-        chat.send_text("message text")
-        assert_folders_configured(ac1)
+    lp.sec("send out message with bcc to ourselves")
+    ac1.set_config("bcc_self", "1")
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+    chat.send_text("message text")
 
-        lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
-        assert idle1.wait_for_seen()
+    lp.sec("wait until the bcc_self message arrives in correct folder and is marked seen")
+    if mvbox_move:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+    else:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     assert_folders_configured(ac1)
 
     lp.sec("create a cloned ac1 and fetch contact history during configure")
