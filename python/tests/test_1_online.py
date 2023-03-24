@@ -683,22 +683,23 @@ def test_mdn_asymmetric(acfactory, lp):
 
     assert len(msg.chat.get_messages()) == 1
 
-    ac1.direct_imap.select_config_folder("mvbox")
-    with ac1.direct_imap.idle() as idle1:
-        lp.sec("ac2: mark incoming message as seen")
-        ac2.mark_seen_messages([msg])
+    lp.sec("ac2: mark incoming message as seen")
+    ac2.mark_seen_messages([msg])
 
-        lp.sec("ac1: waiting for incoming activity")
-        # MDN should be moved even though MDNs are already disabled
-        ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
+    lp.sec("ac1: waiting for incoming activity")
+    # MDN should be moved even though MDNs are already disabled
+    ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_MOVED")
 
-        assert len(chat.get_messages()) == 1
+    assert len(chat.get_messages()) == 1
 
-        # Wait for the message to be marked as seen on IMAP.
-        assert idle1.wait_for_seen()
+    # Wait for the message to be marked as seen on IMAP.
+    ac1._evtracker.get_info_contains("Marked messages 1 in folder DeltaChat as seen.")
 
     # MDN is received even though MDNs are already disabled
     assert msg_out.is_out_mdn_received()
+
+    ac1.direct_imap.select_config_folder("mvbox")
+    assert len(list(ac1.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
 def test_send_and_receive_will_encrypt_decrypt(acfactory, lp):
