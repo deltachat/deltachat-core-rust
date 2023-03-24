@@ -618,18 +618,25 @@ def test_markseen_message_and_mdn(acfactory, mvbox_move):
     # Do not send BCC to self, we only want to test MDN on ac1.
     ac1.set_config("bcc_self", "0")
 
+    acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
+    msg = ac2._evtracker.wait_next_incoming_message()
+
+    ac2.mark_seen_messages([msg])
+
     folder = "mvbox" if mvbox_move else "inbox"
+    if mvbox_move:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+        ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+    else:
+        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
+        ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     ac1.direct_imap.select_config_folder(folder)
     ac2.direct_imap.select_config_folder(folder)
-    with ac1.direct_imap.idle() as idle1:
-        with ac2.direct_imap.idle() as idle2:
-            acfactory.get_accepted_chat(ac1, ac2).send_text("hi")
-            msg = ac2._evtracker.wait_next_incoming_message()
 
-            ac2.mark_seen_messages([msg])
-
-            idle2.wait_for_seen()  # Check original message is marked as seen
-            idle1.wait_for_seen()  # Check that the mdn is marked as seen
+    # Check that the mdn is marked as seen
+    assert len(list(ac1.direct_imap.conn.fetch(AND(seen=True)))) == 1
+    # Check original message is marked as seen
+    assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
 def test_reply_privately(acfactory):
