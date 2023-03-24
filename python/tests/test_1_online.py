@@ -624,12 +624,11 @@ def test_markseen_message_and_mdn(acfactory, mvbox_move):
     ac2.mark_seen_messages([msg])
 
     folder = "mvbox" if mvbox_move else "inbox"
-    if mvbox_move:
-        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
-        ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
-    else:
-        ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
-        ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
+    for ac in [ac1, ac2]:
+        if mvbox_move:
+            ac._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
+        else:
+            ac._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     ac1.direct_imap.select_config_folder(folder)
     ac2.direct_imap.select_config_folder(folder)
 
