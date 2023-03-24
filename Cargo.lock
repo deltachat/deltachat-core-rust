@@ -1121,7 +1121,7 @@ dependencies = [
 [[package]]
 name = "default-net"
 version = "0.13.1"
-source = "git+https://github.com/dignifiedquire/default-net.git?branch=feat-android#7a257095bac009c4be0b93c2979801624fdd337b"
+source = "git+https://github.com/dignifiedquire/default-net.git?rev=7a257095bac009c4be0b93c2979801624fdd337b#7a257095bac009c4be0b93c2979801624fdd337b"
 dependencies = [
  "dlopen",
  "libc",
