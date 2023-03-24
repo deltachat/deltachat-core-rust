@@ -22,6 +22,7 @@
 //! getter can not connect to an impersonated provider and the provider does not offer the
 //! download to an impersonated getter.
 
+use std::cmp::Ordering;
 use std::future::Future;
 use std::net::Ipv4Addr;
 use std::ops::Deref;
@@ -386,13 +387,24 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
-    let ticket = match qr {
+    let mut ticket = match qr {
         Qr::Backup { ticket } => ticket,
         _ => bail!("QR code for backup must be of type DCBACKUP"),
     };
     if ticket.addrs.is_empty() {
         bail!("ticket is missing addresses to dial");
     }
+    ticket.addrs.sort_by(|a, b| {
+        let a = a.to_string();
+        let b = b.to_string();
+        if a.starts_with("192.168.") && !b.starts_with("192.168.") {
+            Ordering::Less
+        } else if b.starts_with("192.168.") && !a.starts_with("192.168.") {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    });
     for addr in &ticket.addrs {
         let opts = Options {
             addr: *addr,
