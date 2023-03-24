@@ -11,6 +11,7 @@ categories = ["cryptography", "std", "email"]
 
 [dependencies]
 deltachat-jsonrpc = { path = "../deltachat-jsonrpc", default-features = false }
+deltachat = { path = "..", default-features = false }
 
 anyhow = "1"
 env_logger = { version = "0.10.0" }

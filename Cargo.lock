@@ -1250,6 +1250,7 @@ name = "deltachat-rpc-server"
 version = "1.112.0"
 dependencies = [
  "anyhow",
+ "deltachat",
  "deltachat-jsonrpc",
  "env_logger 0.10.0",
  "futures-lite",

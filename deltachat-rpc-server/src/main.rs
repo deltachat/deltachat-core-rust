@@ -1,9 +1,11 @@
+use std::env;
 ///! Delta Chat core RPC server.
 ///!
 ///! It speaks JSON Lines over stdio.
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{anyhow, Context as _, Result};
+use deltachat::constants::DC_VERSION_STR;
 use deltachat_jsonrpc::api::events::event_to_json_rpc_notification;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
@@ -13,6 +15,23 @@ use yerpc::{RpcClient, RpcSession};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
+    let mut args = env::args_os();
+    let _program_name = args.next().context("no command line arguments found")?;
+    if let Some(first_arg) = args.next() {
+        if first_arg.to_str() == Some("--version") {
+            if let Some(arg) = args.next() {
+                return Err(anyhow!("Unrecognized argument {:?}", arg));
+            }
+            eprintln!("{}", &*DC_VERSION_STR);
+            return Ok(());
+        } else {
+            return Err(anyhow!("Unrecognized option {:?}", first_arg));
+        }
+    }
+    if let Some(arg) = args.next() {
+        return Err(anyhow!("Unrecognized argument {:?}", arg));
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());

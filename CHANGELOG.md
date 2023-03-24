@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Changes
+- Add support for `--version` argument to `deltachat-rpc-server`. #4224
+  It can be used to check the installed version without starting the server.
 
 ### Fixes
 - deltachat-rpc-client: fix bug in `Chat.send_message()`: invalid `MessageData` field `quotedMsg` instead of `quotedMsgId`
