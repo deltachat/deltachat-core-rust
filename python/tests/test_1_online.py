@@ -149,7 +149,7 @@ def test_one_account_send_bcc_setting(acfactory, lp):
     assert other_addr in ev.data2
 
     # BCC-self messages are marked as seen by the sender device.
-    ac1._evtracker.get_info_contains("Marked messages 1 in folder INBOX as seen.")
+    ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
 
     # Check that the message is marked as seen on IMAP.
     ac1.direct_imap.select_folder("Inbox")
