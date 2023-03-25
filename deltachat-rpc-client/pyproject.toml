@@ -21,6 +21,9 @@ deltachat_rpc_client = [
 [project.entry-points.pytest11]
 "deltachat_rpc_client.pytestplugin" = "deltachat_rpc_client.pytestplugin"
 
+[tool.setuptools_scm]
+root = ".."
+
 [tool.black]
 line-length = 120
 
