@@ -534,6 +534,7 @@ async fn add_parts(
         if chat_id.is_none() && mime_parser.delivery_report.is_some() {
             chat_id = Some(DC_CHAT_ID_TRASH);
             info!(context, "Message is a DSN (TRASH).",);
+            markseen_on_imap_table(context, rfc724_mid).await.ok();
         }
 
         if chat_id.is_none() {
@@ -868,6 +869,7 @@ async fn add_parts(
             if part.typ == Viewtype::Text && part.msg.is_empty() {
                 chat_id = Some(DC_CHAT_ID_TRASH);
                 info!(context, "Message is a status update only (TRASH).");
+                markseen_on_imap_table(context, rfc724_mid).await.ok();
             }
         }
     }

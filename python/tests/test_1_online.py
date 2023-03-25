@@ -319,6 +319,9 @@ def test_webxdc_message(acfactory, data, lp):
     assert msg2.text == "message1"
     assert msg2.is_webxdc()
     assert msg2.filename
+    ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
+    ac2.direct_imap.select_folder("Inbox")
+    assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
 def test_mvbox_sentbox_threads(acfactory, lp):
