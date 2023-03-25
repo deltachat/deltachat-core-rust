@@ -1165,7 +1165,6 @@ dependencies = [
  "kamadak-exif",
  "lettre_email",
  "libc",
- "log",
  "mailparse",
  "num-derive",
  "num-traits",
@@ -1202,6 +1201,9 @@ dependencies = [
  "tokio-stream",
  "tokio-tar",
  "toml",
+ "tracing",
+ "tracing-futures",
+ "tracing-subscriber",
  "trust-dns-resolver",
  "url",
  "uuid",
@@ -1243,6 +1245,9 @@ dependencies = [
  "rusqlite",
  "rustyline",
  "tokio",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1252,12 +1257,12 @@ dependencies = [
  "anyhow",
  "deltachat",
  "deltachat-jsonrpc",
- "env_logger 0.10.0",
  "futures-lite",
- "log",
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "yerpc",
 ]
 
@@ -1284,6 +1289,8 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
