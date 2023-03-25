@@ -8,6 +8,7 @@
 
 ### Fixes
 - deltachat-rpc-client: fix bug in `Chat.send_message()`: invalid `MessageData` field `quotedMsg` instead of `quotedMsgId`
+- receive_imf: Mark special messages as seen. Exactly: delivery reports, webxdc status updates.
 
 
 ## [1.112.0] - 2023-03-23
