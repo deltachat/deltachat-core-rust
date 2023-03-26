@@ -691,7 +691,8 @@ async fn add_parts(
             } else if allow_creation {
                 if let Ok(chat) = ChatIdBlocked::get_for_contact(context, from_id, create_blocked)
                     .await
-                    .log_err(context, "Failed to get (new) chat for contact")
+                    .context("Failed to get (new) chat for contact")
+                    .log_err(context)
                 {
                     chat_id = Some(chat.id);
                     chat_id_blocked = chat.blocked;
@@ -843,7 +844,8 @@ async fn add_parts(
             // maybe an Autocrypt Setup Message
             if let Ok(chat) = ChatIdBlocked::get_for_contact(context, ContactId::SELF, Blocked::Not)
                 .await
-                .log_err(context, "Failed to get (new) chat for contact")
+                .context("Failed to get (new) chat for contact")
+                .log_err(context)
             {
                 chat_id = Some(chat.id);
                 chat_id_blocked = chat.blocked;
