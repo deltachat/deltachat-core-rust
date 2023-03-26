@@ -4230,6 +4230,10 @@ pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provid
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_backup_provider_unref(provider: *mut dc_backup_provider_t) {
+    if provider.is_null() {
+        eprintln!("ignoring careless call to dc_backup_provider_unref()");
+        return;
+    }
     drop(Box::from_raw(provider));
 }
 
