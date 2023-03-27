@@ -2,6 +2,10 @@
 
 ## 1.112.6 - unreleased
 
+### Changes
+
+- Add a device message after backup transfer #4301
+
 ### Fixed
 
 - Updated `iroh` from 0.4.0 to 0.4.1 to fix transfer of large accounts with many blob files.
