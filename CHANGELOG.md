@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changes
+- Increase MSRV to 1.65.0. #4236
 - Remove upper limit on the attachment size. #4253
 
 ### Fixes
