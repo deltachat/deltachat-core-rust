@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changes
+
+### Fixes
+
+
 ## [1.112.1] - 2023-03-27
 
 ### Changes
@@ -2330,6 +2337,7 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
