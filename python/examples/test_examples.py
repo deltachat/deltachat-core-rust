@@ -24,6 +24,8 @@ def test_echo_quit_plugin(acfactory, lp):
     lp.sec("creating a temp account to contact the bot")
     (ac1,) = acfactory.get_online_accounts(1)
 
+    botproc.await_resync()
+
     lp.sec("sending a message to the bot")
     bot_contact = ac1.create_contact(botproc.addr)
     bot_chat = bot_contact.create_chat()
@@ -40,7 +42,7 @@ def test_echo_quit_plugin(acfactory, lp):
 
 def test_group_tracking_plugin(acfactory, lp):
     lp.sec("creating one group-tracking bot and two temp accounts")
-    botproc = acfactory.run_bot_process(group_tracking, ffi=False)
+    botproc = acfactory.run_bot_process(group_tracking)
 
     ac1, ac2 = acfactory.get_online_accounts(2)
 
@@ -51,6 +53,8 @@ def test_group_tracking_plugin(acfactory, lp):
     )
     ac1.add_account_plugin(FFIEventLogger(ac1))
     ac2.add_account_plugin(FFIEventLogger(ac2))
+
+    botproc.await_resync()
 
     lp.sec("creating bot test group with bot")
     bot_contact = ac1.create_contact(botproc.addr)
