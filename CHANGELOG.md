@@ -4,7 +4,7 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
-
+- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref) #4242
 
 ## [1.112.1] - 2023-03-27
 
