@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.112.2 - unreleased
+
+### Changes
+- Update iroh, remove `default-net` from `[patch.crates-io]` section.
+
+
 ## [1.112.1] - 2023-03-27
 
 ### Changes
