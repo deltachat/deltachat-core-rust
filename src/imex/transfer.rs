@@ -53,6 +53,8 @@ use crate::{e2ee, EventType};
 
 use super::{export_database, DBFILE_BACKUP_NAME};
 
+const MAX_CONCURRENT_DIALS: u8 = 16;
+
 /// Provide or send a backup of this device.
 ///
 /// This creates a backup of the current device and starts a service which offers another
@@ -433,8 +435,15 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
         |hash, reader, name| on_blob(context, &progress, &jobs, ticket, hash, reader, name);
 
     // Perform the transfer.
-    let stats =
-        iroh::get::run_ticket(ticket, false, 16, on_connected, on_collection, on_blob).await?;
+    let stats = iroh::get::run_ticket(
+        ticket,
+        false,
+        MAX_CONCURRENT_DIALS,
+        on_connected,
+        on_collection,
+        on_blob,
+    )
+    .await?;
 
     let mut jobs = jobs.lock().await;
     while let Some(job) = jobs.join_next().await {
