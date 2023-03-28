@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## 1.112.2 - unreleased
+
+### Changes
+- Update iroh, remove `default-net` from `[patch.crates-io]` section.
+
+
+## [1.112.1] - 2023-03-27
 
 ### Changes
 - Add support for `--version` argument to `deltachat-rpc-server`. #4224
@@ -8,7 +14,7 @@
 
 ### Fixes
 - deltachat-rpc-client: fix bug in `Chat.send_message()`: invalid `MessageData` field `quotedMsg` instead of `quotedMsgId`
-- receive_imf: Mark special messages as seen. Exactly: delivery reports, webxdc status updates.
+- `receive_imf`: Mark special messages as seen. Exactly: delivery reports, webxdc status updates. #4230
 
 
 ## [1.112.0] - 2023-03-23
@@ -2330,6 +2336,6 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
+[1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
