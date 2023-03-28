@@ -28,9 +28,6 @@ opt-level = "z"
 quinn-udp = { git = "https://github.com/quinn-rs/quinn", branch="main" }
 quinn-proto = { git = "https://github.com/quinn-rs/quinn", branch="main" }
 
-# [patch.'https://github.com/n0-computer/iroh']
-# iroh = { path = "/home/flub/n0/iroh" }
-
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 format-flowed = { path = "./format-flowed" }
@@ -56,7 +53,7 @@ hex = "0.4.0"
 humansize = "2"
 image = { version = "0.24.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 # iroh = { version = "0.3.0", default-features = false }
-iroh = { git = 'https://github.com/n0-computer/iroh', branch = "flub/run-ticket" }
+iroh = { git = 'https://github.com/n0-computer/iroh', branch = "main" }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
