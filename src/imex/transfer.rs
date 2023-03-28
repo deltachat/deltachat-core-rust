@@ -435,9 +435,10 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
         |hash, reader, name| on_blob(context, &progress, &jobs, ticket, hash, reader, name);
 
     // Perform the transfer.
+    let keylog = false; // Do not enable rustls SSLKEYLOGFILE env var functionality
     let stats = iroh::get::run_ticket(
         ticket,
-        false,
+        keylog,
         MAX_CONCURRENT_DIALS,
         on_connected,
         on_collection,
