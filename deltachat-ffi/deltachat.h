@@ -2775,6 +2775,12 @@ void dc_backup_provider_wait (dc_backup_provider_t* backup_provider);
 /**
  * Frees a dc_backup_provider_t object.
  *
+ * If the provider has not yet finished, as indicated by
+ * dc_backup_provider_wait() or the #DC_EVENT_IMEX_PROGRESS event with value
+ * of 0 (failed) or 1000 (succeeded), this will also abort any in-progress
+ * transfer.  If this aborts the provider a #DC_EVENT_IMEX_PROGRESS event with
+ * value 0 (failed) will be emitted.
+ *
  * @memberof dc_backup_provider_t
  * @param backup_provider The backup provider object as created by
  *    dc_backup_provider_new().

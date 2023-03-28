@@ -1202,6 +1202,7 @@ dependencies = [
  "tokio-io-timeout",
  "tokio-stream",
  "tokio-tar",
+ "tokio-util",
  "toml",
  "trust-dns-resolver",
  "url",
