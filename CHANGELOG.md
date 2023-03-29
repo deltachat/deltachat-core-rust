@@ -4,6 +4,7 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
+- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
 - Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref) #4242
 
 ## [1.112.1] - 2023-03-27
