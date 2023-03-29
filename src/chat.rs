@@ -2727,12 +2727,14 @@ pub async fn get_chat_media(
             "SELECT id
                FROM msgs
               WHERE (1=? OR chat_id=?)
+                AND chat_id != ?
                 AND (type=? OR type=? OR type=?)
                 AND hidden=0
               ORDER BY timestamp, id;",
             paramsv![
                 chat_id.is_none(),
                 chat_id.unwrap_or_else(|| ChatId::new(0)),
+                DC_CHAT_ID_TRASH,
                 msg_type,
                 if msg_type2 != Viewtype::Unknown {
                     msg_type2
@@ -3795,6 +3797,7 @@ mod tests {
     use crate::chatlist::{get_archived_cnt, Chatlist};
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
     use crate::contact::{Contact, ContactAddress};
+    use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
 
@@ -5977,7 +5980,7 @@ mod tests {
             include_bytes!("../test-data/image/avatar64x64.png"),
         )
         .await?;
-        send_media(
+        let second_image_msg_id = send_media(
             &t,
             chat_id2,
             Viewtype::Image,
@@ -6077,6 +6080,21 @@ mod tests {
             .await?
             .len(),
             4
+        );
+
+        // Delete an image.
+        delete_msgs(&t, &[second_image_msg_id]).await?;
+        assert_eq!(
+            get_chat_media(
+                &t,
+                None,
+                Viewtype::Image,
+                Viewtype::Sticker,
+                Viewtype::Webxdc,
+            )
+            .await?
+            .len(),
+            3
         );
 
         Ok(())
