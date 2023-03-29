@@ -28,7 +28,6 @@ skip = [
      { name = "humantime", version = "<2.1" },
      { name = "idna", version = "<0.3" },
      { name = "nom", version = "<7.1" },
-     { name = "portable-atomic", version = "<1.0" },
      { name = "quick-error", version = "<2.0" },
      { name = "rand", version = "<0.8" },
      { name = "rand_chacha", version = "<0.3" },
@@ -75,6 +74,5 @@ license-files = [
 github = [
        "async-email",
        "deltachat",
-       "n0-computer",
        "quinn-rs",
 ]
