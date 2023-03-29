@@ -52,8 +52,7 @@ futures-lite = "1.12.0"
 hex = "0.4.0"
 humansize = "2"
 image = { version = "0.24.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-# iroh = { version = "0.3.0", default-features = false }
-iroh = { git = 'https://github.com/n0-computer/iroh', branch = "main" }
+iroh = { version = "0.4.0", default-features = false }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
@@ -84,10 +83,11 @@ strum_macros = "0.24"
 tagger = "4.3.4"
 textwrap = "0.16.0"
 thiserror = "1"
+tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-io-timeout = "1.2.0"
 tokio-stream = { version = "0.1.11", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
-tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
+tokio-util = "0.7.7"
 toml = "0.7"
 trust-dns-resolver = "0.22"
 url = "2"
