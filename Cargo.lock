@@ -2420,7 +2420,7 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 [[package]]
 name = "iroh"
 version = "0.3.0"
-source = "git+https://github.com/n0-computer/iroh?branch=main#59babe14aa481e90dd09d16bd91fa9b4e12c9c54"
+source = "git+https://github.com/n0-computer/iroh?branch=main#91c7e2aee1f7f4059f3d391725fb49af4410a3eb"
 dependencies = [
  "abao",
  "anyhow",
