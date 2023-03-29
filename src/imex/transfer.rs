@@ -182,7 +182,7 @@ impl BackupProvider {
             .spawn()?;
         context.emit_event(SendProgress::ProviderListening.into());
         info!(context, "Waiting for remote to connect");
-        let ticket = provider.ticket(hash);
+        let ticket = provider.ticket(hash)?;
         Ok((provider, ticket))
     }
 
@@ -406,9 +406,6 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
         Qr::Backup { ticket } => ticket,
         _ => bail!("QR code for backup must be of type DCBACKUP"),
     };
-    if ticket.addrs.is_empty() {
-        bail!("ticket is missing addresses to dial");
-    }
 
     match transfer_from_provider(context, &ticket).await {
         Ok(()) => {
@@ -511,7 +508,7 @@ async fn on_blob(
 
     if name.starts_with("db/") {
         let context = context.clone();
-        let token = ticket.token.to_string();
+        let token = ticket.token().to_string();
         jobs.lock().await.spawn(async move {
             if let Err(err) = context.sql.import(&path, token).await {
                 error!(context, "cannot import database: {:#?}", err);
