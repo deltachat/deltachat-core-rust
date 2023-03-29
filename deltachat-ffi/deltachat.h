@@ -72,7 +72,6 @@ typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
  *
  * The example above uses "pthreads",
  * however, you can also use anything else for thread handling.
- * All deltachat-core functions, unless stated otherwise, are thread-safe.
  *
  * Now you can **configure the context:**
  *
@@ -140,6 +139,67 @@ typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
  * Message 1: Hi, here is my first message!
  * Message 2: Got it!
  * ~~~
+ *
+ *
+ * ## Thread safety
+ *
+ * All deltachat-core functions, unless stated otherwise, are thread-safe.
+ * In particular, it is safe to pass the same dc_context_t pointer
+ * to multiple functions running concurrently in different threads.
+ *
+ * All the functions are guaranteed not to use the reference passed to them
+ * after returning. If the function spawns a long-running process,
+ * such as dc_configure() or dc_imex(), it will ensure that the objects
+ * passed to them are not deallocated as long as they are needed.
+ * For example, it is safe to call dc_imex(context, ...) and
+ * call dc_context_unref(context) immediately after return from dc_imex().
+ * It is however **not safe** to call dc_context_unref(context) concurrently
+ * until dc_imex() returns, because dc_imex() may have not increased
+ * the reference count of dc_context_t yet.
+ *
+ * This means that the context may be still in use after
+ * dc_context_unref() call.
+ * For example, it is possible to start the import/export process,
+ * call dc_context_unref(context) immediately after
+ * and observe #DC_EVENT_IMEX_PROGRESS events via the event emitter.
+ * Once dc_get_next_event() returns NULL,
+ * it is safe to terminate the application.
+ *
+ * It is recommended to create dc_context_t in the main thread
+ * and only call dc_context_unref() once other threads that may use it,
+ * such as the event loop thread, are terminated.
+ * Common mistake is to use dc_context_unref() as a way
+ * to cause dc_get_next_event() return NULL and terminate event loop this way.
+ * If event loop thread is inside a function taking dc_context_t
+ * as an argument at the moment dc_context_unref() is called on the main thread,
+ * the behavior is undefined.
+ *
+ * Recommended way to safely terminate event loop
+ * and shutdown the application is
+ * to use a boolean variable
+ * indicating that the event loop should stop
+ * and check it in the event loop thread
+ * every time before calling dc_get_next_event().
+ * To terminate the event loop, main thread should:
+ * 1. Notify event loop that it should terminate by atomically setting the
+ *    boolean flag in the memory shared between the main thread and event loop.
+ * 2. Call dc_stop_io() or dc_accounts_stop_io(), depending
+ *    on whether a single account or account manager is used.
+ *    Stopping I/O is guaranteed to emit at least one event
+ *    and interrupt the event loop even if it was blocked on dc_get_next_event().
+ * 3. Wait until the event loop thread notices the flag,
+ *    exits the event loop and terminates.
+ * 4. Call dc_context_unref() or dc_accounts_unref().
+ * 5. Keep calling dc_get_next_event() in a loop until it returns NULL,
+ *    indicating that the contexts are deallocated.
+ * 6. Terminate the application.
+ *
+ * When using C API via FFI in runtimes that use automatic memory management,
+ * such as CPython, JVM or Node.js, take care to ensure the correct
+ * shutdown order and avoid calling dc_context_unref() or dc_accounts_unref()
+ * on the objects still in use in other threads,
+ * e.g. by keeping a reference to the wrapper object.
+ * The details depend on the runtime being used.
  *
  *
  * ## Class reference
