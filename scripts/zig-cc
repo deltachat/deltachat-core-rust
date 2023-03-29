@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+import subprocess
+import sys
+import os
+
+
+def flag_filter(flag: str) -> bool:
+    if flag == "-lc":
+        return False
+    if flag == "-Wl,-melf_i386":
+        return False
+    if "self-contained" in flag and "crt" in flag:
+        return False
+    return True
+
+
+def main():
+    args = [flag for flag in sys.argv[1:] if flag_filter(flag)]
+    zig_target = os.environ["ZIG_TARGET"]
+    zig_cpu = os.environ.get("ZIG_CPU")
+    if zig_cpu:
+        zig_cpu_args = ["-mcpu=" + zig_cpu]
+        args = [x for x in args if not x.startswith("-march")]
+    else:
+        zig_cpu_args = []
+
+    subprocess.run(
+        ["zig", "cc", "-target", zig_target, *zig_cpu_args, *args], check=True
+    )
+
+
+main()
