@@ -4,7 +4,7 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
-
+- Fix crash when dc_backup_provider_t is unrefed while dc_backup_provider_wait() is still using it.  #4244
 
 ## [1.112.1] - 2023-03-27
 
