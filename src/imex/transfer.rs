@@ -27,6 +27,7 @@ use std::net::Ipv4Addr;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
@@ -78,7 +79,7 @@ pub struct BackupProvider {
     /// The ticket to retrieve the backup collection.
     ticket: Ticket,
     /// Guard to cancel the provider on drop.
-    _drop_guard: tokio_util::sync::DropGuard,
+    _drop_guard: Arc<tokio_util::sync::DropGuard>,
 }
 
 impl BackupProvider {
@@ -151,7 +152,7 @@ impl BackupProvider {
         Ok(Self {
             handle,
             ticket,
-            _drop_guard: drop_token.drop_guard(),
+            _drop_guard: Arc::new(drop_token.drop_guard()),
         })
     }
 
