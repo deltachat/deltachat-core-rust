@@ -4221,10 +4221,17 @@ pub unsafe extern "C" fn dc_backup_provider_wait(provider: *mut dc_backup_provid
     let ffi_provider = &mut *provider;
     let ctx = &*ffi_provider.context;
     let provider = &mut ffi_provider.provider;
+    backup_provider_wait(ctx.clone(), provider.clone());
+}
+
+// Because this is a long-running operation make sure we own the Context and BackupProvider.
+// This stops a FFI user from deallocating it by calling unref on the object while we are
+// using it.
+fn backup_provider_wait(context: Context, provider: BackupProvider) {
     block_on(provider)
-        .log_err(ctx, "Failed to await BackupProvider")
+        .log_err(&context, "Failed to await BackupProvider")
         .context("Failed to await BackupProvider")
-        .set_last_error(ctx)
+        .set_last_error(&context)
         .ok();
 }
 
