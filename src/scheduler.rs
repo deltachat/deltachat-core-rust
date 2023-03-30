@@ -50,7 +50,7 @@ impl SchedulerState {
     pub(crate) async fn start(&self, context: Context) {
         let mut inner = self.inner.write().await;
         inner.started = true;
-        if inner.scheduler.is_none() && !inner.paused {
+        if inner.scheduler.is_none() && inner.paused == 0 {
             Self::do_start(inner, context).await;
         }
     }
@@ -99,15 +99,15 @@ impl SchedulerState {
     pub(crate) async fn pause<'a>(&'_ self, context: Context) -> IoPausedGuard {
         {
             let mut inner = self.inner.write().await;
-            inner.paused = true;
+            inner.paused += 1;
             Self::do_stop(inner, &context).await;
         }
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
             rx.await.ok();
             let mut inner = context.scheduler.inner.write().await;
-            inner.paused = false;
-            if inner.started && inner.scheduler.is_none() {
+            inner.paused -= 1;
+            if inner.paused == 0 && inner.started && inner.scheduler.is_none() {
                 SchedulerState::do_start(inner, context.clone()).await;
             }
         });
@@ -199,8 +199,10 @@ impl SchedulerState {
 #[derive(Debug, Default)]
 struct InnerSchedulerState {
     scheduler: Option<Scheduler>,
+    /// Whether IO should be started if there is no [`IoPausedGuard`] active.
     started: bool,
-    paused: bool,
+    /// The number of [`IoPausedGuard`]s that are outstanding.
+    paused: u32,
 }
 
 /// Guard to make sure the IO Scheduler is resumed.
