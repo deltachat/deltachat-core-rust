@@ -12,17 +12,17 @@ a low-level Chat/Contact/Message API to user interfaces and bots.
 Installing pre-built packages (Linux-only)
 ==========================================
 
-If you have a Linux system you may try to install the ``deltachat`` binary "wheel" packages
+If you have a Linux system you may install the ``deltachat`` binary "wheel" packages
 without any "build-from-source" steps.
 Otherwise you need to `compile the Delta Chat bindings yourself`__.
 
 __ sourceinstall_
 
-We recommend to first `install virtualenv <https://virtualenv.pypa.io/en/stable/installation.html>`_,
-then create a fresh Python virtual environment and activate it in your shell::
+We recommend to first create a fresh Python virtual environment
+and activate it in your shell::
 
-        virtualenv env  # or: python -m venv
-        source env/bin/activate
+    python -m venv env
+    source env/bin/activate
 
 Afterwards, invoking ``python`` or ``pip install`` only
 modifies files in your ``env`` directory and leaves
@@ -40,16 +40,14 @@ To verify it worked::
 Running tests
 =============
 
-Recommended way to run tests is using `tox <https://tox.wiki>`_.
-After successful binding installation you can install tox
-and run the tests::
+Recommended way to run tests is using `scripts/run-python-test.sh`
+script provided in the core repository.
 
-    pip install tox
-    tox -e py3
-
-This will run all "offline" tests and skip all functional
+This script compiles the library in debug mode and runs the tests using `tox`_.
+By default it will run all "offline" tests and skip all functional
 end-to-end tests that require accounts on real e-mail servers.
 
+.. _`tox`: https://tox.wiki
 .. _livetests:
 
 Running "live" tests with temporary accounts
@@ -61,12 +59,31 @@ Please feel free to contact us through a github issue or by e-mail and we'll sen
 
     export DCC_NEW_TMP_EMAIL=<URL you got from us>
 
-With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.  These accounts exists only for one hour and then are removed completely.
-One hour is enough to invoke pytest and run all offline and online tests::
+With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.
+These accounts are removed automatically as they expire.
+After setting the variable, either rerun `scripts/run-python-test.sh`
+or run offline and online tests with `tox` directly::
 
-    tox -e py3
+    tox -e py
 
 Each test run creates new accounts.
+
+Developing the bindings
+-----------------------
+
+If you want to develop or debug the bindings,
+you can create a testing development environment using `tox`::
+
+    tox -c python --devenv env
+    . env/bin/activate
+
+Inside this environment the bindings are installed
+in editable mode (as if installed with `python -m pip install -e`)
+together with the testing dependencies like `pytest` and its plugins.
+
+You can then edit the source code in the development tree
+and quickly run `pytest` manually without waiting  for `tox`
+to recreating the virtual environment each time.
 
 .. _sourceinstall:
 
@@ -89,20 +106,34 @@ To install the Delta Chat Python bindings make sure you have Python3 installed.
 E.g. on Debian-based systems `apt install python3 python3-pip
 python3-venv` should give you a usable python installation.
 
-Ensure you are in the deltachat-core-rust/python directory, create the
-virtual environment with dependencies using tox
-and activate it in your shell::
+First, build the core library::
 
-   cd python
-   tox --devenv env
+   cargo build --release -p deltachat_ffi --features jsonrpc
+
+`jsonrpc` feature is required even if not used by the bindings
+because `deltachat.h` includes JSON-RPC functions unconditionally.
+
+Create the virtual environment and activate it:
+
+   python -m venv env
    source env/bin/activate
 
-You should now be able to build the python bindings using the supplied script::
+Build and install the bindings:
 
-   python3 install_python_bindings.py
+   export DCC_RS_DEV="$PWD"
+   export DCC_RS_TARGET=release
+   python -m pip install python
 
-The core compilation and bindings building might take a while,
-depending on the speed of your machine.
+`DCC_RS_DEV` environment variable specifies the location of
+the core development tree. If this variable is not set,
+`libdeltachat` library and `deltachat.h` header are expected
+to be installed system-wide.
+
+When `DCC_RS_DEV` is set, `DCC_RS_TARGET` specifies
+the build profile name to look up the artifacts
+in the target directory.
+In this case setting it can be skipped because
+`DCC_RS_TARGET=release` is the default.
 
 Building manylinux based wheels
 ===============================

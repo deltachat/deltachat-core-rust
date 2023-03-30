@@ -8,6 +8,7 @@
 - Update rPGP to 0.10.1. #4236
 
 ### Fixes
+- Fix python bindings README documentation on installing the bindings from source.
 
 ## [1.112.3] - 2023-03-30
 
