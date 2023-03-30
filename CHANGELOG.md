@@ -1,11 +1,9 @@
 # Changelog
 
-## [1.112.3] - Unreleased
-
-### Changes
+## [1.112.3] - 2023-03-30
 
 ### Fixes
-- transfer::get_backup now frees ongoing process when cancelled. #4249
+- `transfer::get_backup` now frees ongoing process when cancelled. #4249
 
 ## [1.112.2] - 2023-03-30
 
