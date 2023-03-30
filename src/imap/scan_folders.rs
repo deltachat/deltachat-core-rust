@@ -70,7 +70,9 @@ impl Imap {
                 loop {
                     self.fetch_move_delete(context, folder.name(), folder_meaning)
                         .await
-                        .ok_or_log_msg(context, "Can't fetch new msgs in scanned folder");
+                        .context("Can't fetch new msgs in scanned folder")
+                        .log_err(context)
+                        .ok();
 
                     let session = self.session.as_mut().context("no session")?;
                     // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
@@ -105,7 +107,11 @@ impl Imap {
         let list = session
             .list(Some(""), Some("*"))
             .await?
-            .filter_map(|f| async { f.ok_or_log_msg(context, "list_folders() can't get folder") });
+            .filter_map(|f| async {
+                f.context("list_folders() can't get folder")
+                    .log_err(context)
+                    .ok()
+            });
         Ok(list.collect().await)
     }
 }

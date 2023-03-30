@@ -757,7 +757,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
             (),
         )
         .await
-        .ok_or_log_msg(context, "failed to remove old MDNs");
+        .context("failed to remove old MDNs")
+        .log_err(context)
+        .ok();
 
     info!(context, "Housekeeping done.");
     Ok(())
