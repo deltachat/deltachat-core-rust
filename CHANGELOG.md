@@ -9,7 +9,7 @@
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247
-
+- transfer::get_backup now frees ongoing process when cancelled. #4249
 
 ## [1.112.1] - 2023-03-27
 
