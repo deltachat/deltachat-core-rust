@@ -337,7 +337,7 @@ impl Context {
             let mut folder_added = false;
 
             if let Some(config) = folder.to_config().filter(|c| watched_folders.contains(c)) {
-                let f = self.get_config(config).await.ok_or_log(self).flatten();
+                let f = self.get_config(config).await.log_err(self).ok().flatten();
 
                 if let Some(foldername) = f {
                     let detailed = &state.get_detailed().await;

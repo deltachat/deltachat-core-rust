@@ -65,9 +65,6 @@ pub trait LogExt<T, E>
 where
     Self: std::marker::Sized,
 {
-    #[track_caller]
-    fn log_err_inner(self, context: &Context) -> Result<T, E>;
-
     /// Emits a warning if the receiver contains an Err value.
     ///
     /// Thanks to the [track_caller](https://blog.rust-lang.org/2020/08/27/Rust-1.46.0.html#track_caller)
@@ -76,36 +73,15 @@ where
     /// Unfortunately, the track_caller feature does not work on async functions (as of Rust 1.50).
     /// Once it is, you can add `#[track_caller]` to helper functions that use one of the log helpers here
     /// so that the location of the caller can be seen in the log. (this won't work with the macros,
-    /// like warn!(), since the file!() and line!() macros don't work with track_caller)  
+    /// like warn!(), since the file!() and line!() macros don't work with track_caller)
     /// See <https://github.com/rust-lang/rust/issues/78840> for progress on this.
     #[track_caller]
-    fn log_err(self, context: &Context) -> Result<T, E> {
-        self.log_err_inner(context)
-    }
-
-    /// Emits a warning if the receiver contains an Err value and returns an [`Option<T>`].
-    ///
-    /// Example:
-    /// ```text
-    /// if let Err(e) = do_something() {
-    ///     warn!(context, "{:#}", e);
-    /// }
-    /// ```
-    /// is equivalent to:
-    /// ```text
-    /// do_something().ok_or_log(context);
-    /// ```
-    ///
-    /// For a note on the `track_caller` feature, see the doc comment on `log_err()`.
-    #[track_caller]
-    fn ok_or_log(self, context: &Context) -> Option<T> {
-        self.log_err_inner(context).ok()
-    }
+    fn log_err(self, context: &Context) -> Result<T, E>;
 }
 
 impl<T, E: std::fmt::Display> LogExt<T, E> for Result<T, E> {
     #[track_caller]
-    fn log_err_inner(self, context: &Context) -> Result<T, E> {
+    fn log_err(self, context: &Context) -> Result<T, E> {
         if let Err(e) = &self {
             let location = std::panic::Location::caller();
 

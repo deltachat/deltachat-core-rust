@@ -92,7 +92,7 @@ impl<'a> BlobObject<'a> {
                     if attempt >= MAX_ATTEMPT {
                         return Err(err).context("failed to create file");
                     } else if attempt == 1 && !dir.exists() {
-                        fs::create_dir_all(dir).await.ok_or_log(context);
+                        fs::create_dir_all(dir).await.log_err(context).ok();
                     } else {
                         name = format!("{}-{}{}", stem, rand::random::<u32>(), ext);
                     }
