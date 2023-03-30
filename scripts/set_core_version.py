@@ -56,7 +56,8 @@ def update_package_json(relpath, newversion):
         json_data = json.loads(f.read())
     json_data["version"] = newversion
     with open(p, "w") as f:
-        f.write(json.dumps(json_data, sort_keys=True, indent=2))
+        json.dump(json_data, f, sort_keys=True, indent=2)
+        f.write("\n")
 
 
 def main():
