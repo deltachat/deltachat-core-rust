@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.112.3] - Unreleased
+
+### Changes
+
+### Fixes
+- transfer::get_backup now frees ongoing process when cancelled. #4249
+
 ## [1.112.2] - 2023-03-30
 
 ### Changes
@@ -9,7 +16,6 @@
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247
-
 
 ## [1.112.1] - 2023-03-27
 
