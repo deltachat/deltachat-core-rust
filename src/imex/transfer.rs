@@ -392,12 +392,10 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     let cancel_token = context.alloc_ongoing().await?;
     let res = tokio::select! {
         biased;
-        res = get_backup_inner(context, qr) => {
-            context.free_ongoing().await;
-            res
-        }
+        res = get_backup_inner(context, qr) => res,
         _ = cancel_token.recv() => Err(format_err!("cancelled")),
     };
+    context.free_ongoing().await;
     res
 }
 
