@@ -1,4 +1,5 @@
 use std::iter::{self, once};
+use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
 
 use anyhow::{bail, Context as _, Result};
@@ -119,20 +120,20 @@ impl SchedulerState {
                 InnerSchedulerState::Started(_) => {
                     let new_state = InnerSchedulerState::Paused {
                         started: true,
-                        pause_guards_count: 1,
+                        pause_guards_count: NonZeroUsize::new(1).unwrap(),
                     };
                     Self::do_stop(inner, &context, new_state).await;
                 }
                 InnerSchedulerState::Stopped => {
                     *inner = InnerSchedulerState::Paused {
                         started: false,
-                        pause_guards_count: 1,
+                        pause_guards_count: NonZeroUsize::new(1).unwrap(),
                     };
                 }
                 InnerSchedulerState::Paused {
                     ref mut pause_guards_count,
                     ..
-                } => *pause_guards_count += 1,
+                } => *pause_guards_count = pause_guards_count.checked_add(1).unwrap(),
             }
         }
 
@@ -151,12 +152,15 @@ impl SchedulerState {
                     ref started,
                     ref mut pause_guards_count,
                 } => {
-                    *pause_guards_count = pause_guards_count.saturating_sub(1);
-                    if *pause_guards_count == 0 {
+                    if *pause_guards_count == NonZeroUsize::new(1).unwrap() {
                         match *started {
                             true => SchedulerState::do_start(inner, context.clone()).await,
                             false => *inner = InnerSchedulerState::Stopped,
                         }
+                    } else {
+                        let new_count = pause_guards_count.get() - 1;
+                        // SAFETY: Value was >=2 before due to if condition
+                        *pause_guards_count = NonZeroUsize::new(new_count).unwrap();
                     }
                 }
             }
@@ -253,7 +257,7 @@ enum InnerSchedulerState {
     Stopped,
     Paused {
         started: bool,
-        pause_guards_count: u32,
+        pause_guards_count: NonZeroUsize,
     },
 }
 
