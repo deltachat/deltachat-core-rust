@@ -151,7 +151,7 @@ impl SchedulerState {
                     ref started,
                     ref mut pause_guards_count,
                 } => {
-                    *pause_guards_count -= 1;
+                    *pause_guards_count = pause_guards_count.saturating_sub(1);
                     if *pause_guards_count == 0 {
                         match *started {
                             true => SchedulerState::do_start(inner, context.clone()).await,
