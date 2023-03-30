@@ -199,9 +199,9 @@ impl SchedulerState {
 #[derive(Debug, Default)]
 struct InnerSchedulerState {
     scheduler: Option<Scheduler>,
-    /// Whether IO should be started if there is no [`IoPauseGuard`] active.
+    /// Whether IO should be started if there is no [`IoPausedGuard`] active.
     started: bool,
-    /// The number of [`IoPauseGuard`]s that are outstanding.
+    /// The number of [`IoPausedGuard`]s that are outstanding.
     paused: u32,
 }
 
