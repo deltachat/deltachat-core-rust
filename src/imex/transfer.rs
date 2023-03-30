@@ -31,7 +31,6 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
-use async_channel::Receiver;
 use futures_lite::StreamExt;
 use iroh::get::{DataStream, Options};
 use iroh::progress::ProgressEmitter;
@@ -47,7 +46,7 @@ use tokio_stream::wrappers::ReadDirStream;
 
 use crate::blob::BlobDirContents;
 use crate::chat::delete_and_reset_all_device_msgs;
-use crate::context::Context;
+use crate::context::{Context, OngoingGuard};
 use crate::qr::Qr;
 use crate::{e2ee, EventType};
 
@@ -91,7 +90,7 @@ impl BackupProvider {
             .context("Private key not available, aborting backup export")?;
 
         // Acquire global "ongoing" mutex.
-        let cancel_token = context.alloc_ongoing().await?;
+        let mut cancel_token = context.alloc_ongoing().await?;
         let paused_guard = context.scheduler.pause(context.clone()).await;
         let context_dir = context
             .get_blobdir()
@@ -114,7 +113,7 @@ impl BackupProvider {
                     },
                 }
             },
-            _ = cancel_token.recv() => Err(format_err!("cancelled")),
+            _ = &mut cancel_token => Err(format_err!("cancelled")),
         };
         let (provider, ticket) = match res {
             Ok((provider, ticket)) => (provider, ticket),
@@ -188,7 +187,7 @@ impl BackupProvider {
     async fn watch_provider(
         context: &Context,
         mut provider: Provider,
-        cancel_token: Receiver<()>,
+        mut cancel_token: OngoingGuard,
     ) -> Result<()> {
         // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
@@ -248,7 +247,7 @@ impl BackupProvider {
                         }
                     }
                 },
-                _ = cancel_token.recv() => {
+                _ = &mut cancel_token => {
                     provider.shutdown();
                     break Err(anyhow!("BackupSender cancelled"));
                 },
@@ -381,7 +380,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
             context.free_ongoing().await;
             res
         }
-        _ = cancel_token.recv() => Err(format_err!("cancelled")),
+        _ = cancel_token => Err(format_err!("cancelled")),
     };
     res
 }

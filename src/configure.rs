@@ -70,7 +70,7 @@ impl Context {
 
         let res = self
             .inner_configure()
-            .race(cancel_channel.recv().map(|_| {
+            .race(cancel_channel.map(|_| {
                 progress!(self, 0);
                 Ok(())
             }))

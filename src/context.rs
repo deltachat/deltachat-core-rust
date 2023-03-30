@@ -2,16 +2,19 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
+use std::future::Future;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
-use async_channel::{self as channel, Receiver, Sender};
+use async_channel::Sender;
 use ratelimit::Ratelimit;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio::task;
 
 use crate::chat::{get_chat_cnt, ChatId};
@@ -257,7 +260,7 @@ pub(crate) struct DebugLogging {
 #[derive(Debug)]
 enum RunningState {
     /// Ongoing process is allocated.
-    Running { cancel_sender: Sender<()> },
+    Running { cancel_sender: oneshot::Sender<()> },
 
     /// Cancel signal has been sent, waiting for ongoing process to be freed.
     ShallStop,
@@ -511,21 +514,35 @@ impl Context {
     /// This is for modal operations during which no other user actions are allowed.  Only
     /// one such operation is allowed at any given time.
     ///
-    /// The return value is a cancel token, which will release the ongoing mutex when
-    /// dropped.
-    pub(crate) async fn alloc_ongoing(&self) -> Result<Receiver<()>> {
+    /// The return value is a guard which does two things:
+    ///
+    /// - It is a Future which will complete when the ongoing process is cancelled using
+    ///  [`Context::stop_ongoing`] and must stop.
+    /// - It will free the ongoing process, aka release the mutex, when dropped.
+    pub(crate) async fn alloc_ongoing(&self) -> Result<OngoingGuard> {
         let mut s = self.running_state.write().await;
         ensure!(
             matches!(*s, RunningState::Stopped),
             "There is already another ongoing process running."
         );
 
-        let (sender, receiver) = channel::bounded(1);
+        let (cancel_tx, cancel_rx) = oneshot::channel();
         *s = RunningState::Running {
-            cancel_sender: sender,
+            cancel_sender: cancel_tx,
         };
+        let (drop_tx, drop_rx) = oneshot::channel();
+        let context = self.clone();
 
-        Ok(receiver)
+        tokio::spawn(async move {
+            drop_rx.await.ok();
+            let mut s = context.running_state.write().await;
+            *s = RunningState::Stopped;
+        });
+
+        Ok(OngoingGuard {
+            cancel_rx,
+            drop_tx: Some(drop_tx),
+        })
     }
 
     pub(crate) async fn free_ongoing(&self) {
@@ -536,21 +553,24 @@ impl Context {
     /// Signal an ongoing process to stop.
     pub async fn stop_ongoing(&self) {
         let mut s = self.running_state.write().await;
-        match &*s {
-            RunningState::Running { cancel_sender } => {
-                if let Err(err) = cancel_sender.send(()).await {
-                    warn!(self, "could not cancel ongoing: {:#}", err);
-                }
-                info!(self, "Signaling the ongoing process to stop ASAP.",);
-                *s = RunningState::ShallStop;
-            }
+
+        // Take out the state so we can call the oneshot sender (which takes ownership).
+        let current_state = std::mem::replace(&mut *s, RunningState::ShallStop);
+
+        match current_state {
+            RunningState::Running { cancel_sender } => match cancel_sender.send(()) {
+                Ok(()) => info!(self, "Signaling the ongoing process to stop ASAP."),
+                Err(()) => warn!(self, "could not cancel ongoing"),
+            },
             RunningState::ShallStop | RunningState::Stopped => {
+                // Put back the current state
+                *s = current_state;
                 info!(self, "No ongoing process to stop.",);
             }
         }
     }
 
-    #[allow(unused)]
+    #[cfg(test)]
     pub(crate) async fn shall_stop_ongoing(&self) -> bool {
         match &*self.running_state.read().await {
             RunningState::Running { .. } => false,
@@ -942,6 +962,54 @@ impl Context {
         wal_fname.push(dbfile.file_name().unwrap_or_default());
         wal_fname.push("-wal");
         dbfile.with_file_name(wal_fname)
+    }
+}
+
+/// Guard received when calling [`Context::alloc_ongoing`].
+///
+/// While holding this guard the ongoing mutex is held, dropping this guard frees the
+/// ongoing process.
+///
+/// The ongoing process can also be cancelled by unrelated code calling
+/// [`Context::stop_ongoing`].  This guard implements [`Future`] and the future will
+/// complete when the ongoing process is cancelled and must be aborted.  Freeing the ongoing
+/// process works as usual in this case: when this guard is dropped.  So if you need to do
+/// some more work before freeing make sure to keep ownership of the guard, e.g.:
+///
+/// ```no_compile
+/// let mut guard = context.alloc_ongoing().await?;
+/// tokio::select!{
+///     biased;
+///     _ = &mut guard => (), // guard is not moved, so we keep ownership.
+///     _ = do_work() => (),
+/// };
+/// do_cleaup().await;
+/// drop(guard);
+/// ```
+pub(crate) struct OngoingGuard {
+    /// Receives a message when the ongoing process should be cancelled.
+    cancel_rx: oneshot::Receiver<()>,
+    /// Used by `Drop` to send a message which will free the ongoing process.
+    drop_tx: Option<oneshot::Sender<()>>,
+}
+
+impl Future for OngoingGuard {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self.cancel_rx).poll(cx) {
+            Poll::Ready(_) => Poll::Ready(()),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for OngoingGuard {
+    fn drop(&mut self) {
+        if let Some(sender) = self.drop_tx.take() {
+            // TODO: Maybe this should log?  But we'd need to have a context.
+            sender.send(()).ok();
+        }
     }
 }
 
@@ -1409,38 +1477,52 @@ mod tests {
     async fn test_ongoing() -> Result<()> {
         let context = TestContext::new().await;
 
-        // No ongoing process allocated.
+        println!("No ongoing process allocated.");
         assert!(context.shall_stop_ongoing().await);
 
-        let receiver = context.alloc_ongoing().await?;
+        let mut guard = context.alloc_ongoing().await?;
 
-        // Cannot allocate another ongoing process while the first one is running.
+        println!("Cannot allocate another ongoing process while the first one is running.");
         assert!(context.alloc_ongoing().await.is_err());
 
-        // Stop signal is not sent yet.
-        assert!(receiver.try_recv().is_err());
+        println!("Stop signal is not sent yet.");
+        assert!(matches!(futures::poll!(&mut guard), Poll::Pending));
 
         assert!(!context.shall_stop_ongoing().await);
 
-        // Send the stop signal.
+        println!("Send the stop signal.");
         context.stop_ongoing().await;
 
-        // Receive stop signal.
-        receiver.recv().await?;
+        println!("Receive stop signal.");
+        (&mut guard).await;
 
         assert!(context.shall_stop_ongoing().await);
 
-        // Ongoing process is still running even though stop signal was received,
-        // so another one cannot be allocated.
+        println!("Ongoing process still running even though stop signal was received");
         assert!(context.alloc_ongoing().await.is_err());
 
-        context.free_ongoing().await;
+        println!("free the ongoing process");
+        // context.free_ongoing().await;
+        drop(guard);
 
-        // No ongoing process allocated, should have been stopped already.
-        assert!(context.shall_stop_ongoing().await);
-
-        // Another ongoing process can be allocated now.
-        let _receiver = context.alloc_ongoing().await?;
+        println!("re-acquire the ongoing process");
+        // Since the drop guard needs to send a message and the receiving task must run and
+        // acquire a lock this needs some time so won't succeed immediately.
+        #[allow(clippy::async_yields_async)]
+        let _guard = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                match context.alloc_ongoing().await {
+                    Ok(guard) => break guard,
+                    Err(_) => {
+                        // tokio::task::yield_now() results in a lot hotter loop, it takes a
+                        // lot of yields.
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("timeout");
 
         Ok(())
     }
