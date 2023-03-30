@@ -1413,8 +1413,6 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         context.emit_msgs_changed_without_ids();
 
         // Run housekeeping to delete unused blobs.
-        // We need to use set_raw_config() here since with set_config() it
-        // wouldn't compile ("recursion in an `async fn`")
         context.set_config(Config::LastHousekeeping, None).await?;
     }
 
