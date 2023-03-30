@@ -88,18 +88,17 @@ pub async fn imex(
     path: &Path,
     passphrase: Option<String>,
 ) -> Result<()> {
-    let cancel = context.alloc_ongoing().await?;
+    let ongoing_guard = context.alloc_ongoing().await?;
 
     let res = {
         let _guard = context.scheduler.pause(context.clone()).await;
         imex_inner(context, what, path, passphrase)
             .race(async {
-                cancel.await;
+                ongoing_guard.await;
                 Err(format_err!("canceled"))
             })
             .await
     };
-    context.free_ongoing().await;
 
     if let Err(err) = res.as_ref() {
         // We are using Anyhow's .context() and to show the inner error, too, we need the {:#}:

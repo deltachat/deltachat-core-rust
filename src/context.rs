@@ -545,11 +545,6 @@ impl Context {
         })
     }
 
-    pub(crate) async fn free_ongoing(&self) {
-        let mut s = self.running_state.write().await;
-        *s = RunningState::Stopped;
-    }
-
     /// Signal an ongoing process to stop.
     pub async fn stop_ongoing(&self) {
         let mut s = self.running_state.write().await;

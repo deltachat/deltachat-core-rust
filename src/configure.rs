@@ -66,17 +66,15 @@ impl Context {
             self.sql.is_open().await,
             "cannot configure, database not opened."
         );
-        let cancel_channel = self.alloc_ongoing().await?;
+        let ongoing_guard = self.alloc_ongoing().await?;
 
         let res = self
             .inner_configure()
-            .race(cancel_channel.map(|_| {
+            .race(ongoing_guard.map(|_| {
                 progress!(self, 0);
                 Ok(())
             }))
             .await;
-
-        self.free_ongoing().await;
 
         if let Err(err) = res.as_ref() {
             progress!(

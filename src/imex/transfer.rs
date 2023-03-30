@@ -90,7 +90,7 @@ impl BackupProvider {
             .context("Private key not available, aborting backup export")?;
 
         // Acquire global "ongoing" mutex.
-        let mut cancel_token = context.alloc_ongoing().await?;
+        let mut ongoing_guard = context.alloc_ongoing().await?;
         let paused_guard = context.scheduler.pause(context.clone()).await;
         let context_dir = context
             .get_blobdir()
@@ -102,7 +102,7 @@ impl BackupProvider {
             warn!(context, "Previous database export deleted");
         }
         let dbfile = TempPathGuard::new(dbfile);
-        let res = tokio::select! {
+        let (provider, ticket) = tokio::select! {
             biased;
             res = Self::prepare_inner(context, &dbfile) => {
                 match res {
@@ -113,20 +113,12 @@ impl BackupProvider {
                     },
                 }
             },
-            _ = &mut cancel_token => Err(format_err!("cancelled")),
-        };
-        let (provider, ticket) = match res {
-            Ok((provider, ticket)) => (provider, ticket),
-            Err(err) => {
-                context.free_ongoing().await;
-                return Err(err);
-            }
-        };
+            _ = &mut ongoing_guard => Err(format_err!("cancelled")),
+        }?;
         let handle = {
             let context = context.clone();
             tokio::spawn(async move {
-                let res = Self::watch_provider(&context, provider, cancel_token).await;
-                context.free_ongoing().await;
+                let res = Self::watch_provider(&context, provider, ongoing_guard).await;
 
                 // Explicit drop to move the guards into this future
                 drop(paused_guard);
@@ -189,7 +181,6 @@ impl BackupProvider {
         mut provider: Provider,
         mut cancel_token: OngoingGuard,
     ) -> Result<()> {
-        // _dbfile exists so we can clean up the file once it is no longer needed
         let mut events = provider.subscribe();
         let mut total_size = 0;
         let mut current_size = 0;
@@ -373,16 +364,12 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     let _guard = context.scheduler.pause(context.clone()).await;
 
     // Acquire global "ongoing" mutex.
-    let cancel_token = context.alloc_ongoing().await?;
-    let res = tokio::select! {
+    let mut cancel_token = context.alloc_ongoing().await?;
+    tokio::select! {
         biased;
-        res = get_backup_inner(context, qr) => {
-            context.free_ongoing().await;
-            res
-        }
-        _ = cancel_token => Err(format_err!("cancelled")),
-    };
-    res
+        res = get_backup_inner(context, qr) => res,
+        _ = &mut cancel_token => Err(format_err!("cancelled")),
+    }
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
