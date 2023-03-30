@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changes
+- Remove upper limit on the attachment size. #4253
 
 ### Fixes
 
