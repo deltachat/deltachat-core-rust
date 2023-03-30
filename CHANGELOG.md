@@ -8,6 +8,17 @@
 ### Fixes
 
 
+## [1.112.2] - 2023-03-30
+
+### Changes
+- Update iroh, remove `default-net` from `[patch.crates-io]` section.
+- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
+- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref).  The BackupProvider will now alaway finish with an IMEX event of 1000 or 0, previoulsy it would sometimes finishe with 1000 (success) when it really was 0 (failure). #4242
+
+### Fixes
+- Do not return media from trashed messages in the "All media" view. #4247
+
+
 ## [1.112.1] - 2023-03-27
 
 ### Changes
@@ -2338,7 +2349,8 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...HEAD
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
+[1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2

@@ -11,9 +11,13 @@ ignore = [
 # Accept some duplicate versions, ideally we work towards this list
 # becoming empty.  Adding versions forces us to revisit this at least
 # when upgrading.
+# Please keep this list alphabetically sorted.
 skip = [
      { name = "base64", version = "<0.21" },
      { name = "block-buffer", version = "<0.10" },
+     { name = "clap", version = "3.2.23" },
+     { name = "clap_lex", version = "0.2.4" },
+     { name = "convert_case", version = "0.4.0" },
      { name = "darling", version = "<0.14" },
      { name = "darling_core", version = "<0.14" },
      { name = "darling_macro", version = "<0.14" },
@@ -29,24 +33,16 @@ skip = [
      { name = "rand_chacha", version = "<0.3" },
      { name = "rand_core", version = "<0.6" },
      { name = "sha2", version = "<0.10" },
+     { name = "spin", version = "<0.9.6" },
      { name = "time", version = "<0.3" },
      { name = "version_check", version = "<0.9" },
      { name = "wasi", version = "<0.11" },
      { name = "windows-sys", version = "<0.45" },
-     { name = "windows_x86_64_msvc", version = "<0.42" },
-     { name = "windows_x86_64_gnu", version = "<0.42" },
-     { name = "windows_i686_msvc", version = "<0.42" },
-     { name = "windows_i686_gnu", version = "<0.42" },
      { name = "windows_aarch64_msvc", version = "<0.42" },
-     { name = "unicode-xid", version = "<0.2.4" },
-     { name = "syn", version = "<1.0" },
-     { name = "quote", version = "<1.0" },
-     { name = "proc-macro2", version = "<1.0" },
-     { name = "portable-atomic", version = "<1.0" },
-     { name = "spin", version = "<0.9.6" },
-     { name = "convert_case", version = "0.4.0" },
-     { name = "clap_lex", version = "0.2.4" },
-     { name = "clap", version = "3.2.23" },
+     { name = "windows_i686_gnu", version = "<0.42" },
+     { name = "windows_i686_msvc", version = "<0.42" },
+     { name = "windows_x86_64_gnu", version = "<0.42" },
+     { name = "windows_x86_64_msvc", version = "<0.42" },
 ]
 
 
@@ -78,7 +74,5 @@ license-files = [
 github = [
        "async-email",
        "deltachat",
-       "n0-computer",
        "quinn-rs",
-       "dignifiedquire",
 ]
