@@ -55,5 +55,5 @@
   },
   "type": "module",
   "types": "dist/deltachat.d.ts",
-  "version": "1.112.2"
+  "version": "1.112.3"
 }

@@ -7,6 +7,10 @@
 
 ### Fixes
 
+## [1.112.3] - 2023-03-30
+
+### Fixes
+- `transfer::get_backup` now frees ongoing process when cancelled. #4249
 
 ## [1.112.2] - 2023-03-30
 
@@ -17,7 +21,6 @@
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247
-
 
 ## [1.112.1] - 2023-03-27
 
@@ -2354,3 +2357,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
 [1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2
+[1.112.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...v1.112.3
