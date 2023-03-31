@@ -7,6 +7,7 @@
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
+- maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.

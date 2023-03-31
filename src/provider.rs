@@ -3,12 +3,11 @@
 mod data;
 
 use anyhow::Result;
-use chrono::{NaiveDateTime, NaiveTime};
 use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS, PROVIDER_UPDATED};
+use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS};
 
 /// Provider status according to manual testing.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -258,22 +257,12 @@ pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
     }
 }
 
-/// Returns update timestamp as a unix timestamp compatible for comparison with time() and database times.
-pub fn get_provider_update_timestamp() -> i64 {
-    NaiveDateTime::new(*PROVIDER_UPDATED, NaiveTime::from_hms_opt(0, 0, 0).unwrap())
-        .timestamp_millis()
-        / 1_000
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
-    use chrono::NaiveDate;
-
     use super::*;
     use crate::test_utils::TestContext;
-    use crate::tools::time;
 
     #[test]
     fn test_get_provider_by_domain_unexistant() {
@@ -334,18 +323,6 @@ mod tests {
                 .id
                 == "gmail"
         );
-    }
-
-    #[test]
-    fn test_get_provider_update_timestamp() {
-        let timestamp_past = NaiveDateTime::new(
-            NaiveDate::from_ymd_opt(2020, 9, 9).unwrap(),
-            NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
-        )
-        .timestamp_millis()
-            / 1_000;
-        assert!(get_provider_update_timestamp() <= time());
-        assert!(get_provider_update_timestamp() > timestamp_past);
     }
 
     #[test]
