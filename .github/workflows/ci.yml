@@ -64,22 +64,18 @@ jobs:
       - name: Rustdoc
         run: cargo doc --document-private-items --no-deps
 
-  build_and_test:
-    name: Build and test
+  c_library:
+    name: Rust tests and C library build
     strategy:
-      fail-fast: false
       matrix:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            rust: 1.68.0
-            python: 3.9
+            rust: 1.68.2
           - os: windows-latest
-            rust: 1.68.0
-            python: false # Python bindings compilation on Windows is not supported.
+            rust: 1.68.2
           - os: macos-latest
-            rust: 1.68.0
-            python: 3.9
+            rust: 1.68.2
 
           # Minimum Supported Rust Version = 1.65.0
           #
@@ -88,10 +84,9 @@ jobs:
           # built.
           - os: ubuntu-latest
             rust: 1.65.0
-            python: 3.7
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
 
       - name: Install Rust ${{ matrix.rust }}
         run: rustup toolchain install --profile minimal ${{ matrix.rust }}
@@ -109,55 +104,97 @@ jobs:
       - name: Test cargo vendor
         run: cargo vendor
 
+      - name: Build C library
+        run: cargo build -p deltachat_ffi --features jsonrpc
+
+      - name: Upload C library
+        if: matrix.os != "windows-latest"
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
+          path: target/debug/libdeltachat.a
+
+  python_lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Lint Python bindings
+        working-directory: python
+        run: tox -e lint,mypy,doc
+
+      - name: Lint deltachat-rpc-client
+        working-directory: deltachat-rpc-client
+        run: tox -e lint
+
+  python_tests:
+    name: Python tests
+    needs: ["c_library", "python_lint"]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Currently used Rust version.
+          - os: ubuntu-latest
+            rust: 1.68.2
+            python: 3.11
+          - os: macos-latest
+            rust: 1.68.2
+            python: 3.11
+
+          # PyPy tests
+          - os: ubuntu-latest
+            rust: 1.68.2
+            python: pypy3.9
+          - os: macos-latest
+            rust: 1.68.2
+            python: pypy3.9
+
+          # Minimum Supported Python Version = 3.7
+          # This is the minimum version for which manylinux Python wheels are
+          # built. Test it with minimum supported Rust version.
+          - os: ubuntu-latest
+            rust: 1.65.0
+            python: 3.7
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download libdeltachat.a
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
+          path: target/debug
+
       - name: Install python
-        if: ${{ matrix.python }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
 
       - name: Install tox
-        if: ${{ matrix.python }}
         run: pip install tox
 
-      - name: Build C library
-        if: ${{ matrix.python }}
-        run: cargo build -p deltachat_ffi --features jsonrpc
-
       - name: Run python tests
-        if: ${{ matrix.python }}
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
           DCC_RS_TARGET: debug
           DCC_RS_DEV: ${{ github.workspace }}
         working-directory: python
-        run: tox -e lint,mypy,doc,py3
+        run: tox -e py
 
       - name: Build deltachat-rpc-server
-        if: ${{ matrix.python }}
         run: cargo build -p deltachat-rpc-server
 
       - name: Add deltachat-rpc-server to path
-        if: ${{ matrix.python }}
         run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
 
       - name: Run deltachat-rpc-client tests
-        if: ${{ matrix.python }}
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
         working-directory: deltachat-rpc-client
-        run: tox -e py3,lint
-
-      - name: Install pypy
-        if: ${{ matrix.python }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: "pypy${{ matrix.python }}"
-
-      - name: Run pypy tests
-        if: ${{ matrix.python }}
-        env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
-          DCC_RS_TARGET: debug
-          DCC_RS_DEV: ${{ github.workspace }}
-        working-directory: python
-        run: tox -e pypy3
+        run: tox -e py
