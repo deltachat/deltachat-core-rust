@@ -33,7 +33,7 @@ unset DCC_NEW_TMP_EMAIL
 # E.g. musllinux_1_1 does not have PyPy interpreters as of 2022-07-10
 tox --workdir "$TOXWORKDIR" -e py37,py38,py39,py310,py311,pypy37,pypy38,pypy39 --skip-missing-interpreters true
 
-auditwheel repair "$TOXWORKDIR/wheelhouse/deltachat*" -w "$TOXWORKDIR/wheelhouse"
+auditwheel repair "$TOXWORKDIR"/wheelhouse/deltachat* -w "$TOXWORKDIR/wheelhouse"
 
 
 echo -----------------------

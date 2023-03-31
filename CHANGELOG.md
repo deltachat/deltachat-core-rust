@@ -10,6 +10,11 @@
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
 
+## [1.112.4] - 2023-03-31
+
+### Fixes
+- Fix call to `auditwheel` in `scripts/run_all.sh`.
+
 ## [1.112.3] - 2023-03-30
 
 ### Fixes
@@ -2355,9 +2360,10 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...HEAD
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.4...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
 [1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2
 [1.112.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...v1.112.3
+[1.112.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.3...v1.112.4
