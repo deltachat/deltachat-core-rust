@@ -92,7 +92,7 @@ impl BackupProvider {
 
         // Acquire global "ongoing" mutex.
         let cancel_token = context.alloc_ongoing().await?;
-        let paused_guard = context.scheduler.pause(context.clone()).await;
+        let paused_guard = context.scheduler.pause(context.clone()).await?;
         let context_dir = context
             .get_blobdir()
             .parent()
@@ -371,7 +371,7 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    let _guard = context.scheduler.pause(context.clone()).await;
+    let _guard = context.scheduler.pause(context.clone()).await?;
 
     // Acquire global "ongoing" mutex.
     let cancel_token = context.alloc_ongoing().await?;
