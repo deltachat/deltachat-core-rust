@@ -759,7 +759,7 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
         .with_context(|| format!("path {} is not valid unicode", dest.display()))?;
 
     context.sql.set_raw_config_int("backup_time", now).await?;
-    sql::housekeeping(context).await.ok_or_log(context);
+    sql::housekeeping(context).await.log_err(context).ok();
     context
         .sql
         .call_write(|conn| {

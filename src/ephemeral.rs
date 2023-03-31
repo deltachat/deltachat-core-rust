@@ -575,7 +575,8 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
 
         delete_expired_messages(context, time())
             .await
-            .ok_or_log(context);
+            .log_err(context)
+            .ok();
     }
 }
 
