@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.112.4] - 2023-03-31
+
+### Fixes
+- Fix call to `auditwheel` in `scripts/run_all.sh`.
+
 ## [1.112.3] - 2023-03-30
 
 ### Fixes
