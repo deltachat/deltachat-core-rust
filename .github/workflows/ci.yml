@@ -113,6 +113,7 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
           path: target/debug/libdeltachat.a
+          retention-days: 1
 
   python_lint:
     name: Python lint
