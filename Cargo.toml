@@ -102,7 +102,7 @@ log = "0.4"
 pretty_env_logger = "0.4"
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
-testdir = "0.7.2"
+testdir = "0.7.3"
 tokio = { version = "1", features = ["parking_lot", "rt-multi-thread", "macros"] }
 
 [workspace]
