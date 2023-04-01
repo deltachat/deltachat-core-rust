@@ -108,7 +108,7 @@ jobs:
         run: cargo build -p deltachat_ffi --features jsonrpc
 
       - name: Upload C library
-        if: ${{ matrix.os != "windows-latest" }}
+        if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
