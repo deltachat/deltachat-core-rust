@@ -6,6 +6,7 @@
 - Increase MSRV to 1.65.0. #4236
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
+- Compress `mime_headers` column with HTML emails stored in database
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
@@ -35,7 +36,6 @@
 ### Changes
 - Add support for `--version` argument to `deltachat-rpc-server`. #4224
   It can be used to check the installed version without starting the server.
-- Compress `mime_headers` column with HTML emails stored in database
 
 ### Fixes
 - deltachat-rpc-client: fix bug in `Chat.send_message()`: invalid `MessageData` field `quotedMsg` instead of `quotedMsgId`
