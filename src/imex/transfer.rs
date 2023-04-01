@@ -408,6 +408,7 @@ async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
     match transfer_from_provider(context, &ticket).await {
         Ok(()) => {
             delete_and_reset_all_device_msgs(context).await?;
+            context.sql.run_migrations(context).await?;
             context.emit_event(ReceiveProgress::Completed.into());
             Ok(())
         }

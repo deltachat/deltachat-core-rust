@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.112.5 - unrelesaed
+
+### Fixes
+
+- Run SQL database migrations after receiving a backup from the network. #4287
+
 ## [1.112.4] - 2023-03-31
 
 ### Fixes
