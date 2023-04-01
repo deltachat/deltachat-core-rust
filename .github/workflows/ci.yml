@@ -16,11 +16,11 @@ env:
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  lint:
-    name: Rustfmt and Clippy
+  lint_rust:
+    name: Lint Rust
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.68.0
+      RUSTUP_TOOLCHAIN: 1.68.2
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
@@ -31,6 +31,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Run clippy
         run: scripts/clippy.sh
+      - name: Check
+        run: cargo check --workspace --bins --examples --tests --benches
 
   cargo_deny:
     name: cargo deny
@@ -64,12 +66,11 @@ jobs:
       - name: Rustdoc
         run: cargo doc --document-private-items --no-deps
 
-  c_library:
-    name: Rust tests and C library build
+  rust_tests:
+    name: Rust tests
     strategy:
       matrix:
         include:
-          # Currently used Rust version.
           - os: ubuntu-latest
             rust: 1.68.2
           - os: windows-latest
@@ -95,24 +96,54 @@ jobs:
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
 
-      - name: Check
-        run: cargo check --workspace --bins --examples --tests --benches
-
       - name: Tests
         run: cargo test --workspace
 
       - name: Test cargo vendor
         run: cargo vendor
 
+  c_library:
+    name: Build C library
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache rust cargo artifacts
+        uses: swatinem/rust-cache@v2
+
       - name: Build C library
         run: cargo build -p deltachat_ffi --features jsonrpc
 
       - name: Upload C library
-        if: matrix.os != 'windows-latest'
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
           path: target/debug/libdeltachat.a
+          retention-days: 1
+
+  rpc_server:
+    name: Build deltachat-rpc-server
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache rust cargo artifacts
+        uses: swatinem/rust-cache@v2
+
+      - name: Build deltachat-rpc-server
+        run: cargo build -p deltachat-rpc-server
+
+      - name: Upload deltachat-rpc-server
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{matrix.rust}}-deltachat-rpc-server
+          path: target/debug/deltachat-rpc-server
           retention-days: 1
 
   python_lint:
@@ -142,26 +173,22 @@ jobs:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            rust: 1.68.2
             python: 3.11
           - os: macos-latest
-            rust: 1.68.2
             python: 3.11
 
           # PyPy tests
           - os: ubuntu-latest
-            rust: 1.68.2
             python: pypy3.9
           - os: macos-latest
-            rust: 1.68.2
             python: pypy3.9
 
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
           # built. Test it with minimum supported Rust version.
           - os: ubuntu-latest
-            rust: 1.65.0
             python: 3.7
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -188,8 +215,51 @@ jobs:
         working-directory: python
         run: tox -e mypy,doc,py
 
-      - name: Build deltachat-rpc-server
-        run: cargo build -p deltachat-rpc-server
+  aysnc_python_tests:
+    name: Async Python tests
+    needs: ["python_lint", "rpc_server"]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Currently used Rust version.
+          - os: ubuntu-latest
+            python: 3.11
+          - os: macos-latest
+            python: 3.11
+
+          # PyPy tests
+          - os: ubuntu-latest
+            python: pypy3.9
+          - os: macos-latest
+            python: pypy3.9
+
+          # Minimum Supported Python Version = 3.7
+          # This is the minimum version for which manylinux Python wheels are
+          # built. Test it with minimum supported Rust version.
+          - os: ubuntu-latest
+            python: 3.7
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install tox
+        run: pip install tox
+
+      - name: Download deltachat-rpc-server
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.os }}-${{matrix.rust}}-deltachat-rpc-server
+          path: target/debug
+
+      - name: Make deltachat-rpc-server executable
+        run: chmod +x target/debug/deltachat-rpc-server
 
       - name: Add deltachat-rpc-server to path
         run: echo ${{ github.workspace }}/target/debug >> $GITHUB_PATH
