@@ -6,6 +6,7 @@
 - Increase MSRV to 1.65.0. #4236
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
+- Rewrite it in Python
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
