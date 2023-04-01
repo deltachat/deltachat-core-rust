@@ -20,7 +20,7 @@ jobs:
     name: Rustfmt and Clippy
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.68.0
+      RUSTUP_TOOLCHAIN: nightly
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
@@ -72,10 +72,10 @@ jobs:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            rust: 1.68.0
+            rust: nightly
             python: 3.9
           - os: windows-latest
-            rust: 1.68.0
+            rust: nightly
             python: false # Python bindings compilation on Windows is not supported.
           - os: macos-latest
             rust: 1.68.0

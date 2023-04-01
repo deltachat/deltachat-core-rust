@@ -15,6 +15,7 @@ use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, TimeZone};
 use futures::{StreamExt, TryStreamExt};
+use inline_python::python;
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
@@ -591,16 +592,16 @@ pub fn remove_subject_prefix(last_subject: &str) -> String {
 
 // Types and methods to create hop-info for message-info
 
-fn extract_address_from_receive_header<'a>(header: &'a str, start: &str) -> Option<&'a str> {
-    let header_len = header.len();
-    header.find(start).and_then(|mut begin| {
-        begin += start.len();
-        let end = header
-            .get(begin..)?
-            .find(|c: char| c.is_whitespace())
-            .unwrap_or(header_len);
-        header.get(begin..begin + end)
-    })
+fn extract_address_from_receive_header(header: &str, start: &str) -> Option<String> {
+    let c: inline_python::Context = python! {
+        header_len = len('header)
+        if 'start in 'header:
+            begin = 'header.find('start) + len('start)
+            result = 'header[begin:].split()[0]
+        else:
+            result = None
+    };
+    c.get::<Option<String>>("result")
 }
 
 pub(crate) fn parse_receive_header(header: &str) -> String {
