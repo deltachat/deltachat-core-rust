@@ -396,7 +396,7 @@ impl Context {
         if let Some(quota) = &*quota {
             match &quota.recent {
                 Ok(quota) => {
-                    if quota.len() > 0 {
+                    if !quota.is_empty() {
                         for (root_name, resources) in quota {
                             use async_imap::types::QuotaResourceName::*;
                             for resource in resources {
