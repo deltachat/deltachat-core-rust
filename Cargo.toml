@@ -52,7 +52,7 @@ futures = "0.3"
 futures-lite = "1.12.0"
 hex = "0.4.0"
 humansize = "2"
-image = { version = "0.24.5", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
+image = { version = "0.24.6", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh = { version = "0.4.0", default-features = false }
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
