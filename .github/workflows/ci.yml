@@ -126,7 +126,7 @@ jobs:
 
       - name: Lint Python bindings
         working-directory: python
-        run: tox -e lint,mypy,doc
+        run: tox -e lint
 
       - name: Lint deltachat-rpc-client
         working-directory: deltachat-rpc-client
@@ -185,7 +185,7 @@ jobs:
           DCC_RS_TARGET: debug
           DCC_RS_DEV: ${{ github.workspace }}
         working-directory: python
-        run: tox -e py
+        run: tox -e mypy,doc,py
 
       - name: Build deltachat-rpc-server
         run: cargo build -p deltachat-rpc-server
