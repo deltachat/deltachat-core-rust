@@ -396,64 +396,72 @@ impl Context {
         if let Some(quota) = &*quota {
             match &quota.recent {
                 Ok(quota) => {
-                    let roots_cnt = quota.len();
-                    for (root_name, resources) in quota {
-                        use async_imap::types::QuotaResourceName::*;
-                        for resource in resources {
-                            ret += "<li>";
+                    if quota.len() > 0 {
+                        for (root_name, resources) in quota {
+                            use async_imap::types::QuotaResourceName::*;
+                            for resource in resources {
+                                ret += "<li>";
 
-                            // root name is empty eg. for gmail and redundant eg. for riseup.
-                            // therefore, use it only if there are really several roots.
-                            if roots_cnt > 1 && !root_name.is_empty() {
-                                ret +=
-                                    &format!("<b>{}:</b> ", &*escaper::encode_minimal(root_name));
-                            } else {
-                                info!(self, "connectivity: root name hidden: \"{}\"", root_name);
+                                // root name is empty eg. for gmail and redundant eg. for riseup.
+                                // therefore, use it only if there are really several roots.
+                                if quota.len() > 1 && !root_name.is_empty() {
+                                    ret += &format!(
+                                        "<b>{}:</b> ",
+                                        &*escaper::encode_minimal(root_name)
+                                    );
+                                } else {
+                                    info!(
+                                        self,
+                                        "connectivity: root name hidden: \"{}\"", root_name
+                                    );
+                                }
+
+                                let messages = stock_str::messages(self).await;
+                                let part_of_total_used = stock_str::part_of_total_used(
+                                    self,
+                                    &resource.usage.to_string(),
+                                    &resource.limit.to_string(),
+                                )
+                                .await;
+                                ret += &match &resource.name {
+                                    Atom(resource_name) => {
+                                        format!(
+                                            "<b>{}:</b> {}",
+                                            &*escaper::encode_minimal(resource_name),
+                                            part_of_total_used
+                                        )
+                                    }
+                                    Message => {
+                                        format!("<b>{part_of_total_used}:</b> {messages}")
+                                    }
+                                    Storage => {
+                                        // do not use a special title needed for "Storage":
+                                        // - it is usually shown directly under the "Storage" headline
+                                        // - by the units "1 MB of 10 MB used" there is some difference to eg. "Messages: 1 of 10 used"
+                                        // - the string is not longer than the other strings that way (minus title, plus units) -
+                                        //   additional linebreaks on small displays are unlikely therefore
+                                        // - most times, this is the only item anyway
+                                        let usage = &format_size(resource.usage * 1024, BINARY);
+                                        let limit = &format_size(resource.limit * 1024, BINARY);
+                                        stock_str::part_of_total_used(self, usage, limit).await
+                                    }
+                                };
+
+                                let percent = resource.get_usage_percentage();
+                                let color = if percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
+                                    "red"
+                                } else if percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
+                                    "yellow"
+                                } else {
+                                    "green"
+                                };
+                                ret += &format!("<div class=\"bar\"><div class=\"progress {color}\" style=\"width: {percent}%\">{percent}%</div></div>");
+
+                                ret += "</li>";
                             }
-
-                            let messages = stock_str::messages(self).await;
-                            let part_of_total_used = stock_str::part_of_total_used(
-                                self,
-                                &resource.usage.to_string(),
-                                &resource.limit.to_string(),
-                            )
-                            .await;
-                            ret += &match &resource.name {
-                                Atom(resource_name) => {
-                                    format!(
-                                        "<b>{}:</b> {}",
-                                        &*escaper::encode_minimal(resource_name),
-                                        part_of_total_used
-                                    )
-                                }
-                                Message => {
-                                    format!("<b>{part_of_total_used}:</b> {messages}")
-                                }
-                                Storage => {
-                                    // do not use a special title needed for "Storage":
-                                    // - it is usually shown directly under the "Storage" headline
-                                    // - by the units "1 MB of 10 MB used" there is some difference to eg. "Messages: 1 of 10 used"
-                                    // - the string is not longer than the other strings that way (minus title, plus units) -
-                                    //   additional linebreaks on small displays are unlikely therefore
-                                    // - most times, this is the only item anyway
-                                    let usage = &format_size(resource.usage * 1024, BINARY);
-                                    let limit = &format_size(resource.limit * 1024, BINARY);
-                                    stock_str::part_of_total_used(self, usage, limit).await
-                                }
-                            };
-
-                            let percent = resource.get_usage_percentage();
-                            let color = if percent >= QUOTA_ERROR_THRESHOLD_PERCENTAGE {
-                                "red"
-                            } else if percent >= QUOTA_WARN_THRESHOLD_PERCENTAGE {
-                                "yellow"
-                            } else {
-                                "green"
-                            };
-                            ret += &format!("<div class=\"bar\"><div class=\"progress {color}\" style=\"width: {percent}%\">{percent}%</div></div>");
-
-                            ret += "</li>";
                         }
+                    } else {
+                        ret += format!("<li>Warning: {domain} claims to support quota but gives no information</li>").as_str();
                     }
                 }
                 Err(e) => {

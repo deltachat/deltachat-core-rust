@@ -10,6 +10,7 @@
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
+- Show a warning if quota list is empty #4261
 
 ## [1.112.4] - 2023-03-31
 
