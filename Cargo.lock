@@ -4697,9 +4697,9 @@ dependencies = [
 
 [[package]]
 name = "testdir"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31eb500f7513b559ed7e0652894268dbe8ef27b6241b783ce274f4741eae137"
+checksum = "a45fc921e7c4ad1aedb3484811514f3e5cd187886e0bbf1302c175f7578ef552"
 dependencies = [
  "anyhow",
  "backtrace",
