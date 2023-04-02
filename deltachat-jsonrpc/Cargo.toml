@@ -25,7 +25,7 @@ yerpc = { version = "0.4.3", features = ["anyhow_expose"] }
 typescript-type-def = { version = "0.5.5", features = ["json_value"] }
 tokio = { version = "1.25.0" }
 sanitize-filename = "0.4"
-walkdir = "2.3.2"
+walkdir = "2.3.3"
 base64 = "0.21"
 
 # optional dependencies
