@@ -260,7 +260,7 @@ enum RunningState {
     Running { cancel_sender: Sender<()> },
 
     /// Cancel signal has been sent, waiting for ongoing process to be freed.
-    ShallStop,
+    ShallStop { request: Instant },
 
     /// There is no ongoing process, a new one can be allocated.
     Stopped,
@@ -530,6 +530,9 @@ impl Context {
 
     pub(crate) async fn free_ongoing(&self) {
         let mut s = self.running_state.write().await;
+        if let RunningState::ShallStop { request } = *s {
+            info!(self, "Ongoing stopped in {:?}", request.elapsed());
+        }
         *s = RunningState::Stopped;
     }
 
@@ -542,9 +545,11 @@ impl Context {
                     warn!(self, "could not cancel ongoing: {:#}", err);
                 }
                 info!(self, "Signaling the ongoing process to stop ASAP.",);
-                *s = RunningState::ShallStop;
+                *s = RunningState::ShallStop {
+                    request: Instant::now(),
+                };
             }
-            RunningState::ShallStop | RunningState::Stopped => {
+            RunningState::ShallStop { .. } | RunningState::Stopped => {
                 info!(self, "No ongoing process to stop.",);
             }
         }
@@ -554,7 +559,7 @@ impl Context {
     pub(crate) async fn shall_stop_ongoing(&self) -> bool {
         match &*self.running_state.read().await {
             RunningState::Running { .. } => false,
-            RunningState::ShallStop | RunningState::Stopped => true,
+            RunningState::ShallStop { .. } | RunningState::Stopped => true,
         }
     }
 
