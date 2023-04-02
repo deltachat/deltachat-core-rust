@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.112.5 - unrelesaed
+## [1.112.5] - 2023-04-02
 
 ### Fixes
 
@@ -2362,3 +2362,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2
 [1.112.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...v1.112.3
 [1.112.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.3...v1.112.4
+[1.112.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.4...v1.112.5
