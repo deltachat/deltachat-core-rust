@@ -165,7 +165,13 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     lp.sec("ac3: start QR-code based setup contact protocol")
     ch = ac3.qr_setup_contact(qr)
     assert ch.id >= 10
-    ac1._evtracker.wait_securejoin_inviter_progress(1000)
+    try:
+        ac1._evtracker.wait_securejoin_inviter_progress(1000, timeout=5)
+    except Exception:
+        ac1.stop_io()
+        ac1.start_io()
+        ac1._evtracker.wait_securejoin_inviter_progress(1000)
+        assert False
 
     lp.sec("ac1: add ac3 to verified group")
     chat1.add_contact(ac3)

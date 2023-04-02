@@ -114,11 +114,14 @@ class FFIEventTracker:
         while True:
             yield self.get(timeout=timeout, check_error=check_error)
 
-    def get_matching(self, event_name_regex, check_error=True, timeout=None):
+    def iter_matching(self, event_name_regex, check_error=True, timeout=None):
         rex = re.compile(f"^(?:{event_name_regex})$")
         for ev in self.iter_events(timeout=timeout, check_error=check_error):
             if rex.match(ev.name):
-                return ev
+                yield ev
+
+    def get_matching(self, event_name_regex, check_error=True, timeout=None):
+        return next(self.iter_matching(event_name_regex=event_name_regex, check_error=check_error, timeout=timeout))
 
     def get_info_contains(self, regex: str) -> FFIEvent:
         rex = re.compile(regex)
@@ -129,8 +132,7 @@ class FFIEventTracker:
 
     def get_info_regex_groups(self, regex, check_error=True):
         rex = re.compile(regex)
-        while True:
-            ev = self.get_matching("DC_EVENT_INFO", check_error=check_error)
+        for ev in self.iter_matching("DC_EVENT_INFO", check_error=check_error):
             m = rex.match(ev.data2)
             if m is not None:
                 return m.groups()
@@ -175,9 +177,8 @@ class FFIEventTracker:
             else:
                 assert not rex.match(ev.name), f"event found {ev}"
 
-    def wait_securejoin_inviter_progress(self, target):
-        while True:
-            event = self.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
+    def wait_securejoin_inviter_progress(self, target, timeout=None):
+        for event in self.iter_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS", timeout=timeout):
             if event.data2 >= target:
                 print(f"** SECUREJOINT-INVITER PROGRESS {target}", self.account)
                 break
