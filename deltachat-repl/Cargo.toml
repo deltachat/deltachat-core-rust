@@ -8,7 +8,7 @@ edition = "2021"
 ansi_term = "0.12.1"
 anyhow = "1"
 deltachat = { path = "..", features = ["internals"]}
-dirs = "4"
+dirs = "5"
 log = "0.4.16"
 pretty_env_logger = "0.4"
 rusqlite = "0.28"
