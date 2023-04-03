@@ -32,7 +32,7 @@ jobs:
       - name: Run clippy
         run: scripts/clippy.sh
       - name: Check
-        run: cargo check --workspace --bins --examples --tests --benches
+        run: cargo check --workspace --all-targets --all-features
 
   cargo_deny:
     name: cargo deny
