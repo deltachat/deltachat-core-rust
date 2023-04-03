@@ -1082,17 +1082,17 @@ impl CommandApi {
     }
 
     /// Search messages containing the given query string.
-    /// Searching can be done globally (chat_id=0) or in a specified chat only (chat_id set).
+    /// Searching can be done globally (chat_id=None) or in a specified chat only (chat_id set).
     ///
-    /// Global chat results are typically displayed using dc_msg_get_summary(), chat
-    /// search results may just hilite the corresponding messages and present a
+    /// Global search results are typically displayed using dc_msg_get_summary(), chat
+    /// search results may just highlight the corresponding messages and present a
     /// prev/next button.
     ///
-    /// For global search, result is limited to 1000 messages,
-    /// this allows incremental search done fast.
-    /// So, when getting exactly 1000 results, the result may be truncated;
-    /// the UIs may display sth. as "1000+ messages found" in this case.
-    /// Chat search (if a chat_id is set) is not limited.
+    /// For the global search, the result is limited to 1000 messages,
+    /// this allows an incremental search done fast.
+    /// So, when getting exactly 1000 messages, the result actually may be truncated;
+    /// the UIs may display sth. like "1000+ messages found" in this case.
+    /// The chat search (if chat_id is set) is not limited.
     async fn search_messages(
         &self,
         account_id: u32,
