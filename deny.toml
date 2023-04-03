@@ -40,6 +40,7 @@ skip = [
      { name = "rand_chacha", version = "<0.3" },
      { name = "rand_core", version = "<0.6" },
      { name = "rand", version = "<0.8" },
+     { name = "redox_syscall", version = "0.2.16" },
      { name = "sec1", version = "0.3.0" },
      { name = "sha2", version = "<0.10" },
      { name = "signature", version = "1.6.4" },
