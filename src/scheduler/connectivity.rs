@@ -14,6 +14,8 @@ use crate::tools::time;
 use crate::{context::Context, log::LogExt};
 use crate::{stock_str, tools};
 
+use super::InnerSchedulerState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
 pub enum Connectivity {
     NotConnected = 1000,
@@ -226,12 +228,12 @@ impl Context {
     /// If the connectivity changes, a DC_EVENT_CONNECTIVITY_CHANGED will be emitted.
     pub async fn get_connectivity(&self) -> Connectivity {
         let lock = self.scheduler.inner.read().await;
-        let stores: Vec<_> = match lock.scheduler {
-            Some(ref sched) => sched
+        let stores: Vec<_> = match *lock {
+            InnerSchedulerState::Started(ref sched) => sched
                 .boxes()
                 .map(|b| b.conn_state.state.connectivity.clone())
                 .collect(),
-            None => return Connectivity::NotConnected,
+            _ => return Connectivity::NotConnected,
         };
         drop(lock);
 
@@ -309,15 +311,15 @@ impl Context {
         // =============================================================================================
 
         let lock = self.scheduler.inner.read().await;
-        let (folders_states, smtp) = match lock.scheduler {
-            Some(ref sched) => (
+        let (folders_states, smtp) = match *lock {
+            InnerSchedulerState::Started(ref sched) => (
                 sched
                     .boxes()
                     .map(|b| (b.meaning, b.conn_state.state.connectivity.clone()))
                     .collect::<Vec<_>>(),
                 sched.smtp.state.connectivity.clone(),
             ),
-            None => {
+            _ => {
                 return Err(anyhow!("Not started"));
             }
         };
@@ -480,14 +482,14 @@ impl Context {
     /// Returns true if all background work is done.
     pub async fn all_work_done(&self) -> bool {
         let lock = self.scheduler.inner.read().await;
-        let stores: Vec<_> = match lock.scheduler {
-            Some(ref sched) => sched
+        let stores: Vec<_> = match *lock {
+            InnerSchedulerState::Started(ref sched) => sched
                 .boxes()
                 .map(|b| &b.conn_state.state)
                 .chain(once(&sched.smtp.state))
                 .map(|state| state.connectivity.clone())
                 .collect(),
-            None => return false,
+            _ => return false,
         };
         drop(lock);
 
