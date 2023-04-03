@@ -38,7 +38,7 @@ async-channel = "1.8.0"
 async-imap = { version = "0.7.0", default-features = false, features = ["runtime-tokio"] }
 async-native-tls = { version = "0.5", default-features = false, features = ["runtime-tokio"] }
 async-smtp = { version = "0.9", default-features = false, features = ["runtime-tokio"] }
-async_zip = { version = "0.0.11", default-features = false, features = ["deflate", "fs"] }
+async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "fs"] }
 backtrace = "0.3"
 base64 = "0.21"
 bitflags = "1.3"
