@@ -909,12 +909,14 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
                 }
             }
             Err(err) => {
-                warn!(
-                    context,
-                    "Housekeeping: Cannot read dir {}: {:#}.",
-                    p.display(),
-                    err
-                );
+                if !p.ends_with(BLOBS_BACKUP_NAME) {
+                    warn!(
+                        context,
+                        "Housekeeping: Cannot read dir {}: {:#}.",
+                        p.display(),
+                        err
+                    );
+                }
             }
         }
     }
