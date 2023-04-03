@@ -14,7 +14,7 @@ use std::{
 use anyhow::{bail, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use num_traits::FromPrimitive;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
@@ -516,8 +516,7 @@ impl Imap {
             .uid_fetch("1:*", RFC724MID_UID)
             .await
             .with_context(|| format!("can't resync folder {folder}"))?;
-        while let Some(fetch) = list.next().await {
-            let fetch = fetch?;
+        while let Some(fetch) = list.try_next().await? {
             let headers = match get_fetch_headers(&fetch) {
                 Ok(headers) => headers,
                 Err(err) => {
@@ -660,7 +659,7 @@ impl Imap {
                     .context("Error fetching UID")?;
 
                 let mut new_last_seen_uid = None;
-                while let Some(fetch) = list.next().await.transpose()? {
+                while let Some(fetch) = list.try_next().await? {
                     if fetch.message == mailbox.exists && fetch.uid.is_some() {
                         new_last_seen_uid = fetch.uid;
                     }
@@ -1198,8 +1197,11 @@ impl Imap {
             .await
             .context("failed to fetch flags")?;
 
-        while let Some(fetch) = list.next().await {
-            let fetch = fetch.context("failed to get FETCH result")?;
+        while let Some(fetch) = list
+            .try_next()
+            .await
+            .context("failed to get FETCH result")?
+        {
             let uid = if let Some(uid) = fetch.uid {
                 uid
             } else {
@@ -1258,8 +1260,7 @@ impl Imap {
                 .await
                 .context("IMAP Could not fetch")?;
 
-            while let Some(fetch) = list.next().await {
-                let msg = fetch?;
+            while let Some(msg) = list.try_next().await? {
                 match get_fetch_headers(&msg) {
                     Ok(headers) => {
                         if let Some(from) = mimeparser::get_from(&headers) {
@@ -1294,8 +1295,7 @@ impl Imap {
             .context("IMAP could not fetch")?;
 
         let mut msgs = BTreeMap::new();
-        while let Some(fetch) = list.next().await {
-            let msg = fetch?;
+        while let Some(msg) = list.try_next().await? {
             if let Some(msg_uid) = msg.uid {
                 // If the mailbox is not empty, results always include
                 // at least one UID, even if last_seen_uid+1 is past
@@ -1332,8 +1332,7 @@ impl Imap {
             .context("IMAP Could not fetch")?;
 
         let mut msgs = BTreeMap::new();
-        while let Some(fetch) = list.next().await {
-            let msg = fetch?;
+        while let Some(msg) = list.try_next().await? {
             if let Some(msg_uid) = msg.uid {
                 msgs.insert((msg.internal_date(), msg_uid), msg);
             }
@@ -1680,8 +1679,7 @@ impl Imap {
         let mut delimiter_is_default = true;
         let mut folder_configs = BTreeMap::new();
 
-        while let Some(folder) = folders.next().await {
-            let folder = folder?;
+        while let Some(folder) = folders.try_next().await? {
             info!(context, "Scanning folder: {:?}", folder);
 
             // Update the delimiter iff there is a different one, but only once.
