@@ -36,8 +36,8 @@ use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
-    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input, time,
-    IsNoneOrEmpty,
+    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
+    strip_rtlo_characters, time, IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
@@ -2214,11 +2214,6 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         if let Some(text) = &msg.text {
             msg.text = Some(strip_rtlo_characters(text.as_ref()));
         }
-    }
-
-    // protect all messages containing a file against rtlo
-    if let Some(file_name) = msg.param.get(Param::File) {
-        msg.param.set(Param::File, strip_rtlo_characters(file_name));
     }
 
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
@@ -6118,6 +6113,30 @@ mod tests {
             3
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blob_renaming() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        add_contact_to_chat(
+            &alice,
+            chat_id,
+            Contact::create(&alice, "bob", "bob@example.net").await?,
+        )
+        .await?;
+
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file("./test-data/harmless_file.\u{202e}txt.exe", None);
+        let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
+
+        // the file bob receives should not contain BIDI-control characters
+        assert_eq!(
+            Some("$BLOBDIR/harmless_file.txt.exe"),
+            msg.param.get(Param::File),
+        );
         Ok(())
     }
 }

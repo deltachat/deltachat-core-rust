@@ -7,10 +7,11 @@
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
-- Protect against RTLO attacks #3479
+- Strip BIDI characters in system messages, files, group names and contact names #3479
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
+- Show a warning if quota list is empty #4261
 
 ## [1.112.5] - 2023-04-02
 
