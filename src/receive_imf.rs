@@ -1097,7 +1097,7 @@ async fn add_parts(
         }
 
         if let Some(path) = part.param.get(Param::File) {
-            part.param.set(Param::File, strip_rtlo_characters(&path));
+            part.param.set(Param::File, strip_rtlo_characters(path));
         }
 
         if let Some(replace_msg_id) = replace_msg_id {
