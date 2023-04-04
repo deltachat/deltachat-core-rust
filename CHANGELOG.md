@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.112.6 - unreleased
+
+### Fixed
+
+- Updated `iroh` from 0.4.0 to 0.4.1 to fix transfer of large accounts with many blob files.
+
 ## [1.112.5] - 2023-04-02
 
 ### Fixes
