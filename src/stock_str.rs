@@ -407,6 +407,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Scan to set up second device for %1$s"))]
     BackupTransferQr = 162,
+
+    #[strum(props(fallback = "ℹ️ Account transferred to your second device."))]
+    BackupTransferMsgBody = 163,
 }
 
 impl StockMessage {
@@ -1259,6 +1262,10 @@ pub(crate) async fn backup_transfer_qr(context: &Context) -> Result<String> {
     Ok(translated(context, StockMessage::BackupTransferQr)
         .await
         .replace1(&full_name))
+}
+
+pub(crate) async fn backup_transfer_msg_body(context: &Context) -> String {
+    translated(context, StockMessage::BackupTransferMsgBody).await
 }
 
 impl Context {
