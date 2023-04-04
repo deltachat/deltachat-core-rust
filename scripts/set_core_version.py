@@ -114,11 +114,15 @@ def main():
     subprocess.call(["git", "add", "-u"])
     # subprocess.call(["cargo", "update", "-p", "deltachat"])
 
-    print("after commit, on master make sure to: ")
-    print("")
+    print("After commit, make sure to:")
+    print()
     print(f"   git tag -a v{newversion}")
     print(f"   git push origin v{newversion}")
-    print("")
+    print(f"   gh release create v{newversion} -n ''")
+    print()
+    print("Merge release branch into `master` if the release")
+    print("is made on a stable branch.")
+    print()
 
 
 if __name__ == "__main__":
