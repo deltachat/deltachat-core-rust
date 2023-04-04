@@ -95,7 +95,7 @@ pub async fn imex(
         imex_inner(context, what, path, passphrase)
             .race(async {
                 ongoing_guard.await;
-                Err(format_err!("canceled"))
+                Err(format_err!("cancelled"))
             })
             .await
     };
