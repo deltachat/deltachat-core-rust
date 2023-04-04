@@ -693,7 +693,6 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
     Ok(mem::take(decompressor.get_mut()))
 }
 
-
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
 /// This method strips all occurances of the RTLO Unicode character.
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
