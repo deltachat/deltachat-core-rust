@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.112.6 - unreleased
+## [1.112.6] - 2023-04-04
 
 ### Changes
 
