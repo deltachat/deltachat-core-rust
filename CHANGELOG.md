@@ -30,8 +30,8 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
-- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
-- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref).  The BackupProvider will now alaway finish with an IMEX event of 1000 or 0, previoulsy it would sometimes finishe with 1000 (success) when it really was 0 (failure). #4242
+- transfer backup: Connect to multiple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
+- Make sure BackupProvider is cancelled on drop (or `dc_backup_provider_unref`).  The BackupProvider will now always finish with an IMEX event of 1000 or 0, previously it would sometimes finished with 1000 (success) when it really was 0 (failure). #4242
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247
