@@ -12,7 +12,7 @@ export DCC_RS_DEV=`pwd`
 
 cd python
 
-python install_python_bindings.py onlybuild
+cargo build -p deltachat_ffi --features jsonrpc
 
 # remove and inhibit writing PYC files 
 rm -rf tests/__pycache__
@@ -22,4 +22,4 @@ export PYTHONDONTWRITEBYTECODE=1
 # run python tests (tox invokes pytest to run tests in python/tests)
 #TOX_PARALLEL_NO_SPINNER=1 tox -e lint,doc
 tox -e lint
-tox -e doc,py3
+tox -e doc,py

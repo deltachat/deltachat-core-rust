@@ -563,7 +563,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             context.maybe_network().await;
         }
         "housekeeping" => {
-            sql::housekeeping(&context).await.ok_or_log(&context);
+            sql::housekeeping(&context).await.log_err(&context).ok();
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" {

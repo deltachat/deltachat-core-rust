@@ -3,9 +3,40 @@
 ## [Unreleased]
 
 ### Changes
+- Increase MSRV to 1.65.0. #4236
+- Remove upper limit on the attachment size. #4253
+- Update rPGP to 0.10.1. #4236
+- Compress `mime_headers` column with HTML emails stored in database
+
+### Fixes
+- Fix python bindings README documentation on installing the bindings from source.
+- Show a warning if quota list is empty #4261
+
+## [1.112.5] - 2023-04-02
 
 ### Fixes
 
+- Run SQL database migrations after receiving a backup from the network. #4287
+
+## [1.112.4] - 2023-03-31
+
+### Fixes
+- Fix call to `auditwheel` in `scripts/run_all.sh`.
+
+## [1.112.3] - 2023-03-30
+
+### Fixes
+- `transfer::get_backup` now frees ongoing process when cancelled. #4249
+
+## [1.112.2] - 2023-03-30
+
+### Changes
+- Update iroh, remove `default-net` from `[patch.crates-io]` section.
+- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
+- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref).  The BackupProvider will now alaway finish with an IMEX event of 1000 or 0, previoulsy it would sometimes finishe with 1000 (success) when it really was 0 (failure). #4242
+
+### Fixes
+- Do not return media from trashed messages in the "All media" view. #4247
 
 ## [1.112.1] - 2023-03-27
 
@@ -2337,7 +2368,11 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...HEAD
+[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
+[1.112.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.1...v1.112.2
+[1.112.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.2...v1.112.3
+[1.112.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.3...v1.112.4
+[1.112.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.4...v1.112.5

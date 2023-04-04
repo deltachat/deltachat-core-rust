@@ -27,16 +27,13 @@ use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
 use crate::tools::IsNoneOrEmpty;
 use crate::tools::{
-    create_outgoing_rfc724_mid, create_smeared_timestamp, get_filebytes, remove_subject_prefix,
-    time,
+    create_outgoing_rfc724_mid, create_smeared_timestamp, remove_subject_prefix, time,
 };
 
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
-// as an upper limit, we double the size; the core won't send messages larger than this
 // to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
 pub const RECOMMENDED_FILE_SIZE: u64 = 24 * 1024 * 1024 / 4 * 3;
-const UPPER_LIMIT_FILE_SIZE: u64 = 49 * 1024 * 1024 / 4 * 3;
 
 #[derive(Debug, Clone)]
 pub enum Loaded {
@@ -1211,15 +1208,8 @@ impl<'a> MimeFactory<'a> {
 
         // add attachment part
         if self.msg.viewtype.has_file() {
-            if !is_file_size_okay(context, self.msg).await? {
-                bail!(
-                    "Message exceeds the recommended {} MB.",
-                    RECOMMENDED_FILE_SIZE / 1_000_000,
-                );
-            } else {
-                let (file_part, _) = build_body_file(context, self.msg, "").await?;
-                parts.push(file_part);
-            }
+            let (file_part, _) = build_body_file(context, self.msg, "").await?;
+            parts.push(file_part);
         }
 
         if let Some(meta_part) = meta_part {
@@ -1481,16 +1471,6 @@ fn recipients_contain_addr(recipients: &[(String, String)], addr: &str) -> bool 
     recipients
         .iter()
         .any(|(_, cur)| cur.to_lowercase() == addr_lc)
-}
-
-async fn is_file_size_okay(context: &Context, msg: &Message) -> Result<bool> {
-    match msg.param.get_path(Param::File, context)? {
-        Some(path) => {
-            let bytes = get_filebytes(context, &path).await?;
-            Ok(bytes <= UPPER_LIMIT_FILE_SIZE)
-        }
-        None => Ok(false),
-    }
 }
 
 fn render_rfc724_mid(rfc724_mid: &str) -> String {

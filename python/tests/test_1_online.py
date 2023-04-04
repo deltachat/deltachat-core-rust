@@ -567,7 +567,8 @@ def test_moved_markseen(acfactory):
 
     with ac2.direct_imap.idle() as idle2:
         ac2.start_io()
-        msg = ac2._evtracker.wait_next_incoming_message()
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev.data2)
 
         # Accept the contact request.
         msg.chat.accept()

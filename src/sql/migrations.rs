@@ -704,6 +704,13 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         // Reverted above, as it requires to load the whole DB in memory.
         sql.set_db_version(99).await?;
     }
+    if dbversion < 100 {
+        sql.execute_migration(
+            "ALTER TABLE msgs ADD COLUMN mime_compressed INTEGER NOT NULL DEFAULT 0",
+            100,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
@@ -735,14 +742,18 @@ impl Sql {
         Ok(())
     }
 
-    async fn execute_migration(&self, query: &'static str, version: i32) -> Result<()> {
-        self.transaction(move |transaction| {
-            // set raw config inside the transaction
-            transaction.execute(
-                "UPDATE config SET value=? WHERE keyname=?;",
-                paramsv![format!("{version}"), VERSION_CFG],
-            )?;
+    // Sets db `version` in the `transaction`.
+    fn set_db_version_trans(transaction: &mut rusqlite::Transaction, version: i32) -> Result<()> {
+        transaction.execute(
+            "UPDATE config SET value=? WHERE keyname=?;",
+            params![format!("{version}"), VERSION_CFG],
+        )?;
+        Ok(())
+    }
 
+    async fn execute_migration(&self, query: &str, version: i32) -> Result<()> {
+        self.transaction(move |transaction| {
+            Self::set_db_version_trans(transaction, version)?;
             transaction.execute_batch(query)?;
 
             Ok(())

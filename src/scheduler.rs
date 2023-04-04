@@ -1,7 +1,8 @@
 use std::iter::{self, once};
+use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{bail, Context as _, Error, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use futures::future::try_join_all;
 use futures_lite::FutureExt;
@@ -43,15 +44,18 @@ impl SchedulerState {
     /// Whether the scheduler is currently running.
     pub(crate) async fn is_running(&self) -> bool {
         let inner = self.inner.read().await;
-        inner.scheduler.is_some()
+        matches!(*inner, InnerSchedulerState::Started(_))
     }
 
     /// Starts the scheduler if it is not yet started.
     pub(crate) async fn start(&self, context: Context) {
         let mut inner = self.inner.write().await;
-        inner.started = true;
-        if inner.scheduler.is_none() && !inner.paused {
-            Self::do_start(inner, context).await;
+        match *inner {
+            InnerSchedulerState::Started(_) => (),
+            InnerSchedulerState::Stopped => Self::do_start(inner, context).await,
+            InnerSchedulerState::Paused {
+                ref mut started, ..
+            } => *started = true,
         }
     }
 
@@ -60,7 +64,7 @@ impl SchedulerState {
         info!(context, "starting IO");
         let ctx = context.clone();
         match Scheduler::start(context).await {
-            Ok(scheduler) => inner.scheduler = Some(scheduler),
+            Ok(scheduler) => *inner = InnerSchedulerState::Started(scheduler),
             Err(err) => error!(&ctx, "Failed to start IO: {:#}", err),
         }
     }
@@ -68,12 +72,23 @@ impl SchedulerState {
     /// Stops the scheduler if it is currently running.
     pub(crate) async fn stop(&self, context: &Context) {
         let mut inner = self.inner.write().await;
-        inner.started = false;
-        Self::do_stop(inner, context).await;
+        match *inner {
+            InnerSchedulerState::Started(_) => {
+                Self::do_stop(inner, context, InnerSchedulerState::Stopped).await
+            }
+            InnerSchedulerState::Stopped => (),
+            InnerSchedulerState::Paused {
+                ref mut started, ..
+            } => *started = false,
+        }
     }
 
     /// Stops the scheduler if it is currently running.
-    async fn do_stop(mut inner: RwLockWriteGuard<'_, InnerSchedulerState>, context: &Context) {
+    async fn do_stop(
+        mut inner: RwLockWriteGuard<'_, InnerSchedulerState>,
+        context: &Context,
+        new_state: InnerSchedulerState,
+    ) {
         // Sending an event wakes up event pollers (get_next_event)
         // so the caller of stop_io() can arrange for proper termination.
         // For this, the caller needs to instruct the event poller
@@ -83,8 +98,10 @@ impl SchedulerState {
         if let Some(debug_logging) = context.debug_logging.read().await.as_ref() {
             debug_logging.loop_handle.abort();
         }
-        if let Some(scheduler) = inner.scheduler.take() {
-            scheduler.stop(context).await;
+        let prev_state = std::mem::replace(&mut *inner, new_state);
+        match prev_state {
+            InnerSchedulerState::Started(scheduler) => scheduler.stop(context).await,
+            InnerSchedulerState::Stopped | InnerSchedulerState::Paused { .. } => (),
         }
     }
 
@@ -96,22 +113,63 @@ impl SchedulerState {
     /// If in the meantime [`SchedulerState::start`] or [`SchedulerState::stop`] is called
     /// resume will do the right thing and restore the scheduler to the state requested by
     /// the last call.
-    pub(crate) async fn pause<'a>(&'_ self, context: Context) -> IoPausedGuard {
+    pub(crate) async fn pause<'a>(&'_ self, context: Context) -> Result<IoPausedGuard> {
         {
             let mut inner = self.inner.write().await;
-            inner.paused = true;
-            Self::do_stop(inner, &context).await;
+            match *inner {
+                InnerSchedulerState::Started(_) => {
+                    let new_state = InnerSchedulerState::Paused {
+                        started: true,
+                        pause_guards_count: NonZeroUsize::new(1).unwrap(),
+                    };
+                    Self::do_stop(inner, &context, new_state).await;
+                }
+                InnerSchedulerState::Stopped => {
+                    *inner = InnerSchedulerState::Paused {
+                        started: false,
+                        pause_guards_count: NonZeroUsize::new(1).unwrap(),
+                    };
+                }
+                InnerSchedulerState::Paused {
+                    ref mut pause_guards_count,
+                    ..
+                } => {
+                    *pause_guards_count = pause_guards_count
+                        .checked_add(1)
+                        .ok_or_else(|| Error::msg("Too many pause guards active"))?
+                }
+            }
         }
+
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
             rx.await.ok();
             let mut inner = context.scheduler.inner.write().await;
-            inner.paused = false;
-            if inner.started && inner.scheduler.is_none() {
-                SchedulerState::do_start(inner, context.clone()).await;
+            match *inner {
+                InnerSchedulerState::Started(_) => {
+                    warn!(&context, "IoPausedGuard resume: started instead of paused");
+                }
+                InnerSchedulerState::Stopped => {
+                    warn!(&context, "IoPausedGuard resume: stopped instead of paused");
+                }
+                InnerSchedulerState::Paused {
+                    ref started,
+                    ref mut pause_guards_count,
+                } => {
+                    if *pause_guards_count == NonZeroUsize::new(1).unwrap() {
+                        match *started {
+                            true => SchedulerState::do_start(inner, context.clone()).await,
+                            false => *inner = InnerSchedulerState::Stopped,
+                        }
+                    } else {
+                        let new_count = pause_guards_count.get() - 1;
+                        // SAFETY: Value was >=2 before due to if condition
+                        *pause_guards_count = NonZeroUsize::new(new_count).unwrap();
+                    }
+                }
             }
         });
-        IoPausedGuard { sender: Some(tx) }
+        Ok(IoPausedGuard { sender: Some(tx) })
     }
 
     /// Restarts the scheduler, only if it is running.
@@ -126,8 +184,8 @@ impl SchedulerState {
     /// Indicate that the network likely has come back.
     pub(crate) async fn maybe_network(&self) {
         let inner = self.inner.read().await;
-        let (inbox, oboxes) = match inner.scheduler {
-            Some(ref scheduler) => {
+        let (inbox, oboxes) = match *inner {
+            InnerSchedulerState::Started(ref scheduler) => {
                 scheduler.maybe_network();
                 let inbox = scheduler.inbox.conn_state.state.connectivity.clone();
                 let oboxes = scheduler
@@ -137,7 +195,7 @@ impl SchedulerState {
                     .collect::<Vec<_>>();
                 (inbox, oboxes)
             }
-            None => return,
+            _ => return,
         };
         drop(inner);
         connectivity::idle_interrupted(inbox, oboxes).await;
@@ -146,15 +204,15 @@ impl SchedulerState {
     /// Indicate that the network likely is lost.
     pub(crate) async fn maybe_network_lost(&self, context: &Context) {
         let inner = self.inner.read().await;
-        let stores = match inner.scheduler {
-            Some(ref scheduler) => {
+        let stores = match *inner {
+            InnerSchedulerState::Started(ref scheduler) => {
                 scheduler.maybe_network_lost();
                 scheduler
                     .boxes()
                     .map(|b| b.conn_state.state.connectivity.clone())
                     .collect()
             }
-            None => return,
+            _ => return,
         };
         drop(inner);
         connectivity::maybe_network_lost(context, stores).await;
@@ -162,45 +220,49 @@ impl SchedulerState {
 
     pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
         let inner = self.inner.read().await;
-        if let Some(ref scheduler) = inner.scheduler {
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
             scheduler.interrupt_inbox(info);
         }
     }
 
     pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
         let inner = self.inner.read().await;
-        if let Some(ref scheduler) = inner.scheduler {
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
             scheduler.interrupt_smtp(info);
         }
     }
 
     pub(crate) async fn interrupt_ephemeral_task(&self) {
         let inner = self.inner.read().await;
-        if let Some(ref scheduler) = inner.scheduler {
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
             scheduler.interrupt_ephemeral_task();
         }
     }
 
     pub(crate) async fn interrupt_location(&self) {
         let inner = self.inner.read().await;
-        if let Some(ref scheduler) = inner.scheduler {
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
             scheduler.interrupt_location();
         }
     }
 
     pub(crate) async fn interrupt_recently_seen(&self, contact_id: ContactId, timestamp: i64) {
         let inner = self.inner.read().await;
-        if let Some(ref scheduler) = inner.scheduler {
+        if let InnerSchedulerState::Started(ref scheduler) = *inner {
             scheduler.interrupt_recently_seen(contact_id, timestamp);
         }
     }
 }
 
 #[derive(Debug, Default)]
-struct InnerSchedulerState {
-    scheduler: Option<Scheduler>,
-    started: bool,
-    paused: bool,
+enum InnerSchedulerState {
+    Started(Scheduler),
+    #[default]
+    Stopped,
+    Paused {
+        started: bool,
+        pause_guards_count: NonZeroUsize,
+    },
 }
 
 /// Guard to make sure the IO Scheduler is resumed.
@@ -301,7 +363,7 @@ async fn inbox_loop(ctx: Context, started: Sender<()>, inbox_handlers: ImapConne
                             let next_housekeeping_time =
                                 last_housekeeping_time.saturating_add(60 * 60 * 24);
                             if next_housekeeping_time <= time() {
-                                sql::housekeeping(&ctx).await.ok_or_log(&ctx);
+                                sql::housekeeping(&ctx).await.log_err(&ctx).ok();
                             }
                         }
                         Err(err) => {
@@ -410,7 +472,8 @@ async fn fetch_idle(
                 .store_seen_flags_on_imap(ctx)
                 .await
                 .context("store_seen_flags_on_imap")
-                .ok_or_log(ctx);
+                .log_err(ctx)
+                .ok();
         } else {
             warn!(ctx, "No session even though we just prepared it");
         }
@@ -434,7 +497,8 @@ async fn fetch_idle(
     delete_expired_imap_messages(ctx)
         .await
         .context("delete_expired_imap_messages")
-        .ok_or_log(ctx);
+        .log_err(ctx)
+        .ok();
 
     // Scan additional folders only after finishing fetching the watched folder.
     //
@@ -474,7 +538,8 @@ async fn fetch_idle(
         .sync_seen_flags(ctx, &watch_folder)
         .await
         .context("sync_seen_flags")
-        .ok_or_log(ctx);
+        .log_err(ctx)
+        .ok();
 
     connection.connectivity.set_connected(ctx).await;
 
@@ -770,20 +835,22 @@ impl Scheduler {
     pub(crate) async fn stop(self, context: &Context) {
         // Send stop signals to tasks so they can shutdown cleanly.
         for b in self.boxes() {
-            b.conn_state.stop().await.ok_or_log(context);
+            b.conn_state.stop().await.log_err(context).ok();
         }
-        self.smtp.stop().await.ok_or_log(context);
+        self.smtp.stop().await.log_err(context).ok();
 
         // Actually shutdown tasks.
         let timeout_duration = std::time::Duration::from_secs(30);
         for b in once(self.inbox).chain(self.oboxes.into_iter()) {
             tokio::time::timeout(timeout_duration, b.handle)
                 .await
-                .ok_or_log(context);
+                .log_err(context)
+                .ok();
         }
         tokio::time::timeout(timeout_duration, self.smtp_handle)
             .await
-            .ok_or_log(context);
+            .log_err(context)
+            .ok();
         self.ephemeral_handle.abort();
         self.location_handle.abort();
         self.recently_seen_loop.abort();

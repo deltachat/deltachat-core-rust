@@ -10,7 +10,8 @@ use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
     SignedPublicSubKey, SignedSecretKey, StandaloneSignature, SubkeyParamsBuilder,
 };
-use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
+use pgp::crypto::hash::HashAlgorithm;
+use pgp::crypto::sym::SymmetricKeyAlgorithm;
 use pgp::types::{
     CompressionAlgorithm, KeyTrait, Mpi, PublicKeyTrait, SecretKeyTrait, StringToKey,
 };
@@ -50,7 +51,7 @@ impl<'a> KeyTrait for SignedPublicKeyOrSubkey<'a> {
         }
     }
 
-    fn algorithm(&self) -> pgp::crypto::PublicKeyAlgorithm {
+    fn algorithm(&self) -> pgp::crypto::public_key::PublicKeyAlgorithm {
         match self {
             Self::Key(k) => k.algorithm(),
             Self::Subkey(k) => k.algorithm(),
@@ -297,7 +298,7 @@ pub fn pk_decrypt(
 
     let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
 
-    let (decryptor, _) = msg.decrypt(|| "".into(), || "".into(), &skeys[..])?;
+    let (decryptor, _) = msg.decrypt(|| "".into(), &skeys[..])?;
     let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
 
     if let Some(msg) = msgs.into_iter().next() {

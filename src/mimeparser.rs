@@ -1283,7 +1283,7 @@ impl MimeMessage {
         if !key.details.users.iter().any(|user| {
             user.id
                 .id()
-                .ends_with(&(String::from("<") + &peerstate.addr + ">"))
+                .ends_with((String::from("<") + &peerstate.addr + ">").as_bytes())
         }) {
             return Ok(false);
         }
