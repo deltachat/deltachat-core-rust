@@ -6132,7 +6132,7 @@ mod tests {
         let file = dir.path().join("harmless_file.\u{202e}txt.exe");
         fs::write(&file, "aaa").await?;
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file(file.to_str().as_deref().unwrap(), None);
+        msg.set_file(file.to_str().unwrap(), None);
         let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
 
         // the file bob receives should not contain BIDI-control characters
