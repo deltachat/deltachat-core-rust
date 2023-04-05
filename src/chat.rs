@@ -2209,7 +2209,7 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    // protect all system messages againts LTRO attacks
+    // protect all system messages againts RTLO attacks
     if msg.is_system_message() {
         if let Some(text) = &msg.text {
             msg.text = Some(strip_rtlo_characters(text.as_ref()));
@@ -3816,6 +3816,7 @@ mod tests {
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use tokio::fs;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
@@ -6127,9 +6128,11 @@ mod tests {
             Contact::create(&alice, "bob", "bob@example.net").await?,
         )
         .await?;
-
+        let dir = tempfile::tempdir()?;
+        let file = dir.path().join("harmless_file.\u{202e}txt.exe");
+        fs::write(&file, "aaa").await?;
         let mut msg = Message::new(Viewtype::File);
-        msg.set_file("./test-data/harmless_file.\u{202e}txt.exe", None);
+        msg.set_file(file.to_str().as_deref().unwrap(), None);
         let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
 
         // the file bob receives should not contain BIDI-control characters
