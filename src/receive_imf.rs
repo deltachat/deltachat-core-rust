@@ -1096,10 +1096,6 @@ async fn add_parts(
             param.set_int(Param::Cmd, is_system_message as i32);
         }
 
-        if let Some(path) = part.param.get(Param::File) {
-            part.param.set(Param::File, strip_rtlo_characters(path));
-        }
-
         if let Some(replace_msg_id) = replace_msg_id {
             let placeholder = Message::load_from_db(context, replace_msg_id).await?;
             for key in [
