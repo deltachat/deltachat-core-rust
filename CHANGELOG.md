@@ -7,7 +7,9 @@
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
+- Strip BIDI characters in system messages, files, group names and contact names #3479
 - maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
+
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
@@ -219,7 +221,6 @@
 - Do not treat invalid email addresses as an exception #3942
 - Add timeouts to HTTP requests #3948
 
-
 ## 1.105.0
 
 ### Changes
@@ -304,7 +305,6 @@
 - Add connection timeout to IMAP sockets #3828
 - Disable read timeout during IMAP IDLE #3826
 - Bots automatically accept mailing lists #3831
-
 
 ## 1.102.0
 

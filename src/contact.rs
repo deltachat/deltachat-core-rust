@@ -32,7 +32,10 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
-use crate::tools::{duration_to_str, get_abs_path, improve_single_line_input, time, EmailAddress};
+use crate::tools::{
+    duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
+    EmailAddress,
+};
 use crate::{chat, stock_str};
 
 /// Time during which a contact is considered as seen recently.
@@ -536,7 +539,7 @@ impl Contact {
             return Ok((ContactId::SELF, sth_modified));
         }
 
-        let mut name = name;
+        let mut name = strip_rtlo_characters(name);
         #[allow(clippy::collapsible_if)]
         if origin <= Origin::OutgoingTo {
             // The user may accidentally have written to a "noreply" address with another MUA:
@@ -551,7 +554,7 @@ impl Contact {
                 // For these kind of email addresses, sender and address often don't belong together
                 // (like hocuri <notifications@github.com>). In this example, hocuri shouldn't
                 // be saved as the displayname for notifications@github.com.
-                name = "";
+                name = "".to_string();
             }
         }
 
@@ -1291,18 +1294,20 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     if let Some(captures) = ADDR_WITH_NAME_REGEX.captures(addr.as_ref()) {
         (
             if name.is_empty() {
-                captures
-                    .get(1)
-                    .map_or("".to_string(), |m| normalize_name(m.as_str()))
+                strip_rtlo_characters(
+                    &captures
+                        .get(1)
+                        .map_or("".to_string(), |m| normalize_name(m.as_str())),
+                )
             } else {
-                name.to_string()
+                strip_rtlo_characters(name)
             },
             captures
                 .get(2)
                 .map_or("".to_string(), |m| m.as_str().to_string()),
         )
     } else {
-        (name.to_string(), addr.to_string())
+        (strip_rtlo_characters(name), addr.to_string())
     }
 }
 
@@ -1489,7 +1494,7 @@ pub fn normalize_name(full_name: &str) -> String {
     match full_name.as_bytes() {
         [b'\'', .., b'\''] | [b'\"', .., b'\"'] | [b'<', .., b'>'] => full_name
             .get(1..full_name.len() - 1)
-            .map_or("".to_string(), |s| s.trim().into()),
+            .map_or("".to_string(), |s| s.trim().to_string()),
         _ => full_name.to_string(),
     }
 }

@@ -36,8 +36,8 @@ use crate::smtp::send_msg_to_smtp;
 use crate::stock_str;
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
-    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input, time,
-    IsNoneOrEmpty,
+    create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
+    strip_rtlo_characters, time, IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 use crate::{location, sql};
@@ -269,6 +269,7 @@ impl ChatId {
         create_protected: ProtectionStatus,
         param: Option<String>,
     ) -> Result<Self> {
+        let grpname = strip_rtlo_characters(grpname);
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -2208,6 +2209,13 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
+    // protect all system messages againts RTLO attacks
+    if msg.is_system_message() {
+        if let Some(text) = &msg.text {
+            msg.text = Some(strip_rtlo_characters(text.as_ref()));
+        }
+    }
+
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
         context.emit_msgs_changed(msg.chat_id, msg.id);
 
@@ -3808,6 +3816,7 @@ mod tests {
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use tokio::fs;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_chat_info() {
@@ -6105,6 +6114,32 @@ mod tests {
             3
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blob_renaming() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+        add_contact_to_chat(
+            &alice,
+            chat_id,
+            Contact::create(&alice, "bob", "bob@example.net").await?,
+        )
+        .await?;
+        let dir = tempfile::tempdir()?;
+        let file = dir.path().join("harmless_file.\u{202e}txt.exe");
+        fs::write(&file, "aaa").await?;
+        let mut msg = Message::new(Viewtype::File);
+        msg.set_file(file.to_str().unwrap(), None);
+        let msg = bob.recv_msg(&alice.send_msg(chat_id, &mut msg).await).await;
+
+        // the file bob receives should not contain BIDI-control characters
+        assert_eq!(
+            Some("$BLOBDIR/harmless_file.txt.exe"),
+            msg.param.get(Param::File),
+        );
         Ok(())
     }
 }

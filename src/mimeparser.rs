@@ -33,7 +33,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::tools::{get_filemeta, parse_receive_headers, strip_rtlo_characters, truncate_by_lines};
 use crate::{location, tools};
 
 /// A parsed MIME message.
@@ -1951,6 +1951,8 @@ fn get_attachment_filename(
             );
         };
     }
+
+    let desired_filename = desired_filename.map(|filename| strip_rtlo_characters(&filename));
 
     Ok(desired_filename)
 }
