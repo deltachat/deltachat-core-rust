@@ -7069,6 +7069,11 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by name and address of the account.
 #define DC_STR_BACKUP_TRANSFER_QR 162
 
+/// "Account transferred to your second device."
+///
+/// Used as a device message after a successful backup transfer.
+#define DC_STR_BACKUP_TRANSFER_MSG_BODY 163
+
 /**
  * @}
  */

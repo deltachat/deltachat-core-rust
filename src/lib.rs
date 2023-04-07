@@ -71,6 +71,7 @@ pub mod ephemeral;
 mod http;
 mod imap;
 pub mod imex;
+pub mod release;
 mod scheduler;
 #[macro_use]
 mod job;

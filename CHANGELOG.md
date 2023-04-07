@@ -8,10 +8,23 @@
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
 - Strip BIDI characters in system messages, files, group names and contact names #3479
+- maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
+
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
 - Show a warning if quota list is empty #4261
+- Update "accounts.toml" atomically
+
+## [1.112.6] - 2023-04-04
+
+### Changes
+
+- Add a device message after backup transfer #4301
+
+### Fixed
+
+- Updated `iroh` from 0.4.0 to 0.4.1 to fix transfer of large accounts with many blob files.
 
 ## [1.112.5] - 2023-04-02
 
@@ -33,8 +46,8 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
-- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
-- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref).  The BackupProvider will now alaway finish with an IMEX event of 1000 or 0, previoulsy it would sometimes finishe with 1000 (success) when it really was 0 (failure). #4242
+- transfer backup: Connect to multiple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
+- Make sure BackupProvider is cancelled on drop (or `dc_backup_provider_unref`).  The BackupProvider will now always finish with an IMEX event of 1000 or 0, previously it would sometimes finished with 1000 (success) when it really was 0 (failure). #4242
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247

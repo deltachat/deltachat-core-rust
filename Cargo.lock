@@ -1157,7 +1157,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.112.5"
+version = "1.112.6"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-jsonrpc"
-version = "1.112.5"
+version = "1.112.6"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-repl"
-version = "1.112.5"
+version = "1.112.6"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -1269,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat-rpc-server"
-version = "1.112.5"
+version = "1.112.6"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -1293,7 +1293,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.112.5"
+version = "1.112.6"
 dependencies = [
  "anyhow",
  "deltachat",
@@ -1862,9 +1862,9 @@ checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
 name = "fast-socks5"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2687b5a6108f18ba8621e0e618a3be1dcc2768632dad24b7cea1f87975375a9"
+checksum = "961ce1761191c157145a8c9f0c3ceabecd3a729d65c9a8d443674eaee3420f7e"
 dependencies = [
  "anyhow",
  "log",
@@ -2534,9 +2534,9 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 
 [[package]]
 name = "iroh"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c019223f5af15f978ff44ae02b8b83d21d53df4c42d4475aa80670819c3ecdce"
+checksum = "e4fb9858c8cd3dd924a5da5bc511363845a9bcfdfac066bb2ef8454eb6111546"
 dependencies = [
  "abao",
  "anyhow",
