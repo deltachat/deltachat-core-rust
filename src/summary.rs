@@ -50,6 +50,9 @@ pub struct Summary {
 
     /// Message state.
     pub state: MessageState,
+
+    /// Message preview image path
+    pub thumbnail_path: Option<String>,
 }
 
 impl Summary {
@@ -90,11 +93,19 @@ impl Summary {
             text = stock_str::reply_noun(context).await
         }
 
+        let thumbnail_path = if msg.viewtype == Viewtype::Image {
+            msg.get_file(context)
+                .map(|path| path.to_str().unwrap_or("invalid/path").to_owned())
+        } else {
+            None
+        };
+
         Self {
             prefix,
             text,
             timestamp: msg.get_timestamp(),
             state: msg.state,
+            thumbnail_path,
         }
     }
 

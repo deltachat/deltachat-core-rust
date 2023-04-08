@@ -26,6 +26,8 @@ pub enum ChatListItemFetchResult {
         summary_text1: String,
         summary_text2: String,
         summary_status: u32,
+        /// showing preview if last chat message is image
+        summary_preview_image: Option<String>,
         is_protected: bool,
         is_group: bool,
         fresh_message_counter: usize,
@@ -71,6 +73,8 @@ pub(crate) async fn get_chat_list_item_by_id(
 
     let summary_text1 = summary.prefix.map_or_else(String::new, |s| s.to_string());
     let summary_text2 = summary.text.to_owned();
+
+    let summary_preview_image = summary.thumbnail_path;
 
     let visibility = chat.get_visibility();
 
@@ -119,6 +123,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         summary_text1,
         summary_text2,
         summary_status: summary.state.to_u32().expect("impossible"), // idea and a function to transform the constant to strings? or return string enum
+        summary_preview_image,
         is_protected: chat.is_protected(),
         is_group: chat.get_type() == Chattype::Group,
         fresh_message_counter,
