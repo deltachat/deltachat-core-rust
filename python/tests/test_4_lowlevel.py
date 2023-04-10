@@ -221,8 +221,9 @@ def test_logged_ac_process_ffi_failure(acfactory):
 
 def test_jsonrpc_blocking_call(tmp_path):
     accounts_fname = tmp_path / "accounts"
+    writable = True
     accounts = ffi.gc(
-        lib.dc_accounts_new(ffi.NULL, str(accounts_fname).encode("ascii")),
+        lib.dc_accounts_new(str(accounts_fname).encode("ascii"), writable),
         lib.dc_accounts_unref,
     )
     jsonrpc = ffi.gc(lib.dc_jsonrpc_init(accounts), lib.dc_jsonrpc_unref)
