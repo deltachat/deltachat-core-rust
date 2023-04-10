@@ -12,6 +12,7 @@ use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
+use super::message::MessageViewtype;
 
 #[derive(Serialize, TypeDef)]
 #[serde(tag = "type")]
@@ -44,6 +45,8 @@ pub enum ChatListItemFetchResult {
         /// contact id if this is a dm chat (for view profile entry in context menu)
         dm_chat_contact: Option<u32>,
         was_seen_recently: bool,
+        last_message_type: Option<MessageViewtype>,
+        last_message_id: Option<u32>,
     },
     #[serde(rename_all = "camelCase")]
     ArchiveLink { fresh_message_counter: usize },
@@ -83,12 +86,16 @@ pub(crate) async fn get_chat_list_item_by_id(
         .await?
         .map(|path| path.to_str().unwrap_or("invalid/path").to_owned());
 
-    let last_updated = match last_msgid {
+    /// Getting MessageType from lastmsg
+    let (last_updated, message_type) = match last_msgid {
         Some(id) => {
             let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
-            Some(last_message.get_timestamp() * 1000)
+            (
+                Some(last_message.get_timestamp() * 1000),
+                Some(last_message.get_viewtype().into()),
+            )
         }
-        None => None,
+        None => (None, None),
     };
 
     let chat_contacts = get_chat_contacts(ctx, chat_id).await?;
@@ -138,5 +145,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         is_broadcast: chat.get_type() == Chattype::Broadcast,
         dm_chat_contact,
         was_seen_recently,
+        last_message_type: message_type,
+        last_message_id: last_msgid.map(|id| id.to_u32()),
     })
 }
