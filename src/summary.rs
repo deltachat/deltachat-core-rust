@@ -93,9 +93,17 @@ impl Summary {
             text = stock_str::reply_noun(context).await
         }
 
-        let thumbnail_path = if msg.viewtype == Viewtype::Image {
-            msg.get_file(context)
-                .map(|path| path.to_str().unwrap_or("invalid/path").to_owned())
+        let thumbnail_path = if msg.viewtype == Viewtype::Image
+            || msg.viewtype == Viewtype::Gif
+            || msg.viewtype == Viewtype::Sticker
+        {
+            match msg
+                .get_file(context)
+                .map(|path| path.to_str().map(|p| p.to_owned()))
+            {
+                Some(Some(path)) => Some(path),
+                _ => None,
+            }
         } else {
             None
         };
