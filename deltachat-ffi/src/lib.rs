@@ -4676,17 +4676,17 @@ pub type dc_accounts_t = AccountsWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_accounts_new(
-    _os_name: *const libc::c_char,
-    dbfile: *const libc::c_char,
+    dir: *const libc::c_char,
+    writable: libc::c_int,
 ) -> *mut dc_accounts_t {
     setup_panic!();
 
-    if dbfile.is_null() {
+    if dir.is_null() {
         eprintln!("ignoring careless call to dc_accounts_new()");
         return ptr::null_mut();
     }
 
-    let accs = block_on(Accounts::new(as_path(dbfile).into()));
+    let accs = block_on(Accounts::new(as_path(dir).into(), writable != 0));
 
     match accs {
         Ok(accs) => Box::into_raw(Box::new(AccountsWrapper::new(accs))),

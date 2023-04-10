@@ -2903,8 +2903,8 @@ NAPI_METHOD(dcn_msg_get_webxdc_blob){
 
 NAPI_METHOD(dcn_accounts_new) {
   NAPI_ARGV(2);
-  NAPI_ARGV_UTF8_MALLOC(os_name, 0);
-  NAPI_ARGV_UTF8_MALLOC(dir, 1);
+  NAPI_ARGV_UTF8_MALLOC(dir, 0);
+  NAPI_ARGV_INT32(writable, 1);
   TRACE("calling..");
 
   dcn_accounts_t* dcn_accounts = calloc(1, sizeof(dcn_accounts_t));
@@ -2913,7 +2913,7 @@ NAPI_METHOD(dcn_accounts_new) {
   }
 
 
-  dcn_accounts->dc_accounts = dc_accounts_new(os_name, dir);
+  dcn_accounts->dc_accounts = dc_accounts_new(dir, writable);
 
   napi_value result;
   NAPI_STATUS_THROWS(napi_create_external(env, dcn_accounts,

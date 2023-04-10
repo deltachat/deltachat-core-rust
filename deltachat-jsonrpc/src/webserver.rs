@@ -19,7 +19,8 @@ async fn main() -> Result<(), std::io::Error> {
         .map(|port| port.parse::<u16>().expect("DC_PORT must be a number"))
         .unwrap_or(DEFAULT_PORT);
     log::info!("Starting with accounts directory `{path}`.");
-    let accounts = Accounts::new(PathBuf::from(&path)).await.unwrap();
+    let writable = true;
+    let accounts = Accounts::new(PathBuf::from(&path), writable).await.unwrap();
     let state = CommandApi::new(accounts);
 
     let app = Router::new()

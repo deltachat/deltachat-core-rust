@@ -56,7 +56,8 @@ async fn main_impl() -> Result<()> {
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);
-    let accounts = Accounts::new(PathBuf::from(&path)).await?;
+    let writable = true;
+    let accounts = Accounts::new(PathBuf::from(&path), writable).await?;
 
     log::info!("Creating JSON-RPC API.");
     let accounts = Arc::new(RwLock::new(accounts));

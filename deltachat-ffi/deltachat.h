@@ -2915,12 +2915,15 @@ int dc_receive_backup (dc_context_t* context, const char* qr);
  * @param dir The directory to create the context-databases in.
  *     If the directory does not exist,
  *     dc_accounts_new() will try to create it.
+ * @param writable Whether the returned account manager is writable, i.e. calling these functions on
+ *     it is possible: dc_accounts_add_account(), dc_accounts_add_closed_account(),
+ *     dc_accounts_migrate_account(), dc_accounts_remove_account(), dc_accounts_select_account().
  * @return An account manager object.
  *     The object must be passed to the other account manager functions
  *     and must be freed using dc_accounts_unref() after usage.
  *     On errors, NULL is returned.
  */
-dc_accounts_t* dc_accounts_new                  (const char* os_name, const char* dir);
+dc_accounts_t* dc_accounts_new                  (const char* dir, int writable);
 
 
 /**
