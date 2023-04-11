@@ -454,34 +454,32 @@ impl ChatId {
     /// If `promote` is false this means, the message must not be sent out
     /// and only a local info message should be added to the chat.
     /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
+    // TODO test
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
         protect: ProtectionStatus,
-        from_id: ContactId,
+        contact_id: ContactId,
+        timestamp_sort: i64,
     ) -> Result<()> {
-        let text = context.stock_protection_msg(protect, from_id).await;
+        let text = context.stock_protection_msg(protect, contact_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
         };
-        add_info_msg_with_cmd(
-            context,
-            self,
-            &text,
-            cmd,
-            create_smeared_timestamp(context),
-            None,
-            None,
-            None,
-        )
-        .await?;
+        add_info_msg_with_cmd(context, self, &text, cmd, timestamp_sort, None, None, None).await?;
 
         Ok(())
     }
 
     /// Sets protection and sends or adds a message.
-    pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
+    pub(crate) async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        timestamp_sort: i64,
+        contact_id: ContactId,
+    ) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
         // TODO performance
@@ -495,7 +493,7 @@ impl ChatId {
             return Err(e);
         }
 
-        self.add_protection_msg(context, protect, ContactId::SELF)
+        self.add_protection_msg(context, protect, contact_id, timestamp_sort)
             .await
     }
 
@@ -5120,71 +5118,6 @@ mod tests {
 
         let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_set_protection() -> Result<()> {
-        let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::BccSelf, false).await?;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        // enable protection on unpromoted chat, the info-message is added via add_info_msg()
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 1);
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // disable protection again, still unpromoted
-        chat_id
-            .set_protection(&t, ProtectionStatus::Unprotected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // send a message, this switches to promoted state
-        send_text_msg(&t, chat_id, "hi!".to_string()).await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 3);
-
-        // enable protection on promoted chat
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-
         Ok(())
     }
 

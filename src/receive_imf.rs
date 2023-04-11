@@ -597,6 +597,7 @@ async fn add_parts(
             if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
                 let chat = Chat::load_from_db(context, chat_id).await?;
                 if chat.is_protected() {
+                    // TODO
                     let s = stock_str::unknown_sender_for_chat(context).await;
                     mime_parser.repl_msg_by_error(&s);
                 } else {
@@ -1003,15 +1004,14 @@ async fn add_parts(
                     //         .unwrap()
                     //         .contains("alice")
                     // {
-                    chat_id
-                        .set_protection(context, ProtectionStatus::Protected)
-                        .await?;
+                    ProtectionStatus::Protected
                     // }
                 } else {
-                    chat_id
-                        .set_protection(context, ProtectionStatus::Unprotected)
-                        .await?;
+                    ProtectionStatus::Unprotected
                 };
+                chat_id
+                    .set_protection(context, new_protection, sort_timestamp, from_id)
+                    .await?;
             }
         }
     }
