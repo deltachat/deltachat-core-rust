@@ -86,7 +86,6 @@ pub(crate) async fn get_chat_list_item_by_id(
         .await?
         .map(|path| path.to_str().unwrap_or("invalid/path").to_owned());
 
-
     let (last_updated, message_type) = match last_msgid {
         Some(id) => {
             let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
