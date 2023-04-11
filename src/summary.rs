@@ -97,13 +97,8 @@ impl Summary {
             || msg.viewtype == Viewtype::Gif
             || msg.viewtype == Viewtype::Sticker
         {
-            match msg
-                .get_file(context)
-                .map(|path| path.to_str().map(|p| p.to_owned()))
-            {
-                Some(Some(path)) => Some(path),
-                _ => None,
-            }
+            msg.get_file(context)
+                .and_then(|path| path.to_str().and_then(|p| Some(p.to_owned())))
         } else {
             None
         };
