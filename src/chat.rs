@@ -407,7 +407,7 @@ impl ChatId {
         context: &Context,
         protect: ProtectionStatus,
     ) -> Result<()> {
-        ensure!(!self.is_special(), "Invalid chat-id.");
+        ensure!(!self.is_special(), "Invalid chat-id {}.", self);
 
         let chat = Chat::load_from_db(context, self).await?;
 
@@ -1954,19 +1954,30 @@ impl ChatIdBlocked {
             _ => (),
         }
 
+        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+        let protected = peerstate.map_or(false, |p| {
+            p.verified_key_fingerprint.is_some()
+                && p.verified_key_fingerprint == p.public_key_fingerprint
+        });
+
         let chat_id = context
             .sql
             .transaction(move |transaction| {
                 transaction.execute(
                     "INSERT INTO chats
-                     (type, name, param, blocked, created_timestamp)
-                     VALUES(?, ?, ?, ?, ?)",
+                     (type, name, param, blocked, created_timestamp, protected)
+                     VALUES(?, ?, ?, ?, ?, ?)",
                     (
                         Chattype::Single,
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
                         create_smeared_timestamp(context),
+                        if protected {
+                            ProtectionStatus::Protected
+                        } else {
+                            ProtectionStatus::Unprotected
+                        },
                     ),
                 )?;
                 let chat_id = ChatId::new(
@@ -1982,6 +1993,10 @@ impl ChatIdBlocked {
                  VALUES((SELECT last_insert_rowid()), ?)",
                     (contact_id,),
                 )?;
+
+                if protected {
+                    info!(context, "Creating 1:1 chat {} as protected", chat_id);
+                }
 
                 Ok(chat_id)
             })

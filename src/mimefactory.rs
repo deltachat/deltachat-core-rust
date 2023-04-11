@@ -896,7 +896,9 @@ impl<'a> MimeFactory<'a> {
         let mut placeholdertext = None;
         let mut meta_part = None;
 
-        if chat.is_protected() {
+        // In single chats, the protection status isn't necessarily the same for both sides,
+        // so we don't send the Chat-Verified header.
+        if chat.is_protected() && chat.typ != Chattype::Single {
             headers
                 .protected
                 .push(Header::new("Chat-Verified".to_string(), "1".to_string()));
