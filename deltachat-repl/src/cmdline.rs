@@ -1056,20 +1056,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             };
             chat::set_muted(&context, chat_id, duration).await?;
         }
-        "protect" | "unprotect" => {
-            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = ChatId::new(arg1.parse()?);
-            chat_id
-                .set_protection(
-                    &context,
-                    match arg0 {
-                        "protect" => ProtectionStatus::Protected,
-                        "unprotect" => ProtectionStatus::Unprotected,
-                        _ => unreachable!("arg0={:?}", arg0),
-                    },
-                )
-                .await?;
-        }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
