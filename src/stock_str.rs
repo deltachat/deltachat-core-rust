@@ -17,7 +17,7 @@ use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
-use crate::tools::timestamp_to_str;
+use crate::tools::{timestamp_to_str, EmailAddress};
 
 /// Storage for string translations.
 #[derive(Debug, Clone)]
@@ -393,18 +393,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message deletion timer is set to %1$s weeks by %2$s."))]
     MsgEphemeralTimerWeeksBy = 157,
 
-    #[strum(props(fallback = "You enabled chat protection."))]
-    YouEnabledProtection = 158,
-
-    #[strum(props(fallback = "Chat protection enabled by %1$s."))]
-    ProtectionEnabledBy = 159,
-
-    #[strum(props(fallback = "You disabled chat protection."))]
-    YouDisabledProtection = 160,
-
-    #[strum(props(fallback = "Chat protection disabled by %1$s."))]
-    ProtectionDisabledBy = 161,
-
     #[strum(props(fallback = "Scan to set up second device for %1$s"))]
     BackupTransferQr = 162,
 
@@ -419,6 +407,19 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "I left the group."))]
     MsgILeftGroup = 166,
+
+    #[strum(props(
+        fallback = "All messages here are now guaranteed to be end-to-end encrypted. You can be sure that not even %1$s can read them."
+    ))]
+    ChatVerificationEnabled = 170,
+
+    #[strum(props(
+        fallback = "%1$s's encryption key changed. The security of your end-to-end encryption is not verified anymore."
+    ))]
+    ChatVerificationDisabled = 171,
+
+    #[strum(props(fallback = "%1$s or %2$s"))]
+    AOrB = 172,
 }
 
 impl StockMessage {
@@ -1053,26 +1054,41 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
     translated(context, StockMessage::ErrorNoNetwork).await
 }
 
-/// Stock string: `Chat protection enabled.`.
-pub(crate) async fn protection_enabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouEnabledProtection).await
+/// Stock string: TODO.
+pub(crate) async fn chat_verification_enabled(context: &Context, contact_id: ContactId) -> String {
+    let their_server = match Contact::load_from_db(context, contact_id).await {
+        Ok(c) => EmailAddress::new(c.get_addr()).unwrap().domain,
+        Err(_) => "their email server".to_string(),
+    };
+    let our_server = EmailAddress::new(&context.get_primary_self_addr().await.unwrap())
+        .unwrap() // TODO lots of unwraps
+        .domain;
+    let both_servers = if their_server == our_server {
+        their_server
     } else {
-        translated(context, StockMessage::ProtectionEnabledBy)
-            .await
-            .replace1(&by_contact.get_stock_name(context).await)
-    }
+        a_or_b(context, &their_server, &our_server).await
+    };
+    translated(context, StockMessage::ChatVerificationEnabled)
+        .await
+        .replace1(&both_servers)
 }
 
-/// Stock string: `Chat protection disabled.`.
-pub(crate) async fn protection_disabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouDisabledProtection).await
-    } else {
-        translated(context, StockMessage::ProtectionDisabledBy)
-            .await
-            .replace1(&by_contact.get_stock_name(context).await)
-    }
+/// Stock string: TODO.
+pub(crate) async fn chat_verification_disabled(context: &Context, contact_id: ContactId) -> String {
+    let name = match &(Contact::load_from_db(context, contact_id).await) {
+        Ok(c) => c.get_display_name().to_string(),
+        Err(_) => contact_id.to_string(),
+    };
+    translated(context, StockMessage::ChatVerificationDisabled)
+        .await
+        .replace1(&name)
+}
+
+pub(crate) async fn a_or_b(context: &Context, first: &str, second: &str) -> String {
+    translated(context, StockMessage::AOrB)
+        .await
+        .replace1(first)
+        .replace2(second)
 }
 
 /// Stock string: `Reply`.
@@ -1332,11 +1348,11 @@ impl Context {
     pub(crate) async fn stock_protection_msg(
         &self,
         protect: ProtectionStatus,
-        from_id: ContactId,
+        contact_id: ContactId,
     ) -> String {
         match protect {
-            ProtectionStatus::Unprotected => protection_enabled(self, from_id).await,
-            ProtectionStatus::Protected => protection_disabled(self, from_id).await,
+            ProtectionStatus::Unprotected => chat_verification_disabled(self, contact_id).await,
+            ProtectionStatus::Protected => chat_verification_enabled(self, contact_id).await,
         }
     }
 
