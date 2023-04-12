@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from warnings import warn
 
 from ._utils import AttrDict
 from .chat import Chat
@@ -239,7 +240,22 @@ class Account:
         fresh_msg_ids = await self._rpc.get_fresh_msgs(self.id)
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]
 
+    async def get_next_messages(self) -> List[Message]:
+        """Return a list of next messages."""
+        next_msg_ids = await self._rpc.get_next_msgs(self.id)
+        return [Message(self, msg_id) for msg_id in next_msg_ids]
+
+    async def wait_next_messages(self) -> List[Message]:
+        """Wait for new messages and return a list of them."""
+        next_msg_ids = await self._rpc.wait_next_msgs(self.id)
+        return [Message(self, msg_id) for msg_id in next_msg_ids]
+
     async def get_fresh_messages_in_arrival_order(self) -> List[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
+        warn(
+            "get_fresh_messages_in_arrival_order is deprecated, use get_next_messages instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         fresh_msg_ids = sorted(await self._rpc.get_fresh_msgs(self.id))
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]

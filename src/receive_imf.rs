@@ -363,6 +363,7 @@ pub(crate) async fn receive_imf_inner(
             chat_id.emit_msg_event(context, *msg_id, incoming && fresh);
         }
     }
+    context.new_msgs_notify.notify_one();
 
     mime_parser
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)

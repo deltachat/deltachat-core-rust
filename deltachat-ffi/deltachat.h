@@ -181,12 +181,17 @@ typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
  * and check it in the event loop thread
  * every time before calling dc_get_next_event().
  * To terminate the event loop, main thread should:
- * 1. Notify event loop that it should terminate by atomically setting the
- *    boolean flag in the memory shared between the main thread and event loop.
+ * 1. Notify background threads,
+ *    such as event loop (blocking in dc_get_next_event())
+ *    and message processing loop (blocking in dc_wait_next_msgs()),
+ *    that they should terminate by atomically setting the
+ *    boolean flag in the memory
+ *    shared between the main thread and background loop threads.
  * 2. Call dc_stop_io() or dc_accounts_stop_io(), depending
  *    on whether a single account or account manager is used.
  *    Stopping I/O is guaranteed to emit at least one event
  *    and interrupt the event loop even if it was blocked on dc_get_next_event().
+ *    Stopping I/O is guaranteed to interrupt a single dc_wait_next_msgs().
  * 3. Wait until the event loop thread notices the flag,
  *    exits the event loop and terminates.
  * 4. Call dc_context_unref() or dc_accounts_unref().
@@ -457,6 +462,16 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    Prevents adding the "Device messages" and "Saved messages" chats,
  *                    adds Auto-Submitted header to outgoing messages
  *                    and accepts contact requests automatically (calling dc_accept_chat() is not needed for bots).
+ * - `last_msg_id` = database ID of the last message processed by the bot.
+ *                   This ID and IDs below it are guaranteed not to be returned
+ *                   by dc_get_next_msgs() and dc_wait_next_msgs().
+ *                   The value is updated automatically
+ *                   when dc_markseen_msgs() is called,
+ *                   but the bot can also set it manually if it processed
+ *                   the message but does not want to mark it as seen.
+ *                   For most bots calling `dc_markseen_msgs()` is the
+ *                   recommended way to update this value
+ *                   even for self-sent messages.
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
@@ -1344,6 +1359,56 @@ dc_array_t*     dc_get_fresh_msgs            (dc_context_t* context);
 
 
 /**
+ * Returns the message IDs of all messages of any chat
+ * with a database ID higher than `last_msg_id` config value.
+ *
+ * This function is intended for use by bots.
+ * Self-sent messages, device messages,
+ * messages from contact requests
+ * and muted chats are included,
+ * but messages from explicitly blocked contacts
+ * and chats are ignored.
+ *
+ * This function may be called as a part of event loop
+ * triggered by DC_EVENT_INCOMING_MSG if you are only interested
+ * in the incoming messages.
+ * Otherwise use a separate message processing loop
+ * calling dc_wait_next_msgs() in a separate thread.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @return An array of message IDs, must be dc_array_unref()'d when no longer used.
+ *     On errors, the list is empty. NULL is never returned.
+ */
+dc_array_t*     dc_get_next_msgs             (dc_context_t* context);
+
+
+/**
+ * Waits for notification of new messages
+ * and returns an array of new message IDs.
+ * See the documentation for dc_get_next_msgs()
+ * for the details of return value.
+ *
+ * This function waits for internal notification of
+ * a new message in the database and returns afterwards.
+ * Notification is also sent when I/O is started
+ * to allow processing new messages
+ * and when I/O is stopped using dc_stop_io() or dc_accounts_stop_io()
+ * to allow for manual interruption of the message processing loop.
+ * The function may return an empty array if there are
+ * no messages after notification,
+ * which may happen on start or if the message is quickly deleted
+ * after adding it to the database.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @return An array of message IDs, must be dc_array_unref()'d when no longer used.
+ *     On errors, the list is empty. NULL is never returned.
+ */
+dc_array_t*     dc_wait_next_msgs            (dc_context_t* context);
+
+
+/**
  * Mark all messages in a chat as _noticed_.
  * _Noticed_ messages are no longer _fresh_ and do not count as being unseen
  * but are still waiting for being marked as "seen" using dc_markseen_msgs()
@@ -1941,6 +2006,11 @@ int             dc_resend_msgs               (dc_context_t* context, const uint3
  *
  * Moreover, timer is started for incoming ephemeral messages.
  * This also happens for contact requests chats.
+ *
+ * This function updates last_msg_id configuration value
+ * to the maximum of the current value and IDs passed to this function.
+ * Bots which mark messages as seen can rely on this side effect
+ * to avoid updating last_msg_id value manually.
  *
  * One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
  *

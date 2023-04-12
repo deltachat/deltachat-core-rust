@@ -20,7 +20,7 @@ from ._utils import (
     parse_system_image_changed,
     parse_system_title_changed,
 )
-from .const import COMMAND_PREFIX, EventType, SystemMessageType
+from .const import COMMAND_PREFIX, EventType, SpecialContactId, SystemMessageType
 from .events import (
     EventFilter,
     GroupImageChanged,
@@ -189,9 +189,10 @@ class Client:
 
     async def _process_messages(self) -> None:
         if self._should_process_messages:
-            for message in await self.account.get_fresh_messages_in_arrival_order():
+            for message in await self.account.get_next_messages():
                 snapshot = await message.get_snapshot()
-                await self._on_new_msg(snapshot)
+                if snapshot.from_id not in [SpecialContactId.SELF, SpecialContactId.DEVICE]:
+                    await self._on_new_msg(snapshot)
                 if snapshot.is_info and snapshot.system_message_type != SystemMessageType.WEBXDC_INFO_MESSAGE:
                     await self._handle_info_msg(snapshot)
                 await snapshot.message.mark_seen()

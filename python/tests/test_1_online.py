@@ -44,21 +44,21 @@ def test_configure_generate_key(acfactory, lp):
     lp.sec("ac1: send unencrypted message to ac2")
     chat.send_text("message1")
     lp.sec("ac2: waiting for message from ac1")
-    msg_in = ac2._evtracker.wait_next_incoming_message()
+    msg_in = ac2.wait_next_incoming_message()
     assert msg_in.text == "message1"
     assert not msg_in.is_encrypted()
 
     lp.sec("ac2: send encrypted message to ac1")
     msg_in.chat.send_text("message2")
     lp.sec("ac1: waiting for message from ac2")
-    msg2_in = ac1._evtracker.wait_next_incoming_message()
+    msg2_in = ac1.wait_next_incoming_message()
     assert msg2_in.text == "message2"
     assert msg2_in.is_encrypted()
 
     lp.sec("ac1: send encrypted message to ac2")
     msg2_in.chat.send_text("message3")
     lp.sec("ac2: waiting for message from ac1")
-    msg3_in = ac2._evtracker.wait_next_incoming_message()
+    msg3_in = ac2.wait_next_incoming_message()
     assert msg3_in.text == "message3"
     assert msg3_in.is_encrypted()
 

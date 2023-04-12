@@ -3,7 +3,7 @@ from ._utils import AttrDict, run_bot_cli, run_client_cli
 from .account import Account
 from .chat import Chat
 from .client import Bot, Client
-from .const import EventType
+from .const import EventType, SpecialContactId
 from .contact import Contact
 from .deltachat import DeltaChat
 from .message import Message
@@ -19,6 +19,7 @@ __all__ = [
     "DeltaChat",
     "EventType",
     "Message",
+    "SpecialContactId",
     "Rpc",
     "run_bot_cli",
     "run_client_cli",

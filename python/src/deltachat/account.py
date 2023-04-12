@@ -376,6 +376,22 @@ class Account:
         dc_array = ffi.gc(lib.dc_get_fresh_msgs(self._dc_context), lib.dc_array_unref)
         return (x for x in iter_array(dc_array, lambda x: Message.from_db(self, x)) if x is not None)
 
+    def _wait_next_message_ids(self) -> List[int]:
+        """Return IDs of all next messages from all chats."""
+        dc_array = ffi.gc(lib.dc_wait_next_msgs(self._dc_context), lib.dc_array_unref)
+        return [lib.dc_array_get_id(dc_array, i) for i in range(lib.dc_array_get_cnt(dc_array))]
+
+    def wait_next_incoming_message(self) -> Message:
+        """Waits until the next incoming message
+        with ID higher than given is received and returns it."""
+        while True:
+            message_ids = self._wait_next_message_ids()
+            for msg_id in message_ids:
+                message = Message.from_db(self, msg_id)
+                if message and not message.is_from_self() and not message.is_from_device():
+                    self.set_config("last_msg_id", str(msg_id))
+                    return message
+
     def create_chat(self, obj) -> Chat:
         """Create a 1:1 chat with Account, Contact or e-mail address."""
         return self.create_contact(obj).create_chat()

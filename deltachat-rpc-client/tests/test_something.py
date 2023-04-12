@@ -98,8 +98,8 @@ async def test_account(acfactory) -> None:
     assert await alice.get_chatlist()
     assert await alice.get_chatlist(snapshot=True)
     assert await alice.get_qr_code()
-    await alice.get_fresh_messages()
-    await alice.get_fresh_messages_in_arrival_order()
+    assert await alice.get_fresh_messages()
+    assert await alice.get_next_messages()
 
     group = await alice.create_group("test group")
     await group.add_contact(alice_contact_bob)
@@ -305,3 +305,29 @@ async def test_bot(acfactory) -> None:
     await acfactory.process_message(from_account=user, to_client=bot, text="hello")
     event = await acfactory.process_message(from_account=user, to_client=bot, text="/help")
     mock.hook.assert_called_once_with(event.msg_id)
+
+
+@pytest.mark.asyncio()
+async def test_wait_next_messages(acfactory) -> None:
+    alice = await acfactory.new_configured_account()
+
+    # Create a bot account so it does not receive device messages in the beginning.
+    bot = await acfactory.new_preconfigured_account()
+    await bot.set_config("bot", "1")
+    await bot.configure()
+
+    # There are no old messages and the call returns immediately.
+    assert not await bot.wait_next_messages()
+
+    # Bot starts waiting for messages.
+    next_messages_task = asyncio.create_task(bot.wait_next_messages())
+
+    bot_addr = await bot.get_config("addr")
+    alice_contact_bot = await alice.create_contact(bot_addr, "Bob")
+    alice_chat_bot = await alice_contact_bot.create_chat()
+    await alice_chat_bot.send_text("Hello!")
+
+    next_messages = await next_messages_task
+    assert len(next_messages) == 1
+    snapshot = await next_messages[0].get_snapshot()
+    assert snapshot.text == "Hello!"

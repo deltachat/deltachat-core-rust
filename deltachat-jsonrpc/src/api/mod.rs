@@ -453,6 +453,49 @@ impl CommandApi {
         ChatId::new(chat_id).get_fresh_msg_cnt(&ctx).await
     }
 
+    /// Gets messages to be processed by the bot and returns their IDs.
+    ///
+    /// Only messages with database ID higher than `last_msg_id` config value
+    /// are returned. After processing the messages, the bot should
+    /// update `last_msg_id` by calling [`markseen_msgs`]
+    /// or manually updating the value to avoid getting already
+    /// processed messages.
+    ///
+    /// [`markseen_msgs`]: Self::markseen_msgs
+    async fn get_next_msgs(&self, account_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let msg_ids = ctx
+            .get_next_msgs()
+            .await?
+            .iter()
+            .map(|msg_id| msg_id.to_u32())
+            .collect();
+        Ok(msg_ids)
+    }
+
+    /// Waits for messages to be processed by the bot and returns their IDs.
+    ///
+    /// This function is similar to [`get_next_msgs`],
+    /// but waits for internal new message notification before returning.
+    /// New message notification is sent when new message is added to the database,
+    /// on initialization, when I/O is started and when I/O is stopped.
+    /// This allows bots to use `wait_next_msgs` in a loop to process
+    /// old messages after initialization and during the bot runtime.
+    /// To shutdown the bot, stopping I/O can be used to interrupt
+    /// pending or next `wait_next_msgs` call.
+    ///
+    /// [`get_next_msgs`]: Self::get_next_msgs
+    async fn wait_next_msgs(&self, account_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let msg_ids = ctx
+            .wait_next_msgs()
+            .await?
+            .iter()
+            .map(|msg_id| msg_id.to_u32())
+            .collect();
+        Ok(msg_ids)
+    }
+
     /// Estimate the number of messages that will be deleted
     /// by the set_config()-options `delete_device_after` or `delete_server_after`.
     /// This is typically used to show the estimated impact to the user
@@ -943,6 +986,11 @@ impl CommandApi {
     ///
     /// Moreover, timer is started for incoming ephemeral messages.
     /// This also happens for contact requests chats.
+    ///
+    /// This function updates `last_msg_id` configuration value
+    /// to the maximum of the current value and IDs passed to this function.
+    /// Bots which mark messages as seen can rely on this side effect
+    /// to avoid updating `last_msg_id` value manually.
     ///
     /// One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.
     async fn markseen_msgs(&self, account_id: u32, msg_ids: Vec<u32>) -> Result<()> {

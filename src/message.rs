@@ -1468,6 +1468,12 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
         return Ok(());
     }
 
+    let old_last_msg_id = MsgId::new(context.get_config_u32(Config::LastMsgId).await?);
+    let last_msg_id = msg_ids.iter().fold(&old_last_msg_id, std::cmp::max);
+    context
+        .set_config_u32(Config::LastMsgId, last_msg_id.to_u32())
+        .await?;
+
     let msgs = context
         .sql
         .query_map(

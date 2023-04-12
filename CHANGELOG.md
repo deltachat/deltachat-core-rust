@@ -14,6 +14,14 @@
   Also terminate on ctrl-c.
 - Refactorings #4317
 - Add JSON-RPC API `can_send()`.
+- New `dc_get_next_msgs()` and `dc_wait_next_msgs()` C APIs.
+  New `get_next_msgs()` and `wait_next_msgs()` JSON-RPC API.
+  These APIs can be used by bots to get all unprocessed messages
+  in the order of their arrival and wait for them without relying on events.
+- Async Python API `get_fresh_messages_in_arrival_order()` is deprecated
+  in favor of `get_next_msgs()` and `wait_next_msgs()`.
+- New Python bindings API `Account.wait_next_incoming_message()`.
+- New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
