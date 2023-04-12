@@ -1195,9 +1195,7 @@ impl Contact {
             if peerstate.verified_key.is_some() {
                 return Ok(VerifiedStatus::BidirectVerified);
             }
-        }
-
-        if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
+        } else if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
             if peerstate.verified_key.is_some() {
                 return Ok(VerifiedStatus::BidirectVerified);
             }
