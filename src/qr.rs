@@ -435,16 +435,9 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
                 Contact::add_or_lookup(context, &name, peerstate_addr, Origin::UnhandledQrScan)
                     .await
                     .context("add_or_lookup")?;
-            let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
+            ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
                 .await
                 .context("Failed to create (new) chat for contact")?;
-            chat::add_info_msg(
-                context,
-                chat.id,
-                &format!("{} verified.", peerstate.addr),
-                time(),
-            )
-            .await?;
             Ok(Qr::FprOk { contact_id })
         } else {
             let contact_id = Contact::lookup_id_by_addr(context, &addr, Origin::Unknown)
