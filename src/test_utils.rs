@@ -425,7 +425,7 @@ impl TestContext {
         };
         self.ctx
             .sql
-            .execute("DELETE FROM smtp WHERE id=?;", paramsv![rowid])
+            .execute("DELETE FROM smtp WHERE id=?;", (rowid,))
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)

@@ -100,7 +100,7 @@ impl DcKey for SignedPublicKey {
                      WHERE addr=?
                        AND is_default=1;
                     "#,
-                    paramsv![addr],
+                    (addr,),
                     |row| {
                         let bytes: Vec<u8> = row.get(0)?;
                         Ok(bytes)
@@ -240,7 +240,7 @@ pub(crate) async fn load_keypair(
          WHERE addr=?1
            AND is_default=1;
         "#,
-            paramsv![addr],
+            (addr,),
             |row| {
                 let pub_bytes: Vec<u8> = row.get(0)?;
                 let sec_bytes: Vec<u8> = row.get(1)?;
@@ -297,7 +297,7 @@ pub async fn store_self_keypair(
             transaction
                 .execute(
                     "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-                    paramsv![public_key, secret_key],
+                    (&public_key, &secret_key),
                 )
                 .context("failed to remove old use of key")?;
             if default == KeyPairUse::Default {
@@ -317,7 +317,7 @@ pub async fn store_self_keypair(
                 .execute(
                     "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
                 VALUES (?,?,?,?,?);",
-                    paramsv![addr, is_default, public_key, secret_key, t],
+                    (addr, is_default, &public_key, &secret_key, t),
                 )
                 .context("failed to insert keypair")?;
 

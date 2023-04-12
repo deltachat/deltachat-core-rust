@@ -35,11 +35,6 @@ extern crate rusqlite;
 #[macro_use]
 extern crate strum_macros;
 
-#[allow(missing_docs)]
-pub trait ToSql: rusqlite::ToSql + Send + Sync {}
-
-impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
-
 #[macro_use]
 pub mod log;
 

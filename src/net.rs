@@ -75,7 +75,7 @@ async fn lookup_host_with_cache(
                  VALUES (?, ?, ?)
                  ON CONFLICT (hostname, address)
                  DO UPDATE SET timestamp=excluded.timestamp",
-                paramsv![hostname, ip_string, now],
+                (hostname, ip_string, now),
             )
             .await?;
     }
@@ -89,7 +89,7 @@ async fn lookup_host_with_cache(
                  WHERE hostname = ?
                  AND ? < timestamp + 30 * 24 * 3600
                  ORDER BY timestamp DESC",
-                paramsv![hostname, now],
+                (hostname, now),
                 |row| {
                     let address: String = row.get(0)?;
                     Ok(address)
@@ -157,7 +157,7 @@ pub(crate) async fn connect_tcp(
                         "UPDATE dns_cache
                          SET timestamp = ?
                          WHERE address = ?",
-                        paramsv![time(), resolved_addr.ip().to_string()],
+                        (time(), resolved_addr.ip().to_string()),
                     )
                     .await?;
                 break;

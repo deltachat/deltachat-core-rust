@@ -156,7 +156,7 @@ async fn set_msg_id_reaction(
                 "DELETE FROM reactions
                  WHERE msg_id = ?1
                  AND contact_id = ?2",
-                paramsv![msg_id, contact_id],
+                (msg_id, contact_id),
             )
             .await?;
     } else {
@@ -167,7 +167,7 @@ async fn set_msg_id_reaction(
                  VALUES (?1, ?2, ?3)
                  ON CONFLICT(msg_id, contact_id)
                  DO UPDATE SET reaction=excluded.reaction",
-                paramsv![msg_id, contact_id, reaction.as_str()],
+                (msg_id, contact_id, reaction.as_str()),
             )
             .await?;
     }
@@ -247,7 +247,7 @@ async fn get_self_reaction(context: &Context, msg_id: MsgId) -> Result<Reaction>
             "SELECT reaction
              FROM reactions
              WHERE msg_id=? AND contact_id=?",
-            paramsv![msg_id, ContactId::SELF],
+            (msg_id, ContactId::SELF),
         )
         .await?;
     Ok(reaction_str
@@ -262,7 +262,7 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
         .sql
         .query_map(
             "SELECT contact_id, reaction FROM reactions WHERE msg_id=?",
-            paramsv![msg_id],
+            (msg_id,),
             |row| {
                 let contact_id: ContactId = row.get(0)?;
                 let reaction: String = row.get(1)?;

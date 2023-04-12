@@ -799,7 +799,7 @@ impl Context {
                     "   AND NOT(c.muted_until=-1 OR c.muted_until>?)",
                     " ORDER BY m.timestamp DESC,m.id DESC;"
                 ),
-                paramsv![MessageState::InFresh, time()],
+                (MessageState::InFresh, time()),
                 |row| row.get::<_, MsgId>(0),
                 |rows| {
                     let mut list = Vec::new();
@@ -824,24 +824,10 @@ impl Context {
         }
         let str_like_in_text = format!("%{real_query}%");
 
-        let do_query = |query, params| {
-            self.sql.query_map(
-                query,
-                params,
-                |row| row.get::<_, MsgId>("id"),
-                |rows| {
-                    let mut ret = Vec::new();
-                    for id in rows {
-                        ret.push(id?);
-                    }
-                    Ok(ret)
-                },
-            )
-        };
-
         let list = if let Some(chat_id) = chat_id {
-            do_query(
-                "SELECT m.id AS id
+            self.sql
+                .query_map(
+                    "SELECT m.id AS id
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -850,9 +836,17 @@ impl Context {
                    AND ct.blocked=0
                    AND txt LIKE ?
                  ORDER BY m.timestamp,m.id;",
-                paramsv![chat_id, str_like_in_text],
-            )
-            .await?
+                    (chat_id, str_like_in_text),
+                    |row| row.get::<_, MsgId>("id"),
+                    |rows| {
+                        let mut ret = Vec::new();
+                        for id in rows {
+                            ret.push(id?);
+                        }
+                        Ok(ret)
+                    },
+                )
+                .await?
         } else {
             // For performance reasons results are sorted only by `id`, that is in the order of
             // message reception.
@@ -864,8 +858,9 @@ impl Context {
             // of unwanted results that are discarded moments later, we added `LIMIT 1000`.
             // According to some tests, this limit speeds up eg. 2 character searches by factor 10.
             // The limit is documented and UI may add a hint when getting 1000 results.
-            do_query(
-                "SELECT m.id AS id
+            self.sql
+                .query_map(
+                    "SELECT m.id AS id
                  FROM msgs m
                  LEFT JOIN contacts ct
                         ON m.from_id=ct.id
@@ -877,9 +872,17 @@ impl Context {
                    AND ct.blocked=0
                    AND m.txt LIKE ?
                  ORDER BY m.id DESC LIMIT 1000",
-                paramsv![str_like_in_text],
-            )
-            .await?
+                    (str_like_in_text,),
+                    |row| row.get::<_, MsgId>("id"),
+                    |rows| {
+                        let mut ret = Vec::new();
+                        for id in rows {
+                            ret.push(id?);
+                        }
+                        Ok(ret)
+                    },
+                )
+                .await?
         };
 
         Ok(list)
@@ -1089,7 +1092,7 @@ mod tests {
         t.sql
             .execute(
                 "UPDATE chats SET muted_until=? WHERE id=?;",
-                paramsv![time() - 3600, bob.id],
+                (time() - 3600, bob.id),
             )
             .await
             .unwrap();
@@ -1106,10 +1109,7 @@ mod tests {
         // to test get_fresh_msgs() with invalid mute_until (everything < -1),
         // that results in "muted forever" by definition.
         t.sql
-            .execute(
-                "UPDATE chats SET muted_until=-2 WHERE id=?;",
-                paramsv![bob.id],
-            )
+            .execute("UPDATE chats SET muted_until=-2 WHERE id=?;", (bob.id,))
             .await
             .unwrap();
         let bob = Chat::load_from_db(&t, bob.id).await.unwrap();

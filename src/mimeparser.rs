@@ -1668,10 +1668,7 @@ impl MimeMessage {
         {
             context
                 .sql
-                .query_get_value(
-                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
-                    paramsv![field],
-                )
+                .query_get_value("SELECT timestamp FROM msgs WHERE rfc724_mid=?", (field,))
                 .await?
         } else {
             None
@@ -2352,7 +2349,7 @@ mod tests {
             .sql
             .execute(
                 "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
-                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+                ("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp),
             )
             .await
             .expect("Failed to write to the database");

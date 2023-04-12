@@ -30,7 +30,7 @@ pub async fn run(context: &Context, sql: &Sql) -> Result<(bool, bool, bool, bool
             // set raw config inside the transaction
             transaction.execute(
                 "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                paramsv![VERSION_CFG, format!("{dbversion_before_update}")],
+                (VERSION_CFG, format!("{dbversion_before_update}")),
             )?;
             Ok(())
         })
@@ -746,7 +746,7 @@ impl Sql {
     fn set_db_version_trans(transaction: &mut rusqlite::Transaction, version: i32) -> Result<()> {
         transaction.execute(
             "UPDATE config SET value=? WHERE keyname=?;",
-            params![format!("{version}"), VERSION_CFG],
+            (format!("{version}"), VERSION_CFG),
         )?;
         Ok(())
     }

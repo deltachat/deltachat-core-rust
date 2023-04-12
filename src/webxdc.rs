@@ -263,7 +263,7 @@ impl Context {
                     FROM msgs
                     WHERE chat_id=?1 AND hidden=0
                     ORDER BY timestamp DESC, id DESC LIMIT 1"#,
-                paramsv![instance.chat_id],
+                (instance.chat_id,),
                 |row| {
                     let last_msg_id: MsgId = row.get(0)?;
                     let last_from_id: ContactId = row.get(1)?;
@@ -387,7 +387,7 @@ impl Context {
             .sql
             .insert(
                 "INSERT INTO msgs_status_updates (msg_id, update_item) VALUES(?, ?);",
-                paramsv![instance_id, serde_json::to_string(&status_update_item)?],
+                (instance_id, serde_json::to_string(&status_update_item)?),
             )
             .await?;
         let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
@@ -435,7 +435,7 @@ impl Context {
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
                  ON CONFLICT(msg_id)
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
-                paramsv![instance.id, status_update_serial, status_update_serial, descr],
+                (instance.id, status_update_serial, status_update_serial, descr),
             ).await?;
             self.scheduler
                 .interrupt_smtp(InterruptInfo::new(false))
@@ -579,7 +579,7 @@ impl Context {
             .sql
             .query_map(
                 "SELECT update_item, id FROM msgs_status_updates WHERE msg_id=? AND id>? ORDER BY id",
-                paramsv![instance_msg_id, last_known_serial],
+                (instance_msg_id, last_known_serial),
                 |row| {
                     let update_item_str = row.get::<_, String>(0)?;
                     let serial = row.get::<_, StatusUpdateSerial>(1)?;
@@ -631,11 +631,11 @@ impl Context {
             .sql
             .query_map(
                 "SELECT update_item FROM msgs_status_updates WHERE msg_id=? AND id>=? AND id<=? ORDER BY id",
-                paramsv![
+                (
                     instance_msg_id,
                     range.map(|r|r.0).unwrap_or(StatusUpdateSerial(0)),
                     range.map(|r|r.1).unwrap_or(StatusUpdateSerial(u32::MAX)),
-                ],
+                ),
                 |row| row.get::<_, String>(0),
                 |rows| {
                     let mut json = String::default();

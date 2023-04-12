@@ -31,7 +31,7 @@ impl Context {
                 if update {
                     transaction.execute(
                         "UPDATE contacts SET param=? WHERE id=?",
-                        params![param.to_string(), contact_id],
+                        (param.to_string(), contact_id),
                     )?;
                 }
                 Ok(update)
@@ -61,7 +61,7 @@ impl ChatId {
                 if update {
                     transaction.execute(
                         "UPDATE chats SET param=? WHERE id=?",
-                        params![param.to_string(), self],
+                        (param.to_string(), self),
                     )?;
                 }
                 Ok(update)

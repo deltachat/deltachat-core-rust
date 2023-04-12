@@ -347,7 +347,7 @@ impl Contact {
                 c.authname, c.param, c.status
                FROM contacts c
               WHERE c.id=?;",
-                paramsv![contact_id],
+                (contact_id,),
                 |row| {
                     let name: String = row.get(0)?;
                     let addr: String = row.get(1)?;
@@ -460,7 +460,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-                paramsv![MessageState::InNoticed, id, MessageState::InFresh],
+                (MessageState::InNoticed, id, MessageState::InFresh),
             )
             .await?;
         Ok(())
@@ -493,7 +493,7 @@ impl Contact {
                 "SELECT id FROM contacts \
             WHERE addr=?1 COLLATE NOCASE \
             AND id>?2 AND origin>=?3 AND blocked=0;",
-                paramsv![addr_normalized, ContactId::LAST_SPECIAL, min_origin as u32,],
+                (&addr_normalized, ContactId::LAST_SPECIAL, min_origin as u32),
             )
             .await?;
         Ok(id)
@@ -608,7 +608,7 @@ impl Contact {
                     transaction
                         .execute(
                             "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                            paramsv![
+                            (
                                 new_name,
                                 if update_addr {
                                     addr.to_string()
@@ -626,7 +626,7 @@ impl Contact {
                                     row_authname
                                 },
                                 row_id
-                            ],
+                            ),
                         )?;
 
                     if update_name || update_authname {
@@ -634,7 +634,7 @@ impl Contact {
                         // This is one of the few duplicated data, however, getting the chat list is easier this way.
                         let chat_id: Option<ChatId> = transaction.query_row(
                             "SELECT id FROM chats WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)",
-                            params![Chattype::Single, isize::try_from(row_id)?],
+                            (Chattype::Single, isize::try_from(row_id)?),
                             |row| {
                                 let chat_id: ChatId = row.get(0)?;
                                 Ok(chat_id)
@@ -648,7 +648,7 @@ impl Contact {
                                     "SELECT addr, name, authname
                                      FROM contacts
                                      WHERE id=?",
-                                     params![contact_id],
+                                     (contact_id,),
                                 |row| {
                                     let addr: String = row.get(0)?;
                                     let name: String = row.get(1)?;
@@ -666,7 +666,7 @@ impl Contact {
 
                             let count = transaction.execute(
                                     "UPDATE chats SET name=?1 WHERE id=?2 AND name!=?1",
-                                    params![chat_name, chat_id])?;
+                                    (chat_name, chat_id))?;
 
                             if count > 0 {
                                 // Chat name updated
@@ -684,7 +684,7 @@ impl Contact {
                     .execute(
                         "INSERT INTO contacts (name, addr, origin, authname)
                          VALUES (?, ?, ?, ?);",
-                        params![
+                         (
                             if update_name {
                                 name.to_string()
                             } else {
@@ -697,7 +697,7 @@ impl Contact {
                             } else {
                                 "".to_string()
                             }
-                        ],
+                        ),
                     )?;
 
                 sth_modified = Modifier::Created;
@@ -798,12 +798,12 @@ impl Contact {
                  ORDER BY c.last_seen DESC, c.id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
-                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
+                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
                         ContactId::LAST_SPECIAL,
                         Origin::IncomingReplyTo,
                         s3str_like_cmd,
                         s3str_like_cmd,
-                        if flag_verified_only { 0i32 } else { 1i32 },
+                        if flag_verified_only { 0i32 } else { 1i32 }
                     ])),
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
@@ -850,7 +850,7 @@ impl Contact {
                  ORDER BY last_seen DESC, id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
-                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_iterv![
+                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
                         ContactId::LAST_SPECIAL,
                         Origin::IncomingReplyTo
                     ])),
@@ -883,7 +883,7 @@ impl Contact {
             .transaction(move |transaction| {
                 let mut stmt = transaction
                     .prepare("SELECT name, grpid FROM chats WHERE type=? AND blocked=?")?;
-                let rows = stmt.query_map(params![Chattype::Mailinglist, Blocked::Yes], |row| {
+                let rows = stmt.query_map((Chattype::Mailinglist, Blocked::Yes), |row| {
                     let name: String = row.get(0)?;
                     let grpid: String = row.get(1)?;
                     Ok((name, grpid))
@@ -905,7 +905,7 @@ impl Contact {
                     // Always do an update in case the blocking is reset or name is changed.
                     transaction.execute(
                         "UPDATE contacts SET name=?, origin=?, blocked=1 WHERE addr=?",
-                        params![&name, Origin::MailinglistAddress, &grpid],
+                        (&name, Origin::MailinglistAddress, &grpid),
                     )?;
                 }
                 Ok(())
@@ -920,7 +920,7 @@ impl Contact {
             .sql
             .count(
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-                paramsv![ContactId::LAST_SPECIAL],
+                (ContactId::LAST_SPECIAL,),
             )
             .await?;
         Ok(count)
@@ -936,7 +936,7 @@ impl Contact {
             .sql
             .query_map(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY last_seen DESC, id DESC;",
-                paramsv![ContactId::LAST_SPECIAL],
+                (ContactId::LAST_SPECIAL,),
                 |row| row.get::<_, ContactId>(0),
                 |ids| {
                     ids.collect::<std::result::Result<Vec<_>, _>>()
@@ -1030,12 +1030,12 @@ impl Contact {
                 let deleted_contacts = transaction.execute(
                     "DELETE FROM contacts WHERE id=?
                      AND (SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?)=0;",
-                    paramsv![contact_id, contact_id],
+                    (contact_id, contact_id),
                 )?;
                 if deleted_contacts == 0 {
                     transaction.execute(
                         "UPDATE contacts SET origin=? WHERE id=?;",
-                        paramsv![Origin::Hidden, contact_id],
+                        (Origin::Hidden, contact_id),
                     )?;
                 }
                 Ok(())
@@ -1063,7 +1063,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET param=? WHERE id=?",
-                paramsv![self.param.to_string(), self.id],
+                (self.param.to_string(), self.id),
             )
             .await?;
         Ok(())
@@ -1075,7 +1075,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET status=? WHERE id=?",
-                paramsv![self.status, self.id],
+                (&self.status, self.id),
             )
             .await?;
         Ok(())
@@ -1233,7 +1233,7 @@ impl Contact {
             .sql
             .count(
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
-                paramsv![ContactId::LAST_SPECIAL],
+                (ContactId::LAST_SPECIAL,),
             )
             .await?;
         Ok(count)
@@ -1247,10 +1247,7 @@ impl Contact {
 
         let exists = context
             .sql
-            .exists(
-                "SELECT COUNT(*) FROM contacts WHERE id=?;",
-                paramsv![contact_id],
-            )
+            .exists("SELECT COUNT(*) FROM contacts WHERE id=?;", (contact_id,))
             .await?;
         Ok(exists)
     }
@@ -1265,7 +1262,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                paramsv![origin, contact_id, origin],
+                (origin, contact_id, origin),
             )
             .await?;
         Ok(())
@@ -1329,7 +1326,7 @@ async fn set_block_contact(
             .sql
             .execute(
                 "UPDATE contacts SET blocked=? WHERE id=?;",
-                paramsv![i32::from(new_blocking), contact_id],
+                (i32::from(new_blocking), contact_id),
             )
             .await?;
 
@@ -1348,7 +1345,7 @@ WHERE type=? AND id IN (
   SELECT chat_id FROM chats_contacts WHERE contact_id=?
 );
 "#,
-                paramsv![new_blocking, Chattype::Single, contact_id],
+                (new_blocking, Chattype::Single, contact_id),
             )
             .await
             .is_ok()
@@ -1465,7 +1462,7 @@ pub(crate) async fn update_last_seen(
         .sql
         .execute(
             "UPDATE contacts SET last_seen = ?1 WHERE last_seen < ?1 AND id = ?2",
-            paramsv![timestamp, contact_id],
+            (timestamp, contact_id),
         )
         .await?
         > 0
@@ -1580,7 +1577,7 @@ impl RecentlySeenLoop {
             .query_map(
                 "SELECT id, last_seen FROM contacts
                  WHERE last_seen > ?",
-                paramsv![time() - SEEN_RECENTLY_SECONDS],
+                (time() - SEEN_RECENTLY_SECONDS,),
                 |row| {
                     let contact_id: ContactId = row.get("id")?;
                     let last_seen: i64 = row.get("last_seen")?;

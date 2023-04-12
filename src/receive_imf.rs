@@ -118,7 +118,7 @@ pub(crate) async fn receive_imf_inner(
                     .sql
                     .execute(
                         "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                        paramsv![rfc724_mid, DC_CHAT_ID_TRASH],
+                        (rfc724_mid, DC_CHAT_ID_TRASH),
                     )
                     .await?;
                 msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
@@ -346,7 +346,7 @@ pub(crate) async fn receive_imf_inner(
                 .sql
                 .execute(
                     "UPDATE imap SET target=? WHERE rfc724_mid=?",
-                    paramsv![target, rfc724_mid],
+                    (target, rfc724_mid),
                 )
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
@@ -1365,7 +1365,7 @@ async fn calc_sort_timestamp(
             .sql
             .query_get_value(
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
-                paramsv![chat_id, MessageState::InFresh],
+                (chat_id, MessageState::InFresh),
             )
             .await?;
 
@@ -1684,7 +1684,7 @@ async fn apply_group_changes(
                         .sql
                         .execute(
                             "UPDATE chats SET name=? WHERE id=?;",
-                            paramsv![strip_rtlo_characters(grpname), chat_id],
+                            (strip_rtlo_characters(grpname), chat_id),
                         )
                         .await?;
                     send_event_chat_modified = true;
@@ -1754,10 +1754,7 @@ async fn apply_group_changes(
                 // start from scratch.
                 context
                     .sql
-                    .execute(
-                        "DELETE FROM chats_contacts WHERE chat_id=?;",
-                        paramsv![chat_id],
-                    )
+                    .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (chat_id,))
                     .await?;
 
                 members_to_add.push(ContactId::SELF);

@@ -77,7 +77,7 @@ impl MsgId {
     pub async fn get_state(self, context: &Context) -> Result<MessageState> {
         let result = context
             .sql
-            .query_get_value("SELECT state FROM msgs WHERE id=?", paramsv![self])
+            .query_get_value("SELECT state FROM msgs WHERE id=?", (self,))
             .await?
             .unwrap_or_default();
         Ok(result)
@@ -106,7 +106,7 @@ SET
   param='' 
 WHERE id=?;
 "#,
-                paramsv![chat_id, self],
+                (chat_id, self),
             )
             .await?;
 
@@ -119,22 +119,19 @@ WHERE id=?;
         // sure they are not left while the message is deleted.
         context
             .sql
-            .execute("DELETE FROM smtp WHERE msg_id=?", paramsv![self])
+            .execute("DELETE FROM smtp WHERE msg_id=?", (self,))
             .await?;
         context
             .sql
-            .execute("DELETE FROM msgs_mdns WHERE msg_id=?;", paramsv![self])
+            .execute("DELETE FROM msgs_mdns WHERE msg_id=?;", (self,))
             .await?;
         context
             .sql
-            .execute(
-                "DELETE FROM msgs_status_updates WHERE msg_id=?;",
-                paramsv![self],
-            )
+            .execute("DELETE FROM msgs_status_updates WHERE msg_id=?;", (self,))
             .await?;
         context
             .sql
-            .execute("DELETE FROM msgs WHERE id=?;", paramsv![self])
+            .execute("DELETE FROM msgs WHERE id=?;", (self,))
             .await?;
         Ok(())
     }
@@ -143,7 +140,7 @@ WHERE id=?;
         update_msg_state(context, self, MessageState::OutDelivered).await?;
         let chat_id: ChatId = context
             .sql
-            .query_get_value("SELECT chat_id FROM msgs WHERE id=?", paramsv![self])
+            .query_get_value("SELECT chat_id FROM msgs WHERE id=?", (self,))
             .await?
             .unwrap_or_default();
         context.emit_event(EventType::MsgDelivered {
@@ -328,7 +325,7 @@ impl Message {
                     " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
                     " WHERE m.id=?;"
                 ),
-                paramsv![id],
+                (id,),
                 |row| {
                     let text = match row.get_ref("txt")? {
                         rusqlite::types::ValueRef::Text(buf) => {
@@ -949,7 +946,7 @@ impl Message {
             .sql
             .execute(
                 "UPDATE msgs SET param=? WHERE id=?;",
-                paramsv![self.param.to_string(), self.id],
+                (self.param.to_string(), self.id),
             )
             .await?;
         Ok(())
@@ -960,7 +957,7 @@ impl Message {
             .sql
             .execute(
                 "UPDATE msgs SET subject=? WHERE id=?;",
-                paramsv![self.subject, self.id],
+                (&self.subject, self.id),
             )
             .await?;
         Ok(())
@@ -1094,7 +1091,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let rawtxt: Option<String> = context
         .sql
-        .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+        .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
         .await?;
 
     let mut ret = String::new();
@@ -1144,7 +1141,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
         .sql
         .query_map(
             "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-            paramsv![msg_id],
+            (msg_id,),
             |row| {
                 let contact_id: ContactId = row.get(0)?;
                 let ts: i64 = row.get(1)?;
@@ -1225,7 +1222,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             .sql
             .query_map(
                 "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
-                paramsv![msg.rfc724_mid],
+                (msg.rfc724_mid,),
                 |row| {
                     let folder: String = row.get("folder")?;
                     let uid: u32 = row.get("uid")?;
@@ -1245,7 +1242,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     }
     let hop_info: Option<String> = context
         .sql
-        .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", paramsv![msg_id])
+        .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (msg_id,))
         .await?;
 
     ret += "\n\n";
@@ -1353,7 +1350,7 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
         .sql
         .query_row(
             "SELECT mime_headers, mime_compressed FROM msgs WHERE id=?",
-            paramsv![msg_id],
+            (msg_id,),
             |row| {
                 let headers = sql::row_get_vec(row, 0)?;
                 let compressed: bool = row.get(1)?;
@@ -1378,7 +1375,7 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
             "\
             UPDATE msgs SET mime_headers=?, mime_compressed=1 \
             WHERE id=? AND mime_headers!='' AND mime_compressed=0",
-            params![compressed, msg_id],
+            (compressed, msg_id),
         ) {
             Ok(rows_updated) => ensure!(rows_updated <= 1),
             Err(e) => {
@@ -1421,7 +1418,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             .sql
             .execute(
                 "UPDATE imap SET target=? WHERE rfc724_mid=?",
-                paramsv![target, msg.rfc724_mid],
+                (target, msg.rfc724_mid),
             )
             .await?;
 
@@ -1459,7 +1456,7 @@ async fn delete_poi_location(context: &Context, location_id: u32) -> Result<()> 
         .sql
         .execute(
             "DELETE FROM locations WHERE independent = 1 AND id=?;",
-            paramsv![location_id as i32],
+            (location_id as i32,),
         )
         .await?;
     Ok(())
@@ -1558,7 +1555,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                         .sql
                         .execute(
                             "INSERT INTO smtp_mdns (msg_id, from_id, rfc724_mid) VALUES(?, ?, ?)",
-                            paramsv![id, curr_from_id, curr_rfc724_mid],
+                            (id, curr_from_id, curr_rfc724_mid),
                         )
                         .await
                         .context("failed to insert into smtp_mdns")?;
@@ -1586,10 +1583,7 @@ pub(crate) async fn update_msg_state(
 ) -> Result<()> {
     context
         .sql
-        .execute(
-            "UPDATE msgs SET state=? WHERE id=?;",
-            paramsv![state, msg_id],
-        )
+        .execute("UPDATE msgs SET state=? WHERE id=?;", (state, msg_id))
         .await?;
     Ok(())
 }
@@ -1609,7 +1603,7 @@ pub(crate) async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
 
     let chat_id: Option<ChatId> = context
         .sql
-        .query_get_value("SELECT chat_id FROM msgs WHERE id=?;", paramsv![msg_id])
+        .query_get_value("SELECT chat_id FROM msgs WHERE id=?;", (msg_id,))
         .await?;
 
     if let Some(chat_id) = chat_id {
@@ -1635,7 +1629,7 @@ pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str
             .sql
             .execute(
                 "UPDATE msgs SET state=?, error=? WHERE id=?;",
-                paramsv![msg.state, error, msg_id],
+                (msg.state, error, msg_id),
             )
             .await
         {
@@ -1680,7 +1674,7 @@ pub async fn handle_mdn(
                 " WHERE rfc724_mid=? AND from_id=1",
                 " ORDER BY m.id;"
             ),
-            paramsv![rfc724_mid],
+            (&rfc724_mid,),
             |row| {
                 Ok((
                     row.get::<_, MsgId>("msg_id")?,
@@ -1706,7 +1700,7 @@ pub async fn handle_mdn(
         .sql
         .exists(
             "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-            paramsv![msg_id, from_id],
+            (msg_id, from_id),
         )
         .await?
     {
@@ -1714,7 +1708,7 @@ pub async fn handle_mdn(
             .sql
             .execute(
                 "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
-                paramsv![msg_id, from_id, timestamp_sent],
+                (msg_id, from_id, timestamp_sent),
             )
             .await?;
     }
@@ -1754,7 +1748,7 @@ pub(crate) async fn handle_ndn(
                 " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
                 " WHERE rfc724_mid=? AND from_id=1",
             ),
-            paramsv![failed.rfc724_mid],
+            (&failed.rfc724_mid,),
             |row| {
                 Ok((
                     row.get::<_, MsgId>("msg_id")?,
@@ -1894,7 +1888,7 @@ pub async fn estimate_deletion_cnt(
                AND timestamp < ?
                AND chat_id != ?
                AND EXISTS (SELECT * FROM imap WHERE rfc724_mid=m.rfc724_mid);",
-                paramsv![DC_MSG_ID_LAST_SPECIAL, threshold_timestamp, self_chat_id],
+                (DC_MSG_ID_LAST_SPECIAL, threshold_timestamp, self_chat_id),
             )
             .await?
     } else {
@@ -1907,12 +1901,12 @@ pub async fn estimate_deletion_cnt(
                AND timestamp < ?
                AND chat_id != ?
                AND chat_id != ? AND hidden = 0;",
-                paramsv![
+                (
                     DC_MSG_ID_LAST_SPECIAL,
                     threshold_timestamp,
                     self_chat_id,
-                    DC_CHAT_ID_TRASH
-                ],
+                    DC_CHAT_ID_TRASH,
+                ),
             )
             .await?
     };
@@ -1933,7 +1927,7 @@ pub(crate) async fn rfc724_mid_exists(
         .sql
         .query_row_optional(
             "SELECT id FROM msgs WHERE rfc724_mid=?",
-            paramsv![rfc724_mid],
+            (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
 

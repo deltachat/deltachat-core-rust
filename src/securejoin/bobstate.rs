@@ -135,21 +135,21 @@ impl BobState {
                 // rows that we will delete.  So start with a dummy UPDATE.
                 transaction.execute(
                     r#"UPDATE bobstate SET next_step=?;"#,
-                    params![SecureJoinStep::Terminated],
+                    (SecureJoinStep::Terminated,),
                 )?;
                 let mut stmt = transaction.prepare("SELECT id FROM bobstate;")?;
                 let mut aborted = Vec::new();
-                for id in stmt.query_map(params![], |row| row.get::<_, i64>(0))? {
+                for id in stmt.query_map((), |row| row.get::<_, i64>(0))? {
                     let id = id?;
                     let state = BobState::from_db_id(transaction, id)?;
                     aborted.push(state);
                 }
 
                 // Finally delete everything and insert new row.
-                transaction.execute("DELETE FROM bobstate;", params![])?;
+                transaction.execute("DELETE FROM bobstate;", ())?;
                 transaction.execute(
                     "INSERT INTO bobstate (invite, next_step, chat_id) VALUES (?, ?, ?);",
-                    params![invite, next, chat_id],
+                    (invite, next, chat_id),
                 )?;
                 let id = transaction.last_insert_rowid();
                 Ok((id, aborted))
@@ -180,7 +180,7 @@ impl BobState {
     fn from_db_id(connection: &Connection, id: i64) -> rusqlite::Result<Self> {
         connection.query_row(
             "SELECT invite, next_step, chat_id FROM bobstate WHERE id=?;",
-            params![id],
+            (id,),
             |row| {
                 let s = BobState {
                     id,
@@ -217,12 +217,12 @@ impl BobState {
             SecureJoinStep::AuthRequired | SecureJoinStep::ContactConfirm => {
                 sql.execute(
                     "UPDATE bobstate SET next_step=? WHERE id=?;",
-                    paramsv![next, self.id],
+                    (next, self.id),
                 )
                 .await?;
             }
             SecureJoinStep::Terminated | SecureJoinStep::Completed => {
-                sql.execute("DELETE FROM bobstate WHERE id=?;", paramsv!(self.id))
+                sql.execute("DELETE FROM bobstate WHERE id=?;", (self.id,))
                     .await?;
             }
         }

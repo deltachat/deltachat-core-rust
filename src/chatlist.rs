@@ -137,7 +137,7 @@ impl Chatlist {
                    AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
                  GROUP BY c.id
                  ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, query_contact_id, ChatVisibility::Pinned],
+                (MessageState::OutDraft, query_contact_id, ChatVisibility::Pinned),
                 process_row,
                 process_rows,
             ).await?
@@ -164,7 +164,7 @@ impl Chatlist {
                    AND c.archived=1
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    paramsv![MessageState::OutDraft],
+                    (MessageState::OutDraft,),
                     process_row,
                     process_rows,
                 )
@@ -198,7 +198,7 @@ impl Chatlist {
                    AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    paramsv![MessageState::OutDraft, skip_id, str_like_cmd],
+                    (MessageState::OutDraft, skip_id, str_like_cmd),
                     process_row,
                     process_rows,
                 )
@@ -228,7 +228,7 @@ impl Chatlist {
                    AND NOT c.archived=?4
                  GROUP BY c.id
                  ORDER BY c.id=?5 DESC, c.archived=?6 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                paramsv![MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned],
+                (MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned),
                 process_row,
                 process_rows,
             ).await?;
@@ -356,7 +356,7 @@ pub async fn get_archived_cnt(context: &Context) -> Result<usize> {
         .sql
         .count(
             "SELECT COUNT(*) FROM chats WHERE blocked!=? AND archived=?;",
-            paramsv![Blocked::Yes, ChatVisibility::Archived],
+            (Blocked::Yes, ChatVisibility::Archived),
         )
         .await?;
     Ok(count)
