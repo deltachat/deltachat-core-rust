@@ -559,10 +559,10 @@ async fn add_parts(
             let create_blocked = match test_normal_chat {
                 Some(ChatIdBlocked {
                     id: _,
-                    blocked: Blocked::Not,
-                }) => Blocked::Not,
-                _ if is_bot => Blocked::Not,
-                _ => Blocked::Request,
+                    blocked: Blocked::Request,
+                }) if is_bot => Blocked::Not,
+                Some(ChatIdBlocked { id: _, blocked }) => blocked,
+                None => Blocked::Request,
             };
 
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(

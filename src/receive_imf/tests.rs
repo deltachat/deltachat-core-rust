@@ -3046,6 +3046,29 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     Ok(())
 }
 
+/// Regression test for https://github.com/deltachat/deltachat-core-rust/issues/4313
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_blocked_contact_creades_group() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    let chat = alice.create_chat(&bob).await;
+    chat.id.block(&alice).await?;
+
+    let group_id = bob
+        .create_group_with_members(ProtectionStatus::Unprotected, "group name", &[&alice])
+        .await;
+
+    let sent = bob
+        .send_text(group_id, "Message to introduce alice and fiona")
+        .await;
+    let rcvd = alice.recv_msg(&sent).await;
+    assert_eq!(rcvd.chat_blocked, Blocked::Yes);
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_autocrypt() -> Result<()> {
     let t = TestContext::new_bob().await;
