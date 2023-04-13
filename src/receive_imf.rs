@@ -553,17 +553,17 @@ async fn add_parts(
         // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
+        let create_blocked = match test_normal_chat {
+            Some(ChatIdBlocked {
+                id: _,
+                blocked: Blocked::Request,
+            }) if is_bot => Blocked::Not,
+            Some(ChatIdBlocked { id: _, blocked }) => blocked,
+            None => Blocked::Request,
+        };
+
         if chat_id.is_none() {
             // try to create a group
-
-            let create_blocked = match test_normal_chat {
-                Some(ChatIdBlocked {
-                    id: _,
-                    blocked: Blocked::Request,
-                }) if is_bot => Blocked::Not,
-                Some(ChatIdBlocked { id: _, blocked }) => blocked,
-                None => Blocked::Request,
-            };
 
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
@@ -581,13 +581,15 @@ async fn add_parts(
             {
                 chat_id = Some(new_chat_id);
                 chat_id_blocked = new_chat_id_blocked;
+            }
+        }
 
-                // if the chat is somehow blocked but we want to create a non-blocked chat,
-                // unblock the chat
-                if chat_id_blocked != Blocked::Not && create_blocked == Blocked::Not {
-                    new_chat_id.unblock(context).await?;
-                    chat_id_blocked = Blocked::Not;
-                }
+        // if the chat is somehow blocked but we want to create a non-blocked chat,
+        // unblock the chat
+        if chat_id_blocked != Blocked::Not && create_blocked != Blocked::Yes {
+            if let Some(chat_id) = chat_id {
+                chat_id.set_blocked(context, create_blocked).await?;
+                chat_id_blocked = create_blocked;
             }
         }
 
