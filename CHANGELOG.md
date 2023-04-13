@@ -15,6 +15,7 @@
 - Fix python bindings README documentation on installing the bindings from source.
 - Show a warning if quota list is empty #4261
 - Update "accounts.toml" atomically
+- Don't let blocking be bypassed using groups #4316 
 
 ## [1.112.6] - 2023-04-04
 
