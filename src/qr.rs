@@ -10,7 +10,7 @@ use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
 use self::dclogin_scheme::configure_from_login_qr;
-use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
+use crate::chat::{get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{
@@ -21,7 +21,6 @@ use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::socks::Socks5Config;
-use crate::tools::time;
 use crate::{token, EventType};
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
@@ -435,16 +434,9 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
                 Contact::add_or_lookup(context, &name, peerstate_addr, Origin::UnhandledQrScan)
                     .await
                     .context("add_or_lookup")?;
-            let chat = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
+            ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
                 .await
                 .context("Failed to create (new) chat for contact")?;
-            chat::add_info_msg(
-                context,
-                chat.id,
-                &format!("{} verified.", peerstate.addr),
-                time(),
-            )
-            .await?;
             Ok(Qr::FprOk { contact_id })
         } else {
             let contact_id = Contact::lookup_id_by_addr(context, &addr, Origin::Unknown)

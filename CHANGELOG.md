@@ -11,6 +11,8 @@
 - maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
 - Cleanly terminate deltachat-rpc-server.
   Also terminate on ctrl-c.
+- Refactorings #4317
+
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
