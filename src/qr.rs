@@ -10,7 +10,7 @@ use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 
 use self::dclogin_scheme::configure_from_login_qr;
-use crate::chat::{self, get_chat_id_by_grpid, ChatIdBlocked};
+use crate::chat::{get_chat_id_by_grpid, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{
@@ -21,7 +21,6 @@ use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::socks::Socks5Config;
-use crate::tools::time;
 use crate::{token, EventType};
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
