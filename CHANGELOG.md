@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changes
+- Added core requirements for ChatlistItem Thunmbnail
 - Increase MSRV to 1.65.0. #4236
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
