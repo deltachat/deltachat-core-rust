@@ -105,6 +105,10 @@ class Chat:
         info = await self._rpc.get_full_chat_by_id(self.account.id, self.id)
         return AttrDict(chat=self, **info)
 
+    async def can_send(self) -> bool:
+        """Return true if messages can be sent to the chat."""
+        return await self._rpc.can_send(self.account.id, self.id)
+
     async def send_message(
         self,
         text: Optional[str] = None,

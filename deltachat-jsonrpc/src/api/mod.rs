@@ -1701,6 +1701,15 @@ impl CommandApi {
         Ok(msg_id)
     }
 
+    /// Checks if messages can be sent to a given chat.
+    async fn can_send(&self, account_id: u32, chat_id: u32) -> Result<bool> {
+        let ctx = self.get_context(account_id).await?;
+        let chat_id = ChatId::new(chat_id);
+        let chat = Chat::load_from_db(&ctx, chat_id).await?;
+        let can_send = chat.can_send(&ctx).await?;
+        Ok(can_send)
+    }
+
     // ---------------------------------------------
     //           functions for the composer
     //    the composer is the message input field

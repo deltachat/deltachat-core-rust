@@ -13,7 +13,7 @@
 - Cleanly terminate deltachat-rpc-server.
   Also terminate on ctrl-c.
 - Refactorings #4317
-
+- Add JSON-RPC API `can_send()`.
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.

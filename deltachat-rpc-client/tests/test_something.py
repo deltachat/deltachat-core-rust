@@ -147,7 +147,9 @@ async def test_chat(acfactory) -> None:
     assert alice_chat_bob != bob_chat_alice
     assert repr(alice_chat_bob)
     await alice_chat_bob.delete()
+    assert not await bob_chat_alice.can_send()
     await bob_chat_alice.accept()
+    assert await bob_chat_alice.can_send()
     await bob_chat_alice.block()
     bob_chat_alice = await snapshot.sender.create_chat()
     await bob_chat_alice.mute()
