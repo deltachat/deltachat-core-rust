@@ -122,7 +122,7 @@ Build and install the bindings:
 
    export DCC_RS_DEV="$PWD"
    export DCC_RS_TARGET=release
-   python -m pip install python
+   python -m pip install ./python
 
 `DCC_RS_DEV` environment variable specifies the location of
 the core development tree. If this variable is not set,
