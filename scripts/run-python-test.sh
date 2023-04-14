@@ -22,4 +22,5 @@ export PYTHONDONTWRITEBYTECODE=1
 # run python tests (tox invokes pytest to run tests in python/tests)
 #TOX_PARALLEL_NO_SPINNER=1 tox -e lint,doc
 tox -e lint
-tox -e doc,py
+tox -e doc
+tox -e py -- "$@"
