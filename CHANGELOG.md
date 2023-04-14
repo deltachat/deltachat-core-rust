@@ -11,7 +11,7 @@
 - maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
 - Remove confusing log line "ignoring unsolicited response Recent(…)" #3934
 - Cleanly terminate deltachat-rpc-server.
-  Also terminate on ctrl-c.
+  I.e. on EOF in stdin.
 - Refactorings #4317
 - Add JSON-RPC API `can_send()`.
 - New `dc_get_next_msgs()` and `dc_wait_next_msgs()` C APIs.
@@ -24,6 +24,7 @@
 - New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
 - Remove metadata from avatars and JPEG images before sending #4037
 - Reduce + recode images to JPEG if they are > 500K in size #4037
+- Gracefully terminate deltachat-rpc-server on ctrl-c and SIGTERM.
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
