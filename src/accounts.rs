@@ -18,6 +18,7 @@ use crate::stock_str::StockStrings;
 pub struct Accounts {
     dir: PathBuf,
     config: Config,
+    /// Map from account ID to the account.
     accounts: BTreeMap<u32, Context>,
 
     /// Event channel to emit account manager errors.
@@ -78,12 +79,12 @@ impl Accounts {
         })
     }
 
-    /// Get an account by its `id`:
+    /// Returns an account by its `id`:
     pub fn get_account(&self, id: u32) -> Option<Context> {
         self.accounts.get(&id).cloned()
     }
 
-    /// Get the currently selected account.
+    /// Returns the currently selected account.
     pub fn get_selected_account(&self) -> Option<Context> {
         let id = self.config.get_selected_account();
         self.accounts.get(&id).cloned()
@@ -97,14 +98,14 @@ impl Accounts {
         }
     }
 
-    /// Select the given account.
+    /// Selects the given account.
     pub async fn select_account(&mut self, id: u32) -> Result<()> {
         self.config.select_account(id).await?;
 
         Ok(())
     }
 
-    /// Add a new account and opens it.
+    /// Adds a new account and opens it.
     ///
     /// Returns account ID.
     pub async fn add_account(&mut self) -> Result<u32> {
@@ -139,7 +140,7 @@ impl Accounts {
         Ok(account_config.id)
     }
 
-    /// Remove an account.
+    /// Removes an account.
     pub async fn remove_account(&mut self, id: u32) -> Result<()> {
         let ctx = self
             .accounts
@@ -160,7 +161,7 @@ impl Accounts {
         Ok(())
     }
 
-    /// Migrate an existing account into this structure.
+    /// Migrates an existing account into this structure.
     ///
     /// Returns the ID of new account.
     pub async fn migrate_account(&mut self, dbfile: PathBuf) -> Result<u32> {
