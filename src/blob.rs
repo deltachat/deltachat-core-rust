@@ -372,14 +372,12 @@ impl<'a> BlobObject<'a> {
             let mut encoded = Vec::new();
             let mut changed_name = None;
 
-            if matches!(orientation, Some(90) | Some(180) | Some(270)) {
-                img = match orientation {
-                    Some(90) => img.rotate90(),
-                    Some(180) => img.rotate180(),
-                    Some(270) => img.rotate270(),
-                    _ => img,
-                }
-            }
+            img = match orientation {
+                Some(90) => img.rotate90(),
+                Some(180) => img.rotate180(),
+                Some(270) => img.rotate270(),
+                _ => img,
+            };
 
             let exceeds_wh = img.width() > img_wh || img.height() > img_wh;
             let exceeds_max_bytes = nr_bytes > max_bytes as u64;
@@ -387,7 +385,10 @@ impl<'a> BlobObject<'a> {
             let fmt = ImageFormat::from_path(&blob_abs);
             let ofmt = match fmt {
                 Ok(ImageFormat::Png) if !exceeds_max_bytes => ImageOutputFormat::Png,
-                _ => ImageOutputFormat::Jpeg(75),
+                _ => {
+                    let jpeg_quality = 75;
+                    ImageOutputFormat::Jpeg(jpeg_quality)
+                }
             };
             // We need to rewrite images with Exif to remove metadata such as location,
             // camera model, etc.
