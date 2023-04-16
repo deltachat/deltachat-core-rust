@@ -2,16 +2,40 @@
 use crate::{
     chat::ChatId,
     config::Config,
-    context::{Context, DebugLogging},
+    context::Context,
     message::{Message, MsgId, Viewtype},
     param::Param,
+    tools::time,
     webxdc::StatusUpdateItem,
     Event, EventType,
 };
-use async_channel::{self as channel, Receiver};
+use async_channel::{self as channel, Receiver, Sender};
 use serde_json::json;
 use std::path::PathBuf;
 use tokio::task;
+
+#[derive(Debug)]
+pub(crate) struct DebugLogging {
+    /// The message containing the logging xdc
+    pub(crate) msg_id: MsgId,
+    /// Handle to the background task responsible for sending
+    pub(crate) loop_handle: task::JoinHandle<()>,
+    /// Channel that log events should be sent to.
+    /// A background loop will receive and handle them.
+    pub(crate) sender: Sender<DebugEventLogData>,
+}
+
+impl DebugLogging {
+    pub(crate) fn log_event(&self, event: EventType) {
+        let event_data = DebugEventLogData {
+            time: time(),
+            msg_id: self.msg_id,
+            event,
+        };
+
+        self.sender.try_send(event_data).ok();
+    }
+}
 
 /// Store all information needed to log an event to a webxdc.
 pub struct DebugEventLogData {
@@ -112,24 +136,26 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                     Some(msg_id.to_string().as_ref()),
                 )
                 .await?;
-            let debug_logging = &mut *ctx.debug_logging.write().await;
-            match debug_logging {
-                // Switch logging xdc
-                Some(debug_logging) => debug_logging.msg_id = msg_id,
-                // Bootstrap background loop for message forwarding
-                None => {
-                    let (sender, debug_logging_recv) = channel::bounded(1000);
-                    let loop_handle = {
-                        let ctx = ctx.clone();
-                        task::spawn(
-                            async move { debug_logging_loop(&ctx, debug_logging_recv).await },
-                        )
-                    };
-                    *debug_logging = Some(DebugLogging {
-                        msg_id,
-                        loop_handle,
-                        sender,
-                    });
+            {
+                let debug_logging = &mut *ctx.debug_logging.write().await;
+                match debug_logging {
+                    // Switch logging xdc
+                    Some(debug_logging) => debug_logging.msg_id = msg_id,
+                    // Bootstrap background loop for message forwarding
+                    None => {
+                        let (sender, debug_logging_recv) = channel::bounded(1000);
+                        let loop_handle = {
+                            let ctx = ctx.clone();
+                            task::spawn(async move {
+                                debug_logging_loop(&ctx, debug_logging_recv).await
+                            })
+                        };
+                        *debug_logging = Some(DebugLogging {
+                            msg_id,
+                            loop_handle,
+                            sender,
+                        });
+                    }
                 }
             }
             info!(ctx, "replacing logging webxdc");

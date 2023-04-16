@@ -12,13 +12,12 @@ use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, RwLock};
-use tokio::task;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::debug_logging::DebugEventLogData;
+use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::key::{DcKey, SignedPublicKey};
 use crate::login_param::LoginParam;
@@ -247,17 +246,6 @@ pub struct InnerContext {
     pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
 }
 
-#[derive(Debug)]
-pub(crate) struct DebugLogging {
-    /// The message containing the logging xdc
-    pub(crate) msg_id: MsgId,
-    /// Handle to the background task responsible for sending
-    pub(crate) loop_handle: task::JoinHandle<()>,
-    /// Channel that log events should be sent to.
-    /// A background loop will receive and handle them.
-    pub(crate) sender: Sender<DebugEventLogData>,
-}
-
 /// The state of ongoing process.
 #[derive(Debug)]
 enum RunningState {
@@ -449,39 +437,16 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
-        if self
-            .debug_logging
-            .try_read()
-            .ok()
-            .map(|inner| inner.is_some())
-            == Some(true)
         {
-            self.send_log_event(event.clone()).ok();
-        };
+            let lock = tokio::task::block_in_place(|| self.debug_logging.blocking_read());
+            if let Some(debug_logging) = &*lock {
+                debug_logging.log_event(event.clone());
+            }
+        }
         self.events.emit(Event {
             id: self.id,
             typ: event,
         });
-    }
-
-    pub(crate) fn send_log_event(&self, event: EventType) -> anyhow::Result<()> {
-        if let Ok(lock) = self.debug_logging.try_read() {
-            if let Some(DebugLogging {
-                msg_id: xdc_id,
-                sender,
-                ..
-            }) = &*lock
-            {
-                let event_data = DebugEventLogData {
-                    time: time(),
-                    msg_id: *xdc_id,
-                    event,
-                };
-
-                sender.try_send(event_data).ok();
-            }
-        }
-        Ok(())
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)
