@@ -253,8 +253,8 @@ pub(crate) struct DebugLogging {
     pub(crate) msg_id: MsgId,
     /// Handle to the background task responsible for sending
     pub(crate) loop_handle: task::JoinHandle<()>,
-    /// Channel that log events should be send to
-    /// A background loop will receive and handle them
+    /// Channel that log events should be sent to.
+    /// A background loop will receive and handle them.
     pub(crate) sender: Sender<DebugEventLogData>,
 }
 
