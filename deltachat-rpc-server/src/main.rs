@@ -115,6 +115,7 @@ async fn main() -> Result<()> {
     // NB: Events are drained by events_task.
     canceler.cancel();
     accounts.read().await.stop_io().await;
+    drop(accounts);
     drop(state);
     let (r0, r1) = tokio::join!(events_task, send_task);
     for r in [r0, r1] {
