@@ -33,7 +33,7 @@ use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, truncate_by_lines};
+use crate::tools::{get_filemeta, parse_receive_headers, strip_rtlo_characters, truncate_by_lines};
 use crate::{location, tools};
 
 /// A parsed MIME message.
@@ -1668,10 +1668,7 @@ impl MimeMessage {
         {
             context
                 .sql
-                .query_get_value(
-                    "SELECT timestamp FROM msgs WHERE rfc724_mid=?",
-                    paramsv![field],
-                )
+                .query_get_value("SELECT timestamp FROM msgs WHERE rfc724_mid=?", (field,))
                 .await?
         } else {
             None
@@ -1951,6 +1948,8 @@ fn get_attachment_filename(
             );
         };
     }
+
+    let desired_filename = desired_filename.map(|filename| strip_rtlo_characters(&filename));
 
     Ok(desired_filename)
 }
@@ -2350,7 +2349,7 @@ mod tests {
             .sql
             .execute(
                 "INSERT INTO msgs (rfc724_mid, timestamp) VALUES(?,?)",
-                paramsv!["Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp],
+                ("Gr.beZgAF2Nn0-.oyaJOpeuT70@example.org", timestamp),
             )
             .await
             .expect("Failed to write to the database");

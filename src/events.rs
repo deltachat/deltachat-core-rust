@@ -32,7 +32,9 @@ impl Events {
         Self { receiver, sender }
     }
 
-    /// Emits an event.
+    /// Emits an event into event channel.
+    ///
+    /// If the channel is full, deletes the oldest event first.
     pub fn emit(&self, event: Event) {
         match self.sender.try_send(event) {
             Ok(()) => {}
@@ -49,7 +51,7 @@ impl Events {
         }
     }
 
-    /// Retrieve the event emitter.
+    /// Creates an event emitter.
     pub fn get_emitter(&self) -> EventEmitter {
         EventEmitter(self.receiver.clone())
     }

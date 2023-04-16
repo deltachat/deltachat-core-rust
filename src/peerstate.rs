@@ -144,7 +144,7 @@ impl Peerstate {
                      verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates \
                      WHERE addr=? COLLATE NOCASE LIMIT 1;";
-        Self::from_stmt(context, query, paramsv![addr]).await
+        Self::from_stmt(context, query, (addr,)).await
     }
 
     /// Loads peerstate corresponding to the given fingerprint from the database.
@@ -160,7 +160,7 @@ impl Peerstate {
                      OR gossip_key_fingerprint=? \
                      ORDER BY public_key_fingerprint=? DESC LIMIT 1;";
         let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+        Self::from_stmt(context, query, (&fp, &fp, &fp)).await
     }
 
     /// Loads peerstate by address or verified fingerprint.
@@ -180,7 +180,7 @@ impl Peerstate {
                      OR addr=? COLLATE NOCASE \
                      ORDER BY verified_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
         let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, addr, fp]).await
+        Self::from_stmt(context, query, (&fp, &addr, &fp)).await
     }
 
     async fn from_stmt(
@@ -471,7 +471,7 @@ impl Peerstate {
                   verified_key = excluded.verified_key,
                   verified_key_fingerprint = excluded.verified_key_fingerprint,
                   verifier = excluded.verifier",
-            paramsv![
+            (
                 self.last_seen,
                 self.last_seen_autocrypt,
                 self.prefer_encrypt as i64,
@@ -482,9 +482,9 @@ impl Peerstate {
                 self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                 self.verified_key.as_ref().map(|k| k.to_bytes()),
                 self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.addr,
+                &self.addr,
                 self.verifier.as_deref().unwrap_or(""),
-            ],
+            ),
         )
         .await?;
         Ok(())
@@ -524,7 +524,7 @@ impl Peerstate {
             .sql
             .query_get_value(
                 "SELECT id FROM contacts WHERE addr=? COLLATE NOCASE;",
-                paramsv![self.addr],
+                (&self.addr,),
             )
             .await?
             .with_context(|| format!("contact with peerstate.addr {:?} not found", &self.addr))?;
@@ -554,7 +554,7 @@ impl Peerstate {
                     .sql
                     .query_get_value(
                         "SELECT created_timestamp FROM chats WHERE id=?;",
-                        paramsv![chat_id],
+                        (chat_id,),
                     )
                     .await?
                     .unwrap_or(0)
@@ -851,7 +851,7 @@ mod tests {
         // can be loaded without errors.
         ctx.ctx
             .sql
-            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", paramsv![addr])
+            .execute("INSERT INTO acpeerstates (addr) VALUES(?)", (addr,))
             .await
             .expect("Failed to write to the database");
 

@@ -271,11 +271,11 @@ pub async fn send_locations_to_chat(
          SET locations_send_begin=?,        \
          locations_send_until=?  \
          WHERE id=?",
-            paramsv![
+            (
                 if 0 != seconds { now } else { 0 },
                 if 0 != seconds { now + seconds } else { 0 },
                 chat_id,
-            ],
+            ),
         )
         .await?;
     if 0 != seconds && !is_sending_locations_before {
@@ -310,7 +310,7 @@ pub async fn is_sending_locations_to_chat(
                 .sql
                 .exists(
                     "SELECT COUNT(id) FROM chats  WHERE id=?  AND locations_send_until>?;",
-                    paramsv![chat_id, time()],
+                    (chat_id, time()),
                 )
                 .await?
         }
@@ -319,7 +319,7 @@ pub async fn is_sending_locations_to_chat(
                 .sql
                 .exists(
                     "SELECT COUNT(id) FROM chats  WHERE locations_send_until>?;",
-                    paramsv![time()],
+                    (time(),),
                 )
                 .await?
         }
@@ -338,7 +338,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         .sql
         .query_map(
             "SELECT id FROM chats WHERE locations_send_until>?;",
-            paramsv![time()],
+            (time(),),
             |row| row.get::<_, i32>(0),
             |chats| {
                 chats
@@ -352,14 +352,14 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
             if let Err(err) = context.sql.execute(
                     "INSERT INTO locations  \
                      (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
-                    paramsv![
+                     (
                         latitude,
                         longitude,
                         accuracy,
                         time(),
                         chat_id,
                         ContactId::SELF,
-                    ]
+                    )
             ).await {
                 warn!(context, "failed to store location {:#}", err);
             } else {
@@ -404,14 +404,14 @@ pub async fn get_range(
              AND (? OR l.from_id=?) \
              AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
              ORDER BY l.timestamp DESC, l.id DESC, msg_id DESC;",
-            paramsv![
+            (
                 disable_chat_id,
                 chat_id,
                 disable_contact_id,
                 contact_id as i32,
                 timestamp_from,
                 timestamp_to,
-            ],
+            ),
             |row| {
                 let msg_id = row.get(6)?;
                 let txt: String = row.get(9)?;
@@ -471,7 +471,7 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
 
     let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
-        paramsv![chat_id], |row| {
+        (chat_id,), |row| {
             let send_begin: i64 = row.get(0)?;
             let send_until: i64 = row.get(1)?;
             let last_sent: i64 = row.get(2)?;
@@ -500,12 +500,12 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
              AND independent=0 \
              GROUP BY timestamp \
              ORDER BY timestamp;",
-                paramsv![
+             (
                     ContactId::SELF,
                     locations_send_begin,
                     locations_last_sent,
                     ContactId::SELF
-                ],
+                ),
                 |row| {
                     let location_id: i32 = row.get(0)?;
                     let latitude: f64 = row.get(1)?;
@@ -575,7 +575,7 @@ pub async fn set_kml_sent_timestamp(
         .sql
         .execute(
             "UPDATE chats SET locations_last_sent=? WHERE id=?;",
-            paramsv![timestamp, chat_id],
+            (timestamp, chat_id),
         )
         .await?;
     Ok(())
@@ -587,7 +587,7 @@ pub async fn set_msg_location_id(context: &Context, msg_id: MsgId, location_id: 
         .sql
         .execute(
             "UPDATE msgs SET location_id=? WHERE id=?;",
-            paramsv![location_id, msg_id],
+            (location_id, msg_id),
         )
         .await?;
 
@@ -629,10 +629,10 @@ pub(crate) async fn save(
                     .prepare_cached("SELECT id FROM locations WHERE timestamp=? AND from_id=?")?;
                 let mut stmt_insert = conn.prepare_cached(stmt_insert)?;
 
-                let exists = stmt_test.exists(paramsv![timestamp, contact_id])?;
+                let exists = stmt_test.exists((timestamp, contact_id))?;
 
                 if independent || !exists {
-                    stmt_insert.execute(paramsv![
+                    stmt_insert.execute((
                         timestamp,
                         contact_id,
                         chat_id,
@@ -640,7 +640,7 @@ pub(crate) async fn save(
                         longitude,
                         accuracy,
                         independent,
-                    ])?;
+                    ))?;
 
                     if timestamp > newest_timestamp {
                         // okay to drop, as we use cached prepared statements
@@ -729,7 +729,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
      AND timestamp>=? \
      AND timestamp>? \
      AND independent=0",
-                    paramsv![ContactId::SELF, locations_send_begin, locations_last_sent,],
+                    (ContactId::SELF, locations_send_begin, locations_last_sent),
                 )
                 .await?;
 
@@ -781,7 +781,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
                     "UPDATE chats \
                          SET locations_send_begin=0, locations_send_until=0 \
                          WHERE id=?",
-                    paramsv![chat_id],
+                    (chat_id,),
                 )
                 .await
                 .context("failed to disable location streaming")?;

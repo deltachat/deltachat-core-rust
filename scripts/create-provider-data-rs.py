@@ -233,7 +233,7 @@ if __name__ == "__main__":
     else:
         now = datetime.datetime.fromisoformat(sys.argv[2])
     out_all += (
-        "pub static PROVIDER_UPDATED: Lazy<chrono::NaiveDate> = "
+        "pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> = "
         "Lazy::new(|| chrono::NaiveDate::from_ymd_opt("
         + str(now.year)
         + ", "

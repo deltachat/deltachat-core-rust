@@ -308,6 +308,9 @@ pub enum Config {
     /// This value is used internally to remember the MsgId of the logging xdc
     #[strum(props(default = "0"))]
     DebugLogging,
+
+    /// Last message processed by the bot.
+    LastMsgId,
 }
 
 impl Context {
@@ -355,6 +358,11 @@ impl Context {
 
     /// Returns 32-bit signed integer configuration value for the given key.
     pub async fn get_config_int(&self, key: Config) -> Result<i32> {
+        Ok(self.get_config_parsed(key).await?.unwrap_or_default())
+    }
+
+    /// Returns 32-bit unsigned integer configuration value for the given key.
+    pub async fn get_config_u32(&self, key: Config) -> Result<u32> {
         Ok(self.get_config_parsed(key).await?.unwrap_or_default())
     }
 
@@ -456,6 +464,12 @@ impl Context {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
         }
+        Ok(())
+    }
+
+    /// Set the given config to an unsigned 32-bit integer value.
+    pub async fn set_config_u32(&self, key: Config, value: u32) -> Result<()> {
+        self.set_config(key, Some(&value.to_string())).await?;
         Ok(())
     }
 

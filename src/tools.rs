@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
-use chrono::{Local, TimeZone};
+use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
 use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
@@ -26,7 +26,6 @@ use crate::constants::{DC_ELLIPSIS, DC_OUTDATED_WARNING_DAYS};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::{Message, Viewtype};
-use crate::provider::get_provider_update_timestamp;
 use crate::stock_str;
 
 /// Shortens a string to a specified length and adds "[...]" to the
@@ -163,12 +162,23 @@ pub(crate) fn create_smeared_timestamps(context: &Context, count: usize) -> i64 
     context.smeared_timestamp.create_n(now, count as i64)
 }
 
+/// Returns the last release timestamp as a unix timestamp compatible for comparison with time() and
+/// database times.
+pub fn get_release_timestamp() -> i64 {
+    NaiveDateTime::new(
+        *crate::release::DATE,
+        NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+    )
+    .timestamp_millis()
+        / 1_000
+}
+
 // if the system time is not plausible, once a day, add a device message.
 // for testing we're using time() as that is also used for message timestamps.
 // moreover, add a warning if the app is outdated.
 pub(crate) async fn maybe_add_time_based_warnings(context: &Context) {
-    if !maybe_warn_on_bad_time(context, time(), get_provider_update_timestamp()).await {
-        maybe_warn_on_outdated(context, time(), get_provider_update_timestamp()).await;
+    if !maybe_warn_on_bad_time(context, time(), get_release_timestamp()).await {
+        maybe_warn_on_outdated(context, time(), get_release_timestamp()).await;
     }
 }
 
@@ -550,9 +560,11 @@ impl rusqlite::types::ToSql for EmailAddress {
     }
 }
 
-/// Makes sure that a user input that is not supposed to contain newlines does not contain newlines.
+/// Sanitizes user input
+/// - strip newlines
+/// - strip malicious bidi characters
 pub(crate) fn improve_single_line_input(input: &str) -> String {
-    input.replace(['\n', '\r'], " ").trim().to_string()
+    strip_rtlo_characters(input.replace(['\n', '\r'], " ").trim())
 }
 
 pub(crate) trait IsNoneOrEmpty<T> {
@@ -689,6 +701,13 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
     decompressor.write_all(buf)?;
     decompressor.flush()?;
     Ok(mem::take(decompressor.get_mut()))
+}
+
+const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
+/// This method strips all occurances of the RTLO Unicode character.
+/// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
+pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
+    input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
 }
 
 #[cfg(test)]
@@ -1140,17 +1159,17 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
             / 1_000;
 
         // a correct time must not add a device message
-        maybe_warn_on_bad_time(&t, timestamp_now, get_provider_update_timestamp()).await;
+        maybe_warn_on_bad_time(&t, timestamp_now, get_release_timestamp()).await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // we cannot find out if a date in the future is wrong - a device message is not added
-        maybe_warn_on_bad_time(&t, timestamp_future, get_provider_update_timestamp()).await;
+        maybe_warn_on_bad_time(&t, timestamp_future, get_release_timestamp()).await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
         // a date in the past must add a device message
-        maybe_warn_on_bad_time(&t, timestamp_past, get_provider_update_timestamp()).await;
+        maybe_warn_on_bad_time(&t, timestamp_past, get_release_timestamp()).await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         let device_chat_id = chats.get_chat_id(0).unwrap();
@@ -1158,31 +1177,21 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(msgs.len(), 1);
 
         // the message should be added only once a day - test that an hour later and nearly a day later
-        maybe_warn_on_bad_time(
-            &t,
-            timestamp_past + 60 * 60,
-            get_provider_update_timestamp(),
-        )
-        .await;
+        maybe_warn_on_bad_time(&t, timestamp_past + 60 * 60, get_release_timestamp()).await;
         let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         maybe_warn_on_bad_time(
             &t,
             timestamp_past + 60 * 60 * 24 - 1,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), 1);
 
         // next day, there should be another device message
-        maybe_warn_on_bad_time(
-            &t,
-            timestamp_past + 60 * 60 * 24,
-            get_provider_update_timestamp(),
-        )
-        .await;
+        maybe_warn_on_bad_time(&t, timestamp_past + 60 * 60 * 24, get_release_timestamp()).await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 1);
         assert_eq!(device_chat_id, chats.get_chat_id(0).unwrap());
@@ -1200,7 +1209,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         maybe_warn_on_outdated(
             &t,
             timestamp_now + 180 * 24 * 60 * 60,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -1210,7 +1219,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         maybe_warn_on_outdated(
             &t,
             timestamp_now + 365 * 24 * 60 * 60,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -1224,13 +1233,13 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         maybe_warn_on_outdated(
             &t,
             timestamp_now + (365 + 1) * 24 * 60 * 60,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         maybe_warn_on_outdated(
             &t,
             timestamp_now + (365 + 2) * 24 * 60 * 60,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -1245,7 +1254,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         maybe_warn_on_outdated(
             &t,
             timestamp_now + (365 + 33) * 24 * 60 * 60,
-            get_provider_update_timestamp(),
+            get_release_timestamp(),
         )
         .await;
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
@@ -1253,6 +1262,18 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let device_chat_id = chats.get_chat_id(0).unwrap();
         let msgs = chat::get_chat_msgs(&t, device_chat_id).await.unwrap();
         assert_eq!(msgs.len(), test_len + 1);
+    }
+
+    #[test]
+    fn test_get_release_timestamp() {
+        let timestamp_past = NaiveDateTime::new(
+            NaiveDate::from_ymd_opt(2020, 9, 9).unwrap(),
+            NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+        )
+        .timestamp_millis()
+            / 1_000;
+        assert!(get_release_timestamp() <= time());
+        assert!(get_release_timestamp() > timestamp_past);
     }
 
     #[test]

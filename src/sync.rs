@@ -65,10 +65,7 @@ impl Context {
         let item = SyncItem { timestamp, data };
         let item = serde_json::to_string(&item)?;
         self.sql
-            .execute(
-                "INSERT INTO multi_device_sync (item) VALUES(?);",
-                paramsv![item],
-            )
+            .execute("INSERT INTO multi_device_sync (item) VALUES(?);", (item,))
             .await?;
 
         Ok(())

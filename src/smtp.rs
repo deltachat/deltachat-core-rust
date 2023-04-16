@@ -520,10 +520,7 @@ pub(crate) async fn send_msg_to_smtp(
     // database.
     context
         .sql
-        .execute(
-            "UPDATE smtp SET retries=retries+1 WHERE id=?",
-            paramsv![rowid],
-        )
+        .execute("UPDATE smtp SET retries=retries+1 WHERE id=?", (rowid,))
         .await
         .context("failed to update retries count")?;
 
@@ -531,7 +528,7 @@ pub(crate) async fn send_msg_to_smtp(
         .sql
         .query_row(
             "SELECT mime, recipients, msg_id, retries FROM smtp WHERE id=?",
-            paramsv![rowid],
+            (rowid,),
             |row| {
                 let mime: String = row.get(0)?;
                 let recipients: String = row.get(1)?;
@@ -545,7 +542,7 @@ pub(crate) async fn send_msg_to_smtp(
         message::set_msg_failed(context, msg_id, "Number of retries exceeded the limit.").await;
         context
             .sql
-            .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
+            .execute("DELETE FROM smtp WHERE id=?", (rowid,))
             .await
             .context("failed to remove message with exceeded retry limit from smtp table")?;
         bail!("Number of retries exceeded the limit");
@@ -588,7 +585,7 @@ pub(crate) async fn send_msg_to_smtp(
         SendResult::Success | SendResult::Failure(_) => {
             context
                 .sql
-                .execute("DELETE FROM smtp WHERE id=?", paramsv![rowid])
+                .execute("DELETE FROM smtp WHERE id=?", (rowid,))
                 .await?;
         }
     };
@@ -637,7 +634,7 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
         .sql
         .query_map(
             "SELECT id FROM smtp ORDER BY id ASC",
-            paramsv![],
+            (),
             |row| {
                 let rowid: i64 = row.get(0)?;
                 Ok(rowid)
@@ -691,7 +688,7 @@ async fn send_mdn_msg_id(
             "SELECT msg_id, rfc724_mid
              FROM smtp_mdns
              WHERE from_id=? AND msg_id!=?",
-            paramsv![contact_id, msg_id],
+            (contact_id, msg_id),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
                 let rfc724_mid: String = row.get(1)?;
@@ -718,7 +715,7 @@ async fn send_mdn_msg_id(
             info!(context, "Successfully sent MDN for {}", msg_id);
             context
                 .sql
-                .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", paramsv![msg_id])
+                .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
                 .await?;
             if !additional_msg_ids.is_empty() {
                 let q = format!(
@@ -779,7 +776,7 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .sql
         .execute(
             "UPDATE smtp_mdns SET retries=retries+1 WHERE msg_id=?",
-            paramsv![msg_id],
+            (msg_id,),
         )
         .await
         .context("failed to update MDN retries count")?;
@@ -789,7 +786,7 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         // database, do not try to send this MDN again.
         context
             .sql
-            .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", paramsv![msg_id])
+            .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
             .await?;
         Err(err)
     } else {

@@ -99,7 +99,7 @@ impl Job {
         if self.job_id != 0 {
             context
                 .sql
-                .execute("DELETE FROM jobs WHERE id=?;", paramsv![self.job_id as i32])
+                .execute("DELETE FROM jobs WHERE id=?;", (self.job_id as i32,))
                 .await?;
         }
 
@@ -117,22 +117,22 @@ impl Job {
                 .sql
                 .execute(
                     "UPDATE jobs SET desired_timestamp=?, tries=? WHERE id=?;",
-                    paramsv![
+                    (
                         self.desired_timestamp,
                         i64::from(self.tries),
                         self.job_id as i32,
-                    ],
+                    ),
                 )
                 .await?;
         } else {
             context.sql.execute(
                 "INSERT INTO jobs (added_timestamp, action, foreign_id, desired_timestamp) VALUES (?,?,?,?);",
-                paramsv![
+                (
                     self.added_timestamp,
                     self.action,
                     self.foreign_id,
                     self.desired_timestamp
-                ]
+                )
             ).await?;
         }
 
@@ -277,7 +277,7 @@ WHERE desired_timestamp<=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
 "#;
-        params = paramsv![t];
+        params = vec![t];
     } else {
         // processing after call to dc_maybe_network():
         // process _all_ pending jobs that failed before
@@ -289,13 +289,13 @@ WHERE tries>0
 ORDER BY desired_timestamp, action DESC
 LIMIT 1;
 "#;
-        params = paramsv![];
+        params = vec![];
     };
 
     loop {
         let job_res = context
             .sql
-            .query_row_optional(query, params.clone(), |row| {
+            .query_row_optional(query, rusqlite::params_from_iter(params.clone()), |row| {
                 let job = Job {
                     job_id: row.get("id")?,
                     action: row.get("action")?,
@@ -318,12 +318,14 @@ LIMIT 1;
                 // TODO: improve by only doing a single query
                 let id = context
                     .sql
-                    .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
+                    .query_row(query, rusqlite::params_from_iter(params.clone()), |row| {
+                        row.get::<_, i32>(0)
+                    })
                     .await
                     .context("failed to retrieve invalid job ID from the database")?;
                 context
                     .sql
-                    .execute("DELETE FROM jobs WHERE id=?;", paramsv![id])
+                    .execute("DELETE FROM jobs WHERE id=?;", (id,))
                     .await
                     .with_context(|| format!("failed to delete invalid job {id}"))?;
             }
@@ -344,7 +346,7 @@ mod tests {
                 "INSERT INTO jobs
                    (added_timestamp, action, foreign_id, desired_timestamp)
                  VALUES (?, ?, ?, ?);",
-                paramsv![
+                (
                     now,
                     if valid {
                         Action::DownloadMsg as i32
@@ -352,8 +354,8 @@ mod tests {
                         -1
                     },
                     foreign_id,
-                    now
-                ],
+                    now,
+                ),
             )
             .await
             .unwrap();

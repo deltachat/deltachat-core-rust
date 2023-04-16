@@ -374,7 +374,7 @@ async fn test_no_message_id_header() {
         .sql
         .exists(
             "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
-            paramsv![DC_CHAT_ID_TRASH],
+            (DC_CHAT_ID_TRASH,),
         )
         .await
         .unwrap());
@@ -3042,6 +3042,54 @@ async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     assert_eq!(chat.typ, Chattype::Single);
     let received = bob.get_last_msg().await;
     assert_eq!(received.text, Some("Private reply".to_string()));
+
+    Ok(())
+}
+
+/// Regression test for two bugs:
+///
+/// 1. If you blocked some spammer using DC, the 1:1 messages with that contact
+///    are not received, but they could easily bypass this restriction creating
+///    a new group with only you two as member.
+/// 2. A blocked group was sometimes not unblocked when when an unblocked
+///    contact sent a message into it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_blocked_contact_creates_group() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    let fiona = tcm.fiona().await;
+
+    let chat = alice.create_chat(&bob).await;
+    chat.id.block(&alice).await?;
+
+    let group_id = bob
+        .create_group_with_members(
+            ProtectionStatus::Unprotected,
+            "group name",
+            &[&alice, &fiona],
+        )
+        .await;
+
+    let sent = bob.send_text(group_id, "Heyho, I'm a spammer!").await;
+    let rcvd = alice.recv_msg(&sent).await;
+    // Alice blocked Bob, so she shouldn't get the message
+    assert_eq!(rcvd.chat_blocked, Blocked::Yes);
+
+    // Fiona didn't block Bob, though, so she gets the message
+    let rcvd = fiona.recv_msg(&sent).await;
+    assert_eq!(rcvd.chat_blocked, Blocked::Request);
+
+    // Fiona writes to the group
+    rcvd.chat_id.accept(&fiona).await?;
+    let sent = fiona.send_text(rcvd.chat_id, "Hello from Fiona").await;
+
+    // The group is unblocked now that Fiona sent a message to it
+    let rcvd = alice.recv_msg(&sent).await;
+    assert_eq!(rcvd.chat_blocked, Blocked::Request);
+    // In order not to lose context, Bob's message should also be shown in the group
+    let msgs = chat::get_chat_msgs(&alice, rcvd.chat_id).await?;
+    assert_eq!(msgs.len(), 2);
 
     Ok(())
 }

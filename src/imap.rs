@@ -550,7 +550,7 @@ impl Imap {
         context
             .sql
             .transaction(move |transaction| {
-                transaction.execute("DELETE FROM imap WHERE folder=?", params![folder])?;
+                transaction.execute("DELETE FROM imap WHERE folder=?", (folder,))?;
                 for (uid, (rfc724_mid, target)) in &msgs {
                     // This may detect previously undetected moved
                     // messages, so we update server_folder too.
@@ -560,7 +560,7 @@ impl Imap {
                          ON CONFLICT(folder, uid, uidvalidity)
                          DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
                                        target=excluded.target",
-                        params![rfc724_mid, folder, uid, uid_validity, target],
+                        (rfc724_mid, folder, uid, uid_validity, target),
                     )?;
                 }
                 Ok(())
@@ -676,7 +676,7 @@ impl Imap {
             .sql
             .execute(
                 "DELETE FROM imap WHERE folder=? AND uidvalidity!=?",
-                paramsv![folder, new_uid_validity],
+                (&folder, new_uid_validity),
             )
             .await?;
 
@@ -759,7 +759,7 @@ impl Imap {
                        ON CONFLICT(folder, uid, uidvalidity)
                        DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
                                      target=excluded.target",
-                    paramsv![message_id, folder, uid, uid_validity, &target],
+                    (&message_id, &folder, uid, uid_validity, &target),
                 )
                 .await?;
 
@@ -1050,7 +1050,7 @@ impl Session {
         WHERE folder = ?
         AND target != folder
         ORDER BY target, uid",
-                paramsv![folder],
+                (folder,),
                 |row| {
                     let rowid: i64 = row.get(0)?;
                     let uid: u32 = row.get(1)?;
@@ -1740,17 +1740,37 @@ impl Session {
     /// If this returns `true`, this means that new emails arrived and you should
     /// fetch again, even if you just fetched.
     fn server_sent_unsolicited_exists(&self, context: &Context) -> Result<bool> {
+        use async_imap::imap_proto::Response;
+        use async_imap::imap_proto::ResponseCode;
+        use UnsolicitedResponse::*;
+
         let mut unsolicited_exists = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
             match response {
-                UnsolicitedResponse::Exists(_) => {
+                Exists(_) => {
                     info!(
                         context,
                         "Need to fetch again, got unsolicited EXISTS {:?}", response
                     );
                     unsolicited_exists = true;
                 }
-                _ => info!(context, "ignoring unsolicited response {:?}", response),
+
+                // We are not interested in the following responses and they are are
+                // sent quite frequently, so, we ignore them without logging them
+                Expunge(_) | Recent(_) => {}
+                Other(response_data)
+                    if matches!(
+                        response_data.parsed(),
+                        Response::Fetch { .. }
+                            | Response::Done {
+                                code: Some(ResponseCode::CopyUid(_, _, _)),
+                                ..
+                            }
+                    ) => {}
+
+                _ => {
+                    info!(context, "got unsolicited response {:?}", response)
+                }
             }
         }
         Ok(unsolicited_exists)
@@ -2168,7 +2188,7 @@ async fn mark_seen_by_uid(
                    AND uid=?3
                    LIMIT 1
                  )",
-            paramsv![&folder, uid_validity, uid],
+            (&folder, uid_validity, uid),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
                 let chat_id: ChatId = row.get(1)?;
@@ -2184,12 +2204,12 @@ async fn mark_seen_by_uid(
                 "UPDATE msgs SET state=?1
                      WHERE (state=?2 OR state=?3)
                      AND id=?4",
-                paramsv![
+                (
                     MessageState::InSeen,
                     MessageState::InFresh,
                     MessageState::InNoticed,
-                    msg_id
-                ],
+                    msg_id,
+                ),
             )
             .await
             .with_context(|| format!("failed to update msg {msg_id} state"))?
@@ -2219,7 +2239,7 @@ pub(crate) async fn markseen_on_imap_table(context: &Context, message_id: &str) 
         .execute(
             "INSERT OR IGNORE INTO imap_markseen (id)
              SELECT id FROM imap WHERE rfc724_mid=?",
-            paramsv![message_id],
+            (message_id,),
         )
         .await?;
     context
@@ -2239,7 +2259,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
         .execute(
             "INSERT INTO imap_sync (folder, uid_next) VALUES (?,?)
                 ON CONFLICT(folder) DO UPDATE SET uid_next=excluded.uid_next",
-            paramsv![folder, uid_next],
+            (folder, uid_next),
         )
         .await?;
     Ok(())
@@ -2253,10 +2273,7 @@ pub(crate) async fn set_uid_next(context: &Context, folder: &str, uid_next: u32)
 async fn get_uid_next(context: &Context, folder: &str) -> Result<u32> {
     Ok(context
         .sql
-        .query_get_value(
-            "SELECT uid_next FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
-        )
+        .query_get_value("SELECT uid_next FROM imap_sync WHERE folder=?;", (folder,))
         .await?
         .unwrap_or(0))
 }
@@ -2271,7 +2288,7 @@ pub(crate) async fn set_uidvalidity(
         .execute(
             "INSERT INTO imap_sync (folder, uidvalidity) VALUES (?,?)
                 ON CONFLICT(folder) DO UPDATE SET uidvalidity=excluded.uidvalidity",
-            paramsv![folder, uidvalidity],
+            (folder, uidvalidity),
         )
         .await?;
     Ok(())
@@ -2282,7 +2299,7 @@ async fn get_uidvalidity(context: &Context, folder: &str) -> Result<u32> {
         .sql
         .query_get_value(
             "SELECT uidvalidity FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
+            (folder,),
         )
         .await?
         .unwrap_or(0))
@@ -2294,7 +2311,7 @@ pub(crate) async fn set_modseq(context: &Context, folder: &str, modseq: u64) -> 
         .execute(
             "INSERT INTO imap_sync (folder, modseq) VALUES (?,?)
                 ON CONFLICT(folder) DO UPDATE SET modseq=excluded.modseq",
-            paramsv![folder, modseq],
+            (folder, modseq),
         )
         .await?;
     Ok(())
@@ -2303,10 +2320,7 @@ pub(crate) async fn set_modseq(context: &Context, folder: &str, modseq: u64) -> 
 async fn get_modseq(context: &Context, folder: &str) -> Result<u64> {
     Ok(context
         .sql
-        .query_get_value(
-            "SELECT modseq FROM imap_sync WHERE folder=?;",
-            paramsv![folder],
-        )
+        .query_get_value("SELECT modseq FROM imap_sync WHERE folder=?;", (folder,))
         .await?
         .unwrap_or(0))
 }

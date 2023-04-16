@@ -166,7 +166,7 @@ impl<'a> MimeFactory<'a> {
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    paramsv![msg.chat_id],
+                    (msg.chat_id,),
                     |row| {
                         let authname: String = row.get(0)?;
                         let addr: String = row.get(1)?;
@@ -195,7 +195,7 @@ impl<'a> MimeFactory<'a> {
             .sql
             .query_row(
                 "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-                paramsv![msg.id],
+                (msg.id,),
                 |row| {
                     let in_reply_to: String = row.get(0)?;
                     let references: String = row.get(1)?;

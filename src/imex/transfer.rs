@@ -46,9 +46,11 @@ use tokio_stream::wrappers::ReadDirStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::blob::BlobDirContents;
-use crate::chat::delete_and_reset_all_device_msgs;
+use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::{Context, OngoingGuard};
+use crate::message::{Message, Viewtype};
 use crate::qr::Qr;
+use crate::stock_str::backup_transfer_msg_body;
 use crate::{e2ee, EventType};
 
 use super::{export_database, DBFILE_BACKUP_NAME};
@@ -261,7 +263,12 @@ impl BackupProvider {
             }
         };
         match &res {
-            Ok(_) => context.emit_event(SendProgress::Completed.into()),
+            Ok(_) => {
+                context.emit_event(SendProgress::Completed.into());
+                let mut msg = Message::new(Viewtype::Text);
+                msg.text = Some(backup_transfer_msg_body(context).await);
+                add_device_msg(context, None, Some(&mut msg)).await?;
+            }
             Err(err) => {
                 error!(context, "Backup transfer failure: {err:#}");
                 context.emit_event(SendProgress::Failed.into())

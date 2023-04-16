@@ -120,7 +120,7 @@ jobs:
       - name: Upload C library
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
+          name: ${{ matrix.os }}-libdeltachat.a
           path: target/debug/libdeltachat.a
           retention-days: 1
 
@@ -142,7 +142,7 @@ jobs:
       - name: Upload deltachat-rpc-server
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.os }}-${{matrix.rust}}-deltachat-rpc-server
+          name: ${{ matrix.os }}-deltachat-rpc-server
           path: target/debug/deltachat-rpc-server
           retention-days: 1
 
@@ -196,7 +196,7 @@ jobs:
       - name: Download libdeltachat.a
         uses: actions/download-artifact@v3
         with:
-          name: ${{ matrix.os }}-${{matrix.rust}}-libdeltachat.a
+          name: ${{ matrix.os }}-libdeltachat.a
           path: target/debug
 
       - name: Install python
@@ -255,7 +255,7 @@ jobs:
       - name: Download deltachat-rpc-server
         uses: actions/download-artifact@v3
         with:
-          name: ${{ matrix.os }}-${{matrix.rust}}-deltachat-rpc-server
+          name: ${{ matrix.os }}-deltachat-rpc-server
           path: target/debug
 
       - name: Make deltachat-rpc-server executable

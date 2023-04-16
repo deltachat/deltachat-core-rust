@@ -7,10 +7,37 @@
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
 - Compress `mime_headers` column with HTML emails stored in database
+- Strip BIDI characters in system messages, files, group names and contact names #3479
+- maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
+- Remove confusing log line "ignoring unsolicited response Recent(…)" #3934
+- Cleanly terminate deltachat-rpc-server.
+  Also terminate on ctrl-c.
+- Refactorings #4317
+- Add JSON-RPC API `can_send()`.
+- New `dc_get_next_msgs()` and `dc_wait_next_msgs()` C APIs.
+  New `get_next_msgs()` and `wait_next_msgs()` JSON-RPC API.
+  These APIs can be used by bots to get all unprocessed messages
+  in the order of their arrival and wait for them without relying on events.
+- Async Python API `get_fresh_messages_in_arrival_order()` is deprecated
+  in favor of `get_next_msgs()` and `wait_next_msgs()`.
+- New Python bindings API `Account.wait_next_incoming_message()`.
+- New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
 
 ### Fixes
 - Fix python bindings README documentation on installing the bindings from source.
 - Show a warning if quota list is empty #4261
+- Update "accounts.toml" atomically
+- Don't let blocking be bypassed using groups #4316 
+
+## [1.112.6] - 2023-04-04
+
+### Changes
+
+- Add a device message after backup transfer #4301
+
+### Fixed
+
+- Updated `iroh` from 0.4.0 to 0.4.1 to fix transfer of large accounts with many blob files.
 
 ## [1.112.5] - 2023-04-02
 
@@ -32,8 +59,8 @@
 
 ### Changes
 - Update iroh, remove `default-net` from `[patch.crates-io]` section.
-- transfer backup: Connect to mutliple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
-- Make sure BackupProvider is cancelled on drop (or dc_backup_provider_unref).  The BackupProvider will now alaway finish with an IMEX event of 1000 or 0, previoulsy it would sometimes finishe with 1000 (success) when it really was 0 (failure). #4242
+- transfer backup: Connect to multiple provider addresses concurrently.  This should speed up connection time significantly on the getter side.  #4240
+- Make sure BackupProvider is cancelled on drop (or `dc_backup_provider_unref`).  The BackupProvider will now always finish with an IMEX event of 1000 or 0, previously it would sometimes finished with 1000 (success) when it really was 0 (failure). #4242
 
 ### Fixes
 - Do not return media from trashed messages in the "All media" view. #4247
@@ -207,7 +234,6 @@
 - Do not treat invalid email addresses as an exception #3942
 - Add timeouts to HTTP requests #3948
 
-
 ## 1.105.0
 
 ### Changes
@@ -292,7 +318,6 @@
 - Add connection timeout to IMAP sockets #3828
 - Disable read timeout during IMAP IDLE #3826
 - Bots automatically accept mailing lists #3831
-
 
 ## 1.102.0
 

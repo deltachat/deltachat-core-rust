@@ -18,7 +18,10 @@ use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task;
 
-use crate::chat::{self, Chat, ChatId, MessageListOptions};
+use crate::chat::{
+    self, add_to_chat_contacts_table, create_group_chat, Chat, ChatId, MessageListOptions,
+    ProtectionStatus,
+};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::Chattype;
@@ -425,7 +428,7 @@ impl TestContext {
         };
         self.ctx
             .sql
-            .execute("DELETE FROM smtp WHERE id=?;", paramsv![rowid])
+            .execute("DELETE FROM smtp WHERE id=?;", (rowid,))
             .await
             .expect("failed to remove job");
         update_msg_state(&self.ctx, msg_id, MessageState::OutDelivered)
@@ -701,6 +704,25 @@ impl TestContext {
                 "--------------------------------------------------------------------------------"
             );
         }
+    }
+
+    pub async fn create_group_with_members(
+        &self,
+        protect: ProtectionStatus,
+        chat_name: &str,
+        members: &[&TestContext],
+    ) -> ChatId {
+        let chat_id = create_group_chat(self, protect, chat_name).await.unwrap();
+        let mut to_add = vec![];
+        for member in members {
+            let contact = self.add_or_lookup_contact(member).await;
+            to_add.push(contact.id);
+        }
+        add_to_chat_contacts_table(self, chat_id, &to_add)
+            .await
+            .unwrap();
+
+        chat_id
     }
 }
 

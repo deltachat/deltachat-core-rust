@@ -23,27 +23,28 @@ use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
 use crate::tools::{delete_file, time};
 
-#[allow(missing_docs)]
+/// Extension to [`rusqlite::ToSql`] trait
+/// which also includes [`Send`] and [`Sync`].
+pub trait ToSql: rusqlite::ToSql + Send + Sync {}
+
+impl<T: rusqlite::ToSql + Send + Sync> ToSql for T {}
+
+/// Constructs a slice of trait object references `&dyn ToSql`.
+///
+/// One of the uses is passing more than 16 parameters
+/// to a query, because [`rusqlite::Params`] is only implemented
+/// for tuples of up to 16 elements.
 #[macro_export]
-macro_rules! paramsv {
-    () => {
-        rusqlite::params_from_iter(Vec::<&dyn $crate::ToSql>::new())
-    };
-    ($($param:expr),+ $(,)?) => {
-        rusqlite::params_from_iter(vec![$(&$param as &dyn $crate::ToSql),+])
+macro_rules! params_slice {
+    ($($param:expr),+) => {
+        [$(&$param as &dyn $crate::sql::ToSql),+]
     };
 }
 
-#[allow(missing_docs)]
-#[macro_export]
-macro_rules! params_iterv {
-    ($($param:expr),+ $(,)?) => {
-        vec![$(&$param as &dyn $crate::ToSql),+]
-    };
-}
-
-pub(crate) fn params_iter(iter: &[impl crate::ToSql]) -> impl Iterator<Item = &dyn crate::ToSql> {
-    iter.iter().map(|item| item as &dyn crate::ToSql)
+pub(crate) fn params_iter(
+    iter: &[impl crate::sql::ToSql],
+) -> impl Iterator<Item = &dyn crate::sql::ToSql> {
+    iter.iter().map(|item| item as &dyn crate::sql::ToSql)
 }
 
 mod migrations;
@@ -139,11 +140,8 @@ impl Sql {
         let res = self
             .call_write(move |conn| {
                 // Check that backup passphrase is correct before resetting our database.
-                conn.execute(
-                    "ATTACH DATABASE ? AS backup KEY ?",
-                    paramsv![path_str, passphrase],
-                )
-                .context("failed to attach backup database")?;
+                conn.execute("ATTACH DATABASE ? AS backup KEY ?", (path_str, passphrase))
+                    .context("failed to attach backup database")?;
                 if let Err(err) = conn
                     .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
                     .context("backup passphrase is not correct")
@@ -556,27 +554,21 @@ impl Sql {
         let mut lock = self.config_cache.write().await;
         if let Some(value) = value {
             let exists = self
-                .exists(
-                    "SELECT COUNT(*) FROM config WHERE keyname=?;",
-                    paramsv![key],
-                )
+                .exists("SELECT COUNT(*) FROM config WHERE keyname=?;", (key,))
                 .await?;
 
             if exists {
-                self.execute(
-                    "UPDATE config SET value=? WHERE keyname=?;",
-                    paramsv![value, key],
-                )
-                .await?;
+                self.execute("UPDATE config SET value=? WHERE keyname=?;", (value, key))
+                    .await?;
             } else {
                 self.execute(
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    paramsv![key, value],
+                    (key, value),
                 )
                 .await?;
             }
         } else {
-            self.execute("DELETE FROM config WHERE keyname=?;", paramsv![key])
+            self.execute("DELETE FROM config WHERE keyname=?;", (key,))
                 .await?;
         }
         lock.insert(key.to_string(), value.map(|s| s.to_string()));
@@ -597,7 +589,7 @@ impl Sql {
 
         let mut lock = self.config_cache.write().await;
         let value = self
-            .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv![key])
+            .query_get_value("SELECT value FROM config WHERE keyname=?;", (key,))
             .await
             .context(format!("failed to fetch raw config: {key}"))?;
         lock.insert(key.to_string(), value.clone());
@@ -980,7 +972,7 @@ async fn prune_tombstones(sql: &Sql) -> Result<()> {
          AND NOT EXISTS (
          SELECT * FROM imap WHERE msgs.rfc724_mid=rfc724_mid AND target!=''
          )",
-        paramsv![DC_CHAT_ID_TRASH],
+        (DC_CHAT_ID_TRASH,),
     )
     .await?;
     Ok(())
@@ -1163,12 +1155,12 @@ mod tests {
         sql.open(&t, "".to_string()).await?;
         sql.execute(
             "INSERT INTO config (keyname, value) VALUES (?, ?);",
-            paramsv!("foo", "bar"),
+            ("foo", "bar"),
         )
         .await?;
 
         let value: Option<String> = sql
-            .query_get_value("SELECT value FROM config WHERE keyname=?;", paramsv!("foo"))
+            .query_get_value("SELECT value FROM config WHERE keyname=?;", ("foo",))
             .await?;
         assert_eq!(value.unwrap(), "bar");
 

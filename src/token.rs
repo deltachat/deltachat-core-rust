@@ -35,7 +35,7 @@ pub async fn save(
             .sql
             .execute(
                 "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-                paramsv![namespace, foreign_id, token, time()],
+                (namespace, foreign_id, token, time()),
             )
             .await?,
         None => {
@@ -43,7 +43,7 @@ pub async fn save(
                 .sql
                 .execute(
                     "INSERT INTO tokens (namespc, token, timestamp) VALUES (?, ?, ?);",
-                    paramsv![namespace, token, time()],
+                    (namespace, token, time()),
                 )
                 .await?
         }
@@ -71,7 +71,7 @@ pub async fn lookup(
                 .sql
                 .query_get_value(
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=? ORDER BY timestamp DESC LIMIT 1;",
-                    paramsv![namespace, chat_id],
+                    (namespace, chat_id),
                 )
                 .await?
         }
@@ -81,7 +81,7 @@ pub async fn lookup(
                 .sql
                 .query_get_value(
                     "SELECT token FROM tokens WHERE namespc=? AND foreign_id=0 ORDER BY timestamp DESC LIMIT 1;",
-                    paramsv![namespace],
+                    (namespace,),
                 )
                 .await?
         }
@@ -108,7 +108,7 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> boo
         .sql
         .exists(
             "SELECT COUNT(*) FROM tokens WHERE namespc=? AND token=?;",
-            paramsv![namespace, token],
+            (namespace, token),
         )
         .await
         .unwrap_or_default()
@@ -119,7 +119,7 @@ pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Res
         .sql
         .execute(
             "DELETE FROM tokens WHERE namespc=? AND token=?;",
-            paramsv![namespace, token],
+            (namespace, token),
         )
         .await?;
     Ok(())

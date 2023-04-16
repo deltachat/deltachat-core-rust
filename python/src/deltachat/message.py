@@ -344,6 +344,16 @@ class Message:
         contact_id = lib.dc_msg_get_from_id(self._dc_msg)
         return Contact(self.account, contact_id)
 
+    def is_from_self(self):
+        """Return true if the message is sent by self."""
+        contact_id = lib.dc_msg_get_from_id(self._dc_msg)
+        return contact_id == const.DC_CONTACT_ID_SELF
+
+    def is_from_device(self):
+        """Return true if the message is sent by the device."""
+        contact_id = lib.dc_msg_get_from_id(self._dc_msg)
+        return contact_id == const.DC_CONTACT_ID_DEVICE
+
     #
     # Message State query methods
     #

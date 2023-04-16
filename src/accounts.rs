@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::context::Context;
@@ -301,7 +302,7 @@ pub const DB_NAME: &str = "dc.db";
 
 /// Account manager configuration file.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Config {
+struct Config {
     file: PathBuf,
     inner: InnerConfig,
 }
@@ -325,10 +326,8 @@ impl Config {
             selected_account: 0,
             next_id: 1,
         };
-        let cfg = Config {
-            file: dir.join(CONFIG_NAME),
-            inner,
-        };
+        let file = dir.join(CONFIG_NAME);
+        let mut cfg = Self { file, inner };
 
         cfg.sync().await?;
 
@@ -336,10 +335,24 @@ impl Config {
     }
 
     /// Sync the inmemory representation to disk.
-    async fn sync(&self) -> Result<()> {
-        fs::write(&self.file, toml::to_string_pretty(&self.inner)?)
+    /// Takes a mutable reference because the saved file is a part of the `Config` state. This
+    /// protects from parallel calls resulting to a wrong file contents.
+    async fn sync(&mut self) -> Result<()> {
+        let tmp_path = self.file.with_extension("toml.tmp");
+        let mut file = fs::File::create(&tmp_path)
             .await
-            .context("failed to write config")
+            .context("failed to create a tmp config")?;
+        file.write_all(toml::to_string_pretty(&self.inner)?.as_bytes())
+            .await
+            .context("failed to write a tmp config")?;
+        file.sync_data()
+            .await
+            .context("failed to sync a tmp config")?;
+        drop(file);
+        fs::rename(&tmp_path, &self.file)
+            .await
+            .context("failed to rename config")?;
+        Ok(())
     }
 
     /// Read a configuration from the given file into memory.
@@ -359,7 +372,7 @@ impl Config {
             }
         }
 
-        let config = Self { file, inner };
+        let mut config = Self { file, inner };
         if modified {
             config.sync().await?;
         }
@@ -503,17 +516,19 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts1");
 
-        let mut accounts1 = Accounts::new(p.clone()).await.unwrap();
-        accounts1.add_account().await.unwrap();
+        {
+            let mut accounts = Accounts::new(p.clone()).await.unwrap();
+            accounts.add_account().await.unwrap();
 
-        let accounts2 = Accounts::open(p).await.unwrap();
+            assert_eq!(accounts.accounts.len(), 1);
+            assert_eq!(accounts.config.get_selected_account(), 1);
+        }
+        {
+            let accounts = Accounts::open(p).await.unwrap();
 
-        assert_eq!(accounts1.accounts.len(), 1);
-        assert_eq!(accounts1.config.get_selected_account(), 1);
-
-        assert_eq!(accounts1.dir, accounts2.dir);
-        assert_eq!(accounts1.config, accounts2.config,);
-        assert_eq!(accounts1.accounts.len(), accounts2.accounts.len());
+            assert_eq!(accounts.accounts.len(), 1);
+            assert_eq!(accounts.config.get_selected_account(), 1);
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

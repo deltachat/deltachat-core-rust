@@ -6,7 +6,7 @@ import asyncio
 import logging
 import sys
 
-from deltachat_rpc_client import DeltaChat, EventType, Rpc
+from deltachat_rpc_client import DeltaChat, EventType, Rpc, SpecialContactId
 
 
 async def main():
@@ -30,9 +30,9 @@ async def main():
             await deltachat.start_io()
 
         async def process_messages():
-            for message in await account.get_fresh_messages_in_arrival_order():
+            for message in await account.get_next_messages():
                 snapshot = await message.get_snapshot()
-                if not snapshot.is_bot and not snapshot.is_info:
+                if snapshot.from_id != SpecialContactId.SELF and not snapshot.is_bot and not snapshot.is_info:
                     await snapshot.chat.send_text(snapshot.text)
                 await snapshot.message.mark_seen()
 

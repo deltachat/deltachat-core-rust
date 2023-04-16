@@ -174,10 +174,7 @@ impl ChatId {
     pub async fn get_ephemeral_timer(self, context: &Context) -> Result<Timer> {
         let timer = context
             .sql
-            .query_get_value(
-                "SELECT ephemeral_timer FROM chats WHERE id=?;",
-                paramsv![self],
-            )
+            .query_get_value("SELECT ephemeral_timer FROM chats WHERE id=?;", (self,))
             .await?;
         Ok(timer.unwrap_or_default())
     }
@@ -199,7 +196,7 @@ impl ChatId {
                 "UPDATE chats
              SET ephemeral_timer=?
              WHERE id=?;",
-                paramsv![timer, self],
+                (timer, self),
             )
             .await?;
 
@@ -291,10 +288,7 @@ impl MsgId {
     pub(crate) async fn ephemeral_timer(self, context: &Context) -> Result<Timer> {
         let res = match context
             .sql
-            .query_get_value(
-                "SELECT ephemeral_timer FROM msgs WHERE id=?",
-                paramsv![self],
-            )
+            .query_get_value("SELECT ephemeral_timer FROM msgs WHERE id=?", (self,))
             .await?
         {
             None | Some(0) => Timer::Disabled,
@@ -314,7 +308,7 @@ impl MsgId {
                     "UPDATE msgs SET ephemeral_timestamp = ? \
                 WHERE (ephemeral_timestamp == 0 OR ephemeral_timestamp > ?) \
                 AND id = ?",
-                    paramsv![ephemeral_timestamp, ephemeral_timestamp, self],
+                    (ephemeral_timestamp, ephemeral_timestamp, self),
                 )
                 .await?;
             context.scheduler.interrupt_ephemeral_task().await;
@@ -338,8 +332,8 @@ pub(crate) async fn start_ephemeral_timers_msgids(
                 sql::repeat_vars(msg_ids.len())
             ),
             rusqlite::params_from_iter(
-                std::iter::once(&now as &dyn crate::ToSql)
-                    .chain(std::iter::once(&now as &dyn crate::ToSql))
+                std::iter::once(&now as &dyn crate::sql::ToSql)
+                    .chain(std::iter::once(&now as &dyn crate::sql::ToSql))
                     .chain(params_iter(msg_ids)),
             ),
         )
@@ -369,7 +363,7 @@ WHERE
   AND ephemeral_timestamp <= ?
   AND chat_id != ?
 "#,
-            paramsv![now, DC_CHAT_ID_TRASH],
+            (now, DC_CHAT_ID_TRASH),
             |row| {
                 let id: MsgId = row.get("id")?;
                 let chat_id: ChatId = row.get("chat_id")?;
@@ -402,12 +396,12 @@ WHERE
   AND chat_id != ?
   AND chat_id != ?
 "#,
-                paramsv![
+                (
                     threshold_timestamp,
                     DC_CHAT_ID_LAST_SPECIAL,
                     self_chat_id,
-                    device_chat_id
-                ],
+                    device_chat_id,
+                ),
                 |row| {
                     let id: MsgId = row.get("id")?;
                     let chat_id: ChatId = row.get("chat_id")?;
@@ -449,7 +443,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
                      SET chat_id=?, txt='', subject='', txt_raw='',
                          mime_headers='', from_id=0, to_id=0, param=''
                      WHERE id=?",
-                        params![DC_CHAT_ID_TRASH, msg_id],
+                        (DC_CHAT_ID_TRASH, msg_id),
                     )?;
 
                     msgs_changed.push((chat_id, msg_id));
@@ -494,7 +488,7 @@ async fn next_delete_device_after_timestamp(context: &Context) -> Result<Option<
                   AND chat_id != ?
                   AND chat_id != ?;
                 "#,
-                paramsv![DC_CHAT_ID_TRASH, self_chat_id, device_chat_id],
+                (DC_CHAT_ID_TRASH, self_chat_id, device_chat_id),
             )
             .await?;
 
@@ -518,7 +512,7 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
             WHERE ephemeral_timestamp != 0
               AND chat_id != ?;
             "#,
-            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+            (DC_CHAT_ID_TRASH,), // Trash contains already deleted messages, skip them
         )
         .await
     {
@@ -605,12 +599,12 @@ pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()
                       (download_state != 0 AND timestamp < ?) OR
                       (ephemeral_timestamp != 0 AND ephemeral_timestamp <= ?))
              )",
-            paramsv![
-                target,
+            (
+                &target,
                 threshold_timestamp,
                 threshold_timestamp_extended,
                 now,
-            ],
+            ),
         )
         .await?;
 
@@ -635,12 +629,12 @@ pub(crate) async fn start_ephemeral_timers(context: &Context) -> Result<()> {
     WHERE ephemeral_timer > 0 \
     AND ephemeral_timestamp = 0 \
     AND state NOT IN (?, ?, ?)",
-            paramsv![
+            (
                 time(),
                 MessageState::InFresh,
                 MessageState::InNoticed,
-                MessageState::OutDraft
-            ],
+                MessageState::OutDraft,
+            ),
         )
         .await?;
 
@@ -1106,7 +1100,7 @@ mod tests {
             assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
             let rawtxt: Option<String> = t
                 .sql
-                .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", paramsv![msg_id])
+                .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
                 .await
                 .unwrap();
             assert!(rawtxt.is_none_or_empty(), "{rawtxt:?}");
@@ -1131,13 +1125,13 @@ mod tests {
             t.sql
                    .execute(
                        "INSERT INTO msgs (id, rfc724_mid, timestamp, ephemeral_timestamp) VALUES (?,?,?,?);",
-                       paramsv![id, message_id, timestamp, ephemeral_timestamp],
+                       (id, &message_id, timestamp, ephemeral_timestamp),
                    )
                    .await?;
             t.sql
                    .execute(
                        "INSERT INTO imap (rfc724_mid, folder, uid, target) VALUES (?,'INBOX',?, 'INBOX');",
-                       paramsv![message_id, id],
+                       (&message_id, id),
                    )
                    .await?;
         }
@@ -1148,7 +1142,7 @@ mod tests {
                     .sql
                     .count(
                         "SELECT COUNT(*) FROM imap WHERE target='' AND rfc724_mid=?",
-                        paramsv![id.to_string()],
+                        (id.to_string(),),
                     )
                     .await?,
                 1
@@ -1159,10 +1153,7 @@ mod tests {
         async fn remove_uid(context: &Context, id: u32) -> Result<()> {
             context
                 .sql
-                .execute(
-                    "DELETE FROM imap WHERE rfc724_mid=?",
-                    paramsv![id.to_string()],
-                )
+                .execute("DELETE FROM imap WHERE rfc724_mid=?", (id.to_string(),))
                 .await?;
             Ok(())
         }

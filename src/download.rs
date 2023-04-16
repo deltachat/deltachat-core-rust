@@ -101,7 +101,7 @@ impl MsgId {
             .sql
             .execute(
                 "UPDATE msgs SET download_state=? WHERE id=?;",
-                paramsv![download_state, self],
+                (download_state, self),
             )
             .await?;
         context.emit_event(EventType::MsgsChanged {
@@ -134,7 +134,7 @@ impl Job {
                 .sql
                 .query_row_optional(
                     "SELECT uid, folder FROM imap WHERE rfc724_mid=? AND target=folder",
-                    paramsv![msg.rfc724_mid],
+                    (&msg.rfc724_mid,),
                     |row| {
                         let server_uid: u32 = row.get(0)?;
                         let server_folder: String = row.get(1)?;

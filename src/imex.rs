@@ -762,14 +762,11 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
     context
         .sql
         .call_write(|conn| {
-            conn.execute("VACUUM;", params![])
+            conn.execute("VACUUM;", ())
                 .map_err(|err| warn!(context, "Vacuum failed, exporting anyway {err}"))
                 .ok();
-            conn.execute(
-                "ATTACH DATABASE ? AS backup KEY ?",
-                paramsv![dest, passphrase],
-            )
-            .context("failed to attach backup database")?;
+            conn.execute("ATTACH DATABASE ? AS backup KEY ?", (dest, passphrase))
+                .context("failed to attach backup database")?;
             let res = conn
                 .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
                 .context("failed to export to attached backup database");
