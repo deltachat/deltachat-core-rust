@@ -134,7 +134,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
                 )
                 .await?;
             {
-                let debug_logging = &mut *ctx.debug_logging.write().await;
+                let debug_logging = &mut *ctx.debug_logging.write().expect("RwLock is poisoned");
                 match debug_logging {
                     // Switch logging xdc
                     Some(debug_logging) => debug_logging.msg_id = msg_id,
@@ -162,7 +162,7 @@ pub(crate) async fn set_debug_logging_xdc(ctx: &Context, id: Option<MsgId>) -> a
             ctx.sql
                 .set_raw_config(Config::DebugLogging.as_ref(), None)
                 .await?;
-            *ctx.debug_logging.write().await = None;
+            *ctx.debug_logging.write().expect("RwLock is poisoned") = None;
             info!(ctx, "removing logging webxdc");
         }
     }

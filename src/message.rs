@@ -1425,7 +1425,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         let logging_xdc_id = context
             .debug_logging
             .read()
-            .await
+            .expect("RwLock is poisoned")
             .as_ref()
             .map(|dl| dl.msg_id);
 

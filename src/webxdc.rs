@@ -2466,9 +2466,9 @@ sth_for_the = "future""#
             include_bytes!("../test-data/webxdc/minimal.xdc"),
         )
         .await?;
-        assert!(alice.debug_logging.read().await.is_none());
+        assert!(alice.debug_logging.read().unwrap().is_none());
         send_msg(&alice, chat_id, &mut instance).await?;
-        assert!(alice.debug_logging.read().await.is_some());
+        assert!(alice.debug_logging.read().unwrap().is_some());
 
         alice.emit_event(EventType::Info("hi".to_string()));
         alice

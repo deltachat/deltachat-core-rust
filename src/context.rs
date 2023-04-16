@@ -243,7 +243,10 @@ pub struct InnerContext {
     pub(crate) last_error: std::sync::RwLock<String>,
 
     /// If debug logging is enabled, this contains all necessary information
-    pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
+    ///
+    /// Standard RwLock instead of [`tokio::sync::RwLock`] is used
+    /// because the lock is used from synchronous [`Context::emit_event`].
+    pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
 }
 
 /// The state of ongoing process.
@@ -382,7 +385,7 @@ impl Context {
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
-            debug_logging: RwLock::new(None),
+            debug_logging: std::sync::RwLock::new(None),
         };
 
         let ctx = Context {
@@ -438,7 +441,7 @@ impl Context {
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
         {
-            let lock = tokio::task::block_in_place(|| self.debug_logging.blocking_read());
+            let lock = self.debug_logging.read().expect("RwLock is poisoned");
             if let Some(debug_logging) = &*lock {
                 debug_logging.log_event(event.clone());
             }
