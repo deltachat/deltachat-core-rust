@@ -7,7 +7,7 @@ use crate::{
     param::Param,
     tools::time,
     webxdc::StatusUpdateItem,
-    Event, EventType,
+    EventType,
 };
 use async_channel::{self as channel, Receiver, Sender};
 use serde_json::json;
@@ -72,12 +72,9 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                 eprintln!("Can't log event to webxdc status update: {err:#}");
             }
             Ok(serial) => {
-                context.events.emit(Event {
-                    id: context.id,
-                    typ: EventType::WebxdcStatusUpdate {
-                        msg_id,
-                        status_update_serial: serial,
-                    },
+                context.emit_event(EventType::WebxdcStatusUpdate {
+                    msg_id,
+                    status_update_serial: serial,
                 });
             }
         }
