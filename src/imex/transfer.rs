@@ -50,7 +50,7 @@ use crate::blob::BlobDirContents;
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::Context;
 use crate::message::{Message, Viewtype};
-use crate::qr::Qr;
+use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
 use crate::{e2ee, EventType};
 
@@ -393,10 +393,14 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    let _guard = context.scheduler.pause(context.clone()).await?;
-
     // Acquire global "ongoing" mutex.
     let cancel_token = context.alloc_ongoing().await?;
+    let _guard = context.scheduler.pause(context.clone()).await;
+    info!(
+        context,
+        "Running get_backup for {}",
+        qr::format_backup(&qr)?
+    );
     let res = tokio::select! {
         biased;
         res = get_backup_inner(context, qr) => res,
