@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Updated `async-imap` to v0.8.0 to fix erroneous EOF detection in long IMAP responses.
+
 ## [1.112.6] - 2023-04-04
 
 ### Changes
