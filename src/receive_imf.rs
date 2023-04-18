@@ -1019,14 +1019,8 @@ async fn add_parts(
     // if a chat is protected and the message is fully downloaded, check additional properties
     if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
-        let new_status = match mime_parser.is_system_message {
-            SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
-            SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
-            _ => None,
-        };
 
-        if chat.is_protected() || new_status.is_some() {
-            // TODO something has to change here
+        if chat.is_protected() {
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "Verification problem: {err:#}.");
