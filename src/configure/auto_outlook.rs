@@ -7,9 +7,9 @@ use std::io::BufRead;
 
 use quick_xml::events::Event;
 
-use super::read_url::read_url;
 use super::{Error, ServerParams};
 use crate::context::Context;
+use crate::net::read_url;
 use crate::provider::{Protocol, Socket};
 
 /// Result of parsing a single `Protocol` tag.

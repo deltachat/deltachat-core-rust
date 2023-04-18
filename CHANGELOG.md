@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+- Add `get_http_blob` JSON-RPC API.
+
 ## [1.112.7] - 2023-04-17
 
 ### Fixes

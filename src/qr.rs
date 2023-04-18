@@ -534,7 +534,7 @@ struct CreateAccountErrorResponse {
 async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
     let url_str = &qr[DCACCOUNT_SCHEME.len()..];
     let socks5_config = Socks5Config::from_database(&context.sql).await?;
-    let response = crate::http::get_client(socks5_config)?
+    let response = crate::net::http::get_client(socks5_config)?
         .post(url_str)
         .send()
         .await?;
