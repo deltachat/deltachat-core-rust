@@ -1,37 +1,36 @@
 # Changelog
 
-## [Unreleased]
+## [1.113.0] - 2023-04-18
+
+### Added
+- New JSON-RPC API `can_send()`.
+- New `dc_get_next_msgs()` and `dc_wait_next_msgs()` C APIs.
+  New `get_next_msgs()` and `wait_next_msgs()` JSON-RPC API.
+  These APIs can be used by bots to get all unprocessed messages
+  in the order of their arrival and wait for them without relying on events.
+- New Python bindings API `Account.wait_next_incoming_message()`.
+- New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
 
 ### Changes
 - Increase MSRV to 1.65.0. #4236
 - Remove upper limit on the attachment size. #4253
 - Update rPGP to 0.10.1. #4236
-- Compress `mime_headers` column with HTML emails stored in database
-- Strip BIDI characters in system messages, files, group names and contact names #3479
-- maybe_add_time_based_warnings(): Use release date instead of the provider DB update one
-- Remove confusing log line "ignoring unsolicited response Recent(…)" #3934
-- Cleanly terminate deltachat-rpc-server.
-  I.e. on EOF in stdin.
-- Refactorings #4317
-- Add JSON-RPC API `can_send()`.
-- New `dc_get_next_msgs()` and `dc_wait_next_msgs()` C APIs.
-  New `get_next_msgs()` and `wait_next_msgs()` JSON-RPC API.
-  These APIs can be used by bots to get all unprocessed messages
-  in the order of their arrival and wait for them without relying on events.
+- Compress HTML emails stored in the `mime_headers` column of the database.
+- Strip BIDI characters in system messages, files, group names and contact names. #3479
+- Use release date instead of the provider database update date in `maybe_add_time_based_warnings()`.
+- Gracefully terminate `deltachat-rpc-server` on Ctrl+C (`SIGINT`), `SIGTERM` and EOF.
 - Async Python API `get_fresh_messages_in_arrival_order()` is deprecated
   in favor of `get_next_msgs()` and `wait_next_msgs()`.
-- New Python bindings API `Account.wait_next_incoming_message()`.
-- New Python bindings APIs `Message.is_from_self()` and `Message.is_from_device()`.
-- Remove metadata from avatars and JPEG images before sending #4037
-- Reduce + recode images to JPEG if they are > 500K in size #4037
-- Gracefully terminate deltachat-rpc-server on ctrl-c and SIGTERM.
+- Remove metadata from avatars and JPEG images before sending. #4037
+- Recode PNG and other supported image formats to JPEG if they are > 500K in size. #4037
 
 ### Fixes
+- Don't let blocking be bypassed using groups. #4316
+- Show a warning if quota list is empty. #4261
+- Do not reset status on other devices when sending signed reaction messages. #3692
+- Update `accounts.toml` atomically.
 - Fix python bindings README documentation on installing the bindings from source.
-- Show a warning if quota list is empty #4261
-- Update "accounts.toml" atomically
-- Don't let blocking be bypassed using groups #4316 
-- Do not reset status on other devices when sending signed reaction messages #3692
+- Remove confusing log line "ignoring unsolicited response Recent(…)". #3934
 
 ## [1.112.7] - 2023-04-17
 
@@ -2403,7 +2402,6 @@ For a full list of changes, please see our closed Pull Requests:
 
 https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 
-[unreleased]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...HEAD
 [1.111.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.110.0...v1.111.0
 [1.112.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.111.0...v1.112.0
 [1.112.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.0...v1.112.1
@@ -2413,3 +2411,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.112.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.4...v1.112.5
 [1.112.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...v1.112.6
 [1.112.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.6...v1.112.7
+[1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.7...v1.113.0
