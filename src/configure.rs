@@ -1,4 +1,13 @@
-//! Email accounts autoconfiguration process module.
+//! # Email accounts autoconfiguration process.
+//!
+//! The module provides automatic lookup of configuration
+//! for email providers based on the built-in [provider database],
+//! [Mozilla Thunderbird Autoconfiguration protocol]
+//! and [Outlook's Autodiscover].
+//!
+//! [provider database]: crate::provider
+//! [Mozilla Thunderbird Autoconfiguration protocol]: auto_mozilla
+//! [Outlook's Autodiscover]: auto_outlook
 
 mod auto_mozilla;
 mod auto_outlook;
