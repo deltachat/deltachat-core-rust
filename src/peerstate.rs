@@ -392,6 +392,26 @@ impl Peerstate {
         }
     }
 
+    /// Returns a reference to the contact's public key fingerprint.
+    ///
+    /// Similar to [`Self::peek_key`], but returns the fingerprint instead of the key.
+    fn peek_key_fingerprint(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Fingerprint> {
+        match min_verified {
+            PeerstateVerifiedStatus::BidirectVerified => self.verified_key_fingerprint.as_ref(),
+            PeerstateVerifiedStatus::Unverified => self
+                .public_key_fingerprint
+                .as_ref()
+                .or(self.gossip_key_fingerprint.as_ref()),
+        }
+    }
+
+    pub(crate) fn is_using_verified_key(&self) -> bool {
+        let verified = self.peek_key_fingerprint(PeerstateVerifiedStatus::BidirectVerified);
+
+        verified.is_some()
+            && verified == self.peek_key_fingerprint(PeerstateVerifiedStatus::Unverified)
+    }
+
     /// Set this peerstate to verified
     /// Make sure to call `self.save_to_db` to save these changes
     /// Params:

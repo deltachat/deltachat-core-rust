@@ -1955,10 +1955,8 @@ impl ChatIdBlocked {
         }
 
         let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
-        let protected = peerstate.map_or(false, |p| {
-            p.verified_key_fingerprint.is_some()
-                && p.verified_key_fingerprint == p.public_key_fingerprint
-        });
+        let protected = peerstate.map_or(false, |p| p.is_using_verified_key());
+        let smeared_time = create_smeared_timestamp(context);
 
         let chat_id = context
             .sql
@@ -1972,7 +1970,7 @@ impl ChatIdBlocked {
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        create_smeared_timestamp(context),
+                        smeared_time,
                         if protected {
                             ProtectionStatus::Protected
                         } else {
@@ -1994,13 +1992,20 @@ impl ChatIdBlocked {
                     (contact_id,),
                 )?;
 
-                if protected {
-                    info!(context, "Creating 1:1 chat {} as protected", chat_id);
-                }
-
                 Ok(chat_id)
             })
             .await?;
+
+        if protected {
+            chat_id
+                .add_protection_msg(
+                    context,
+                    ProtectionStatus::Protected,
+                    contact_id,
+                    smeared_time,
+                )
+                .await?;
+        }
 
         match contact_id {
             ContactId::SELF => update_saved_messages_icon(context).await?,

@@ -10,8 +10,10 @@ use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::contact::VerifiedStatus;
+use crate::e2ee;
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
+use crate::stock_str::chat_verification_enabled;
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3298,6 +3300,7 @@ async fn test_mua_user_adds_recipient_to_single_chat() -> Result<()> {
     Ok(())
 }
 
+// TODO move tests somewhere else?
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_sync_member_list_on_rejoin() -> Result<()> {
     let mut tcm = TestContextManager::new();
@@ -3623,6 +3626,121 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
 
     // Bob's chat is marked as verified again
     assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_create_verified_oneonone_chat_1() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    let fiona = tcm.fiona().await;
+
+    tcm.execute_securejoin(&alice, &bob).await;
+    tcm.execute_securejoin(&bob, &fiona).await; // TODO does this also work if you swap bob & fiona?
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+    assert_verified(&bob, &alice, ProtectionStatus::Protected).await;
+    assert_verified(&bob, &fiona, ProtectionStatus::Protected).await;
+    assert_verified(&fiona, &bob, ProtectionStatus::Protected).await;
+
+    let group_id = bob
+        .create_group_with_members(
+            ProtectionStatus::Protected,
+            "Group with everyone",
+            &[&alice, &fiona],
+        )
+        .await;
+    let sent = bob.send_text(group_id, "Heyho").await;
+    alice.recv_msg(&sent).await;
+    fiona.recv_msg(&sent).await;
+
+    // Alice and Fiona should now be verified because of gossip
+    let alice_fiona_contact = alice.add_or_lookup_contact(&fiona).await;
+    assert_eq!(
+        alice_fiona_contact.is_verified(&alice).await.unwrap(),
+        VerifiedStatus::BidirectVerified
+    );
+
+    // As soon as Alice creates a chat with Fiona, it should directly be protected
+    {
+        let chat = alice.create_chat(&fiona).await;
+        assert!(chat.is_protected());
+
+        let msg = alice.get_last_msg().await;
+        let expected_text = chat_verification_enabled(&alice, alice_fiona_contact.id).await;
+        assert_eq!(msg.text.unwrap(), expected_text);
+    }
+
+    // Fiona should also see the chat as unprotected
+    {
+        let rcvd = tcm.send_recv(&alice, &fiona, "Hi Fiona").await;
+        let alice_fiona_id = rcvd.chat_id;
+        let chat = Chat::load_from_db(&fiona, alice_fiona_id).await?;
+        assert!(chat.is_protected());
+
+        let msg0 = get_chat_msg(&fiona, chat.id, 0, 2).await;
+        let contact_id = Contact::lookup_id_by_addr(&fiona, "alice@example.org", Origin::Hidden)
+            .await?
+            .unwrap();
+        let expected_text = chat_verification_enabled(&fiona, contact_id).await;
+        assert_eq!(msg0.text.unwrap(), expected_text);
+    }
+
+    tcm.section("Fiona reinstalls DC");
+    drop(fiona);
+
+    let fiona_new = tcm.unconfigured().await;
+    fiona_new.configure_addr("fiona@example.net").await;
+    e2ee::ensure_secret_key_exists(&fiona_new).await?;
+
+    tcm.send_recv(&fiona_new, &alice, "I have a new device")
+        .await;
+
+    // The chat should be and stay unprotected
+    {
+        let chat = alice.get_chat(&fiona_new).await.unwrap();
+        assert!(!chat.is_protected());
+
+        // After recreating the chat, it should still be unprotected
+        chat.id.delete(&alice).await?;
+        assert!(!alice.create_chat(&fiona_new).await.is_protected());
+    }
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_create_verified_oneonone_chat_2() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    // A chat with an unknown contact should be created unprotected
+    let chat = alice.create_chat(&bob).await;
+    assert!(!chat.is_protected());
+
+    receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2@example.org>\n\
+          \n\
+          hello\n",
+        false,
+    )
+    .await?;
+
+    chat.id.delete(&alice).await.unwrap();
+    // Now Bob is a known contact, new chats should still be created unprotected
+    let chat = alice.create_chat(&bob).await;
+    assert!(!chat.is_protected());
+
+    tcm.send_recv(&bob, &alice, "hi").await;
+    chat.id.delete(&alice).await.unwrap();
+    // Now we have a public key, new chats should still be created unprotected
+    let chat = alice.create_chat(&bob).await;
+    assert!(!chat.is_protected());
+
+    Ok(())
 }
 
 async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {
