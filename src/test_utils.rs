@@ -106,9 +106,17 @@ impl TestContextManager {
     /// - Let the other TestContext receive it and accept the chat
     /// - Assert that the message arrived
     pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
+        let received_msg = self.send_recv(from, to, msg).await;
+        received_msg.chat_id.accept(to).await.unwrap();
+    }
+
+    /// - Let one TestContext send a message
+    /// - Let the other TestContext receive it
+    /// - Assert that the message arrived
+    pub async fn send_recv(&self, from: &TestContext, to: &TestContext, msg: &str) -> Message {
         let received_msg = self.try_send_recv(from, to, msg).await;
         assert_eq!(received_msg.text.as_ref().unwrap(), msg);
-        received_msg.chat_id.accept(to).await.unwrap();
+        received_msg
     }
 
     /// - Let one TestContext send a message
