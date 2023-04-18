@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use tokio::fs;
 
 use super::*;
@@ -11,9 +9,9 @@ use crate::chat::{
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::constants::DC_GCL_NO_SPECIALS;
+use crate::contact::VerifiedStatus;
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
-use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3580,29 +3578,10 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    tcm.section("Bob scans Alice's QR code");
-    let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
-    join_securejoin(&bob.ctx, &qr).await.unwrap();
+    tcm.execute_securejoin(&alice, &bob).await;
 
-    // TODO move to test_utils?
-    loop {
-        if let Some(sent) = bob.pop_sent_msg_opt(Duration::ZERO).await {
-            alice.recv_msg(&sent).await;
-        } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
-            bob.recv_msg(&sent).await;
-        } else {
-            break;
-        }
-    }
-
-    let contact = alice.add_or_lookup_contact(&bob).await;
-    assert_eq!(
-        contact.is_verified(&alice.ctx).await.unwrap(),
-        VerifiedStatus::BidirectVerified
-    );
-
-    let chat = alice.get_chat(&bob).await.unwrap();
-    assert!(chat.is_protected());
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+    assert_verified(&bob, &alice, ProtectionStatus::Protected).await;
 
     if broken_by_classical_email {
         tcm.section("Bob uses a classical MUA to send a message to Alice");
@@ -3631,14 +3610,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     }
 
     // Bob's contact is still verified, but the chat isn't marked as protected anymore
-    let contact = alice.add_or_lookup_contact(&bob).await;
-    assert_eq!(
-        contact.is_verified(&alice.ctx).await.unwrap(),
-        VerifiedStatus::BidirectVerified
-    );
-
-    let chat = alice.get_chat(&bob).await.unwrap();
-    assert!(!chat.is_protected());
+    assert_verified(&alice, &bob, ProtectionStatus::Unprotected).await;
 
     tcm.section("Bob sends another message from DC");
     tcm.send_recv(&bob, &alice, "Using DC again").await;
@@ -3650,6 +3622,19 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     );
 
     // Bob's chat is marked as verified again
-    let chat = alice.get_chat(&bob).await.unwrap();
-    assert!(chat.is_protected());
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+}
+
+async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {
+    let contact = this.add_or_lookup_contact(other).await;
+    assert_eq!(
+        contact.is_verified(this).await.unwrap(),
+        VerifiedStatus::BidirectVerified
+    );
+
+    let chat = this.get_chat(other).await.unwrap();
+    assert_eq!(
+        chat.is_protected(),
+        protected == ProtectionStatus::Protected
+    );
 }

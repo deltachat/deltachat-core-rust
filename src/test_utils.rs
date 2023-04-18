@@ -36,6 +36,7 @@ use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
 use crate::receive_imf::receive_imf;
+use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
 use crate::tools::EmailAddress;
 
@@ -151,6 +152,27 @@ impl TestContextManager {
             test_context.get_primary_self_addr().await.unwrap(),
             new_addr
         );
+    }
+
+    pub async fn execute_securejoin(&self, scanner: &TestContext, scanned: &TestContext) {
+        self.section(&format!(
+            "{} scanns {}'s QR code",
+            scanner.name(),
+            scanned.name()
+        ));
+
+        let qr = get_securejoin_qr(&scanned.ctx, None).await.unwrap();
+        join_securejoin(&scanner.ctx, &qr).await.unwrap();
+
+        loop {
+            if let Some(sent) = scanner.pop_sent_msg_opt(Duration::ZERO).await {
+                scanned.recv_msg(&sent).await;
+            } else if let Some(sent) = scanned.pop_sent_msg_opt(Duration::ZERO).await {
+                scanner.recv_msg(&sent).await;
+            } else {
+                break;
+            }
+        }
     }
 }
 
