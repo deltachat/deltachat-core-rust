@@ -103,7 +103,7 @@ impl BackupProvider {
         let context_dir = context
             .get_blobdir()
             .parent()
-            .ok_or(anyhow!("Context dir not found"))?;
+            .ok_or_else(|| anyhow!("Context dir not found"))?;
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
@@ -497,7 +497,7 @@ async fn on_blob(
         let context_dir = context
             .get_blobdir()
             .parent()
-            .ok_or(anyhow!("Context dir not found"))?;
+            .ok_or_else(|| anyhow!("Context dir not found"))?;
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;

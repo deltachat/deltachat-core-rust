@@ -500,7 +500,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 fn decode_backup(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP_SCHEME)
-        .ok_or(anyhow!("invalid DCBACKUP scheme"))?;
+        .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
     let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
     Ok(Qr::Backup { ticket })
 }
