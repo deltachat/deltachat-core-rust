@@ -287,12 +287,14 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 mod tests {
     use super::*;
     use crate::chat::get_chat_msgs;
+    use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
     use crate::message::MessageState;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
+    use crate::test_utils::TestContextManager;
 
     #[test]
     fn test_parse_reaction() {
@@ -548,6 +550,42 @@ Content-Disposition: reaction\n\
         let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
 
+        Ok(())
+    }
+
+    /// Regression test for reaction resetting self-status.
+    ///
+    /// Reactions do not contain the status,
+    /// but should not result in self-status being reset on other devices.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_status_multidevice() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice1 = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+
+        alice1
+            .set_config(Config::Selfstatus, Some("New status"))
+            .await?;
+
+        let alice2_msg = tcm.send_recv(&alice1, &alice2, "Hi!").await;
+        assert_eq!(
+            alice2.get_config(Config::Selfstatus).await?.as_deref(),
+            Some("New status")
+        );
+
+        // Alice reacts to own message from second device,
+        // first device receives rection.
+        {
+            send_reaction(&alice2, alice2_msg.id, "👍").await?;
+            let msg = alice2.pop_sent_msg().await;
+            alice1.recv_msg(&msg).await;
+        }
+
+        // Check that the status is still the same.
+        assert_eq!(
+            alice1.get_config(Config::Selfstatus).await?.as_deref(),
+            Some("New status")
+        );
         Ok(())
     }
 }
