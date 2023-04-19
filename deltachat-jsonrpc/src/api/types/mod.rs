@@ -2,6 +2,7 @@ pub mod account;
 pub mod chat;
 pub mod chat_list;
 pub mod contact;
+pub mod http;
 pub mod location;
 pub mod message;
 pub mod provider_info;
