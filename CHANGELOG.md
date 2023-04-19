@@ -4,6 +4,7 @@
 
 ### Changes
 - Add `get_http_response` JSON-RPC API.
+- Add C API to get HTTP responses.
 
 ## [1.112.7] - 2023-04-17
 
