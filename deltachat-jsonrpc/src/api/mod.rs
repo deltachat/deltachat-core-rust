@@ -43,6 +43,7 @@ use types::account::Account;
 use types::chat::FullChat;
 use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
+use types::http::HttpResponse;
 use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
@@ -1610,15 +1611,13 @@ impl CommandApi {
         Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
     }
 
-    /// Makes an HTTP GET request and returns base64-encoded contents.
+    /// Makes an HTTP GET request and returns a response.
     ///
     /// `url` is the HTTP or HTTPS URL.
-    async fn get_http_blob(&self, account_id: u32, url: String) -> Result<String> {
+    async fn get_http_response(&self, account_id: u32, url: String) -> Result<HttpResponse> {
         let ctx = self.get_context(account_id).await?;
-        let blob = deltachat::net::read_url_blob(&ctx, &url).await?;
-
-        use base64::{engine::general_purpose, Engine as _};
-        Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
+        let response = deltachat::net::read_url_blob(&ctx, &url).await?.into();
+        Ok(response)
     }
 
     /// Forward messages to another chat.

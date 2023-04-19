@@ -16,7 +16,7 @@ pub(crate) mod http;
 pub(crate) mod session;
 pub(crate) mod tls;
 
-pub use http::{read_url, read_url_blob};
+pub use http::{read_url, read_url_blob, Response as HttpResponse};
 
 async fn connect_tcp_inner(addr: SocketAddr, timeout_val: Duration) -> Result<TcpStream> {
     let tcp_stream = timeout(timeout_val, TcpStream::connect(addr))
