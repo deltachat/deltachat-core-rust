@@ -4589,7 +4589,10 @@ pub unsafe extern "C" fn dc_get_http_response(
 
     let context = &*context;
     let url = to_string_lossy(url);
-    if let Ok(response) = block_on(read_url_blob(context, &url)).log_err(context, "read_url_blob") {
+    if let Ok(response) = block_on(read_url_blob(context, &url))
+        .context("read_url_blob")
+        .log_err(context)
+    {
         Box::into_raw(Box::new(response))
     } else {
         ptr::null_mut()
