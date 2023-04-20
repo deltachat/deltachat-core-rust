@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [1.112.8] - 2023-04-20
 
 ### Changes
 - Add `get_http_response` JSON-RPC API.
