@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changes
+- JSON-RPC: Use long polling instead of server-sent notifications to retrieve events.
+  This better corresponds to JSON-RPC 2.0 server-client distinction
+  and is expected to simplify writing new bindings
+  because dispatching events can be done on higher level.
+
 ### Fixes
 - JSON-RPC: do not print to stdout on failure to find an account.
 

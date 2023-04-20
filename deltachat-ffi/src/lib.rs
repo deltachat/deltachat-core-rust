@@ -4967,7 +4967,6 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
 #[cfg(feature = "jsonrpc")]
 mod jsonrpc {
     use deltachat_jsonrpc::api::CommandApi;
-    use deltachat_jsonrpc::events::event_to_json_rpc_notification;
     use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
 
     use super::*;
@@ -4975,7 +4974,6 @@ mod jsonrpc {
     pub struct dc_jsonrpc_instance_t {
         receiver: OutReceiver,
         handle: RpcSession<CommandApi>,
-        event_thread: JoinHandle<Result<(), anyhow::Error>>,
     }
 
     #[no_mangle]
@@ -4988,28 +4986,12 @@ mod jsonrpc {
         }
 
         let account_manager = &*account_manager;
-        let events = block_on(account_manager.read()).get_event_emitter();
         let cmd_api = deltachat_jsonrpc::api::CommandApi::from_arc(account_manager.inner.clone());
 
         let (request_handle, receiver) = RpcClient::new();
-        let handle = RpcSession::new(request_handle.clone(), cmd_api);
+        let handle = RpcSession::new(request_handle, cmd_api);
 
-        let event_thread = spawn(async move {
-            while let Some(event) = events.recv().await {
-                let event = event_to_json_rpc_notification(event);
-                request_handle
-                    .send_notification("event", Some(event))
-                    .await?;
-            }
-            let res: Result<(), anyhow::Error> = Ok(());
-            res
-        });
-
-        let instance = dc_jsonrpc_instance_t {
-            receiver,
-            handle,
-            event_thread,
-        };
+        let instance = dc_jsonrpc_instance_t { receiver, handle };
 
         Box::into_raw(Box::new(instance))
     }
@@ -5020,7 +5002,6 @@ mod jsonrpc {
             eprintln!("ignoring careless call to dc_jsonrpc_unref()");
             return;
         }
-        (*jsonrpc_instance).event_thread.abort();
         drop(Box::from_raw(jsonrpc_instance));
     }
 

@@ -20,9 +20,12 @@ async function run() {
 
   (window as any).client = client.rpc;
 
+  /*
+  FIXME add event loop
   client.on("ALL", (accountId, event) => {
     onIncomingEvent(accountId, event);
   });
+  */
 
   window.addEventListener("account-changed", async (_event: Event) => {
     listChatsForSelectedAccount();

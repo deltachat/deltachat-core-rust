@@ -49,6 +49,7 @@ use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
 
+use self::events::Event;
 use self::types::message::MessageLoadResult;
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
@@ -163,6 +164,16 @@ impl CommandApi {
     /// Get general system info.
     async fn get_system_info(&self) -> BTreeMap<&'static str, String> {
         get_info()
+    }
+
+    /// Get the next event.
+    async fn get_next_event(&self) -> Result<Event> {
+        let event_emitter = self.accounts.read().await.get_event_emitter();
+        event_emitter
+            .recv()
+            .await
+            .map(|event| event.into())
+            .context("event channel is closed")
     }
 
     // ---------------------------------------------

@@ -1,5 +1,5 @@
 import { assert, expect } from "chai";
-import { StdioDeltaChat as DeltaChat, DcEvent } from "../deltachat.js";
+import { StdioDeltaChat as DeltaChat, DcEvent, T as X } from "../deltachat.js";
 import { RpcServerHandle, createTempUser, startServer } from "./test_base.js";
 
 const EVENT_TIMEOUT = 20000;
@@ -28,10 +28,6 @@ describe("online tests", function () {
     }
     serverHandle = await startServer();
     dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout);
-
-    dc.on("ALL", (contextId, { type }) => {
-      if (type !== "Info") console.log(contextId, type);
-    });
 
     account1 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
     if (!account1 || !account1.email || !account1.password) {
@@ -86,13 +82,12 @@ describe("online tests", function () {
       null
     );
     const chatId = await dc.rpc.createChatByContactId(accountId1, contactId);
-    const eventPromise = Promise.race([
-      waitForEvent(dc, "MsgsChanged", accountId2),
-      waitForEvent(dc, "IncomingMsg", accountId2),
-    ]);
 
     await dc.rpc.miscSendTextMessage(accountId1, chatId, "Hello");
-    const { chatId: chatIdOnAccountB } = await eventPromise;
+    const { chatId: chatIdOnAccountB } = await waitForMessageEvent(
+      dc,
+      accountId2
+    );
     await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
     const messageList = await dc.rpc.getMessageIds(
       accountId2,
@@ -119,15 +114,11 @@ describe("online tests", function () {
       null
     );
     const chatId = await dc.rpc.createChatByContactId(accountId1, contactId);
-    const eventPromise = Promise.race([
-      waitForEvent(dc, "MsgsChanged", accountId2),
-      waitForEvent(dc, "IncomingMsg", accountId2),
-    ]);
     dc.rpc.miscSendTextMessage(accountId1, chatId, "Hello2");
     // wait for message from A
     console.log("wait for message from A");
 
-    const event = await eventPromise;
+    const event = await waitForMessageEvent(dc, accountId2);
     const { chatId: chatIdOnAccountB } = event;
 
     await dc.rpc.acceptChat(accountId2, chatIdOnAccountB);
@@ -143,13 +134,9 @@ describe("online tests", function () {
     );
     expect(message.text).equal("Hello2");
     // Send message back from B to A
-    const eventPromise2 = Promise.race([
-      waitForEvent(dc, "MsgsChanged", accountId1),
-      waitForEvent(dc, "IncomingMsg", accountId1),
-    ]);
     dc.rpc.miscSendTextMessage(accountId2, chatId, "super secret message");
     // Check if answer arives at A and if it is encrypted
-    await eventPromise2;
+    await waitForMessageEvent(dc, accountId1);
 
     const messageId = (
       await dc.rpc.getMessageIds(accountId1, chatId, false, false)
@@ -177,24 +164,14 @@ describe("online tests", function () {
   });
 });
 
-async function waitForEvent<T extends DcEvent["type"]>(
+async function waitForMessageEvent<T extends DcEvent["type"]>(
   dc: DeltaChat,
-  eventType: T,
-  accountId: number,
-  timeout: number = EVENT_TIMEOUT
-): Promise<Extract<DcEvent, { type: T }>> {
-  return new Promise((resolve, reject) => {
-    const rejectTimeout = setTimeout(
-      () => reject(new Error("Timeout reached before event came in")),
-      timeout
-    );
-    const callback = (contextId: number, event: DcEvent) => {
-      if (contextId == accountId) {
-        dc.off(eventType, callback);
-        clearTimeout(rejectTimeout);
-        resolve(event as any);
-      }
-    };
-    dc.on(eventType, callback);
-  });
+  accountId: number
+): Promise<Extract<X.EventType, { type: T; chatId: number }>> {
+  while (true) {
+    const event: X.Event = await dc.rpc.getNextEvent();
+    if (event.event.type == "IncomingMsg" && event.context_id == accountId) {
+      return event.event as any;
+    }
+  }
 }

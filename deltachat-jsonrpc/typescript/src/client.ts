@@ -1,18 +1,12 @@
 import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
-import { TinyEmitter } from "@deltachat/tiny-emitter";
 
 type DCWireEvent<T extends Event> = {
   event: T;
   contextId: number;
 };
-// export type Events = Record<
-//   Event["type"] | "ALL",
-//   (event: DeltaChatEvent<Event>) => void
-// >;
 
 type Events = { ALL: (accountId: number, event: Event) => void } & {
   [Property in Event["type"]]: (
@@ -30,46 +24,15 @@ type ContextEvents = { ALL: (event: Event) => void } & {
 export type DcEvent = Event;
 export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>;
 
-export class BaseDeltaChat<
-  Transport extends BaseTransport<any>
-> extends TinyEmitter<Events> {
+export class BaseDeltaChat<Transport extends BaseTransport<any>> {
   rpc: RawClient;
   account?: T.Account;
-  private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
   constructor(public transport: Transport) {
-    super();
     this.rpc = new RawClient(this.transport);
-    this.transport.on("request", (request: Request) => {
-      const method = request.method;
-      if (method === "event") {
-        const event = request.params! as DCWireEvent<Event>;
-        //@ts-ignore
-        this.emit(event.event.type, event.contextId, event.event as any);
-        this.emit("ALL", event.contextId, event.event as any);
-
-        if (this.contextEmitters[event.contextId]) {
-          this.contextEmitters[event.contextId].emit(
-            event.event.type,
-            //@ts-ignore
-            event.event as any
-          );
-          this.contextEmitters[event.contextId].emit("ALL", event.event);
-        }
-      }
-    });
   }
 
   async listAccounts(): Promise<T.Account[]> {
     return await this.rpc.getAllAccounts();
-  }
-
-  getContextEvents(account_id: number) {
-    if (this.contextEmitters[account_id]) {
-      return this.contextEmitters[account_id];
-    } else {
-      this.contextEmitters[account_id] = new TinyEmitter();
-      return this.contextEmitters[account_id];
-    }
   }
 }
 
