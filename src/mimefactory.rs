@@ -277,7 +277,7 @@ impl<'a> MimeFactory<'a> {
     async fn peerstates_for_recipients(
         &self,
         context: &Context,
-    ) -> Result<Vec<(Option<Peerstate>, &str)>> {
+    ) -> Result<Vec<(Option<Peerstate>, String)>> {
         let self_addr = context.get_primary_self_addr().await?;
 
         let mut res = Vec::new();
@@ -286,7 +286,7 @@ impl<'a> MimeFactory<'a> {
             .iter()
             .filter(|(_, addr)| addr != &self_addr)
         {
-            res.push((Peerstate::from_addr(context, addr).await?, addr.as_str()));
+            res.push((Peerstate::from_addr(context, addr).await?, addr.clone()));
         }
 
         Ok(res)
@@ -917,6 +917,16 @@ impl<'a> MimeFactory<'a> {
         Ok(Some(part))
     }
 
+    fn add_message_text(&self, part: PartBuilder, mut text: String) -> PartBuilder {
+        // This is needed to protect from ESPs (such as gmx.at) doing their own Quoted-Printable
+        // encoding and thus breaking messages and signatures. It's unlikely that the reader uses a
+        // MUA not supporting Quoted-Printable encoding. And RFC 2646 "4.6" also recommends it for
+        // encrypted messages.
+        let part = part.header(("Content-Transfer-Encoding", "quoted-printable"));
+        text = quoted_printable::encode_to_str(text);
+        part.body(text)
+    }
+
     #[allow(clippy::cognitive_complexity)]
     async fn render_message(
         &mut self,
@@ -1214,13 +1224,11 @@ impl<'a> MimeFactory<'a> {
             footer
         );
 
-        // Message is sent as text/plain, with charset = utf-8
-        let mut main_part = PartBuilder::new()
-            .header((
-                "Content-Type".to_string(),
-                "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-            ))
-            .body(message_text);
+        let mut main_part = PartBuilder::new().header((
+            "Content-Type",
+            "text/plain; charset=utf-8; format=flowed; delsp=no",
+        ));
+        main_part = self.add_message_text(main_part, message_text);
 
         if is_reaction {
             main_part = main_part.header(("Content-Disposition", "reaction"));
@@ -1347,15 +1355,12 @@ impl<'a> MimeFactory<'a> {
         };
         let p2 = stock_str::read_rcpt_mail_body(context, &p1).await;
         let message_text = format!("{}\r\n", format_flowed(&p2));
-        message = message.child(
-            PartBuilder::new()
-                .header((
-                    "Content-Type".to_string(),
-                    "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
-                ))
-                .body(message_text)
-                .build(),
-        );
+        let text_part = PartBuilder::new().header((
+            "Content-Type".to_string(),
+            "text/plain; charset=utf-8; format=flowed; delsp=no".to_string(),
+        ));
+        let text_part = self.add_message_text(text_part, message_text);
+        message = message.child(text_part.build());
 
         // second body part: machine-readable, always REQUIRED by RFC 6522
         let message_text2 = format!(
@@ -2198,6 +2203,7 @@ mod tests {
         assert_eq!(inner.match_indices("Message-ID:").count(), 1);
         assert_eq!(inner.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(inner.match_indices("Subject:").count(), 0);
+        assert_eq!(inner.match_indices("quoted-printable").count(), 1);
 
         assert_eq!(body.match_indices("this is the text!").count(), 1);
 
@@ -2218,6 +2224,7 @@ mod tests {
         assert_eq!(inner.match_indices("Message-ID:").count(), 1);
         assert_eq!(inner.match_indices("Chat-User-Avatar:").count(), 0);
         assert_eq!(inner.match_indices("Subject:").count(), 0);
+        assert_eq!(inner.match_indices("quoted-printable").count(), 1);
 
         assert_eq!(body.match_indices("this is the text!").count(), 1);
 
@@ -2274,6 +2281,7 @@ mod tests {
         assert_eq!(part.match_indices("Message-ID:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("quoted-printable").count(), 1);
 
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);
@@ -2321,6 +2329,7 @@ mod tests {
         assert_eq!(part.match_indices("Message-ID:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 0);
+        assert_eq!(part.match_indices("quoted-printable").count(), 1);
 
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);
