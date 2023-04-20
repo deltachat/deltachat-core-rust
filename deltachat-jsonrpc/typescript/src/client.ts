@@ -1,7 +1,6 @@
 import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
@@ -36,27 +35,30 @@ export class BaseDeltaChat<
   rpc: RawClient;
   account?: T.Account;
   private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
+
+  private eventTask: Promise<void>;
+
   constructor(public transport: Transport) {
     super();
     this.rpc = new RawClient(this.transport);
-    this.transport.on("request", (request: Request) => {
-      const method = request.method;
-      if (method === "event") {
-        const event = request.params! as DCWireEvent<Event>;
-        //@ts-ignore
-        this.emit(event.event.type, event.contextId, event.event as any);
-        this.emit("ALL", event.contextId, event.event as any);
+    this.eventTask = this.eventLoop();
+  }
 
-        if (this.contextEmitters[event.contextId]) {
-          this.contextEmitters[event.contextId].emit(
-            event.event.type,
-            //@ts-ignore
-            event.event as any
-          );
-          this.contextEmitters[event.contextId].emit("ALL", event.event);
-        }
+  async eventLoop(): Promise<void> {
+    while (true) {
+      const event = await this.rpc.getNextEvent();
+      this.emit(event.event.type, event.context_id, event.event as any);
+      this.emit("ALL", event.context_id, event.event as any);
+
+      if (this.contextEmitters[event.context_id]) {
+        this.contextEmitters[event.context_id].emit(
+          event.event.type,
+          //@ts-ignore
+          event.event as any
+        );
+        this.contextEmitters[event.context_id].emit("ALL", event.event as any);
       }
-    });
+    }
   }
 
   async listAccounts(): Promise<T.Account[]> {

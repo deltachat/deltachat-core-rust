@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context as _, Result};
 use deltachat::constants::DC_VERSION_STR;
-use deltachat_jsonrpc::api::events::event_to_json_rpc_notification;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
@@ -58,7 +57,6 @@ async fn main_impl() -> Result<()> {
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);
     let accounts = Accounts::new(PathBuf::from(&path)).await?;
-    let events = accounts.get_event_emitter();
 
     log::info!("Creating JSON-RPC API.");
     let accounts = Arc::new(RwLock::new(accounts));
@@ -67,21 +65,6 @@ async fn main_impl() -> Result<()> {
     let (client, mut out_receiver) = RpcClient::new();
     let session = RpcSession::new(client.clone(), state.clone());
     let main_cancel = CancellationToken::new();
-
-    // Events task converts core events to JSON-RPC notifications.
-    let cancel = main_cancel.clone();
-    let events_task: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let _cancel_guard = cancel.clone().drop_guard();
-        let mut r = Ok(());
-        while let Some(event) = events.recv().await {
-            if r.is_err() {
-                continue;
-            }
-            let event = event_to_json_rpc_notification(event);
-            r = client.send_notification("event", Some(event)).await;
-        }
-        Ok(())
-    });
 
     // Send task prints JSON responses to stdout.
     let cancel = main_cancel.clone();
@@ -148,16 +131,13 @@ async fn main_impl() -> Result<()> {
         Ok(())
     });
 
-    // See "Thread safety" section in deltachat-ffi/deltachat.h for explanation.
-    // NB: Events are drained by events_task.
     main_cancel.cancelled().await;
     accounts.read().await.stop_io().await;
     drop(accounts);
     drop(state);
-    let (r0, r1, r2, r3) = tokio::join!(events_task, send_task, sigterm_task, recv_task);
-    for r in [r0, r1, r2, r3] {
-        r??;
-    }
+    send_task.await??;
+    sigterm_task.await??;
+    recv_task.await??;
 
     Ok(())
 }

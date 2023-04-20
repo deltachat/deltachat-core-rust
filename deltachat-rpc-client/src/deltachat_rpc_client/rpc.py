@@ -23,7 +23,9 @@ class Rpc:
         self.event_queues: Dict[int, asyncio.Queue]
         # Map from request ID to `asyncio.Future` returning the response.
         self.request_events: Dict[int, asyncio.Future]
+        self.closing: bool
         self.reader_task: asyncio.Task
+        self.events_task: asyncio.Task
 
     async def start(self) -> None:
         self.process = await asyncio.create_subprocess_exec(
@@ -35,10 +37,15 @@ class Rpc:
         self.id = 0
         self.event_queues = {}
         self.request_events = {}
+        self.closing = False
         self.reader_task = asyncio.create_task(self.reader_loop())
+        self.events_task = asyncio.create_task(self.events_loop())
 
     async def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
+        self.closing = True
+        await self.stop_io_for_all_accounts()
+        await self.events_task
         self.process.terminate()
         await self.reader_task
 
@@ -58,21 +65,28 @@ class Rpc:
             if "id" in response:
                 fut = self.request_events.pop(response["id"])
                 fut.set_result(response)
-            elif response["method"] == "event":
-                # An event notification.
-                params = response["params"]
-                account_id = params["contextId"]
-                if account_id not in self.event_queues:
-                    self.event_queues[account_id] = asyncio.Queue()
-                await self.event_queues[account_id].put(params["event"])
             else:
                 print(response)
 
+    async def get_queue(self, account_id: int) -> asyncio.Queue:
+        if account_id not in self.event_queues:
+            self.event_queues[account_id] = asyncio.Queue()
+        return self.event_queues[account_id]
+
+    async def events_loop(self) -> None:
+        """Requests new events and distributes them between queues."""
+        while True:
+            if self.closing:
+                return
+            event = await self.get_next_event()
+            account_id = event["context_id"]
+            queue = await self.get_queue(account_id)
+            await queue.put(event["event"])
+
     async def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
-        if account_id in self.event_queues:
-            return await self.event_queues[account_id].get()
-        return None
+        queue = await self.get_queue(account_id)
+        return await queue.get()
 
     def __getattr__(self, attr: str):
         async def method(*args, **kwargs) -> Any:

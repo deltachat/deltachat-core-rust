@@ -1,19 +1,28 @@
-use deltachat::{Event, EventType};
+use deltachat::{Event as CoreEvent, EventType as CoreEventType};
 use serde::Serialize;
-use serde_json::{json, Value};
 use typescript_type_def::TypeDef;
 
-pub fn event_to_json_rpc_notification(event: Event) -> Value {
-    let id: JSONRPCEventType = event.typ.into();
-    json!({
-        "event": id,
-        "contextId": event.id,
-    })
+#[derive(Serialize, TypeDef)]
+pub struct Event {
+    /// Event payload.
+    event: EventType,
+
+    /// Account ID.
+    context_id: u32,
+}
+
+impl From<CoreEvent> for Event {
+    fn from(event: CoreEvent) -> Self {
+        Event {
+            event: event.typ.into(),
+            context_id: event.id,
+        }
+    }
 }
 
 #[derive(Serialize, TypeDef)]
-#[serde(tag = "type", rename = "Event")]
-pub enum JSONRPCEventType {
+#[serde(tag = "type")]
+pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///
     /// This event should *not* be reported to the end-user using a popup or something like
@@ -286,27 +295,27 @@ pub enum JSONRPCEventType {
     },
 }
 
-impl From<EventType> for JSONRPCEventType {
-    fn from(event: EventType) -> Self {
-        use JSONRPCEventType::*;
+impl From<CoreEventType> for EventType {
+    fn from(event: CoreEventType) -> Self {
+        use EventType::*;
         match event {
-            EventType::Info(msg) => Info { msg },
-            EventType::SmtpConnected(msg) => SmtpConnected { msg },
-            EventType::ImapConnected(msg) => ImapConnected { msg },
-            EventType::SmtpMessageSent(msg) => SmtpMessageSent { msg },
-            EventType::ImapMessageDeleted(msg) => ImapMessageDeleted { msg },
-            EventType::ImapMessageMoved(msg) => ImapMessageMoved { msg },
-            EventType::ImapInboxIdle => ImapInboxIdle,
-            EventType::NewBlobFile(file) => NewBlobFile { file },
-            EventType::DeletedBlobFile(file) => DeletedBlobFile { file },
-            EventType::Warning(msg) => Warning { msg },
-            EventType::Error(msg) => Error { msg },
-            EventType::ErrorSelfNotInGroup(msg) => ErrorSelfNotInGroup { msg },
-            EventType::MsgsChanged { chat_id, msg_id } => MsgsChanged {
+            CoreEventType::Info(msg) => Info { msg },
+            CoreEventType::SmtpConnected(msg) => SmtpConnected { msg },
+            CoreEventType::ImapConnected(msg) => ImapConnected { msg },
+            CoreEventType::SmtpMessageSent(msg) => SmtpMessageSent { msg },
+            CoreEventType::ImapMessageDeleted(msg) => ImapMessageDeleted { msg },
+            CoreEventType::ImapMessageMoved(msg) => ImapMessageMoved { msg },
+            CoreEventType::ImapInboxIdle => ImapInboxIdle,
+            CoreEventType::NewBlobFile(file) => NewBlobFile { file },
+            CoreEventType::DeletedBlobFile(file) => DeletedBlobFile { file },
+            CoreEventType::Warning(msg) => Warning { msg },
+            CoreEventType::Error(msg) => Error { msg },
+            CoreEventType::ErrorSelfNotInGroup(msg) => ErrorSelfNotInGroup { msg },
+            CoreEventType::MsgsChanged { chat_id, msg_id } => MsgsChanged {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
-            EventType::ReactionsChanged {
+            CoreEventType::ReactionsChanged {
                 chat_id,
                 msg_id,
                 contact_id,
@@ -315,92 +324,76 @@ impl From<EventType> for JSONRPCEventType {
                 msg_id: msg_id.to_u32(),
                 contact_id: contact_id.to_u32(),
             },
-            EventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
+            CoreEventType::IncomingMsg { chat_id, msg_id } => IncomingMsg {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
-            EventType::IncomingMsgBunch { msg_ids } => IncomingMsgBunch {
+            CoreEventType::IncomingMsgBunch { msg_ids } => IncomingMsgBunch {
                 msg_ids: msg_ids.into_iter().map(|id| id.to_u32()).collect(),
             },
-            EventType::MsgsNoticed(chat_id) => MsgsNoticed {
+            CoreEventType::MsgsNoticed(chat_id) => MsgsNoticed {
                 chat_id: chat_id.to_u32(),
             },
-            EventType::MsgDelivered { chat_id, msg_id } => MsgDelivered {
-                chat_id: chat_id.to_u32(),
-                msg_id: msg_id.to_u32(),
-            },
-            EventType::MsgFailed { chat_id, msg_id } => MsgFailed {
+            CoreEventType::MsgDelivered { chat_id, msg_id } => MsgDelivered {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
-            EventType::MsgRead { chat_id, msg_id } => MsgRead {
+            CoreEventType::MsgFailed { chat_id, msg_id } => MsgFailed {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
-            EventType::ChatModified(chat_id) => ChatModified {
+            CoreEventType::MsgRead { chat_id, msg_id } => MsgRead {
+                chat_id: chat_id.to_u32(),
+                msg_id: msg_id.to_u32(),
+            },
+            CoreEventType::ChatModified(chat_id) => ChatModified {
                 chat_id: chat_id.to_u32(),
             },
-            EventType::ChatEphemeralTimerModified { chat_id, timer } => {
+            CoreEventType::ChatEphemeralTimerModified { chat_id, timer } => {
                 ChatEphemeralTimerModified {
                     chat_id: chat_id.to_u32(),
                     timer: timer.to_u32(),
                 }
             }
-            EventType::ContactsChanged(contact) => ContactsChanged {
+            CoreEventType::ContactsChanged(contact) => ContactsChanged {
                 contact_id: contact.map(|c| c.to_u32()),
             },
-            EventType::LocationChanged(contact) => LocationChanged {
+            CoreEventType::LocationChanged(contact) => LocationChanged {
                 contact_id: contact.map(|c| c.to_u32()),
             },
-            EventType::ConfigureProgress { progress, comment } => {
+            CoreEventType::ConfigureProgress { progress, comment } => {
                 ConfigureProgress { progress, comment }
             }
-            EventType::ImexProgress(progress) => ImexProgress { progress },
-            EventType::ImexFileWritten(path) => ImexFileWritten {
+            CoreEventType::ImexProgress(progress) => ImexProgress { progress },
+            CoreEventType::ImexFileWritten(path) => ImexFileWritten {
                 path: path.to_str().unwrap_or_default().to_owned(),
             },
-            EventType::SecurejoinInviterProgress {
+            CoreEventType::SecurejoinInviterProgress {
                 contact_id,
                 progress,
             } => SecurejoinInviterProgress {
                 contact_id: contact_id.to_u32(),
                 progress,
             },
-            EventType::SecurejoinJoinerProgress {
+            CoreEventType::SecurejoinJoinerProgress {
                 contact_id,
                 progress,
             } => SecurejoinJoinerProgress {
                 contact_id: contact_id.to_u32(),
                 progress,
             },
-            EventType::ConnectivityChanged => ConnectivityChanged,
-            EventType::SelfavatarChanged => SelfavatarChanged,
-            EventType::WebxdcStatusUpdate {
+            CoreEventType::ConnectivityChanged => ConnectivityChanged,
+            CoreEventType::SelfavatarChanged => SelfavatarChanged,
+            CoreEventType::WebxdcStatusUpdate {
                 msg_id,
                 status_update_serial,
             } => WebxdcStatusUpdate {
                 msg_id: msg_id.to_u32(),
                 status_update_serial: status_update_serial.to_u32(),
             },
-            EventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
+            CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
         }
     }
-}
-
-#[cfg(test)]
-#[test]
-fn generate_events_ts_types_definition() {
-    let events = {
-        let mut buf = Vec::new();
-        let options = typescript_type_def::DefinitionFileOptions {
-            root_namespace: None,
-            ..typescript_type_def::DefinitionFileOptions::default()
-        };
-        typescript_type_def::write_definition_file::<_, JSONRPCEventType>(&mut buf, options)
-            .unwrap();
-        String::from_utf8(buf).unwrap()
-    };
-    std::fs::write("typescript/generated/events.ts", events).unwrap();
 }
