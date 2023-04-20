@@ -5070,6 +5070,15 @@ void            dc_provider_unref                     (dc_provider_t* provider);
  */
 dc_http_response_t*     dc_get_http_response      (const dc_context_t* context, const char* url);
 
+
+/**
+ * @class dc_http_response_t
+ *
+ * An object containing an HTTP(S) GET response.
+ * Created by dc_get_http_response().
+ */
+
+
 /**
  * Returns HTTP response MIME type as a string, e.g. "text/plain" or "text/html".
  *
