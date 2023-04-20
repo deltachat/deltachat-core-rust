@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import datetime
 import json
 import os
 import pathlib
@@ -56,7 +57,8 @@ def update_package_json(relpath, newversion):
         json_data = json.loads(f.read())
     json_data["version"] = newversion
     with open(p, "w") as f:
-        f.write(json.dumps(json_data, sort_keys=True, indent=2))
+        json.dump(json_data, f, sort_keys=True, indent=2)
+        f.write("\n")
 
 
 def main():
@@ -90,21 +92,34 @@ def main():
     ffi_toml = read_toml_version("deltachat-ffi/Cargo.toml")
     assert core_toml == ffi_toml, (core_toml, ffi_toml)
 
+    today = datetime.date.today().isoformat()
+
     if "alpha" not in newversion:
-        for line in open("CHANGELOG.md"):
+        changelog_name = "CHANGELOG.md"
+        changelog_tmpname = changelog_name + ".tmp"
+        changelog_tmp = open(changelog_tmpname, "w")
+        found = False
+        for line in open(changelog_name):
             ## 1.25.0
-            if line.startswith("## [") and line[4:].strip().startswith(newversion):
-                break
-        else:
+            if line == f"## [{newversion}]\n":
+                line = f"## [{newversion}] - {today}\n"
+                found = True
+            changelog_tmp.write(line)
+        if not found:
             raise SystemExit(
-                f"CHANGELOG.md contains no entry for version: {newversion}"
+                f"{changelog_name} contains no entry for version: {newversion}"
             )
+        changelog_tmp.close()
+        os.rename(changelog_tmpname, changelog_name)
 
     for toml_filename in toml_list:
         replace_toml_version(toml_filename, newversion)
 
     for json_filename in json_list:
         update_package_json(json_filename, newversion)
+
+    with open("release-date.in", "w") as f:
+        f.write(today)
 
     print("running cargo check")
     subprocess.call(["cargo", "check"])
