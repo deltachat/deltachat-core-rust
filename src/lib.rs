@@ -63,7 +63,6 @@ mod decrypt;
 pub mod download;
 mod e2ee;
 pub mod ephemeral;
-mod http;
 mod imap;
 pub mod imex;
 pub mod release;
@@ -100,7 +99,7 @@ mod dehtml;
 mod authres;
 mod color;
 pub mod html;
-mod net;
+pub mod net;
 pub mod plaintext;
 pub mod summary;
 

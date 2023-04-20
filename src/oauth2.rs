@@ -160,7 +160,7 @@ pub(crate) async fn get_oauth2_access_token(
 
         // ... and POST
         let socks5_config = Socks5Config::from_database(&context.sql).await?;
-        let client = crate::http::get_client(socks5_config)?;
+        let client = crate::net::http::get_client(socks5_config)?;
 
         let response: Response = match client.post(post_url).form(&post_param).send().await {
             Ok(resp) => match resp.json().await {
@@ -291,7 +291,7 @@ impl Oauth2 {
         //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
         // }
         let socks5_config = Socks5Config::from_database(&context.sql).await.ok()?;
-        let client = match crate::http::get_client(socks5_config) {
+        let client = match crate::net::http::get_client(socks5_config) {
             Ok(cl) => cl,
             Err(err) => {
                 warn!(context, "failed to get HTTP client: {}", err);

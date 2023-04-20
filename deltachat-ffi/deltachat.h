@@ -25,6 +25,7 @@ typedef struct _dc_event     dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_jsonrpc_instance dc_jsonrpc_instance_t;
 typedef struct _dc_backup_provider dc_backup_provider_t;
+typedef struct _dc_http_response dc_http_response_t;
 
 // Alias for backwards compatibility, use dc_event_emitter_t instead.
 typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
@@ -5128,6 +5129,72 @@ void            dc_provider_unref                     (dc_provider_t* provider);
 
 
 /**
+ * Return an HTTP(S) GET response.
+ * This function can be used to download remote content for HTML emails.
+ *
+ * @memberof dc_context_t
+ * @param context The context object to take proxy settings from.
+ * @param url HTTP or HTTPS URL.
+ * @return The response must be released using dc_http_response_unref() after usage.
+ *     NULL is returned on errors.
+ */
+dc_http_response_t*     dc_get_http_response      (const dc_context_t* context, const char* url);
+
+
+/**
+ * @class dc_http_response_t
+ *
+ * An object containing an HTTP(S) GET response.
+ * Created by dc_get_http_response().
+ */
+
+
+/**
+ * Returns HTTP response MIME type as a string, e.g. "text/plain" or "text/html".
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The string which must be released using dc_str_unref() after usage. May be NULL.
+ */
+char*                   dc_http_response_get_mimetype (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response encoding, e.g. "utf-8".
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The string which must be released using dc_str_unref() after usage. May be NULL.
+ */
+char*                   dc_http_response_get_encoding (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response contents.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The blob which must be released using dc_str_unref() after usage. NULL is never returned.
+ */
+uint8_t*                dc_http_response_get_blob     (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response content size.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The blob size.
+ */
+size_t                  dc_http_response_get_size     (const dc_http_response_t* response);
+
+/**
+ * Free an HTTP response object.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ */
+void                    dc_http_response_unref        (const dc_http_response_t* response);
+
+
+/**
  * @class dc_lot_t
  *
  * An object containing a set of values.
@@ -5602,7 +5669,6 @@ void            dc_reactions_unref       (dc_reactions_t* reactions);
 /**
  * @}
  */
-
 
 
 /**

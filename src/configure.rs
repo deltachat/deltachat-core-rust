@@ -11,7 +11,6 @@
 
 mod auto_mozilla;
 mod auto_outlook;
-mod read_url;
 mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};

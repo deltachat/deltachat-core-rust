@@ -38,6 +38,12 @@
 - Fix python bindings README documentation on installing the bindings from source.
 - Remove confusing log line "ignoring unsolicited response Recent(…)". #3934
 
+## [1.112.8] - 2023-04-20
+
+### Changes
+- Add `get_http_response` JSON-RPC API.
+- Add C API to get HTTP responses.
+
 ## [1.112.7] - 2023-04-17
 
 ### Fixes
