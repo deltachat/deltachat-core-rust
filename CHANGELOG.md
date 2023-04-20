@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- JSON-RPC: do not print to stdout on failure to find an account.
+
+
 ## [1.113.0] - 2023-04-18
 
 ### Added
