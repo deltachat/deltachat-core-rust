@@ -205,8 +205,6 @@ impl CommandApi {
             let context_option = self.accounts.read().await.get_account(id);
             if let Some(ctx) = context_option {
                 accounts.push(Account::from_context(&ctx, id).await?)
-            } else {
-                println!("account with id {id} doesn't exist anymore");
             }
         }
         Ok(accounts)
