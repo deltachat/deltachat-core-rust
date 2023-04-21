@@ -37,7 +37,6 @@ export class BaseDeltaChat<
   account?: T.Account;
   private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
 
-  private stopping: boolean;
   private eventTask: Promise<void>;
 
   constructor(public transport: Transport) {
@@ -49,20 +48,20 @@ export class BaseDeltaChat<
   async eventLoop(): Promise<void> {
     while (true) {
       const event = await this.rpc.getNextEvent();
-      this.emit(event.event.type, event.contextId, event.event as any);
-      this.emit("ALL", event.contextId, event.event as any);
+      this.emit(event.event.type, event.context_id, event.event as any);
+      this.emit("ALL", event.context_id, event.event as any);
 
       //@ts-ignore
-      this.emit(event.event.type, event.contextId, event.event as any);
-      this.emit("ALL", event.contextId, event.event as any);
+      this.emit(event.event.type, event.context_id, event.event as any);
+      this.emit("ALL", event.context_id, event.event as any);
 
-      if (this.contextEmitters[event.contextId]) {
-        this.contextEmitters[event.contextId].emit(
+      if (this.contextEmitters[event.context_id]) {
+        this.contextEmitters[event.context_id].emit(
           event.event.type,
           //@ts-ignore
           event.event as any
         );
-        this.contextEmitters[event.contextId].emit("ALL", event.event);
+        this.contextEmitters[event.context_id].emit("ALL", event.event);
       }
     }
   }
