@@ -1,7 +1,6 @@
 import * as T from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
@@ -61,7 +60,7 @@ export class BaseDeltaChat<
           //@ts-ignore
           event.event as any
         );
-        this.contextEmitters[event.context_id].emit("ALL", event.event);
+        this.contextEmitters[event.context_id].emit("ALL", event.event as any);
       }
     }
   }
