@@ -1,6 +1,7 @@
 {
   "author": "Delta Chat Developers (ML) <delta@codespeak.net>",
   "dependencies": {
+    "@deltachat/tiny-emitter": "3.0.0",
     "isomorphic-ws": "^4.0.1",
     "yerpc": "^0.4.3"
   },
