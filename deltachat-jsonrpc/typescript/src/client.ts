@@ -37,7 +37,7 @@ export class BaseDeltaChat<
   account?: T.Account;
   private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
 
-  private stopping: bool;
+  private stopping: boolean;
   private eventTask: Promise<void>;
 
   constructor(public transport: Transport) {
