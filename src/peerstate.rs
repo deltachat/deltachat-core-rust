@@ -682,8 +682,7 @@ pub(crate) async fn maybe_do_aeap_transition(
                 // to Bob. Then Bob's device would do an AEAP transition from Alice's
                 // to the attacker's address, allowing for easier phishing.
                 && mime_parser.from_is_signed
-                // TODO question: Maybe the other >.*last_seen occurences should be changed to > too?
-                && info.message_time >= peerstate.last_seen
+                && info.message_time > peerstate.last_seen
         {
             let info = &mut mime_parser.decryption_info;
             let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
