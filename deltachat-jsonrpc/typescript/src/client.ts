@@ -36,12 +36,15 @@ export class BaseDeltaChat<
   account?: T.Account;
   private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
 
+  //@ts-ignore
   private eventTask: Promise<void>;
 
-  constructor(public transport: Transport) {
+  constructor(public transport: Transport, startEventLoop: boolean = false) {
     super();
     this.rpc = new RawClient(this.transport);
-    this.eventTask = this.eventLoop();
+    if (startEventLoop) {
+      this.eventTask = this.eventLoop();
+    }
   }
 
   async eventLoop(): Promise<void> {
