@@ -39,7 +39,7 @@ export class BaseDeltaChat<
   //@ts-ignore
   private eventTask: Promise<void>;
 
-  constructor(public transport: Transport, startEventLoop: boolean = false) {
+  constructor(public transport: Transport, startEventLoop: boolean) {
     super();
     this.rpc = new RawClient(this.transport);
     if (startEventLoop) {
@@ -80,10 +80,12 @@ export class BaseDeltaChat<
 
 export type Opts = {
   url: string;
+  startEventLoop: boolean;
 };
 
 export const DEFAULT_OPTS: Opts = {
   url: "ws://localhost:20808/ws",
+  startEventLoop: true,
 };
 export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
   opts: Opts;
@@ -91,20 +93,24 @@ export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
     this.transport.close();
   }
   constructor(opts?: Opts | string) {
-    if (typeof opts === "string") opts = { url: opts };
-    if (opts) opts = { ...DEFAULT_OPTS, ...opts };
-    else opts = { ...DEFAULT_OPTS };
+    if (typeof opts === "string") {
+      opts = { ...DEFAULT_OPTS, url: opts };
+    } else if (opts) {
+      opts = { ...DEFAULT_OPTS, ...opts };
+    } else {
+      opts = { ...DEFAULT_OPTS };
+    }
     const transport = new WebsocketTransport(opts.url);
-    super(transport);
+    super(transport, opts.startEventLoop);
     this.opts = opts;
   }
 }
 
 export class StdioDeltaChat extends BaseDeltaChat<StdioTransport> {
   close() {}
-  constructor(input: any, output: any) {
+  constructor(input: any, output: any, startEventLoop: boolean) {
     const transport = new StdioTransport(input, output);
-    super(transport);
+    super(transport, startEventLoop);
   }
 }
 
