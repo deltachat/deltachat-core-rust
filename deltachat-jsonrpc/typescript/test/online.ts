@@ -27,7 +27,7 @@ describe("online tests", function () {
       this.skip();
     }
     serverHandle = await startServer();
-    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout);
+    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout, true);
 
     dc.on("ALL", (contextId, { type }) => {
       if (type !== "Info") console.log(contextId, type);

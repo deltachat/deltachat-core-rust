@@ -7,6 +7,7 @@
   This better corresponds to JSON-RPC 2.0 server-client distinction
   and is expected to simplify writing new bindings
   because dispatching events can be done on higher level.
+- JSON-RPC: TS: Client now has a mandatory argument whether you want to start listening for events.
 
 ### Fixes
 - JSON-RPC: do not print to stdout on failure to find an account.
