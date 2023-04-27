@@ -49,6 +49,7 @@ use tokio_util::sync::CancellationToken;
 use crate::blob::BlobDirContents;
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::Context;
+use crate::log::LogExt;
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
@@ -182,6 +183,25 @@ impl BackupProvider {
             .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
             .auth_token(token)
             .spawn()?;
+
+        if cfg!(target_os = "windows") {
+            // A workaround to solve
+            // https://github.com/deltachat/deltachat-desktop/issues/3218
+            // Windows usually makes a Windows Firewall alert window pop up when
+            // an application binds to a non-localhost network interface port.
+            // In this alert, the user can choose whether to allow the app to
+            // receive inbound packets, which is required for the backup
+            // transfer to work.
+            // But for some reason the alert is not triggered when an app
+            // binds to a random (0) UDP port, which is what we use for backups:
+            // https://docs.rs/iroh/0.4.1/src/iroh/provider/mod.rs.html#191
+            // To manually trigger the alert, let's create a dummy TCP binding:
+            std::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0))
+                .context("Failed to bind a dummy TCP listener")
+                .log_err(context)
+                .ok();
+        }
+
         context.emit_event(SendProgress::ProviderListening.into());
         info!(context, "Waiting for remote to connect");
         let ticket = provider.ticket(hash)?;
