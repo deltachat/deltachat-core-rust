@@ -2439,4 +2439,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.112.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...v1.112.6
 [1.112.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.6...v1.112.7
 [1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.7...v1.113.0
-[1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.113.0...v1.114.0
+[1.114.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.113.0...v1.114.0
