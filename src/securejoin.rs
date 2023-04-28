@@ -9,7 +9,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
 use crate::config::Config;
 use crate::constants::Blocked;
-use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
@@ -489,33 +489,8 @@ pub(crate) async fn handle_securejoin_handshake(
             }
         }
         "vg-member-added-received" | "vc-contact-confirm-received" => {
-            /*==========================================================
-            ====              Alice - the inviter side              ====
-            ====  Step 8 in "Out-of-band verified groups" protocol  ====
-            ==========================================================*/
-
-            if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                if contact.is_verified(context).await? == VerifiedStatus::Unverified {
-                    warn!(context, "{} invalid.", step);
-                    return Ok(HandshakeMessage::Ignore);
-                }
-                if join_vg {
-                    let field_grpid = mime_message
-                        .get_header(HeaderDef::SecureJoinGroup)
-                        .map(|s| s.as_str())
-                        .unwrap_or_else(|| "");
-                    if let Err(err) = chat::get_chat_id_by_grpid(context, field_grpid).await {
-                        warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(
-                            err.context(format!("Chat for group {} not found", &field_grpid))
-                        );
-                    }
-                }
-                Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
-            } else {
-                warn!(context, "{} invalid.", step);
-                Ok(HandshakeMessage::Ignore)
-            }
+            // The peer isn't updated yet and still sends these messages.
+            Ok(HandshakeMessage::Ignore)
         }
         _ => {
             warn!(context, "invalid step: {}", step);
@@ -535,12 +510,6 @@ pub(crate) async fn handle_securejoin_handshake(
 ///   The inviting device has marked a peer as verified on vg-request-with-auth/vc-request-with-auth
 ///   before sending vg-member-added/vc-contact-confirm - so, if we observe vg-member-added/vc-contact-confirm,
 ///   we can mark the peer as verified as well.
-///
-/// - if we see the self-sent-message vg-member-added-received
-///   we know that we're an joiner-observer.
-///   the joining device has marked the peer as verified on vg-member-added/vc-contact-confirm
-///   before sending vg-member-added-received - so, if we observe vg-member-added-received,
-///   we can mark the peer as verified as well.
 pub(crate) async fn observe_securejoin_on_other_device(
     context: &Context,
     mime_message: &MimeMessage,
@@ -558,9 +527,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         "vg-request-with-auth"
         | "vc-request-with-auth"
         | "vg-member-added"
-        | "vc-contact-confirm"
-        | "vg-member-added-received"
-        | "vc-contact-confirm-received" => {
+        | "vc-contact-confirm" => {
             if !encrypted_and_signed(
                 context,
                 mime_message,
@@ -929,7 +896,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        // Step 7: Bob receives vc-contact-confirm
         bob.recv_msg(&sent).await;
         assert_eq!(
             contact_alice.is_verified(&bob.ctx).await.unwrap(),
@@ -954,15 +921,6 @@ mod tests {
             let text = msg.get_text().unwrap();
             assert!(text.contains("alice@example.org verified"));
         }
-
-        // Check Bob sent the final message
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-contact-confirm-received"
-        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1080,19 +1038,11 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
+        // Step 7: Bob receives vc-contact-confirm
         bob.recv_msg(&sent).await;
         assert_eq!(
             contact_alice.is_verified(&bob.ctx).await?,
             VerifiedStatus::BidirectVerified
-        );
-
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vc-contact-confirm-received"
         );
         Ok(())
     }
@@ -1277,7 +1227,7 @@ mod tests {
             VerifiedStatus::Unverified
         );
 
-        // Step 7: Bob receives vg-member-added, sends vg-member-added-received
+        // Step 7: Bob receives vg-member-added
         bob.recv_msg(&sent).await;
         {
             // Bob has Alice verified, message shows up in the group chat.
@@ -1323,14 +1273,6 @@ mod tests {
                 }
             }
         }
-
-        let sent = bob.pop_sent_msg().await;
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
-        assert_eq!(
-            msg.get_header(HeaderDef::SecureJoin).unwrap(),
-            "vg-member-added-received"
-        );
 
         let bob_chat = Chat::load_from_db(&bob.ctx, bob_chatid).await?;
         assert!(bob_chat.is_protected());

@@ -7,6 +7,7 @@
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
 - BREAKING: Remove Secure-Join-Fingerprint header from "vc-contact-confirm", "vg-member-added" messages.
+- BREAKING: Remove "vc-contact-confirm-received", "vg-member-added-received" messages from Securejoin protocol.
 
 
 ## [1.114.0] - 2023-04-24
