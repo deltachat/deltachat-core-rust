@@ -945,17 +945,6 @@ impl<'a> MimeFactory<'a> {
                             "Secure-Join".to_string(),
                             "vg-member-added".to_string(),
                         ));
-                        // FIXME: Old clients require Secure-Join-Fingerprint header. Remove this
-                        // eventually.
-                        let fingerprint = Peerstate::from_addr(context, email_to_add)
-                            .await?
-                            .context("No peerstate found in db")?
-                            .public_key_fingerprint
-                            .context("No public key fingerprint in db for the member to add")?;
-                        headers.protected.push(Header::new(
-                            "Secure-Join-Fingerprint".into(),
-                            fingerprint.hex(),
-                        ));
                     }
                 }
                 SystemMessage::GroupNameChanged => {
