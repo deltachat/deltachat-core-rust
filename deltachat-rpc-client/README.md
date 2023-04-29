@@ -5,8 +5,22 @@ and provides asynchronous interface to it.
 
 ## Getting started
 
-To use Delta Chat RPC client, first build a `deltachat-rpc-server` with `cargo build -p deltachat-rpc-server`.
+To use Delta Chat RPC client, first build a `deltachat-rpc-server` with `cargo build -p deltachat-rpc-server`
+or download a prebuilt release.
 Install it anywhere in your `PATH`.
+
+[Create a virtual environment](https://docs.python.org/3/library/venv.html)
+if you don't have one already and activate it.
+```
+$ python -m venv env
+$ . env/bin/activate
+```
+
+Install `deltachat-rpc-client` from source:
+```
+$ cd deltachat-rpc-client
+$ pip install .
+```
 
 ## Testing
 
