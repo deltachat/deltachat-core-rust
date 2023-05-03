@@ -48,7 +48,7 @@ encoded-words = { git = "https://github.com/async-email/encoded-words", branch =
 escaper = "0.1"
 fast-socks5 = "0.8"
 futures = "0.3"
-futures-lite = "1.12.0"
+futures-lite = "1.13.0"
 hex = "0.4.0"
 humansize = "2"
 image = { version = "0.24.6", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
@@ -97,7 +97,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 ansi_term = "0.12.0"
 criterion = { version = "0.4.0", features = ["async_tokio"] }
-futures-lite = "1.12"
+futures-lite = "1.13"
 log = "0.4"
 pretty_env_logger = "0.4"
 proptest = { version = "1", default-features = false, features = ["std"] }
