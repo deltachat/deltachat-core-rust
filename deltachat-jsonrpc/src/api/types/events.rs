@@ -3,6 +3,7 @@ use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 #[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
 pub struct Event {
     /// Event payload.
     event: EventType,

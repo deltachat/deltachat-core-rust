@@ -35,7 +35,6 @@ use tokio::sync::{watch, Mutex, RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
 
-pub mod events;
 pub mod types;
 
 use num_traits::FromPrimitive;
@@ -47,8 +46,8 @@ use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
+use types::events::Event;
 
-use self::events::Event;
 use self::types::message::MessageLoadResult;
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
