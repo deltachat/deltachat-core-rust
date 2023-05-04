@@ -10,6 +10,8 @@
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
 
+### Fixes
+- jsonrpc: typescript client: fix types of events in event emitter
 
 ## [1.114.0] - 2023-04-24
 
