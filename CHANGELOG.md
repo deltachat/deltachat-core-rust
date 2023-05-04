@@ -6,6 +6,10 @@
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
+- jsonrpc: expand `MessageSearchResult`:
+  - always include `chat_name`(not an option anymore)
+  - add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`
+  - `author_name` now contains the overridden sender name.
 
 
 ## [1.114.0] - 2023-04-24
