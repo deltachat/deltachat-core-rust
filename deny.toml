@@ -49,12 +49,15 @@ skip = [
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
      { name = "wasi", version = "<0.11" },
-     { name = "windows_aarch64_msvc", version = "<0.42" },
-     { name = "windows_i686_gnu", version = "<0.42" },
-     { name = "windows_i686_msvc", version = "<0.42" },
-     { name = "windows-sys", version = "<0.45" },
-     { name = "windows_x86_64_gnu", version = "<0.42" },
-     { name = "windows_x86_64_msvc", version = "<0.42" },
+     { name = "windows_aarch64_gnullvm", version = "<0.48" },
+     { name = "windows_aarch64_msvc", version = "<0.48" },
+     { name = "windows_i686_gnu", version = "<0.48" },
+     { name = "windows_i686_msvc", version = "<0.48" },
+     { name = "windows-sys", version = "<0.48" },
+     { name = "windows-targets", version = "<0.48" },
+     { name = "windows_x86_64_gnullvm", version = "<0.48" },
+     { name = "windows_x86_64_gnu", version = "<0.48" },
+     { name = "windows_x86_64_msvc", version = "<0.48" },
 ]
 
 
