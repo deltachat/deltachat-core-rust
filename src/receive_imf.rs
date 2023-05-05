@@ -557,7 +557,13 @@ async fn add_parts(
                 blocked: Blocked::Request,
             }) if is_bot => Blocked::Not,
             Some(ChatIdBlocked { id: _, blocked }) => blocked,
-            None => Blocked::Request,
+            None => {
+                if is_bot {
+                    Blocked::Not
+                } else {
+                    Blocked::Request
+                }
+            }
         };
 
         if chat_id.is_none() {
