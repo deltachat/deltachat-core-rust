@@ -6,7 +6,7 @@
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
-
+- Increase MSRV to 1.68. #4375
 
 ## [1.114.0] - 2023-04-24
 
