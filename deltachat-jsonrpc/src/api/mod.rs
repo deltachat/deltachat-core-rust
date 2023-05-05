@@ -41,12 +41,12 @@ use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
 use types::contact::ContactObject;
+use types::events::Event;
 use types::http::HttpResponse;
 use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
 use types::webxdc::WebxdcMessageInfo;
-use types::events::Event;
 
 use self::types::message::MessageLoadResult;
 use self::types::{
