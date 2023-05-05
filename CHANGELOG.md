@@ -6,6 +6,7 @@
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
+- JSON-RPC: add API to get reactions outside the message snapshot
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
 
