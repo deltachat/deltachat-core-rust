@@ -239,6 +239,10 @@ async def test_message(acfactory) -> None:
 
     await message.mark_seen()
     await message.send_reaction("😎")
+    reactions = await message.get_reactions()
+    assert reactions
+    snapshot = await message.get_snapshot()
+    assert reactions == snapshot.reactions
 
 
 @pytest.mark.asyncio()

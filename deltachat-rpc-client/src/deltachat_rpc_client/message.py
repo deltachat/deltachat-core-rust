@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from ._utils import AttrDict
 from .contact import Contact
@@ -34,6 +34,13 @@ class Message:
         snapshot["sender"] = Contact(self.account, snapshot.from_id)
         snapshot["message"] = self
         return snapshot
+
+    async def get_reactions(self) -> Optional[AttrDict]:
+        """Get message reactions."""
+        reactions = await self._rpc.get_message_reactions(self.account.id, self.id)
+        if reactions:
+            return AttrDict(reactions)
+        return None
 
     async def mark_seen(self) -> None:
         """Mark the message as seen."""

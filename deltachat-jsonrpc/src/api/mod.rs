@@ -24,7 +24,7 @@ use deltachat::{
     provider::get_provider_info,
     qr,
     qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg},
-    reaction::send_reaction,
+    reaction::{get_msg_reactions, send_reaction},
     securejoin,
     stock_str::StockMessage,
     webxdc::StatusUpdateSerial,
@@ -46,6 +46,7 @@ use types::http::HttpResponse;
 use types::message::MessageData;
 use types::message::MessageObject;
 use types::provider_info::ProviderInfo;
+use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::events::Event;
@@ -1719,6 +1720,21 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let message_id = send_reaction(&ctx, MsgId::new(message_id), &reaction.join(" ")).await?;
         Ok(message_id.to_u32())
+    }
+
+    /// Returns reactions to the message.
+    async fn get_message_reactions(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<Option<JSONRPCReactions>> {
+        let ctx = self.get_context(account_id).await?;
+        let reactions = get_msg_reactions(&ctx, MsgId::new(message_id)).await?;
+        if reactions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(reactions.into()))
+        }
     }
 
     async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
