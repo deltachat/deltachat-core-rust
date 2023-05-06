@@ -1,7 +1,7 @@
 version: 2
 mergeable:
   - when: pull_request.*
-    name: "Changelog check"
+    name: "Conventional Commits"
     validate:
       - do: title
         begins_with:
