@@ -3,24 +3,13 @@ mergeable:
   - when: pull_request.*
     name: "Changelog check"
     validate:
-      - do: or
-        validate:
-          - do: description
-            must_include:
-              regex: "#skip-changelog"
-          - do: and
-            validate:
-              - do: dependent
-                changed:
-                  file: "src/**"
-                  required: ["CHANGELOG.md"]
-              - do: dependent
-                changed:
-                  file: "deltachat-ffi/src/**"
-                  required: ["CHANGELOG.md"]
+      - do: title
+        begins_with:
+          match: ['feat', 'fix', 'api', 'refactor', 'perf', 'test', 'style', 'chore', 'cargo']
+
     fail:
       - do: checks
         status: "action_required"
         payload:
-          title: Changelog might need an update
-          summary: "Check if CHANGELOG.md needs an update or add #skip-changelog to the PR description."
+          title: PR title should follow conventional commits
+          summary: "PR title should follow https://conventionalcommits.org. E.g. start with 'feat:' (for Features / Changes), 'fix:' (for Fixes), 'api:' (for API-Changes), 'api!:' (for breaking API-Changes) 'refactor:' (for Refactor), 'perf:' (for Performance), 'test:' (for Tests), 'style:' (for Styling), 'chore:' (for Miscellaneous Tasks)"
