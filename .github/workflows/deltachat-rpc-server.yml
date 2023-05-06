@@ -84,9 +84,28 @@ jobs:
           path: target/${{ matrix.target}}/release/${{ matrix.path }}
           if-no-files-found: error
 
+  build_macos:
+    name: Build deltachat-rpc-server for macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup rust target
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Build
+        run: cargo build --release --package deltachat-rpc-server --target x86_64-apple-darwin --features vendored
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-x86_64-macos
+          path: target/x86_64-apple-darwin/release/deltachat-rpc-server
+          if-no-files-found: error
+
   publish:
     name: Upload binaries to the release
-    needs: ["build_linux", "build_windows"]
+    needs: ["build_linux", "build_windows", "build_macos"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
@@ -97,7 +116,7 @@ jobs:
       - name: Compose dist/ directory
         run: |
           mkdir dist
-          for x in x86_64 i686 aarch64 armv7 win32.exe win64.exe; do
+          for x in x86_64 i686 aarch64 armv7 win32.exe win64.exe x86_64-macos; do
             mv "deltachat-rpc-server-$x"/* "dist/deltachat-rpc-server-$x"
           done
 
