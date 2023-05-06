@@ -8,10 +8,10 @@ use crate::contact;
 use crate::contact::Contact;
 use crate::contact::ContactId;
 use crate::message::Message;
-use crate::peerstate;
 use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
+use crate::test_utils::mark_as_verified;
 use crate::test_utils::TestContext;
 use crate::test_utils::TestContextManager;
 
@@ -325,19 +325,6 @@ async fn check_no_transition_done(groups: &[ChatId], old_alice_addr: &str, bob: 
             "{last_info_msg:?} shouldn't be there (or it's an unrelated info msg)"
         );
     }
-}
-
-async fn mark_as_verified(this: &TestContext, other: &TestContext) {
-    let other_addr = other.get_primary_self_addr().await.unwrap();
-    let mut peerstate = peerstate::Peerstate::from_addr(this, &other_addr)
-        .await
-        .unwrap()
-        .unwrap();
-
-    peerstate.verified_key = peerstate.public_key.clone();
-    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
-
-    peerstate.save_to_db(&this.sql).await.unwrap();
 }
 
 async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Option<Message> {

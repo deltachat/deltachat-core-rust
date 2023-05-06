@@ -31,14 +31,16 @@ use crate::constants::Chattype;
 use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
+use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
+use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
-use crate::tools::EmailAddress;
+use crate::tools::{time, EmailAddress};
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -1028,6 +1030,19 @@ fn print_logevent(logevent: &LogEvent) {
         LogEvent::Event(event) => print_event(event),
         LogEvent::Section(msg) => println!("\n========== {msg} =========="),
     }
+}
+
+/// Save the other account's public key as verified.
+pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
+    let mut peerstate = Peerstate::from_header(
+        &EncryptHelper::new(other).await.unwrap().get_aheader(),
+        time(),
+    );
+
+    peerstate.verified_key = peerstate.public_key.clone();
+    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+
+    peerstate.save_to_db(&this.sql).await.unwrap();
 }
 
 /// Pretty-print an event to stdout

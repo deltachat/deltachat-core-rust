@@ -454,7 +454,6 @@ impl ChatId {
     /// If `promote` is false this means, the message must not be sent out
     /// and only a local info message should be added to the chat.
     /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
-    // TODO test
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,

@@ -2157,7 +2157,6 @@ async fn check_verified_properties(
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
         let peerstate = &mimeparser.decryption_info.peerstate;
-        // TODO question: was there a reason for manually loading the peerstate?
 
         if peerstate.is_none()
             || contact.is_verified_ex(context, peerstate.as_ref()).await?

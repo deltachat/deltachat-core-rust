@@ -13,8 +13,7 @@ use crate::contact::VerifiedStatus;
 use crate::e2ee;
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
-use crate::stock_str::chat_verification_enabled;
-use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
+use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_grpid_simple() {
@@ -3629,7 +3628,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_create_verified_oneonone_chat_1() -> Result<()> {
+async fn test_create_verified_oneonone_chat() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
@@ -3666,11 +3665,12 @@ async fn test_create_verified_oneonone_chat_1() -> Result<()> {
         assert!(chat.is_protected());
 
         let msg = alice.get_last_msg().await;
-        let expected_text = chat_verification_enabled(&alice, alice_fiona_contact.id).await;
+        let expected_text =
+            stock_str::chat_verification_enabled(&alice, alice_fiona_contact.id).await;
         assert_eq!(msg.text.unwrap(), expected_text);
     }
 
-    // Fiona should also see the chat as unprotected
+    // Fiona should also see the chat as protected
     {
         let rcvd = tcm.send_recv(&alice, &fiona, "Hi Fiona").await;
         let alice_fiona_id = rcvd.chat_id;
@@ -3681,7 +3681,7 @@ async fn test_create_verified_oneonone_chat_1() -> Result<()> {
         let contact_id = Contact::lookup_id_by_addr(&fiona, "alice@example.org", Origin::Hidden)
             .await?
             .unwrap();
-        let expected_text = chat_verification_enabled(&fiona, contact_id).await;
+        let expected_text = stock_str::chat_verification_enabled(&fiona, contact_id).await;
         assert_eq!(msg0.text.unwrap(), expected_text);
     }
 
@@ -3702,6 +3702,7 @@ async fn test_create_verified_oneonone_chat_1() -> Result<()> {
 
         // After recreating the chat, it should still be unprotected
         chat.id.delete(&alice).await?;
+
         assert!(!alice.create_chat(&fiona_new).await.is_protected());
     }
 
@@ -3709,7 +3710,7 @@ async fn test_create_verified_oneonone_chat_1() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_create_verified_oneonone_chat_2() -> Result<()> {
+async fn test_create_unverified_oneonone_chat() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
@@ -3739,6 +3740,49 @@ async fn test_create_verified_oneonone_chat_2() -> Result<()> {
     // Now we have a public key, new chats should still be created unprotected
     let chat = alice.create_chat(&bob).await;
     assert!(!chat.is_protected());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_degrade_verified_oneonone_chat() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    mark_as_verified(&alice, &bob).await;
+
+    let alice_chat = alice.create_chat(&bob).await;
+    assert!(alice_chat.is_protected());
+
+    receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2@example.org>\n\
+          \n\
+          hello\n",
+        false,
+    )
+    .await?;
+
+    let contact_id = Contact::lookup_id_by_addr(&alice, "bob@example.net", Origin::Hidden)
+        .await?
+        .unwrap();
+
+    let msg0 = get_chat_msg(&alice, alice_chat.id, 0, 3).await;
+    let enabled = stock_str::chat_verification_enabled(&alice, contact_id).await;
+    assert_eq!(msg0.text, enabled);
+    assert_eq!(msg0.param.get_cmd(), SystemMessage::ChatProtectionEnabled);
+
+    let msg1 = get_chat_msg(&alice, alice_chat.id, 1, 3).await;
+    let disabled = stock_str::chat_verification_disabled(&alice, contact_id).await;
+    assert_eq!(msg1.text, disabled);
+    assert_eq!(msg1.param.get_cmd(), SystemMessage::ChatProtectionDisabled);
+
+    let msg2 = get_chat_msg(&alice, alice_chat.id, 2, 3).await;
+    assert_eq!(msg2.text, "hello".to_string());
+    assert!(!msg2.is_system_message());
 
     Ok(())
 }
