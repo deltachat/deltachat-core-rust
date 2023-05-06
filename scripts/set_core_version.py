@@ -9,7 +9,14 @@ import subprocess
 from argparse import ArgumentParser
 
 rex = re.compile(r'version = "(\S+)"')
-
+json_list = ["package.json", "deltachat-jsonrpc/typescript/package.json"]
+toml_list = [
+    "Cargo.toml",
+    "deltachat-ffi/Cargo.toml",
+    "deltachat-jsonrpc/Cargo.toml",
+    "deltachat-rpc-server/Cargo.toml",
+    "deltachat-repl/Cargo.toml",
+]
 
 def regex_matches(relpath, regex=rex):
     p = pathlib.Path(relpath)
@@ -60,31 +67,16 @@ def update_package_json(relpath, newversion):
         json.dump(json_data, f, sort_keys=True, indent=2)
         f.write("\n")
 
-
-def main():
-    parser = ArgumentParser(prog="set_core_version")
-    parser.add_argument("newversion")
-
-    json_list = ["package.json", "deltachat-jsonrpc/typescript/package.json"]
-    toml_list = [
-        "Cargo.toml",
-        "deltachat-ffi/Cargo.toml",
-        "deltachat-jsonrpc/Cargo.toml",
-        "deltachat-rpc-server/Cargo.toml",
-        "deltachat-repl/Cargo.toml",
-    ]
-    try:
-        opts = parser.parse_args()
-    except SystemExit:
+def set_version(newversion):
+    if newversion is None:
         print()
         for x in toml_list:
             print(f"{x}: {read_toml_version(x)}")
         for x in json_list:
             print(f"{x}: {read_json_version(x)}")
         print()
-        raise SystemExit("need argument: new version, example: 1.25.0")
+        raise SystemExit("need argument: newversion, example: 1.25.0")
 
-    newversion = opts.newversion
     if newversion.count(".") < 2:
         raise SystemExit("need at least two dots in version")
 
@@ -133,6 +125,17 @@ def main():
     print(f"   git tag -a v{newversion}")
     print(f"   git push origin v{newversion}")
     print("")
+
+def main():
+    parser = ArgumentParser(prog="set_core_version")
+    parser.add_argument("newversion")
+
+    try:
+        newversion = parser.parse_args().newversion
+    except SystemExit:
+        newversion = None
+
+    set_version(newversion)
 
 
 if __name__ == "__main__":
