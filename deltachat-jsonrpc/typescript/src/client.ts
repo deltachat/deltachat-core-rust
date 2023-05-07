@@ -45,8 +45,9 @@ export class BaseDeltaChat<
   async eventLoop(): Promise<void> {
     while (true) {
       const event = await this.rpc.getNextEvent();
-      this.emit(event.event.type, event.contextId, event.event as any);
-      this.emit("ALL", event.contextId, event.event as any);
+      //@ts-ignore
+      this.emit(event.event.type, event.contextId, event.event);
+      this.emit("ALL", event.contextId, event.event);
 
       if (this.contextEmitters[event.contextId]) {
         this.contextEmitters[event.contextId].emit(
