@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Result};
+use async_imap::imap_proto::Status;
 use deltachat_derive::FromSql;
 use lettre_email::mime;
 use lettre_email::PartBuilder;
@@ -143,17 +144,17 @@ struct StatusUpdates {
 
 /// Update items as sent on the wire and as stored in the database.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct StatusUpdateItem {
-    pub(crate) payload: Value,
+pub struct StatusUpdateItem {
+    pub payload: Value,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) info: Option<String>,
+    pub info: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) document: Option<String>,
+    pub document: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) summary: Option<String>,
+    pub summary: Option<String>,
 }
 
 /// Update items as passed to the UIs.
@@ -214,8 +215,9 @@ impl Context {
     /// (sending has more strict size limits).
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
+        println!("hi");
         if !filename.ends_with(WEBXDC_SUFFIX) {
-            bail!("{} is not a valid webxdc file", filename);
+            bail!("message with Viewtype::Webxdc has invalid ending {filename}");
         }
 
         let size = tokio::fs::metadata(path).await?.len();
@@ -230,14 +232,14 @@ impl Context {
         let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
             Ok(archive) => {
                 if find_zip_entry(archive.file(), "index.html").is_none() {
-                    info!(self, "{} misses index.html", filename);
+                    warn!(self, "{} misses index.html", filename);
                     false
                 } else {
                     true
                 }
             }
             Err(_) => {
-                info!(self, "{} cannot be opened as zip-file", filename);
+                warn!(self, "{} cannot be opened as zip-file", filename);
                 false
             }
         };
@@ -289,23 +291,11 @@ impl Context {
     async fn create_status_update_record(
         &self,
         instance: &mut Message,
-        update_str: &str,
+        status_update_item: StatusUpdateItem,
         timestamp: i64,
         can_info_msg: bool,
         from_id: ContactId,
     ) -> Result<StatusUpdateSerial> {
-        let update_str = strip_rtlo_characters(update_str.trim());
-        if update_str.is_empty() {
-            bail!("create_status_update_record: empty update.");
-        }
-
-        let status_update_item: StatusUpdateItem =
-            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(&update_str) {
-                item
-            } else {
-                bail!("create_status_update_record: no valid update item.");
-            };
-
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
                 if let Some(info_msg_id) =
@@ -420,10 +410,67 @@ impl Context {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
         );
 
+        let update_str = strip_rtlo_characters(update_str.trim());
+        if update_str.is_empty() {
+            bail!("create_status_update_record: empty update.");
+        }
+
+        let status_update_item: StatusUpdateItem =
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(&update_str) {
+                item
+            } else {
+                bail!("create_status_update_record: no valid update item.");
+            };
+
         let status_update_serial = self
             .create_status_update_record(
                 &mut instance,
-                update_str,
+                status_update_item,
+                create_smeared_timestamp(self),
+                send_now,
+                ContactId::SELF,
+            )
+            .await?;
+
+        if send_now {
+            self.sql.insert(
+                "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
+                 ON CONFLICT(msg_id)
+                 DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
+                (instance.id, status_update_serial, status_update_serial, descr),
+            ).await?;
+            self.scheduler
+                .interrupt_smtp(InterruptInfo::new(false))
+                .await;
+        }
+        Ok(())
+    }
+
+    pub async fn send_webxdc_status_raw(
+        &self,
+        instance_msg_id: MsgId,
+        status_update: StatusUpdateItem,
+        descr: &str,
+    ) -> Result<()> {
+        let mut instance = Message::load_from_db(self, instance_msg_id).await?;
+        if instance.viewtype != Viewtype::Webxdc {
+            bail!("send_webxdc_status_update: is no webxdc message");
+        }
+
+        let chat = Chat::load_from_db(self, instance.chat_id).await?;
+        if let Some(reason) = chat.why_cant_send(self).await? {
+            bail!("cannot send to {}: {}", chat.id, reason);
+        }
+
+        let send_now = !matches!(
+            instance.state,
+            MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
+        );
+
+        let status_update_serial: StatusUpdateSerial = self
+            .create_status_update_record(
+                &mut instance,
+                status_update,
                 create_smeared_timestamp(self),
                 send_now,
                 ContactId::SELF,
@@ -552,7 +599,7 @@ impl Context {
         for update_item in updates.updates {
             self.create_status_update_record(
                 &mut instance,
-                &serde_json::to_string(&update_item)?,
+                update_item,
                 timestamp,
                 can_info_msg,
                 from_id,
