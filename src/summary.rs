@@ -98,7 +98,7 @@ impl Summary {
             || msg.viewtype == Viewtype::Sticker
         {
             msg.get_file(context)
-                .and_then(|path| path.to_str().and_then(|p| Some(p.to_owned())))
+                .and_then(|path| path.to_str().map(|p| p.to_owned()))
         } else {
             None
         };
