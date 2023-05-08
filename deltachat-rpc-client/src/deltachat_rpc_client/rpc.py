@@ -79,7 +79,7 @@ class Rpc:
             if self.closing:
                 return
             event = await self.get_next_event()
-            account_id = event["context_id"]
+            account_id = event["contextId"]
             queue = await self.get_queue(account_id)
             await queue.put(event["event"])
 
