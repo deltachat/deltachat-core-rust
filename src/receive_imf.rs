@@ -718,6 +718,28 @@ async fn add_parts(
                         );
                     }
                 }
+
+                if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+                    if is_partial_download.is_none()
+                        && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                    {
+                        // TODO code duplication with check_verified_properties()
+                        // TODO This was from handle_fingerprint_change
+                        // TODO code duplication w/ check_verified_properties()
+                        let new_protection = if mime_parser.was_encrypted()
+                            && peerstate.has_verified_key(&mime_parser.signatures)
+                        {
+                            ProtectionStatus::Protected
+                        } else {
+                            ProtectionStatus::Unprotected
+                        };
+                        let sort_timestamp =
+                            calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
+                        chat_id
+                            .set_protection(context, new_protection, sort_timestamp, from_id)
+                            .await?;
+                    }
+                }
             }
         }
 
@@ -979,45 +1001,6 @@ async fn add_parts(
         // hour, only the message about the change to 1
         // week is left.
         ephemeral_timer = EphemeralTimer::Disabled;
-    }
-
-    if incoming
-        && is_partial_download.is_none()
-        && to_ids == [ContactId::SELF]
-        && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
-    {
-        let peerstate = &mime_parser.decryption_info.peerstate;
-        // TODO code duplication with check_verified_properties()
-        if let Some(peerstate) = peerstate {
-            // TODO performance...
-            // TODO This was from handle_fingerprint_change
-            if let Some(chat_id) = ChatId::lookup_by_contact(context, from_id).await? {
-                // TODO code duplication w/ check_verified_properties()
-                let new_protection = if mime_parser.was_encrypted()
-                    && peerstate.has_verified_key(&mime_parser.signatures)
-                {
-                    // let chat = Chat::load_from_db(context, chat_id).await?;
-                    // if !chat.is_protected() {
-                    //     info!(context, "dbg promoting {}", chat_id);
-                    // }
-                    // TODO this automatic promoting to protected seems to be the reason for the test_aeap_transition_*_verified* test failures
-                    // if chat_id == ChatId::new(10)
-                    //     && context
-                    //         .get_primary_self_addr()
-                    //         .await
-                    //         .unwrap()
-                    //         .contains("alice")
-                    // {
-                    ProtectionStatus::Protected
-                    // }
-                } else {
-                    ProtectionStatus::Unprotected
-                };
-                chat_id
-                    .set_protection(context, new_protection, sort_timestamp, from_id)
-                    .await?;
-            }
-        }
     }
 
     // if a chat is protected and the message is fully downloaded, check additional properties

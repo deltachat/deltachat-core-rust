@@ -481,7 +481,6 @@ impl ChatId {
     ) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
-        // TODO performance
         let chat = Chat::load_from_db(context, self).await?;
         if chat.protected == protect {
             return Ok(()); // No need to change protection status
