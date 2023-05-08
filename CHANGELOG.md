@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- jsonrpc: `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
+
 ### Changes
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
