@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Result};
-use async_imap::imap_proto::Status;
+
 use deltachat_derive::FromSql;
 use lettre_email::mime;
 use lettre_email::PartBuilder;
@@ -145,14 +145,18 @@ struct StatusUpdates {
 /// Update items as sent on the wire and as stored in the database.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatusUpdateItem {
+    /// The playload of the status update.
     pub payload: Value,
 
+    /// The information of the status update.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
 
+    /// The new document fore the webxdc.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document: Option<String>,
 
+    /// The summary of the status update.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 }
@@ -395,7 +399,7 @@ impl Context {
         descr: &str,
     ) -> Result<()> {
         let status_update_item: StatusUpdateItem =
-            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(&update_str) {
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
                 item
             } else {
                 bail!("create_status_update_record: no valid update item.");
