@@ -1324,8 +1324,8 @@ impl Imap {
         // Fetch last DC_FETCH_EXISTING_MSGS_COUNT (100) messages.
         // Sequence numbers are sequential. If there are 1000 messages in the inbox,
         // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
-        let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT);
-        let set = format!("{first}:*");
+        let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT + 1);
+        let set = format!("{first}:{exists}");
         let mut list = session
             .fetch(&set, PREFETCH_FLAGS)
             .await

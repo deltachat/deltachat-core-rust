@@ -9,6 +9,7 @@
 - JSON-RPC: add API to get reactions outside the message snapshot
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
+- Fetch at most 100 existing messages even if EXISTS was not received. #4383
 
 
 ## [1.114.0] - 2023-04-24
