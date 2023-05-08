@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- jsonrpc: `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
+
 ### Changes
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
@@ -10,6 +13,11 @@
   - always include `chat_name`(not an option anymore)
   - add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`
   - `author_name` now contains the overridden sender name.
+- JSON-RPC: add API to get reactions outside the message snapshot
+
+### Fixes
+- Make the bots automatically accept group chat contact requests. #4377
+
 
 
 ## [1.114.0] - 2023-04-24

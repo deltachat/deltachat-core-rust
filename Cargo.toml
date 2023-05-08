@@ -69,7 +69,7 @@ pretty_env_logger = { version = "0.4", optional = true }
 qrcodegen = "1.7.0"
 quick-xml = "0.28"
 rand = "0.8"
-regex = "1.7"
+regex = "1.8"
 reqwest = { version = "0.11.17", features = ["json"] }
 rusqlite = { version = "0.29", features = ["sqlcipher"] }
 rust-hsluv = "0.1"
@@ -88,7 +88,7 @@ tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-io-timeout = "1.2.0"
 tokio-stream = { version = "0.1.14", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
-tokio-util = "0.7.7"
+tokio-util = "0.7.8"
 toml = "0.7"
 trust-dns-resolver = "0.22"
 url = "2"

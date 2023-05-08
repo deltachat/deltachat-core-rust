@@ -2981,6 +2981,17 @@ async fn test_auto_accept_for_bots() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_auto_accept_group_for_bots() -> Result<()> {
+    let t = TestContext::new_alice().await;
+    t.set_config(Config::Bot, Some("1")).await.unwrap();
+    receive_imf(&t, GRP_MAIL, false).await?;
+    let msg = t.get_last_msg().await;
+    let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
+    assert!(!chat.is_contact_request());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_no_private_reply_to_blocked_account() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
