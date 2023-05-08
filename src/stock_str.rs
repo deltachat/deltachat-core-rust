@@ -408,13 +408,15 @@ pub enum StockMessage {
     #[strum(props(fallback = "I left the group."))]
     MsgILeftGroup = 166,
 
+    // TODO remove "Tap to learn more.", instead put a link to the online help
     #[strum(props(
-        fallback = "All messages here are now guaranteed to be end-to-end encrypted. You can be sure that not even %1$s can read them."
+        fallback = "Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more."
     ))]
     ChatVerificationEnabled = 170,
 
+    // TODO remove "Tap to learn more.", instead put a link to the online help
     #[strum(props(
-        fallback = "%1$s's encryption key changed. The security of your end-to-end encryption is not verified anymore."
+        fallback = "Messages may not be end-to-end encrypted anymore. Tap to learn more."
     ))]
     ChatVerificationDisabled = 171,
 
