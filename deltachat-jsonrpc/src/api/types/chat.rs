@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use anyhow::{anyhow, bail, Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use deltachat::chat::{self, get_chat_contacts, ChatVisibility};
 use deltachat::chat::{Chat, ChatId};
 use deltachat::constants::Chattype;
@@ -92,10 +92,7 @@ impl FullChat {
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
             archived: chat.get_visibility() == chat::ChatVisibility::Archived,
-            chat_type: chat
-                .get_type()
-                .to_u32()
-                .ok_or_else(|| anyhow!("unknown chat type id"))?, // TODO get rid of this unwrap?
+            chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
             is_unpromoted: chat.is_unpromoted(),
             is_self_talk: chat.is_self_talk(),
             contacts,
@@ -158,10 +155,7 @@ impl BasicChat {
             is_protected: chat.is_protected(),
             profile_image, //BLOBS ?
             archived: chat.get_visibility() == chat::ChatVisibility::Archived,
-            chat_type: chat
-                .get_type()
-                .to_u32()
-                .ok_or_else(|| anyhow!("unknown chat type id"))?, // TODO get rid of this unwrap?
+            chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
             is_unpromoted: chat.is_unpromoted(),
             is_self_talk: chat.is_self_talk(),
             color,

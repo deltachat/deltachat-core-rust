@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context as _, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
 use deltachat::chat::ChatVisibility;
@@ -488,10 +488,7 @@ impl MessageSearchResult {
             author_id: sender.id.to_u32(),
             chat_name: chat.get_name().to_owned(),
             chat_color,
-            chat_type: chat
-                .get_type()
-                .to_u32()
-                .ok_or_else(|| anyhow!("unknown chat type id"))?,
+            chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
             chat_profile_image,
             is_chat_protected: chat.is_protected(),
             is_chat_contact_request: chat.is_contact_request(),
