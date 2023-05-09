@@ -152,7 +152,7 @@ pub struct StatusUpdateItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
 
-    /// The new document fore the webxdc.
+    /// The new document for the webxdc.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document: Option<String>,
 
@@ -1322,13 +1322,12 @@ mod tests {
 {"payload":true,"serial":3,"max_serial":3}]"#
         );
 
-        let _update_id3 = t
-            .send_webxdc_status_update(
-                instance.id,
-                r#"{"payload" : 1, "sender": "that is not used"}"#,
-                "",
-            )
-            .await?;
+        t.send_webxdc_status_update(
+            instance.id,
+            r#"{"payload" : 1, "sender": "that is not used"}"#,
+            "",
+        )
+        .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id2).await?,
             r#"[{"payload":true,"serial":3,"max_serial":4},
