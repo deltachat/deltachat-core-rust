@@ -160,7 +160,7 @@ pub struct StatusUpdateItem {
 
     /// Optional summary of the status update which will be shown next to the
     /// app icon. This should be short and can be something like "8 votes"
-    /// for an voting app.
+    /// for a voting app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 }
