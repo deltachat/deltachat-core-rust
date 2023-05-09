@@ -9,6 +9,7 @@ from deltachat.testplugin import (
     create_dict_from_files_in_path,
     write_dict_to_dir,
 )
+from deltachat.cutil import from_optional_dc_charpointer
 
 # from deltachat.account import EventLogger
 
@@ -215,3 +216,19 @@ def test_logged_ac_process_ffi_failure(acfactory):
     assert "ac_process_ffi_event" in res
     assert "ZeroDivisionError" in res
     assert "Traceback" in res
+
+
+def test_jsonrpc_blocking_call(tmpdir):
+    accounts_fname = tmpdir.join("accounts")
+    accounts = ffi.gc(
+        lib.dc_accounts_new(ffi.NULL, accounts_fname.strpath.encode("ascii")),
+        lib.dc_accounts_unref,
+    )
+    jsonrpc = ffi.gc(lib.dc_jsonrpc_init(accounts), lib.dc_jsonrpc_unref)
+    res = from_optional_dc_charpointer(
+        lib.dc_jsonrpc_blocking_call(jsonrpc, b"check_email_validity", b'["alice@example.org"]'),
+    )
+    assert res == "true"
+
+    res = from_optional_dc_charpointer(lib.dc_jsonrpc_blocking_call(jsonrpc, b"check_email_validity", b'["alice"]'))
+    assert res == "false"

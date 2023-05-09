@@ -1295,6 +1295,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "yerpc",
 ]
 
 [[package]]
@@ -5754,9 +5755,9 @@ dependencies = [
 
 [[package]]
 name = "yerpc"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6a0257f42e6bdc187f37074723b6094da3502cee21ae517b3c54d2c37d506e7"
+checksum = "b2c26a804eaa30c1ff1a296dc6dd1a7d7c622750dafcd0d6b2ed5e3c5c3beb22"
 dependencies = [
  "anyhow",
  "async-channel",

@@ -21,7 +21,7 @@ log = "0.4"
 async-channel = { version = "1.8.0" }
 futures = { version = "0.3.28" }
 serde_json = "1.0.96"
-yerpc = { version = "0.4.3", features = ["anyhow_expose"] }
+yerpc = { version = "0.4.4", features = ["anyhow_expose"] }
 typescript-type-def = { version = "0.5.5", features = ["json_value"] }
 tokio = { version = "1.28.0" }
 sanitize-filename = "0.4"
