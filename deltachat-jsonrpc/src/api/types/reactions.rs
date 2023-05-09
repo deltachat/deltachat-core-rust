@@ -10,8 +10,8 @@ use typescript_type_def::TypeDef;
 pub struct JSONRPCReactions {
     /// Map from a contact to it's reaction to message.
     reactions_by_contact: BTreeMap<u32, Vec<String>>,
-    /// Unique reactions and their count
-    reactions: BTreeMap<String, u32>,
+    /// Unique reactions and their count, sorted in descending order.
+    reactions: Vec<(String, u32)>,
 }
 
 impl From<Reactions> for JSONRPCReactions {
@@ -39,6 +39,11 @@ impl From<Reactions> for JSONRPCReactions {
             }
         }
 
+        let mut unique_reactions: Vec<(String, u32)> = unique_reactions
+            .into_iter()
+            .map(|(emoji, count)| (emoji, count))
+            .collect();
+        unique_reactions.sort_by(|a, b| a.1.cmp(&b.1));
         JSONRPCReactions {
             reactions_by_contact,
             reactions: unique_reactions,
