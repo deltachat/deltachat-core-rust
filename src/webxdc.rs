@@ -409,14 +409,14 @@ impl Context {
                 bail!("create_status_update_record: no valid update item.");
             };
 
-        self.send_webxdc_status_struct(instance_msg_id, status_update_item, descr)
+        self.send_webxdc_status_update_struct(instance_msg_id, status_update_item, descr)
             .await?;
         Ok(())
     }
 
     /// Sends a status update for an webxdc instance.
     /// Also see [Self::send_webxdc_status_update]
-    pub async fn send_webxdc_status_struct(
+    pub async fn send_webxdc_status_update_struct(
         &self,
         instance_msg_id: MsgId,
         status_update: StatusUpdateItem,
