@@ -1353,7 +1353,9 @@ impl Context {
         contact_id: ContactId,
     ) -> String {
         match protect {
-            ProtectionStatus::Unprotected => chat_verification_disabled(self, contact_id).await,
+            ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {
+                chat_verification_disabled(self, contact_id).await
+            }
             ProtectionStatus::Protected => chat_verification_enabled(self, contact_id).await,
         }
     }

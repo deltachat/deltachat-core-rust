@@ -719,6 +719,7 @@ async fn add_parts(
                     }
                 }
 
+                // TODO extract into fn?
                 if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
                     if is_partial_download.is_none()
                         && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
@@ -726,18 +727,27 @@ async fn add_parts(
                         // TODO code duplication with check_verified_properties()
                         // TODO This was from handle_fingerprint_change
                         // TODO code duplication w/ check_verified_properties()
-                        let new_protection = if mime_parser.was_encrypted()
+                        let mut new_protection = if mime_parser.was_encrypted()
                             && peerstate.has_verified_key(&mime_parser.signatures)
                         {
                             ProtectionStatus::Protected
                         } else {
                             ProtectionStatus::Unprotected
                         };
-                        let sort_timestamp =
-                            calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
-                        chat_id
-                            .set_protection(context, new_protection, sort_timestamp, from_id)
-                            .await?;
+
+                        let chat = Chat::load_from_db(context, chat_id).await?;
+
+                        if chat.protected != new_protection {
+                            if new_protection == ProtectionStatus::Unprotected {
+                                new_protection = ProtectionStatus::ProtectionBroken;
+                            }
+
+                            let sort_timestamp =
+                                calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
+                            chat_id
+                                .set_protection(context, new_protection, sort_timestamp, from_id)
+                                .await?;
+                        }
                     }
                 }
             }

@@ -86,6 +86,14 @@ pub enum ProtectionStatus {
     ///
     /// All members of the chat must be verified.
     Protected = 1,
+
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    /// The user has to confirm that this is OK.
+    ///
+    /// We only do this in 1:1 chats; in group chats, the chat just
+    /// stays protected.
+    ProtectionBroken = 3,
 }
 
 /// The reason why messages cannot be sent to the chat.
@@ -374,6 +382,13 @@ impl ChatId {
 
         match chat.typ {
             Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
+            Chattype::Single if chat.protected == ProtectionStatus::ProtectionBroken => {
+                // The chat was in the 'Request' state because the protection was broken.
+                // The user clicked 'Accept', so, now we want to set the status to Unprotected again:
+                chat.id
+                    .inner_set_protection(context, ProtectionStatus::Unprotected)
+                    .await?;
+            }
             Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                 // User has "created a chat" with all these contacts.
                 //
@@ -430,7 +445,7 @@ impl ChatId {
                 Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
                 Chattype::Undefined => bail!("Undefined group type"),
             },
-            ProtectionStatus::Unprotected => {}
+            ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {}
         };
 
         context
@@ -465,6 +480,7 @@ impl ChatId {
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+            ProtectionStatus::ProtectionBroken => SystemMessage::ChatProtectionDisabled,
         };
         add_info_msg_with_cmd(context, self, &text, cmd, timestamp_sort, None, None, None).await?;
 
@@ -480,11 +496,6 @@ impl ChatId {
         contact_id: ContactId,
     ) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
-
-        let chat = Chat::load_from_db(context, self).await?;
-        if chat.protected == protect {
-            return Ok(()); // No need to change protection status
-        }
 
         if let Err(e) = self.inner_set_protection(context, protect).await {
             error!(context, "Cannot set protection: {e:#}."); // make error user-visible
@@ -1129,7 +1140,7 @@ pub struct Chat {
     pub grpid: String,
 
     /// Whether the chat is blocked, unblocked or a contact request.
-    pub(crate) blocked: Blocked,
+    pub blocked: Blocked,
 
     /// Additional chat parameters stored in the database.
     pub param: Params,
@@ -1141,7 +1152,7 @@ pub struct Chat {
     pub mute_duration: MuteDuration,
 
     /// If the chat is protected (verified).
-    protected: ProtectionStatus,
+    pub(crate) protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -1233,8 +1244,8 @@ impl Chat {
             Some(SpecialChat)
         } else if self.is_device_talk() {
             Some(DeviceChat)
-        } else if self.is_contact_request() {
-            Some(ContactRequest)
+        } else if self.is_contact_request() || self.is_protection_broken() {
+            Some(ContactRequest) // TODO maybe we need another reason here
         } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
             Some(ReadOnlyMailingList)
         } else if !self.is_self_in_chat(context).await? {
@@ -1396,6 +1407,11 @@ impl Chat {
     /// Returns true if chat protection is enabled.
     pub fn is_protected(&self) -> bool {
         self.protected == ProtectionStatus::Protected
+    }
+
+    /// TODO docs
+    pub fn is_protection_broken(&self) -> bool {
+        self.protected == ProtectionStatus::ProtectionBroken
     }
 
     /// Returns true if location streaming is enabled in the chat.
@@ -2881,8 +2897,7 @@ pub async fn create_group_chat(
     context.emit_msgs_changed_without_ids();
 
     if protect == ProtectionStatus::Protected {
-        // this part is to stay compatible to verified groups,
-        // in some future, we will drop the "protect"-flag from create_group_chat()
+        // TODO replace this with set_protection(), so that we also have the message in verified groups
         chat_id.inner_set_protection(context, protect).await?;
     }
 

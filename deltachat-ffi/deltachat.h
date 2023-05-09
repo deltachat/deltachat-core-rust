@@ -3704,6 +3704,12 @@ int             dc_chat_is_protected         (const dc_chat_t* chat);
 
 
 /**
+ * Check if the chat was protected, but this was broken. TODO better docs
+ */
+int             dc_chat_is_protection_broken (const dc_chat_t* chat);
+
+
+/**
  * Check if locations are sent to the chat
  * at the time the object was created using dc_get_chat().
  * To check if locations are sent to _any_ chat,
