@@ -9,6 +9,7 @@
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
+  - `Event`: `context_id` property is now called `contextId`
 - jsonrpc: expand `MessageSearchResult`:
   - always include `chat_name`(not an option anymore)
   - add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`
@@ -18,6 +19,8 @@
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
 
+### Fixes
+- jsonrpc: typescript client: fix types of events in event emitter
 
 
 ## [1.114.0] - 2023-04-24
