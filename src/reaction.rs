@@ -135,8 +135,8 @@ impl Reactions {
     /// Returns a vector of emojis
     /// sorted in descending order of frequencies.
     ///
-    /// This function can be used to defined the order
-    /// of reaction display in the UIs.
+    /// This function can be used to display the reactions in
+    /// the message bubble in the UIs.
     pub fn emoji_sorted_by_frequency(&self) -> Vec<(String, usize)> {
         let mut emoji_frequencies: Vec<(String, usize)> =
             self.emoji_frequencies().into_iter().collect();
