@@ -148,15 +148,19 @@ pub struct StatusUpdateItem {
     /// The playload of the status update.
     pub payload: Value,
 
-    /// The information of the status update.
+    /// Optional short info message that will be displayed in the chat.
+    /// For example "Alice added an item" or "Bob voted for option x".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub info: Option<String>,
 
-    /// The new document for the webxdc.
+    /// The new name of the editing document.
+    /// This is not needed if the webxdc doesn't edit documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document: Option<String>,
 
-    /// The summary of the status update.
+    /// Optional summary of the status update which will be shown next to the
+    /// app icon. This should be short and can be something like "8 votes"
+    /// for an voting app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 }
@@ -220,7 +224,7 @@ impl Context {
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
         if !filename.ends_with(WEBXDC_SUFFIX) {
-            bail!("message with Viewtype::Webxdc has invalid ending {filename}");
+            bail!("{} is not a valid webxdc file", filename);
         }
 
         let size = tokio::fs::metadata(path).await?.len();
@@ -405,14 +409,14 @@ impl Context {
                 bail!("create_status_update_record: no valid update item.");
             };
 
-        self.send_webxdc_status_raw(instance_msg_id, status_update_item, descr)
+        self.send_webxdc_status_struct(instance_msg_id, status_update_item, descr)
             .await?;
         Ok(())
     }
 
     /// Sends a status update for an webxdc instance.
     /// Also see [Self::send_webxdc_status_update]
-    pub async fn send_webxdc_status_raw(
+    pub async fn send_webxdc_status_struct(
         &self,
         instance_msg_id: MsgId,
         status_update: StatusUpdateItem,
