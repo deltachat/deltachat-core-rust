@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, ensure, format_err, Result};
+
 use deltachat_derive::FromSql;
 use lettre_email::mime;
 use lettre_email::PartBuilder;
@@ -143,17 +144,25 @@ struct StatusUpdates {
 
 /// Update items as sent on the wire and as stored in the database.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct StatusUpdateItem {
-    pub(crate) payload: Value,
+pub struct StatusUpdateItem {
+    /// The playload of the status update.
+    pub payload: Value,
 
+    /// Optional short info message that will be displayed in the chat.
+    /// For example "Alice added an item" or "Bob voted for option x".
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) info: Option<String>,
+    pub info: Option<String>,
 
+    /// The new name of the editing document.
+    /// This is not needed if the webxdc doesn't edit documents.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) document: Option<String>,
+    pub document: Option<String>,
 
+    /// Optional summary of the status update which will be shown next to the
+    /// app icon. This should be short and can be something like "8 votes"
+    /// for a voting app.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) summary: Option<String>,
+    pub summary: Option<String>,
 }
 
 /// Update items as passed to the UIs.
@@ -230,14 +239,14 @@ impl Context {
         let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
             Ok(archive) => {
                 if find_zip_entry(archive.file(), "index.html").is_none() {
-                    info!(self, "{} misses index.html", filename);
+                    warn!(self, "{} misses index.html", filename);
                     false
                 } else {
                     true
                 }
             }
             Err(_) => {
-                info!(self, "{} cannot be opened as zip-file", filename);
+                warn!(self, "{} cannot be opened as zip-file", filename);
                 false
             }
         };
@@ -289,23 +298,11 @@ impl Context {
     async fn create_status_update_record(
         &self,
         instance: &mut Message,
-        update_str: &str,
+        status_update_item: StatusUpdateItem,
         timestamp: i64,
         can_info_msg: bool,
         from_id: ContactId,
     ) -> Result<StatusUpdateSerial> {
-        let update_str = strip_rtlo_characters(update_str.trim());
-        if update_str.is_empty() {
-            bail!("create_status_update_record: empty update.");
-        }
-
-        let status_update_item: StatusUpdateItem =
-            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(&update_str) {
-                item
-            } else {
-                bail!("create_status_update_record: no valid update item.");
-            };
-
         if can_info_msg {
             if let Some(ref info) = status_update_item.info {
                 if let Some(info_msg_id) =
@@ -405,6 +402,26 @@ impl Context {
         update_str: &str,
         descr: &str,
     ) -> Result<()> {
+        let status_update_item: StatusUpdateItem =
+            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
+                item
+            } else {
+                bail!("create_status_update_record: no valid update item.");
+            };
+
+        self.send_webxdc_status_update_struct(instance_msg_id, status_update_item, descr)
+            .await?;
+        Ok(())
+    }
+
+    /// Sends a status update for an webxdc instance.
+    /// Also see [Self::send_webxdc_status_update]
+    pub async fn send_webxdc_status_update_struct(
+        &self,
+        instance_msg_id: MsgId,
+        status_update: StatusUpdateItem,
+        descr: &str,
+    ) -> Result<()> {
         let mut instance = Message::load_from_db(self, instance_msg_id).await?;
         if instance.viewtype != Viewtype::Webxdc {
             bail!("send_webxdc_status_update: is no webxdc message");
@@ -420,10 +437,10 @@ impl Context {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
         );
 
-        let status_update_serial = self
+        let status_update_serial: StatusUpdateSerial = self
             .create_status_update_record(
                 &mut instance,
-                update_str,
+                status_update,
                 create_smeared_timestamp(self),
                 send_now,
                 ContactId::SELF,
@@ -552,7 +569,7 @@ impl Context {
         for update_item in updates.updates {
             self.create_status_update_record(
                 &mut instance,
-                &serde_json::to_string(&update_item)?,
+                update_item,
                 timestamp,
                 can_info_msg,
                 from_id,
@@ -801,6 +818,8 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::chat::{
         add_contact_to_chat, create_broadcast_list, create_group_chat, forward_msgs,
@@ -1235,7 +1254,12 @@ mod tests {
         let update_id1 = t
             .create_status_update_record(
                 &mut instance,
-                "\n\n{\"payload\": {\"foo\":\"bar\"}}\n",
+                StatusUpdateItem {
+                    payload: json!({"foo": "bar"}),
+                    info: None,
+                    document: None,
+                    summary: None,
+                },
                 1640178619,
                 true,
                 ContactId::SELF,
@@ -1248,19 +1272,15 @@ mod tests {
         );
 
         assert!(t
-            .create_status_update_record(&mut instance, "\n\n\n", 1640178619, true, ContactId::SELF)
+            .send_webxdc_status_update(instance.id, "\n\n\n", "")
             .await
             .is_err());
+
         assert!(t
-            .create_status_update_record(
-                &mut instance,
-                "bad json",
-                1640178619,
-                true,
-                ContactId::SELF
-            )
+            .send_webxdc_status_update(instance.id, "bad json", "")
             .await
             .is_err());
+
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
@@ -1270,7 +1290,12 @@ mod tests {
         let update_id2 = t
             .create_status_update_record(
                 &mut instance,
-                r#"{"payload" : { "foo2":"bar2"}}"#,
+                StatusUpdateItem {
+                    payload: json!({"foo2": "bar2"}),
+                    info: None,
+                    document: None,
+                    summary: None,
+                },
                 1640178619,
                 true,
                 ContactId::SELF,
@@ -1282,7 +1307,12 @@ mod tests {
         );
         t.create_status_update_record(
             &mut instance,
-            r#"{"payload":true}"#,
+            StatusUpdateItem {
+                payload: Value::Bool(true),
+                info: None,
+                document: None,
+                summary: None,
+            },
             1640178619,
             true,
             ContactId::SELF,
@@ -1296,15 +1326,12 @@ mod tests {
 {"payload":true,"serial":3,"max_serial":3}]"#
         );
 
-        let _update_id3 = t
-            .create_status_update_record(
-                &mut instance,
-                r#"{"payload" : 1, "sender": "that is not used"}"#,
-                1640178619,
-                true,
-                ContactId::SELF,
-            )
-            .await?;
+        t.send_webxdc_status_update(
+            instance.id,
+            r#"{"payload" : 1, "sender": "that is not used"}"#,
+            "",
+        )
+        .await?;
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, update_id2).await?,
             r#"[{"payload":true,"serial":3,"max_serial":4},

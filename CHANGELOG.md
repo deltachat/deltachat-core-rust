@@ -4,6 +4,7 @@
 
 ### Added
 - jsonrpc: `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
+- New rust API `send_webxdc_status_update_struct` to send a `StatusUpdateItem`
 
 ### Changes
 - BREAKING: jsonrpc:
