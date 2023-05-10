@@ -545,7 +545,7 @@ pub(crate) async fn send_msg_to_smtp(
             .execute("DELETE FROM smtp WHERE id=?", (rowid,))
             .await
             .context("failed to remove message with exceeded retry limit from smtp table")?;
-        bail!("Number of retries exceeded the limit");
+        return Ok(());
     }
     info!(
         context,
