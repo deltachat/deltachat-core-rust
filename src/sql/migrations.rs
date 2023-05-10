@@ -711,6 +711,24 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    if dbversion < 101 {
+        // Recreate `smtp` table with autoincrement.
+        // rfc724_mid index is not recreated, because it is not used.
+        sql.execute_migration(
+            "DROP TABLE smtp;
+             CREATE TABLE smtp (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             rfc724_mid TEXT NOT NULL,          -- Message-ID
+             mime TEXT NOT NULL,                -- SMTP payload
+             msg_id INTEGER NOT NULL,           -- ID of the message in `msgs` table
+             recipients TEXT NOT NULL,          -- List of recipients separated by space
+             retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the message
+            );
+            ",
+            101,
+        )
+        .await?;
+    }
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
