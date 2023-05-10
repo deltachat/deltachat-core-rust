@@ -1,4 +1,5 @@
 use anyhow::Result;
+use pretty_assertions::assert_eq;
 
 use crate::chat::{Chat, ProtectionStatus};
 use crate::contact::VerifiedStatus;
@@ -56,7 +57,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     }
 
     // Bob's contact is still verified, but the chat isn't marked as protected anymore
-    assert_verified(&alice, &bob, ProtectionStatus::Unprotected).await;
+    assert_verified(&alice, &bob, ProtectionStatus::ProtectionBroken).await;
 
     tcm.section("Bob sends another message from DC");
     tcm.send_recv(&bob, &alice, "Using DC again").await;
@@ -143,11 +144,14 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
     {
         let chat = alice.get_chat(&fiona_new).await.unwrap();
         assert!(!chat.is_protected());
+        assert!(chat.is_protection_broken());
 
         // After recreating the chat, it should still be unprotected
         chat.id.delete(&alice).await?;
 
-        assert!(!alice.create_chat(&fiona_new).await.is_protected());
+        let chat = alice.create_chat(&fiona_new).await;
+        assert!(!chat.is_protected());
+        assert!(!chat.is_protection_broken());
     }
 
     Ok(())
@@ -162,6 +166,7 @@ async fn test_create_unverified_oneonone_chat() -> Result<()> {
     // A chat with an unknown contact should be created unprotected
     let chat = alice.create_chat(&bob).await;
     assert!(!chat.is_protected());
+    assert!(!chat.is_protection_broken());
 
     receive_imf(
         &alice,
@@ -178,12 +183,14 @@ async fn test_create_unverified_oneonone_chat() -> Result<()> {
     // Now Bob is a known contact, new chats should still be created unprotected
     let chat = alice.create_chat(&bob).await;
     assert!(!chat.is_protected());
+    assert!(!chat.is_protection_broken());
 
     tcm.send_recv(&bob, &alice, "hi").await;
     chat.id.delete(&alice).await.unwrap();
     // Now we have a public key, new chats should still be created unprotected
     let chat = alice.create_chat(&bob).await;
     assert!(!chat.is_protected());
+    assert!(!chat.is_protection_broken());
 
     Ok(())
 }
@@ -231,6 +238,63 @@ async fn test_degrade_verified_oneonone_chat() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    // Alice & Bob verify each other
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    let chat = alice.create_chat(&bob).await;
+    assert!(chat.is_protected());
+
+    for alice_accepts_breakage in [true, false] {
+        // Bob uses Thunderbird to send a message
+        receive_imf(
+            &alice,
+            format!(
+                "From: Bob <bob@example.net>\n\
+              To: alice@example.org\n\
+              Message-ID: <1234-2{alice_accepts_breakage}@example.org>\n\
+              \n\
+              Message from Thunderbird\n"
+            )
+            .as_bytes(),
+            false,
+        )
+        .await?;
+
+        let chat = alice.get_chat(&bob).await.unwrap();
+        assert!(!chat.is_protected());
+        assert!(chat.is_protection_broken());
+
+        if alice_accepts_breakage {
+            tcm.section("Alice clicks 'Accept' on the input-bar-dialog");
+            chat.id.accept(&alice).await?;
+            let chat = alice.get_chat(&bob).await.unwrap();
+            assert!(!chat.is_protected());
+            assert!(!chat.is_protection_broken());
+        }
+
+        // Bob sends a message from DC again
+        tcm.send_recv(&bob, &alice, "Hello from DC").await;
+        let chat = alice.get_chat(&bob).await.unwrap();
+        assert!(chat.is_protected());
+        assert!(!chat.is_protection_broken());
+    }
+
+    alice
+        .golden_test_chat(chat.id, "test_verified_oneonone_chat_enable_disable")
+        .await;
+
+    Ok(())
+}
+
+// ============== Helper Functions ==============
+
 async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {
     let contact = this.add_or_lookup_contact(other).await;
     assert_eq!(
@@ -239,8 +303,11 @@ async fn assert_verified(this: &TestContext, other: &TestContext, protected: Pro
     );
 
     let chat = this.get_chat(other).await.unwrap();
-    assert_eq!(
-        chat.is_protected(),
-        protected == ProtectionStatus::Protected
-    );
+    let (expect_protected, expect_broken) = match protected {
+        ProtectionStatus::Unprotected => (false, false),
+        ProtectionStatus::Protected => (true, false),
+        ProtectionStatus::ProtectionBroken => (false, true),
+    };
+    assert_eq!(chat.is_protected(), expect_protected);
+    assert_eq!(chat.is_protection_broken(), expect_broken);
 }

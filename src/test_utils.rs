@@ -35,7 +35,7 @@ use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
-use crate::mimeparser::MimeMessage;
+use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
@@ -1151,7 +1151,17 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
         } else {
             "[FRESH]"
         },
-        if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_info() {
+            if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO 🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO ❌🛡️]"
+            } else {
+                "[INFO]"
+            }
+        } else {
+            ""
+        },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
                 "[VIDEOCHAT-INVITATION: {}, type={}]",
