@@ -1,8 +1,23 @@
 use std::collections::BTreeMap;
 
+use deltachat::contact::ContactId;
 use deltachat::reaction::Reactions;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
+
+/// A single reaction emoji.
+#[derive(Serialize, TypeDef)]
+#[serde(rename = "Reaction", rename_all = "camelCase")]
+pub struct JSONRPCReaction {
+    /// Emoji.
+    emoji: String,
+
+    /// Emoji frequency.
+    count: usize,
+
+    /// True if we reacted with this emoji.
+    is_from_self: bool,
+}
 
 /// Structure representing all reactions to a particular message.
 #[derive(Serialize, TypeDef)]
@@ -11,7 +26,7 @@ pub struct JSONRPCReactions {
     /// Map from a contact to it's reaction to message.
     reactions_by_contact: BTreeMap<u32, Vec<String>>,
     /// Unique reactions and their count, sorted in descending order.
-    reactions: Vec<(String, usize)>,
+    reactions: Vec<JSONRPCReaction>,
 }
 
 impl From<Reactions> for JSONRPCReactions {
@@ -31,9 +46,27 @@ impl From<Reactions> for JSONRPCReactions {
             reactions_by_contact.insert(contact_id.to_u32(), emojis.clone());
         }
 
+        let self_reactions = reactions_by_contact.get(&ContactId::SELF.to_u32());
+
+        let mut reactions_v = Vec::new();
+        for (emoji, count) in reactions.emoji_sorted_by_frequency() {
+            let is_from_self = if let Some(self_reactions) = self_reactions {
+                self_reactions.contains(&emoji)
+            } else {
+                false
+            };
+
+            let reaction = JSONRPCReaction {
+                emoji,
+                count,
+                is_from_self,
+            };
+            reactions_v.push(reaction)
+        }
+
         JSONRPCReactions {
             reactions_by_contact,
-            reactions: reactions.emoji_sorted_by_frequency(),
+            reactions: reactions_v,
         }
     }
 }
