@@ -20,9 +20,8 @@
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
 - Fetch at most 100 existing messages even if EXISTS was not received. #4383
-
-### Fixes
 - jsonrpc: typescript client: fix types of events in event emitter
+- delete `smtp` rows when message sending is cancelled #4391
 
 
 ## [1.114.0] - 2023-04-24
