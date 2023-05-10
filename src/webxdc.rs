@@ -391,6 +391,24 @@ impl Context {
         Ok(status_update_serial)
     }
 
+    ///  Return the update_item with `status_update_serial` from the webxdc with message id `msg_id`.
+    pub async fn get_status_update(
+        &self,
+        msg_id: MsgId,
+        status_update_serial: StatusUpdateSerial,
+    ) -> Result<String> {
+        self.sql
+            .query_row(
+                "SELECT update_item FROM msgs_status_updates WHERE id=? AND msg_id=? ",
+                (status_update_serial.0, msg_id),
+                |row| {
+                    let update_item: String = row.get(0)?;
+                    Ok(update_item)
+                },
+            )
+            .await
+    }
+
     /// Sends a status update for an webxdc instance.
     ///
     /// If the instance is a draft,

@@ -954,6 +954,11 @@ impl Message {
         Ok(())
     }
 
+    /// Get the messages [Params].
+    pub fn get_params(&self) -> &Params {
+        &self.param
+    }
+
     pub(crate) async fn update_subject(&self, context: &Context) -> Result<()> {
         context
             .sql
