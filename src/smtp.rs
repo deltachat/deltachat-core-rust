@@ -578,6 +578,11 @@ pub(crate) async fn send_msg_to_smtp(
             context,
             "Sending of message {msg_id} (entry {rowid}) was cancelled by the user."
         );
+        context
+            .sql
+            .execute("DELETE FROM smtp WHERE id=?", (rowid,))
+            .await
+            .context("failed to remove cancelled message from smtp table")?;
         return Ok(());
     }
 
