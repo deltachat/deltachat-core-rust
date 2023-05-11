@@ -2,14 +2,27 @@
 
 ## Unreleased
 
+### Added
+- jsonrpc: `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
+- New rust API `send_webxdc_status_update_struct` to send a `StatusUpdateItem`
+
 ### Changes
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
   - `JSONRPCReactions.reactions` is now a `Vec<JSONRPCReaction>` with unique reactions and their count, sorted in descending order.
+  - `Event`: `context_id` property is now called `contextId`
+- jsonrpc: expand `MessageSearchResult`:
+  - always include `chat_name`(not an option anymore)
+  - add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`
+  - `author_name` now contains the overridden sender name.
 - JSON-RPC: add API to get reactions outside the message snapshot
+
 ### Fixes
 - Make the bots automatically accept group chat contact requests. #4377
+- Fetch at most 100 existing messages even if EXISTS was not received. #4383
+- jsonrpc: typescript client: fix types of events in event emitter
+- delete `smtp` rows when message sending is cancelled #4391
 
 
 ## [1.114.0] - 2023-04-24

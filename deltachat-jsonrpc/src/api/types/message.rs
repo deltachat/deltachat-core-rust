@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context as _, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
-use deltachat::constants::Chattype;
+use deltachat::chat::ChatVisibility;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::download;
@@ -443,9 +443,17 @@ impl MessageNotificationInfo {
 pub struct MessageSearchResult {
     id: u32,
     author_profile_image: Option<String>,
+    /// if sender name if overridden it will show it as ~alias
     author_name: String,
     author_color: String,
-    chat_name: Option<String>,
+    author_id: u32,
+    chat_profile_image: Option<String>,
+    chat_color: String,
+    chat_name: String,
+    chat_type: u32,
+    is_chat_protected: bool,
+    is_chat_contact_request: bool,
+    is_chat_archived: bool,
     message: String,
     timestamp: i64,
 }
@@ -460,17 +468,31 @@ impl MessageSearchResult {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
             None => None,
         };
+        let chat_profile_image = match chat.get_profile_image(context).await? {
+            Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+            None => None,
+        };
+
+        let author_name = if let Some(name) = message.get_override_sender_name() {
+            format!("~{name}")
+        } else {
+            sender.get_display_name().to_owned()
+        };
+        let chat_color = color_int_to_hex_string(chat.get_color(context).await?);
 
         Ok(Self {
             id: msg_id.to_u32(),
             author_profile_image: profile_image,
-            author_name: sender.get_display_name().to_owned(),
+            author_name,
             author_color: color_int_to_hex_string(sender.get_color()),
-            chat_name: if chat.get_type() == Chattype::Single {
-                Some(chat.get_name().to_owned())
-            } else {
-                None
-            },
+            author_id: sender.id.to_u32(),
+            chat_name: chat.get_name().to_owned(),
+            chat_color,
+            chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
+            chat_profile_image,
+            is_chat_protected: chat.is_protected(),
+            is_chat_contact_request: chat.is_contact_request(),
+            is_chat_archived: chat.get_visibility() == ChatVisibility::Archived,
             message: message.get_text().unwrap_or_default(),
             timestamp: message.get_timestamp(),
         })
