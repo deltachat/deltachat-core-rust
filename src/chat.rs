@@ -278,6 +278,7 @@ impl ChatId {
         param: Option<String>,
     ) -> Result<Self> {
         let grpname = strip_rtlo_characters(grpname);
+        let smeared_time = create_smeared_timestamp(context);
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -286,13 +287,25 @@ impl ChatId {
                     &grpname,
                     grpid,
                     create_blocked,
-                    create_smeared_timestamp(context),
+                    smeared_time,
                     create_protected,
                     param.unwrap_or_default(),
                 ),
             ).await?;
 
         let chat_id = ChatId::new(u32::try_from(row_id)?);
+
+        if create_protected == ProtectionStatus::Protected {
+            chat_id
+                .add_protection_msg(
+                    context,
+                    ProtectionStatus::Protected,
+                    ContactId::new(0),
+                    smeared_time,
+                )
+                .await?;
+        }
+
         info!(
             context,
             "Created group/mailinglist '{}' grpid={} as {}, blocked={}.",
@@ -496,6 +509,11 @@ impl ChatId {
         contact_id: ContactId,
     ) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
+
+        let chat = Chat::load_from_db(context, self).await?;
+        if chat.protected == protect {
+            return Ok(());
+        }
 
         if let Err(e) = self.inner_set_protection(context, protect).await {
             error!(context, "Cannot set protection: {e:#}."); // make error user-visible
@@ -2874,18 +2892,14 @@ pub async fn create_group_chat(
 
     let grpid = create_id();
 
+    let timestamp = create_smeared_timestamp(context);
     let row_id = context
         .sql
         .insert(
             "INSERT INTO chats
         (type, name, grpid, param, created_timestamp)
         VALUES(?, ?, ?, \'U=1\', ?);",
-            (
-                Chattype::Group,
-                chat_name,
-                grpid,
-                create_smeared_timestamp(context),
-            ),
+            (Chattype::Group, chat_name, grpid, timestamp),
         )
         .await?;
 
@@ -2897,8 +2911,9 @@ pub async fn create_group_chat(
     context.emit_msgs_changed_without_ids();
 
     if protect == ProtectionStatus::Protected {
-        // TODO replace this with set_protection(), so that we also have the message in verified groups
-        chat_id.inner_set_protection(context, protect).await?;
+        chat_id
+            .set_protection(context, protect, timestamp, ContactId::new(0))
+            .await?;
     }
 
     Ok(chat_id)

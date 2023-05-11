@@ -787,6 +787,7 @@ mod tests {
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::stock_str::chat_verification_enabled;
+    use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::EmailAddress;
 
@@ -1293,17 +1294,11 @@ mod tests {
                 Blocked::Yes,
                 "Alice's 1:1 chat with Bob is not hidden"
             );
-            let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid)
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .min()
-                .expect("No messages in Alice's group chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
+            // There should be 3 messages in the chat:
+            // - The ChatProtectionEnabled message
+            // - bob@example.net verified
+            // - You added member bob@example.net
+            let msg = get_chat_msg(&alice, alice_chatid, 1, 3).await;
             assert!(msg.is_info());
             assert!(msg.get_text().contains("bob@example.net verified"));
         }

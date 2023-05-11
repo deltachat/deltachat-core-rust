@@ -96,9 +96,21 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
             &[&alice, &fiona],
         )
         .await;
-    let sent = bob.send_text(group_id, "Heyho").await;
-    alice.recv_msg(&sent).await;
-    fiona.recv_msg(&sent).await;
+    assert_eq!(
+        get_chat_msg(&bob, group_id, 0, 1).await.get_info_type(),
+        SystemMessage::ChatProtectionEnabled
+    );
+
+    {
+        let sent = bob.send_text(group_id, "Heyho").await;
+        alice.recv_msg(&sent).await;
+
+        let msg = fiona.recv_msg(&sent).await;
+        assert_eq!(
+            get_chat_msg(&fiona, msg.chat_id, 0, 2).await.get_info_type(),
+            SystemMessage::ChatProtectionEnabled
+        );
+    }
 
     // Alice and Fiona should now be verified because of gossip
     let alice_fiona_contact = alice.add_or_lookup_contact(&fiona).await;
