@@ -143,7 +143,7 @@ struct StatusUpdates {
 }
 
 /// Update items as sent on the wire and as stored in the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct StatusUpdateItem {
     /// The playload of the status update.
     pub payload: Value,
