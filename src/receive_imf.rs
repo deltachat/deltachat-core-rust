@@ -2166,7 +2166,7 @@ async fn check_verified_properties(
                 peerstate.has_verified_key(&mimeparser.signatures),
                 "The message was sent with non-verified encryption"
             );
-        } // TODO question: else??? Isn't it a problem w/o peerstate?
+        } // `else` is not possible because we checked `peerstate.is_none()` above.
     }
 
     // we do not need to check if we are verified with ourself

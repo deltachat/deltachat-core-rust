@@ -9,7 +9,6 @@ use crate::chat::{
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::constants::DC_GCL_NO_SPECIALS;
-
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
