@@ -1086,6 +1086,26 @@ impl MessageState {
     }
 }
 
+/// Returns contacts that sent read receipts and the time of reading.
+pub async fn get_msg_read_receipts(
+    context: &Context,
+    msg_id: MsgId,
+) -> Result<Vec<(ContactId, i64)>> {
+    context
+        .sql
+        .query_map(
+            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?",
+            (msg_id,),
+            |row| {
+                let contact_id: ContactId = row.get(0)?;
+                let ts: i64 = row.get(1)?;
+                Ok((contact_id, ts))
+            },
+            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await
+}
+
 /// Returns detailed message information in a multi-line text form.
 pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let msg = Message::load_from_db(context, msg_id).await?;
