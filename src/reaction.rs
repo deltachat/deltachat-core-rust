@@ -14,6 +14,7 @@
 //! possible to remove all reactions by sending an empty string as a reaction,
 //! even though RFC 9078 requires at least one emoji to be sent.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -116,10 +117,9 @@ impl Reactions {
     pub fn is_empty(&self) -> bool {
         self.reactions.is_empty()
     }
-}
 
-impl fmt::Display for Reactions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    /// Returns a map from emojis to their frequencies.
+    pub fn emoji_frequencies(&self) -> BTreeMap<String, usize> {
         let mut emoji_frequencies: BTreeMap<String, usize> = BTreeMap::new();
         for reaction in self.reactions.values() {
             for emoji in reaction.emojis() {
@@ -129,6 +129,30 @@ impl fmt::Display for Reactions {
                     .or_insert(1);
             }
         }
+        emoji_frequencies
+    }
+
+    /// Returns a vector of emojis
+    /// sorted in descending order of frequencies.
+    ///
+    /// This function can be used to display the reactions in
+    /// the message bubble in the UIs.
+    pub fn emoji_sorted_by_frequency(&self) -> Vec<(String, usize)> {
+        let mut emoji_frequencies: Vec<(String, usize)> =
+            self.emoji_frequencies().into_iter().collect();
+        emoji_frequencies.sort_by(|(a, a_count), (b, b_count)| {
+            match a_count.cmp(b_count).reverse() {
+                Ordering::Equal => a.cmp(b),
+                other => other,
+            }
+        });
+        emoji_frequencies
+    }
+}
+
+impl fmt::Display for Reactions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let emoji_frequencies = self.emoji_sorted_by_frequency();
         let mut first = true;
         for (emoji, frequency) in emoji_frequencies {
             if !first {
@@ -480,6 +504,11 @@ Content-Disposition: reaction\n\
             .unwrap();
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍2 😀1");
+
+        assert_eq!(
+            reactions.emoji_sorted_by_frequency(),
+            vec![("👍".to_string(), 2), ("😀".to_string(), 1)]
+        );
 
         Ok(())
     }

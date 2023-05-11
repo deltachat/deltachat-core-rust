@@ -10,6 +10,7 @@
 - BREAKING: jsonrpc:
   - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
   - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
+  - `JSONRPCReactions.reactions` is now a `Vec<JSONRPCReaction>` with unique reactions and their count, sorted in descending order.
   - `Event`: `context_id` property is now called `contextId`
 - jsonrpc: expand `MessageSearchResult`:
   - always include `chat_name`(not an option anymore)
