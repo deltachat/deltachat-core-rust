@@ -536,3 +536,10 @@ pub struct MessageData {
     pub override_sender_name: Option<String>,
     pub quoted_message_id: Option<u32>,
 }
+
+#[derive(Serialize, TypeDef)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageReadReceipt {
+    pub contact_id: u32,
+    pub timestamp: i64,
+}
