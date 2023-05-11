@@ -4,6 +4,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
+use deltachat::message::get_msg_read_receipts;
 use deltachat::qr::Qr;
 use deltachat::{
     chat::{
@@ -43,8 +44,7 @@ use types::chat::FullChat;
 use types::contact::ContactObject;
 use types::events::Event;
 use types::http::HttpResponse;
-use types::message::MessageData;
-use types::message::MessageObject;
+use types::message::{MessageData, MessageObject, MessageReadReceipt};
 use types::provider_info::ProviderInfo;
 use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
@@ -1116,6 +1116,24 @@ impl CommandApi {
     async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         get_msg_info(&ctx, MsgId::new(message_id)).await
+    }
+
+    /// Returns contacts that sent read receipts and the time of reading.
+    async fn get_message_read_receipts(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<Vec<MessageReadReceipt>> {
+        let ctx = self.get_context(account_id).await?;
+        let receipts = get_msg_read_receipts(&ctx, MsgId::new(message_id))
+            .await?
+            .iter()
+            .map(|(contact_id, ts)| MessageReadReceipt {
+                contact_id: contact_id.to_u32(),
+                timestamp: *ts,
+            })
+            .collect();
+        Ok(receipts)
     }
 
     /// Asks the core to start downloading a message fully.
