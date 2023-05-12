@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.112.9] - 2023-05-12
+
+### Fixes
+
+- Fetch at most 100 existing messages even if EXISTS was not received.
+- Delete `smtp` rows when message sending is cancelled.
+
+### Changes
+
+- Improve SMTP logging.
+
 ## [1.112.8] - 2023-04-20
 
 ### Changes
