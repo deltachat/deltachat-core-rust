@@ -25,6 +25,16 @@
 - Recreate `smtp` table with AUTOINCREMENT `id`. #4390
 - delete `smtp` rows when message sending is cancelled #4391
 
+## [1.112.9] - 2023-05-12
+
+### Fixes
+
+- Fetch at most 100 existing messages even if EXISTS was not received.
+- Delete `smtp` rows when message sending is cancelled.
+
+### Changes
+
+- Improve SMTP logging.
 
 ## [1.114.0] - 2023-04-24
 
