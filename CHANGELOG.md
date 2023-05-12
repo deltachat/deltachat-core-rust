@@ -1,29 +1,47 @@
 # Changelog
 
-## Unreleased
+## [1.115.0] - 2023-05-12
 
-### Added
-- jsonrpc: `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
-- New rust API `send_webxdc_status_update_struct` to send a `StatusUpdateItem`
+### JSON-RPC API Changes
 
-### Changes
-- BREAKING: jsonrpc:
-  - `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`
-  - `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`
-  - `JSONRPCReactions.reactions` is now a `Vec<JSONRPCReaction>` with unique reactions and their count, sorted in descending order.
-  - `Event`: `context_id` property is now called `contextId`
-- jsonrpc: expand `MessageSearchResult`:
-  - always include `chat_name`(not an option anymore)
-  - add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`
+- Sort reactions in descending order ([#4388](https://github.com/deltachat/deltachat-core-rust/pull/4388)).
+- Add API to get reactions outside the message snapshot.
+- `get_chatlist_items_by_entries` now takes only chatids instead of `ChatListEntries`.
+- `get_chatlist_entries` now returns `Vec<u32>` of chatids instead of `ChatListEntries`.
+- `JSONRPCReactions.reactions` is now a `Vec<JSONRPCReaction>` with unique reactions and their count, sorted in descending order.
+- `Event`: `context_id` property is now called `contextId`.
+- Expand `MessageSearchResult`:
+  - Always include `chat_name`(not an option anymore).
+  - Add `author_id`, `chat_type`, `chat_color`, `is_chat_protected`, `is_chat_contact_request`, `is_chat_archived`.
   - `author_name` now contains the overridden sender name.
-- JSON-RPC: add API to get reactions outside the message snapshot
+- `ChatListItemFetchResult` gets new properties: `summary_preview_image`, `last_message_type` and `last_message_id`
+- New `MessageReadReceipt` type and `get_message_read_receipts(account_id, message_id)` jsonrpc method.
+
+### API Changes
+
+- New rust API `send_webxdc_status_update_struct` to send a `StatusUpdateItem`.
+- Add `get_msg_read_receipts(context, msg_id)` - get the contacts that send read receipts for a message.
+
+### Features / Changes
+
+- Build deltachat-rpc-server releases for x86\_64 macOS.
+- Generate changelogs using git-cliff ([#4393](https://github.com/deltachat/deltachat-core-rust/pull/4393), [#4396](https://github.com/deltachat/deltachat-core-rust/pull/4396)).
+- Improve SMTP logging.
+- Do not cut incoming text if "bot" config is set.
 
 ### Fixes
-- Make the bots automatically accept group chat contact requests. #4377
-- Fetch at most 100 existing messages even if EXISTS was not received. #4383
-- jsonrpc: typescript client: fix types of events in event emitter
-- Recreate `smtp` table with AUTOINCREMENT `id`. #4390
-- delete `smtp` rows when message sending is cancelled #4391
+
+- JSON-RPC: typescript client: fix types of events in event emitter ([#4373](https://github.com/deltachat/deltachat-core-rust/pull/4373)).
+- Fetch at most 100 existing messages even if EXISTS was not received ([#4383](https://github.com/deltachat/deltachat-core-rust/pull/4383)).
+- Don't put a double dot at the end of error messages ([#4398](https://github.com/deltachat/deltachat-core-rust/pull/4398)).
+- Recreate `smtp` table with AUTOINCREMENT `id` ([#4390](https://github.com/deltachat/deltachat-core-rust/pull/4390)).
+- Do not return an error from `send_msg_to_smtp` if retry limit is exceeded.
+- Make the bots automatically accept group chat contact requests ([#4377](https://github.com/deltachat/deltachat-core-rust/pull/4377)).
+- Delete `smtp` rows when message sending is cancelled ([#4391](https://github.com/deltachat/deltachat-core-rust/pull/4391)).
+
+### Refactor
+
+- Iterate over `msg_ids` without .iter().
 
 ## [1.112.9] - 2023-05-12
 
@@ -2467,5 +2485,7 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.112.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.5...v1.112.6
 [1.112.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.6...v1.112.7
 [1.112.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.7...v1.112.8
-[1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.8...v1.113.0
+[1.112.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.8...v1.112.9
+[1.113.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.112.9...v1.113.0
 [1.114.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.113.0...v1.114.0
+[1.115.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.114.0...v1.115.0
