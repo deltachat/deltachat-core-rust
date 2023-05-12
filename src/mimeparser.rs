@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
+use crate::config::Config;
 use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, ContactId};
 use crate::context::Context;
@@ -1114,15 +1115,22 @@ impl MimeMessage {
                             (simplified_txt, top_quote)
                         };
 
-                        // Truncate text if it has too many lines
-                        let (simplified_txt, was_truncated) = truncate_by_lines(
-                            simplified_txt,
-                            DC_DESIRED_TEXT_LINES,
-                            DC_DESIRED_TEXT_LINE_LEN,
-                        );
-                        if was_truncated {
-                            self.is_mime_modified = was_truncated;
-                        }
+                        let is_bot = context.get_config_bool(Config::Bot).await?;
+
+                        let simplified_txt = if is_bot {
+                            simplified_txt
+                        } else {
+                            // Truncate text if it has too many lines
+                            let (simplified_txt, was_truncated) = truncate_by_lines(
+                                simplified_txt,
+                                DC_DESIRED_TEXT_LINES,
+                                DC_DESIRED_TEXT_LINE_LEN,
+                            );
+                            if was_truncated {
+                                self.is_mime_modified = was_truncated;
+                            }
+                            simplified_txt
+                        };
 
                         if !simplified_txt.is_empty() || simplified_quote.is_some() {
                             let mut part = Part {
@@ -3290,24 +3298,37 @@ On 2020-10-25, Bob wrote:
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_mime_modified_large_plain() {
+    async fn test_mime_modified_large_plain() -> Result<()> {
         let t = TestContext::new_alice().await;
 
         static REPEAT_TXT: &str = "this text with 42 chars is just repeated.\n";
         static REPEAT_CNT: usize = 2000; // results in a text of 84k, should be more than DC_DESIRED_TEXT_LEN
         let long_txt = format!("From: alice@c.de\n\n{}", REPEAT_TXT.repeat(REPEAT_CNT));
-
-        let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref(), None)
-            .await
-            .unwrap();
         assert_eq!(long_txt.matches("just repeated").count(), REPEAT_CNT);
         assert!(long_txt.len() > DC_DESIRED_TEXT_LEN);
-        assert!(mimemsg.is_mime_modified);
-        assert!(
-            mimemsg.parts[0].msg.matches("just repeated").count()
-                <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
-        );
-        assert!(mimemsg.parts[0].msg.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
+
+        {
+            let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref(), None).await?;
+            assert!(mimemsg.is_mime_modified);
+            assert!(
+                mimemsg.parts[0].msg.matches("just repeated").count()
+                    <= DC_DESIRED_TEXT_LEN / REPEAT_TXT.len()
+            );
+            assert!(mimemsg.parts[0].msg.len() <= DC_DESIRED_TEXT_LEN + DC_ELLIPSIS.len());
+        }
+
+        t.set_config(Config::Bot, Some("1")).await?;
+
+        {
+            let mimemsg = MimeMessage::from_bytes(&t, long_txt.as_ref(), None).await?;
+            assert!(!mimemsg.is_mime_modified);
+            assert_eq!(
+                format!("{}\n", mimemsg.parts[0].msg),
+                REPEAT_TXT.repeat(REPEAT_CNT)
+            );
+        }
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

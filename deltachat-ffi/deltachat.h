@@ -461,8 +461,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  * - `bot`          = Set to "1" if this is a bot.
  *                    Prevents adding the "Device messages" and "Saved messages" chats,
- *                    adds Auto-Submitted header to outgoing messages
- *                    and accepts contact requests automatically (calling dc_accept_chat() is not needed for bots).
+ *                    adds Auto-Submitted header to outgoing messages,
+ *                    accepts contact requests automatically (calling dc_accept_chat() is not needed for bots)
+ *                    and does not cut large incoming text messages.
  * - `last_msg_id` = database ID of the last message processed by the bot.
  *                   This ID and IDs below it are guaranteed not to be returned
  *                   by dc_get_next_msgs() and dc_wait_next_msgs().
