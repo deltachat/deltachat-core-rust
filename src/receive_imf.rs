@@ -723,6 +723,7 @@ async fn add_parts(
                 if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
                     if is_partial_download.is_none()
                         && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                        && !is_mdn
                     {
                         // TODO code duplication with check_verified_properties()
                         // TODO This was from handle_fingerprint_change

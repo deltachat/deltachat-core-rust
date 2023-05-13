@@ -2,13 +2,15 @@ use anyhow::Result;
 use pretty_assertions::assert_eq;
 
 use crate::chat::{Chat, ProtectionStatus};
+use crate::config::Config;
 use crate::contact::VerifiedStatus;
 use crate::contact::{Contact, Origin};
-use crate::e2ee;
+use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
 use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
+use crate::{e2ee, message};
 
 // TODO read receipts shoudn't be able to change the verification status
 // TODO when testing with Marine, I had multiple installations of DC. This somehow broke things.
@@ -107,7 +109,9 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
 
         let msg = fiona.recv_msg(&sent).await;
         assert_eq!(
-            get_chat_msg(&fiona, msg.chat_id, 0, 2).await.get_info_type(),
+            get_chat_msg(&fiona, msg.chat_id, 0, 2)
+                .await
+                .get_info_type(),
             SystemMessage::ChatProtectionEnabled
         );
     }
@@ -304,6 +308,30 @@ async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
     alice
         .golden_test_chat(chat.id, "test_verified_oneonone_chat_enable_disable")
         .await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mdn_doesnt_disable_verification() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    bob.set_config_bool(Config::MdnsEnabled, true).await?;
+
+    // Alice & Bob verify each other
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    let rcvd = tcm.send_recv_accept(&alice, &bob, "Heyho").await;
+    message::markseen_msgs(&bob, vec![rcvd.id]).await?;
+
+    let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
+    let rendered_msg = mimefactory.render(&bob).await?;
+    let body = rendered_msg.message;
+    receive_imf(&alice, body.as_bytes(), false).await.unwrap();
+
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
 
     Ok(())
 }
