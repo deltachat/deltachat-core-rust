@@ -1059,6 +1059,30 @@ async fn test_mailing_list_multiple_names_in_subject() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mailing_list_with_quotes() -> Result<()> {
+    let t = TestContext::new_alice().await;
+    receive_imf(
+        &t,
+        b"From: Foo Bar <foobar@lists.example.net>\n\
+    To: Alice <alice@example.org>\n\
+    Subject: confirm xxyyzz\n\
+    Message-ID: <3333@example.org>\n\
+    List-Id: \"Mailing list for \\\"Foo Bar\\\"\"\n\
+    \t<foo-bar.lists.example.net>\n\
+    Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+    \n\
+    hello\n",
+        false,
+    )
+    .await?;
+    let msg = t.get_last_msg().await;
+    let chat_id = msg.get_chat_id();
+    let chat = Chat::load_from_db(&t, chat_id).await?;
+    assert_eq!(chat.name, "Mailing list for \"Foo Bar\"");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_majordomo_mailing_list() -> Result<()> {
     let t = TestContext::new_alice().await;
 
