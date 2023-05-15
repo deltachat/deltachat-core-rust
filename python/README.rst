@@ -74,7 +74,9 @@ Developing the bindings
 If you want to develop or debug the bindings,
 you can create a testing development environment using `tox`::
 
-    tox -c python --devenv env
+    export DCC_RS_DEV="$PWD"
+    export DCC_RS_TARGET=debug
+    tox -c python --devenv env -e py
     . env/bin/activate
 
 Inside this environment the bindings are installed
