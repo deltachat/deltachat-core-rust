@@ -25,6 +25,7 @@ commit_parsers = [
     { message = "^chore\\(release\\): prepare for", skip = true},
     { message = "^chore", group = "Miscellaneous Tasks"},
     { message = "^build", group = "Build system"},
+    { message = "^ci", group = "CI"},
     { message = ".*", group = "Other"},
 #    { body = ".*security", group = "Security"},
 ]
