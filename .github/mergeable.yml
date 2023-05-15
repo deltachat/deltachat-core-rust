@@ -5,7 +5,7 @@ mergeable:
     validate:
       - do: title
         begins_with:
-          match: ['feat', 'fix', 'api', 'refactor', 'perf', 'test', 'style', 'chore', 'cargo']
+          match: ['feat', 'fix', 'api', 'refactor', 'perf', 'test', 'style', 'chore', 'cargo', 'build', 'ci']
 
     fail:
       - do: checks
