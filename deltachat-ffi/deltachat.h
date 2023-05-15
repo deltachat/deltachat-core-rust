@@ -5755,12 +5755,11 @@ char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
  *
  * @memberof dc_jsonrpc_instance_t
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
- * @param method JSON-RPC method name, e.g. `check_email_validity`.
- * @param params JSON-RPC method parameters, e.g. `["alice@example.org"]`.
+ * @param input JSON-RPC request.
  * @return JSON-RPC response as string, must be freed using dc_str_unref() after usage.
- *     On error, NULL is returned.
+ *     If there is no response, NULL is returned.
  */
-char* dc_jsonrpc_blocking_call(dc_jsonrpc_instance_t* jsonrpc_instance, const char *method, const char *params);
+char* dc_jsonrpc_blocking_call(dc_jsonrpc_instance_t* jsonrpc_instance, const char *input);
 
 /**
  * @class dc_event_emitter_t

@@ -5010,7 +5010,7 @@ pub unsafe extern "C" fn dc_accounts_get_event_emitter(
 #[cfg(feature = "jsonrpc")]
 mod jsonrpc {
     use deltachat_jsonrpc::api::CommandApi;
-    use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcServer, RpcSession};
+    use deltachat_jsonrpc::yerpc::{OutReceiver, RpcClient, RpcSession};
 
     use super::*;
 
@@ -5086,25 +5086,24 @@ mod jsonrpc {
     #[no_mangle]
     pub unsafe extern "C" fn dc_jsonrpc_blocking_call(
         jsonrpc_instance: *mut dc_jsonrpc_instance_t,
-        method: *const libc::c_char,
-        params: *const libc::c_char,
+        input: *const libc::c_char,
     ) -> *mut libc::c_char {
         if jsonrpc_instance.is_null() {
             eprintln!("ignoring careless call to dc_jsonrpc_blocking_call()");
             return ptr::null_mut();
         }
         let api = &*jsonrpc_instance;
-        let method = to_string_lossy(method);
-        let params = to_string_lossy(params);
-        let params: Option<yerpc::Params> = match serde_json::from_str(&params) {
-            Ok(params) => Some(params),
-            Err(_) => None,
-        };
-        let params = params.map(yerpc::Params::into_value).unwrap_or_default();
-        let res = block_on(api.handle.server().handle_request(method, params));
+        let input = to_string_lossy(input);
+        let res = block_on(api.handle.process_incoming(&input));
         match res {
-            Ok(res) => res.to_string().strdup(),
-            Err(_) => ptr::null_mut(),
+            Some(message) => {
+                if let Ok(message) = serde_json::to_string(&message) {
+                    message.strdup()
+                } else {
+                    ptr::null_mut()
+                }
+            }
+            None => ptr::null_mut(),
         }
     }
 }
