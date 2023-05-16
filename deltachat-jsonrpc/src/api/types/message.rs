@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
 use deltachat::chat::ChatVisibility;
@@ -114,8 +114,12 @@ impl MessageObject {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
 
-        let sender_contact = Contact::load_from_db(context, message.get_from_id()).await?;
-        let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
+        let sender_contact = Contact::load_from_db(context, message.get_from_id())
+            .await
+            .context("failed to load sender contact")?;
+        let sender = ContactObject::try_from_dc_contact(context, sender_contact)
+            .await
+            .context("failed to load sender contact object")?;
         let file_bytes = message.get_filebytes(context).await?.unwrap_or_default();
         let override_sender_name = message.get_override_sender_name();
 
@@ -132,7 +136,9 @@ impl MessageObject {
         let quote = if let Some(quoted_text) = message.quoted_text() {
             match message.quoted_message(context).await? {
                 Some(quote) => {
-                    let quote_author = Contact::load_from_db(context, quote.get_from_id()).await?;
+                    let quote_author = Contact::load_from_db(context, quote.get_from_id())
+                        .await
+                        .context("failed to load quote author contact")?;
                     Some(MessageQuote::WithMessage {
                         text: quoted_text,
                         message_id: quote.get_id().to_u32(),
@@ -160,7 +166,9 @@ impl MessageObject {
             None
         };
 
-        let reactions = get_msg_reactions(context, msg_id).await?;
+        let reactions = get_msg_reactions(context, msg_id)
+            .await
+            .context("failed to load message reactions")?;
         let reactions = if reactions.is_empty() {
             None
         } else {
@@ -180,7 +188,7 @@ impl MessageObject {
             state: message
                 .get_state()
                 .to_u32()
-                .ok_or_else(|| anyhow!("state conversion to number failed"))?,
+                .context("state conversion to number failed")?,
             error: message.error(),
 
             timestamp: message.get_timestamp(),
@@ -203,7 +211,7 @@ impl MessageObject {
             videochat_type: match message.get_videochat_type() {
                 Some(vct) => Some(
                     vct.to_u32()
-                        .ok_or_else(|| anyhow!("state conversion to number failed"))?,
+                        .context("videochat type conversion to number failed")?,
                 ),
                 None => None,
             },
