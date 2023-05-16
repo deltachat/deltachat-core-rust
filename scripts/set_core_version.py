@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 from argparse import ArgumentParser
+from pathlib import Path
 
 rex = re.compile(r'version = "(\S+)"')
 
@@ -95,22 +96,14 @@ def main():
     today = datetime.date.today().isoformat()
 
     if "alpha" not in newversion:
-        changelog_name = "CHANGELOG.md"
-        changelog_tmpname = changelog_name + ".tmp"
-        changelog_tmp = open(changelog_tmpname, "w")
         found = False
-        for line in open(changelog_name):
-            ## 1.25.0
-            if line == f"## [{newversion}]\n":
-                line = f"## [{newversion}] - {today}\n"
+        for line in Path("CHANGELOG.md").open():
+            if line == f"## [{newversion}] - {today}\n":
                 found = True
-            changelog_tmp.write(line)
         if not found:
             raise SystemExit(
                 f"{changelog_name} contains no entry for version: {newversion}"
             )
-        changelog_tmp.close()
-        os.rename(changelog_tmpname, changelog_name)
 
     for toml_filename in toml_list:
         replace_toml_version(toml_filename, newversion)
