@@ -336,6 +336,38 @@ async fn test_mdn_doesnt_disable_verification() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_outgoing_mua_msg() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    tcm.send_recv_accept(&bob, &alice, "Heyho from DC").await;
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+
+    let sent = receive_imf(
+        &alice,
+        b"From: alice@example.org\n\
+          To: bob@example.net\n\
+          \n\
+          One classical MUA message",
+        false,
+    )
+    .await?
+    .unwrap();
+    tcm.send_recv_accept(&alice, &bob, "Sending with DC again")
+        .await;
+
+    alice
+        .golden_test_chat(sent.chat_id, "test_outgoing_mua_msg")
+        .await;
+
+    Ok(())
+}
+
 // ============== Helper Functions ==============
 
 async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {

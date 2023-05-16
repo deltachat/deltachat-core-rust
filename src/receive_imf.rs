@@ -1018,7 +1018,8 @@ async fn add_parts(
         let chat = Chat::load_from_db(context, chat_id).await?;
 
         if chat.is_protected() {
-            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
+            if let Err(err) =
+                check_verified_properties(context, mime_parser, from_id, to_ids, chat.typ).await
             {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
@@ -1524,7 +1525,9 @@ async fn create_or_lookup_group(
     }
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+        if let Err(err) =
+            check_verified_properties(context, mime_parser, from_id, to_ids, Chattype::Group).await
+        {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
@@ -1774,7 +1777,9 @@ async fn apply_group_changes(
 
     // TODO we might be able to remove this block, but it seems to make test_secure_join fail
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+        if let Err(err) =
+            check_verified_properties(context, mime_parser, from_id, to_ids, chat.typ).await
+        {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
@@ -2128,8 +2133,21 @@ async fn check_verified_properties(
     mimeparser: &MimeMessage,
     from_id: ContactId,
     to_ids: &[ContactId],
+    chat_type: Chattype,
 ) -> Result<()> {
     let contact = Contact::get_by_id(context, from_id).await?;
+
+    if from_id == ContactId::SELF && chat_type == Chattype::Single {
+        // For outgoing emails in the 1:1 chat, we have an exception that
+        // they are allowed to be unencrypted:
+        // 1. They can't be an attack (they are outgoing, not incoming)
+        // 2. Probably the unencryptedness is just a temporary state, after all
+        //    the user obviously still uses DC
+        //    -> Showing info messages everytime would be a lot of noise
+        // 3. The info messages that are shown to the user ("Your chat partner
+        //    likely reinstalled DC" or similar) would be wrong.
+        return Ok(());
+    }
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted");
 
