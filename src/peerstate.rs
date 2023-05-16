@@ -649,7 +649,6 @@ impl Peerstate {
         if self.fingerprint_changed {
             self.handle_setup_change(context, timestamp, PeerstateChange::FingerprintChange)
                 .await?;
-            // marker
         }
         Ok(())
     }

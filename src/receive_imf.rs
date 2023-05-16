@@ -720,14 +720,13 @@ async fn add_parts(
                 }
 
                 // TODO extract into fn?
+                // TODO probably makes sense to put this down to `if check_verified_properties...` again
                 if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
                     if is_partial_download.is_none()
                         && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
                         && !is_mdn
                     {
                         // TODO code duplication with check_verified_properties()
-                        // TODO This was from handle_fingerprint_change
-                        // TODO code duplication w/ check_verified_properties()
                         let mut new_protection = if mime_parser.was_encrypted()
                             && peerstate.has_verified_key(&mime_parser.signatures)
                         {
