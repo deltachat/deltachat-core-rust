@@ -63,6 +63,10 @@ pub(crate) struct MimeMessage {
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
+
+    /// List-Id header as defined in <https://datatracker.ietf.org/doc/html/rfc2919>.
+    pub list_id: Option<SingleInfo>,
+
     pub list_post: Option<String>,
     pub chat_disposition_notification_to: Option<SingleInfo>,
     pub decryption_info: DecryptionInfo,
@@ -212,6 +216,7 @@ impl MimeMessage {
         let mut headers = Default::default();
         let mut recipients = Default::default();
         let mut from = Default::default();
+        let mut list_id = Default::default();
         let mut list_post = Default::default();
         let mut chat_disposition_notification_to = None;
 
@@ -221,6 +226,7 @@ impl MimeMessage {
             &mut headers,
             &mut recipients,
             &mut from,
+            &mut list_id,
             &mut list_post,
             &mut chat_disposition_notification_to,
             &mail.headers,
@@ -239,6 +245,7 @@ impl MimeMessage {
                         &mut headers,
                         &mut recipients,
                         &mut from,
+                        &mut list_id,
                         &mut list_post,
                         &mut chat_disposition_notification_to,
                         &part.headers,
@@ -344,6 +351,7 @@ impl MimeMessage {
                 &mut headers,
                 &mut recipients,
                 &mut signed_from,
+                &mut list_id,
                 &mut list_post,
                 &mut chat_disposition_notification_to,
                 &mail.headers,
@@ -386,6 +394,7 @@ impl MimeMessage {
             parts: Vec::new(),
             header: headers,
             recipients,
+            list_id,
             list_post,
             from,
             from_is_signed,
@@ -1375,6 +1384,7 @@ impl MimeMessage {
         headers: &mut HashMap<String, String>,
         recipients: &mut Vec<SingleInfo>,
         from: &mut Option<SingleInfo>,
+        list_id: &mut Option<SingleInfo>,
         list_post: &mut Option<String>,
         chat_disposition_notification_to: &mut Option<SingleInfo>,
         fields: &[mailparse::MailHeader<'_>],
@@ -1392,6 +1402,14 @@ impl MimeMessage {
                         }
                         Err(e) => warn!(context, "Could not read {} address: {}", key, e),
                     }
+                } else if key == HeaderDef::ListId.get_headername() {
+                    match addrparse_header(field) {
+                        Ok(addrlist) => {
+                            *list_id = addrlist.extract_single_info();
+                        }
+                        Err(e) => warn!(context, "Could not read {} address: {}", key, e),
+                    }
+                    eprintln!("LIST ID parsed as {:?}", *list_id);
                 } else {
                     let value = field.get_value();
                     headers.insert(key.to_string(), value);

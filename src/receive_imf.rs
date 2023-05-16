@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 
 use anyhow::{bail, ensure, Context as _, Result};
-use mailparse::{parse_mail, SingleInfo};
+use mailparse::{addrparse, parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -1835,15 +1835,23 @@ async fn create_or_lookup_mailinglist(
     mime_parser: &MimeMessage,
 ) -> Result<Option<(ChatId, Blocked)>> {
     static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
+    eprintln!("List ID is {list_id_header:?}");
     let (mut name, listid) = match LIST_ID.captures(list_id_header) {
         Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
         None => (
             "".to_string(),
-            list_id_header
-                .trim()
-                .trim_start_matches('<')
-                .trim_end_matches('>')
-                .to_string(),
+            match addrparse(list_id_header)
+                .ok()
+                .and_then(|addrlist| addrlist.extract_single_info())
+                .and_then(|info| info.display_name)
+            {
+                Some(name) => name.clone(),
+                None => list_id_header
+                    .trim()
+                    .trim_start_matches('<')
+                    .trim_end_matches('>')
+                    .to_string(),
+            },
         ),
     };
 
