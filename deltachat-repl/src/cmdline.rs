@@ -395,8 +395,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unpin <chat-id>\n\
                  mute <chat-id> [<seconds>]\n\
                  unmute <chat-id>\n\
-                 protect <chat-id>\n\
-                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  accept <chat-id>\n\
                  decline <chat-id>\n\
