@@ -537,7 +537,9 @@ impl Message {
     /// Returns the size of the file in bytes, if applicable.
     pub async fn get_filebytes(&self, context: &Context) -> Result<Option<u64>> {
         if let Some(path) = self.param.get_path(Param::File, context)? {
-            Ok(Some(get_filebytes(context, &path).await?))
+            Ok(Some(get_filebytes(context, &path).await.with_context(
+                || format!("failed to get {} size in bytes", path.display()),
+            )?))
         } else {
             Ok(None)
         }
