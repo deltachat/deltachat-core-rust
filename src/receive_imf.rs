@@ -2132,18 +2132,7 @@ async fn check_verified_properties(
 ) -> Result<()> {
     let contact = Contact::get_by_id(context, from_id).await?;
 
-    ensure!(mimeparser.was_encrypted(), "This message is not encrypted"); // TODO what do we do if the message was unencrypted but w/ correct autocrypt key?
-
-    if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
-        // we do not fail here currently, this would exclude (a) non-deltas
-        // and (b) deltas with different protection views across multiple devices.
-        // for group creation or protection enabled/disabled, however, Chat-Verified is respected.
-        warn!(
-            context,
-            "{} did not mark message as protected.",
-            contact.get_addr()
-        );
-    }
+    ensure!(mimeparser.was_encrypted(), "This message is not encrypted");
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
