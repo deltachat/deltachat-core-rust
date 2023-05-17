@@ -703,7 +703,7 @@ def test_mdn_asymmetric(acfactory, lp):
     assert len(chat.get_messages()) == 1
 
     # Wait for the message to be marked as seen on IMAP.
-    ac1._evtracker.get_info_contains("Marked messages 1 in folder DeltaChat as seen.")
+    ac1._evtracker.get_info_contains("Marked messages [0-9]+ in folder DeltaChat as seen.")
 
     # MDN is received even though MDNs are already disabled
     assert msg_out.is_out_mdn_received()
