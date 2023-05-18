@@ -53,20 +53,31 @@ const WEBXDC_SENDING_LIMIT: u64 = 655360;
 const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 
 /// Raw information read from manifest.toml
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[non_exhaustive]
-struct WebxdcManifest {
+pub struct WebxdcManifest {
     /// Webxdc name, used on icons or page titles.
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Minimum API version required to run this webxdc.
-    min_api: Option<u32>,
+    pub min_api: Option<u32>,
 
     /// Optional URL of webxdc source code.
-    source_code_url: Option<String>,
+    pub source_code_url: Option<String>,
 
     /// If the webxdc requests network access.
-    request_internet_access: Option<bool>,
+    pub request_internet_access: Option<bool>,
+
+    /// Version of the application.
+    pub version: Option<String>,
+}
+
+impl WebxdcManifest {
+    /// Create a new [WebxdcManifest] from a string.
+    pub fn from_string(manifest: &str) -> Result<Self> {
+        let manifest: Self = toml::from_str(manifest)?;
+        Ok(manifest)
+    }
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -770,20 +781,10 @@ impl Message {
             if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                 manifest
             } else {
-                WebxdcManifest {
-                    name: None,
-                    min_api: None,
-                    source_code_url: None,
-                    request_internet_access: None,
-                }
+                WebxdcManifest::default()
             }
         } else {
-            WebxdcManifest {
-                name: None,
-                min_api: None,
-                source_code_url: None,
-                request_internet_access: None,
-            }
+            WebxdcManifest::default()
         };
 
         if let Some(ref name) = manifest.name {
