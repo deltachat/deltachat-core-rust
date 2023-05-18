@@ -777,15 +777,10 @@ impl Message {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
         let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
-            if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
-                manifest
-            } else {
-                WebxdcManifest::default()
-            }
-        } else {
-            WebxdcManifest::default()
-        };
+        let mut manifest = get_blob(&mut archive, "manifest.toml")
+            .await
+            .map(|bytes| parse_webxdc_manifest(&bytes))?
+            .unwrap_or_default();
 
         if let Some(ref name) = manifest.name {
             let name = name.trim();
