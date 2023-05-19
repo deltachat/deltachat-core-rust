@@ -227,6 +227,9 @@ jobs:
           - os: macos-latest
             python: 3.11
 
+          - os: ubuntu-latest
+            python: 3.12-dev
+
           # PyPy tests
           - os: ubuntu-latest
             python: pypy3.9
