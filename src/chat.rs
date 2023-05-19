@@ -5147,9 +5147,11 @@ mod tests {
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        assert_eq!(msg.match_indices("Gr.").count(), 2);
+        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 1);
+        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
         let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
-        assert_eq!(msg.match_indices("Gr.").count(), 1);
+        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 0);
+        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
         receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
