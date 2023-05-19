@@ -222,7 +222,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Currently used Rust version.
           - os: ubuntu-latest
             python: 3.11
           - os: macos-latest
