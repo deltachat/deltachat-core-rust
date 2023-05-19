@@ -5,11 +5,11 @@ mergeable:
     validate:
       - do: title
         begins_with:
-          match: ['feat', 'fix', 'api', 'refactor', 'perf', 'test', 'style', 'chore', 'cargo', 'build', 'ci']
+          match: ['feat', 'fix', 'api', 'refactor', 'perf', 'test', 'style', 'chore', 'cargo', 'build', 'ci', 'docs']
 
     fail:
       - do: checks
         status: "action_required"
         payload:
           title: PR title should follow conventional commits
-          summary: "PR title should follow https://conventionalcommits.org. E.g. start with 'feat:' (for Features / Changes), 'fix:' (for Fixes), 'api:' (for API-Changes), 'api!:' (for breaking API-Changes) 'refactor:' (for Refactor), 'perf:' (for Performance), 'test:' (for Tests), 'style:' (for Styling), 'chore:' (for Miscellaneous Tasks)"
+          summary: "PR title should follow https://conventionalcommits.org. See https://github.com/deltachat/deltachat-core-rust/blob/master/CONTRIBUTING.md for details."
