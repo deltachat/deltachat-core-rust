@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::ops::{Deref, DerefMut};
 use std::panic;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -628,7 +629,7 @@ impl TestContext {
 
     #[allow(clippy::unused)]
     pub async fn golden_test_chat(&self, chat_id: ChatId, filename: &str) {
-        let filename = "test-data/golden/".to_owned() + filename;
+        let filename = Path::new("test-data/golden/").join(filename);
 
         let actual = self.display_chat(chat_id).await;
 
@@ -637,7 +638,9 @@ impl TestContext {
         let expected = fs::read(&filename).await.unwrap_or_default();
         let expected = String::from_utf8(expected).unwrap();
         if (std::env::var("UPDATE_GOLDEN_TESTS") == Ok("1".to_string())) && actual != expected {
-            fs::write(&filename, &actual).await.expect(&filename);
+            fs::write(&filename, &actual)
+                .await
+                .unwrap_or_else(|e| panic!("Error writing {filename:?}: {e}"));
         } else {
             assert_eq!(
                 actual, expected,
