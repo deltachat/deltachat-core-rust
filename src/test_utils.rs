@@ -627,7 +627,7 @@ impl TestContext {
         res
     }
 
-    #[allow(clippy::unused)]
+    #[allow(unused)]
     pub async fn golden_test_chat(&self, chat_id: ChatId, filename: &str) {
         let filename = Path::new("test-data/golden/").join(filename);
 
