@@ -3,8 +3,10 @@
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::ops::{Deref, DerefMut};
 use std::panic;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -12,11 +14,12 @@ use ansi_term::Color;
 use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
+use pretty_assertions::assert_eq;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
-use tokio::task;
+use tokio::{fs, task};
 
 use crate::chat::{
     self, add_to_chat_contacts_table, create_group_chat, Chat, ChatId, MessageListOptions,
@@ -285,7 +288,7 @@ impl TestContext {
         println!("\n========== Chats of {}: ==========", self.name());
         if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
             for (chat, _) in chats.iter() {
-                self.print_chat(*chat).await;
+                print!("{}", self.display_chat(*chat).await);
             }
         }
         println!();
@@ -624,6 +627,28 @@ impl TestContext {
         res
     }
 
+    #[allow(unused)]
+    pub async fn golden_test_chat(&self, chat_id: ChatId, filename: &str) {
+        let filename = Path::new("test-data/golden/").join(filename);
+
+        let actual = self.display_chat(chat_id).await;
+
+        // We're using `unwrap_or_default()` here so that if the file doesn't exist,
+        // it can be created using `write` below.
+        let expected = fs::read(&filename).await.unwrap_or_default();
+        let expected = String::from_utf8(expected).unwrap();
+        if (std::env::var("UPDATE_GOLDEN_TESTS") == Ok("1".to_string())) && actual != expected {
+            fs::write(&filename, &actual)
+                .await
+                .unwrap_or_else(|e| panic!("Error writing {filename:?}: {e}"));
+        } else {
+            assert_eq!(
+                actual, expected,
+                "To update the expected value, run `UPDATE_GOLDEN_TESTS=1 cargo test`"
+            );
+        }
+    }
+
     /// Prints out the entire chat to stdout.
     ///
     /// You can use this to debug your test by printing the entire chat conversation.
@@ -631,7 +656,9 @@ impl TestContext {
     // merge them to a public function in the `deltachat` crate.
     #[allow(dead_code)]
     #[allow(clippy::indexing_slicing)]
-    pub async fn print_chat(&self, chat_id: ChatId) {
+    async fn display_chat(&self, chat_id: ChatId) -> String {
+        let mut res = String::new();
+
         let msglist = chat::get_chat_msgs_ex(
             self,
             chat_id,
@@ -662,7 +689,8 @@ impl TestContext {
         } else {
             format!("{} member(s)", members.len())
         };
-        println!(
+        writeln!(
+            res,
             "{}#{}: {} [{}]{}{}{} {}",
             sel_chat.typ,
             sel_chat.get_id(),
@@ -686,32 +714,38 @@ impl TestContext {
             } else {
                 ""
             },
-        );
+        )
+        .unwrap();
 
         let mut lines_out = 0;
         for msg_id in msglist {
             if msg_id == MsgId::new(DC_MSG_ID_DAYMARKER) {
-                println!(
+                writeln!(res,
                 "--------------------------------------------------------------------------------"
-            );
+            )
+                .unwrap();
 
                 lines_out += 1
             } else if !msg_id.is_special() {
                 if lines_out == 0 {
-                    println!(
+                    writeln!(res,
                     "--------------------------------------------------------------------------------",
-                );
+                ).unwrap();
                     lines_out += 1
                 }
                 let msg = Message::load_from_db(self, msg_id).await.unwrap();
-                log_msg(self, "", &msg).await;
+                write_msg(self, "", &msg, &mut res).await;
             }
         }
         if lines_out > 0 {
-            println!(
+            writeln!(
+                res,
                 "--------------------------------------------------------------------------------"
-            );
+            )
+            .unwrap();
         }
+
+        res
     }
 
     pub async fn create_group_with_members(
@@ -1041,7 +1075,7 @@ fn print_event(event: &Event) {
 /// Logs an individual message to stdout.
 ///
 /// This includes a bunch of the message meta-data as well.
-async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
+async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut String) {
     let contact = match Contact::get_by_id(context, msg.get_from_id()).await {
         Ok(contact) => contact,
         Err(e) => {
@@ -1061,7 +1095,8 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
         _ => "",
     };
     let msgtext = msg.get_text();
-    println!(
+    writeln!(
+        buf,
         "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}",
         prefix,
         msg.get_id(),
@@ -1095,7 +1130,8 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
             ""
         },
         statestr,
-    );
+    )
+    .unwrap();
 }
 
 #[cfg(test)]
