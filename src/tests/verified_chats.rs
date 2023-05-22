@@ -5,6 +5,7 @@ use crate::chat::{Chat, ProtectionStatus};
 use crate::config::Config;
 use crate::contact::VerifiedStatus;
 use crate::contact::{Contact, Origin};
+use crate::message::Message;
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
@@ -128,7 +129,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         let msg = alice.get_last_msg().await;
         let expected_text =
             stock_str::chat_verification_enabled(&alice, alice_fiona_contact.id).await;
-        assert_eq!(msg.text.unwrap(), expected_text);
+        assert_eq!(msg.text, expected_text);
     }
 
     // Fiona should also see the chat as protected
@@ -361,6 +362,58 @@ async fn test_outgoing_mua_msg() -> Result<()> {
     alice
         .golden_test_chat(sent.chat_id, "test_outgoing_mua_msg")
         .await;
+
+    Ok(())
+}
+
+/// If Bob answers unencrypted from another address with a classical MUA,
+/// the message is under some circumstances still assigned to the original
+/// chat (see lookup_chat_by_reply()); this is meant to make aliases
+/// work nicely.
+/// However, if the original chat is verified, the unencrypted message
+/// must NOT be assigned to it (it would be replaced by an error
+/// message in the verified chat, so, this would just be a usability issue,
+/// not a security issue).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_reply() -> Result<()> {
+    for verified in [false, true] {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        if verified {
+            mark_as_verified(&alice, &bob).await;
+            mark_as_verified(&bob, &alice).await;
+        }
+
+        tcm.send_recv_accept(&bob, &alice, "Heyho from DC").await;
+        let encrypted_msg = tcm.send_recv_accept(&alice, &bob, "Heyho back").await;
+
+        let unencrypted_msg = receive_imf(
+            &alice,
+            format!(
+                "From: bob@someotherdomain.org\n\
+                 To: some-alias-forwarding-to-alice@example.org\n\
+                 In-Reply-To: {}\n\
+                 \n\
+                 Weird reply",
+                encrypted_msg.rfc724_mid
+            )
+            .as_bytes(),
+            false,
+        )
+        .await?
+        .unwrap();
+
+        let unencrypted_msg = Message::load_from_db(&alice, unencrypted_msg.msg_ids[0]).await?;
+        assert_eq!(unencrypted_msg.text, "Weird reply");
+
+        if verified {
+            assert_ne!(unencrypted_msg.chat_id, encrypted_msg.chat_id);
+        } else {
+            assert_eq!(unencrypted_msg.chat_id, encrypted_msg.chat_id);
+        }
+    }
 
     Ok(())
 }

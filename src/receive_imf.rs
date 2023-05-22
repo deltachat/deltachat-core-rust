@@ -593,13 +593,17 @@ async fn add_parts(
 
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
-        if let Some(chat_id) = chat_id {
-            if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
-                let chat = Chat::load_from_db(context, chat_id).await?;
+        if let Some(_chat_id) = chat_id {
+            if !chat::is_contact_in_chat(context, _chat_id, from_id).await? {
+                let chat = Chat::load_from_db(context, _chat_id).await?;
                 if chat.is_protected() {
-                    // TODO
-                    let s = stock_str::unknown_sender_for_chat(context).await;
-                    mime_parser.repl_msg_by_error(&s);
+                    if chat.typ == Chattype::Single {
+                        // Just assign the message to the 1:1 chat with the actual sender instead.
+                        chat_id = None;
+                    } else {
+                        let s = stock_str::unknown_sender_for_chat(context).await;
+                        mime_parser.repl_msg_by_error(&s);
+                    }
                 } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
@@ -615,7 +619,7 @@ async fn add_parts(
                 context,
                 mime_parser,
                 sent_timestamp,
-                chat_id,
+                _chat_id,
                 from_id,
                 to_ids,
             )
