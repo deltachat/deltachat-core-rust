@@ -719,14 +719,14 @@ async fn add_parts(
                     }
                 }
 
-                // TODO extract into fn?
-                // TODO probably makes sense to put this down to `if check_verified_properties...` again
+                // TODO maybe makes sense to put this down to `if let Err(err) = check_verified_properties...` again,
+                // though I didn't find a nice way to do so.
                 if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
                     if is_partial_download.is_none()
                         && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
                         && !is_mdn
                     {
-                        // TODO code duplication with check_verified_properties()
+                        // This check is very similar to the one in check_verified_properties().
                         let mut new_protection = if mime_parser.was_encrypted()
                             && peerstate.has_verified_key(&mime_parser.signatures)
                         {

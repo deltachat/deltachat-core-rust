@@ -12,9 +12,6 @@ use crate::stock_str;
 use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
 use crate::{e2ee, message};
 
-// TODO read receipts shoudn't be able to change the verification status
-// TODO when testing with Marine, I had multiple installations of DC. This somehow broke things.
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_verified_oneonone_chat_broken_by_classical() {
     check_verified_oneonone_chat(true).await;

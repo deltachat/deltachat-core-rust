@@ -273,7 +273,7 @@ impl Peerstate {
                     self.fingerprint_changed = true;
                 }
             }
-        } // TODO seems like this doesn't warn if there was a gossip fingerprint that's now superseded by the verified key fingerprint
+        }
     }
 
     /// Reset Autocrypt peerstate.
