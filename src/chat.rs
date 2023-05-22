@@ -110,6 +110,10 @@ pub(crate) enum CantSendReason {
     /// The chat is a contact request, it needs to be accepted before sending a message.
     ContactRequest,
 
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    ProtectionBroken,
+
     /// Mailing list without known List-Post header.
     ReadOnlyMailingList,
 
@@ -125,6 +129,10 @@ impl fmt::Display for CantSendReason {
             Self::ContactRequest => write!(
                 f,
                 "contact request chat should be accepted before sending messages"
+            ),
+            Self::ProtectionBroken => write!(
+                f,
+                "accept that the encryption isn't verified anymore before sending messages"
             ),
             Self::ReadOnlyMailingList => {
                 write!(f, "mailing list does not have a know post address")
@@ -1262,8 +1270,10 @@ impl Chat {
             Some(SpecialChat)
         } else if self.is_device_talk() {
             Some(DeviceChat)
-        } else if self.is_contact_request() || self.is_protection_broken() {
-            Some(ContactRequest) // TODO maybe we need another reason here
+        } else if self.is_contact_request() {
+            Some(ContactRequest)
+        } else if self.is_protection_broken() {
+            Some(ProtectionBroken)
         } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
             Some(ReadOnlyMailingList)
         } else if !self.is_self_in_chat(context).await? {
