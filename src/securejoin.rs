@@ -943,7 +943,7 @@ mod tests {
 
             let msg1 = Message::load_from_db(&alice.ctx, msg_ids[1]).await.unwrap();
             assert!(msg1.is_info());
-            let expected_text = chat_verification_enabled(&alice, contact_bob_id).await;
+            let expected_text = chat_verification_enabled(&alice).await;
             assert_eq!(msg1.get_text(), expected_text);
         }
 
@@ -996,7 +996,7 @@ mod tests {
 
             let msg1 = Message::load_from_db(&bob.ctx, msg_ids[1]).await.unwrap();
             assert!(msg1.is_info());
-            let expected_text = chat_verification_enabled(&bob, contact_alice_id).await;
+            let expected_text = chat_verification_enabled(&bob).await;
             assert_eq!(msg1.get_text(), expected_text);
         }
 

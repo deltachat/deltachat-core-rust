@@ -127,8 +127,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         assert!(chat.is_protected());
 
         let msg = alice.get_last_msg().await;
-        let expected_text =
-            stock_str::chat_verification_enabled(&alice, alice_fiona_contact.id).await;
+        let expected_text = stock_str::chat_verification_enabled(&alice).await;
         assert_eq!(msg.text, expected_text);
     }
 
@@ -140,10 +139,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         assert!(chat.is_protected());
 
         let msg0 = get_chat_msg(&fiona, chat.id, 0, 2).await;
-        let contact_id = Contact::lookup_id_by_addr(&fiona, "alice@example.org", Origin::Hidden)
-            .await?
-            .unwrap();
-        let expected_text = stock_str::chat_verification_enabled(&fiona, contact_id).await;
+        let expected_text = stock_str::chat_verification_enabled(&fiona).await;
         assert_eq!(msg0.text.unwrap(), expected_text);
     }
 
@@ -239,7 +235,7 @@ async fn test_degrade_verified_oneonone_chat() -> Result<()> {
         .unwrap();
 
     let msg0 = get_chat_msg(&alice, alice_chat.id, 0, 3).await;
-    let enabled = stock_str::chat_verification_enabled(&alice, contact_id).await;
+    let enabled = stock_str::chat_verification_enabled(&alice).await;
     assert_eq!(msg0.text, enabled);
     assert_eq!(msg0.param.get_cmd(), SystemMessage::ChatProtectionEnabled);
 

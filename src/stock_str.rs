@@ -17,7 +17,7 @@ use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::param::Param;
-use crate::tools::{timestamp_to_str, EmailAddress};
+use crate::tools::timestamp_to_str;
 
 /// Storage for string translations.
 #[derive(Debug, Clone)]
@@ -419,9 +419,6 @@ pub enum StockMessage {
         fallback = "Messages may not be end-to-end encrypted anymore. Tap to learn more."
     ))]
     ChatVerificationDisabled = 171,
-
-    #[strum(props(fallback = "%1$s or %2$s"))]
-    AOrB = 172,
 }
 
 impl StockMessage {
@@ -1057,22 +1054,8 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
 }
 
 /// Stock string: TODO.
-pub(crate) async fn chat_verification_enabled(context: &Context, contact_id: ContactId) -> String {
-    let their_server = match Contact::load_from_db(context, contact_id).await {
-        Ok(c) => EmailAddress::new(c.get_addr()).unwrap().domain,
-        Err(_) => "their email server".to_string(),
-    };
-    let our_server = EmailAddress::new(&context.get_primary_self_addr().await.unwrap())
-        .unwrap() // TODO lots of unwraps
-        .domain;
-    let both_servers = if their_server == our_server {
-        their_server
-    } else {
-        a_or_b(context, &their_server, &our_server).await
-    };
-    translated(context, StockMessage::ChatVerificationEnabled)
-        .await
-        .replace1(&both_servers)
+pub(crate) async fn chat_verification_enabled(context: &Context) -> String {
+    translated(context, StockMessage::ChatVerificationEnabled).await
 }
 
 /// Stock string: TODO.
@@ -1084,13 +1067,6 @@ pub(crate) async fn chat_verification_disabled(context: &Context, contact_id: Co
     translated(context, StockMessage::ChatVerificationDisabled)
         .await
         .replace1(&name)
-}
-
-pub(crate) async fn a_or_b(context: &Context, first: &str, second: &str) -> String {
-    translated(context, StockMessage::AOrB)
-        .await
-        .replace1(first)
-        .replace2(second)
 }
 
 /// Stock string: `Reply`.
@@ -1356,7 +1332,7 @@ impl Context {
             ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {
                 chat_verification_disabled(self, contact_id).await
             }
-            ProtectionStatus::Protected => chat_verification_enabled(self, contact_id).await,
+            ProtectionStatus::Protected => chat_verification_enabled(self).await,
         }
     }
 
