@@ -8,7 +8,6 @@ use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
 use async_smtp::{self as smtp, EmailAddress, SmtpTransport};
 use tokio::io::BufStream;
-use tokio::task;
 
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
@@ -60,7 +59,10 @@ impl Smtp {
             // Closing connection with a QUIT command may take some time, especially if it's a
             // stale connection and an attempt to send the command times out. Send a command in a
             // separate task to avoid waiting for reply or timeout.
-            task::spawn(async move { transport.quit().await });
+            tokio::task::Builder::new()
+                .name("smtp_disconnect")
+                .spawn(async move { transport.quit().await })
+                .expect("failed to spawn smtp_disconnect task");
         }
         self.last_success = None;
     }

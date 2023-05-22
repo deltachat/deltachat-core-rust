@@ -9,3 +9,6 @@
 # invoking `cargo test` threads are allowed to have a large enough
 # stack size without needing to use an optimised build.
 RUST_MIN_STACK = "8388608"
+
+[build]
+rustflags = ["--cfg", "tokio_unstable"]

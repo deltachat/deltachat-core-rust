@@ -181,7 +181,9 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     let socks5_enabled = socks5_config.is_some();
 
     let ctx2 = ctx.clone();
-    let update_device_chats_handle = task::spawn(async move { ctx2.update_device_chats().await });
+    let update_device_chats_handle = tokio::task::Builder::new()
+        .name("update_device_chats")
+        .spawn(async move { ctx2.update_device_chats().await })?;
 
     // Step 1: Load the parameters and check email-address and password
 
@@ -350,44 +352,46 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
         .provider
         .map_or(socks5_config.is_some(), |provider| provider.opt.strict_tls);
 
-    let smtp_config_task = task::spawn(async move {
-        let mut smtp_configured = false;
-        let mut errors = Vec::new();
-        for smtp_server in smtp_servers {
-            smtp_param.user = smtp_server.username.clone();
-            smtp_param.server = smtp_server.hostname.clone();
-            smtp_param.port = smtp_server.port;
-            smtp_param.security = smtp_server.socket;
-            smtp_param.certificate_checks = match smtp_server.strict_tls {
-                Some(true) => CertificateChecks::Strict,
-                Some(false) => CertificateChecks::AcceptInvalidCertificates,
-                None => CertificateChecks::Automatic,
-            };
+    let smtp_config_task = tokio::task::Builder::new()
+        .name("smtp_config")
+        .spawn(async move {
+            let mut smtp_configured = false;
+            let mut errors = Vec::new();
+            for smtp_server in smtp_servers {
+                smtp_param.user = smtp_server.username.clone();
+                smtp_param.server = smtp_server.hostname.clone();
+                smtp_param.port = smtp_server.port;
+                smtp_param.security = smtp_server.socket;
+                smtp_param.certificate_checks = match smtp_server.strict_tls {
+                    Some(true) => CertificateChecks::Strict,
+                    Some(false) => CertificateChecks::AcceptInvalidCertificates,
+                    None => CertificateChecks::Automatic,
+                };
 
-            match try_smtp_one_param(
-                &context_smtp,
-                &smtp_param,
-                &socks5_config,
-                &smtp_addr,
-                provider_strict_tls,
-                &mut smtp,
-            )
-            .await
-            {
-                Ok(_) => {
-                    smtp_configured = true;
-                    break;
+                match try_smtp_one_param(
+                    &context_smtp,
+                    &smtp_param,
+                    &socks5_config,
+                    &smtp_addr,
+                    provider_strict_tls,
+                    &mut smtp,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        smtp_configured = true;
+                        break;
+                    }
+                    Err(e) => errors.push(e),
                 }
-                Err(e) => errors.push(e),
             }
-        }
 
-        if smtp_configured {
-            Ok(smtp_param)
-        } else {
-            Err(errors)
-        }
-    });
+            if smtp_configured {
+                Ok(smtp_param)
+            } else {
+                Err(errors)
+            }
+        })?;
 
     progress!(ctx, 600);
 

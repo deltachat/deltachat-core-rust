@@ -1555,7 +1555,10 @@ impl RecentlySeenLoop {
     pub(crate) fn new(context: Context) -> Self {
         let (interrupt_send, interrupt_recv) = channel::bounded(1);
 
-        let handle = task::spawn(Self::run(context, interrupt_recv));
+        let handle = tokio::task::Builder::new()
+            .name("recently_seen")
+            .spawn(Self::run(context, interrupt_recv))
+            .expect("failed to spawn recently_seen task");
         Self {
             handle,
             interrupt_send,

@@ -315,11 +315,13 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
     let context = Context::new(Path::new(&args[1]), 0, Events::new(), StockStrings::new()).await?;
 
     let events = context.get_event_emitter();
-    tokio::task::spawn(async move {
-        while let Some(event) = events.recv().await {
-            receive_event(event.typ);
-        }
-    });
+    tokio::task::Builder::new()
+        .name("repl:receive_event")
+        .spawn(async move {
+            while let Some(event) = events.recv().await {
+                receive_event(event.typ);
+            }
+        })?;
 
     println!("Delta Chat Core is awaiting your commands.");
 
@@ -331,61 +333,63 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
     let mut selected_chat = ChatId::default();
 
     let ctx = context.clone();
-    let input_loop = tokio::task::spawn_blocking(move || {
-        let h = DcHelper {
-            completer: FilenameCompleter::new(),
-            highlighter: MatchingBracketHighlighter::new(),
-            hinter: HistoryHinter {},
-        };
-        let mut rl = Editor::with_config(config)?;
-        rl.set_helper(Some(h));
-        rl.bind_sequence(KeyEvent::alt('N'), Cmd::HistorySearchForward);
-        rl.bind_sequence(KeyEvent::alt('P'), Cmd::HistorySearchBackward);
-        if rl.load_history(".dc-history.txt").is_err() {
-            println!("No previous history.");
-        }
+    let input_loop = tokio::task::Builder::new()
+        .name("repl:input_loop")
+        .spawn_blocking(move || {
+            let h = DcHelper {
+                completer: FilenameCompleter::new(),
+                highlighter: MatchingBracketHighlighter::new(),
+                hinter: HistoryHinter {},
+            };
+            let mut rl = Editor::with_config(config)?;
+            rl.set_helper(Some(h));
+            rl.bind_sequence(KeyEvent::alt('N'), Cmd::HistorySearchForward);
+            rl.bind_sequence(KeyEvent::alt('P'), Cmd::HistorySearchBackward);
+            if rl.load_history(".dc-history.txt").is_err() {
+                println!("No previous history.");
+            }
 
-        loop {
-            let p = "> ";
-            let readline = rl.readline(p);
+            loop {
+                let p = "> ";
+                let readline = rl.readline(p);
 
-            match readline {
-                Ok(line) => {
-                    // TODO: ignore "set mail_pw"
-                    rl.add_history_entry(line.as_str())?;
-                    let should_continue = Handle::current().block_on(async {
-                        match handle_cmd(line.trim(), ctx.clone(), &mut selected_chat).await {
-                            Ok(ExitResult::Continue) => true,
-                            Ok(ExitResult::Exit) => {
-                                println!("Exiting ...");
-                                false
+                match readline {
+                    Ok(line) => {
+                        // TODO: ignore "set mail_pw"
+                        rl.add_history_entry(line.as_str())?;
+                        let should_continue = Handle::current().block_on(async {
+                            match handle_cmd(line.trim(), ctx.clone(), &mut selected_chat).await {
+                                Ok(ExitResult::Continue) => true,
+                                Ok(ExitResult::Exit) => {
+                                    println!("Exiting ...");
+                                    false
+                                }
+                                Err(err) => {
+                                    println!("Error: {err:#}");
+                                    true
+                                }
                             }
-                            Err(err) => {
-                                println!("Error: {err:#}");
-                                true
-                            }
+                        });
+
+                        if !should_continue {
+                            break;
                         }
-                    });
-
-                    if !should_continue {
+                    }
+                    Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
+                        println!("Exiting...");
+                        break;
+                    }
+                    Err(err) => {
+                        println!("Error: {err:#}");
                         break;
                     }
                 }
-                Err(ReadlineError::Interrupted) | Err(ReadlineError::Eof) => {
-                    println!("Exiting...");
-                    break;
-                }
-                Err(err) => {
-                    println!("Error: {err:#}");
-                    break;
-                }
             }
-        }
 
-        rl.save_history(".dc-history.txt")?;
-        println!("history saved");
-        Ok::<_, Error>(())
-    });
+            rl.save_history(".dc-history.txt")?;
+            println!("history saved");
+            Ok::<_, Error>(())
+        })?;
 
     context.stop_io().await;
     input_loop.await??;
@@ -481,6 +485,7 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    console_subscriber::init();
     let _ = pretty_env_logger::try_init();
 
     let args = std::env::args().collect();

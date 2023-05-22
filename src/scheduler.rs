@@ -740,7 +740,9 @@ impl Scheduler {
         let (inbox_start_send, inbox_start_recv) = oneshot::channel();
         let handle = {
             let ctx = ctx.clone();
-            task::spawn(inbox_loop(ctx, inbox_start_send, inbox_handlers))
+            tokio::task::Builder::new()
+                .name("inbox_loop")
+                .spawn(inbox_loop(ctx, inbox_start_send, inbox_handlers))?
         };
         let inbox = SchedBox {
             meaning: FolderMeaning::Inbox,
@@ -760,7 +762,9 @@ impl Scheduler {
                 let (conn_state, handlers) = ImapConnectionState::new(&ctx).await?;
                 let (start_send, start_recv) = oneshot::channel();
                 let ctx = ctx.clone();
-                let handle = task::spawn(simple_imap_loop(ctx, start_send, handlers, meaning));
+                let handle = tokio::task::Builder::new()
+                    .name("simple_imap_loop")
+                    .spawn(simple_imap_loop(ctx, start_send, handlers, meaning))?;
                 oboxes.push(SchedBox {
                     meaning,
                     conn_state,
@@ -772,22 +776,28 @@ impl Scheduler {
 
         let smtp_handle = {
             let ctx = ctx.clone();
-            task::spawn(smtp_loop(ctx, smtp_start_send, smtp_handlers))
+            tokio::task::Builder::new()
+                .name("smtp_loop")
+                .spawn(smtp_loop(ctx, smtp_start_send, smtp_handlers))?
         };
         start_recvs.push(smtp_start_recv);
 
         let ephemeral_handle = {
             let ctx = ctx.clone();
-            task::spawn(async move {
-                ephemeral::ephemeral_loop(&ctx, ephemeral_interrupt_recv).await;
-            })
+            tokio::task::Builder::new()
+                .name("ephemeral")
+                .spawn(async move {
+                    ephemeral::ephemeral_loop(&ctx, ephemeral_interrupt_recv).await;
+                })?
         };
 
         let location_handle = {
             let ctx = ctx.clone();
-            task::spawn(async move {
-                location::location_loop(&ctx, location_interrupt_recv).await;
-            })
+            tokio::task::Builder::new()
+                .name("location")
+                .spawn(async move {
+                    location::location_loop(&ctx, location_interrupt_recv).await;
+                })?
         };
 
         let recently_seen_loop = RecentlySeenLoop::new(ctx.clone());

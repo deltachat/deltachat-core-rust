@@ -364,17 +364,19 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
     let passphrase = passphrase.to_string();
 
-    tokio::task::spawn_blocking(move || {
-        let mut rng = thread_rng();
-        let s2k = StringToKey::new_default(&mut rng);
-        let msg =
-            lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
+    tokio::task::Builder::new()
+        .name("symm_encrypt")
+        .spawn_blocking(move || {
+            let mut rng = thread_rng();
+            let s2k = StringToKey::new_default(&mut rng);
+            let msg =
+                lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
 
-        let encoded_msg = msg.to_armored_string(None)?;
+            let encoded_msg = msg.to_armored_string(None)?;
 
-        Ok(encoded_msg)
-    })
-    .await?
+            Ok(encoded_msg)
+        })?
+        .await?
 }
 
 /// Symmetric decryption.
@@ -385,20 +387,22 @@ pub async fn symm_decrypt<T: std::io::Read + std::io::Seek>(
     let (enc_msg, _) = Message::from_armor_single(ctext)?;
 
     let passphrase = passphrase.to_string();
-    tokio::task::spawn_blocking(move || {
-        let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
+    tokio::task::Builder::new()
+        .name("symm_decrypt")
+        .spawn_blocking(move || {
+            let decryptor = enc_msg.decrypt_with_password(|| passphrase)?;
 
-        let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
-        if let Some(msg) = msgs.first() {
-            match msg.get_content()? {
-                Some(content) => Ok(content),
-                None => bail!("Decrypted message is empty"),
+            let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
+            if let Some(msg) = msgs.first() {
+                match msg.get_content()? {
+                    Some(content) => Ok(content),
+                    None => bail!("Decrypted message is empty"),
+                }
+            } else {
+                bail!("No valid messages found")
             }
-        } else {
-            bail!("No valid messages found")
-        }
-    })
-    .await?
+        })?
+        .await?
 }
 
 #[cfg(test)]
