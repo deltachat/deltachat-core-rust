@@ -639,6 +639,8 @@ async fn simple_imap_loop(
         .await;
 }
 
+const THIRTY_YEARS: u64 = 30 * 365 * 24 * 60 * 60; 
+
 async fn smtp_loop(
     ctx: Context,
     started: oneshot::Sender<()>,
@@ -665,7 +667,14 @@ async fn smtp_loop(
         loop {
             if let Err(err) = send_smtp_messages(&ctx, &mut connection).await {
                 warn!(ctx, "send_smtp_messages failed: {:#}", err);
-                timeout = Some(timeout.map_or(30, |timeout: u64| timeout.saturating_mul(3)))
+                timeout = Some(timeout.map_or(30, |timeout: u64| {
+                    let new_timeout = timeout.saturating_mul(3);
+                    if new_timeout >= THIRTY_YEARS {
+                        THIRTY_YEARS
+                    } else {
+                        new_timeout
+                    }
+                }))
             } else {
                 let duration_until_can_send = ctx.ratelimit.read().await.until_can_send();
                 if !duration_until_can_send.is_zero() {
