@@ -639,7 +639,7 @@ async fn simple_imap_loop(
         .await;
 }
 
-const THIRTY_YEARS: u64 = 30 * 365 * 24 * 60 * 60; 
+const THIRTY_YEARS: u64 = 30 * 365 * 24 * 60 * 60;
 
 async fn smtp_loop(
     ctx: Context,
