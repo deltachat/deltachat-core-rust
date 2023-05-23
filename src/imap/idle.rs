@@ -8,6 +8,7 @@ use futures_lite::FutureExt;
 use super::session::Session;
 use super::Imap;
 use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
+use crate::tools;
 use crate::{context::Context, scheduler::InterruptInfo};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
@@ -97,7 +98,7 @@ impl Session {
             }
         }
 
-        let mut session = tokio::time::timeout(Duration::from_secs(15), handle.done())
+        let mut session = tools::timeout(Duration::from_secs(15), handle.done())
             .await
             .with_context(|| format!("{folder_name}: IMAP IDLE protocol timed out"))?
             .with_context(|| format!("{folder_name}: IMAP IDLE failed"))?;

@@ -71,7 +71,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{ensure, Result};
 use async_channel::Receiver;
 use serde::{Deserialize, Serialize};
-use tokio::time::timeout;
 
 use crate::chat::{send_msg, ChatId};
 use crate::constants::{DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH};
@@ -84,6 +83,7 @@ use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql::{self, params_iter};
 use crate::stock_str;
+use crate::tools::timeout;
 use crate::tools::{duration_to_str, time};
 
 /// Ephemeral timer value.

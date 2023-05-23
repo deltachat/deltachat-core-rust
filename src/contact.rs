@@ -16,7 +16,7 @@ use regex::Regex;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tokio::task;
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -32,6 +32,7 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
+use crate::tools::timeout;
 use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress,

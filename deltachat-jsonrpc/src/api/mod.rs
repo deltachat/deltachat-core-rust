@@ -6,6 +6,7 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
 use deltachat::message::get_msg_read_receipts;
 use deltachat::qr::Qr;
+use deltachat::tools;
 use deltachat::{
     chat::{
         self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
@@ -152,7 +153,7 @@ impl CommandApi {
 impl CommandApi {
     /// Test function.
     async fn sleep(&self, delay: f64) {
-        tokio::time::sleep(std::time::Duration::from_secs_f64(delay)).await
+        tools::sleep(std::time::Duration::from_secs_f64(delay)).await
     }
 
     // ---------------------------------------------

@@ -3798,6 +3798,7 @@ mod tests {
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::TestContext;
+    use crate::tools;
     use tokio::fs;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -4107,17 +4108,17 @@ mod tests {
 
         add_contact_to_chat(&alice, alice_chat_id, claire_id).await?;
         let add2 = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tools::sleep(std::time::Duration::from_millis(1100)).await;
 
         add_contact_to_chat(&alice, alice_chat_id, daisy_id).await?;
         let add3 = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tools::sleep(std::time::Duration::from_millis(1100)).await;
 
         assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
 
         remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
         let remove1 = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tools::sleep(std::time::Duration::from_millis(1100)).await;
 
         remove_contact_from_chat(&alice, alice_chat_id, daisy_id).await?;
         let remove2 = alice.pop_sent_msg().await;
@@ -4154,11 +4155,11 @@ mod tests {
 
         send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
         let add = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tools::sleep(std::time::Duration::from_millis(1100)).await;
 
         remove_contact_from_chat(&alice, alice_chat_id, claire_id).await?;
         let remove1 = alice.pop_sent_msg().await;
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tools::sleep(std::time::Duration::from_millis(1100)).await;
 
         remove_contact_from_chat(&alice, alice_chat_id, daisy_id).await?;
         let remove2 = alice.pop_sent_msg().await;
@@ -4752,9 +4753,9 @@ mod tests {
             .await
             .unwrap()
             .chat_id;
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        tools::sleep(std::time::Duration::from_millis(1000)).await;
         let chat_id2 = t.get_self_chat().await.id;
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        tools::sleep(std::time::Duration::from_millis(1000)).await;
         let chat_id3 = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();

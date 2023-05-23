@@ -4,6 +4,7 @@
 #![allow(missing_docs)]
 
 use std::borrow::Cow;
+use std::cmp::min;
 use std::fmt;
 use std::io::{Cursor, Write};
 use std::mem;
@@ -14,7 +15,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
-use futures::{StreamExt, TryStreamExt};
+use futures::{Future, StreamExt, TryStreamExt};
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
@@ -708,6 +709,19 @@ const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
 pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
+}
+
+const THIRTY_YEARS: Duration = Duration::from_secs(60 * 60 * 24 * 365 * 10);
+
+pub fn sleep(duration: Duration) -> tokio::time::Sleep {
+    tokio::time::sleep(min(THIRTY_YEARS, duration))
+}
+
+pub fn timeout<F>(duration: Duration, future: F) -> tokio::time::Timeout<F>
+where
+    F: Future,
+{
+    tokio::time::timeout(min(THIRTY_YEARS, duration), future)
 }
 
 #[cfg(test)]

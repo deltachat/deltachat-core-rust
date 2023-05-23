@@ -790,6 +790,7 @@ mod tests {
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext};
+    use crate::tools;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file() {
@@ -963,7 +964,7 @@ mod tests {
             // The database is still unconfigured;
             // fill the config cache with the old value.
             context2.is_configured().await.ok();
-            tokio::time::sleep(Duration::from_micros(1)).await;
+            tools::sleep(Duration::from_micros(1)).await;
         }
 
         // Assert that the config cache has the new value now.

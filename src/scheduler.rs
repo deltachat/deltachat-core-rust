@@ -16,13 +16,13 @@ use crate::context::Context;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::events::EventType;
 use crate::imap::{FolderMeaning, Imap};
-use crate::job;
 use crate::location;
 use crate::log::LogExt;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
 use crate::tools::time;
 use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
+use crate::{job, tools};
 
 pub(crate) mod connectivity;
 
@@ -674,7 +674,7 @@ async fn smtp_loop(
                         "smtp got rate limited, waiting for {} until can send again",
                         duration_to_str(duration_until_can_send)
                     );
-                    tokio::time::timeout(duration_until_can_send, async {
+                    tools::timeout(duration_until_can_send, async {
                         idle_interrupt_receiver.recv().await.unwrap_or_default()
                     })
                     .await
@@ -701,7 +701,7 @@ async fn smtp_loop(
                     "smtp has messages to retry, planning to retry {} seconds later", timeout
                 );
                 let duration = std::time::Duration::from_secs(timeout);
-                tokio::time::timeout(duration, async {
+                tools::timeout(duration, async {
                     idle_interrupt_receiver.recv().await.unwrap_or_default()
                 })
                 .await
@@ -865,12 +865,12 @@ impl Scheduler {
         // Actually shutdown tasks.
         let timeout_duration = std::time::Duration::from_secs(30);
         for b in once(self.inbox).chain(self.oboxes.into_iter()) {
-            tokio::time::timeout(timeout_duration, b.handle)
+            tools::timeout(timeout_duration, b.handle)
                 .await
                 .log_err(context)
                 .ok();
         }
-        tokio::time::timeout(timeout_duration, self.smtp_handle)
+        tools::timeout(timeout_duration, self.smtp_handle)
             .await
             .log_err(context)
             .ok();

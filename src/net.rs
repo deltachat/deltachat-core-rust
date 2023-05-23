@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use anyhow::{Context as _, Error, Result};
 use tokio::net::{lookup_host, TcpStream};
-use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
 
 use crate::context::Context;
 use crate::tools::time;
+use crate::tools::timeout;
 
 pub(crate) mod http;
 pub(crate) mod session;

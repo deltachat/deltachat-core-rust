@@ -598,6 +598,7 @@ mod tests {
     use crate::chat::{get_chat_msgs, send_msg, ChatItem};
     use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContextManager;
+    use crate::tools;
 
     use super::*;
 
@@ -629,7 +630,7 @@ mod tests {
         get_backup(&ctx1, provider.qr()).await.unwrap();
 
         // Make sure the provider finishes without an error.
-        tokio::time::timeout(Duration::from_secs(30), provider)
+        tools::timeout(Duration::from_secs(30), provider)
             .await
             .expect("timed out")
             .expect("error in provider");

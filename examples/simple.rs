@@ -1,10 +1,10 @@
 use deltachat::chat::{self, ChatId};
-use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::message::Message;
 use deltachat::stock_str::StockStrings;
+use deltachat::{chatlist::*, tools};
 use deltachat::{EventType, Events};
 use tempfile::tempdir;
 
@@ -80,7 +80,7 @@ async fn main() {
     }
 
     // wait for the message to be sent out
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    tools::sleep(std::time::Duration::from_secs(1)).await;
 
     log::info!("fetching chats..");
     let chats = Chatlist::try_load(&ctx, 0, None, None).await.unwrap();

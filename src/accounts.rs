@@ -510,7 +510,10 @@ impl AccountConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stock_str::{self, StockMessage};
+    use crate::{
+        stock_str::{self, StockMessage},
+        tools,
+    };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_open() {
@@ -732,7 +735,7 @@ mod tests {
 
         // Test that event emitter does not return `None` immediately.
         let duration = std::time::Duration::from_millis(1);
-        assert!(tokio::time::timeout(duration, event_emitter.recv())
+        assert!(tools::timeout(duration, event_emitter.recv())
             .await
             .is_err());
 

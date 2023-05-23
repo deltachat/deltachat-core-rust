@@ -6,7 +6,6 @@ use std::time::Duration;
 use anyhow::{ensure, Context as _, Result};
 use async_channel::Receiver;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
-use tokio::time::timeout;
 
 use crate::chat::{self, ChatId};
 use crate::contact::ContactId;
@@ -15,6 +14,7 @@ use crate::events::EventType;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
+use crate::tools::timeout;
 use crate::tools::{duration_to_str, time};
 
 /// Location record.

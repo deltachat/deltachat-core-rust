@@ -37,7 +37,7 @@ use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::MimeMessage;
 use crate::receive_imf::receive_imf;
 use crate::stock_str::StockStrings;
-use crate::tools::EmailAddress;
+use crate::tools::{self, EmailAddress};
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");
@@ -432,7 +432,7 @@ impl TestContext {
                 break row;
             }
             if start.elapsed() < timeout {
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                tools::sleep(Duration::from_millis(100)).await;
             } else {
                 return None;
             }
@@ -954,7 +954,7 @@ impl EventTracker {
     /// If no matching events are ready this will wait for new events to arrive and time out
     /// after 10 seconds.
     pub async fn get_matching<F: Fn(&EventType) -> bool>(&self, event_matcher: F) -> EventType {
-        tokio::time::timeout(Duration::from_secs(10), async move {
+        tools::timeout(Duration::from_secs(10), async move {
             loop {
                 let event = self.recv().await.unwrap();
                 if event_matcher(&event.typ) {
