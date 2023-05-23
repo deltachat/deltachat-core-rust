@@ -481,6 +481,19 @@ class TestOfflineChat:
         contact2 = ac1.create_contact("display1 <x@example.org>", "real")
         assert contact2.name == "real"
 
+    def test_send_lots_of_offline_msgs(self, acfactory):
+        ac1 = acfactory.get_pseudo_configured_account()
+        ac1.set_config("configured_mail_server", "example.org")
+        ac1.set_config("configured_mail_user", "example.org")
+        ac1.set_config("configured_mail_pw", "example.org")
+        ac1.set_config("configured_send_server", "example.org")
+        ac1.set_config("configured_send_user", "example.org")
+        ac1.set_config("configured_send_pw", "example.org")
+        ac1.start_io()
+        chat = ac1.create_contact("some1@example.org", name="some1").create_chat()
+        for i in range(50):
+            chat.send_text("hello")
+
     def test_create_chat_simple(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
