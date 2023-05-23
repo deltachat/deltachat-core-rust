@@ -711,6 +711,7 @@ pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
 }
 
+// Workaround for https://github.com/tokio-rs/tokio/issues/5183
 const THIRTY_YEARS: Duration = Duration::from_secs(60 * 60 * 24 * 365 * 10);
 
 pub fn sleep(duration: Duration) -> tokio::time::Sleep {
