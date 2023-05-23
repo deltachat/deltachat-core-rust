@@ -711,7 +711,9 @@ pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
 }
 
-// Workaround for https://github.com/tokio-rs/tokio/issues/5183
+// Workaround for https://github.com/tokio-rs/tokio/issues/5183:
+// If we sleep for a very long time (like, u64::MAX/10), then tokio panics.
+// So, only sleep for up to 30 years.
 const THIRTY_YEARS: Duration = Duration::from_secs(60 * 60 * 24 * 365 * 10);
 
 pub fn sleep(duration: Duration) -> tokio::time::Sleep {
