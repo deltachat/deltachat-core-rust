@@ -494,7 +494,7 @@ def test_multidevice_sync_seen(acfactory, lp):
     assert "Expires: " in ac1_clone_message.get_message_info()
 
 
-def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
+def test_see_new_verified_member_after_going_online(acfactory, tmp_path, lp):
     """The test for the bug #3836:
     - Alice has two devices, the second is offline.
     - Alice creates a verified group and sends a QR invitation to Bob.
@@ -507,9 +507,10 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     for ac in [ac1, ac1_offl]:
         ac.set_config("bcc_self", "1")
     acfactory.bring_accounts_online()
-    dir = tmpdir.mkdir("exportdir")
-    ac1.export_self_keys(dir.strpath)
-    ac1_offl.import_self_keys(dir.strpath)
+    dir = tmp_path / "exportdir"
+    dir.mkdir()
+    ac1.export_self_keys(str(dir))
+    ac1_offl.import_self_keys(str(dir))
     ac1_offl.stop_io()
 
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")
@@ -541,7 +542,7 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     ac1.set_config("bcc_self", "0")
 
 
-def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
+def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
     """Another test for the bug #3836:
     - Bob has two devices, the second is offline.
     - Alice creates a verified group and sends a QR invitation to Bob.
@@ -556,9 +557,10 @@ def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
     for ac in [ac2, ac2_offl]:
         ac.set_config("bcc_self", "1")
     acfactory.bring_accounts_online()
-    dir = tmpdir.mkdir("exportdir")
-    ac2.export_self_keys(dir.strpath)
-    ac2_offl.import_self_keys(dir.strpath)
+    dir = tmp_path / "exportdir"
+    dir.mkdir()
+    ac2.export_self_keys(str(dir))
+    ac2_offl.import_self_keys(str(dir))
     ac2_offl.stop_io()
 
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")

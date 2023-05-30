@@ -52,18 +52,18 @@ def test_parse_system_add_remove(msgtext, res):
 
 
 class TestOfflineAccountBasic:
-    def test_wrong_db(self, tmpdir):
-        p = tmpdir.join("hello.db")
-        p.write("123")
-        account = Account(p.strpath)
+    def test_wrong_db(self, tmp_path):
+        p = tmp_path / "hello.db"
+        p.write_text("123")
+        account = Account(str(p))
         assert not account.is_open()
 
-    def test_os_name(self, tmpdir):
-        p = tmpdir.join("hello.db")
+    def test_os_name(self, tmp_path):
+        p = tmp_path / "hello.db"
         # we can't easily test if os_name is used in X-Mailer
         # outgoing messages without a full Online test
         # but we at least check Account accepts the arg
-        ac1 = Account(p.strpath, os_name="solarpunk")
+        ac1 = Account(str(p), os_name="solarpunk")
         ac1.get_info()
 
     def test_preconfigure_keypair(self, acfactory, data):
@@ -496,22 +496,22 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_import_export_on_unencrypted_acct(self, acfactory, tmpdir):
-        backupdir = tmpdir.mkdir("backup")
+    def test_import_export_on_unencrypted_acct(self, acfactory, tmp_path):
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
-        path = ac1.export_all(backupdir.strpath)
+        path = ac1.export_all(str(backupdir))
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_all(path)
@@ -525,27 +525,27 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_export_on_encrypted_acct(self, acfactory, tmpdir):
+    def test_import_export_on_encrypted_acct(self, acfactory, tmp_path):
         passphrase1 = "passphrase1"
         passphrase2 = "passphrase2"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account(passphrase=passphrase1)
 
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath)
+        path = ac1.export_all(str(backupdir))
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account(closed=True)
@@ -580,27 +580,27 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_export_with_passphrase(self, acfactory, tmpdir):
+    def test_import_export_with_passphrase(self, acfactory, tmp_path):
         passphrase = "test_passphrase"
         wrong_passphrase = "wrong_passprase"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account()
 
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath, passphrase)
+        path = ac1.export_all(str(backupdir), passphrase)
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account()
@@ -619,7 +619,7 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmpdir):
+    def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmp_path):
         """
         Test that account passphrase isn't lost if backup failed to be imported.
         See https://github.com/deltachat/deltachat-core-rust/issues/3379
@@ -627,24 +627,24 @@ class TestOfflineChat:
         acct_passphrase = "passphrase1"
         bak_passphrase = "passphrase2"
         wrong_passphrase = "wrong_passprase"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
 
         ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath, bak_passphrase)
+        path = ac1.export_all(str(backupdir), bak_passphrase)
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account(closed=True)

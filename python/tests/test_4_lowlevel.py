@@ -1,4 +1,3 @@
-import os
 from queue import Queue
 
 from deltachat import capi, const, cutil, register_global_plugin
@@ -65,16 +64,17 @@ class TestACSetup:
         assert pc._account2state[ac1] == pc.IDLEREADY
         assert pc._account2state[ac2] == pc.IDLEREADY
 
-    def test_store_and_retrieve_configured_account_cache(self, acfactory, tmpdir):
+    def test_store_and_retrieve_configured_account_cache(self, acfactory, tmp_path):
         ac1 = acfactory.get_pseudo_configured_account()
         holder = acfactory._acsetup.testprocess
         assert holder.cache_maybe_store_configured_db_files(ac1)
         assert not holder.cache_maybe_store_configured_db_files(ac1)
-        acdir = tmpdir.mkdir("newaccount")
+        acdir = tmp_path / "newaccount"
+        acdir.mkdir()
         addr = ac1.get_config("addr")
-        target_db_path = acdir.join("db").strpath
-        assert holder.cache_maybe_retrieve_configured_db_files(addr, target_db_path)
-        assert len(os.listdir(acdir)) >= 2
+        target_db_path = acdir / "db"
+        assert holder.cache_maybe_retrieve_configured_db_files(addr, str(target_db_path))
+        assert sum(1 for _ in acdir.iterdir()) >= 2
 
 
 def test_liveconfig_caching(acfactory, monkeypatch):
@@ -112,20 +112,20 @@ def test_dc_close_events(acfactory):
     shutdowns.get(timeout=2)
 
 
-def test_wrong_db(tmpdir):
-    p = tmpdir.join("hello.db")
+def test_wrong_db(tmp_path):
+    p = tmp_path / "hello.db"
     # write an invalid database file
-    p.write("x123" * 10)
+    p.write_bytes(b"x123" * 10)
 
-    context = lib.dc_context_new(ffi.NULL, p.strpath.encode("ascii"), ffi.NULL)
+    context = lib.dc_context_new(ffi.NULL, str(p).encode("ascii"), ffi.NULL)
     assert not lib.dc_context_is_open(context)
 
 
-def test_empty_blobdir(tmpdir):
-    db_fname = tmpdir.join("hello.db")
+def test_empty_blobdir(tmp_path):
+    db_fname = tmp_path / "hello.db"
     # Apparently some client code expects this to be the same as passing NULL.
     ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, db_fname.strpath.encode("ascii"), b""),
+        lib.dc_context_new(ffi.NULL, str(db_fname).encode("ascii"), b""),
         lib.dc_context_unref,
     )
     assert ctx != ffi.NULL
@@ -174,10 +174,10 @@ def test_provider_info_none():
     assert lib.dc_provider_new_from_email(ctx, cutil.as_dc_charpointer("email@unexistent.no")) == ffi.NULL
 
 
-def test_get_info_open(tmpdir):
-    db_fname = tmpdir.join("test.db")
+def test_get_info_open(tmp_path):
+    db_fname = tmp_path / "test.db"
     ctx = ffi.gc(
-        lib.dc_context_new(ffi.NULL, db_fname.strpath.encode("ascii"), ffi.NULL),
+        lib.dc_context_new(ffi.NULL, str(db_fname).encode("ascii"), ffi.NULL),
         lib.dc_context_unref,
     )
     info = cutil.from_dc_charpointer(lib.dc_get_info(ctx))
@@ -218,10 +218,10 @@ def test_logged_ac_process_ffi_failure(acfactory):
     assert "Traceback" in res
 
 
-def test_jsonrpc_blocking_call(tmpdir):
-    accounts_fname = tmpdir.join("accounts")
+def test_jsonrpc_blocking_call(tmp_path):
+    accounts_fname = tmp_path / "accounts"
     accounts = ffi.gc(
-        lib.dc_accounts_new(ffi.NULL, accounts_fname.strpath.encode("ascii")),
+        lib.dc_accounts_new(ffi.NULL, str(accounts_fname).encode("ascii")),
         lib.dc_accounts_unref,
     )
     jsonrpc = ffi.gc(lib.dc_jsonrpc_init(accounts), lib.dc_jsonrpc_unref)
