@@ -137,6 +137,9 @@ def pytest_report_header(config, startdir):
 
 @pytest.fixture(scope="session")
 def testprocess(request):
+    """Return live account configuration manager.
+
+    The returned object is a :class:`TestProcess` object."""
     return TestProcess(pytestconfig=request.config)
 
 
@@ -231,6 +234,8 @@ def write_dict_to_dir(dic, target_dir):
 
 @pytest.fixture()
 def data(request):
+    """Test data."""
+
     class Data:
         def __init__(self) -> None:
             # trying to find test data heuristically
@@ -614,6 +619,7 @@ class ACFactory:
 
 @pytest.fixture()
 def acfactory(request, tmpdir, testprocess, data):
+    """Account factory."""
     am = ACFactory(request=request, tmpdir=tmpdir, testprocess=testprocess, data=data)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
@@ -686,11 +692,14 @@ class BotProcess:
 
 @pytest.fixture()
 def tmp_db_path(tmpdir):
+    """Return a path inside the temporary directory where the database can be created."""
     return tmpdir.join("test.db").strpath
 
 
 @pytest.fixture()
 def lp():
+    """Log printer fixture."""
+
     class Printer:
         def sec(self, msg: str) -> None:
             print()
