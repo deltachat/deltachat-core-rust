@@ -8,7 +8,7 @@ import pytest
 import deltachat
 
 
-def test_db_busy_error(acfactory, tmpdir):
+def test_db_busy_error(acfactory):
     starttime = time.time()
     log_lock = threading.RLock()
 

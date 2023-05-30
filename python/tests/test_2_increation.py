@@ -30,25 +30,26 @@ def wait_msgs_changed(account, msgs_list):
 
 
 class TestOnlineInCreation:
-    def test_increation_not_blobdir(self, tmpdir, acfactory, lp):
+    def test_increation_not_blobdir(self, tmp_path, acfactory, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)
         chat = ac1.create_chat(ac2)
 
         lp.sec("Creating in-creation file outside of blobdir")
-        assert tmpdir.strpath != ac1.get_blobdir()
-        src = tmpdir.join("file.txt").ensure(file=1)
+        assert str(tmp_path) != ac1.get_blobdir()
+        src = tmp_path / "file.txt"
+        src.touch()
         with pytest.raises(Exception):
-            chat.prepare_message_file(src.strpath)
+            chat.prepare_message_file(str(src))
 
-    def test_no_increation_copies_to_blobdir(self, tmpdir, acfactory, lp):
+    def test_no_increation_copies_to_blobdir(self, tmp_path, acfactory, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)
         chat = ac1.create_chat(ac2)
 
         lp.sec("Creating file outside of blobdir")
-        assert tmpdir.strpath != ac1.get_blobdir()
-        src = tmpdir.join("file.txt")
-        src.write("hello there\n")
-        chat.send_file(src.strpath)
+        assert str(tmp_path) != ac1.get_blobdir()
+        src = tmp_path / "file.txt"
+        src.write_text("hello there\n")
+        chat.send_file(str(src))
 
         blob_src = os.path.join(ac1.get_blobdir(), "file.txt")
         assert os.path.exists(blob_src), "file.txt not copied to blobdir"
