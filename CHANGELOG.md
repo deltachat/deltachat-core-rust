@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.112.10] - 2023-06-01
+
+### Fixes
+
+- Disable `fetch_existing_msgs` setting by default.
+- Update `h2` to fix RUSTSEC-2023-0034.
+
 ## [1.115.0] - 2023-05-12
 
 ### JSON-RPC API Changes
