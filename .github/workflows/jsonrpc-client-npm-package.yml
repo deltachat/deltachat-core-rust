@@ -38,13 +38,12 @@ jobs:
           node --version
           echo $DELTACHAT_JSONRPC_TAR_GZ
       - name: Install dependencies without running scripts
-        run: |
-          cd deltachat-jsonrpc/typescript
-          npm install --ignore-scripts
+        working-directory: deltachat-jsonrpc/typescript
+        run: npm install --ignore-scripts
       - name: Package
         shell: bash
+        working-directory: deltachat-jsonrpc/typescript
         run: |
-          cd deltachat-jsonrpc/typescript
           npm run build
           npm pack .
           ls -lah

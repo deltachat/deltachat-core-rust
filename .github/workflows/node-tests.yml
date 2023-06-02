@@ -52,25 +52,22 @@ jobs:
 
       - name: Install dependencies & build
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          cd node
-          npm install --verbose
+        working-directory: node
+        run: npm install --verbose
 
       - name: Test
         timeout-minutes: 10
         if: runner.os != 'Windows'
-        run: |
-          cd node
-          npm run test
+        working-directory: node
+        run: npm run test
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
           NODE_OPTIONS: "--force-node-api-uncaught-exceptions-policy=true"
       - name: Run tests on Windows, except lint
         timeout-minutes: 10
         if: runner.os == 'Windows'
-        run: |
-          cd node
-          npm run test:mocha
+        working-directory: node
+        run: npm run test:mocha
         env:
           DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
           NODE_OPTIONS: "--force-node-api-uncaught-exceptions-policy=true"

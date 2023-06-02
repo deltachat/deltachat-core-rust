@@ -46,13 +46,12 @@ jobs:
 
       - name: Install dependencies & build
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          cd node
-          npm install --verbose
+        working-directory: node
+        run: npm install --verbose
 
       - name: Build Prebuild
+        working-directory: node
         run: |
-          cd node
           npm run prebuildify
           tar -zcvf "${{ matrix.os }}.tar.gz" -C prebuilds .
 

@@ -17,8 +17,8 @@ jobs:
           node-version: 16.x
 
       - name: npm install and generate documentation
+        working-directory: node
         run: |
-          cd node
           npm i --ignore-scripts
           npx typedoc
           mv docs js
