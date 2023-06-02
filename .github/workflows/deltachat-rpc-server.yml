@@ -1,4 +1,10 @@
-# Manually triggered action to build deltachat-rpc-server binaries.
+# GitHub Actions workflow
+# to build `deltachat-rpc-server` binaries
+# and upload them to the release.
+#
+# The workflow is automatically triggered on releases.
+# It can also be triggered manually
+# to produce binary artifacts for testing.
 
 name: Build deltachat-rpc-server binaries
 
