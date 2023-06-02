@@ -1,3 +1,8 @@
+# GitHub Actions workflow to build
+# Node.js bindings documentation
+# and upload it to the web server.
+# Built documentation is available at <https://js.delta.chat/>
+
 name: Generate & upload node.js documentation
 
 on:

@@ -1,3 +1,6 @@
+# GitHub Actions workflow
+# to test Node.js bindings.
+
 name: "node.js tests"
 
 # Cancel previously started workflow runs

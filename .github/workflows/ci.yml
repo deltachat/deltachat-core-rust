@@ -1,3 +1,7 @@
+# GitHub Actions workflow to
+# lint Rust and Python code
+# and run Rust tests, Python tests and async Python tests.
+
 name: Rust CI
 
 # Cancel previously started workflow runs
