@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -61,10 +61,76 @@ jobs:
           name: ${{ matrix.os }}
           path: node/${{ matrix.os }}.tar.gz
 
+  prebuild-linux:
+    name: Prebuild Linux
+    runs-on: ubuntu-latest
+    container: debian:10
+    steps:
+      # Working directory is owned by 1001:1001 by default.
+      # Change it to our user.
+      - name: Change working directory owner
+        run: chown root:root .
+
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+      - run: apt-get update
+
+      # Python is needed for node-gyp
+      - name: Install curl, python and compilers
+        run: apt-get install -y curl build-essential python3
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: System info
+        run: |
+          rustc -vV
+          rustup -vV
+          cargo -vV
+          npm --version
+          node --version
+
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.APPDATA }}/npm-cache
+            ~/.npm
+          key: ${{ matrix.os }}-node-${{ hashFiles('**/package.json') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git
+            target
+          key: ${{ matrix.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+
+      - name: Install dependencies & build
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: node
+        run: npm install --verbose
+
+      - name: Build Prebuild
+        working-directory: node
+        run: |
+          npm run prebuildify
+          tar -zcvf "linux.tar.gz" -C prebuilds .
+
+      - name: Upload Prebuild
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux
+          path: node/linux.tar.gz
+
   pack-module:
-    needs: prebuild
+    needs: [prebuild, prebuild-linux]
     name: Package deltachat-node and upload to download.delta.chat
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Install tree
         run: sudo apt install tree
@@ -95,10 +161,10 @@ jobs:
           npm --version
           node --version
           echo $DELTACHAT_NODE_TAR_GZ
-      - name: Download Ubuntu prebuild
+      - name: Download Linux prebuild
         uses: actions/download-artifact@v1
         with:
-          name: ubuntu-20.04
+          name: linux
       - name: Download macOS prebuild
         uses: actions/download-artifact@v1
         with:
@@ -110,11 +176,11 @@ jobs:
       - shell: bash
         run: |
           mkdir node/prebuilds
-          tar -xvzf ubuntu-20.04/ubuntu-20.04.tar.gz -C node/prebuilds
+          tar -xvzf linux/linux.tar.gz -C node/prebuilds
           tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
           tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
-          rm -rf ubuntu-20.04 macos-latest windows-latest
+          rm -rf linux macos-latest windows-latest
       - name: Install dependencies without running scripts
         run: |
           npm install --ignore-scripts
