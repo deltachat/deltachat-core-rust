@@ -64,6 +64,9 @@ jobs:
   prebuild-linux:
     name: Prebuild Linux
     runs-on: ubuntu-latest
+
+    # Build Linux prebuilds inside a container with old glibc for backwards compatibility.
+    # Debian 10 contained glibc 2.28 at the time of the writing (2023-06-04): https://packages.debian.org/buster/libc6
     container: debian:10
     steps:
       # Working directory is owned by 1001:1001 by default.
