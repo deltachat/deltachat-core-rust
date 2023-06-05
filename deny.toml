@@ -2,9 +2,6 @@
 unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
-
-    # Only affects windows if using non-default allocator (and unmaintained).
-    "RUSTSEC-2021-0145",
 ]
 
 [bans]
@@ -17,8 +14,6 @@ skip = [
      { name = "base64", version = "<0.21" },
      { name = "bitflags", version = "1.3.2" },
      { name = "block-buffer", version = "<0.10" },
-     { name = "clap_lex", version = "0.2.4" },
-     { name = "clap", version = "3.2.23" },
      { name = "convert_case", version = "0.4.0" },
      { name = "curve25519-dalek", version = "3.2.0" },
      { name = "darling_core", version = "<0.14" },
