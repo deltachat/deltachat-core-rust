@@ -24,7 +24,7 @@ jobs:
     name: Lint Rust
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.68.2
+      RUSTUP_TOOLCHAIN: 1.70.0
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
