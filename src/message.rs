@@ -1431,6 +1431,11 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             .await
             .with_context(|| format!("Unable to trash message {msg_id}"))?;
 
+        context.emit_event(EventType::MsgDeleted {
+            chat_id: msg.chat_id,
+            msg_id,
+        });
+
         if msg.viewtype == Viewtype::Webxdc {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
         }

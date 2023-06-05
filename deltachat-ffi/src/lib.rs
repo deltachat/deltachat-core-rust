@@ -527,6 +527,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::MsgDelivered { .. } => 2010,
         EventType::MsgFailed { .. } => 2012,
         EventType::MsgRead { .. } => 2015,
+        EventType::MsgDeleted { .. } => 2016,
         EventType::ChatModified(_) => 2020,
         EventType::ChatEphemeralTimerModified { .. } => 2021,
         EventType::ContactsChanged(_) => 2030,
@@ -574,6 +575,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::MsgDelivered { chat_id, .. }
         | EventType::MsgFailed { chat_id, .. }
         | EventType::MsgRead { chat_id, .. }
+        | EventType::MsgDeleted { chat_id, .. }
         | EventType::ChatModified(chat_id)
         | EventType::ChatEphemeralTimerModified { chat_id, .. } => chat_id.to_u32() as libc::c_int,
         EventType::ContactsChanged(id) | EventType::LocationChanged(id) => {
@@ -631,7 +633,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::IncomingMsg { msg_id, .. }
         | EventType::MsgDelivered { msg_id, .. }
         | EventType::MsgFailed { msg_id, .. }
-        | EventType::MsgRead { msg_id, .. } => msg_id.to_u32() as libc::c_int,
+        | EventType::MsgRead { msg_id, .. }
+        | EventType::MsgDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         EventType::SecurejoinInviterProgress { progress, .. }
         | EventType::SecurejoinJoinerProgress { progress, .. } => *progress as libc::c_int,
         EventType::ChatEphemeralTimerModified { timer, .. } => timer.to_u32() as libc::c_int,
@@ -674,6 +677,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::MsgDelivered { .. }
         | EventType::MsgFailed { .. }
         | EventType::MsgRead { .. }
+        | EventType::MsgDeleted { .. }
         | EventType::ChatModified(_)
         | EventType::ContactsChanged(_)
         | EventType::LocationChanged(_)

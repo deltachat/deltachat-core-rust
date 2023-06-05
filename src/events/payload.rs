@@ -145,6 +145,27 @@ pub enum EventType {
         msg_id: MsgId,
     },
 
+    /// A single message was deleted.
+    ///
+    /// This event means that the message will no longer appear in the messagelist.
+    /// UI should remove the message from the messagelist
+    /// in response to this event if the message is currently displayed.
+    ///
+    /// The message may have been explicitly deleted by the user or expired.
+    /// Internally the message may have been removed from the database,
+    /// moved to the trash chat or hidden.
+    ///
+    /// This event does not indicate the message
+    /// deletion from the server.
+    MsgDeleted {
+        /// ID of the chat where the message was prior to deletion.
+        /// Never 0 or trash chat.
+        chat_id: ChatId,
+
+        /// ID of the deleted message. Never 0.
+        msg_id: MsgId,
+    },
+
     /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
     /// Or the verify state of a chat has changed.
     /// See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()

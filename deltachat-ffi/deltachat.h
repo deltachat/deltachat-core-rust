@@ -6080,6 +6080,15 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+ * A single message is deleted.
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) msg_id
+ */
+#define DC_EVENT_MSG_DELETED              2016
+
+
+/**
  * Chat changed. The name or the image of a chat group was changed or members were added or removed.
  * Or the verify state of a chat has changed.
  * See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()
