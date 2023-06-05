@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.116.0] - 2023-06-05
+
+### API-Changes
+
+- Add `dc_jsonrpc_blocking_call()`.
+
+### Changes
+
+- Generate OpenRPC definitions for JSON-RPC.
+- Add more context to message loading errors.
+
+### Fixes
+
+- Build deltachat-node prebuilds on Debian 10.
+
+### Documentation
+
+- Document release process in `RELEASE.md`.
+- Add contributing guidelines `CONTRIBUTING.md`.
+- Update instructions for python devenv.
+- python: Document pytest fixtures.
+
+### Tests
+
+- python: Make `test_mdn_asymmetric` less flaky.
+- Make `test_group_with_removed_message_id` less flaky.
+- Add golden tests infrastructure ([#4395](https://github.com/deltachat/deltachat-core-rust/pull/4395)).
+
+### Build system
+
+- git-cliff: Changelog generation improvements.
+- `set_core_version.py`: Expect release date in the changelog.
+
+### CI
+
+- Require Python 3.8 for deltachat-rpc-client.
+- mergeable: Allow PR titles to start with "ci" and "build".
+- Remove incorrect comment.
+- dependabot: Use `chore` prefix for dependency updates.
+- Remove broken `node-delete-preview.yml` workflow.
+- Add top comments to GH Actions workflows.
+- Run node.js lint on Windows.
+- Update clippy to 1.70.0.
+
+### Miscellaneous Tasks
+
+- Remove release.toml.
+- gitattributes: Configure LF line endings for JavaScript files.
+- Update dependencies
+
 ## [1.112.10] - 2023-06-01
 
 ### Fixes
