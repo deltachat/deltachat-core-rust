@@ -174,6 +174,13 @@ pub enum EventType {
         msg_id: u32,
     },
 
+    /// A single message is deleted.
+    #[serde(rename_all = "camelCase")]
+    MsgDeleted {
+        chat_id: u32,
+        msg_id: u32,
+    },
+
     /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
     /// Or the verify state of a chat has changed.
     /// See setChatName(), setChatProfileImage(), addContactToChat()
@@ -344,6 +351,10 @@ impl From<CoreEventType> for EventType {
                 msg_id: msg_id.to_u32(),
             },
             CoreEventType::MsgRead { chat_id, msg_id } => MsgRead {
+                chat_id: chat_id.to_u32(),
+                msg_id: msg_id.to_u32(),
+            },
+            CoreEventType::MsgDeleted { chat_id, msg_id } => MsgDeleted {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
