@@ -429,7 +429,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
     if !rows.is_empty() {
         info!(context, "Attempting to delete {} messages.", rows.len());
 
-        let (msgs_changed, webxdc_deleted) = context
+        let (_msgs_changed, webxdc_deleted) = context
             .sql
             .transaction(|transaction| {
                 let mut msgs_changed = Vec::with_capacity(rows.len());
@@ -455,9 +455,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
             })
             .await?;
 
-        for (chat_id, msg_id) in msgs_changed {
-            context.emit_msgs_changed(chat_id, msg_id);
-        }
+        context.emit_msgs_changed_without_ids();
 
         for msg_id in webxdc_deleted {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
