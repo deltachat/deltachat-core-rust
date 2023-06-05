@@ -1,7 +1,7 @@
+//! Delta Chat core RPC server.
+//!
+//! It speaks JSON Lines over stdio.
 use std::env;
-///! Delta Chat core RPC server.
-///!
-///! It speaks JSON Lines over stdio.
 use std::path::PathBuf;
 use std::sync::Arc;
 
