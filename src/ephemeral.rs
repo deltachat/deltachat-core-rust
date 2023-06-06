@@ -63,6 +63,7 @@
 //! ephemeral message timers or global `delete_server_after` setting.
 
 use std::cmp::max;
+use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -455,11 +456,16 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
             })
             .await?;
 
+        let mut modified_chat_ids = BTreeSet::new();
+
         for (chat_id, msg_id) in msgs_changed {
-            context.emit_event(EventType::MsgDeleted { chat_id, msg_id })
+            context.emit_event(EventType::MsgDeleted { chat_id, msg_id });
+            modified_chat_ids.insert(chat_id);
         }
 
-        context.emit_msgs_changed_without_ids();
+        for modified_chat_id in modified_chat_ids {
+            context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+        }
 
         for msg_id in webxdc_deleted {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });

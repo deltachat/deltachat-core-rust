@@ -1421,6 +1421,8 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
+    let mut modified_chat_ids = BTreeSet::new();
+
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
         if msg.location_id > 0 {
@@ -1439,6 +1441,8 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         if msg.viewtype == Viewtype::Webxdc {
             context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
         }
+
+        modified_chat_ids.insert(msg.chat_id);
 
         let target = context.get_delete_msgs_target().await?;
         context
@@ -1463,9 +1467,11 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         }
     }
 
-    if !msg_ids.is_empty() {
-        context.emit_msgs_changed_without_ids();
+    for modified_chat_id in modified_chat_ids {
+        context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+    }
 
+    if !msg_ids.is_empty() {
         // Run housekeeping to delete unused blobs.
         context.set_config(Config::LastHousekeeping, None).await?;
     }
