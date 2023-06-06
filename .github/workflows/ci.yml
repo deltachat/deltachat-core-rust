@@ -38,6 +38,10 @@ jobs:
       - name: Check
         run: cargo check --workspace --all-targets --all-features
 
+      # Check with musl libc target which is used for `deltachat-rpc-server` releases.
+      - name: Check musl
+        run: scripts/zig-musl-check.sh
+
   cargo_deny:
     name: cargo deny
     runs-on: ubuntu-latest
