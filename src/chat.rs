@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
@@ -134,6 +135,12 @@ impl fmt::Display for CantSendReason {
     Debug, Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize, Hash, PartialOrd, Ord,
 )]
 pub struct ChatId(u32);
+
+impl From<u32> for ChatId {
+    fn from(id: u32) -> Self {
+        Self(id as u32)
+    }
+}
 
 impl ChatId {
     /// Create a new [ChatId].
@@ -1036,6 +1043,10 @@ impl ChatId {
     /// that it is no longer necessary.
     pub fn to_u32(self) -> u32 {
         self.0
+    }
+
+    pub fn as_u32(&self) -> &u32 {
+        &self.0
     }
 
     pub(crate) async fn reset_gossiped_timestamp(self, context: &Context) -> Result<()> {
