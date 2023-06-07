@@ -1752,7 +1752,7 @@ async fn update_gossip_peerstates(
             .handle_fingerprint_change(context, message_time)
             .await?;
 
-        gossiped_addr.insert(header.addr.clone());
+        gossiped_addr.insert(header.addr.to_lowercase());
     }
 
     Ok(gossiped_addr)

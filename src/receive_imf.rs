@@ -2211,7 +2211,7 @@ async fn check_verified_properties(
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
-        if mimeparser.gossiped_addr.contains(&to_addr) {
+        if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = peerstate {
                 // if we're here, we know the gossip key is verified:
                 // - use the gossip-key as verified-key if there is no verified-key

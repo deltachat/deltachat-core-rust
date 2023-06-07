@@ -583,7 +583,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
             let addr = Contact::load_from_db(context, contact_id)
                 .await?
                 .get_addr()
-                .to_string();
+                .to_lowercase();
             if mime_message.gossiped_addr.contains(&addr) {
                 let mut peerstate = match Peerstate::from_addr(context, &addr).await? {
                     Some(p) => p,
