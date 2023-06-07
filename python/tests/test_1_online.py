@@ -1587,6 +1587,39 @@ def test_qr_join_chat(acfactory, lp):
     ac1._evtracker.wait_securejoin_inviter_progress(1000)
 
 
+def test_qr_email_capitalization(acfactory, lp):
+    """Regression test for a bug
+    that resulted in failure to propagate verification via gossip in a verified group
+    when the database already contained the contact with a different email address capitalization.
+    """
+
+    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+
+    # ac1 adds ac2 as a contact with an email address in uppercase.
+    ac2_addr_uppercase = ac2.get_config("addr").upper()
+    lp.sec(f"ac1 creates a contact for ac2 ({ac2_addr_uppercase})")
+    ac1.create_contact(ac2_addr_uppercase)
+
+    lp.sec("ac3 creates a verified group with a QR code")
+    chat = ac3.create_group_chat("hello", verified=True)
+    qr = chat.get_join_qr()
+
+    lp.sec("ac1 joins a verified group via a QR code")
+    ac1_chat = ac1.qr_join_chat(qr)
+    msg = ac1._evtracker.wait_next_incoming_message()
+    assert msg.text == "Member Me ({}) added by {}.".format(ac1.get_config("addr"), ac3.get_config("addr"))
+    assert len(ac1_chat.get_contacts()) == 2
+
+    lp.sec("ac2 joins a verified group via a QR code")
+    ac2.qr_join_chat(qr)
+    ac1._evtracker.wait_next_incoming_message()
+
+    # ac1 should see both ac3 and ac2 as verified.
+    assert len(ac1_chat.get_contacts()) == 3
+    for contact in ac1_chat.get_contacts():
+        assert contact.is_verified()
+
+
 def test_set_get_contact_avatar(acfactory, data, lp):
     lp.sec("configuring ac1 and ac2")
     ac1, ac2 = acfactory.get_online_accounts(2)
