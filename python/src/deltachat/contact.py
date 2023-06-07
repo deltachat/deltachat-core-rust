@@ -71,9 +71,9 @@ class Contact:
         """Unblock this contact. Messages from this contact will be retrieved (again)."""
         return lib.dc_block_contact(self.account._dc_context, self.id, False)
 
-    def is_verified(self):
+    def is_verified(self) -> bool:
         """Return True if the contact is verified."""
-        return lib.dc_contact_is_verified(self._dc_contact)
+        return lib.dc_contact_is_verified(self._dc_contact) == 2
 
     def get_verifier(self, contact):
         """Return the address of the contact that verified the contact."""
