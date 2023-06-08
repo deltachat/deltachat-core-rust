@@ -167,8 +167,8 @@ Language bindings are available for:
 
 - **C** \[[📂 source](./deltachat-ffi) | [📚 docs](https://c.delta.chat)\]
 - **Node.js** 
-  - over cffi (legacy): \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
-  - over jsonrpc built with napi.rs: \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
+  - over cffi: \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
+  - over jsonrpc built with napi.rs (experimental): \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
 - **Go**
   - over jsonrpc: \[[📂 source](https://github.com/deltachat/deltachat-rpc-client-go/)\]
