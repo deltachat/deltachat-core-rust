@@ -23,6 +23,7 @@ opt-level = "z"
 lto = true
 panic = 'abort'
 opt-level = "z"
+codegen-units = 1
 
 [patch.crates-io]
 quinn-udp = { git = "https://github.com/quinn-rs/quinn", branch="main" }
