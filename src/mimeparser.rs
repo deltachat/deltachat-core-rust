@@ -776,10 +776,6 @@ impl MimeMessage {
         self.headers.contains_key("chat-version")
     }
 
-    pub(crate) fn has_headers(&self) -> bool {
-        !self.headers.is_empty()
-    }
-
     pub(crate) fn get_subject(&self) -> Option<String> {
         self.get_header(HeaderDef::Subject)
             .filter(|s| !s.is_empty())

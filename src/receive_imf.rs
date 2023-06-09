@@ -138,12 +138,6 @@ pub(crate) async fn receive_imf_inner(
         Ok(mime_parser) => mime_parser,
     };
 
-    // we can not add even an empty record if we have no info whatsoever
-    if !mime_parser.has_headers() {
-        warn!(context, "receive_imf: no headers found.");
-        return Ok(None);
-    }
-
     info!(context, "Received message has Message-Id: {rfc724_mid}");
 
     // check, if the mail is already in our database.
