@@ -768,7 +768,7 @@ impl Message {
 
         let mut manifest = get_blob(&mut archive, "manifest.toml")
             .await
-            .map(|bytes| parse_webxdc_manifest(&bytes))?
+            .map(|bytes| parse_webxdc_manifest(&bytes).unwrap_or_default())
             .unwrap_or_default();
 
         if let Some(ref name) = manifest.name {
