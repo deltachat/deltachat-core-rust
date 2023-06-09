@@ -67,17 +67,6 @@ pub struct WebxdcManifest {
 
     /// If the webxdc requests network access.
     pub request_internet_access: Option<bool>,
-
-    /// Version of the application.
-    pub version: Option<String>,
-}
-
-impl WebxdcManifest {
-    /// Create a new [WebxdcManifest] from a string.
-    pub fn from_string(manifest: &str) -> Result<Self> {
-        let manifest: Self = toml::from_str(manifest)?;
-        Ok(manifest)
-    }
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
