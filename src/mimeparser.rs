@@ -52,7 +52,7 @@ pub(crate) struct MimeMessage {
     pub parts: Vec<Part>,
 
     /// Message headers.
-    header: HashMap<String, String>,
+    headers: HashMap<String, String>,
 
     /// Addresses are normalized and lowercased:
     pub recipients: Vec<SingleInfo>,
@@ -386,7 +386,7 @@ impl MimeMessage {
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
-            header: headers,
+            headers,
             recipients,
             list_post,
             from,
@@ -692,7 +692,7 @@ impl MimeMessage {
             self.parts.push(part);
         }
 
-        if self.header.contains_key("auto-submitted") {
+        if self.headers.contains_key("auto-submitted") {
             for part in &mut self.parts {
                 part.param.set(Param::Bot, "1");
             }
@@ -773,11 +773,11 @@ impl MimeMessage {
     /// Returns whether the email contains a `chat-version` header.
     /// This indicates that the email is a DC-email.
     pub(crate) fn has_chat_version(&self) -> bool {
-        self.header.contains_key("chat-version")
+        self.headers.contains_key("chat-version")
     }
 
     pub(crate) fn has_headers(&self) -> bool {
-        !self.header.is_empty()
+        !self.headers.is_empty()
     }
 
     pub(crate) fn get_subject(&self) -> Option<String> {
@@ -787,7 +787,7 @@ impl MimeMessage {
     }
 
     pub fn get_header(&self, headerdef: HeaderDef) -> Option<&String> {
-        self.header.get(headerdef.get_headername())
+        self.headers.get(headerdef.get_headername())
     }
 
     fn parse_mime_recursive<'a>(
