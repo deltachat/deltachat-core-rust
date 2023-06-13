@@ -5,7 +5,6 @@
 ### API-Changes
 
 - Add `dc_jsonrpc_blocking_call()`.
-- Add rust-only api `get_status_update`.
 
 ### Changes
 

@@ -3,6 +3,7 @@
 use std::convert::TryFrom;
 use std::path::Path;
 
+use anyhow::Context as _;
 use anyhow::{anyhow, bail, ensure, format_err, Result};
 
 use deltachat_derive::FromSql;
@@ -398,15 +399,12 @@ impl Context {
         status_update_serial: StatusUpdateSerial,
     ) -> Result<String> {
         self.sql
-            .query_row(
+            .query_get_value(
                 "SELECT update_item FROM msgs_status_updates WHERE id=? AND msg_id=? ",
                 (status_update_serial.0, msg_id),
-                |row| {
-                    let update_item: String = row.get(0)?;
-                    Ok(update_item)
-                },
             )
-            .await
+            .await?
+            .context("get_status_update: no update item found.")
     }
 
     /// Sends a status update for an webxdc instance.
