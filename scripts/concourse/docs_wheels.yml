@@ -153,11 +153,13 @@ jobs:
               - -ec
               - |
                 apt-get update -y
-                apt-get install -y --no-install-recommends python3-pip python3-setuptools
-                pip3 install devpi
-                devpi use https://m.devpi.net/dc/master
-                devpi login ((devpi.login)) --password ((devpi.password))
-                devpi upload py-wheels/*manylinux201*
+                apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-venv
+                python3 -m venv env
+                env/bin/pip install --upgrade pip
+                env/bin/pip install devpi
+                env/bin/devpi use https://m.devpi.net/dc/master
+                env/bin/devpi login ((devpi.login)) --password ((devpi.password))
+                env/bin/devpi upload py-wheels/*manylinux201*
 
   - name: python-aarch64
     plan:
@@ -224,10 +226,12 @@ jobs:
               - |
                 apt-get update -y
                 apt-get install -y --no-install-recommends python3-pip python3-setuptools
-                pip3 install devpi
-                devpi use https://m.devpi.net/dc/master
-                devpi login ((devpi.login)) --password ((devpi.password))
-                devpi upload py-wheels/*manylinux201*
+                python3 -m venv env
+                env/bin/pip install --upgrade pip
+                env/bin/pip install devpi
+                env/bin/devpi use https://m.devpi.net/dc/master
+                env/bin/devpi login ((devpi.login)) --password ((devpi.password))
+                env/bin/devpi upload py-wheels/*manylinux201*
 
   - name: python-musl-x86_64
     plan:
@@ -294,10 +298,12 @@ jobs:
               - |
                 apt-get update -y
                 apt-get install -y --no-install-recommends python3-pip python3-setuptools
-                pip3 install devpi
-                devpi use https://m.devpi.net/dc/master
-                devpi login ((devpi.login)) --password ((devpi.password))
-                devpi upload py-wheels/*musllinux_1_1_x86_64*
+                python3 -m venv env
+                env/bin/pip install --upgrade pip
+                env/bin/pip install devpi
+                env/bin/devpi use https://m.devpi.net/dc/master
+                env/bin/devpi login ((devpi.login)) --password ((devpi.password))
+                env/bin/devpi upload py-wheels/*musllinux_1_1_x86_64*
 
   - name: python-musl-aarch64
     plan:
@@ -364,7 +370,9 @@ jobs:
               - |
                 apt-get update -y
                 apt-get install -y --no-install-recommends python3-pip python3-setuptools
-                pip3 install devpi
-                devpi use https://m.devpi.net/dc/master
-                devpi login ((devpi.login)) --password ((devpi.password))
-                devpi upload py-wheels/*musllinux_1_1_aarch64*
+                python3 -m venv env
+                env/bin/pip install --upgrade pip
+                env/bin/pip install devpi
+                env/bin/devpi use https://m.devpi.net/dc/master
+                env/bin/devpi login ((devpi.login)) --password ((devpi.password))
+                env/bin/devpi upload py-wheels/*musllinux_1_1_aarch64*
