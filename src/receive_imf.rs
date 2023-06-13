@@ -1779,23 +1779,6 @@ async fn apply_group_changes(
         }
     }
 
-    // TODO we might be able to remove this block, but it seems to make test_secure_join fail
-    if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) =
-            check_verified_properties(context, mime_parser, from_id, to_ids, chat.typ).await
-        {
-            warn!(context, "Verification problem: {err:#}.");
-            let s = format!("{err}. See 'Info' for more details");
-            mime_parser.repl_msg_by_error(&s);
-        }
-
-        if !chat.is_protected() {
-            chat_id
-                .inner_set_protection(context, ProtectionStatus::Protected)
-                .await?;
-        }
-    }
-
     // Recreate the member list.
     if recreate_member_list {
         if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
