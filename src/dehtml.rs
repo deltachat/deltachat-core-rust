@@ -165,9 +165,13 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
         }
         "a" => {
             if let Some(ref last_href) = dehtml.last_href.take() {
-                dehtml.strbuilder += "](";
-                dehtml.strbuilder += last_href;
-                dehtml.strbuilder += ")";
+                if dehtml.strbuilder.ends_with('[') {
+                    dehtml.strbuilder.truncate(dehtml.strbuilder.len() - 1);
+                } else {
+                    dehtml.strbuilder += "](";
+                    dehtml.strbuilder += last_href;
+                    dehtml.strbuilder += ")";
+                }
             }
         }
         "b" | "strong" => {
@@ -323,9 +327,10 @@ mod tests {
             ("&amp; bar", "& bar"),
             // Despite missing ', this should be shown:
             ("<a href='/foo.png>Hi</a> ", "Hi "),
+            ("No link: <a href='https://get.delta.chat/'/>", "No link: "),
             (
-                "<a href='https://get.delta.chat/'/>",
-                "[](https://get.delta.chat/)",
+                "No link: <a href='https://get.delta.chat/'></a>",
+                "No link: ",
             ),
             ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
             // Invalid html (at least DC should show the text if the html is invalid):
