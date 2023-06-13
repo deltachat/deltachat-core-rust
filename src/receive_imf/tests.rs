@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use tokio::fs;
 
 use super::*;
@@ -11,6 +13,7 @@ use crate::chatlist::Chatlist;
 use crate::constants::DC_GCL_NO_SPECIALS;
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
+use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3560,4 +3563,93 @@ async fn test_mua_can_add() -> Result<()> {
         5
     );
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_verified_oneonone_chat_broken_by_classical() {
+    check_verified_oneonone_chat(true).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_verified_oneonone_chat_broken_by_device_change() {
+    check_verified_oneonone_chat(false).await;
+}
+
+async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    tcm.section("Bob scans Alice's QR code");
+    let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
+    join_securejoin(&bob.ctx, &qr).await.unwrap();
+
+    // TODO move to test_utils?
+    loop {
+        if let Some(sent) = bob.pop_sent_msg_opt(Duration::ZERO).await {
+            alice.recv_msg(&sent).await;
+        } else if let Some(sent) = alice.pop_sent_msg_opt(Duration::ZERO).await {
+            bob.recv_msg(&sent).await;
+        } else {
+            break;
+        }
+    }
+
+    let contact = alice.add_or_lookup_contact(&bob).await;
+    assert_eq!(
+        contact.is_verified(&alice.ctx).await.unwrap(),
+        VerifiedStatus::BidirectVerified
+    );
+
+    let chat = alice.get_chat(&bob).await.unwrap();
+    assert!(chat.is_protected());
+
+    if broken_by_classical_email {
+        tcm.section("Bob uses a classical MUA to send a message to Alice");
+        receive_imf(
+            &alice,
+            b"Subject: Re: Message from alice\r\n\
+          From: <bob@example.net>\r\n\
+          To: <alice@example.org>\r\n\
+          Date: Mon, 12 Dec 2022 14:33:39 +0000\r\n\
+          Message-ID: <abcd@example.net>\r\n\
+          \r\n\
+          Heyho!\r\n",
+            false,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    } else {
+        tcm.section("Bob sets up another Delta Chat device");
+        let bob2 = TestContext::new().await;
+        bob2.set_name("bob2");
+        bob2.configure_addr("bob@example.net").await;
+
+        tcm.send_recv(&bob2, &alice, "Using another device now")
+            .await;
+    }
+
+    // Bob's contact is still verified, but the chat isn't marked as protected anymore
+    let contact = alice.add_or_lookup_contact(&bob).await;
+    assert_eq!(
+        contact.is_verified(&alice.ctx).await.unwrap(),
+        VerifiedStatus::BidirectVerified
+    );
+
+    let chat = alice.get_chat(&bob).await.unwrap();
+    assert!(!chat.is_protected());
+
+    tcm.section("Bob sends another message from DC");
+    tcm.send_recv(&bob, &alice, "Using DC again").await;
+
+    let contact = alice.add_or_lookup_contact(&bob).await;
+    assert_eq!(
+        contact.is_verified(&alice.ctx).await.unwrap(),
+        VerifiedStatus::BidirectVerified
+    );
+
+    // Bob's chat is marked as verified again
+    let chat = alice.get_chat(&bob).await.unwrap();
+    assert!(chat.is_protected());
 }

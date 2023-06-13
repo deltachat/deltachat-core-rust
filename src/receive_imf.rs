@@ -980,6 +980,42 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
+    if is_partial_download.is_none() && incoming && to_ids == [ContactId::SELF] {
+        let peerstate = &mime_parser.decryption_info.peerstate;
+        // TODO code duplication with check_verified_properties()
+        if let Some(peerstate) = peerstate {
+            // TODO performance...
+            // TODO This was from handle_fingerprint_change
+            if let Some(chat_id) = ChatId::lookup_by_contact(context, from_id).await? {
+                // TODO code duplication w/ check_verified_properties()
+                let new_protection = if mime_parser.was_encrypted()
+                    && peerstate.has_verified_key(&mime_parser.signatures)
+                {
+                    // let chat = Chat::load_from_db(context, chat_id).await?;
+                    // if !chat.is_protected() {
+                    //     info!(context, "dbg promoting {}", chat_id);
+                    // }
+                    // TODO this automatic promoting to protected seems to be the reason for the test_aeap_transition_*_verified* test failures
+                    // if chat_id == ChatId::new(10)
+                    //     && context
+                    //         .get_primary_self_addr()
+                    //         .await
+                    //         .unwrap()
+                    //         .contains("alice")
+                    // {
+                    chat_id
+                        .set_protection(context, ProtectionStatus::Protected)
+                        .await?;
+                    // }
+                } else {
+                    chat_id
+                        .set_protection(context, ProtectionStatus::Unprotected)
+                        .await?;
+                };
+            }
+        }
+    }
+
     // if a chat is protected and the message is fully downloaded, check additional properties
     if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
@@ -990,6 +1026,7 @@ async fn add_parts(
         };
 
         if chat.is_protected() || new_status.is_some() {
+            // TODO something has to change here
             if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
             {
                 warn!(context, "Verification problem: {err:#}.");
@@ -2126,7 +2163,7 @@ async fn check_verified_properties(
 ) -> Result<()> {
     let contact = Contact::get_by_id(context, from_id).await?;
 
-    ensure!(mimeparser.was_encrypted(), "This message is not encrypted");
+    ensure!(mimeparser.was_encrypted(), "This message is not encrypted"); // TODO what do we do if the message was unencrypted but w/ correct autocrypt key?
 
     if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
         // we do not fail here currently, this would exclude (a) non-deltas
@@ -2144,7 +2181,8 @@ async fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
-        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+        let peerstate = &mimeparser.decryption_info.peerstate;
+        // TODO question: was there a reason for manually loading the peerstate?
 
         if peerstate.is_none()
             || contact.is_verified_ex(context, peerstate.as_ref()).await?
@@ -2161,7 +2199,7 @@ async fn check_verified_properties(
                 peerstate.has_verified_key(&mimeparser.signatures),
                 "The message was sent with non-verified encryption"
             );
-        }
+        } // TODO question: else??? Isn't it a problem w/o peerstate?
     }
 
     // we do not need to check if we are verified with ourself

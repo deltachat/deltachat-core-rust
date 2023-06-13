@@ -629,6 +629,7 @@ impl Peerstate {
         if self.fingerprint_changed {
             self.handle_setup_change(context, timestamp, PeerstateChange::FingerprintChange)
                 .await?;
+            // marker
         }
         Ok(())
     }
@@ -661,7 +662,8 @@ pub(crate) async fn maybe_do_aeap_transition(
                 // to Bob. Then Bob's device would do an AEAP transition from Alice's
                 // to the attacker's address, allowing for easier phishing.
                 && mime_parser.from_is_signed
-                && info.message_time > peerstate.last_seen
+                // TODO question: Maybe the other >.*last_seen occurences should be changed to > too?
+                && info.message_time >= peerstate.last_seen
         {
             let info = &mut mime_parser.decryption_info;
             let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
@@ -682,6 +684,8 @@ pub(crate) async fn maybe_do_aeap_transition(
             peerstate.apply_header(header, info.message_time);
 
             peerstate.save_to_db(&context.sql).await?;
+        } else {
+            info!(context, "Not doing transition");
         }
     }
 

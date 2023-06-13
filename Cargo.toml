@@ -11,6 +11,7 @@ panic = 'abort'
 opt-level = 1
 
 [profile.test]
+debug = true
 opt-level = 0
 
 # Always optimize dependencies.

@@ -458,7 +458,6 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promote: bool,
         from_id: ContactId,
     ) -> Result<()> {
         let text = context.stock_protection_msg(protect, from_id).await;
@@ -466,28 +465,17 @@ impl ChatId {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
         };
-
-        if promote {
-            let mut msg = Message {
-                viewtype: Viewtype::Text,
-                text,
-                ..Default::default()
-            };
-            msg.param.set_cmd(cmd);
-            send_msg(context, self, &mut msg).await?;
-        } else {
-            add_info_msg_with_cmd(
-                context,
-                self,
-                &text,
-                cmd,
-                create_smeared_timestamp(context),
-                None,
-                None,
-                None,
-            )
-            .await?;
-        }
+        add_info_msg_with_cmd(
+            context,
+            self,
+            &text,
+            cmd,
+            create_smeared_timestamp(context),
+            None,
+            None,
+            None,
+        )
+        .await?;
 
         Ok(())
     }
@@ -496,14 +484,18 @@ impl ChatId {
     pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
         ensure!(!self.is_special(), "set protection: invalid chat-id.");
 
+        // TODO performance
         let chat = Chat::load_from_db(context, self).await?;
+        if chat.protected == protect {
+            return Ok(()); // No need to change protection status
+        }
 
         if let Err(e) = self.inner_set_protection(context, protect).await {
             error!(context, "Cannot set protection: {e:#}."); // make error user-visible
             return Err(e);
         }
 
-        self.add_protection_msg(context, protect, chat.is_promoted(), ContactId::SELF)
+        self.add_protection_msg(context, protect, ContactId::SELF)
             .await
     }
 
@@ -5181,7 +5173,7 @@ mod tests {
         let msgs = get_chat_msgs(&t, chat_id).await?;
         assert_eq!(msgs.len(), 3);
 
-        // enable protection on promoted chat, the info-message is sent via send_msg() this time
+        // enable protection on promoted chat
         chat_id
             .set_protection(&t, ProtectionStatus::Protected)
             .await?;
@@ -5192,7 +5184,6 @@ mod tests {
         let msg = t.get_last_msg_in(chat_id).await;
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
 
         Ok(())
     }
