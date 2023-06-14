@@ -15,7 +15,13 @@ If you have a feature request, create a new topic on the [forum](https://support
 
 ## Contributing code
 
-If you want to contribute a code, [open a pull request](https://github.com/deltachat/deltachat-core-rust/pulls).
+If you want to contribute a code, [open a Pull Request](https://github.com/deltachat/deltachat-core-rust/pulls).
+
+If you have write access to the repository,
+push a branch named `<username>/<feature>`
+so it is clear who is responsible for the branch,
+and open a PR proposing to merge the change.
+Otherwise fork the repository and create a branch in your fork.
 
 You can find the list of good first issues
 and a link to this guide
@@ -45,6 +51,11 @@ The following prefix types are used:
 
 Release preparation commits are marked as "chore(release): prepare for vX.Y.Z".
 
+If you intend to squash merge the PR from the web interface,
+make sure the PR title follows the conventional commits notation
+as it will end up being a commit title.
+Otherwise make sure each commit title follows the conventional commit notation.
+
 #### Breaking Changes
 
 Use a `!` to mark breaking changes, e.g. "api!: Remove `dc_chat_can_send`".
@@ -64,6 +75,17 @@ If you have multiple changes in one PR, create multiple conventional commits, an
 [Clippy]: https://doc.rust-lang.org/clippy/
 [Conventional Commits]: https://www.conventionalcommits.org/
 [git-cliff]: https://git-cliff.org/
+
+### Reviewing
+
+Once a PR has an approval and passes CI, it can be merged.
+
+PRs from a branch created in the main repository, i.e. authored by those who have write access, are merged by their authors.
+This is to ensure that PRs are merged as intended by the author,
+e.g. as a squash merge, by rebasing from the web interface or manually from the command line.
+
+If you do not have access to the repository and created a PR from a fork,
+ask the maintainers to merge the PR and say how it should be merged.
 
 ## Other ways to contribute
 
