@@ -696,7 +696,10 @@ impl Peerstate {
         }
 
         context.emit_event(EventType::UIChatListChanged);
-        context.emit_event(EventType::UIChatListItemChanged { chat_id: None });
+        // update the chats the contact is part of
+        for chat_id in Contact::get_chats_with_contact(context, &contact_id).await? {
+            context.emit_event(EventType::UIChatListItemChanged { chat_id: Some(chat_id) });
+        }
         Ok(())
     }
 

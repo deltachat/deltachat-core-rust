@@ -658,6 +658,7 @@ impl Contact {
         );
 
         let mut update_addr = false;
+        let mut updated_name = false;
 
         let row_id = context.sql.transaction(|transaction| {
             let row = transaction.query_row(
@@ -761,9 +762,7 @@ impl Contact {
                             if count > 0 {
                                 // Chat name updated
                                 context.emit_event(EventType::ChatModified(chat_id));
-                                context.emit_event(EventType::UIChatListItemChanged {
-                                    chat_id: Some(chat_id),
-                                });
+                                updated_name = true;
                             }
                         }
                     }
@@ -800,7 +799,39 @@ impl Contact {
             Ok(row_id)
         }).await?;
 
-        Ok((ContactId::new(row_id), sth_modified))
+        let contact_id = ContactId::new(row_id);
+
+        if updated_name {
+            // update the chats the contact that changed their name is part of
+            // (treefit): could make sense to only update chats where the last message is from the contact, but the db query for that is more expensive
+            for chat_id in Contact::get_chats_with_contact(context, &contact_id).await? {
+                context.emit_event(EventType::UIChatListItemChanged { chat_id: Some(chat_id) });
+            }
+        }
+
+        Ok((contact_id, sth_modified))
+    }
+
+    /// Get all chats the contact is part of
+    pub async fn get_chats_with_contact(
+        context: &Context,
+        contact_id: &ContactId,
+    ) -> Result<Vec<ChatId>> {
+        context
+            .sql
+            .query_map(
+                "SELECT chat_id FROM chats_contacts WHERE contact_id=?",
+                (contact_id,),
+                |row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    Ok(chat_id)
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
     }
 
     /// Add a number of contacts.
