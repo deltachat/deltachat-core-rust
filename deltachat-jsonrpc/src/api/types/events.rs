@@ -250,6 +250,15 @@ pub enum EventType {
     ///
     /// This event is only emitted by the account manager
     AccountsBackgroundFetchDone,
+    /// Inform UI that Order (and content as in chat ids) of the chatlist changed.
+    ///
+    /// Sometimes this is emitted together with `UIChatListItemChanged` such as on IncomingMessage.
+    UIChatListChanged,
+
+    /// Inform UI that a single chat list item changed and needs to be rerendered
+    /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
+    #[serde(rename_all = "camelCase")]
+    UIChatListItemChanged { chat_id: Option<u32> },
 }
 
 impl From<CoreEventType> for EventType {
@@ -357,6 +366,10 @@ impl From<CoreEventType> for EventType {
                 msg_id: msg_id.to_u32(),
             },
             CoreEventType::AccountsBackgroundFetchDone => AccountsBackgroundFetchDone,
+            CoreEventType::UIChatListItemChanged { chat_id } => UIChatListItemChanged {
+                chat_id: chat_id.map(|id| id.to_u32()),
+            },
+            CoreEventType::UIChatListChanged => UIChatListChanged,
         }
     }
 }
