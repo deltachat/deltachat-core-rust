@@ -1,5 +1,86 @@
 # Changelog
 
+## [1.117.0] - 2023-06-15
+
+### Features
+
+- New group membership update algorithm.
+
+  New algorithm improves group consistency
+  in cases of missing messages,
+  restored old backups and replies from classic MUAs.
+
+- Add `DC_EVENT_MSG_DELETED` event.
+
+  This event notifies the UI about the message
+  being deleted from the messagelist, e.g. when the message expires
+  or the user deletes it.
+
+### Fixes
+
+- Emit `DC_EVENT_MSGS_CHANGED` without IDs when the message expires.
+
+  Specifying msg IDs that cannot be loaded in the event payload
+  results in an error when the UI tries to load the message.
+  Instead, emit an event without IDs
+  to make the UI reload the whole messagelist.
+
+- Ignore address case when comparing the `To:` field to `Autocrypt-Gossip:`.
+
+  This bug resulted in failure to propagate verification
+  if the contact list already contained a new verified group member
+  with a non-lowercase address.
+
+- dehtml: skip links with empty text.
+
+  Links like `<a href="https://delta.chat/"></a>` in HTML mails are now skipped
+  instead of being converted to a link without a label like `[](https://delta.chat/)`.
+
+- dehtml: Do not insert unnecessary newlines when parsing `<p>` tags.
+
+- Update from yanked `libc` 0.2.145 to 0.2.146.
+- Update to async-imap 0.9.0 to remove deprecated `ouroboros` dependency.
+
+### API-Changes
+
+- Emit `DC_EVENT_MSGS_CHANGED` per chat when messages are deleted.
+
+  Previously a single event with zero chat ID was emitted.
+
+- python: make `Contact.is_verified()` return bool.
+
+- rust: add API endpoint `get_status_update` ([#4468](https://github.com/deltachat/deltachat-core-rust/pull/4468)).
+
+- rust: make `WebxdcManifest` type public.
+
+### Build system
+
+- Use Rust 1.70.0 to compile deltachat-rpc-server releases.
+- Disable unused `brotli` feature `ffi-api` and use 1 codegen-units for release builds to reduce the size of the binaries.
+
+### CI
+
+- Run `cargo check` with musl libc.
+- concourse: Install devpi in a virtual environment.
+- Remove [mergeable](https://mergeable.us/) configuration.
+
+### Documentation
+
+- README: mark napi.rs bindings as experimental. CFFI bindings are not legacy and are the recommended Node.js bindings currently.
+- CONTRIBUTING: document how conventional commits interact with squash merges.
+
+### Refactor
+
+- Rename `MimeMessage.header` into `MimeMessage.headers`.
+
+- Derive `Default` trait for `WebxdcManifest`.
+
+### Tests
+
+- Regression test for case-sensitive comparison of gossip header to contact address.
+- Multiple new group consistency tests in Rust.
+- python: Replace legacy `tmpdir` fixture with `tmp_path`.
+
 ## [1.116.0] - 2023-06-05
 
 ### API-Changes
