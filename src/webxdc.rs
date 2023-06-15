@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 use std::path::Path;
 
-use anyhow::{anyhow, bail, ensure, format_err, Result};
+use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
 use deltachat_derive::FromSql;
 use lettre_email::mime;
@@ -53,20 +53,20 @@ const WEBXDC_SENDING_LIMIT: u64 = 655360;
 const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
 
 /// Raw information read from manifest.toml
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 #[non_exhaustive]
-struct WebxdcManifest {
+pub struct WebxdcManifest {
     /// Webxdc name, used on icons or page titles.
-    name: Option<String>,
+    pub name: Option<String>,
 
     /// Minimum API version required to run this webxdc.
-    min_api: Option<u32>,
+    pub min_api: Option<u32>,
 
     /// Optional URL of webxdc source code.
-    source_code_url: Option<String>,
+    pub source_code_url: Option<String>,
 
     /// If the webxdc requests network access.
-    request_internet_access: Option<bool>,
+    pub request_internet_access: Option<bool>,
 }
 
 /// Parsed information from WebxdcManifest and fallbacks.
@@ -143,7 +143,7 @@ struct StatusUpdates {
 }
 
 /// Update items as sent on the wire and as stored in the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct StatusUpdateItem {
     /// The playload of the status update.
     pub payload: Value,
@@ -389,6 +389,21 @@ impl Context {
             .await?;
         let status_update_serial = StatusUpdateSerial(u32::try_from(rowid)?);
         Ok(status_update_serial)
+    }
+
+    /// Returns the update_item with `status_update_serial` from the webxdc with message id `msg_id`.
+    pub async fn get_status_update(
+        &self,
+        msg_id: MsgId,
+        status_update_serial: StatusUpdateSerial,
+    ) -> Result<String> {
+        self.sql
+            .query_get_value(
+                "SELECT update_item FROM msgs_status_updates WHERE id=? AND msg_id=? ",
+                (status_update_serial.0, msg_id),
+            )
+            .await?
+            .context("get_status_update: no update item found.")
     }
 
     /// Sends a status update for an webxdc instance.
@@ -748,25 +763,10 @@ impl Message {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
         let mut archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
-            if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
-                manifest
-            } else {
-                WebxdcManifest {
-                    name: None,
-                    min_api: None,
-                    source_code_url: None,
-                    request_internet_access: None,
-                }
-            }
-        } else {
-            WebxdcManifest {
-                name: None,
-                min_api: None,
-                source_code_url: None,
-                request_internet_access: None,
-            }
-        };
+        let mut manifest = get_blob(&mut archive, "manifest.toml")
+            .await
+            .map(|bytes| parse_webxdc_manifest(&bytes).unwrap_or_default())
+            .unwrap_or_default();
 
         if let Some(ref name) = manifest.name {
             let name = name.trim();
