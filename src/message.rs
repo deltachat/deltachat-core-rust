@@ -138,6 +138,9 @@ WHERE id=?;
             chat_id,
             msg_id: self,
         });
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
         Ok(())
     }
 
@@ -1518,9 +1521,14 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     for modified_chat_id in modified_chat_ids {
         context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(modified_chat_id),
+        });
     }
 
     if !msg_ids.is_empty() {
+        context.emit_msgs_changed_without_ids();
+        context.emit_event(EventType::UIChatListChanged);
         // Run housekeeping to delete unused blobs.
         context.set_config(Config::LastHousekeeping, None).await?;
     }
@@ -1653,6 +1661,9 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
 
     for updated_chat_id in updated_chat_ids {
         context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(updated_chat_id),
+        });
     }
 
     Ok(())
@@ -1712,6 +1723,9 @@ pub(crate) async fn set_msg_failed(
     context.emit_event(EventType::MsgFailed {
         chat_id: msg.chat_id,
         msg_id: msg.id,
+    });
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(msg.chat_id),
     });
 
     Ok(())

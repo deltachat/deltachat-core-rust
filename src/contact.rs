@@ -761,6 +761,9 @@ impl Contact {
                             if count > 0 {
                                 // Chat name updated
                                 context.emit_event(EventType::ChatModified(chat_id));
+                                context.emit_event(EventType::UIChatListItemChanged {
+                                    chat_id: Some(chat_id),
+                                });
                             }
                         }
                     }
@@ -1528,6 +1531,7 @@ WHERE type=? AND id IN (
         }
     }
 
+    context.emit_event(EventType::UIChatListChanged);
     Ok(())
 }
 

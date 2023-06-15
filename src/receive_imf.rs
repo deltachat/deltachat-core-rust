@@ -1778,6 +1778,10 @@ async fn create_or_lookup_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         context.emit_event(EventType::ChatModified(new_chat_id));
+        context.emit_event(EventType::UIChatListChanged);
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(new_chat_id),
+        });
     }
 
     if let Some(chat_id) = chat_id {
@@ -2069,6 +2073,9 @@ async fn apply_group_changes(
 
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
+        context.emit_event(EventType::UIChatListItemChanged {
+            chat_id: Some(chat_id),
+        });
     }
     Ok((group_changes_msgs, better_msg))
 }
@@ -2368,6 +2375,10 @@ async fn create_adhoc_group(
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
+    context.emit_event(EventType::UIChatListChanged);
+    context.emit_event(EventType::UIChatListItemChanged {
+        chat_id: Some(new_chat_id),
+    });
 
     Ok(Some(new_chat_id))
 }
