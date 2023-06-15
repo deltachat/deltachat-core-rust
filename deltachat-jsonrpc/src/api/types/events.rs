@@ -418,10 +418,10 @@ impl From<CoreEventType> for EventType {
             CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
-            EventType::UIChatListItemChanged { chat_id } => UIChatListItemChanged {
+            CoreEventType::UIChatListItemChanged { chat_id } => UIChatListItemChanged {
                 chat_id: chat_id.map(|id| id.to_u32()),
             },
-            EventType::UIChatListChanged => UIChatListChanged,
+            CoreEventType::UIChatListChanged => UIChatListChanged,
         }
     }
 }

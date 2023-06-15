@@ -1,0 +1,7048 @@
+{
+  "openrpc": "1.0.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "CommandApi"
+  },
+  "methods": [
+    {
+      "name": "sleep",
+      "description": " Test function.",
+      "params": [
+        {
+          "name": "delay",
+          "schema": {
+            "type": "number",
+            "format": "double"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SleepResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "check_email_validity",
+      "description": " Check if an email address is valid.",
+      "params": [
+        {
+          "name": "email",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CheckEmailValidityResult",
+        "schema": {
+          "type": "boolean"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_system_info",
+      "description": " Get general system info.",
+      "params": [],
+      "result": {
+        "name": "GetSystemInfoResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_next_event",
+      "description": " Get the next event.",
+      "params": [],
+      "result": {
+        "name": "GetNextEventResult",
+        "schema": {
+          "$ref": "#/components/schemas/Event"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "add_account",
+      "params": [],
+      "result": {
+        "name": "AddAccountResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "remove_account",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "RemoveAccountResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_all_account_ids",
+      "params": [],
+      "result": {
+        "name": "GetAllAccountIdsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "select_account",
+      "description": " Select account id for internally selected state.\n TODO: Likely this is deprecated as all methods take an account id now.",
+      "params": [
+        {
+          "name": "id",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SelectAccountResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_selected_account_id",
+      "description": " Get the selected account id of the internal state..\n TODO: Likely this is deprecated as all methods take an account id now.",
+      "params": [],
+      "result": {
+        "name": "GetSelectedAccountIdResult",
+        "schema": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_all_accounts",
+      "description": " Get a list of all configured accounts.",
+      "params": [],
+      "result": {
+        "name": "GetAllAccountsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Account"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "start_io_for_all_accounts",
+      "params": [],
+      "result": {
+        "name": "StartIoForAllAccountsResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "stop_io_for_all_accounts",
+      "params": [],
+      "result": {
+        "name": "StopIoForAllAccountsResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "start_io",
+      "params": [
+        {
+          "name": "id",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "StartIoResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "stop_io",
+      "params": [
+        {
+          "name": "id",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "StopIoResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_account_info",
+      "description": " Get top-level info for an account.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetAccountInfoResult",
+        "schema": {
+          "$ref": "#/components/schemas/Account"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_account_file_size",
+      "description": " Get the combined filesize of an account in bytes",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetAccountFileSizeResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_provider_info",
+      "description": " Returns provider for the given domain.\n\n This function looks up domain in offline database.\n\n For compatibility, email address can be passed to this function\n instead of the domain.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "email",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetProviderInfoResult",
+        "schema": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ProviderInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "is_configured",
+      "description": " Checks if the context is already configured.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "IsConfiguredResult",
+        "schema": {
+          "type": "boolean"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_info",
+      "description": " Get system info for an account.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetInfoResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_config",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "key",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "value",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetConfigResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "batch_set_config",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "config",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "BatchSetConfigResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_config_from_qr",
+      "description": " Set configuration values from a QR code. (technically from the URI that is stored in the qrcode)\n Before this function is called, `checkQr()` should confirm the type of the\n QR code is `account` or `webrtcInstance`.\n\n Internally, the function will call dc_set_config() with the appropriate keys,",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "qrContent",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetConfigFromQrResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "check_qr",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "qrContent",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CheckQrResult",
+        "schema": {
+          "$ref": "#/components/schemas/Qr"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_config",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "key",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetConfigResult",
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "batch_get_config",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "keys",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "BatchGetConfigResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_stock_strings",
+      "params": [
+        {
+          "name": "strings",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetStockStringsResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "configure",
+      "description": " Configures this account with the currently set parameters.\n Setup the credential config before calling this.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ConfigureResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "stop_ongoing_process",
+      "description": " Signal an ongoing process to stop.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "StopOngoingProcessResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "export_self_keys",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "passphrase",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ExportSelfKeysResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "import_self_keys",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "passphrase",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ImportSelfKeysResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_fresh_msgs",
+      "description": " Returns the message IDs of all _fresh_ messages of any chat.\n Typically used for implementing notification summaries\n or badge counters e.g. on the app icon.\n The list is already sorted and starts with the most recent fresh message.\n\n Messages belonging to muted chats or to the contact requests are not returned;\n these messages should not be notified\n and also badge counters should not include these messages.\n\n To get the number of fresh messages for a single chat, muted or not,\n use `get_fresh_msg_cnt()`.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetFreshMsgsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_fresh_msg_cnt",
+      "description": " Get the number of _fresh_ messages in a chat.\n Typically used to implement a badge with a number in the chatlist.\n\n If the specified chat is muted,\n the UI should show the badge counter \"less obtrusive\",\n e.g. using \"gray\" instead of \"red\" color.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetFreshMsgCntResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_next_msgs",
+      "description": " Gets messages to be processed by the bot and returns their IDs.\n\n Only messages with database ID higher than `last_msg_id` config value\n are returned. After processing the messages, the bot should\n update `last_msg_id` by calling [`markseen_msgs`]\n or manually updating the value to avoid getting already\n processed messages.\n\n [`markseen_msgs`]: Self::markseen_msgs",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetNextMsgsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "wait_next_msgs",
+      "description": " Waits for messages to be processed by the bot and returns their IDs.\n\n This function is similar to [`get_next_msgs`],\n but waits for internal new message notification before returning.\n New message notification is sent when new message is added to the database,\n on initialization, when I/O is started and when I/O is stopped.\n This allows bots to use `wait_next_msgs` in a loop to process\n old messages after initialization and during the bot runtime.\n To shutdown the bot, stopping I/O can be used to interrupt\n pending or next `wait_next_msgs` call.\n\n [`get_next_msgs`]: Self::get_next_msgs",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "WaitNextMsgsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "estimate_auto_deletion_count",
+      "description": " Estimate the number of messages that will be deleted\n by the set_config()-options `delete_device_after` or `delete_server_after`.\n This is typically used to show the estimated impact to the user\n before actually enabling deletion of old messages.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "fromServer",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        },
+        {
+          "name": "seconds",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "EstimateAutoDeletionCountResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "initiate_autocrypt_key_transfer",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "InitiateAutocryptKeyTransferResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "continue_autocrypt_key_transfer",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "setupCode",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ContinueAutocryptKeyTransferResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chatlist_entries",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "listFlags",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "queryString",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "queryContactId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatlistEntriesResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chatlist_items_by_entries",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "entries",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatlistItemsByEntriesResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/ChatListItemFetchResult"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_full_chat_by_id",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetFullChatByIdResult",
+        "schema": {
+          "$ref": "#/components/schemas/FullChat"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_basic_chat_info",
+      "description": " get basic info about a chat,\n use chatlist_get_full_chat_by_id() instead if you need more information",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetBasicChatInfoResult",
+        "schema": {
+          "$ref": "#/components/schemas/BasicChat"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "accept_chat",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "AcceptChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "block_chat",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "BlockChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "delete_chat",
+      "description": " Delete a chat.\n\n Messages are deleted from the device and the chat database entry is deleted.\n After that, the event #DC_EVENT_MSGS_CHANGED is posted.\n\n Things that are _not done_ implicitly:\n\n - Messages are **not deleted from the server**.\n - The chat or the contact is **not blocked**, so new messages from the user/the group may appear as a contact request\n   and the user may create the chat again.\n - **Groups are not left** - this would\n   be unexpected as (1) deleting a normal chat also does not prevent new mails\n   from arriving, (2) leaving a group requires sending a message to\n   all group members - especially for groups not used for a longer time, this is\n   really unexpected when deletion results in contacting all members again,\n   (3) only leaving groups is also a valid usecase.\n\n To leave a chat explicitly, use leave_group()",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "DeleteChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chat_encryption_info",
+      "description": " Get encryption info for a chat.\n Get a multi-line encryption info, containing encryption preferences of all members.\n Can be used to find out why messages sent to group are not encrypted.\n\n returns Multi-line text",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatEncryptionInfoResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chat_securejoin_qr_code_svg",
+      "description": " Get QR code (text and SVG) that will offer an Setup-Contact or Verified-Group invitation.\n The QR code is compatible to the OPENPGP4FPR format\n so that a basic fingerprint comparison also works e.g. with OpenKeychain.\n\n The scanning device will pass the scanned content to `checkQr()` then;\n if `checkQr()` returns `askVerifyContact` or `askVerifyGroup`\n an out-of-band-verification can be joined using `secure_join()`\n\n chat_id: If set to a group-chat-id,\n     the Verified-Group-Invite protocol is offered in the QR code;\n     works for protected groups as well as for normal groups.\n     If not set, the Setup-Contact protocol is offered in the QR code.\n     See https://countermitm.readthedocs.io/en/latest/new.html\n     for details about both protocols.\n\n return format: `[code, svg]`",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatSecurejoinQrCodeSvgResult",
+        "schema": {
+          "type": "array",
+          "items": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "secure_join",
+      "description": " Continue a Setup-Contact or Verified-Group-Invite protocol\n started on another device with `get_chat_securejoin_qr_code_svg()`.\n This function is typically called when `check_qr()` returns\n type=AskVerifyContact or type=AskVerifyGroup.\n\n The function returns immediately and the handshake runs in background,\n sending and receiving several messages.\n During the handshake, info messages are added to the chat,\n showing progress, success or errors.\n\n Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.\n\n See https://countermitm.readthedocs.io/en/latest/new.html\n for details about both protocols.\n\n **qr**: The text of the scanned QR code. Typically, the same string as given\n     to `check_qr()`.\n\n **returns**: The chat ID of the joined chat, the UI may redirect to the this chat.\n         A returned chat ID does not guarantee that the chat is protected or the belonging contact is verified.\n",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "qr",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SecureJoinResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "leave_group",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "LeaveGroupResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "remove_contact_from_chat",
+      "description": " Remove a member from a group.\n\n If the group is already _promoted_ (any message was sent to the group),\n all group members are informed by a special status message that is sent automatically by this function.\n\n Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "RemoveContactFromChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "add_contact_to_chat",
+      "description": " Add a member to a group.\n\n If the group is already _promoted_ (any message was sent to the group),\n all group members are informed by a special status message that is sent automatically by this function.\n\n If the group has group protection enabled, only verified contacts can be added to the group.\n\n Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "AddContactToChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chat_contacts",
+      "description": " Get the contact IDs belonging to a chat.\n\n - for normal chats, the function always returns exactly one contact,\n   DC_CONTACT_ID_SELF is returned only for SELF-chats.\n\n - for group chats all members are returned, DC_CONTACT_ID_SELF is returned\n   explicitly as it may happen that oneself gets removed from a still existing\n   group\n\n - for broadcasts, all recipients are returned, DC_CONTACT_ID_SELF is not included\n\n - for mailing lists, the behavior is not documented currently, we will decide on that later.\n   for now, the UI should not show the list for mailing lists.\n   (we do not know all members and there is not always a global mailing list address,\n   so we could return only SELF or the known members; this is not decided yet)",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatContactsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "create_group_chat",
+      "description": " Create a new group chat.\n\n After creation,\n the group has one member with the ID DC_CONTACT_ID_SELF\n and is in _unpromoted_ state.\n This means, you can add or remove members, change the name,\n the group image and so on without messages being sent to all group members.\n\n This changes as soon as the first message is sent to the group members\n and the group becomes _promoted_.\n After that, all changes are synced with all group members\n by sending status message.\n\n To check, if a chat is still unpromoted, you can look at the `is_unpromoted` property of `BasicChat` or `FullChat`.\n This may be useful if you want to show some help for just created groups.\n\n @param protect If set to 1 the function creates group with protection initially enabled.\n     Only verified members are allowed in these groups\n     and end-to-end-encryption is always enabled.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "name",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "protect",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CreateGroupChatResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "create_broadcast_list",
+      "description": " Create a new broadcast list.\n\n Broadcast lists are similar to groups on the sending device,\n however, recipients get the messages in normal one-to-one chats\n and will not be aware of other members.\n\n Replies to broadcasts go only to the sender\n and not to all broadcast recipients.\n Moreover, replies will not appear in the broadcast list\n but in the one-to-one chat with the person answering.\n\n The name and the image of the broadcast list is set automatically\n and is visible to the sender only.\n Not asking for these data allows more focused creation\n and we bypass the question who will get which data.\n Also, many users will have at most one broadcast list\n so, a generic name and image is sufficient at the first place.\n\n Later on, however, the name can be changed using dc_set_chat_name().\n The image cannot be changed to have a unique, recognizable icon in the chat lists.\n All in all, this is also what other messengers are doing here.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CreateBroadcastListResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_chat_name",
+      "description": " Set group name.\n\n If the group is already _promoted_ (any message was sent to the group),\n all group members are informed by a special status message that is sent automatically by this function.\n\n Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "newName",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetChatNameResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_chat_profile_image",
+      "description": " Set group profile image.\n\n If the group is already _promoted_ (any message was sent to the group),\n all group members are informed by a special status message that is sent automatically by this function.\n\n Sends out #DC_EVENT_CHAT_MODIFIED and #DC_EVENT_MSGS_CHANGED if a status message was sent.\n\n To find out the profile image of a chat, use dc_chat_get_profile_image()\n\n @param image_path Full path of the image to use as the group image. The image will immediately be copied to the\n     `blobdir`; the original image will not be needed anymore.\n      If you pass null here, the group image is deleted (for promoted groups, all members are informed about\n      this change anyway).",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "imagePath",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetChatProfileImageResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_chat_visibility",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "visibility",
+          "schema": {
+            "$ref": "#/components/schemas/ChatVisibility"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetChatVisibilityResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_chat_ephemeral_timer",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "timer",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetChatEphemeralTimerResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chat_ephemeral_timer",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatEphemeralTimerResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "add_device_message",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "label",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "AddDeviceMessageResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "marknoticed_chat",
+      "description": "  Mark all messages in a chat as _noticed_.\n  _Noticed_ messages are no longer _fresh_ and do not count as being unseen\n  but are still waiting for being marked as \"seen\" using markseen_msgs()\n  (IMAP/MDNs is not done for noticed messages).\n\n  Calling this function usually results in the event #DC_EVENT_MSGS_NOTICED.\n  See also markseen_msgs().",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MarknoticedChatResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_first_unread_message_of_chat",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetFirstUnreadMessageOfChatResult",
+        "schema": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "set_chat_mute_duration",
+      "description": " Set mute duration of a chat.\n\n The UI can then call is_chat_muted() when receiving a new message\n to decide whether it should trigger an notification.\n\n Muted chats should not sound or vibrate\n and should not show a visual notification in the system area.\n Moreover, muted chats should be excluded from global badge counter\n (get_fresh_msgs() skips muted chats therefore)\n and the in-app, per-chat badge counter should use a less obtrusive color.\n\n Sends out #DC_EVENT_CHAT_MODIFIED.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "duration",
+          "schema": {
+            "$ref": "#/components/schemas/MuteDuration"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SetChatMuteDurationResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "is_chat_muted",
+      "description": " Check whether the chat is currently muted (can be changed by set_chat_mute_duration()).\n\n This is available as a standalone function outside of fullchat, because it might be only needed for notification",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "IsChatMutedResult",
+        "schema": {
+          "type": "boolean"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "markseen_msgs",
+      "description": " Mark messages as presented to the user.\n Typically, UIs call this function on scrolling through the message list,\n when the messages are presented at least for a little moment.\n The concrete action depends on the type of the chat and on the users settings\n (dc_msgs_presented() may be a better name therefore, but well. :)\n\n - For normal chats, the IMAP state is updated, MDN is sent\n   (if set_config()-options `mdns_enabled` is set)\n   and the internal state is changed to @ref DC_STATE_IN_SEEN to reflect these actions.\n\n - For contact requests, no IMAP or MDNs is done\n   and the internal state is not changed therefore.\n   See also marknoticed_chat().\n\n Moreover, timer is started for incoming ephemeral messages.\n This also happens for contact requests chats.\n\n This function updates `last_msg_id` configuration value\n to the maximum of the current value and IDs passed to this function.\n Bots which mark messages as seen can rely on this side effect\n to avoid updating `last_msg_id` value manually.\n\n One #DC_EVENT_MSGS_NOTICED event is emitted per modified chat.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "msgIds",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MarkseenMsgsResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_ids",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "infoOnly",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        },
+        {
+          "name": "addDaymarker",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageIdsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_list_items",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "infoOnly",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        },
+        {
+          "name": "addDaymarker",
+          "schema": {
+            "type": "boolean"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageListItemsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageListItem"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageResult",
+        "schema": {
+          "$ref": "#/components/schemas/Message"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_html",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageHtmlResult",
+        "schema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_messages",
+      "description": " get multiple messages in one call,\n if loading one message fails the error is stored in the result object in it's place.\n\n this is the batch variant of [get_message]",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageIds",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessagesResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/MessageLoadResult"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_notification_info",
+      "description": " Fetch info desktop needs for creating a notification for a message",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageNotificationInfoResult",
+        "schema": {
+          "$ref": "#/components/schemas/MessageNotificationInfo"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "delete_messages",
+      "description": " Delete messages. The messages are deleted on the current device and\n on the IMAP server.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageIds",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "DeleteMessagesResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_info",
+      "description": " Get an informational text for a single message. The text is multiline and may\n contain e.g. the raw text of the message.\n\n The max. text returned is typically longer (about 100000 characters) than the\n max. text returned by dc_msg_get_text() (about 30000 characters).",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageInfoResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_read_receipts",
+      "description": " Returns contacts that sent read receipts and the time of reading.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageReadReceiptsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/MessageReadReceipt"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "download_full_message",
+      "description": " Asks the core to start downloading a message fully.\n This function is typically called when the user hits the \"Download\" button\n that is shown by the UI in case `download_state` is `'Available'` or `'Failure'`\n\n On success, the @ref DC_MSG \"view type of the message\" may change\n or the message may be replaced completely by one or more messages with other message IDs.\n That may happen e.g. in cases where the message was encrypted\n and the type could not be determined without fully downloading.\n Downloaded content can be accessed as usual after download.\n\n To reflect these changes a @ref DC_EVENT_MSGS_CHANGED event will be emitted.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "DownloadFullMessageResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "search_messages",
+      "description": " Search messages containing the given query string.\n Searching can be done globally (chat_id=None) or in a specified chat only (chat_id set).\n\n Global search results are typically displayed using dc_msg_get_summary(), chat\n search results may just highlight the corresponding messages and present a\n prev/next button.\n\n For the global search, the result is limited to 1000 messages,\n this allows an incremental search done fast.\n So, when getting exactly 1000 messages, the result actually may be truncated;\n the UIs may display sth. like \"1000+ messages found\" in this case.\n The chat search (if chat_id is set) is not limited.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "query",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SearchMessagesResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "message_ids_to_search_results",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageIds",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MessageIdsToSearchResultsResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/MessageSearchResult"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_contact",
+      "description": " Get a single contact options by ID.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetContactResult",
+        "schema": {
+          "$ref": "#/components/schemas/Contact"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "create_contact",
+      "description": " Add a single contact as a result of an explicit user action.\n\n Returns contact id of the created or existing contact",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "email",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "name",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CreateContactResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "create_chat_by_contact_id",
+      "description": " Returns contact id of the created or existing DM chat with that contact",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CreateChatByContactIdResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "block_contact",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "BlockContactResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "unblock_contact",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "UnblockContactResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_blocked_contacts",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetBlockedContactsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Contact"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_contact_ids",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "listFlags",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "query",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetContactIdsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_contacts",
+      "description": " Get a list of contacts.\n (formerly called getContacts2 in desktop)",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "listFlags",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "query",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetContactsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Contact"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_contacts_by_ids",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "ids",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetContactsByIdsResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/components/schemas/Contact"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "delete_contact",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "DeleteContactResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "change_contact_name",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "name",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ChangeContactNameResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_contact_encryption_info",
+      "description": " Get encryption info for a contact.\n Get a multi-line encryption info, containing your fingerprint and the\n fingerprint of the contact, used e.g. to compare the fingerprints for a simple out-of-band verification.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetContactEncryptionInfoResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "lookup_contact_id_by_addr",
+      "description": " Check if an e-mail address belongs to a known and unblocked contact.\n To get a list of all known and unblocked contacts, use contacts_get_contacts().\n\n To validate an e-mail address independently of the contact database\n use check_email_validity().",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "addr",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "LookupContactIdByAddrResult",
+        "schema": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_chat_media",
+      "description": " Returns all message IDs of the given types in a chat.\n Typically used to show a gallery.\n\n The list is already sorted and starts with the oldest message.\n Clients should not try to re-sort the list as this would be an expensive action\n and would result in inconsistencies between clients.\n\n Setting `chat_id` to `None` (`null` in typescript) means get messages with media\n from any chat of the currently used account.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageType",
+          "schema": {
+            "$ref": "#/components/schemas/Viewtype"
+          },
+          "required": true
+        },
+        {
+          "name": "orMessageType2",
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "orMessageType3",
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetChatMediaResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_neighboring_chat_media",
+      "description": " Search next/previous message based on a given message and a list of types.\n Typically used to implement the \"next\" and \"previous\" buttons\n in a gallery or in a media player.\n\n one combined call for getting chat::get_next_media for both directions\n the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "msgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageType",
+          "schema": {
+            "$ref": "#/components/schemas/Viewtype"
+          },
+          "required": true
+        },
+        {
+          "name": "orMessageType2",
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "orMessageType3",
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetNeighboringChatMediaResult",
+        "schema": {
+          "type": "array",
+          "items": [
+            {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "export_backup",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "destination",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "passphrase",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ExportBackupResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "import_backup",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "passphrase",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ImportBackupResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "provide_backup",
+      "description": " Offers a backup for remote devices to retrieve.\n\n Can be cancelled by stopping the ongoing process.  Success or failure can be tracked\n via the `ImexProgress` event which should either reach `1000` for success or `0` for\n failure.\n\n This **stops IO** while it is running.\n\n Returns once a remote device has retrieved the backup, or is cancelled.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ProvideBackupResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_backup_qr",
+      "description": " Returns the text of the QR code for the running [`CommandApi::provide_backup`].\n\n This QR code text can be used in [`CommandApi::get_backup`] on a second device to\n retrieve the backup and setup this second device.\n\n This call will fail if there is currently no concurrent call to\n [`CommandApi::provide_backup`].  This call may block if the QR code is not yet\n ready.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetBackupQrResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_backup_qr_svg",
+      "description": " Returns the rendered QR code for the running [`CommandApi::provide_backup`].\n\n This QR code can be used in [`CommandApi::get_backup`] on a second device to\n retrieve the backup and setup this second device.\n\n This call will fail if there is currently no concurrent call to\n [`CommandApi::provide_backup`].  This call may block if the QR code is not yet\n ready.\n\n Returns the QR code rendered as an SVG image.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetBackupQrSvgResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_backup",
+      "description": " Gets a backup from a remote provider.\n\n This retrieves the backup from a remote device over the network and imports it into\n the current device.\n\n Can be cancelled by stopping the ongoing process.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "qrText",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetBackupResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "maybe_network",
+      "description": " Indicate that the network likely has come back.\n or just that the network conditions might have changed",
+      "params": [],
+      "result": {
+        "name": "MaybeNetworkResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_connectivity",
+      "description": " Get the current connectivity, i.e. whether the device is connected to the IMAP server.\n One of:\n - DC_CONNECTIVITY_NOT_CONNECTED (1000-1999): Show e.g. the string \"Not connected\" or a red dot\n - DC_CONNECTIVITY_CONNECTING (2000-2999): Show e.g. the string \"Connecting…\" or a yellow dot\n - DC_CONNECTIVITY_WORKING (3000-3999): Show e.g. the string \"Getting new messages\" or a spinning wheel\n - DC_CONNECTIVITY_CONNECTED (>=4000): Show e.g. the string \"Connected\" or a green dot\n\n We don't use exact values but ranges here so that we can split up\n states into multiple states in the future.\n\n Meant as a rough overview that can be shown\n e.g. in the title of the main screen.\n\n If the connectivity changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetConnectivityResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_connectivity_html",
+      "description": " Get an overview of the current connectivity, and possibly more statistics.\n Meant to give the user more insight about the current status than\n the basic connectivity info returned by get_connectivity(); show this\n e.g., if the user taps on said basic connectivity info.\n\n If this page changes, a #DC_EVENT_CONNECTIVITY_CHANGED will be emitted.\n\n This comes as an HTML from the core so that we can easily improve it\n and the improvement instantly reaches all UIs.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetConnectivityHtmlResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_locations",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "contactId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "timestampBegin",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true
+        },
+        {
+          "name": "timestampEnd",
+          "schema": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetLocationsResult",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Location"
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "send_webxdc_status_update",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "instanceMsgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "updateStr",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SendWebxdcStatusUpdateResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_webxdc_status_updates",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "instanceMsgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "lastKnownSerial",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetWebxdcStatusUpdatesResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_webxdc_info",
+      "description": " Get info from a webxdc message",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "instanceMsgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetWebxdcInfoResult",
+        "schema": {
+          "$ref": "#/components/schemas/WebxdcMessageInfo"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_webxdc_blob",
+      "description": " Get blob encoded as base64 from a webxdc message\n\n path is the path of the file within webxdc archive",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "instanceMsgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetWebxdcBlobResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_http_response",
+      "description": " Makes an HTTP GET request and returns a response.\n\n `url` is the HTTP or HTTPS URL.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "url",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetHttpResponseResult",
+        "schema": {
+          "$ref": "#/components/schemas/HttpResponse"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "forward_messages",
+      "description": " Forward messages to another chat.\n\n All types of messages can be forwarded,\n however, they will be flagged as such (dc_msg_is_forwarded() is set).\n\n Original sender, info-state and webxdc updates are not forwarded on purpose.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageIds",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "ForwardMessagesResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "send_sticker",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "stickerPath",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SendStickerResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "send_reaction",
+      "description": " Send a reaction to message.\n\n Reaction is a string of emojis separated by spaces. Reaction to a\n single message can be sent multiple times. The last reaction\n received overrides all previously received reactions. It is\n possible to remove all reactions by sending an empty string.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "reaction",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SendReactionResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_message_reactions",
+      "description": " Returns reactions to the message.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "messageId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetMessageReactionsResult",
+        "schema": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/Reactions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "send_msg",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "data",
+          "schema": {
+            "$ref": "#/components/schemas/MessageData"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SendMsgResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "can_send",
+      "description": " Checks if messages can be sent to a given chat.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "CanSendResult",
+        "schema": {
+          "type": "boolean"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "remove_draft",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "RemoveDraftResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "get_draft",
+      "description": "  Get draft for a chat, if any.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "GetDraftResult",
+        "schema": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/Message"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "send_videochat_invitation",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "SendVideochatInvitationResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_get_sticker_folder",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscGetStickerFolderResult",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_save_sticker",
+      "description": " save a sticker to a collection/folder in the account's sticker folder",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "msgId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "collection",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscSaveStickerResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_get_stickers",
+      "description": " for desktop, get stickers from stickers folder,\n grouped by the collection/folder they are in.",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscGetStickersResult",
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_send_text_message",
+      "description": " Returns the messageid of the sent message",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscSendTextMessageResult",
+        "schema": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_send_msg",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "file",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "location",
+          "schema": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": [
+              {
+                "type": "number",
+                "format": "double"
+              },
+              {
+                "type": "number",
+                "format": "double"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          },
+          "required": true
+        },
+        {
+          "name": "quotedMessageId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscSendMsgResult",
+        "schema": {
+          "type": "array",
+          "items": [
+            {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            {
+              "$ref": "#/components/schemas/Message"
+            }
+          ],
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    },
+    {
+      "name": "misc_set_draft",
+      "params": [
+        {
+          "name": "accountId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "chatId",
+          "schema": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "file",
+          "schema": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "quotedMessageId",
+          "schema": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "required": true
+        }
+      ],
+      "result": {
+        "name": "MiscSetDraftResult",
+        "schema": {
+          "type": "null"
+        },
+        "required": true
+      },
+      "paramStructure": "by-position"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Account": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "color",
+              "id",
+              "type"
+            ],
+            "properties": {
+              "addr": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "color": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "profileImage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Configured"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Unconfigured"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "BasicChat": {
+        "description": "cheaper version of fullchat, omits: - contacts - contact_ids - fresh_message_counter - ephemeral_timer - self_in_group - was_seen_recently - can_send\n\nused when you only need the basic metadata of a chat like type, name, profile picture",
+        "type": "object",
+        "required": [
+          "archived",
+          "chatType",
+          "color",
+          "id",
+          "isContactRequest",
+          "isDeviceChat",
+          "isMuted",
+          "isProtected",
+          "isSelfTalk",
+          "isUnpromoted",
+          "name"
+        ],
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "chatType": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "color": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isContactRequest": {
+            "type": "boolean"
+          },
+          "isDeviceChat": {
+            "type": "boolean"
+          },
+          "isMuted": {
+            "type": "boolean"
+          },
+          "isProtected": {
+            "type": "boolean"
+          },
+          "isSelfTalk": {
+            "type": "boolean"
+          },
+          "isUnpromoted": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatListItemFetchResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "color",
+              "freshMessageCounter",
+              "id",
+              "isArchived",
+              "isBroadcast",
+              "isContactRequest",
+              "isDeviceTalk",
+              "isGroup",
+              "isMuted",
+              "isPinned",
+              "isProtected",
+              "isSelfInGroup",
+              "isSelfTalk",
+              "isSendingLocation",
+              "name",
+              "summaryStatus",
+              "summaryText1",
+              "summaryText2",
+              "type",
+              "wasSeenRecently"
+            ],
+            "properties": {
+              "avatarPath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "color": {
+                "type": "string"
+              },
+              "dmChatContact": {
+                "description": "contact id if this is a dm chat (for view profile entry in context menu)",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "freshMessageCounter": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "isArchived": {
+                "type": "boolean"
+              },
+              "isBroadcast": {
+                "description": "true when chat is a broadcastlist",
+                "type": "boolean"
+              },
+              "isContactRequest": {
+                "type": "boolean"
+              },
+              "isDeviceTalk": {
+                "type": "boolean"
+              },
+              "isGroup": {
+                "type": "boolean"
+              },
+              "isMuted": {
+                "type": "boolean"
+              },
+              "isPinned": {
+                "type": "boolean"
+              },
+              "isProtected": {
+                "type": "boolean"
+              },
+              "isSelfInGroup": {
+                "type": "boolean"
+              },
+              "isSelfTalk": {
+                "type": "boolean"
+              },
+              "isSendingLocation": {
+                "type": "boolean"
+              },
+              "lastMessageId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "lastMessageType": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Viewtype"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "lastUpdated": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "name": {
+                "type": "string"
+              },
+              "summaryPreviewImage": {
+                "description": "showing preview if last chat message is image",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "summaryStatus": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "summaryText1": {
+                "type": "string"
+              },
+              "summaryText2": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ChatListItem"
+                ]
+              },
+              "wasSeenRecently": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "freshMessageCounter",
+              "type"
+            ],
+            "properties": {
+              "freshMessageCounter": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ArchiveLink"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error",
+              "id",
+              "type"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Error"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ChatVisibility": {
+        "type": "string",
+        "enum": [
+          "Normal",
+          "Archived",
+          "Pinned"
+        ]
+      },
+      "Contact": {
+        "type": "object",
+        "required": [
+          "address",
+          "authName",
+          "color",
+          "displayName",
+          "id",
+          "isBlocked",
+          "isVerified",
+          "lastSeen",
+          "name",
+          "nameAndAddr",
+          "status",
+          "wasSeenRecently"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "authName": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isBlocked": {
+            "type": "boolean"
+          },
+          "isVerified": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "description": "the contact's last seen timestamp",
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameAndAddr": {
+            "type": "string"
+          },
+          "profileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "verifierAddr": {
+            "description": "the address that verified this contact",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verifierId": {
+            "description": "the id of the contact that verified this contact",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "wasSeenRecently": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DownloadState": {
+        "type": "string",
+        "enum": [
+          "Done",
+          "Available",
+          "Failure",
+          "InProgress"
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "contextId",
+          "event"
+        ],
+        "properties": {
+          "contextId": {
+            "description": "Account ID.",
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "event": {
+            "description": "Event payload.",
+            "$ref": "#/components/schemas/EventType"
+          }
+        }
+      },
+      "EventType": {
+        "oneOf": [
+          {
+            "description": "The library-user may write an informational string to the log.\n\nThis event should *not* be reported to the end-user using a popup or something like that.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Info"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when SMTP connection is established and login was successful.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SmtpConnected"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when IMAP connection is established and login was successful.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImapConnected"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when a message was successfully sent to the SMTP server.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SmtpMessageSent"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when an IMAP message has been marked as deleted",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImapMessageDeleted"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when an IMAP message has been moved",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImapMessageMoved"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted before going into IDLE on the Inbox folder.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImapInboxIdle"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when an new file in the $BLOBDIR was created",
+            "type": "object",
+            "required": [
+              "file",
+              "type"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "NewBlobFile"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Emitted when an file in the $BLOBDIR was deleted",
+            "type": "object",
+            "required": [
+              "file",
+              "type"
+            ],
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "DeletedBlobFile"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The library-user should write a warning string to the log.\n\nThis event should *not* be reported to the end-user using a popup or something like that.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Warning"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The library-user should report an error to the end-user.\n\nAs most things are asynchronous, things may go wrong at any time and the user should not be disturbed by a dialog or so.  Instead, use a bubble or so.\n\nHowever, for ongoing processes (eg. configure()) or for functions that are expected to fail (eg. autocryptContinueKeyTransfer()) it might be better to delay showing these events until the function has really failed (returned false). It should be sufficient to report only the *last* error in a messasge box then.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Error"
+                ]
+              }
+            }
+          },
+          {
+            "description": "An action cannot be performed because the user is not in the group. Reported eg. after a call to setChatName(), setChatProfileImage(), addContactToChat(), removeContactFromChat(), and messages sending functions.",
+            "type": "object",
+            "required": [
+              "msg",
+              "type"
+            ],
+            "properties": {
+              "msg": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ErrorSelfNotInGroup"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Messages or chats changed.  One or more messages or chats changed for various reasons in the database: - Messages sent, received or removed - Chats created, deleted or archived - A draft has been set\n\n`chatId` is set if only a single chat is affected by the changes, otherwise 0. `msgId` is set if only a single message is affected by the changes, otherwise 0.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgsChanged"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Reactions for the message changed.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "contactId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "contactId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ReactionsChanged"
+                ]
+              }
+            }
+          },
+          {
+            "description": "There is a fresh message. Typically, the user will show an notification when receiving this message.\n\nThere is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "IncomingMsg"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Downloading a bunch of messages just finished. This is an experimental event to allow the UI to only show one notification per message bunch, instead of cluttering the user with many notifications.\n\nmsg_ids contains the message ids.",
+            "type": "object",
+            "required": [
+              "msgIds",
+              "type"
+            ],
+            "properties": {
+              "msgIds": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "IncomingMsgBunch"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Messages were seen or noticed. chat id is always set.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgsNoticed"
+                ]
+              }
+            }
+          },
+          {
+            "description": "A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to DC_STATE_OUT_DELIVERED, see `Message.state`.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgDelivered"
+                ]
+              }
+            }
+          },
+          {
+            "description": "A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to DC_STATE_OUT_FAILED, see `Message.state`.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgFailed"
+                ]
+              }
+            }
+          },
+          {
+            "description": "A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to DC_STATE_OUT_MDN_RCVD, see `Message.state`.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgRead"
+                ]
+              }
+            }
+          },
+          {
+            "description": "A single message is deleted.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MsgDeleted"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Chat changed.  The name or the image of a chat group was changed or members were added or removed. Or the verify state of a chat has changed. See setChatName(), setChatProfileImage(), addContactToChat() and removeContactFromChat().\n\nThis event does not include ephemeral timer modification, which is a separate event.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ChatModified"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Chat ephemeral timer changed.",
+            "type": "object",
+            "required": [
+              "chatId",
+              "timer",
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "timer": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ChatEphemeralTimerModified"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Contact(s) created, renamed, blocked or deleted.\n\n@param data1 (int) If set, this is the contact_id of an added contact that should be selected.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "contactId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ContactsChanged"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Location of one or more contact has changed.\n\n@param data1 (u32) contact_id of the contact for which the location has changed. If the locations of several contacts have been changed, this parameter is set to `None`.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "contactId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "LocationChanged"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Inform about the configuration progress started by configure().",
+            "type": "object",
+            "required": [
+              "progress",
+              "type"
+            ],
+            "properties": {
+              "comment": {
+                "description": "Progress comment or error, something to display to the user.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "progress": {
+                "description": "Progress.\n\n0=error, 1-999=progress in permille, 1000=success and done",
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ConfigureProgress"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Inform about the import/export progress started by imex().\n\n@param data1 (usize) 0=error, 1-999=progress in permille, 1000=success and done @param data2 0",
+            "type": "object",
+            "required": [
+              "progress",
+              "type"
+            ],
+            "properties": {
+              "progress": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImexProgress"
+                ]
+              }
+            }
+          },
+          {
+            "description": "A file has been exported. A file has been written by imex(). This event may be sent multiple times by a single call to imex().\n\nA typical purpose for a handler of this event may be to make the file public to some system services.\n\n@param data2 0",
+            "type": "object",
+            "required": [
+              "path",
+              "type"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ImexFileWritten"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Progress information of a secure-join handshake from the view of the inviter (Alice, the person who shows the QR code).\n\nThese events are typically sent after a joiner has scanned the QR code generated by getChatSecurejoinQrCodeSvg().\n\n@param data1 (int) ID of the contact that wants to join. @param data2 (int) Progress as: 300=vg-/vc-request received, typically shown as \"bob@addr joins\". 600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as \"bob@addr verified\". 800=vg-member-added-received received, shown as \"bob@addr securely joined GROUP\", only sent for the verified-group-protocol. 1000=Protocol finished for this contact.",
+            "type": "object",
+            "required": [
+              "contactId",
+              "progress",
+              "type"
+            ],
+            "properties": {
+              "contactId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "progress": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SecurejoinInviterProgress"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Progress information of a secure-join handshake from the view of the joiner (Bob, the person who scans the QR code). The events are typically sent while secureJoin(), which may take some time, is executed. @param data1 (int) ID of the inviting contact. @param data2 (int) Progress as: 400=vg-/vc-request-with-auth sent, typically shown as \"alice@addr verified, introducing myself.\" (Bob has verified alice and waits until Alice does the same for him)",
+            "type": "object",
+            "required": [
+              "contactId",
+              "progress",
+              "type"
+            ],
+            "properties": {
+              "contactId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "progress": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SecurejoinJoinerProgress"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The connectivity to the server changed. This means that you should refresh the connectivity view and possibly the connectivtiy HTML; see getConnectivity() and getConnectivityHtml() for details.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ConnectivityChanged"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "SelfavatarChanged"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "msgId",
+              "statusUpdateSerial",
+              "type"
+            ],
+            "properties": {
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "statusUpdateSerial": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "WebxdcStatusUpdate"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Inform that a message containing a webxdc instance has been deleted",
+            "type": "object",
+            "required": [
+              "msgId",
+              "type"
+            ],
+            "properties": {
+              "msgId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "WebxdcInstanceDeleted"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Inform UI that Order (and content as in chat ids) of the chatlist changed.\n\nSometimes this is emitted together with `UIChatListItemChanged` such as on IncomingMessage.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "UIChatListChanged"
+                ]
+              }
+            }
+          },
+          {
+            "description": "Inform UI that a single chat list item changed and needs to be rerendered If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.",
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "chatId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "UIChatListItemChanged"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "FullChat": {
+        "type": "object",
+        "required": [
+          "archived",
+          "canSend",
+          "chatType",
+          "color",
+          "contactIds",
+          "contacts",
+          "ephemeralTimer",
+          "freshMessageCounter",
+          "id",
+          "isContactRequest",
+          "isDeviceChat",
+          "isMuted",
+          "isProtected",
+          "isSelfTalk",
+          "isUnpromoted",
+          "name",
+          "selfInGroup",
+          "wasSeenRecently"
+        ],
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "canSend": {
+            "type": "boolean"
+          },
+          "chatType": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "color": {
+            "type": "string"
+          },
+          "contactIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            }
+          },
+          "ephemeralTimer": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "freshMessageCounter": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isContactRequest": {
+            "type": "boolean"
+          },
+          "isDeviceChat": {
+            "type": "boolean"
+          },
+          "isMuted": {
+            "type": "boolean"
+          },
+          "isProtected": {
+            "type": "boolean"
+          },
+          "isSelfTalk": {
+            "type": "boolean"
+          },
+          "isUnpromoted": {
+            "type": "boolean"
+          },
+          "mailingListAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selfInGroup": {
+            "type": "boolean"
+          },
+          "wasSeenRecently": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HttpResponse": {
+        "type": "object",
+        "required": [
+          "blob"
+        ],
+        "properties": {
+          "blob": {
+            "description": "base64-encoded response body.",
+            "type": "string"
+          },
+          "encoding": {
+            "description": "Encoding, e.g. \"utf-8\".",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mimetype": {
+            "description": "MIME type, e.g. \"text/plain\" or \"text/html\".",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "required": [
+          "accuracy",
+          "chatId",
+          "contactId",
+          "isIndependent",
+          "latitude",
+          "locationId",
+          "longitude",
+          "msgId",
+          "timestamp"
+        ],
+        "properties": {
+          "accuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "chatId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "contactId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isIndependent": {
+            "type": "boolean"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "locationId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "marker": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "msgId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "chatId",
+          "dimensionsHeight",
+          "dimensionsWidth",
+          "downloadState",
+          "duration",
+          "fileBytes",
+          "fromId",
+          "hasDeviatingTimestamp",
+          "hasHtml",
+          "hasLocation",
+          "id",
+          "isBot",
+          "isForwarded",
+          "isInfo",
+          "isSetupmessage",
+          "receivedTimestamp",
+          "sender",
+          "showPadlock",
+          "sortTimestamp",
+          "state",
+          "subject",
+          "systemMessageType",
+          "timestamp",
+          "viewType"
+        ],
+        "properties": {
+          "chatId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "dimensionsHeight": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dimensionsWidth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "downloadState": {
+            "$ref": "#/components/schemas/DownloadState"
+          },
+          "duration": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "error": {
+            "description": "An error text, if there is one.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fileBytes": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          },
+          "fileMime": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fileName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fromId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "hasDeviatingTimestamp": {
+            "type": "boolean"
+          },
+          "hasHtml": {
+            "type": "boolean"
+          },
+          "hasLocation": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isBot": {
+            "description": "True if the message was sent by a bot.",
+            "type": "boolean"
+          },
+          "isForwarded": {
+            "type": "boolean"
+          },
+          "isInfo": {
+            "type": "boolean"
+          },
+          "isSetupmessage": {
+            "type": "boolean"
+          },
+          "overrideSenderName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parentId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reactions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reactions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receivedTimestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "setupCodeBegin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "showPadlock": {
+            "type": "boolean"
+          },
+          "sortTimestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "subject": {
+            "type": "string"
+          },
+          "systemMessageType": {
+            "description": "when is_info is true this describes what type of system message it is",
+            "$ref": "#/components/schemas/SystemMessageType"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "videochatType": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "videochatUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "viewType": {
+            "$ref": "#/components/schemas/Viewtype"
+          },
+          "webxdcInfo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WebxdcMessageInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "MessageData": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "html": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": [
+              {
+                "type": "number",
+                "format": "double"
+              },
+              {
+                "type": "number",
+                "format": "double"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          },
+          "overrideSenderName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quotedMessageId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "viewtype": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "MessageListItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "msg_id"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "message"
+                ]
+              },
+              "msg_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              }
+            }
+          },
+          {
+            "description": "Day marker, separating messages that correspond to different days according to local time.",
+            "type": "object",
+            "required": [
+              "kind",
+              "timestamp"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "dayMarker"
+                ]
+              },
+              "timestamp": {
+                "description": "Marker timestamp, for day markers, in unix milliseconds",
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ]
+      },
+      "MessageLoadResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "chatId",
+              "dimensionsHeight",
+              "dimensionsWidth",
+              "downloadState",
+              "duration",
+              "fileBytes",
+              "fromId",
+              "hasDeviatingTimestamp",
+              "hasHtml",
+              "hasLocation",
+              "id",
+              "isBot",
+              "isForwarded",
+              "isInfo",
+              "isSetupmessage",
+              "receivedTimestamp",
+              "sender",
+              "showPadlock",
+              "sortTimestamp",
+              "state",
+              "subject",
+              "systemMessageType",
+              "timestamp",
+              "variant",
+              "viewType"
+            ],
+            "properties": {
+              "chatId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "dimensionsHeight": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "dimensionsWidth": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "downloadState": {
+                "$ref": "#/components/schemas/DownloadState"
+              },
+              "duration": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "error": {
+                "description": "An error text, if there is one.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fileBytes": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              "fileMime": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fileName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fromId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "hasDeviatingTimestamp": {
+                "type": "boolean"
+              },
+              "hasHtml": {
+                "type": "boolean"
+              },
+              "hasLocation": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "isBot": {
+                "description": "True if the message was sent by a bot.",
+                "type": "boolean"
+              },
+              "isForwarded": {
+                "type": "boolean"
+              },
+              "isInfo": {
+                "type": "boolean"
+              },
+              "isSetupmessage": {
+                "type": "boolean"
+              },
+              "overrideSenderName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parentId": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "quote": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MessageQuote"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reactions": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Reactions"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "receivedTimestamp": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "sender": {
+                "$ref": "#/components/schemas/Contact"
+              },
+              "setupCodeBegin": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "showPadlock": {
+                "type": "boolean"
+              },
+              "sortTimestamp": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "state": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "subject": {
+                "type": "string"
+              },
+              "systemMessageType": {
+                "description": "when is_info is true this describes what type of system message it is",
+                "$ref": "#/components/schemas/SystemMessageType"
+              },
+              "text": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "timestamp": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "variant": {
+                "type": "string",
+                "enum": [
+                  "message"
+                ]
+              },
+              "videochatType": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "videochatUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "viewType": {
+                "$ref": "#/components/schemas/Viewtype"
+              },
+              "webxdcInfo": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WebxdcMessageInfo"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "error",
+              "variant"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "variant": {
+                "type": "string",
+                "enum": [
+                  "loadingError"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "MessageNotificationInfo": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "chatId",
+          "chatName",
+          "id",
+          "summaryText"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "chatId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "chatName": {
+            "type": "string"
+          },
+          "chatProfileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imageMimeType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summaryPrefix": {
+            "description": "also known as summary_text1",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summaryText": {
+            "description": "also known as summary_text2",
+            "type": "string"
+          }
+        }
+      },
+      "MessageQuote": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "kind",
+              "text"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "JustText"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authorDisplayColor",
+              "authorDisplayName",
+              "isForwarded",
+              "kind",
+              "messageId",
+              "text",
+              "viewType"
+            ],
+            "properties": {
+              "authorDisplayColor": {
+                "type": "string"
+              },
+              "authorDisplayName": {
+                "type": "string"
+              },
+              "image": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "isForwarded": {
+                "type": "boolean"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "WithMessage"
+                ]
+              },
+              "messageId": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "overrideSenderName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "viewType": {
+                "$ref": "#/components/schemas/Viewtype"
+              }
+            }
+          }
+        ]
+      },
+      "MessageReadReceipt": {
+        "type": "object",
+        "required": [
+          "contactId",
+          "timestamp"
+        ],
+        "properties": {
+          "contactId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MessageSearchResult": {
+        "type": "object",
+        "required": [
+          "authorColor",
+          "authorId",
+          "authorName",
+          "chatColor",
+          "chatName",
+          "chatType",
+          "id",
+          "isChatArchived",
+          "isChatContactRequest",
+          "isChatProtected",
+          "message",
+          "timestamp"
+        ],
+        "properties": {
+          "authorColor": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "authorName": {
+            "description": "if sender name if overridden it will show it as ~alias",
+            "type": "string"
+          },
+          "authorProfileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chatColor": {
+            "type": "string"
+          },
+          "chatName": {
+            "type": "string"
+          },
+          "chatProfileImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chatType": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          },
+          "isChatArchived": {
+            "type": "boolean"
+          },
+          "isChatContactRequest": {
+            "type": "boolean"
+          },
+          "isChatProtected": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MuteDuration": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "NotMuted",
+              "Forever"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "Until"
+            ],
+            "properties": {
+              "Until": {
+                "type": "integer",
+                "format": "int64"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ProviderInfo": {
+        "type": "object",
+        "required": [
+          "beforeLoginHint",
+          "overviewPage",
+          "status"
+        ],
+        "properties": {
+          "beforeLoginHint": {
+            "type": "string"
+          },
+          "overviewPage": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      },
+      "Qr": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "askVerifyContact"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "grpid",
+              "grpname",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "grpid": {
+                "type": "string"
+              },
+              "grpname": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "askVerifyGroup"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "contact_id",
+              "type"
+            ],
+            "properties": {
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fprOk"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "contact_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fprMismatch"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "fingerprint",
+              "type"
+            ],
+            "properties": {
+              "fingerprint": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fprWithoutAddr"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "domain",
+              "type"
+            ],
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "account"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "ticket",
+              "type"
+            ],
+            "properties": {
+              "ticket": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "backup"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "domain",
+              "instance_pattern",
+              "type"
+            ],
+            "properties": {
+              "domain": {
+                "type": "string"
+              },
+              "instance_pattern": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "webrtcInstance"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "contact_id",
+              "type"
+            ],
+            "properties": {
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "draft": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "addr"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "url"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "url"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "text",
+              "type"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "text"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "withdrawVerifyContact"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "grpid",
+              "grpname",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "grpid": {
+                "type": "string"
+              },
+              "grpname": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "withdrawVerifyGroup"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "reviveVerifyContact"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "authcode",
+              "contact_id",
+              "fingerprint",
+              "grpid",
+              "grpname",
+              "invitenumber",
+              "type"
+            ],
+            "properties": {
+              "authcode": {
+                "type": "string"
+              },
+              "contact_id": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "fingerprint": {
+                "type": "string"
+              },
+              "grpid": {
+                "type": "string"
+              },
+              "grpname": {
+                "type": "string"
+              },
+              "invitenumber": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "reviveVerifyGroup"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "address",
+              "type"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "login"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Reaction": {
+        "description": "A single reaction emoji.",
+        "type": "object",
+        "required": [
+          "count",
+          "emoji",
+          "isFromSelf"
+        ],
+        "properties": {
+          "count": {
+            "description": "Emoji frequency.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          },
+          "emoji": {
+            "description": "Emoji.",
+            "type": "string"
+          },
+          "isFromSelf": {
+            "description": "True if we reacted with this emoji.",
+            "type": "boolean"
+          }
+        }
+      },
+      "Reactions": {
+        "description": "Structure representing all reactions to a particular message.",
+        "type": "object",
+        "required": [
+          "reactions",
+          "reactionsByContact"
+        ],
+        "properties": {
+          "reactions": {
+            "description": "Unique reactions and their count, sorted in descending order.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reaction"
+            }
+          },
+          "reactionsByContact": {
+            "description": "Map from a contact to it's reaction to message.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "SystemMessageType": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "Unknown",
+              "GroupNameChanged",
+              "GroupImageChanged",
+              "MemberAddedToGroup",
+              "MemberRemovedFromGroup",
+              "AutocryptSetupMessage",
+              "SecurejoinMessage",
+              "LocationStreamingEnabled",
+              "LocationOnly",
+              "ChatProtectionEnabled",
+              "ChatProtectionDisabled",
+              "WebxdcStatusUpdate"
+            ]
+          },
+          {
+            "description": "Chat ephemeral message timer is changed.",
+            "type": "string",
+            "enum": [
+              "EphemeralTimerChanged"
+            ]
+          },
+          {
+            "description": "Self-sent-message that contains only json used for multi-device-sync; if possible, we attach that to other messages as for locations.",
+            "type": "string",
+            "enum": [
+              "MultiDeviceSync"
+            ]
+          },
+          {
+            "description": "Webxdc info added with `info` set in `send_webxdc_status_update()`.",
+            "type": "string",
+            "enum": [
+              "WebxdcInfoMessage"
+            ]
+          }
+        ]
+      },
+      "Viewtype": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "Unknown"
+            ]
+          },
+          {
+            "description": "Text message.",
+            "type": "string",
+            "enum": [
+              "Text"
+            ]
+          },
+          {
+            "description": "Image message. If the image is an animated GIF, the type `Viewtype.Gif` should be used.",
+            "type": "string",
+            "enum": [
+              "Image"
+            ]
+          },
+          {
+            "description": "Animated GIF message.",
+            "type": "string",
+            "enum": [
+              "Gif"
+            ]
+          },
+          {
+            "description": "Message containing a sticker, similar to image. If possible, the ui should display the image without borders in a transparent way. A click on a sticker will offer to install the sticker set in some future.",
+            "type": "string",
+            "enum": [
+              "Sticker"
+            ]
+          },
+          {
+            "description": "Message containing an Audio file.",
+            "type": "string",
+            "enum": [
+              "Audio"
+            ]
+          },
+          {
+            "description": "A voice message that was directly recorded by the user. For all other audio messages, the type `Viewtype.Audio` should be used.",
+            "type": "string",
+            "enum": [
+              "Voice"
+            ]
+          },
+          {
+            "description": "Video messages.",
+            "type": "string",
+            "enum": [
+              "Video"
+            ]
+          },
+          {
+            "description": "Message containing any file, eg. a PDF.",
+            "type": "string",
+            "enum": [
+              "File"
+            ]
+          },
+          {
+            "description": "Message is an invitation to a videochat.",
+            "type": "string",
+            "enum": [
+              "VideochatInvitation"
+            ]
+          },
+          {
+            "description": "Message is an webxdc instance.",
+            "type": "string",
+            "enum": [
+              "Webxdc"
+            ]
+          }
+        ]
+      },
+      "WebxdcMessageInfo": {
+        "type": "object",
+        "required": [
+          "icon",
+          "internetAccess",
+          "name"
+        ],
+        "properties": {
+          "document": {
+            "description": "if the Webxdc represents a document, then this is the name of the document",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "description": "App icon file name. Defaults to an standard icon if nothing is set in the manifest.\n\nTo get the file, use dc_msg_get_webxdc_blob(). (not yet in jsonrpc, use rust api or cffi for it)\n\nApp icons should should be square, the implementations will add round corners etc. as needed.",
+            "type": "string"
+          },
+          "internetAccess": {
+            "description": "True if full internet access should be granted to the app.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "The name of the app.\n\nDefaults to the filename if not set in the manifest.",
+            "type": "string"
+          },
+          "sourceCodeUrl": {
+            "description": "URL where the source code of the Webxdc and other information can be found; defaults to an empty string. Implementations may offer an menu or a button to open this URL.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "description": "short string describing the state of the app, sth. as \"2 votes\", \"Highscore: 123\", can be changed by the apps",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
