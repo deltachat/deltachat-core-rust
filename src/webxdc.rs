@@ -3,8 +3,7 @@
 use std::convert::TryFrom;
 use std::path::Path;
 
-use anyhow::Context as _;
-use anyhow::{anyhow, bail, ensure, format_err, Result};
+use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
 use deltachat_derive::FromSql;
 use lettre_email::mime;
@@ -392,7 +391,7 @@ impl Context {
         Ok(status_update_serial)
     }
 
-    ///  Return the update_item with `status_update_serial` from the webxdc with message id `msg_id`.
+    /// Returns the update_item with `status_update_serial` from the webxdc with message id `msg_id`.
     pub async fn get_status_update(
         &self,
         msg_id: MsgId,
