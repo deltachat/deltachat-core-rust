@@ -225,7 +225,7 @@ jobs:
               - -ec
               - |
                 apt-get update -y
-                apt-get install -y --no-install-recommends python3-pip python3-setuptools
+                apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-venv
                 python3 -m venv env
                 env/bin/pip install --upgrade pip
                 env/bin/pip install devpi
@@ -297,7 +297,7 @@ jobs:
               - -ec
               - |
                 apt-get update -y
-                apt-get install -y --no-install-recommends python3-pip python3-setuptools
+                apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-venv
                 python3 -m venv env
                 env/bin/pip install --upgrade pip
                 env/bin/pip install devpi
@@ -369,7 +369,7 @@ jobs:
               - -ec
               - |
                 apt-get update -y
-                apt-get install -y --no-install-recommends python3-pip python3-setuptools
+                apt-get install -y --no-install-recommends python3-pip python3-setuptools python3-venv
                 python3 -m venv env
                 env/bin/pip install --upgrade pip
                 env/bin/pip install devpi
