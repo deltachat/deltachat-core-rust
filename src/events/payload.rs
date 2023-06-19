@@ -298,8 +298,8 @@ pub enum EventType {
 
     /// Inform UI that a single chat list item changed and needs to be rerendered
     /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
-    UIChatListItemChanged { 
+    UIChatListItemChanged {
         /// ID of the changed chat
-        chat_id: Option<ChatId>
+        chat_id: Option<ChatId>,
     },
 }

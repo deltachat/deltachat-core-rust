@@ -804,7 +804,9 @@ impl Contact {
             // update the chats the contact that changed their name is part of
             // (treefit): could make sense to only update chats where the last message is from the contact, but the db query for that is more expensive
             for chat_id in Contact::get_chats_with_contact(context, &contact_id).await? {
-                context.emit_event(EventType::UIChatListItemChanged { chat_id: Some(chat_id) });
+                context.emit_event(EventType::UIChatListItemChanged {
+                    chat_id: Some(chat_id),
+                });
             }
         }
 
@@ -1609,6 +1611,7 @@ pub(crate) async fn set_profile_image(
     if changed {
         contact.update_param(context).await?;
         context.emit_event(EventType::ContactsChanged(Some(contact_id)));
+        // TODO update DM chat
     }
     Ok(())
 }
@@ -1821,6 +1824,7 @@ impl RecentlySeenLoop {
                         // Timeout, notify about contact.
                         if let Some(contact_id) = contact_id {
                             context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
+                            // TODO update DM chat
                             unseen_queue.pop();
                         }
                     }
@@ -1853,6 +1857,7 @@ impl RecentlySeenLoop {
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {
                     context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
+                    // TODO update DM chat
                 }
                 unseen_queue.pop();
             }
