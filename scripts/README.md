@@ -18,6 +18,10 @@ and an own build machine.
 - `remote_tests_rust.sh` rsyncs to the build machine and runs
   `run-rust-test.sh` remotely on the build machine. 
 
+- `make-python-testenv.sh` creates or updates local python test development environment.
+  Reusing the same environment is faster than running `run-python-test.sh` which always
+  recreates environment from scratch and runs additional lints.
+
 - `run-doxygen.sh` generates C-docs which are then uploaded to https://c.delta.chat/
 
 - `run_all.sh` builds Python wheels
