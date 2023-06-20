@@ -16,9 +16,8 @@ async def get_temp_credentials() -> dict:
 
     # Replace default 5 minute timeout with a 1 minute timeout.
     timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, timeout=timeout) as response:
-            return json.loads(await response.text())
+    async with aiohttp.ClientSession() as session, session.post(url, timeout=timeout) as response:
+        return json.loads(await response.text())
 
 
 class ACFactory:
