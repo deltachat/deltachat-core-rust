@@ -51,8 +51,13 @@ impl Dehtml {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum AddText {
+    /// Inside `<script>`, `<style>` and similar tags
+    /// which contents should not be displayed.
     No,
+
     YesRemoveLineEnds,
+
+    /// Inside `<pre>`.
     YesPreserveLineEnds,
 }
 
