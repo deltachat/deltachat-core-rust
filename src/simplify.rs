@@ -235,12 +235,11 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
     let mut ret = String::new();
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
-    let mut empty_body = true;
     for line in lines {
         if is_empty_line(line) {
             pending_linebreaks += 1
         } else {
-            if !empty_body {
+            if !ret.is_empty() {
                 if pending_linebreaks > 2 {
                     pending_linebreaks = 2
                 }
@@ -251,11 +250,10 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
             }
             // the incoming message might contain invalid UTF8
             ret += line;
-            empty_body = false;
             pending_linebreaks = 1
         }
     }
-    if is_cut_at_end && !empty_body {
+    if is_cut_at_end && !ret.is_empty() {
         ret += " [...]";
     }
     // redo escaping done by escape_message_footer_marks()
