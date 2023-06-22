@@ -127,7 +127,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         assert!(chat.is_protected());
 
         let msg = alice.get_last_msg().await;
-        let expected_text = stock_str::chat_verification_enabled(&alice).await;
+        let expected_text = stock_str::chat_protection_enabled(&alice).await;
         assert_eq!(msg.text, expected_text);
     }
 
@@ -139,8 +139,8 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         assert!(chat.is_protected());
 
         let msg0 = get_chat_msg(&fiona, chat.id, 0, 2).await;
-        let expected_text = stock_str::chat_verification_enabled(&fiona).await;
-        assert_eq!(msg0.text.unwrap(), expected_text);
+        let expected_text = stock_str::chat_protection_enabled(&fiona).await;
+        assert_eq!(msg0.text, expected_text);
     }
 
     tcm.section("Fiona reinstalls DC");
@@ -235,12 +235,12 @@ async fn test_degrade_verified_oneonone_chat() -> Result<()> {
         .unwrap();
 
     let msg0 = get_chat_msg(&alice, alice_chat.id, 0, 3).await;
-    let enabled = stock_str::chat_verification_enabled(&alice).await;
+    let enabled = stock_str::chat_protection_enabled(&alice).await;
     assert_eq!(msg0.text, enabled);
     assert_eq!(msg0.param.get_cmd(), SystemMessage::ChatProtectionEnabled);
 
     let msg1 = get_chat_msg(&alice, alice_chat.id, 1, 3).await;
-    let disabled = stock_str::chat_verification_disabled(&alice, contact_id).await;
+    let disabled = stock_str::chat_protection_disabled(&alice, contact_id).await;
     assert_eq!(msg1.text, disabled);
     assert_eq!(msg1.param.get_cmd(), SystemMessage::ChatProtectionDisabled);
 

@@ -786,7 +786,7 @@ mod tests {
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
-    use crate::stock_str::chat_verification_enabled;
+    use crate::stock_str::chat_protection_enabled;
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::EmailAddress;
@@ -943,7 +943,7 @@ mod tests {
 
             let msg1 = Message::load_from_db(&alice.ctx, msg_ids[1]).await.unwrap();
             assert!(msg1.is_info());
-            let expected_text = chat_verification_enabled(&alice).await;
+            let expected_text = chat_protection_enabled(&alice).await;
             assert_eq!(msg1.get_text(), expected_text);
         }
 
@@ -996,7 +996,7 @@ mod tests {
 
             let msg1 = Message::load_from_db(&bob.ctx, msg_ids[1]).await.unwrap();
             assert!(msg1.is_info());
-            let expected_text = chat_verification_enabled(&bob).await;
+            let expected_text = chat_protection_enabled(&bob).await;
             assert_eq!(msg1.get_text(), expected_text);
         }
 

@@ -3694,7 +3694,6 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
  * Check if a chat is protected.
  * Protected chats contain only verified members and encryption is always enabled.
  * Protected chats are created using dc_create_group_chat() by setting the 'protect' parameter to 1.
- * The status can be changed using dc_set_chat_protection().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
@@ -3704,7 +3703,16 @@ int             dc_chat_is_protected         (const dc_chat_t* chat);
 
 
 /**
- * Check if the chat was protected, but this was broken. TODO better docs
+ * Check if the chat was protected, and then an incoming message broke this protection.
+ *
+ * 1:1 chats are automatically set as protected when a contact is verified.
+ * When a message comes in that is not encrypted / signed correctly,
+ * the chat is automatically set as unprotected again.
+ * dc_chat_is_protection_broken() will return true until dc_accept_chat() is called.
+ *
+ * The UI should let the user confirm that this is OK and then call dc_accept_chat().
+ *
+ * See DC_STR_CHAT_PROTECTION_DISABLED.
  */
 int             dc_chat_is_protection_broken (const dc_chat_t* chat);
 
@@ -4303,7 +4311,7 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * Check if the message is an informational message, created by the
  * device or by another users. Such messages are not "typed" by the user but
  * created due to other actions,
- * e.g. dc_set_chat_name(), dc_set_chat_profile_image(), dc_set_chat_protection()
+ * e.g. dc_set_chat_name(), dc_set_chat_profile_image(),
  * or dc_add_contact_to_chat().
  *
  * These messages are typically shown in the center of the chat view,
@@ -6737,15 +6745,6 @@ void dc_event_unref(dc_event_t* event);
 /// Used in error strings.
 #define DC_STR_ERROR_NO_NETWORK           87
 
-/// "Chat protection enabled."
-///
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_ENABLED_PROTECTION and DC_STR_MSG_PROTECTION_ENABLED_BY.
-#define DC_STR_PROTECTION_ENABLED         88
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_DISABLED_PROTECTION and DC_STR_MSG_PROTECTION_DISABLED_BY.
-#define DC_STR_PROTECTION_DISABLED        89
-
 /// "Reply"
 ///
 /// Used in summaries.
@@ -7190,27 +7189,6 @@ void dc_event_unref(dc_event_t* event);
 /// `%2$s` will be replaced by name and address of the contact.
 #define DC_STR_EPHEMERAL_TIMER_WEEKS_BY_OTHER 157
 
-// TODO correct stock strs
-/// "You enabled chat protection."
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_YOU 158
-
-/// "Chat protection enabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_OTHER 159
-
-/// "You disabled chat protection."
-#define DC_STR_PROTECTION_DISABLED_BY_YOU 160
-
-/// "Chat protection disabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-#define DC_STR_PROTECTION_DISABLED_BY_OTHER 161
-
 /// "Scan to set up second device for %1$s"
 ///
 /// `%1$s` will be replaced by name and address of the account.
@@ -7220,6 +7198,16 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as a device message after a successful backup transfer.
 #define DC_STR_BACKUP_TRANSFER_MSG_BODY 163
+
+/// "Messages are guaranteed to be end-to-end encrypted from now on. See https://TODO to learn more" // Replace TODO with a link to the online help
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_ENABLED 170
+
+/// "Messages may not be end-to-end encrypted anymore. See https://TODO to learn more" // Replace TODO with a link to the online help
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_DISABLED 171
 
 /**
  * @}

@@ -408,17 +408,17 @@ pub enum StockMessage {
     #[strum(props(fallback = "I left the group."))]
     MsgILeftGroup = 166,
 
-    // TODO remove "Tap to learn more.", instead put a link to the online help
+    // TODO remove "Tap to learn more.", instead put a link to the online help when the online help is ready
     #[strum(props(
         fallback = "Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more."
     ))]
-    ChatVerificationEnabled = 170,
+    ChatProtectionEnabled = 170,
 
-    // TODO remove "Tap to learn more.", instead put a link to the online help
+    // TODO remove "Tap to learn more.", instead put a link to the online help when the online help is ready
     #[strum(props(
         fallback = "Messages may not be end-to-end encrypted anymore. Tap to learn more."
     ))]
-    ChatVerificationDisabled = 171,
+    ChatProtectionDisabled = 171,
 }
 
 impl StockMessage {
@@ -1054,17 +1054,17 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
 }
 
 /// Stock string: TODO.
-pub(crate) async fn chat_verification_enabled(context: &Context) -> String {
-    translated(context, StockMessage::ChatVerificationEnabled).await
+pub(crate) async fn chat_protection_enabled(context: &Context) -> String {
+    translated(context, StockMessage::ChatProtectionEnabled).await
 }
 
 /// Stock string: TODO.
-pub(crate) async fn chat_verification_disabled(context: &Context, contact_id: ContactId) -> String {
+pub(crate) async fn chat_protection_disabled(context: &Context, contact_id: ContactId) -> String {
     let name = match &(Contact::load_from_db(context, contact_id).await) {
         Ok(c) => c.get_display_name().to_string(),
         Err(_) => contact_id.to_string(),
     };
-    translated(context, StockMessage::ChatVerificationDisabled)
+    translated(context, StockMessage::ChatProtectionDisabled)
         .await
         .replace1(&name)
 }
@@ -1330,9 +1330,9 @@ impl Context {
     ) -> String {
         match protect {
             ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {
-                chat_verification_disabled(self, contact_id).await
+                chat_protection_disabled(self, contact_id).await
             }
-            ProtectionStatus::Protected => chat_verification_enabled(self).await,
+            ProtectionStatus::Protected => chat_protection_enabled(self).await,
         }
     }
 

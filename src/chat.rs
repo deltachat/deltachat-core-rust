@@ -1437,7 +1437,16 @@ impl Chat {
         self.protected == ProtectionStatus::Protected
     }
 
-    /// TODO docs
+    /// Check if the chat was protected, and then an incoming message broke this protection.
+    ///
+    /// 1:1 chats are automatically set as protected when a contact is verified.
+    /// When a message comes in that is not encrypted / signed correctly,
+    /// the chat is automatically set as unprotected again.
+    /// `is_protection_broken()` will return true until `chat_id.accept()` is called.
+    ///
+    /// The UI should let the user confirm that this is OK and then call `chat_id.accept()`.
+    ///
+    /// See [`stock_str::StockMessage::ChatProtectionDisabled`]
     pub fn is_protection_broken(&self) -> bool {
         self.protected == ProtectionStatus::ProtectionBroken
     }
