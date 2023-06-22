@@ -96,7 +96,12 @@ impl PlainText {
                 line += "<br/>\n";
             }
 
-            ret += &*line;
+            let len_with_indentation = line.len();
+            let line = line.trim_start_matches(' ');
+            for _ in line.len()..len_with_indentation {
+                ret += "&nbsp;";
+            }
+            ret += line;
         }
         ret += "</body></html>\n";
         ret
@@ -267,7 +272,32 @@ line <br/>
 still line<br/>
 <em>&gt;quote </em><br/>
 <em>&gt;still quote</em><br/>
- &gt;no quote<br/>
+&nbsp;&gt;no quote<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[test]
+    fn test_plain_to_html_indentation() {
+        let html = PlainText {
+            text: "def foo():\n    pass\n\ndef bar(x):\n    return x + 5".to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html();
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
+def foo():<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;pass<br/>
+<br/>
+def bar(x):<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;return x + 5<br/>
 </body></html>
 "#
         );
