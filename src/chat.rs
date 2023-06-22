@@ -1444,9 +1444,9 @@ impl Chat {
     /// the chat is automatically set as unprotected again.
     /// `is_protection_broken()` will return true until `chat_id.accept()` is called.
     ///
-    /// The UI should let the user confirm that this is OK and then call `chat_id.accept()`.
-    ///
-    /// See [`stock_str::StockMessage::ChatProtectionDisabled`]
+    /// The UI should let the user confirm that this is OK with a message like
+    /// [`stock_str::StockMessage::ChatProtectionDisabled`]
+    /// and then call `chat_id.accept()`.
     pub fn is_protection_broken(&self) -> bool {
         self.protected == ProtectionStatus::ProtectionBroken
     }

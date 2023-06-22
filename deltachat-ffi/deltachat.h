@@ -3710,9 +3710,8 @@ int             dc_chat_is_protected         (const dc_chat_t* chat);
  * the chat is automatically set as unprotected again.
  * dc_chat_is_protection_broken() will return true until dc_accept_chat() is called.
  *
- * The UI should let the user confirm that this is OK and then call dc_accept_chat().
- *
- * See DC_STR_CHAT_PROTECTION_DISABLED.
+ * The UI should let the user confirm that this is OK with a message like
+ * `DC_STR_CHAT_PROTECTION_DISABLED` and then call dc_accept_chat().
  */
 int             dc_chat_is_protection_broken (const dc_chat_t* chat);
 
