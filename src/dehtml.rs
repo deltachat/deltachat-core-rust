@@ -10,10 +10,11 @@ use quick_xml::{
     Reader,
 };
 
-static LINE_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(\r?\n)+").unwrap());
+use crate::simplify::{simplify_quote, SimplifiedText};
 
 struct Dehtml {
     strbuilder: String,
+    quote: String,
     add_text: AddText,
     last_href: Option<String>,
     /// GMX wraps a quote in `<div name="quote">`. After a `<div name="quote">`, this count is
@@ -29,17 +30,22 @@ struct Dehtml {
 }
 
 impl Dehtml {
-    fn line_prefix(&self) -> &str {
-        if self.divs_since_quoted_content_div > 0 || self.blockquotes_since_blockquote > 0 {
-            "> "
+    /// Returns true if HTML parser is currently inside the quote.
+    fn is_quote(&self) -> bool {
+        self.divs_since_quoted_content_div > 0 || self.blockquotes_since_blockquote > 0
+    }
+
+    /// Returns the buffer where the text should be written.
+    ///
+    /// If the parser is inside the quote, returns the quote buffer.
+    fn get_buf(&mut self) -> &mut String {
+        if self.is_quote() {
+            &mut self.quote
         } else {
-            ""
+            &mut self.strbuilder
         }
     }
-    fn append_prefix(&self, line_end: &str) -> String {
-        // line_end is e.g. "\n\n". We add "> " if necessary.
-        line_end.to_string() + self.line_prefix()
-    }
+
     fn get_add_text(&self) -> AddText {
         if self.divs_since_quote_div > 0 && self.divs_since_quoted_content_div == 0 {
             AddText::No // Everything between `<div name="quoted">` and `<div name="quoted_content">` is metadata which we don't want
@@ -61,25 +67,60 @@ enum AddText {
     YesPreserveLineEnds,
 }
 
-// dehtml() returns way too many newlines; however, an optimisation on this issue is not needed as
-// the newlines are typically removed in further processing by the caller
-pub fn dehtml(buf: &str) -> Option<String> {
-    let s = dehtml_quick_xml(buf);
+pub(crate) fn dehtml(buf: &str) -> Option<SimplifiedText> {
+    let (s, quote) = dehtml_quick_xml(buf);
     if !s.trim().is_empty() {
-        return Some(s);
+        let text = dehtml_cleanup(s);
+        let top_quote = if !quote.trim().is_empty() {
+            Some(dehtml_cleanup(simplify_quote(&quote).0))
+        } else {
+            None
+        };
+        return Some(SimplifiedText {
+            text,
+            top_quote,
+            ..Default::default()
+        });
     }
     let s = dehtml_manually(buf);
     if !s.trim().is_empty() {
-        return Some(s);
+        let text = dehtml_cleanup(s);
+        return Some(SimplifiedText {
+            text,
+            ..Default::default()
+        });
     }
     None
 }
 
-fn dehtml_quick_xml(buf: &str) -> String {
+fn dehtml_cleanup(mut text: String) -> String {
+    text.retain(|c| c != '\r');
+    let lines = text.trim().split('\n');
+    let mut text = String::new();
+    let mut linebreak = false;
+    for line in lines {
+        if line.chars().all(char::is_whitespace) {
+            linebreak = true;
+        } else {
+            if !text.is_empty() {
+                text += "\n";
+                if linebreak {
+                    text += "\n";
+                }
+            }
+            text += line.trim_end();
+            linebreak = false;
+        }
+    }
+    text
+}
+
+fn dehtml_quick_xml(buf: &str) -> (String, String) {
     let buf = buf.trim().trim_start_matches("<!doctype html>");
 
     let mut dehtml = Dehtml {
         strbuilder: String::with_capacity(buf.len()),
+        quote: String::new(),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
         divs_since_quote_div: 0,
@@ -131,22 +172,33 @@ fn dehtml_quick_xml(buf: &str) -> String {
         buf.clear();
     }
 
-    dehtml.strbuilder
+    (dehtml.strbuilder, dehtml.quote)
 }
 
 fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
+    static LINE_RE: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(\r?\n)+").unwrap());
+
     if dehtml.get_add_text() == AddText::YesPreserveLineEnds
         || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
         let last_added = escaper::decode_html_buf_sloppy(event as &[_]).unwrap_or_default();
 
         if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
-        } else if !dehtml.line_prefix().is_empty() {
-            let l = dehtml.append_prefix("\n");
-            dehtml.strbuilder += LINE_RE.replace_all(&last_added, l.as_str()).as_ref();
+            // Replace all line ends with spaces.
+            // E.g. `\r\n\r\n` is replaced with one space.
+            let last_added = LINE_RE.replace_all(&last_added, " ");
+
+            // Add a space if `last_added` starts with a space
+            // and there is no whitespace at the end of the buffer yet.
+            // Trim the rest of leading whitespace from `last_added`.
+            let buf = dehtml.get_buf();
+            if !buf.ends_with(' ') && !buf.ends_with('\n') && last_added.starts_with(' ') {
+                *buf += " ";
+            }
+
+            *buf += last_added.trim_start();
         } else {
-            dehtml.strbuilder += &last_added;
+            *dehtml.get_buf() += LINE_RE.replace_all(&last_added, "\n").as_ref();
         }
     }
 }
@@ -158,35 +210,36 @@ fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
 
     match tag.as_str() {
         "style" | "script" | "title" | "pre" => {
-            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            *dehtml.get_buf() += "\n\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "div" => {
             pop_tag(&mut dehtml.divs_since_quote_div);
             pop_tag(&mut dehtml.divs_since_quoted_content_div);
 
-            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            *dehtml.get_buf() += "\n\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "a" => {
             if let Some(ref last_href) = dehtml.last_href.take() {
-                if dehtml.strbuilder.ends_with('[') {
-                    dehtml.strbuilder.truncate(dehtml.strbuilder.len() - 1);
+                let buf = dehtml.get_buf();
+                if buf.ends_with('[') {
+                    buf.truncate(buf.len() - 1);
                 } else {
-                    dehtml.strbuilder += "](";
-                    dehtml.strbuilder += last_href;
-                    dehtml.strbuilder += ")";
+                    *buf += "](";
+                    *buf += last_href;
+                    *buf += ")";
                 }
             }
         }
         "b" | "strong" => {
             if dehtml.get_add_text() != AddText::No {
-                dehtml.strbuilder += "*";
+                *dehtml.get_buf() += "*";
             }
         }
         "i" | "em" => {
             if dehtml.get_add_text() != AddText::No {
-                dehtml.strbuilder += "_";
+                *dehtml.get_buf() += "_";
             }
         }
         "blockquote" => pop_tag(&mut dehtml.blockquotes_since_blockquote),
@@ -206,7 +259,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
     match tag.as_str() {
         "p" | "table" | "td" => {
             if !dehtml.strbuilder.is_empty() {
-                dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+                *dehtml.get_buf() += "\n\n";
             }
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
@@ -215,18 +268,18 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
             maybe_push_tag(event, reader, "quote", &mut dehtml.divs_since_quote_div);
             maybe_push_tag(event, reader, "quoted-content", &mut dehtml.divs_since_quoted_content_div);
 
-            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            *dehtml.get_buf() += "\n\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "br" => {
-            dehtml.strbuilder += &dehtml.append_prefix("\n");
+            *dehtml.get_buf() += "\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "style" | "script" | "title" => {
             dehtml.add_text = AddText::No;
         }
         "pre" => {
-            dehtml.strbuilder += &dehtml.append_prefix("\n\n");
+            *dehtml.get_buf() += "\n\n";
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
@@ -247,18 +300,18 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
 
                 if !href.is_empty() {
                     dehtml.last_href = Some(href);
-                    dehtml.strbuilder += "[";
+                    *dehtml.get_buf() += "[";
                 }
             }
         }
         "b" | "strong" => {
             if dehtml.get_add_text() != AddText::No {
-                dehtml.strbuilder += "*";
+                *dehtml.get_buf() += "*";
             }
         }
         "i" | "em" => {
             if dehtml.get_add_text() != AddText::No {
-                dehtml.strbuilder += "_";
+                *dehtml.get_buf() += "_";
             }
         }
         "blockquote" => dehtml.blockquotes_since_blockquote += 1,
@@ -319,7 +372,6 @@ pub fn dehtml_manually(buf: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::simplify::{simplify, SimplifiedText};
 
     #[test]
     fn test_dehtml() {
@@ -333,18 +385,18 @@ mod tests {
             ("<b> bar <i> foo", "* bar _ foo"),
             ("&amp; bar", "& bar"),
             // Despite missing ', this should be shown:
-            ("<a href='/foo.png>Hi</a> ", "Hi "),
-            ("No link: <a href='https://get.delta.chat/'/>", "No link: "),
+            ("<a href='/foo.png>Hi</a> ", "Hi"),
+            ("No link: <a href='https://get.delta.chat/'/>", "No link:"),
             (
                 "No link: <a href='https://get.delta.chat/'></a>",
-                "No link: ",
+                "No link:",
             ),
             ("<!doctype html>\n<b>fat text</b>", "*fat text*"),
             // Invalid html (at least DC should show the text if the html is invalid):
             ("<!some invalid html code>\n<b>some text</b>", "some text"),
         ];
         for (input, output) in cases {
-            assert_eq!(simplify(dehtml(input).unwrap(), true).text, output);
+            assert_eq!(dehtml(input).unwrap().text, output);
         }
         let none_cases = vec!["<html> </html>", ""];
         for input in none_cases {
@@ -354,31 +406,54 @@ mod tests {
 
     #[test]
     fn test_dehtml_parse_br() {
-        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2<br/>line3\n\r";
-        let plain = dehtml(html).unwrap();
+        let html = "line1<br>line2";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "line1\nline2");
 
-        assert_eq!(plain, "line1\n\r\r\rline2\nline3");
+        let html = "line1<br> line2";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "line1\nline2");
+
+        let html = "line1  <br><br> line2";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "line1\n\nline2");
+
+        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2<br/>line3\n\r";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "line1\nline2\nline3");
+    }
+
+    #[test]
+    fn test_dehtml_parse_span() {
+        assert_eq!(dehtml("<span>Foo</span>bar").unwrap().text, "Foobar");
+        assert_eq!(dehtml("<span>Foo</span> bar").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("<span>Foo </span>bar").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("<span>Foo</span>\nbar").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("\n<span>Foo</span> bar").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("<span>Foo</span>\n\nbar").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("Foo\n<span>bar</span>").unwrap().text, "Foo bar");
+        assert_eq!(dehtml("Foo<span>\nbar</span>").unwrap().text, "Foo bar");
     }
 
     #[test]
     fn test_dehtml_parse_p() {
         let html = "<p>Foo</p><p>Bar</p>";
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
         assert_eq!(plain, "Foo\n\nBar");
 
         let html = "<p>Foo<p>Bar";
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
         assert_eq!(plain, "Foo\n\nBar");
 
         let html = "<p>Foo</p><p>Bar<p>Baz";
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
         assert_eq!(plain, "Foo\n\nBar\n\nBaz");
     }
 
     #[test]
     fn test_dehtml_parse_href() {
         let html = "<a href=url>text</a";
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
 
         assert_eq!(plain, "[text](url)");
     }
@@ -386,7 +461,7 @@ mod tests {
     #[test]
     fn test_dehtml_bold_text() {
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
 
         assert_eq!(plain, "text *bold*<>");
     }
@@ -396,7 +471,7 @@ mod tests {
         let html =
                 "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-        let plain = dehtml(html).unwrap();
+        let plain = dehtml(html).unwrap().text;
 
         assert_eq!(
             plain,
@@ -420,32 +495,38 @@ mod tests {
         </html>
         "##;
         let txt = dehtml(input).unwrap();
-        assert_eq!(txt.trim(), "lots of text");
+        assert_eq!(txt.text.trim(), "lots of text");
     }
 
     #[test]
     fn test_pre_tag() {
         let input = "<html><pre>\ntwo\nlines\n</pre></html>";
         let txt = dehtml(input).unwrap();
-        assert_eq!(txt.trim(), "two\nlines");
+        assert_eq!(txt.text.trim(), "two\nlines");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_quote_div() {
         let input = include_str!("../test-data/message/gmx-quote-body.eml");
         let dehtml = dehtml(input).unwrap();
-        println!("{dehtml}");
         let SimplifiedText {
             text,
             is_forwarded,
             is_cut,
             top_quote,
             footer,
-        } = simplify(dehtml, false);
+        } = dehtml;
         assert_eq!(text, "Test");
         assert_eq!(is_forwarded, false);
         assert_eq!(is_cut, false);
         assert_eq!(top_quote.as_deref(), Some("test"));
         assert_eq!(footer, None);
+    }
+
+    #[test]
+    fn test_spaces() {
+        let input = include_str!("../test-data/spaces.html");
+        let txt = dehtml(input).unwrap();
+        assert_eq!(txt.text, "Welcome back to Strolling!\n\nHey there,\n\nWelcome back! Use this link to securely sign in to your Strolling account:\n\nSign in to Strolling\n\nFor your security, the link will expire in 24 hours time.\n\nSee you soon!\n\nYou can also copy\n\nhttps://strolling.rosano.ca/members/?token=XXX\n\nIf you did not make this request, you can safely ignore this email.\n\nThis message was sent from [strolling.rosano.ca](https://strolling.rosano.ca/) to [alice@example.org](mailto:alice@example.org)");
     }
 }

@@ -734,7 +734,7 @@ async fn load_imf_email(context: &Context, imf_raw: &[u8]) -> Message {
 async fn test_html_only_mail() {
     let t = TestContext::new_alice().await;
     let msg = load_imf_email(&t, include_bytes!("../../test-data/message/wrong-html.eml")).await;
-    assert_eq!(msg.text.unwrap(), "   Guten Abend,   \n\n   Lots of text   \n\n   text with Umlaut ä...   \n\n   MfG    [...]");
+    assert_eq!(msg.text.unwrap(), "Guten Abend,\n\nLots of text\n\ntext with Umlaut ä...\n\nMfG\n\n--------------------------------------\n\n[Camping ](https://example.com/)\n\nsomeaddress\n\nsometown");
 }
 
 static GH_MAILINGLIST: &[u8] =
