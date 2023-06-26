@@ -28,6 +28,8 @@ and an own build machine.
 
 - `zig-rpc-server.sh` compiles binaries of `deltachat-rpc-server` using Zig toolchain statically linked against musl libc.
 
+- `zig-ffi.sh` compiles C libraries into LLVM bitcode using Zig toolchain with musl libc.
+
 - `android-rpc-server.sh` compiles binaries of `deltachat-rpc-server` using Android NDK.
 
 ## Triggering runs on the build machine locally (fast!)
