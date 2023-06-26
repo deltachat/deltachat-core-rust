@@ -72,7 +72,7 @@ pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
 }
 
 /// Simplified text and some additional information gained from the input.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct SimplifiedText {
     /// The text itself.
     pub text: String,
@@ -89,6 +89,14 @@ pub(crate) struct SimplifiedText {
 
     /// Footer, if any.
     pub footer: Option<String>,
+}
+
+pub(crate) fn simplify_quote(quote: &str) -> (String, bool) {
+    let quote_lines = split_lines(quote);
+    let (quote_lines, quote_footer_lines) = remove_message_footer(&quote_lines);
+    let is_cut = quote_footer_lines.is_some();
+
+    (render_message(quote_lines, false), is_cut)
 }
 
 /// Simplify message text for chat display.
@@ -125,11 +133,9 @@ pub(crate) fn simplify(mut input: String, is_chat_message: bool) -> SimplifiedTe
 
     if !is_chat_message {
         top_quote = top_quote.map(|quote| {
-            let quote_lines = split_lines(&quote);
-            let (quote_lines, quote_footer_lines) = remove_message_footer(&quote_lines);
-            is_cut = is_cut || quote_footer_lines.is_some();
-
-            render_message(quote_lines, false)
+            let (quote, quote_cut) = simplify_quote(&quote);
+            is_cut |= quote_cut;
+            quote
         });
     }
 

@@ -1076,16 +1076,20 @@ impl MimeMessage {
                             Default::default()
                         } else {
                             let is_html = mime_type == mime::TEXT_HTML;
-                            let out = if is_html {
+                            if is_html {
                                 self.is_mime_modified = true;
-                                dehtml(&decoded_data).unwrap_or_else(|| {
+                                if let Some(text) = dehtml(&decoded_data) {
+                                    text
+                                } else {
                                     dehtml_failed = true;
-                                    decoded_data.clone()
-                                })
+                                    SimplifiedText {
+                                        text: decoded_data.clone(),
+                                        ..Default::default()
+                                    }
+                                }
                             } else {
-                                decoded_data.clone()
-                            };
-                            simplify(out, self.has_chat_version())
+                                simplify(decoded_data.clone(), self.has_chat_version())
+                            }
                         };
 
                         self.is_mime_modified = self.is_mime_modified
