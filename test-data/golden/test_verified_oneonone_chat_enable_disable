@@ -1,11 +1,11 @@
 Single#Chat#10: Bob [bob@example.net] 🛡️
 --------------------------------------------------------------------------------
 Msg#10: info (Contact#Contact#Info): Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more. [NOTICED][INFO 🛡️]
-Msg#11: info (Contact#Contact#Info): Messages may not be end-to-end encrypted anymore. Tap to learn more. [NOTICED][INFO]
+Msg#11: info (Contact#Contact#Info): Bob sent a message from another device. Tap to learn more. [NOTICED][INFO]
 Msg#12:  (Contact#Contact#10): Message from Thunderbird [FRESH]
 Msg#13: info (Contact#Contact#Info): Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more. [NOTICED][INFO 🛡️]
 Msg#14🔒:  (Contact#Contact#10): Hello from DC [FRESH]
-Msg#15: info (Contact#Contact#Info): Messages may not be end-to-end encrypted anymore. Tap to learn more. [NOTICED][INFO]
+Msg#15: info (Contact#Contact#Info): Bob sent a message from another device. Tap to learn more. [NOTICED][INFO]
 Msg#16:  (Contact#Contact#10): Message from Thunderbird [FRESH]
 Msg#17: info (Contact#Contact#Info): Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more. [NOTICED][INFO 🛡️]
 Msg#18🔒:  (Contact#Contact#10): Hello from DC [FRESH]

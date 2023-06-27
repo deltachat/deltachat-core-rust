@@ -7203,7 +7203,7 @@ void dc_event_unref(dc_event_t* event);
 /// Used in info messages.
 #define DC_STR_CHAT_PROTECTION_ENABLED 170
 
-/// "Messages may not be end-to-end encrypted anymore. See https://TODO to learn more" // Replace TODO with a link to the online help
+/// "%1$s sent a message from another device. See https://TODO to learn more" // Replace TODO with a link to the online help
 ///
 /// Used in info messages.
 #define DC_STR_CHAT_PROTECTION_DISABLED 171

@@ -416,7 +416,7 @@ pub enum StockMessage {
 
     // TODO remove "Tap to learn more.", instead put a link to the online help when the online help is ready
     #[strum(props(
-        fallback = "Messages may not be end-to-end encrypted anymore. Tap to learn more."
+        fallback = "%1$s sent a message from another device. Tap to learn more."
     ))]
     ChatProtectionDisabled = 171,
 }
