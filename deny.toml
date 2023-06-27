@@ -26,7 +26,6 @@ skip = [
      { name = "getrandom", version = "<0.2" },
      { name = "hermit-abi", version = "<0.3" },
      { name = "idna", version = "<0.3" },
-     { name = "libm", version = "0.1.4" },
      { name = "pem-rfc7468", version = "0.6.0" },
      { name = "pkcs8", version = "0.9.0" },
      { name = "quick-error", version = "<2.0" },
