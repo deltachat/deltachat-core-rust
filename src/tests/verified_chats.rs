@@ -27,6 +27,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
     tcm.execute_securejoin(&alice, &bob).await;
 
@@ -52,6 +53,7 @@ async fn check_verified_oneonone_chat(broken_by_classical_email: bool) {
     } else {
         tcm.section("Bob sets up another Delta Chat device");
         let bob2 = TestContext::new().await;
+        enable_verified_oneonone_chats(&[&bob2]).await;
         bob2.set_name("bob2");
         bob2.configure_addr("bob@example.net").await;
 
@@ -81,6 +83,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
     let fiona = tcm.fiona().await;
+    enable_verified_oneonone_chats(&[&alice, &bob, &fiona]).await;
 
     tcm.execute_securejoin(&alice, &bob).await;
     tcm.execute_securejoin(&bob, &fiona).await;
@@ -147,6 +150,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
     drop(fiona);
 
     let fiona_new = tcm.unconfigured().await;
+    enable_verified_oneonone_chats(&[&fiona_new]).await;
     fiona_new.configure_addr("fiona@example.net").await;
     e2ee::ensure_secret_key_exists(&fiona_new).await?;
 
@@ -175,6 +179,7 @@ async fn test_create_unverified_oneonone_chat() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
     // A chat with an unknown contact should be created unprotected
     let chat = alice.create_chat(&bob).await;
@@ -213,6 +218,7 @@ async fn test_degrade_verified_oneonone_chat() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
     mark_as_verified(&alice, &bob).await;
 
@@ -256,6 +262,7 @@ async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
     // Alice & Bob verify each other
     mark_as_verified(&alice, &bob).await;
@@ -311,6 +318,7 @@ async fn test_mdn_doesnt_disable_verification() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
     bob.set_config_bool(Config::MdnsEnabled, true).await?;
 
     // Alice & Bob verify each other
@@ -335,6 +343,7 @@ async fn test_outgoing_mua_msg() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
     mark_as_verified(&alice, &bob).await;
     mark_as_verified(&bob, &alice).await;
@@ -376,6 +385,7 @@ async fn test_reply() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
+        enable_verified_oneonone_chats(&[&alice, &bob]).await;
 
         if verified {
             mark_as_verified(&alice, &bob).await;
@@ -431,4 +441,12 @@ async fn assert_verified(this: &TestContext, other: &TestContext, protected: Pro
     };
     assert_eq!(chat.is_protected(), expect_protected);
     assert_eq!(chat.is_protection_broken(), expect_broken);
+}
+
+async fn enable_verified_oneonone_chats(test_contexts: &[&TestContext]) {
+    for t in test_contexts {
+        t.set_config_bool(Config::VerifiedOneOnOneChats, true)
+            .await
+            .unwrap()
+    }
 }

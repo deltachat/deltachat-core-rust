@@ -740,7 +740,11 @@ async fn add_parts(
                         let chat = Chat::load_from_db(context, chat_id).await?;
 
                         if chat.protected != new_protection {
-                            if new_protection == ProtectionStatus::Unprotected {
+                            if new_protection == ProtectionStatus::Unprotected
+                                && context
+                                    .get_config_bool(Config::VerifiedOneOnOneChats)
+                                    .await?
+                            {
                                 new_protection = ProtectionStatus::ProtectionBroken;
                             }
 

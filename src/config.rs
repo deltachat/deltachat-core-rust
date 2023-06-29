@@ -311,6 +311,11 @@ pub enum Config {
 
     /// Last message processed by the bot.
     LastMsgId,
+
+    /// Feature flag for verified 1:1 chats; the UI should set it
+    /// if it supports verified 1:1 chats. See `is_protection_broken()`.
+    #[strum(props(default = "0"))]
+    VerifiedOneOnOneChats,
 }
 
 impl Context {

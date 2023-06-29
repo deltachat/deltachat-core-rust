@@ -485,6 +485,8 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `verified_one_on_one_chats` = Feature flag for verified 1:1 chats; the UI should set it
+ *                    if it supports verified 1:1 chats. See `is_protection_broken()`.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.
