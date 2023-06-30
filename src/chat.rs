@@ -1481,15 +1481,6 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        if let Some(reason) = self.why_cant_send(context).await? {
-            if self.typ == Chattype::Group && reason == CantSendReason::NotAMember {
-                context.emit_event(EventType::ErrorSelfNotInGroup(
-                    "Cannot send message; self not in group.".into(),
-                ));
-            }
-            bail!("Cannot send message to {}: {}", self.id, reason);
-        }
-
         let from = context.get_primary_self_addr().await?;
         let new_rfc724_mid = {
             let grpid = match self.typ {
@@ -2161,7 +2152,13 @@ async fn prepare_msg_common(
 
     // Check if the chat can be sent to.
     if let Some(reason) = chat.why_cant_send(context).await? {
-        bail!("cannot send to {}: {}", chat_id, reason);
+        if reason == CantSendReason::ProtectionBroken
+            && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
+        {
+            // Send out the message, the securejoin message is supposed to repair the verification
+        } else {
+            bail!("cannot send to {}: {}", chat_id, reason);
+        }
     }
 
     // check current MessageState for drafts (to keep msg_id) ...

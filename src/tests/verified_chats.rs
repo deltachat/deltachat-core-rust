@@ -424,6 +424,64 @@ async fn test_reply() -> Result<()> {
     Ok(())
 }
 
+/// Regression test for the following bug:
+///
+/// - Scan your chat partner's QR Code
+/// - They change devices
+/// - They send you a message
+/// - Without accepting the encryption downgrade, scan your chat partner's QR Code again
+///
+/// -> The re-verification fails.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_break_protection_then_verify_again() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
+
+    // Cave: Bob can't write a message to Alice here.
+    // If he did, alice would increase his peerstate's last_seen timestamp.
+    // Then, after Bob reinstalls DC, alice's `if message_time > last_seen*`
+    // checks would return false (there are many checks of this form in peerstate.rs).
+    // Therefore, during the securejoin, Alice wouldn't accept the new key
+    // and reject the securejoin.
+
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    alice
+        .create_chat(&bob)
+        .await
+        .id
+        .inner_set_protection(&alice, ProtectionStatus::Protected)
+        .await?;
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+
+    tcm.section("Bob reinstalls DC");
+    drop(bob);
+    let bob_new = tcm.unconfigured().await;
+    enable_verified_oneonone_chats(&[&bob_new]).await;
+    bob_new.configure_addr("bob@example.net").await;
+    e2ee::ensure_secret_key_exists(&bob_new).await?;
+
+    tcm.send_recv(&bob_new, &alice, "I have a new device").await;
+    assert_verified(&alice, &bob_new, ProtectionStatus::ProtectionBroken).await;
+    assert!(
+        !alice
+            .get_chat(&bob_new)
+            .await
+            .unwrap()
+            .can_send(&alice)
+            .await?
+    );
+    println!("dbg");
+    tcm.execute_securejoin(&alice, &bob_new).await;
+    println!("dbg");
+    assert_verified(&alice, &bob_new, ProtectionStatus::Protected).await;
+
+    Ok(())
+}
+
 // ============== Helper Functions ==============
 
 async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {

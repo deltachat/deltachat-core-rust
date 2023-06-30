@@ -1042,7 +1042,14 @@ fn print_logevent(logevent: &LogEvent) {
 pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
     let mut peerstate = Peerstate::from_header(
         &EncryptHelper::new(other).await.unwrap().get_aheader(),
-        time(),
+        // We have to give 0 as the time, not the current time:
+        // The time is going to be saved in peerstate.last_seen.
+        // The code in `peerstate.rs` then compares `if message_time > self.last_seen`,
+        // and many similar checks in peerstate.rs, and doesn't allow changes otherwise.
+        // Giving the current time would mean that message_time == peerstate.last_seen,
+        // so changes would not be allowed.
+        // This might lead to flaky tests.
+        0,
     );
 
     peerstate.verified_key = peerstate.public_key.clone();
