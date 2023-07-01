@@ -26,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
-use crate::chat::Chat;
+use crate::blob::BlobObject;
+use crate::chat::{self, create_send_msg_job, Chat};
 use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
@@ -34,12 +35,12 @@ use crate::download::DownloadState;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
-use crate::param::Param;
-use crate::param::Params;
+use crate::param::{Param, Params};
 use crate::scheduler::InterruptInfo;
-use crate::tools::strip_rtlo_characters;
-use crate::tools::{create_smeared_timestamp, get_abs_path};
-use crate::{chat, EventType};
+use crate::tools::{
+    create_outgoing_rfc724_mid, create_smeared_timestamp, get_abs_path, strip_rtlo_characters,
+};
+use crate::EventType;
 
 /// The current API version.
 /// If `min_api` in manifest.toml is set to a larger value,
@@ -843,6 +844,77 @@ impl Message {
             internet_access,
         })
     }
+}
+
+/// Sends a replacement for an own WebXDC message.
+pub async fn send_webxdc_replacement(
+    context: &Context,
+    msg_id: MsgId,
+    filename: &str,
+) -> Result<()> {
+    let mut msg = Message::load_from_db(context, msg_id).await?;
+
+    ensure!(
+        msg.from_id == ContactId::SELF,
+        "Can update WebXDC only in own messages"
+    );
+    ensure!(
+        msg.get_viewtype() == Viewtype::Webxdc,
+        "Message {msg_id} is not a WebXDC instance"
+    );
+    let state = msg.get_state();
+    match state {
+        MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {}
+        MessageState::Undefined
+        | MessageState::InFresh
+        | MessageState::InNoticed
+        | MessageState::InSeen
+        | MessageState::OutPreparing
+        | MessageState::OutPending
+        | MessageState::OutDraft => bail!("Unexpected message state: {state}"),
+    }
+
+    let chat = Chat::load_from_db(context, msg.chat_id).await?;
+
+    let mut param = msg.param.clone();
+    if !chat.is_protected() {
+        param.remove(Param::GuaranteeE2ee);
+    }
+    let blob = BlobObject::new_from_path(context, Path::new(filename))
+        .await
+        .context("Failed to create webxdc replacement blob")?;
+    param.set(Param::File, blob.as_name());
+    msg.param = param;
+
+    // Generate new Message-ID.
+    context
+        .sql
+        .execute(
+            "UPDATE msgs
+             SET state=?, param=?
+             WHERE id=?",
+            (MessageState::OutPending, msg.param.to_string(), msg_id),
+        )
+        .await?;
+
+    msg.supersedes = Some(msg.rfc724_mid);
+    msg.rfc724_mid = {
+        let grpid = match chat.typ {
+            Chattype::Group => Some(chat.grpid.as_str()),
+            _ => None,
+        };
+        let from = context.get_primary_self_addr().await?;
+        create_outgoing_rfc724_mid(grpid, &from)
+    };
+
+    if create_send_msg_job(context, &mut msg).await?.is_some() {
+        context
+            .scheduler
+            .interrupt_smtp(InterruptInfo::new(false))
+            .await;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -2619,6 +2691,176 @@ sth_for_the = "future""#
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
             r#"[{"payload":"p","info":"i","serial":1,"max_serial":1}]"#
+        );
+
+        Ok(())
+    }
+
+    /// Tests sending webxdc and replacing it with a newer version.
+    ///
+    /// Updates should be preserved after upgrading.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_replace_webxdc() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends WebXDC instance.
+        let alice_chat = alice.create_chat(&bob).await;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        alice_instance.set_text("user added text".to_string());
+        send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
+        let alice_instance = alice.get_last_msg().await;
+        assert_eq!(alice_instance.get_text(), "user added text");
+        let original_rfc724_mid = alice_instance.rfc724_mid;
+
+        // Bob receives that instance.
+        let alice_sent_instance = alice.pop_sent_msg().await;
+        let bob_received_instance = bob.recv_msg(&alice_sent_instance).await;
+        assert_eq!(bob_received_instance.get_text(), "user added text");
+
+        // Alice sends WebXDC update.
+        alice
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload": 1}"#, "Alice update")
+            .await?;
+        alice.flush_status_updates().await?;
+        let alice_sent_update = alice.pop_sent_msg().await;
+        bob.recv_msg(&alice_sent_update).await;
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_received_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":1,"serial":1,"max_serial":1}]"#
+        );
+
+        // Alice sends WebXDC instance replacement.
+        send_webxdc_replacement(
+            &alice,
+            alice_instance.id,
+            "test-data/webxdc/with-minimal-manifest.xdc",
+        )
+        .await
+        .context("Failed to send WebXDC replacement")?;
+        let alice_replacement_instance = alice.get_last_msg().await;
+        let alice_replacement_info = alice_replacement_instance.get_webxdc_info(&alice).await?;
+        assert_eq!(alice_replacement_info.name, "nice app!");
+        assert_eq!(alice_instance.id, alice_replacement_instance.id);
+        let alice_sent_replacement_instance = alice.pop_sent_msg().await;
+        assert!(alice_sent_replacement_instance
+            .payload
+            .contains(&format!("Supersedes: {original_rfc724_mid}")));
+        assert_eq!(alice_replacement_instance.rfc724_mid, original_rfc724_mid);
+
+        // Bob receives WebXDC instance replacement.
+        let bob_received_replacement_instance =
+            bob.recv_msg(&alice_sent_replacement_instance).await;
+        assert_eq!(
+            bob_received_instance.id,
+            bob_received_replacement_instance.id
+        );
+        assert_eq!(
+            bob_received_replacement_instance.rfc724_mid,
+            original_rfc724_mid
+        );
+        let bob_received_replacement_info = bob_received_replacement_instance
+            .get_webxdc_info(&bob)
+            .await?;
+        assert_eq!(bob_received_replacement_info.name, "nice app!");
+
+        // Updates are not modified.
+        assert_eq!(
+            bob.get_webxdc_status_updates(
+                bob_received_replacement_instance.id,
+                StatusUpdateSerial(0)
+            )
+            .await?,
+            r#"[{"payload":1,"serial":1,"max_serial":1}]"#
+        );
+
+        // Bob is not allowed to replace the instance.
+        assert!(send_webxdc_replacement(
+            &bob,
+            bob_received_instance.id,
+            "test-data/webxdc/minimal.xdc"
+        )
+        .await
+        .is_err());
+
+        // Alice sends a second WebXDC instance replacement.
+        send_webxdc_replacement(&alice, alice_instance.id, "test-data/webxdc/minimal.xdc")
+            .await
+            .context("Failed to send second WebXDC replacement")?;
+        let alice_second_sent_replacement_instance = alice.pop_sent_msg().await;
+        let bob_received_second_replacement_instance =
+            bob.recv_msg(&alice_second_sent_replacement_instance).await;
+        assert_eq!(
+            bob_received_instance.id,
+            bob_received_second_replacement_instance.id
+        );
+        assert_eq!(
+            bob_received_second_replacement_instance.rfc724_mid,
+            original_rfc724_mid
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_replace_webxdc_missing_original() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends WebXDC instance.
+        let alice_chat = alice.create_chat(&bob).await;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        alice_instance.set_text("user added text".to_string());
+        send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
+        alice.pop_sent_msg().await;
+        let alice_instance = alice.get_last_msg().await;
+        assert_eq!(alice_instance.get_text(), "user added text");
+        let original_rfc724_mid = alice_instance.rfc724_mid;
+
+        // Bob missed the original instance message.
+
+        // Alice sends WebXDC instance replacement.
+        send_webxdc_replacement(&alice, alice_instance.id, "test-data/webxdc/minimal.xdc")
+            .await
+            .context("Failed to send WebXDC replacement")?;
+        let alice_sent_replacement_instance = alice.pop_sent_msg().await;
+        assert!(alice_sent_replacement_instance
+            .payload
+            .contains(&format!("Supersedes: {original_rfc724_mid}")));
+
+        // Bob receives WebXDC instance replacement.
+        let bob_received_replacement_instance =
+            bob.recv_msg(&alice_sent_replacement_instance).await;
+        assert_eq!(
+            bob_received_replacement_instance.rfc724_mid,
+            original_rfc724_mid
+        );
+
+        // Alice sends a second WebXDC instance replacement.
+        send_webxdc_replacement(&alice, alice_instance.id, "test-data/webxdc/minimal.xdc")
+            .await
+            .context("Failed to send second WebXDC replacement")?;
+        let alice_second_sent_replacement_instance = alice.pop_sent_msg().await;
+        let bob_received_second_replacement_instance =
+            bob.recv_msg(&alice_second_sent_replacement_instance).await;
+        assert_eq!(
+            bob_received_replacement_instance.id,
+            bob_received_second_replacement_instance.id
+        );
+        assert_eq!(
+            bob_received_second_replacement_instance.rfc724_mid,
+            original_rfc724_mid
         );
 
         Ok(())

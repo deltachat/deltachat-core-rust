@@ -77,6 +77,9 @@ pub enum HeaderDef {
     SecureJoinAuth,
     Sender,
 
+    /// [`Supersedes`](https://www.rfc-editor.org/rfc/rfc4021.html#section-2.1.46) header.
+    Supersedes,
+
     /// Ephemeral message timer.
     EphemeralTimer,
     Received,

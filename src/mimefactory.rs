@@ -549,6 +549,11 @@ impl<'a> MimeFactory<'a> {
             Loaded::Mdn { .. } => create_outgoing_rfc724_mid(None, &self.from_addr),
         };
         let rfc724_mid_headervalue = render_rfc724_mid(&rfc724_mid);
+        if let Some(supersedes) = &self.msg.supersedes {
+            headers
+                .protected
+                .push(Header::new("Supersedes".into(), supersedes.to_string()));
+        }
 
         // Amazon's SMTP servers change the `Message-ID`, just as Outlook's SMTP servers do.
         // Outlook's servers add an `X-Microsoft-Original-Message-ID` header with the original `Message-ID`,
@@ -1248,7 +1253,7 @@ impl<'a> MimeFactory<'a> {
         } else if command == SystemMessage::WebxdcStatusUpdate {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json));
-        } else if self.msg.viewtype == Viewtype::Webxdc {
+        } else if self.msg.viewtype == Viewtype::Webxdc && self.msg.supersedes.is_none() {
             if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
                 .await?

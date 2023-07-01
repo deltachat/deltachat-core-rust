@@ -62,6 +62,10 @@ pub struct ReceivedMsg {
 
     /// Whether IMAP messages should be immediately deleted.
     pub needs_delete_job: bool,
+
+    /// Message-ID saved into the database.
+    /// For messages with `Supersedes` header this is the Message-ID of the original message.
+    pub rfc724_mid: String,
 }
 
 /// Emulates reception of a message from the network.
@@ -134,6 +138,7 @@ pub(crate) async fn receive_imf_inner(
                 sort_timestamp: 0,
                 msg_ids,
                 needs_delete_job: false,
+                rfc724_mid: rfc724_mid.to_string(),
             }));
         }
         Ok(mime_parser) => mime_parser,
@@ -338,12 +343,12 @@ pub(crate) async fn receive_imf_inner(
                 .sql
                 .execute(
                     "UPDATE imap SET target=? WHERE rfc724_mid=?",
-                    (target, rfc724_mid),
+                    (target, &received_msg.rfc724_mid),
                 )
                 .await?;
         } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
             // This is a Delta Chat MDN. Mark as read.
-            markseen_on_imap_table(context, rfc724_mid).await?;
+            markseen_on_imap_table(context, &received_msg.rfc724_mid).await?;
         }
     }
 
@@ -1050,6 +1055,43 @@ async fn add_parts(
         .cloned()
         .unwrap_or_default();
 
+    let rfc724_mid = if let Some(supersedes) = mime_parser.get_header(HeaderDef::Supersedes) {
+        supersedes.to_string()
+    } else {
+        rfc724_mid.to_string()
+    };
+
+    let supersedes_msg_id = match mime_parser.get_header(HeaderDef::Supersedes) {
+        Some(supersedes) => {
+            if let Some(msg_id) = rfc724_mid_exists(context, supersedes).await? {
+                if let Some(orig_from_id) = context
+                    .sql
+                    .query_row_optional("SELECT from_id FROM msgs WHERE id=?", (msg_id,), |row| {
+                        let from_id: ContactId = row.get(0)?;
+
+                        Ok(from_id)
+                    })
+                    .await?
+                {
+                    if from_id == orig_from_id {
+                        Some(msg_id)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        None => None,
+    };
+    if supersedes_msg_id.is_some() {
+        replace_msg_id = supersedes_msg_id;
+        info!(context, "Superseding {supersedes_msg_id:?}");
+    }
+
     // fine, so far.  now, split the message into simple parts usable as "short messages"
     // and add them to the database (mails sent by other messenger clients should result
     // into only one message; mails sent by other clients may result in several messages
@@ -1301,6 +1343,7 @@ RETURNING id
         sort_timestamp,
         msg_ids: created_db_entries,
         needs_delete_job,
+        rfc724_mid,
     })
 }
 

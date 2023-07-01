@@ -435,6 +435,18 @@ pub struct Message {
 
     /// `In-Reply-To` header value.
     pub(crate) in_reply_to: Option<String>,
+
+    /// `Supersedes` header value.
+    ///
+    /// It is only used for sending and not stored in the database.
+    ///
+    /// The header contains `Message-ID` of the original message
+    /// superseded by this one.
+    ///
+    /// The header is specified
+    /// in <https://www.rfc-editor.org/rfc/rfc4021.html#section-2.1.46>.
+    pub(crate) supersedes: Option<String>,
+
     pub(crate) is_dc_message: MessengerMessage,
     pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
@@ -530,6 +542,7 @@ impl Message {
                         download_state: row.get("download_state")?,
                         error: Some(row.get::<_, String>("error")?)
                             .filter(|error| !error.is_empty()),
+                        supersedes: None, // `Supersedes` header is only used for sending and not stored in the database.
                         is_dc_message: row.get("msgrmsg")?,
                         mime_modified: row.get("mime_modified")?,
                         text,
