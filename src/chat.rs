@@ -1933,7 +1933,7 @@ impl ChatIdBlocked {
 
     /// Returns the chat for the 1:1 chat with this contact.
     ///
-    /// I the chat does not yet exist a new one is created, using the provided [`Blocked`]
+    /// If the chat does not yet exist a new one is created, using the provided [`Blocked`]
     /// state.
     pub async fn get_for_contact(
         context: &Context,
