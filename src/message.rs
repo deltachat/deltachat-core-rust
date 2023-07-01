@@ -379,7 +379,7 @@ impl Message {
                     Ok(msg)
                 },
             )
-            .await?;
+            .await.with_context(|| format!("failed to load message {id} from the database"))?;
 
         Ok(msg)
     }
