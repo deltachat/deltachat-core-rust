@@ -1691,9 +1691,9 @@ async fn apply_group_changes(
                 }
 
                 better_msg = if contact_id == from_id {
-                    Some(stock_str::msg_group_left(context, from_id).await)
+                    Some(stock_str::msg_group_left_local(context, from_id).await)
                 } else {
-                    Some(stock_str::msg_del_member(context, removed_addr, from_id).await)
+                    Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
                 };
             } else {
                 info!(
@@ -1718,7 +1718,7 @@ async fn apply_group_changes(
                 }
             }
 
-            better_msg = Some(stock_str::msg_add_member(context, added_addr, from_id).await);
+            better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
         } else {
             info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
         }

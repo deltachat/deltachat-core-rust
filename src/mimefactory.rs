@@ -918,6 +918,19 @@ impl<'a> MimeFactory<'a> {
             match command {
                 SystemMessage::MemberRemovedFromGroup => {
                     let email_to_remove = self.msg.param.get(Param::Arg).unwrap_or_default();
+
+                    if email_to_remove
+                        == context
+                            .get_config(Config::ConfiguredAddr)
+                            .await?
+                            .unwrap_or_default()
+                    {
+                        placeholdertext = Some(stock_str::msg_group_left_remote(context).await);
+                    } else {
+                        placeholdertext =
+                            Some(stock_str::msg_del_member_remote(context, email_to_remove).await);
+                    };
+
                     if !email_to_remove.is_empty() {
                         headers.protected.push(Header::new(
                             "Chat-Group-Member-Removed".into(),
@@ -927,6 +940,9 @@ impl<'a> MimeFactory<'a> {
                 }
                 SystemMessage::MemberAddedToGroup => {
                     let email_to_add = self.msg.param.get(Param::Arg).unwrap_or_default();
+                    placeholdertext =
+                        Some(stock_str::msg_add_member_remote(context, email_to_add).await);
+
                     if !email_to_add.is_empty() {
                         headers.protected.push(Header::new(
                             "Chat-Group-Member-Added".into(),
@@ -1138,11 +1154,8 @@ impl<'a> MimeFactory<'a> {
         } else {
             None
         };
-        let final_text = if let Some(ref text) = placeholdertext {
-            text
-        } else {
-            &self.msg.text
-        };
+
+        let final_text = placeholdertext.as_deref().unwrap_or(&self.msg.text);
 
         let mut quoted_text = self
             .msg

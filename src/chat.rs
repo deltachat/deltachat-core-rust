@@ -3054,9 +3054,10 @@ pub(crate) async fn add_contact_to_chat_ex(
     if chat.typ == Chattype::Group && chat.is_promoted() {
         msg.viewtype = Viewtype::Text;
 
-        msg.text = stock_str::msg_add_member(context, contact.get_addr(), ContactId::SELF).await;
+        let contact_addr = contact.get_addr();
+        msg.text = stock_str::msg_add_member_local(context, contact_addr, ContactId::SELF).await;
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
-        msg.param.set(Param::Arg, contact.get_addr());
+        msg.param.set(Param::Arg, contact_addr);
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg).await?;
     }
@@ -3194,11 +3195,14 @@ pub async fn remove_contact_from_chat(
                     msg.viewtype = Viewtype::Text;
                     if contact.id == ContactId::SELF {
                         set_group_explicitly_left(context, &chat.grpid).await?;
-                        msg.text = stock_str::msg_group_left(context, ContactId::SELF).await;
+                        msg.text = stock_str::msg_group_left_local(context, ContactId::SELF).await;
                     } else {
-                        msg.text =
-                            stock_str::msg_del_member(context, contact.get_addr(), ContactId::SELF)
-                                .await;
+                        msg.text = stock_str::msg_del_member_local(
+                            context,
+                            contact.get_addr(),
+                            ContactId::SELF,
+                        )
+                        .await;
                     }
                     msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                     msg.param.set(Param::Arg, contact.get_addr());
@@ -3785,7 +3789,7 @@ mod tests {
     use crate::contact::{Contact, ContactAddress};
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
     use tokio::fs;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -4002,6 +4006,83 @@ mod tests {
         assert_eq!(added, false);
     }
 
+    /// Test adding and removing members in a group chat.
+    ///
+    /// Make sure messages sent outside contain authname
+    /// and displayed messages contain locally set name.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_member_add_remove() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Disable encryption so we can inspect raw message contents.
+        alice.set_config(Config::E2eeEnabled, Some("0")).await?;
+        bob.set_config(Config::E2eeEnabled, Some("0")).await?;
+
+        // Create contact for Bob on the Alice side with name "robert".
+        let alice_bob_contact_id = Contact::create(&alice, "robert", "bob@example.net").await?;
+
+        // Set Bob authname to "Bob" and send it to Alice.
+        bob.set_config(Config::Displayname, Some("Bob")).await?;
+        tcm.send_recv(&bob, &alice, "Hello!").await;
+
+        // Check that Alice has Bob's name set to "robert" and authname set to "Bob".
+        {
+            let alice_bob_contact = Contact::get_by_id(&alice, alice_bob_contact_id).await?;
+            assert_eq!(alice_bob_contact.get_name(), "robert");
+
+            // This is the name that will be sent outside.
+            assert_eq!(alice_bob_contact.get_authname(), "Bob");
+
+            assert_eq!(alice_bob_contact.get_display_name(), "robert");
+        }
+
+        // Create and promote a group.
+        let alice_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        let alice_fiona_contact_id = Contact::create(&alice, "Fiona", "fiona@example.net").await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_fiona_contact_id).await?;
+        let sent = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        assert!(sent.payload.contains("Hi! I created a group."));
+
+        // Alice adds Bob to the chat.
+        add_contact_to_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent
+            .payload
+            .contains("I added member Bob (bob@example.net)."));
+        // Locally set name "robert" should not leak.
+        assert!(!sent.payload.contains("robert"));
+        assert_eq!(
+            sent.load_from_db().await.get_text(),
+            "You added member robert (bob@example.net)."
+        );
+
+        // Alice removes Bob from the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent
+            .payload
+            .contains("I removed member Bob (bob@example.net)."));
+        assert!(!sent.payload.contains("robert"));
+        assert_eq!(
+            sent.load_from_db().await.get_text(),
+            "You removed member robert (bob@example.net)."
+        );
+
+        // Alice leaves the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, ContactId::SELF).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent.payload.contains("I left the group."));
+        assert_eq!(sent.load_from_db().await.get_text(), "You left the group.");
+
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_modify_chat_multi_device() -> Result<()> {
         let a1 = TestContext::new_alice().await;
@@ -4198,6 +4279,7 @@ mod tests {
         Ok(())
     }
 
+    /// Test that adding or removing contacts in 1:1 chat is not allowed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
