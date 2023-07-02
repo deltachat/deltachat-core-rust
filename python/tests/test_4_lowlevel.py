@@ -1,6 +1,7 @@
 from queue import Queue
 
-from deltachat import capi, const, cutil, register_global_plugin
+import deltachat as dc
+from deltachat import capi, cutil, register_global_plugin
 from deltachat.capi import ffi, lib
 from deltachat.hookspec import global_hookimpl
 from deltachat.testplugin import (
@@ -132,20 +133,20 @@ def test_empty_blobdir(tmp_path):
 
 
 def test_event_defines():
-    assert const.DC_EVENT_INFO == 100
-    assert const.DC_CONTACT_ID_SELF
+    assert dc.const.DC_EVENT_INFO == 100
+    assert dc.const.DC_CONTACT_ID_SELF
 
 
 def test_sig():
     sig = capi.lib.dc_event_has_string_data
-    assert not sig(const.DC_EVENT_MSGS_CHANGED)
-    assert sig(const.DC_EVENT_INFO)
-    assert sig(const.DC_EVENT_WARNING)
-    assert sig(const.DC_EVENT_ERROR)
-    assert sig(const.DC_EVENT_SMTP_CONNECTED)
-    assert sig(const.DC_EVENT_IMAP_CONNECTED)
-    assert sig(const.DC_EVENT_SMTP_MESSAGE_SENT)
-    assert sig(const.DC_EVENT_IMEX_FILE_WRITTEN)
+    assert not sig(dc.const.DC_EVENT_MSGS_CHANGED)
+    assert sig(dc.const.DC_EVENT_INFO)
+    assert sig(dc.const.DC_EVENT_WARNING)
+    assert sig(dc.const.DC_EVENT_ERROR)
+    assert sig(dc.const.DC_EVENT_SMTP_CONNECTED)
+    assert sig(dc.const.DC_EVENT_IMAP_CONNECTED)
+    assert sig(dc.const.DC_EVENT_SMTP_MESSAGE_SENT)
+    assert sig(dc.const.DC_EVENT_IMEX_FILE_WRITTEN)
 
 
 def test_markseen_invalid_message_ids(acfactory):

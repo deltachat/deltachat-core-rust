@@ -9,7 +9,7 @@ import threading
 import time
 import weakref
 from queue import Queue
-from typing import Callable, List, Optional, Dict, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import pytest
 import requests

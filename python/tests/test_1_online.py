@@ -7,9 +7,8 @@ from datetime import datetime, timezone
 import pytest
 from imap_tools import AND, U
 
-from deltachat import const
-from deltachat.hookspec import account_hookimpl
-from deltachat.message import Message
+import deltachat as dc
+from deltachat import account_hookimpl, Message
 from deltachat.tracker import ImexTracker
 
 
@@ -36,8 +35,8 @@ def test_basic_imap_api(acfactory, tmp_path):
 def test_configure_generate_key(acfactory, lp):
     # A slow test which will generate new keys.
     acfactory.remove_preconfigured_keys()
-    ac1 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_RSA2048))
-    ac2 = acfactory.new_online_configuring_account(key_gen_type=str(const.DC_KEY_GEN_ED25519))
+    ac1 = acfactory.new_online_configuring_account(key_gen_type=str(dc.const.DC_KEY_GEN_RSA2048))
+    ac2 = acfactory.new_online_configuring_account(key_gen_type=str(dc.const.DC_KEY_GEN_ED25519))
     acfactory.bring_accounts_online()
     chat = acfactory.get_accepted_chat(ac1, ac2)
 
@@ -175,7 +174,7 @@ def test_send_file_twice_unicode_filename_mangling(tmp_path, acfactory, lp):
 
         lp.sec("ac2: receive message")
         ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-        assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev.data2 > dc.const.DC_CHAT_ID_LAST_SPECIAL
         return ac2.get_message_by_id(ev.data2)
 
     msg = send_and_receive_message()
@@ -207,7 +206,7 @@ def test_send_file_html_attachment(tmp_path, acfactory, lp):
 
     lp.sec("ac2: receive message")
     ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-    assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+    assert ev.data2 > dc.const.DC_CHAT_ID_LAST_SPECIAL
     msg = ac2.get_message_by_id(ev.data2)
 
     assert open(msg.filename).read() == content
@@ -351,7 +350,7 @@ def test_move_works(acfactory):
 
     # Message is downloaded
     ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG")
-    assert ev.data2 > const.DC_CHAT_ID_LAST_SPECIAL
+    assert ev.data2 > dc.const.DC_CHAT_ID_LAST_SPECIAL
 
 
 def test_move_works_on_self_sent(acfactory):
@@ -534,8 +533,8 @@ def test_send_and_receive_message_markseen(acfactory, lp):
     lp.step("1")
     for _i in range(2):
         ev = ac1._evtracker.get_matching("DC_EVENT_MSG_READ")
-        assert ev.data1 > const.DC_CHAT_ID_LAST_SPECIAL
-        assert ev.data2 > const.DC_MSG_ID_LAST_SPECIAL
+        assert ev.data1 > dc.const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev.data2 > dc.const.DC_MSG_ID_LAST_SPECIAL
     lp.step("2")
 
     # Check that ac1 marks the read receipt as read.
@@ -1386,7 +1385,7 @@ def test_reaction_to_partially_fetched_msg(acfactory, lp, tmp_path):
     lp.sec("wait for ac2 to receive a reaction")
     msg2 = ac2._evtracker.wait_next_reactions_changed()
     assert msg2.get_sender_contact().addr == ac1_addr
-    assert msg2.download_state == const.DC_DOWNLOAD_AVAILABLE
+    assert msg2.download_state == dc.const.DC_DOWNLOAD_AVAILABLE
     assert reactions_queue.get() == msg2
     reactions = msg2.get_reactions()
     contacts = reactions.get_contacts()
@@ -1471,7 +1470,7 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
     lp.sec(f"export all to {backupdir}")
     with ac1.temp_plugin(ImexTracker()) as imex_tracker:
         ac1.stop_io()
-        ac1.imex(str(backupdir), const.DC_IMEX_EXPORT_BACKUP)
+        ac1.imex(str(backupdir), dc.const.DC_IMEX_EXPORT_BACKUP)
 
         # check progress events for export
         assert imex_tracker.wait_progress(1, progress_upper_limit=249)
@@ -1835,15 +1834,15 @@ def test_connectivity(acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
     ac1.set_config("scan_all_folders_debounce_secs", "0")
 
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_CONNECTED)
 
     lp.sec("Test stop_io() and start_io()")
     ac1.stop_io()
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_NOT_CONNECTED)
 
     ac1.start_io()
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTING, const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_CONNECTING)
+    ac1._evtracker.wait_for_connectivity_change(dc.const.DC_CONNECTIVITY_CONNECTING, dc.const.DC_CONNECTIVITY_CONNECTED)
 
     lp.sec(
         "Test that after calling start_io(), maybe_network() and waiting for `all_work_done()`, "
@@ -1864,8 +1863,8 @@ def test_connectivity(acfactory, lp):
 
     ac2.create_chat(ac1).send_text("Hi 2")
 
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_CONNECTED, const.DC_CONNECTIVITY_WORKING)
-    ac1._evtracker.wait_for_connectivity_change(const.DC_CONNECTIVITY_WORKING, const.DC_CONNECTIVITY_CONNECTED)
+    ac1._evtracker.wait_for_connectivity_change(dc.const.DC_CONNECTIVITY_CONNECTED, dc.const.DC_CONNECTIVITY_WORKING)
+    ac1._evtracker.wait_for_connectivity_change(dc.const.DC_CONNECTIVITY_WORKING, dc.const.DC_CONNECTIVITY_CONNECTED)
 
     msgs = ac1.create_chat(ac2).get_messages()
     assert len(msgs) == 2
@@ -1875,7 +1874,7 @@ def test_connectivity(acfactory, lp):
 
     ac1.maybe_network()
     while 1:
-        assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+        assert ac1.get_connectivity() == dc.const.DC_CONNECTIVITY_CONNECTED
         if ac1.all_work_done():
             break
         ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
@@ -1890,7 +1889,7 @@ def test_connectivity(acfactory, lp):
     ac1.maybe_network()
 
     while 1:
-        assert ac1.get_connectivity() == const.DC_CONNECTIVITY_CONNECTED
+        assert ac1.get_connectivity() == dc.const.DC_CONNECTIVITY_CONNECTED
         if ac1.all_work_done():
             break
         ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
@@ -1899,10 +1898,10 @@ def test_connectivity(acfactory, lp):
 
     ac1.set_config("configured_mail_pw", "abc")
     ac1.stop_io()
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_NOT_CONNECTED)
     ac1.start_io()
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_CONNECTING)
-    ac1._evtracker.wait_for_connectivity(const.DC_CONNECTIVITY_NOT_CONNECTED)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_CONNECTING)
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_NOT_CONNECTED)
 
 
 def test_fetch_deleted_msg(acfactory, lp):
@@ -2385,9 +2384,9 @@ def test_archived_muted_chat(acfactory, lp):
     lp.sec("wait for ac2 to receive DC_EVENT_MSGS_CHANGED for DC_CHAT_ID_ARCHIVED_LINK")
     while 1:
         ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
-        if ev.data1 == const.DC_CHAT_ID_ARCHIVED_LINK:
+        if ev.data1 == dc.const.DC_CHAT_ID_ARCHIVED_LINK:
             assert ev.data2 == 0
-            archive = ac2.get_chat_by_id(const.DC_CHAT_ID_ARCHIVED_LINK)
+            archive = ac2.get_chat_by_id(dc.const.DC_CHAT_ID_ARCHIVED_LINK)
             assert archive.count_fresh_messages() == 1
             assert chat2.count_fresh_messages() == 1
             break
