@@ -24,7 +24,6 @@ skip = [
      { name = "ed25519-dalek", version = "1.0.1" },
      { name = "ed25519", version = "1.5.3" },
      { name = "getrandom", version = "<0.2" },
-     { name = "hermit-abi", version = "<0.3" },
      { name = "idna", version = "<0.3" },
      { name = "pem-rfc7468", version = "0.6.0" },
      { name = "pkcs8", version = "0.9.0" },
