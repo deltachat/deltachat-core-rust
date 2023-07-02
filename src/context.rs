@@ -1042,7 +1042,7 @@ mod tests {
 
     async fn receive_msg(t: &TestContext, chat: &Chat) {
         let members = get_chat_contacts(t, chat.id).await.unwrap();
-        let contact = Contact::load_from_db(t, *members.first().unwrap())
+        let contact = Contact::get_by_id(t, *members.first().unwrap())
             .await
             .unwrap();
         let msg = format!(

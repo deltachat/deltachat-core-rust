@@ -1387,7 +1387,7 @@ mod tests {
         let contact_id = Contact::create(&t.ctx, "Someone", "someone@example.org")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t.ctx, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t.ctx, contact_id).await.unwrap();
         // uses %1$s substitution
         assert_eq!(
             contact_verified(&t, &contact).await,

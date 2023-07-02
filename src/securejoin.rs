@@ -210,7 +210,7 @@ async fn fingerprint_equals_sender(
     fingerprint: &Fingerprint,
     contact_id: ContactId,
 ) -> Result<bool> {
-    let contact = Contact::load_from_db(context, contact_id).await?;
+    let contact = Contact::get_by_id(context, contact_id).await?;
     let peerstate = match Peerstate::from_addr(context, contact.get_addr()).await {
         Ok(peerstate) => peerstate,
         Err(err) => {
@@ -411,7 +411,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let contact_addr = Contact::load_from_db(context, contact_id)
+            let contact_addr = Contact::get_by_id(context, contact_id)
                 .await?
                 .get_addr()
                 .to_owned();
@@ -580,7 +580,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            let addr = Contact::load_from_db(context, contact_id)
+            let addr = Contact::get_by_id(context, contact_id)
                 .await?
                 .get_addr()
                 .to_lowercase();
@@ -640,7 +640,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 if mark_peer_as_verified(
                     context,
                     fingerprint,
-                    Contact::load_from_db(context, contact_id)
+                    Contact::get_by_id(context, contact_id)
                         .await?
                         .get_addr()
                         .to_owned(),
@@ -889,7 +889,7 @@ mod tests {
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
-        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id)
+        let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id)
             .await
             .unwrap();
         assert_eq!(
@@ -952,7 +952,7 @@ mod tests {
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
-        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id)
+        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
             .await
             .unwrap();
         assert_eq!(
@@ -1078,7 +1078,7 @@ mod tests {
             Origin::ManuallyCreated,
         )
         .await?;
-        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
+        let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id).await?;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await?,
             VerifiedStatus::Unverified
@@ -1105,7 +1105,7 @@ mod tests {
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
-        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id).await?;
+        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id).await?;
         assert_eq!(
             contact_bob.is_verified(&bob.ctx).await?,
             VerifiedStatus::Unverified
@@ -1246,7 +1246,7 @@ mod tests {
             Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
                 .await?
                 .expect("Contact not found");
-        let contact_bob = Contact::load_from_db(&alice.ctx, contact_bob_id).await?;
+        let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id).await?;
         assert_eq!(
             contact_bob.is_verified(&alice.ctx).await?,
             VerifiedStatus::Unverified
@@ -1302,7 +1302,7 @@ mod tests {
                 .await
                 .expect("Error looking up contact")
                 .expect("Contact not found");
-        let contact_alice = Contact::load_from_db(&bob.ctx, contact_alice_id).await?;
+        let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id).await?;
         assert_eq!(
             contact_bob.is_verified(&bob.ctx).await?,
             VerifiedStatus::Unverified

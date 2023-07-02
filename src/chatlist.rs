@@ -319,7 +319,7 @@ impl Chatlist {
             } else {
                 match chat.typ {
                     Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
-                        let lastcontact = Contact::load_from_db(context, lastmsg.from_id)
+                        let lastcontact = Contact::get_by_id(context, lastmsg.from_id)
                             .await
                             .context("loading contact failed")?;
                         (Some(lastmsg), Some(lastcontact))

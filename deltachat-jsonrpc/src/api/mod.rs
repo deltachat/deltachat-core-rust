@@ -1340,7 +1340,7 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
-        let contact = Contact::load_from_db(&ctx, contact_id).await?;
+        let contact = Contact::get_by_id(&ctx, contact_id).await?;
         let addr = contact.get_addr();
         Contact::create(&ctx, &name, addr).await?;
         Ok(())

@@ -407,7 +407,7 @@ async fn test_escaped_from() {
             false,
         ).await.unwrap();
     assert_eq!(
-        Contact::load_from_db(&t, contact_id)
+        Contact::get_by_id(&t, contact_id)
             .await
             .unwrap()
             .get_authname(),
@@ -452,7 +452,7 @@ async fn test_escaped_recipients() {
     )
     .await
     .unwrap();
-    let contact = Contact::load_from_db(&t, carl_contact_id).await.unwrap();
+    let contact = Contact::get_by_id(&t, carl_contact_id).await.unwrap();
     assert_eq!(contact.get_name(), "");
     assert_eq!(contact.get_display_name(), "h2");
 
@@ -499,7 +499,7 @@ async fn test_cc_to_contact() {
     )
     .await
     .unwrap();
-    let contact = Contact::load_from_db(&t, carl_contact_id).await.unwrap();
+    let contact = Contact::get_by_id(&t, carl_contact_id).await.unwrap();
     assert_eq!(contact.get_name(), "");
     assert_eq!(contact.get_display_name(), "Carl");
 }
@@ -797,12 +797,12 @@ async fn test_github_mailing_list() -> Result<()> {
     assert_eq!(contacts.len(), 0); // mailing list recipients and senders do not count as "known contacts"
 
     let msg1 = get_chat_msg(&t, chat_id, 0, 2).await;
-    let contact1 = Contact::load_from_db(&t.ctx, msg1.from_id).await?;
+    let contact1 = Contact::get_by_id(&t.ctx, msg1.from_id).await?;
     assert_eq!(contact1.get_addr(), "notifications@github.com");
     assert_eq!(contact1.get_display_name(), "notifications@github.com"); // Make sure this is not "Max Mustermann" or somethinng
 
     let msg2 = get_chat_msg(&t, chat_id, 1, 2).await;
-    let contact2 = Contact::load_from_db(&t.ctx, msg2.from_id).await?;
+    let contact2 = Contact::get_by_id(&t.ctx, msg2.from_id).await?;
     assert_eq!(contact2.get_addr(), "notifications@github.com");
 
     assert_eq!(msg1.get_override_sender_name().unwrap(), "Max Mustermann");
@@ -847,7 +847,7 @@ async fn test_classic_mailing_list() -> Result<()> {
     assert_eq!(chat.get_mailinglist_addr(), Some("delta@codespeak.net"));
 
     let msg = get_chat_msg(&t, chat_id, 0, 1).await;
-    let contact1 = Contact::load_from_db(&t.ctx, msg.from_id).await.unwrap();
+    let contact1 = Contact::get_by_id(&t.ctx, msg.from_id).await.unwrap();
     assert_eq!(contact1.get_addr(), "bob@posteo.org");
 
     let sent = t.send_text(chat.id, "Hello mailinglist!").await;
@@ -890,7 +890,7 @@ async fn test_other_device_writes_to_mailinglist() -> Result<()> {
         Contact::lookup_id_by_addr(&t, "delta@codespeak.net", Origin::Unknown)
             .await?
             .unwrap();
-    let list_post_contact = Contact::load_from_db(&t, list_post_contact_id).await?;
+    let list_post_contact = Contact::get_by_id(&t, list_post_contact_id).await?;
     assert_eq!(
         list_post_contact.param.get(Param::ListId).unwrap(),
         "delta.codespeak.net"
@@ -1365,7 +1365,7 @@ async fn test_apply_mailinglist_changes_assigned_by_reply() {
     .await
     .unwrap()
     .unwrap();
-    let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+    let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
     assert_eq!(
         contact.param.get(Param::ListId).unwrap(),
         "deltachat-core-rust.deltachat.github.com"
@@ -2038,12 +2038,12 @@ Message content
 Second signature";
 
     receive_imf(&alice, first_message, false).await?;
-    let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+    let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "First signature");
     assert_eq!(contact.get_display_name(), "Bob1");
 
     receive_imf(&alice, second_message, false).await?;
-    let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+    let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "Second signature");
     assert_eq!(contact.get_display_name(), "Bob2");
 
@@ -2051,7 +2051,7 @@ Second signature";
     receive_imf(&alice, first_message, false).await?;
 
     // No change because last message is duplicate of the first.
-    let contact = Contact::load_from_db(&alice, bob_contact_id).await?;
+    let contact = Contact::get_by_id(&alice, bob_contact_id).await?;
     assert_eq!(contact.get_status(), "Second signature");
     assert_eq!(contact.get_display_name(), "Bob2");
 
@@ -2069,7 +2069,7 @@ async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
     )
     .await?
     .0;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "");
     assert_eq!(Chatlist::try_load(&t, 0, None, None).await?.len(), 0);
 
@@ -2089,7 +2089,7 @@ Original signature",
     .await?;
     let msg = t.get_last_msg().await;
     let one2one_chat_id = msg.chat_id;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "Original signature");
     assert!(!msg.has_html());
 
@@ -2112,7 +2112,7 @@ Tap here to unsubscribe ...",
     )
     .await?;
     let ml_chat_id = t.get_last_msg().await.chat_id;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "Original signature");
 
     receive_imf(
@@ -2129,7 +2129,7 @@ Original signature updated",
         false,
     )
     .await?;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "Original signature updated");
     assert_eq!(get_chat_msgs(&t, one2one_chat_id).await?.len(), 2);
     assert_eq!(get_chat_msgs(&t, ml_chat_id).await?.len(), 1);
@@ -2164,7 +2164,7 @@ sig wednesday",
     )
     .await?;
     let chat_id = t.get_last_msg().await.chat_id;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "sig wednesday");
     assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 1);
 
@@ -2182,7 +2182,7 @@ sig tuesday",
         false,
     )
     .await?;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "sig wednesday");
     assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 2);
 
@@ -2200,7 +2200,7 @@ sig thursday",
         false,
     )
     .await?;
-    let bob = Contact::load_from_db(&t, bob_id).await?;
+    let bob = Contact::get_by_id(&t, bob_id).await?;
     assert_eq!(bob.get_status(), "sig thursday");
     assert_eq!(get_chat_msgs(&t, chat_id).await?.len(), 3);
 

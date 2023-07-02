@@ -553,7 +553,7 @@ impl TestContext {
             Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),
             Modifier::Created => warn!(&self.ctx, "Contact {} created by TestContext", &addr),
         }
-        Contact::load_from_db(&self.ctx, contact_id).await.unwrap()
+        Contact::get_by_id(&self.ctx, contact_id).await.unwrap()
     }
 
     /// Returns 1:1 [`Chat`] with another account, if it exists.

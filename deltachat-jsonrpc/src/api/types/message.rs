@@ -113,7 +113,7 @@ impl MessageObject {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
 
-        let sender_contact = Contact::load_from_db(context, message.get_from_id())
+        let sender_contact = Contact::get_by_id(context, message.get_from_id())
             .await
             .context("failed to load sender contact")?;
         let sender = ContactObject::try_from_dc_contact(context, sender_contact)
@@ -135,7 +135,7 @@ impl MessageObject {
         let quote = if let Some(quoted_text) = message.quoted_text() {
             match message.quoted_message(context).await? {
                 Some(quote) => {
-                    let quote_author = Contact::load_from_db(context, quote.get_from_id())
+                    let quote_author = Contact::get_by_id(context, quote.get_from_id())
                         .await
                         .context("failed to load quote author contact")?;
                     Some(MessageQuote::WithMessage {
@@ -469,7 +469,7 @@ impl MessageSearchResult {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
         let chat = Chat::load_from_db(context, message.get_chat_id()).await?;
-        let sender = Contact::load_from_db(context, message.get_from_id()).await?;
+        let sender = Contact::get_by_id(context, message.get_from_id()).await?;
 
         let profile_image = match sender.get_profile_image(context).await? {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
