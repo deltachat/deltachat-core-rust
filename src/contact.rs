@@ -407,7 +407,13 @@ impl Contact {
 
     /// Check if a contact is blocked.
     pub async fn is_blocked_load(context: &Context, id: ContactId) -> Result<bool> {
-        let blocked = Self::load_from_db(context, id).await?.blocked;
+        let blocked = context
+            .sql
+            .query_row("SELECT blocked FROM contacts WHERE id=?", (id,), |row| {
+                let blocked: bool = row.get(0)?;
+                Ok(blocked)
+            })
+            .await?;
         Ok(blocked)
     }
 
