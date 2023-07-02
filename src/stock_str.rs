@@ -410,6 +410,15 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "ℹ️ Account transferred to your second device."))]
     BackupTransferMsgBody = 163,
+
+    #[strum(props(fallback = "I added member %1$s."))]
+    MsgIAddMember = 164,
+
+    #[strum(props(fallback = "I removed member %1$s."))]
+    MsgIDelMember = 165,
+
+    #[strum(props(fallback = "I left the group."))]
+    MsgILeftGroup = 166,
 }
 
 impl StockMessage {
@@ -588,17 +597,35 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
     }
 }
 
-/// Stock string: `Member %1$s added.`.
+/// Stock string: `I added member %1$s.`.
+///
+/// The `added_member_addr` parameter should be an email address and is looked up in the
+/// contacts to combine with the authorized display name.
+pub(crate) async fn msg_add_member_remote(context: &Context, added_member_addr: &str) -> String {
+    let addr = added_member_addr;
+    let whom = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+        Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
+            .await
+            .map(|contact| contact.get_authname_n_addr())
+            .unwrap_or_else(|_| addr.to_string()),
+        _ => addr.to_string(),
+    };
+    translated(context, StockMessage::MsgIAddMember)
+        .await
+        .replace1(whom)
+}
+
+/// Stock string: `You added member %1$s.` or `Member %1$s added by %2$s.`.
 ///
 /// The `added_member_addr` parameter should be an email address and is looked up in the
 /// contacts to combine with the display name.
-pub(crate) async fn msg_add_member(
+pub(crate) async fn msg_add_member_local(
     context: &Context,
     added_member_addr: &str,
     by_contact: ContactId,
 ) -> String {
     let addr = added_member_addr;
-    let who = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+    let whom = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
         Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
             .await
             .map(|contact| contact.get_name_n_addr())
@@ -608,26 +635,44 @@ pub(crate) async fn msg_add_member(
     if by_contact == ContactId::SELF {
         translated(context, StockMessage::MsgYouAddMember)
             .await
-            .replace1(who)
+            .replace1(whom)
     } else {
         translated(context, StockMessage::MsgAddMemberBy)
             .await
-            .replace1(who)
+            .replace1(whom)
             .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
-/// Stock string: `Member %1$s removed.`.
+/// Stock string: `I removed member %1$s.`.
 ///
 /// The `removed_member_addr` parameter should be an email address and is looked up in
 /// the contacts to combine with the display name.
-pub(crate) async fn msg_del_member(
+pub(crate) async fn msg_del_member_remote(context: &Context, removed_member_addr: &str) -> String {
+    let addr = removed_member_addr;
+    let whom = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+        Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
+            .await
+            .map(|contact| contact.get_authname_n_addr())
+            .unwrap_or_else(|_| addr.to_string()),
+        _ => addr.to_string(),
+    };
+    translated(context, StockMessage::MsgIDelMember)
+        .await
+        .replace1(whom)
+}
+
+/// Stock string: `I added member %1$s.` or `Member %1$s removed by %2$s.`.
+///
+/// The `removed_member_addr` parameter should be an email address and is looked up in
+/// the contacts to combine with the display name.
+pub(crate) async fn msg_del_member_local(
     context: &Context,
     removed_member_addr: &str,
     by_contact: ContactId,
 ) -> String {
     let addr = removed_member_addr;
-    let who = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
+    let whom = &match Contact::lookup_id_by_addr(context, addr, Origin::Unknown).await {
         Ok(Some(contact_id)) => Contact::get_by_id(context, contact_id)
             .await
             .map(|contact| contact.get_name_n_addr())
@@ -637,17 +682,22 @@ pub(crate) async fn msg_del_member(
     if by_contact == ContactId::SELF {
         translated(context, StockMessage::MsgYouDelMember)
             .await
-            .replace1(who)
+            .replace1(whom)
     } else {
         translated(context, StockMessage::MsgDelMemberBy)
             .await
-            .replace1(who)
+            .replace1(whom)
             .replace2(&by_contact.get_stock_name(context).await)
     }
 }
 
-/// Stock string: `Group left.`.
-pub(crate) async fn msg_group_left(context: &Context, by_contact: ContactId) -> String {
+/// Stock string: `I left the group.`.
+pub(crate) async fn msg_group_left_remote(context: &Context) -> String {
+    translated(context, StockMessage::MsgILeftGroup).await
+}
+
+/// Stock string: `You left the group.` or `Group left by %1$s.`.
+pub(crate) async fn msg_group_left_local(context: &Context, by_contact: ContactId) -> String {
     if by_contact == ContactId::SELF {
         translated(context, StockMessage::MsgYouLeftGroup).await
     } else {
@@ -1409,7 +1459,11 @@ mod tests {
     async fn test_stock_system_msg_add_member_by_me() {
         let t = TestContext::new().await;
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
+            msg_add_member_remote(&t, "alice@example.org").await,
+            "I added member alice@example.org."
+        );
+        assert_eq!(
+            msg_add_member_local(&t, "alice@example.org", ContactId::SELF).await,
             "You added member alice@example.org."
         )
     }
@@ -1421,7 +1475,11 @@ mod tests {
             .await
             .expect("failed to create contact");
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", ContactId::SELF).await,
+            msg_add_member_remote(&t, "alice@example.org").await,
+            "I added member alice@example.org."
+        );
+        assert_eq!(
+            msg_add_member_local(&t, "alice@example.org", ContactId::SELF).await,
             "You added member Alice (alice@example.org)."
         );
     }
@@ -1438,7 +1496,7 @@ mod tests {
                 .expect("failed to create bob")
         };
         assert_eq!(
-            msg_add_member(&t, "alice@example.org", contact_id,).await,
+            msg_add_member_local(&t, "alice@example.org", contact_id,).await,
             "Member Alice (alice@example.org) added by Bob (bob@example.com)."
         );
     }

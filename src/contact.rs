@@ -1141,10 +1141,28 @@ impl Contact {
         &self.addr
     }
 
+    /// Get a summary of authorized name and address.
+    ///
+    /// The returned string is either "Name (email@domain.com)" or just
+    /// "email@domain.com" if the name is unset.
+    ///
+    /// This string is suitable for sending over email
+    /// as it does not leak the locally set name.
+    pub fn get_authname_n_addr(&self) -> String {
+        if !self.authname.is_empty() {
+            format!("{} ({})", self.authname, self.addr)
+        } else {
+            (&self.addr).into()
+        }
+    }
+
     /// Get a summary of name and address.
     ///
     /// The returned string is either "Name (email@domain.com)" or just
     /// "email@domain.com" if the name is unset.
+    ///
+    /// The result should only be used locally and never sent over the network
+    /// as it leaks the local contact name.
     ///
     /// The summary is typically used when asking the user something about the contact.
     /// The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
