@@ -6,7 +6,7 @@ from array import array
 from contextlib import contextmanager
 from email.utils import parseaddr
 from threading import Event
-from typing import Any, Dict, Generator, List, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Union
 
 from . import const, hookspec
 from .capi import ffi, lib
