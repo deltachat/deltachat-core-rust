@@ -3182,53 +3182,47 @@ pub async fn remove_contact_from_chat(
     let mut msg = Message::default();
     let mut success = false;
 
-    if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
-        if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
-            if !chat.is_self_in_chat(context).await? {
-                context.emit_event(EventType::ErrorSelfNotInGroup(
-                    "Cannot remove contact from chat; self not in group.".into(),
-                ));
-            } else {
-                // We do not return an error if the contact does not exist in the database.
-                // This allows to delete dangling references to deleted contacts
-                // in case of the database becoming inconsistent due to a bug.
-                if let Some(contact) = Contact::get_by_id_optional(context, contact_id).await? {
-                    if chat.typ == Chattype::Group && chat.is_promoted() {
-                        msg.viewtype = Viewtype::Text;
-                        if contact.id == ContactId::SELF {
-                            set_group_explicitly_left(context, &chat.grpid).await?;
-                            msg.text =
-                                Some(stock_str::msg_group_left(context, ContactId::SELF).await);
-                        } else {
-                            msg.text = Some(
-                                stock_str::msg_del_member(
-                                    context,
-                                    contact.get_addr(),
-                                    ContactId::SELF,
-                                )
+    let chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
+        if !chat.is_self_in_chat(context).await? {
+            context.emit_event(EventType::ErrorSelfNotInGroup(
+                "Cannot remove contact from chat; self not in group.".into(),
+            ));
+        } else {
+            // We do not return an error if the contact does not exist in the database.
+            // This allows to delete dangling references to deleted contacts
+            // in case of the database becoming inconsistent due to a bug.
+            if let Some(contact) = Contact::get_by_id_optional(context, contact_id).await? {
+                if chat.typ == Chattype::Group && chat.is_promoted() {
+                    msg.viewtype = Viewtype::Text;
+                    if contact.id == ContactId::SELF {
+                        set_group_explicitly_left(context, &chat.grpid).await?;
+                        msg.text = Some(stock_str::msg_group_left(context, ContactId::SELF).await);
+                    } else {
+                        msg.text = Some(
+                            stock_str::msg_del_member(context, contact.get_addr(), ContactId::SELF)
                                 .await,
-                            );
-                        }
-                        msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
-                        msg.param.set(Param::Arg, contact.get_addr());
-                        msg.id = send_msg(context, chat_id, &mut msg).await?;
+                        );
                     }
+                    msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
+                    msg.param.set(Param::Arg, contact.get_addr());
+                    msg.id = send_msg(context, chat_id, &mut msg).await?;
                 }
-                // we remove the member from the chat after constructing the
-                // to-be-send message. If between send_msg() and here the
-                // process dies the user will have to re-do the action.  It's
-                // better than the other way round: you removed
-                // someone from DB but no peer or device gets to know about it and
-                // group membership is thus different on different devices.
-                // Note also that sending a message needs all recipients
-                // in order to correctly determine encryption so if we
-                // removed it first, it would complicate the
-                // check/encryption logic.
-                success = remove_from_chat_contacts_table(context, chat_id, contact_id)
-                    .await
-                    .is_ok();
-                context.emit_event(EventType::ChatModified(chat_id));
             }
+            // we remove the member from the chat after constructing the
+            // to-be-send message. If between send_msg() and here the
+            // process dies the user will have to re-do the action.  It's
+            // better than the other way round: you removed
+            // someone from DB but no peer or device gets to know about it and
+            // group membership is thus different on different devices.
+            // Note also that sending a message needs all recipients
+            // in order to correctly determine encryption so if we
+            // removed it first, it would complicate the
+            // check/encryption logic.
+            success = remove_from_chat_contacts_table(context, chat_id, contact_id)
+                .await
+                .is_ok();
+            context.emit_event(EventType::ChatModified(chat_id));
         }
     }
 
