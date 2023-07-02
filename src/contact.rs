@@ -340,6 +340,8 @@ impl Default for VerifiedStatus {
 impl Contact {
     /// Loads a single contact object from the database.
     ///
+    /// Returns an error if the contact does not exist.
+    ///
     /// For contact ContactId::SELF (1), the function returns sth.
     /// like "Me" in the selected language and the email address
     /// defined by set_config().
@@ -347,9 +349,22 @@ impl Contact {
     /// For contact ContactId::DEVICE, the function overrides
     /// the contact name and status with localized address.
     pub async fn get_by_id(context: &Context, contact_id: ContactId) -> Result<Self> {
-        let mut contact = context
+        let contact = Self::get_by_id_optional(context, contact_id)
+            .await?
+            .with_context(|| format!("contact {contact_id} not found"))?;
+        Ok(contact)
+    }
+
+    /// Loads a single contact object from the database.
+    ///
+    /// Similar to [`Contact::get_by_id()`] but returns `None` if the contact does not exist.
+    pub async fn get_by_id_optional(
+        context: &Context,
+        contact_id: ContactId,
+    ) -> Result<Option<Self>> {
+        if let Some(mut contact) = context
             .sql
-            .query_row(
+            .query_row_optional(
                 "SELECT c.name, c.addr, c.origin, c.blocked, c.last_seen,
                 c.authname, c.param, c.status
                FROM contacts c
@@ -378,23 +393,27 @@ impl Contact {
                     Ok(contact)
                 },
             )
-            .await?;
-        if contact_id == ContactId::SELF {
-            contact.name = stock_str::self_msg(context).await;
-            contact.addr = context
-                .get_config(Config::ConfiguredAddr)
-                .await?
-                .unwrap_or_default();
-            contact.status = context
-                .get_config(Config::Selfstatus)
-                .await?
-                .unwrap_or_default();
-        } else if contact_id == ContactId::DEVICE {
-            contact.name = stock_str::device_messages(context).await;
-            contact.addr = ContactId::DEVICE_ADDR.to_string();
-            contact.status = stock_str::device_messages_hint(context).await;
+            .await?
+        {
+            if contact_id == ContactId::SELF {
+                contact.name = stock_str::self_msg(context).await;
+                contact.addr = context
+                    .get_config(Config::ConfiguredAddr)
+                    .await?
+                    .unwrap_or_default();
+                contact.status = context
+                    .get_config(Config::Selfstatus)
+                    .await?
+                    .unwrap_or_default();
+            } else if contact_id == ContactId::DEVICE {
+                contact.name = stock_str::device_messages(context).await;
+                contact.addr = ContactId::DEVICE_ADDR.to_string();
+                contact.status = stock_str::device_messages_hint(context).await;
+            }
+            Ok(Some(contact))
+        } else {
+            Ok(None)
         }
-        Ok(contact)
     }
 
     /// Returns `true` if this contact is blocked.
