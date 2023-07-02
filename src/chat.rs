@@ -3180,14 +3180,15 @@ pub async fn remove_contact_from_chat(
     );
 
     let mut msg = Message::default();
-    let mut success = false;
 
     let chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
         if !chat.is_self_in_chat(context).await? {
-            context.emit_event(EventType::ErrorSelfNotInGroup(
-                "Cannot remove contact from chat; self not in group.".into(),
-            ));
+            let err_msg = format!(
+                "Cannot remove contact {contact_id} from chat {chat_id}: self not in group."
+            );
+            context.emit_event(EventType::ErrorSelfNotInGroup(err_msg.clone()));
+            bail!("{}", err_msg);
         } else {
             // We do not return an error if the contact does not exist in the database.
             // This allows to delete dangling references to deleted contacts
@@ -3219,15 +3220,11 @@ pub async fn remove_contact_from_chat(
             // in order to correctly determine encryption so if we
             // removed it first, it would complicate the
             // check/encryption logic.
-            success = remove_from_chat_contacts_table(context, chat_id, contact_id)
-                .await
-                .is_ok();
+            remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
             context.emit_event(EventType::ChatModified(chat_id));
         }
-    }
-
-    if !success {
-        bail!("Failed to remove contact");
+    } else {
+        bail!("Cannot remove members from non-group chats.");
     }
 
     Ok(())
