@@ -983,7 +983,7 @@ impl ChatId {
             .iter()
             .filter(|&contact_id| !contact_id.is_special())
         {
-            let contact = Contact::load_from_db(context, *contact_id).await?;
+            let contact = Contact::get_by_id(context, *contact_id).await?;
             let addr = contact.get_addr();
             let peerstate = Peerstate::from_addr(context, addr).await?;
 
@@ -1809,7 +1809,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
         chat.param.set(Param::ProfileImage, &icon);
         chat.update_param(context).await?;
 
-        let mut contact = Contact::load_from_db(context, ContactId::DEVICE).await?;
+        let mut contact = Contact::get_by_id(context, ContactId::DEVICE).await?;
         contact.param.set(Param::ProfileImage, icon);
         contact.update_param(context).await?;
     }
@@ -1951,7 +1951,7 @@ impl ChatIdBlocked {
             return Ok(res);
         }
 
-        let contact = Contact::load_from_db(context, contact_id).await?;
+        let contact = Contact::get_by_id(context, contact_id).await?;
         let chat_name = contact.get_display_name().to_string();
         let mut params = Params::new();
         match contact_id {

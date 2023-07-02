@@ -404,7 +404,7 @@ pub async fn from_field_to_contact_id(
     } else {
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
-        if let Ok(contact) = Contact::load_from_db(context, from_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, from_id).await {
             from_id_blocked = contact.blocked;
             incoming_origin = contact.origin;
         }
@@ -679,7 +679,7 @@ async fn add_parts(
             let create_blocked = if from_id == ContactId::SELF {
                 Blocked::Not
             } else {
-                let contact = Contact::load_from_db(context, from_id).await?;
+                let contact = Contact::get_by_id(context, from_id).await?;
                 match contact.is_blocked() {
                     true => Blocked::Yes,
                     false if is_bot => Blocked::Not,
@@ -804,7 +804,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                let to_contact = Contact::load_from_db(context, to_id).await?;
+                let to_contact = Contact::get_by_id(context, to_id).await?;
                 if let Some(list_id) = to_contact.param.get(Param::ListId) {
                     if let Some((id, _, blocked)) =
                         chat::get_chat_id_by_grpid(context, list_id).await?
@@ -2005,7 +2005,7 @@ async fn apply_mailinglist_changes(
         };
         let (contact_id, _) =
             Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
-        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        let mut contact = Contact::get_by_id(context, contact_id).await?;
         if contact.param.get(Param::ListId) != Some(listid) {
             contact.param.set(Param::ListId, listid);
             contact.update_param(context).await?;
@@ -2123,7 +2123,7 @@ async fn check_verified_properties(
     from_id: ContactId,
     to_ids: &[ContactId],
 ) -> Result<()> {
-    let contact = Contact::load_from_db(context, from_id).await?;
+    let contact = Contact::get_by_id(context, from_id).await?;
 
     ensure!(mimeparser.was_encrypted(), "This message is not encrypted");
 

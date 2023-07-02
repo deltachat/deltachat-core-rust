@@ -53,7 +53,7 @@ impl FullChat {
             contacts.push(
                 ContactObject::try_from_dc_contact(
                     context,
-                    Contact::load_from_db(context, *contact_id)
+                    Contact::get_by_id(context, *contact_id)
                         .await
                         .context("failed to load contact")?,
                 )
@@ -74,7 +74,7 @@ impl FullChat {
 
         let was_seen_recently = if chat.get_type() == Chattype::Single {
             match contact_ids.get(0) {
-                Some(contact) => Contact::load_from_db(context, *contact)
+                Some(contact) => Contact::get_by_id(context, *contact)
                     .await
                     .context("failed to load contact for was_seen_recently")?
                     .was_seen_recently(),

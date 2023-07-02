@@ -1129,7 +1129,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
     let fts = timestamp_to_str(msg.get_timestamp());
     ret += &format!("Sent: {fts}");
 
-    let name = Contact::load_from_db(context, msg.from_id)
+    let name = Contact::get_by_id(context, msg.from_id)
         .await
         .map(|contact| contact.get_name_n_addr())
         .unwrap_or_default();
@@ -1178,7 +1178,7 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             let fts = timestamp_to_str(ts);
             ret += &format!("Read: {fts}");
 
-            let name = Contact::load_from_db(context, contact_id)
+            let name = Contact::get_by_id(context, contact_id)
                 .await
                 .map(|contact| contact.get_name_n_addr())
                 .unwrap_or_default();
@@ -1835,7 +1835,7 @@ async fn ndn_maybe_add_info_msg(
                     Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
                         .await?
                         .context("contact ID not found")?;
-                let contact = Contact::load_from_db(context, contact_id).await?;
+                let contact = Contact::get_by_id(context, contact_id).await?;
                 // Tell the user which of the recipients failed if we know that (because in
                 // a group, this might otherwise be unclear)
                 let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
@@ -2309,7 +2309,7 @@ mod tests {
             .unwrap()
             .first()
             .unwrap();
-        let contact = Contact::load_from_db(&alice, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&alice, contact_id).await.unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
         msg.set_text(Some("bla blubb".to_string()));
@@ -2329,7 +2329,7 @@ mod tests {
             .unwrap()
             .first()
             .unwrap();
-        let contact = Contact::load_from_db(&bob, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&bob, contact_id).await.unwrap();
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.chat_id, chat.id);
         assert_eq!(msg.text, Some("bla blubb".to_string()));

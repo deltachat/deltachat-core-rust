@@ -107,7 +107,7 @@ pub(crate) async fn get_chat_list_item_by_id(
     let (dm_chat_contact, was_seen_recently) = if chat.get_type() == Chattype::Single {
         let contact = chat_contacts.get(0);
         let was_seen_recently = match contact {
-            Some(contact) => Contact::load_from_db(ctx, *contact)
+            Some(contact) => Contact::get_by_id(ctx, *contact)
                 .await
                 .context("contact")?
                 .was_seen_recently(),

@@ -237,7 +237,7 @@ impl<'a> MimeFactory<'a> {
     ) -> Result<MimeFactory<'a>> {
         ensure!(!msg.chat_id.is_special(), "Invalid chat id");
 
-        let contact = Contact::load_from_db(context, msg.from_id).await?;
+        let contact = Contact::get_by_id(context, msg.from_id).await?;
         let from_addr = context.get_primary_self_addr().await?;
         let from_displayname = context
             .get_config(Config::Displayname)
@@ -2196,7 +2196,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let alice_contact = Contact::load_from_db(&bob.ctx, alice_id).await.unwrap();
+        let alice_contact = Contact::get_by_id(&bob.ctx, alice_id).await.unwrap();
         assert!(alice_contact
             .get_profile_image(&bob.ctx)
             .await
@@ -2228,7 +2228,7 @@ mod tests {
         assert_eq!(body.match_indices("Subject:").count(), 0);
 
         bob.recv_msg(&sent_msg).await;
-        let alice_contact = Contact::load_from_db(&bob.ctx, alice_id).await.unwrap();
+        let alice_contact = Contact::get_by_id(&bob.ctx, alice_id).await.unwrap();
         assert!(alice_contact
             .get_profile_image(&bob.ctx)
             .await

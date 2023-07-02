@@ -683,7 +683,7 @@ async fn send_mdn_msg_id(
     contact_id: ContactId,
     smtp: &mut Smtp,
 ) -> Result<()> {
-    let contact = Contact::load_from_db(context, contact_id).await?;
+    let contact = Contact::get_by_id(context, contact_id).await?;
     if contact.is_blocked() {
         return Err(format_err!("Contact is blocked"));
     }
