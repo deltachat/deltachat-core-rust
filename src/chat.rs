@@ -3182,8 +3182,6 @@ pub async fn remove_contact_from_chat(
     let mut msg = Message::default();
     let mut success = false;
 
-    /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
-    /* this allows to delete pending references to deleted contacts. Of course, this should _not_ happen. */
     if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
         if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
             if !chat.is_self_in_chat(context).await? {
@@ -3191,7 +3189,10 @@ pub async fn remove_contact_from_chat(
                     "Cannot remove contact from chat; self not in group.".into(),
                 ));
             } else {
-                if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
+                // We do not return an error if the contact does not exist in the database.
+                // This allows to delete dangling references to deleted contacts
+                // in case of the database becoming inconsistent due to a bug.
+                if let Some(contact) = Contact::get_by_id_optional(context, contact_id).await? {
                     if chat.typ == Chattype::Group && chat.is_promoted() {
                         msg.viewtype = Viewtype::Text;
                         if contact.id == ContactId::SELF {
