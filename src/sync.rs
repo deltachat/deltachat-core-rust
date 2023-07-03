@@ -130,7 +130,7 @@ impl Context {
             let mut msg = Message {
                 chat_id,
                 viewtype: Viewtype::Text,
-                text: Some(stock_str::sync_msg_body(self).await),
+                text: stock_str::sync_msg_body(self).await,
                 hidden: true,
                 subject: stock_str::sync_msg_subject(self).await,
                 ..Default::default()

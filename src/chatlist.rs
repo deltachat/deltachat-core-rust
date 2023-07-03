@@ -424,7 +424,7 @@ mod tests {
         // 2s here.
         for chat_id in &[chat_id1, chat_id3, chat_id2] {
             let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(Some("hello".to_string()));
+            msg.set_text("hello".to_string());
             chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
         }
 
@@ -636,7 +636,7 @@ mod tests {
             .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("foo:\nbar \r\n test".to_string()));
+        msg.set_text("foo:\nbar \r\n test".to_string());
         chat_id1.set_draft(&t, Some(&mut msg)).await.unwrap();
 
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();

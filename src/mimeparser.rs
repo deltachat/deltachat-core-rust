@@ -3221,10 +3221,7 @@ On 2020-10-25, Bob wrote:
         let msg_id = chats.get_msg_id(0).unwrap().unwrap();
         let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
 
-        assert_eq!(
-            msg.text.as_ref().unwrap(),
-            "subj with important info – body text"
-        );
+        assert_eq!(msg.text, "subj with important info – body text");
         assert_eq!(msg.viewtype, Viewtype::Image);
         assert_eq!(msg.error(), None);
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
@@ -3393,9 +3390,9 @@ Some reply
         receive_imf(&t, raw, false).await?;
 
         let msg = t.get_last_msg().await;
-        assert_eq!(msg.get_text().unwrap(), "Some reply");
+        assert_eq!(msg.get_text(), "Some reply");
         let quoted_message = msg.quoted_message(&t).await?.unwrap();
-        assert_eq!(quoted_message.get_text().unwrap(), "Some quote.");
+        assert_eq!(quoted_message.get_text(), "Some quote.");
 
         Ok(())
     }

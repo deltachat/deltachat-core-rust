@@ -156,7 +156,7 @@ impl Context {
                         self.set_config(Config::QuotaExceeding, Some(&highest.to_string()))
                             .await?;
                         let mut msg = Message::new(Viewtype::Text);
-                        msg.text = Some(stock_str::quota_exceeding(self, highest).await);
+                        msg.text = stock_str::quota_exceeding(self, highest).await;
                         add_device_msg_with_importance(self, None, Some(&mut msg), true).await?;
                     } else if highest <= QUOTA_ALLCLEAR_PERCENTAGE {
                         self.set_config(Config::QuotaExceeding, None).await?;

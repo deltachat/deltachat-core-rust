@@ -3308,7 +3308,7 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
         return "".strdup();
     }
     let ffi_msg = &*msg;
-    ffi_msg.message.get_text().unwrap_or_default().strdup()
+    ffi_msg.message.get_text().strdup()
 }
 
 #[no_mangle]
@@ -3693,7 +3693,7 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *const libc::
         return;
     }
     let ffi_msg = &mut *msg;
-    ffi_msg.message.set_text(to_opt_string_lossy(text))
+    ffi_msg.message.set_text(to_string_lossy(text))
 }
 
 #[no_mangle]

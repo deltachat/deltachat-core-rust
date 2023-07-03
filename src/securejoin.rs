@@ -178,7 +178,7 @@ async fn send_alice_handshake_msg(
 ) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
-        text: Some(format!("Secure-Join: {step}")),
+        text: format!("Secure-Join: {step}"),
         hidden: true,
         ..Default::default()
     };
@@ -933,8 +933,7 @@ mod tests {
                 .expect("No messages in Alice's 1:1 chat");
             let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
             assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("bob@example.net verified"));
+            assert!(msg.get_text().contains("bob@example.net verified"));
         }
 
         // Check Alice sent the right message to Bob.
@@ -982,8 +981,7 @@ mod tests {
                 .expect("No messages in Bob's 1:1 chat");
             let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
             assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("alice@example.org verified"));
+            assert!(msg.get_text().contains("alice@example.org verified"));
         }
 
         // Check Bob sent the final message
@@ -1292,8 +1290,7 @@ mod tests {
                 .expect("No messages in Alice's group chat");
             let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
             assert!(msg.is_info());
-            let text = msg.get_text().unwrap();
-            assert!(text.contains("bob@example.net verified"));
+            assert!(msg.get_text().contains("bob@example.net verified"));
         }
 
         // Bob should not yet have Alice verified
@@ -1328,7 +1325,7 @@ mod tests {
             for item in chat::get_chat_msgs(&bob.ctx, bob_chatid).await.unwrap() {
                 if let chat::ChatItem::Message { msg_id } = item {
                     let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-                    let text = msg.get_text().unwrap();
+                    let text = msg.get_text();
                     println!("msg {msg_id} text: {text}");
                 }
             }
@@ -1340,7 +1337,7 @@ mod tests {
                 match msg_iter.next() {
                     Some(chat::ChatItem::Message { msg_id }) => {
                         let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-                        let text = msg.get_text().unwrap();
+                        let text = msg.get_text();
                         match text.contains("alice@example.org verified") {
                             true => {
                                 assert!(msg.is_info());

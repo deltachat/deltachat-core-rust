@@ -146,7 +146,7 @@ async fn on_configure_completed(
 
         if !provider.after_login_hint.is_empty() {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(provider.after_login_hint.to_string());
+            msg.text = provider.after_login_hint.to_string();
             if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg))
                 .await
                 .is_err()
@@ -161,7 +161,7 @@ async fn on_configure_completed(
             if !addr_cmp(&new_addr, &old_addr) {
                 let mut msg = Message::new(Viewtype::Text);
                 msg.text =
-                    Some(stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await);
+                    stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await;
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .context("Cannot add AEAP explanation")

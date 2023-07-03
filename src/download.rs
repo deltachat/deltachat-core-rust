@@ -308,7 +308,7 @@ mod tests {
         let chat = t.create_chat_with_contact("Bob", "bob@example.org").await;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("Hi Bob".to_owned()));
+        msg.set_text("Hi Bob".to_owned());
         let msg_id = send_msg(&t, chat.id, &mut msg).await?;
         let msg = Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.download_state(), DownloadState::Done);
@@ -355,7 +355,6 @@ mod tests {
         assert_eq!(msg.get_subject(), "foo");
         assert!(msg
             .get_text()
-            .unwrap()
             .contains(&stock_str::partial_download_msg_body(&t, 100000).await));
 
         receive_imf_inner(
@@ -370,7 +369,7 @@ mod tests {
         let msg = t.get_last_msg().await;
         assert_eq!(msg.download_state(), DownloadState::Done);
         assert_eq!(msg.get_subject(), "foo");
-        assert_eq!(msg.get_text(), Some("100k text...".to_string()));
+        assert_eq!(msg.get_text(), "100k text...");
 
         Ok(())
     }

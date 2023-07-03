@@ -901,7 +901,7 @@ impl CommandApi {
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(text));
+        msg.set_text(text);
         let message_id =
             deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg)).await?;
         Ok(message_id.to_u32())
@@ -1767,9 +1767,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if data.text.is_some() {
-            message.set_text(data.text);
-        }
+        message.set_text(data.text.unwrap_or_default());
         if data.html.is_some() {
             message.set_html(data.html);
         }
@@ -1950,7 +1948,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(text));
+        msg.set_text(text);
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())
@@ -1973,9 +1971,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if text.is_some() {
-            message.set_text(text);
-        }
+        message.set_text(text.unwrap_or_default());
         if let Some(file) = file {
             message.set_file(file, None);
         }
@@ -2019,9 +2015,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if text.is_some() {
-            draft.set_text(text);
-        }
+        draft.set_text(text.unwrap_or_default());
         if let Some(file) = file {
             draft.set_file(file, None);
         }

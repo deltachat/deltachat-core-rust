@@ -185,16 +185,14 @@ pub(crate) async fn maybe_add_time_based_warnings(context: &Context) {
 async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestamp: i64) -> bool {
     if now < known_past_timestamp {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(
-            stock_str::bad_time_msg_body(
-                context,
-                &Local.timestamp_opt(now, 0).single().map_or_else(
-                    || "YY-MM-DD hh:mm:ss".to_string(),
-                    |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ),
-            )
-            .await,
-        );
+        msg.text = stock_str::bad_time_msg_body(
+            context,
+            &Local.timestamp_opt(now, 0).single().map_or_else(
+                || "YY-MM-DD hh:mm:ss".to_string(),
+                |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
+            ),
+        )
+        .await;
         if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
             add_device_msg_with_importance(
                 context,
@@ -221,7 +219,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
 async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time: i64) {
     if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_str::update_reminder_msg_body(context).await);
+        msg.text = stock_str::update_reminder_msg_body(context).await;
         if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
             add_device_msg(
                 context,

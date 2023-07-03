@@ -219,7 +219,7 @@ impl ChatId {
 
         if self.is_promoted(context).await? {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
+            msg.text = stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await;
             msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
             if let Err(err) = send_msg(context, self, &mut msg).await {
                 error!(
@@ -1062,7 +1062,7 @@ mod tests {
         delete_expired_messages(t, not_deleted_at).await?;
 
         let loaded = Message::load_from_db(t, msg_id).await?;
-        assert_eq!(loaded.text.unwrap(), "Message text");
+        assert_eq!(loaded.text, "Message text");
         assert_eq!(loaded.chat_id, chat.id);
 
         assert!(next_expiration < deleted_at);
@@ -1082,7 +1082,7 @@ mod tests {
             .await;
 
         let loaded = Message::load_from_db(t, msg_id).await?;
-        assert_eq!(loaded.text.unwrap(), "");
+        assert_eq!(loaded.text, "");
         assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
 
         // Check that the msg was deleted locally.
@@ -1105,7 +1105,7 @@ mod tests {
         if let Ok(msg) = Message::load_from_db(t, msg_id).await {
             assert_eq!(msg.from_id, ContactId::UNDEFINED);
             assert_eq!(msg.to_id, ContactId::UNDEFINED);
-            assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
+            assert_eq!(msg.text, "");
             let rawtxt: Option<String> = t
                 .sql
                 .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
