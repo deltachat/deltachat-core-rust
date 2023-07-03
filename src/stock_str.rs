@@ -513,11 +513,19 @@ trait StockStringMods: AsRef<str> + Sized {
 }
 
 impl ContactId {
-    /// Get contact name for stock string.
-    async fn get_stock_name(self, context: &Context) -> String {
+    /// Get contact name and address for stock string, e.g. `Bob (bob@example.net)`
+    async fn get_stock_name_n_addr(self, context: &Context) -> String {
         Contact::get_by_id(context, self)
             .await
             .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_else(|_| self.to_string())
+    }
+
+    /// Get contact name, e.g. `Bob`, or `bob@exmple.net` if no name is set.
+    async fn get_stock_name(self, context: &Context) -> String {
+        Contact::get_by_id(context, self)
+            .await
+            .map(|contact| contact.get_display_name().to_string())
             .unwrap_or_else(|_| self.to_string())
     }
 }
@@ -581,7 +589,7 @@ pub(crate) async fn msg_grp_name(
             .await
             .replace1(from_group)
             .replace2(to_group)
-            .replace3(&by_contact.get_stock_name(context).await)
+            .replace3(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -591,7 +599,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgChangedBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -638,7 +646,7 @@ pub(crate) async fn msg_add_member_local(
         translated(context, StockMessage::MsgAddMemberBy)
             .await
             .replace1(whom)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -685,7 +693,7 @@ pub(crate) async fn msg_del_member_local(
         translated(context, StockMessage::MsgDelMemberBy)
             .await
             .replace1(whom)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -701,7 +709,7 @@ pub(crate) async fn msg_group_left_local(context: &Context, by_contact: ContactI
     } else {
         translated(context, StockMessage::MsgGroupLeftBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -754,7 +762,7 @@ pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgDeletedBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -780,13 +788,9 @@ pub(crate) async fn secure_join_started(
 
 /// Stock string: `%1$s replied, waiting for being added to the group…`.
 pub(crate) async fn secure_join_replies(context: &Context, contact_id: ContactId) -> String {
-    if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-        translated(context, StockMessage::SecureJoinReplies)
-            .await
-            .replace1(contact.get_display_name())
-    } else {
-        format!("secure_join_replies: unknown contact {contact_id}")
-    }
+    translated(context, StockMessage::SecureJoinReplies)
+        .await
+        .replace1(&contact_id.get_stock_name(context).await)
 }
 
 /// Stock string: `Scan to chat with %1$s`.
@@ -879,7 +883,7 @@ pub(crate) async fn msg_location_enabled_by(context: &Context, contact: ContactI
     } else {
         translated(context, StockMessage::MsgLocationEnabledBy)
             .await
-            .replace1(&contact.get_stock_name(context).await)
+            .replace1(&contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -948,7 +952,7 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -966,7 +970,7 @@ pub(crate) async fn msg_ephemeral_timer_enabled(
         translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
             .await
             .replace1(timer)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -977,7 +981,7 @@ pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: Co
     } else {
         translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -988,7 +992,7 @@ pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerHourBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -999,7 +1003,7 @@ pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: Conta
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDayBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1010,7 +1014,7 @@ pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerWeekBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1058,13 +1062,9 @@ pub(crate) async fn chat_protection_enabled(context: &Context) -> String {
 
 /// Stock string: TODO.
 pub(crate) async fn chat_protection_disabled(context: &Context, contact_id: ContactId) -> String {
-    let name = match &(Contact::load_from_db(context, contact_id).await) {
-        Ok(c) => c.get_display_name().to_string(),
-        Err(_) => contact_id.to_string(),
-    };
     translated(context, StockMessage::ChatProtectionDisabled)
         .await
-        .replace1(&name)
+        .replace1(&contact_id.get_stock_name(context).await)
 }
 
 /// Stock string: `Reply`.
@@ -1096,7 +1096,7 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
         translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
             .await
             .replace1(minutes)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1114,7 +1114,7 @@ pub(crate) async fn msg_ephemeral_timer_hours(
         translated(context, StockMessage::MsgEphemeralTimerHoursBy)
             .await
             .replace1(hours)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1132,7 +1132,7 @@ pub(crate) async fn msg_ephemeral_timer_days(
         translated(context, StockMessage::MsgEphemeralTimerDaysBy)
             .await
             .replace1(days)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1150,7 +1150,7 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
             .await
             .replace1(weeks)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
