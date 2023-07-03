@@ -11,7 +11,7 @@ authors = [
     { name = "holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
     "Programming Language :: Python :: 3",
