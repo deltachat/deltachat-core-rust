@@ -518,7 +518,7 @@ impl Context {
                 let mut status_update = Message {
                     chat_id: instance.chat_id,
                     viewtype: Viewtype::Text,
-                    text: Some(descr.to_string()),
+                    text: descr.to_string(),
                     hidden: true,
                     ..Default::default()
                 };
@@ -1464,7 +1464,7 @@ mod tests {
         assert!(alice_update.hidden);
         assert_eq!(alice_update.viewtype, Viewtype::Text);
         assert_eq!(alice_update.get_filename(), None);
-        assert_eq!(alice_update.text, Some("descr text".to_string()));
+        assert_eq!(alice_update.text, "descr text".to_string());
         assert_eq!(alice_update.chat_id, alice_instance.chat_id);
         assert_eq!(
             alice_update.parent(&alice).await?.unwrap().id,
@@ -2131,10 +2131,7 @@ sth_for_the = "future""#
         assert!(info_msg.is_info());
         assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
         assert_eq!(info_msg.from_id, ContactId::SELF);
-        assert_eq!(
-            info_msg.get_text(),
-            Some("this appears in-chat".to_string())
-        );
+        assert_eq!(info_msg.get_text(), "this appears in-chat");
         assert_eq!(
             info_msg.parent(&alice).await?.unwrap().id,
             alice_instance.id
@@ -2156,10 +2153,7 @@ sth_for_the = "future""#
         assert!(info_msg.is_info());
         assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
         assert!(!info_msg.from_id.is_special());
-        assert_eq!(
-            info_msg.get_text(),
-            Some("this appears in-chat".to_string())
-        );
+        assert_eq!(info_msg.get_text(), "this appears in-chat");
         assert_eq!(info_msg.parent(&bob).await?.unwrap().id, bob_instance.id);
         assert!(info_msg.quoted_message(&bob).await?.is_none());
         assert_eq!(
@@ -2178,10 +2172,7 @@ sth_for_the = "future""#
         assert!(info_msg.is_info());
         assert_eq!(info_msg.get_info_type(), SystemMessage::WebxdcInfoMessage);
         assert_eq!(info_msg.from_id, ContactId::SELF);
-        assert_eq!(
-            info_msg.get_text(),
-            Some("this appears in-chat".to_string())
-        );
+        assert_eq!(info_msg.get_text(), "this appears in-chat");
         assert_eq!(
             info_msg.parent(&alice2).await?.unwrap().id,
             alice2_instance.id
@@ -2220,7 +2211,7 @@ sth_for_the = "future""#
         let sent3 = &alice.pop_sent_msg().await;
         assert_eq!(alice_chat.id.get_msg_cnt(&alice).await?, 2);
         let info_msg = alice.get_last_msg().await;
-        assert_eq!(info_msg.get_text(), Some("i2".to_string()));
+        assert_eq!(info_msg.get_text(), "i2");
 
         // When Bob receives the messages, they should be cleaned up as well
         let bob_instance = bob.recv_msg(sent1).await;
@@ -2230,7 +2221,7 @@ sth_for_the = "future""#
         bob.recv_msg(sent3).await;
         assert_eq!(bob_chat_id.get_msg_cnt(&bob).await?, 2);
         let info_msg = bob.get_last_msg().await;
-        assert_eq!(info_msg.get_text(), Some("i2".to_string()));
+        assert_eq!(info_msg.get_text(), "i2");
 
         Ok(())
     }
@@ -2383,26 +2374,20 @@ sth_for_the = "future""#
             include_bytes!("../test-data/webxdc/minimal.xdc"),
         )
         .await?;
-        alice_instance.set_text(Some("user added text".to_string()));
+        alice_instance.set_text("user added text".to_string());
         send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
         let alice_instance = alice.get_last_msg().await;
-        assert_eq!(
-            alice_instance.get_text(),
-            Some("user added text".to_string())
-        );
+        assert_eq!(alice_instance.get_text(), "user added text");
 
         // Bob receives that instance
         let sent1 = alice.pop_sent_msg().await;
         let bob_instance = bob.recv_msg(&sent1).await;
-        assert_eq!(bob_instance.get_text(), Some("user added text".to_string()));
+        assert_eq!(bob_instance.get_text(), "user added text");
 
         // Alice's second device receives the instance as well
         let alice2 = TestContext::new_alice().await;
         let alice2_instance = alice2.recv_msg(&sent1).await;
-        assert_eq!(
-            alice2_instance.get_text(),
-            Some("user added text".to_string())
-        );
+        assert_eq!(alice2_instance.get_text(), "user added text");
 
         Ok(())
     }

@@ -422,7 +422,7 @@ async fn send_handshake_message(
 ) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
-        text: Some(step.body_text(invite)),
+        text: step.body_text(invite),
         hidden: true,
         ..Default::default()
     };

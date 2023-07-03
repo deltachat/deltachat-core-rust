@@ -175,16 +175,12 @@ impl Message {
             return prefix;
         }
 
-        let summary_content = if let Some(text) = &self.text {
-            if text.is_empty() {
-                prefix
-            } else if prefix.is_empty() {
-                text.to_string()
-            } else {
-                format!("{prefix} – {text}")
-            }
-        } else {
+        let summary_content = if self.text.is_empty() {
             prefix
+        } else if prefix.is_empty() {
+            self.text.to_string()
+        } else {
+            format!("{prefix} – {}", self.text)
         };
 
         let summary = if self.is_forwarded() {
@@ -211,19 +207,16 @@ mod tests {
         let d = test::TestContext::new().await;
         let ctx = &d.ctx;
 
-        let some_text = Some(" bla \t\n\tbla\n\t".to_string());
-        let empty_text = Some("".to_string());
-        let no_text: Option<String> = None;
+        let some_text = " bla \t\n\tbla\n\t".to_string();
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(some_text.clone());
+        msg.set_text(some_text.to_string());
         assert_eq!(
             msg.get_summary_text(ctx).await,
             "bla bla" // for simple text, the type is not added to the summary
         );
 
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -231,7 +224,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Video);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -239,7 +231,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Gif);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -247,7 +238,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -255,7 +245,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Voice);
-        msg.set_text(empty_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -263,7 +252,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Voice);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -279,7 +267,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_text(no_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -287,7 +274,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_text(empty_text.clone());
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
@@ -329,7 +315,6 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::File);
-        msg.set_text(no_text.clone());
         msg.param.set(Param::File, "foo.bar");
         msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(

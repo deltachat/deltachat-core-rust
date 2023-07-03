@@ -32,7 +32,7 @@ async fn test_change_primary_self_addr() -> Result<()> {
     // Alice set up message forwarding so that she still receives
     // the message with her new address
     let alice_msg = alice.recv_msg(&sent).await;
-    assert_eq!(alice_msg.text, Some("hi back".to_string()));
+    assert_eq!(alice_msg.text, "hi back".to_string());
     assert_eq!(alice_msg.get_showpadlock(), true);
     let alice_bob_chat = alice.create_chat(&bob).await;
     assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
@@ -57,10 +57,7 @@ Message w/out In-Reply-To
 
     let alice_msg = alice.get_last_msg().await;
 
-    assert_eq!(
-        alice_msg.text,
-        Some("Message w/out In-Reply-To".to_string())
-    );
+    assert_eq!(alice_msg.text, "Message w/out In-Reply-To");
     assert_eq!(alice_msg.get_showpadlock(), false);
     assert_eq!(alice_msg.chat_id, alice_bob_chat.id);
 
@@ -216,7 +213,7 @@ async fn check_aeap_transition(
         .await;
     let recvd = bob.recv_msg(&sent).await;
     let sent_timestamp = recvd.timestamp_sent;
-    assert_eq!(recvd.text.unwrap(), "Hello from my new addr!");
+    assert_eq!(recvd.text, "Hello from my new addr!");
 
     tcm.section("Check that the AEAP transition worked");
     check_that_transition_worked(
@@ -245,7 +242,7 @@ async fn check_aeap_transition(
         .send_text(chat_to_send, "Hello from my old addr!")
         .await;
     let recvd = bob.recv_msg(&sent).await;
-    assert_eq!(recvd.text.unwrap(), "Hello from my old addr!");
+    assert_eq!(recvd.text, "Hello from my old addr!");
 
     check_that_transition_worked(
         &groups[2..],
@@ -291,13 +288,13 @@ async fn check_that_transition_worked(
         let info_msg = get_last_info_msg(bob, *group).await.unwrap();
         let expected_text =
             stock_str::aeap_addr_changed(bob, name, old_alice_addr, new_alice_addr).await;
-        assert_eq!(info_msg.text.unwrap(), expected_text);
+        assert_eq!(info_msg.text, expected_text);
         assert_eq!(info_msg.from_id, ContactId::INFO);
 
         let msg = format!("Sending to group {group}");
         let sent = bob.send_text(*group, &msg).await;
         let recvd = alice.recv_msg(&sent).await;
-        assert_eq!(recvd.text.unwrap(), msg);
+        assert_eq!(recvd.text, msg);
     }
 }
 

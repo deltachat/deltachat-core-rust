@@ -280,7 +280,7 @@ pub async fn send_locations_to_chat(
         .await?;
     if 0 != seconds && !is_sending_locations_before {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_str::msg_location_enabled(context).await);
+        msg.text = stock_str::msg_location_enabled(context).await;
         msg.param.set_cmd(SystemMessage::LocationStreamingEnabled);
         chat::send_msg(context, chat_id, &mut msg)
             .await
@@ -885,7 +885,7 @@ Text message."#,
         )
         .await?;
         let received_msg = alice.get_last_msg().await;
-        assert_eq!(received_msg.text.unwrap(), "Text message.");
+        assert_eq!(received_msg.text, "Text message.");
 
         receive_imf(
             &alice,

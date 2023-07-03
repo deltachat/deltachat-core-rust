@@ -214,7 +214,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
 
     let reaction: Reaction = reaction.into();
     let mut reaction_msg = Message::new(Viewtype::Text);
-    reaction_msg.text = Some(reaction.as_str().to_string());
+    reaction_msg.text = reaction.as_str().to_string();
     reaction_msg.set_reaction();
     reaction_msg.in_reply_to = Some(msg.rfc724_mid);
     reaction_msg.hidden = true;

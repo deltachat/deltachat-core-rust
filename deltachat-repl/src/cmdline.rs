@@ -199,7 +199,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
-        msgtext.unwrap_or_default(),
+        msgtext,
         if msg.has_html() { "[HAS-HTML]️" } else { "" },
         if msg.get_from_id() == ContactId::SELF {
             ""
@@ -912,9 +912,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Viewtype::File
             });
             msg.set_file(arg1, None);
-            if !arg2.is_empty() {
-                msg.set_text(Some(arg2.to_string()));
-            }
+            msg.set_text(arg2.to_string());
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
         "sendhtml" => {
@@ -926,11 +924,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             let mut msg = Message::new(Viewtype::Text);
             msg.set_html(Some(html.to_string()));
-            msg.set_text(Some(if arg2.is_empty() {
+            msg.set_text(if arg2.is_empty() {
                 path.file_name().unwrap().to_string_lossy().to_string()
             } else {
                 arg2.to_string()
-            }));
+            });
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
         "sendsyncmsg" => match context.send_sync_msg().await? {
@@ -979,7 +977,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             if !arg1.is_empty() {
                 let mut draft = Message::new(Viewtype::Text);
-                draft.set_text(Some(arg1.to_string()));
+                draft.set_text(arg1.to_string());
                 sel_chat
                     .as_ref()
                     .unwrap()
@@ -1003,7 +1001,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "Please specify text to add as device message."
             );
             let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(Some(arg1.to_string()));
+            msg.set_text(arg1.to_string());
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
         "listmedia" => {

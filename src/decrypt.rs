@@ -399,7 +399,7 @@ mod tests {
         let bob = TestContext::new_bob().await;
         receive_imf(&bob, attachment_mime, false).await?;
         let msg = bob.get_last_msg().await;
-        assert_eq!(msg.text.as_deref(), Some("Hello from Thunderbird!"));
+        assert_eq!(msg.text, "Hello from Thunderbird!");
 
         Ok(())
     }

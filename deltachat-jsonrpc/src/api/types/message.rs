@@ -180,7 +180,7 @@ impl MessageObject {
             from_id: message.get_from_id().to_u32(),
             quote,
             parent_id,
-            text: message.get_text(),
+            text: Some(message.get_text()).filter(|s| !s.is_empty()),
             has_location: message.has_location(),
             has_html: message.has_html(),
             view_type: message.get_viewtype().into(),
@@ -500,7 +500,7 @@ impl MessageSearchResult {
             is_chat_protected: chat.is_protected(),
             is_chat_contact_request: chat.is_contact_request(),
             is_chat_archived: chat.get_visibility() == ChatVisibility::Archived,
-            message: message.get_text().unwrap_or_default(),
+            message: message.get_text(),
             timestamp: message.get_timestamp(),
         })
     }

@@ -253,12 +253,10 @@ async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
     if !context.sql.get_raw_config_bool("bcc_self").await? {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
-        msg.text = Some(
-            "It seems you are using multiple devices with Delta Chat. Great!\n\n\
+        msg.text = "It seems you are using multiple devices with Delta Chat. Great!\n\n\
              If you also want to synchronize outgoing messages across all devices, \
              go to \"Settings → Advanced\" and enable \"Send Copy to Self\"."
-                .to_string(),
-        );
+            .to_string();
         chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg)).await?;
     }
     Ok(())
@@ -1030,10 +1028,7 @@ mod tests {
         // not synchronized yet.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
         alice.recv_msg(&sent).await;
-        assert_ne!(
-            alice.get_last_msg().await.get_text(),
-            Some("Test".to_string())
-        );
+        assert_ne!(alice.get_last_msg().await.get_text(), "Test");
 
         // Transfer the key.
         continue_key_transfer(&alice2, msg.id, &setup_code).await?;
@@ -1041,10 +1036,7 @@ mod tests {
         // Alice sends a message to self from the new device.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
         alice.recv_msg(&sent).await;
-        assert_eq!(
-            alice.get_last_msg().await.get_text(),
-            Some("Test".to_string())
-        );
+        assert_eq!(alice.get_last_msg().await.get_text(), "Test");
 
         Ok(())
     }

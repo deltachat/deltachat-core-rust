@@ -275,7 +275,7 @@ impl BackupProvider {
             Ok(_) => {
                 context.emit_event(SendProgress::Completed.into());
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(backup_transfer_msg_body(context).await);
+                msg.text = backup_transfer_msg_body(context).await;
                 add_device_msg(context, None, Some(&mut msg)).await?;
             }
             Err(err) => {
@@ -611,7 +611,7 @@ mod tests {
         // Write a message in the self chat
         let self_chat = ctx0.get_self_chat().await;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hi there".to_string()));
+        msg.set_text("hi there".to_string());
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
         // Send an attachment in the self chat
@@ -643,7 +643,7 @@ mod tests {
             _ => panic!("wrong chat item"),
         };
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
-        let text = msg.get_text().unwrap();
+        let text = msg.get_text();
         assert_eq!(text, "hi there");
         let msgid = match msgs.get(1).unwrap() {
             ChatItem::Message { msg_id } => msg_id,

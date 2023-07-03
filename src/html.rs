@@ -456,7 +456,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_ne!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::No);
         assert!(!msg.is_forwarded());
-        assert!(msg.get_text().unwrap().contains("this is plain"));
+        assert!(msg.get_text().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
@@ -470,7 +470,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().contains("this is plain"));
+        assert!(msg.get_text().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
@@ -483,7 +483,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_ne!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().contains("this is plain"));
+        assert!(msg.get_text().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&bob).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
@@ -526,7 +526,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.get_showpadlock());
         assert!(msg.is_forwarded());
-        assert!(msg.get_text().unwrap().contains("this is plain"));
+        assert!(msg.get_text().contains("this is plain"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
         assert!(html.contains("this is <b>html</b>"));
@@ -540,14 +540,14 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         // alice sends a message with html-part to bob
         let chat_id = alice.create_chat(&bob).await.id;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("plain text".to_string()));
+        msg.set_text("plain text".to_string());
         msg.set_html(Some("<b>html</b> text".to_string()));
         assert!(msg.mime_modified);
         chat::send_msg(&alice, chat_id, &mut msg).await.unwrap();
 
         // check the message is written correctly to alice's db
         let msg = alice.get_last_msg_in(chat_id).await;
-        assert_eq!(msg.get_text(), Some("plain text".to_string()));
+        assert_eq!(msg.get_text(), "plain text");
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
         let html = msg.get_id().get_html(&alice).await.unwrap().unwrap();
@@ -557,7 +557,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         let chat_id = bob.create_chat(&alice).await.id;
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.chat_id, chat_id);
-        assert_eq!(msg.get_text(), Some("plain text".to_string()));
+        assert_eq!(msg.get_text(), "plain text");
         assert!(!msg.is_forwarded());
         assert!(msg.mime_modified);
         let html = msg.get_id().get_html(&bob).await.unwrap().unwrap();
@@ -575,7 +575,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
         .await?;
         let msg = t.get_last_msg().await;
         assert_eq!(msg.viewtype, Viewtype::Text);
-        assert!(msg.text.as_ref().unwrap().contains("foo bar ä ö ü ß"));
+        assert!(msg.text.contains("foo bar ä ö ü ß"));
         assert!(msg.has_html());
         let html = msg.get_id().get_html(&t).await?.unwrap();
         println!("{html}");

@@ -118,7 +118,7 @@ impl TestContextManager {
     /// - Assert that the message arrived
     pub async fn send_recv(&self, from: &TestContext, to: &TestContext, msg: &str) -> Message {
         let received_msg = self.try_send_recv(from, to, msg).await;
-        assert_eq!(received_msg.text.as_ref().unwrap(), msg);
+        assert_eq!(received_msg.text, msg);
         received_msg
     }
 
@@ -608,7 +608,7 @@ impl TestContext {
     /// the message.
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage<'_> {
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(txt.to_string()));
+        msg.text = txt.to_string();
         self.send_msg(chat_id, &mut msg).await
     }
 
@@ -1104,7 +1104,7 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
-        msgtext.unwrap_or_default(),
+        msgtext,
         if msg.get_from_id() == ContactId::SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {

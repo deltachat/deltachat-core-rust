@@ -1304,11 +1304,11 @@ mod tests {
 
         // Add messages to chat with Bob.
         let mut msg1 = Message::new(Viewtype::Text);
-        msg1.set_text(Some("foobar".to_string()));
+        msg1.set_text("foobar".to_string());
         send_msg(&alice, chat.id, &mut msg1).await?;
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_text(Some("barbaz".to_string()));
+        msg2.set_text("barbaz".to_string());
         send_msg(&alice, chat.id, &mut msg2).await?;
 
         // Global search with a part of text finds the message.
@@ -1404,7 +1404,7 @@ mod tests {
 
         // Add 999 messages
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("foobar".to_string()));
+        msg.set_text("foobar".to_string());
         for _ in 0..999 {
             send_msg(&alice, chat.id, &mut msg).await?;
         }

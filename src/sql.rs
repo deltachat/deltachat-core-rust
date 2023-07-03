@@ -245,7 +245,7 @@ impl Sql {
             // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
             if context.get_config_delete_server_after().await?.is_some() {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::delete_server_turned_off(context).await);
+                msg.set_text(stock_str::delete_server_turned_off(context).await);
                 add_device_msg(context, None, Some(&mut msg)).await?;
                 context
                     .set_config(Config::DeleteServerAfter, Some("0"))
@@ -1102,13 +1102,13 @@ mod tests {
 
         let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
         let mut new_draft = Message::new(Viewtype::Text);
-        new_draft.set_text(Some("This is my draft".to_string()));
+        new_draft.set_text("This is my draft".to_string());
         chat.id.set_draft(&t, Some(&mut new_draft)).await.unwrap();
 
         housekeeping(&t).await.unwrap();
 
         let loaded_draft = chat.id.get_draft(&t).await.unwrap();
-        assert_eq!(loaded_draft.unwrap().text.unwrap(), "This is my draft");
+        assert_eq!(loaded_draft.unwrap().text, "This is my draft");
     }
 
     /// Tests that `housekeeping` deletes the blobs backup dir which is created normally by
