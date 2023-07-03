@@ -486,7 +486,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=no limit (default).
  *                    Changes affect future messages only.
  * - `verified_one_on_one_chats` = Feature flag for verified 1:1 chats; the UI should set it
- *                    if it supports verified 1:1 chats. See `is_protection_broken()`.
+ *                    to 1 if it supports verified 1:1 chats.
+ *                    Regardless of this setting, `dc_chat_is_protected()` returns true while the key is verified,
+ *                    and when the key changes, an info message is posted into the chat.
+ *                    0=Nothing else happens when the key changes.
+ *                    1=After the key changed, `dc_chat_can_send()` returns false and `dc_chat_is_protection_broken()` returns true
+ *                    until `dc_accept_chat()` is called.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.
@@ -3713,7 +3718,7 @@ int             dc_chat_is_protected         (const dc_chat_t* chat);
  * dc_chat_is_protection_broken() will return true until dc_accept_chat() is called.
  *
  * The UI should let the user confirm that this is OK with a message like
- * `DC_STR_CHAT_PROTECTION_DISABLED` and then call dc_accept_chat().
+ * `Bob sent a message from another device. Tap to learn more` and then call dc_accept_chat().
  */
 int             dc_chat_is_protection_broken (const dc_chat_t* chat);
 

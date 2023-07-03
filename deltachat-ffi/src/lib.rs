@@ -3061,7 +3061,7 @@ pub unsafe extern "C" fn dc_chat_is_protected(chat: *mut dc_chat_t) -> libc::c_i
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_protection_broken(chat: *mut dc_chat_t) -> libc::c_int {
     if chat.is_null() {
-        eprintln!("ignoring careless call to dc_chat_is_protected()");
+        eprintln!("ignoring careless call to dc_chat_is_protection_broken()");
         return 0;
     }
     let ffi_chat = &*chat;

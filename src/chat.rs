@@ -443,7 +443,7 @@ impl ChatId {
         context: &Context,
         protect: ProtectionStatus,
     ) -> Result<()> {
-        ensure!(!self.is_special(), "Invalid chat-id {}.", self);
+        ensure!(!self.is_special(), "Invalid chat-id {self}.");
 
         let chat = Chat::load_from_db(context, self).await?;
 
@@ -482,14 +482,13 @@ impl ChatId {
         Ok(())
     }
 
-    /// Send protected status message to the chat.
+    /// Adds an info message to the chat, telling the user that the protection status changed.
     ///
-    /// This sends the message with the protected status change to the chat,
-    /// notifying the user on this device as well as the other users in the chat.
+    /// Params:
     ///
-    /// If `promote` is false this means, the message must not be sent out
-    /// and only a local info message should be added to the chat.
-    /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
+    /// * `contact_id`: In a 1:1 chat, pass the chat partner's contact id.
+    /// * `timestamp_sort` is used as the timestamp of the added message
+    ///   and should be the timestamp of the change happening.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
@@ -509,6 +508,9 @@ impl ChatId {
     }
 
     /// Sets protection and sends or adds a message.
+    ///
+    /// `timestamp_sort` is used as the timestamp of the added message
+    /// and should be the timestamp of the change happening.
     pub(crate) async fn set_protection(
         self,
         context: &Context,
@@ -1445,7 +1447,7 @@ impl Chat {
     /// `is_protection_broken()` will return true until `chat_id.accept()` is called.
     ///
     /// The UI should let the user confirm that this is OK with a message like
-    /// [`stock_str::StockMessage::ChatProtectionDisabled`]
+    /// `Bob sent a message from another device. Tap to learn more`
     /// and then call `chat_id.accept()`.
     pub fn is_protection_broken(&self) -> bool {
         self.protected == ProtectionStatus::ProtectionBroken
