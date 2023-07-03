@@ -593,9 +593,9 @@ async fn add_parts(
 
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
-        if let Some(_chat_id) = chat_id {
-            if !chat::is_contact_in_chat(context, _chat_id, from_id).await? {
-                let chat = Chat::load_from_db(context, _chat_id).await?;
+        if let Some(group_chat_id) = chat_id {
+            if !chat::is_contact_in_chat(context, group_chat_id, from_id).await? {
+                let chat = Chat::load_from_db(context, group_chat_id).await?;
                 if chat.is_protected() {
                     if chat.typ == Chattype::Single {
                         // Just assign the message to the 1:1 chat with the actual sender instead.
@@ -619,7 +619,7 @@ async fn add_parts(
                 context,
                 mime_parser,
                 sent_timestamp,
-                _chat_id,
+                group_chat_id,
                 from_id,
                 to_ids,
             )

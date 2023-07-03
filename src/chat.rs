@@ -524,7 +524,7 @@ impl ChatId {
             Ok(protection_status_modified) => {
                 if protection_status_modified {
                     self.add_protection_msg(context, protect, contact_id, timestamp_sort)
-                        .await;
+                        .await?;
                 }
                 Ok(())
             }

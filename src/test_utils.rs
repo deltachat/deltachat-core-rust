@@ -40,7 +40,7 @@ use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
-use crate::tools::{time, EmailAddress};
+use crate::tools::EmailAddress;
 
 #[allow(non_upper_case_globals)]
 pub const AVATAR_900x900_BYTES: &[u8] = include_bytes!("../test-data/image/avatar900x900.png");

@@ -896,9 +896,17 @@ impl<'a> MimeFactory<'a> {
         let mut placeholdertext = None;
         let mut meta_part = None;
 
-        // In single chats, the protection status isn't necessarily the same for both sides,
-        // so we don't send the Chat-Verified header.
-        if chat.is_protected() && chat.typ != Chattype::Single {
+        let send_verified_headers = match chat.typ {
+            Chattype::Undefined => bail!("Undefined chat type"),
+            // In single chats, the protection status isn't necessarily the same for both sides,
+            // so we don't send the Chat-Verified header:
+            Chattype::Single => false,
+            Chattype::Group => true,
+            // Mailinglists and broadcast lists can actually never be verified:
+            Chattype::Mailinglist => false,
+            Chattype::Broadcast => false,
+        };
+        if chat.is_protected() && send_verified_headers {
             headers
                 .protected
                 .push(Header::new("Chat-Verified".to_string(), "1".to_string()));
