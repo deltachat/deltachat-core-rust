@@ -438,18 +438,20 @@ impl ChatId {
     ///
     /// Used when a message arrives indicating that someone else has
     /// changed the protection value for a chat.
+    ///
+    /// Returns whether the protection status was actually modified.
     pub(crate) async fn inner_set_protection(
         self,
         context: &Context,
         protect: ProtectionStatus,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         ensure!(!self.is_special(), "Invalid chat-id {self}.");
 
         let chat = Chat::load_from_db(context, self).await?;
 
         if protect == chat.protected {
             info!(context, "Protection status unchanged for {}.", self);
-            return Ok(());
+            return Ok(false);
         }
 
         match protect {
@@ -479,7 +481,7 @@ impl ChatId {
         // make sure, the receivers will get all keys
         self.reset_gossiped_timestamp(context).await?;
 
-        Ok(())
+        Ok(true)
     }
 
     /// Adds an info message to the chat, telling the user that the protection status changed.
@@ -518,20 +520,19 @@ impl ChatId {
         timestamp_sort: i64,
         contact_id: ContactId,
     ) -> Result<()> {
-        ensure!(!self.is_special(), "set protection: invalid chat-id.");
-
-        let chat = Chat::load_from_db(context, self).await?;
-        if chat.protected == protect {
-            return Ok(());
+        match self.inner_set_protection(context, protect).await {
+            Ok(protection_status_modified) => {
+                if protection_status_modified {
+                    self.add_protection_msg(context, protect, contact_id, timestamp_sort)
+                        .await;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                error!(context, "Cannot set protection: {e:#}."); // make error user-visible
+                Err(e)
+            }
         }
-
-        if let Err(e) = self.inner_set_protection(context, protect).await {
-            error!(context, "Cannot set protection: {e:#}."); // make error user-visible
-            return Err(e);
-        }
-
-        self.add_protection_msg(context, protect, contact_id, timestamp_sort)
-            .await
     }
 
     /// Archives or unarchives a chat.
@@ -1439,7 +1440,7 @@ impl Chat {
         self.protected == ProtectionStatus::Protected
     }
 
-    /// Check if the chat was protected, and then an incoming message broke this protection.
+    /// Returns true if the chat was protected, and then an incoming message broke this protection.
     ///
     /// 1:1 chats are automatically set as protected when a contact is verified.
     /// When a message comes in that is not encrypted / signed correctly,
@@ -1450,7 +1451,11 @@ impl Chat {
     /// `Bob sent a message from another device. Tap to learn more`
     /// and then call `chat_id.accept()`.
     pub fn is_protection_broken(&self) -> bool {
-        self.protected == ProtectionStatus::ProtectionBroken
+        match self.protected {
+            ProtectionStatus::Protected => false,
+            ProtectionStatus::Unprotected => false,
+            ProtectionStatus::ProtectionBroken => true,
+        }
     }
 
     /// Returns true if location streaming is enabled in the chat.

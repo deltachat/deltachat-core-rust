@@ -3710,7 +3710,7 @@ int             dc_chat_is_protected         (const dc_chat_t* chat);
 
 
 /**
- * Check if the chat was protected, and then an incoming message broke this protection.
+ * Returns true if the chat was protected, and then an incoming message broke this protection.
  *
  * 1:1 chats are automatically set as protected when a contact is verified.
  * When a message comes in that is not encrypted / signed correctly,
