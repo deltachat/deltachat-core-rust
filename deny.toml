@@ -26,6 +26,7 @@ skip = [
      { name = "getrandom", version = "<0.2" },
      { name = "hashbrown", version = "<0.14.0" },
      { name = "idna", version = "<0.3" },
+     { name = "miniz_oxide", version = "<0.7.1" },
      { name = "indexmap", version = "<2.0.0" },
      { name = "num-derive", version = "0.3.3" },
      { name = "pem-rfc7468", version = "0.6.0" },
