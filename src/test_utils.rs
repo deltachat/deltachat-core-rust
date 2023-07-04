@@ -666,7 +666,7 @@ impl TestContext {
         // We're using `unwrap_or_default()` here so that if the file doesn't exist,
         // it can be created using `write` below.
         let expected = fs::read(&filename).await.unwrap_or_default();
-        let expected = String::from_utf8(expected).unwrap();
+        let expected = String::from_utf8(expected).unwrap().replace("\r\n", "\n");
         if (std::env::var("UPDATE_GOLDEN_TESTS") == Ok("1".to_string())) && actual != expected {
             fs::write(&filename, &actual)
                 .await
