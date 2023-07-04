@@ -723,37 +723,44 @@ async fn add_parts(
                     }
                 }
 
-                if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
-                    if is_partial_download.is_none()
-                        && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
-                        && !is_mdn
+                // The next block checks if the message was sent with verified encryption
+                // and sets the protection of the 1:1 chat accordingly.
+                if is_partial_download.is_none()
+                    && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                    && !is_mdn
+                {
+                    // This check is very similar to the one in check_verified_properties().
+                    let mut new_protection = if check_verified_properties(
+                        context,
+                        mime_parser,
+                        from_id,
+                        to_ids,
+                        Chattype::Single,
+                    )
+                    .await
+                    .is_ok()
                     {
-                        // This check is very similar to the one in check_verified_properties().
-                        let mut new_protection = if mime_parser.was_encrypted()
-                            && peerstate.has_verified_key(&mime_parser.signatures)
+                        ProtectionStatus::Protected
+                    } else {
+                        ProtectionStatus::Unprotected
+                    };
+
+                    let chat = Chat::load_from_db(context, chat_id).await?;
+
+                    if chat.protected != new_protection {
+                        if new_protection == ProtectionStatus::Unprotected
+                            && context
+                                .get_config_bool(Config::VerifiedOneOnOneChats)
+                                .await?
                         {
-                            ProtectionStatus::Protected
-                        } else {
-                            ProtectionStatus::Unprotected
-                        };
-
-                        let chat = Chat::load_from_db(context, chat_id).await?;
-
-                        if chat.protected != new_protection {
-                            if new_protection == ProtectionStatus::Unprotected
-                                && context
-                                    .get_config_bool(Config::VerifiedOneOnOneChats)
-                                    .await?
-                            {
-                                new_protection = ProtectionStatus::ProtectionBroken;
-                            }
-
-                            let sort_timestamp =
-                                calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
-                            chat_id
-                                .set_protection(context, new_protection, sort_timestamp, from_id)
-                                .await?;
+                            new_protection = ProtectionStatus::ProtectionBroken;
                         }
+
+                        let sort_timestamp =
+                            calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
+                        chat_id
+                            .set_protection(context, new_protection, sort_timestamp, from_id)
+                            .await?;
                     }
                 }
             }
@@ -2124,8 +2131,6 @@ async fn check_verified_properties(
     to_ids: &[ContactId],
     chat_type: Chattype,
 ) -> Result<()> {
-    let contact = Contact::get_by_id(context, from_id).await?;
-
     if from_id == ContactId::SELF && chat_type == Chattype::Single {
         // For outgoing emails in the 1:1 chat, we have an exception that
         // they are allowed to be unencrypted:
@@ -2145,24 +2150,13 @@ async fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
-        let peerstate = &mimeparser.decryption_info.peerstate;
-
-        if peerstate.is_none()
-            || contact.is_verified_ex(context, peerstate.as_ref()).await?
-                != VerifiedStatus::BidirectVerified
-        {
-            bail!(
-                "Sender of this message is not verified: {}",
-                contact.get_addr()
-            );
-        }
-
-        if let Some(peerstate) = peerstate {
-            ensure!(
-                peerstate.has_verified_key(&mimeparser.signatures),
-                "The message was sent with non-verified encryption"
-            );
-        } // `else` is not possible because we checked `peerstate.is_none()` above.
+        let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
+            bail!("No peerstate, the contact isn't verified");
+        };
+        ensure!(
+            peerstate.has_verified_key(&mimeparser.signatures),
+            "The message was sent with non-verified encryption"
+        );
     }
 
     // we do not need to check if we are verified with ourself
@@ -2196,6 +2190,8 @@ async fn check_verified_properties(
             },
         )
         .await?;
+
+    let contact = Contact::get_by_id(context, from_id).await?;
 
     for (to_addr, mut is_verified) in rows {
         info!(
