@@ -8,7 +8,6 @@
     missing_debug_implementations,
     missing_docs,
     clippy::all,
-    clippy::indexing_slicing,
     clippy::wildcard_imports,
     clippy::needless_borrow,
     clippy::cast_lossless,
@@ -17,6 +16,7 @@
     clippy::explicit_into_iter_loop,
     clippy::cloned_instead_of_copied
 )]
+#![cfg_attr(not(test), warn(clippy::indexing_slicing))]
 #![allow(
     clippy::match_bool,
     clippy::mixed_read_write_in_expression,

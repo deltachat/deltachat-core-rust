@@ -981,7 +981,11 @@ async fn add_parts(
         ephemeral_timer = EphemeralTimer::Disabled;
     }
 
-    if is_partial_download.is_none() && incoming && to_ids == [ContactId::SELF] {
+    if incoming
+        && is_partial_download.is_none()
+        && to_ids == [ContactId::SELF]
+        && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+    {
         let peerstate = &mime_parser.decryption_info.peerstate;
         // TODO code duplication with check_verified_properties()
         if let Some(peerstate) = peerstate {

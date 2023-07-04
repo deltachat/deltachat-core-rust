@@ -6,7 +6,7 @@ use anyhow::{bail, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
@@ -701,6 +701,9 @@ async fn secure_connection_established(
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
+    chat_id
+        .set_protection(context, ProtectionStatus::Protected, time(), contact_id)
+        .await?;
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
@@ -783,6 +786,7 @@ mod tests {
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
+    use crate::stock_str::chat_verification_enabled;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::EmailAddress;
 
@@ -921,7 +925,7 @@ mod tests {
         // Check Alice got the verified message in her 1:1 chat.
         {
             let chat = alice.create_chat(&bob).await;
-            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id())
+            let msg_ids: Vec<_> = chat::get_chat_msgs(&alice.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -929,11 +933,17 @@ mod tests {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
                     _ => None,
                 })
-                .max()
-                .expect("No messages in Alice's 1:1 chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            assert!(msg.get_text().contains("bob@example.net verified"));
+                .collect();
+            assert_eq!(msg_ids.len(), 2);
+
+            let msg0 = Message::load_from_db(&alice.ctx, msg_ids[0]).await.unwrap();
+            assert!(msg0.is_info());
+            assert!(msg0.get_text().contains("bob@example.net verified"));
+
+            let msg1 = Message::load_from_db(&alice.ctx, msg_ids[1]).await.unwrap();
+            assert!(msg1.is_info());
+            let expected_text = chat_verification_enabled(&alice, contact_bob_id).await;
+            assert_eq!(msg1.get_text(), expected_text);
         }
 
         // Check Alice sent the right message to Bob.
@@ -969,7 +979,7 @@ mod tests {
         // Check Bob got the verified message in his 1:1 chat.
         {
             let chat = bob.create_chat(&alice).await;
-            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id())
+            let msg_ids: Vec<_> = chat::get_chat_msgs(&bob.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -977,11 +987,16 @@ mod tests {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
                     _ => None,
                 })
-                .max()
-                .expect("No messages in Bob's 1:1 chat");
-            let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            assert!(msg.get_text().contains("alice@example.org verified"));
+                .collect();
+
+            let msg0 = Message::load_from_db(&bob.ctx, msg_ids[0]).await.unwrap();
+            assert!(msg0.is_info());
+            assert!(msg0.get_text().contains("alice@example.org verified"));
+
+            let msg1 = Message::load_from_db(&bob.ctx, msg_ids[1]).await.unwrap();
+            assert!(msg1.is_info());
+            let expected_text = chat_verification_enabled(&bob, contact_alice_id).await;
+            assert_eq!(msg1.get_text(), expected_text);
         }
 
         // Check Bob sent the final message

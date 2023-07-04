@@ -222,6 +222,9 @@ impl BobState {
         let msg = stock_str::contact_verified(context, &contact).await;
         let chat_id = self.joining_chat_id(context).await?;
         chat::add_info_msg(context, chat_id, &msg, time()).await?;
+        chat_id
+            .set_protection(context, ProtectionStatus::Protected, time(), contact.id)
+            .await?;
         context.emit_event(EventType::ChatModified(chat_id));
         Ok(())
     }
