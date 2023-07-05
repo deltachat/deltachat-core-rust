@@ -15,9 +15,10 @@ use once_cell::sync::Lazy;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
+use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
-use crate::constants::{DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
-use crate::contact::{addr_cmp, addr_normalize, ContactId};
+use crate::constants::{Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
+use crate::contact::{addr_cmp, addr_normalize, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
     keyring_from_peerstate, prepare_decryption, try_decrypt, validate_detached_signature,
@@ -28,13 +29,16 @@ use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
-use crate::message::{self, Viewtype};
+use crate::message::{self, set_msg_failed, update_msg_state, MessageState, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
-use crate::tools::{get_filemeta, parse_receive_headers, strip_rtlo_characters, truncate_by_lines};
+use crate::tools::{
+    create_smeared_timestamp, get_filemeta, parse_receive_headers, strip_rtlo_characters,
+    truncate_by_lines,
+};
 use crate::{location, tools};
 
 /// A parsed MIME message.
@@ -1648,16 +1652,10 @@ impl MimeMessage {
                 .iter()
                 .chain(&report.additional_message_ids)
             {
-                match message::handle_mdn(context, from_id, original_message_id, sent_timestamp)
-                    .await
+                if let Err(err) =
+                    handle_mdn(context, from_id, original_message_id, sent_timestamp).await
                 {
-                    Ok(Some((chat_id, msg_id))) => {
-                        context.emit_event(EventType::MsgRead { chat_id, msg_id });
-                    }
-                    Ok(None) => {}
-                    Err(err) => {
-                        warn!(context, "failed to handle_mdn: {:#}", err);
-                    }
+                    warn!(context, "Could not handle MDN: {err:#}.");
                 }
             }
         }
@@ -1668,8 +1666,8 @@ impl MimeMessage {
                     .iter()
                     .find(|p| p.typ == Viewtype::Text)
                     .map(|p| p.msg.clone());
-                if let Err(e) = message::handle_ndn(context, delivery_report, error).await {
-                    warn!(context, "Could not handle ndn: {}", e);
+                if let Err(err) = handle_ndn(context, delivery_report, error).await {
+                    warn!(context, "Could not handle NDN: {err:#}.");
                 }
             }
         }
@@ -2025,6 +2023,166 @@ fn get_all_addresses_from_header(
         });
 
     result
+}
+
+async fn handle_mdn(
+    context: &Context,
+    from_id: ContactId,
+    rfc724_mid: &str,
+    timestamp_sent: i64,
+) -> Result<()> {
+    if from_id == ContactId::SELF {
+        warn!(
+            context,
+            "Ignoring MDN sent to self, this is a bug on the sender device."
+        );
+
+        // This is not an error on our side,
+        // we successfully ignored an invalid MDN and return `Ok`.
+        return Ok(());
+    }
+
+    let Some((msg_id, chat_id, msg_state)) = context
+        .sql
+        .query_row_optional(
+            concat!(
+                "SELECT",
+                "    m.id AS msg_id,",
+                "    c.id AS chat_id,",
+                "    m.state AS state",
+                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
+                " WHERE rfc724_mid=? AND from_id=1",
+                " ORDER BY m.id"
+            ),
+            (&rfc724_mid,),
+            |row| {
+                let msg_id: MsgId = row.get("msg_id")?;
+                let chat_id: ChatId = row.get("chat_id")?;
+                let msg_state: MessageState = row.get("state")?;
+                Ok((msg_id, chat_id, msg_state))
+            },
+        )
+        .await? else {
+        info!(
+            context,
+            "Ignoring MDN, found no message with Message-ID {rfc724_mid:?} sent by us in the database.",
+        );
+        return Ok(());
+    };
+
+    if !context
+        .sql
+        .exists(
+            "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?",
+            (msg_id, from_id),
+        )
+        .await?
+    {
+        context
+            .sql
+            .execute(
+                "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?)",
+                (msg_id, from_id, timestamp_sent),
+            )
+            .await?;
+    }
+
+    if msg_state == MessageState::OutPreparing
+        || msg_state == MessageState::OutPending
+        || msg_state == MessageState::OutDelivered
+    {
+        update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await?;
+        context.emit_event(EventType::MsgRead { chat_id, msg_id });
+    }
+    Ok(())
+}
+
+/// Marks a message as failed after an ndn (non-delivery-notification) arrived.
+/// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
+async fn handle_ndn(
+    context: &Context,
+    failed: &DeliveryReport,
+    error: Option<String>,
+) -> Result<()> {
+    if failed.rfc724_mid.is_empty() {
+        return Ok(());
+    }
+
+    // The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
+    // In this case we need to mark multiple "msgids" as failed that all refer to the same message-id.
+    let msgs: Vec<_> = context
+        .sql
+        .query_map(
+            concat!(
+                "SELECT",
+                "    m.id AS msg_id,",
+                "    c.id AS chat_id,",
+                "    c.type AS type",
+                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
+                " WHERE rfc724_mid=? AND from_id=1",
+            ),
+            (&failed.rfc724_mid,),
+            |row| {
+                let msg_id: MsgId = row.get("msg_id")?;
+                let chat_id: ChatId = row.get("chat_id")?;
+                let chat_type: Chattype = row.get("type")?;
+                Ok((msg_id, chat_id, chat_type))
+            },
+            |rows| Ok(rows.collect::<Vec<_>>()),
+        )
+        .await?;
+
+    let error = if let Some(error) = error {
+        error
+    } else if let Some(failed_recipient) = &failed.failed_recipient {
+        format!("Delivery to {failed_recipient} failed.").clone()
+    } else {
+        "Delivery to at least one recipient failed.".to_string()
+    };
+
+    let mut first = true;
+    for msg in msgs {
+        let (msg_id, chat_id, chat_type) = msg?;
+        set_msg_failed(context, msg_id, &error).await;
+        if first {
+            // Add only one info msg for all failed messages
+            ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
+        }
+        first = false;
+    }
+
+    Ok(())
+}
+
+async fn ndn_maybe_add_info_msg(
+    context: &Context,
+    failed: &DeliveryReport,
+    chat_id: ChatId,
+    chat_type: Chattype,
+) -> Result<()> {
+    match chat_type {
+        Chattype::Group | Chattype::Broadcast => {
+            if let Some(failed_recipient) = &failed.failed_recipient {
+                let contact_id =
+                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
+                        .await?
+                        .context("contact ID not found")?;
+                let contact = Contact::get_by_id(context, contact_id).await?;
+                // Tell the user which of the recipients failed if we know that (because in
+                // a group, this might otherwise be unclear)
+                let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
+                add_info_msg(context, chat_id, &text, create_smeared_timestamp(context)).await?;
+                context.emit_event(EventType::ChatModified(chat_id));
+            }
+        }
+        Chattype::Mailinglist => {
+            // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
+            // If we get an NDN for the mailing list, just issue a warning.
+            warn!(context, "ignoring NDN for mailing list.");
+        }
+        Chattype::Single | Chattype::Undefined => {}
+    }
+    Ok(())
 }
 
 #[cfg(test)]
