@@ -713,7 +713,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::{message::get_msg_info, receive_imf::receive_imf, test_utils::TestContext};
+    use crate::{receive_imf::receive_imf, test_utils::TestContext};
 
     #[test]
     fn test_parse_receive_headers() {
@@ -786,7 +786,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let t = TestContext::new_alice().await;
         receive_imf(&t, raw, false).await.unwrap();
         let msg = t.get_last_msg().await;
-        let msg_info = get_msg_info(&t, msg.id).await.unwrap();
+        let msg_info = msg.id.get_info(&t).await.unwrap();
 
         // Ignore the first rows of the msg_info because they contain a
         // received time that depends on the test time which makes it impossible to

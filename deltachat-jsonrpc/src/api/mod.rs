@@ -19,9 +19,7 @@ use deltachat::{
     context::get_info,
     ephemeral::Timer,
     imex, location,
-    message::{
-        self, delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype,
-    },
+    message::{self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype},
     provider::get_provider_info,
     qr,
     qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg},
@@ -1119,7 +1117,7 @@ impl CommandApi {
     /// max. text returned by dc_msg_get_text() (about 30000 characters).
     async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        get_msg_info(&ctx, MsgId::new(message_id)).await
+        MsgId::new(message_id).get_info(&ctx).await
     }
 
     /// Returns contacts that sent read receipts and the time of reading.
