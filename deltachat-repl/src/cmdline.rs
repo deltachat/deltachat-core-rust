@@ -1088,7 +1088,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
-            let res = message::get_msg_info(&context, id).await?;
+            let res = id.get_info(&context).await?;
             println!("{res}");
         }
         "download" => {

@@ -1877,13 +1877,10 @@ pub unsafe extern "C" fn dc_get_msg_info(
         return "".strdup();
     }
     let ctx = &*context;
-
-    block_on(async move {
-        message::get_msg_info(ctx, MsgId::new(msg_id))
-            .await
-            .unwrap_or_log_default(ctx, "failed to get msg id")
-            .strdup()
-    })
+    let msg_id = MsgId::new(msg_id);
+    block_on(msg_id.get_info(ctx))
+        .unwrap_or_log_default(ctx, "failed to get msg id")
+        .strdup()
 }
 
 #[no_mangle]

@@ -357,7 +357,6 @@ mod tests {
     use super::*;
     use crate::aheader::EncryptPreference;
     use crate::e2ee;
-    use crate::message;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
     use crate::securejoin::get_securejoin_qr;
@@ -825,7 +824,9 @@ Authentication-Results: dkim=";
         // Disallowing keychanges is disabled for now:
         // assert!(rcvd.error.unwrap().contains("DKIM failed"));
         // The message info should contain a warning:
-        assert!(message::get_msg_info(&bob, rcvd.id)
+        assert!(rcvd
+            .id
+            .get_info(&bob)
             .await
             .unwrap()
             .contains("KEYCHANGES NOT ALLOWED"));

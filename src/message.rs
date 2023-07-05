@@ -157,6 +157,171 @@ WHERE id=?;
     pub fn to_u32(self) -> u32 {
         self.0
     }
+
+    /// Returns detailed message information in a multi-line text form.
+    pub async fn get_info(self, context: &Context) -> Result<String> {
+        let msg = Message::load_from_db(context, self).await?;
+        let rawtxt: Option<String> = context
+            .sql
+            .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
+            .await?;
+
+        let mut ret = String::new();
+
+        if rawtxt.is_none() {
+            ret += &format!("Cannot load message {self}.");
+            return Ok(ret);
+        }
+        let rawtxt = rawtxt.unwrap_or_default();
+        let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
+
+        let fts = timestamp_to_str(msg.get_timestamp());
+        ret += &format!("Sent: {fts}");
+
+        let name = Contact::get_by_id(context, msg.from_id)
+            .await
+            .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_default();
+
+        ret += &format!(" by {name}");
+        ret += "\n";
+
+        if msg.from_id != ContactId::SELF {
+            let s = timestamp_to_str(if 0 != msg.timestamp_rcvd {
+                msg.timestamp_rcvd
+            } else {
+                msg.timestamp_sort
+            });
+            ret += &format!("Received: {}", &s);
+            ret += "\n";
+        }
+
+        if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
+            ret += &format!("Ephemeral timer: {duration}\n");
+        }
+
+        if msg.ephemeral_timestamp != 0 {
+            ret += &format!("Expires: {}\n", timestamp_to_str(msg.ephemeral_timestamp));
+        }
+
+        if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
+            // device-internal message, no further details needed
+            return Ok(ret);
+        }
+
+        if let Ok(rows) = context
+            .sql
+            .query_map(
+                "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?",
+                (self,),
+                |row| {
+                    let contact_id: ContactId = row.get(0)?;
+                    let ts: i64 = row.get(1)?;
+                    Ok((contact_id, ts))
+                },
+                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await
+        {
+            for (contact_id, ts) in rows {
+                let fts = timestamp_to_str(ts);
+                ret += &format!("Read: {fts}");
+
+                let name = Contact::get_by_id(context, contact_id)
+                    .await
+                    .map(|contact| contact.get_name_n_addr())
+                    .unwrap_or_default();
+
+                ret += &format!(" by {name}");
+                ret += "\n";
+            }
+        }
+
+        ret += &format!("State: {}", msg.state);
+
+        if msg.has_location() {
+            ret += ", Location sent";
+        }
+
+        let e2ee_errors = msg.param.get_int(Param::ErroneousE2ee).unwrap_or_default();
+
+        if 0 != e2ee_errors {
+            if 0 != e2ee_errors & 0x2 {
+                ret += ", Encrypted, no valid signature";
+            }
+        } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
+            ret += ", Encrypted";
+        }
+
+        ret += "\n";
+
+        let reactions = get_msg_reactions(context, self).await?;
+        if !reactions.is_empty() {
+            ret += &format!("Reactions: {reactions}\n");
+        }
+
+        if let Some(error) = msg.error.as_ref() {
+            ret += &format!("Error: {error}");
+        }
+
+        if let Some(path) = msg.get_file(context) {
+            let bytes = get_filebytes(context, &path).await?;
+            ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
+        }
+
+        if msg.viewtype != Viewtype::Text {
+            ret += "Type: ";
+            ret += &format!("{}", msg.viewtype);
+            ret += "\n";
+            ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
+        }
+        let w = msg.param.get_int(Param::Width).unwrap_or_default();
+        let h = msg.param.get_int(Param::Height).unwrap_or_default();
+        if w != 0 || h != 0 {
+            ret += &format!("Dimension: {w} x {h}\n",);
+        }
+        let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
+        if duration != 0 {
+            ret += &format!("Duration: {duration} ms\n",);
+        }
+        if !rawtxt.is_empty() {
+            ret += &format!("\n{rawtxt}\n");
+        }
+        if !msg.rfc724_mid.is_empty() {
+            ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
+
+            let server_uids = context
+                .sql
+                .query_map(
+                    "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
+                    (msg.rfc724_mid,),
+                    |row| {
+                        let folder: String = row.get("folder")?;
+                        let uid: u32 = row.get("uid")?;
+                        Ok((folder, uid))
+                    },
+                    |rows| {
+                        rows.collect::<std::result::Result<Vec<_>, _>>()
+                            .map_err(Into::into)
+                    },
+                )
+                .await?;
+
+            for (folder, uid) in server_uids {
+                // Format as RFC 5092 relative IMAP URL.
+                ret += &format!("\n</{folder}/;UID={uid}>");
+            }
+        }
+        let hop_info: Option<String> = context
+            .sql
+            .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (self,))
+            .await?;
+
+        ret += "\n\n";
+        ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
+
+        Ok(ret)
+    }
 }
 
 impl std::fmt::Display for MsgId {
@@ -1107,171 +1272,6 @@ pub async fn get_msg_read_receipts(
             |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
         .await
-}
-
-/// Returns detailed message information in a multi-line text form.
-pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
-    let msg = Message::load_from_db(context, msg_id).await?;
-    let rawtxt: Option<String> = context
-        .sql
-        .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    let mut ret = String::new();
-
-    if rawtxt.is_none() {
-        ret += &format!("Cannot load message {msg_id}.");
-        return Ok(ret);
-    }
-    let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
-
-    let fts = timestamp_to_str(msg.get_timestamp());
-    ret += &format!("Sent: {fts}");
-
-    let name = Contact::get_by_id(context, msg.from_id)
-        .await
-        .map(|contact| contact.get_name_n_addr())
-        .unwrap_or_default();
-
-    ret += &format!(" by {name}");
-    ret += "\n";
-
-    if msg.from_id != ContactId::SELF {
-        let s = timestamp_to_str(if 0 != msg.timestamp_rcvd {
-            msg.timestamp_rcvd
-        } else {
-            msg.timestamp_sort
-        });
-        ret += &format!("Received: {}", &s);
-        ret += "\n";
-    }
-
-    if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
-        ret += &format!("Ephemeral timer: {duration}\n");
-    }
-
-    if msg.ephemeral_timestamp != 0 {
-        ret += &format!("Expires: {}\n", timestamp_to_str(msg.ephemeral_timestamp));
-    }
-
-    if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
-        // device-internal message, no further details needed
-        return Ok(ret);
-    }
-
-    if let Ok(rows) = context
-        .sql
-        .query_map(
-            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-            (msg_id,),
-            |row| {
-                let contact_id: ContactId = row.get(0)?;
-                let ts: i64 = row.get(1)?;
-                Ok((contact_id, ts))
-            },
-            |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-        )
-        .await
-    {
-        for (contact_id, ts) in rows {
-            let fts = timestamp_to_str(ts);
-            ret += &format!("Read: {fts}");
-
-            let name = Contact::get_by_id(context, contact_id)
-                .await
-                .map(|contact| contact.get_name_n_addr())
-                .unwrap_or_default();
-
-            ret += &format!(" by {name}");
-            ret += "\n";
-        }
-    }
-
-    ret += &format!("State: {}", msg.state);
-
-    if msg.has_location() {
-        ret += ", Location sent";
-    }
-
-    let e2ee_errors = msg.param.get_int(Param::ErroneousE2ee).unwrap_or_default();
-
-    if 0 != e2ee_errors {
-        if 0 != e2ee_errors & 0x2 {
-            ret += ", Encrypted, no valid signature";
-        }
-    } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
-        ret += ", Encrypted";
-    }
-
-    ret += "\n";
-
-    let reactions = get_msg_reactions(context, msg_id).await?;
-    if !reactions.is_empty() {
-        ret += &format!("Reactions: {reactions}\n");
-    }
-
-    if let Some(error) = msg.error.as_ref() {
-        ret += &format!("Error: {error}");
-    }
-
-    if let Some(path) = msg.get_file(context) {
-        let bytes = get_filebytes(context, &path).await?;
-        ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
-    }
-
-    if msg.viewtype != Viewtype::Text {
-        ret += "Type: ";
-        ret += &format!("{}", msg.viewtype);
-        ret += "\n";
-        ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
-    }
-    let w = msg.param.get_int(Param::Width).unwrap_or_default();
-    let h = msg.param.get_int(Param::Height).unwrap_or_default();
-    if w != 0 || h != 0 {
-        ret += &format!("Dimension: {w} x {h}\n",);
-    }
-    let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
-    if duration != 0 {
-        ret += &format!("Duration: {duration} ms\n",);
-    }
-    if !rawtxt.is_empty() {
-        ret += &format!("\n{rawtxt}\n");
-    }
-    if !msg.rfc724_mid.is_empty() {
-        ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
-
-        let server_uids = context
-            .sql
-            .query_map(
-                "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
-                (msg.rfc724_mid,),
-                |row| {
-                    let folder: String = row.get("folder")?;
-                    let uid: u32 = row.get("uid")?;
-                    Ok((folder, uid))
-                },
-                |rows| {
-                    rows.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
-            )
-            .await?;
-
-        for (folder, uid) in server_uids {
-            // Format as RFC 5092 relative IMAP URL.
-            ret += &format!("\n</{folder}/;UID={uid}>");
-        }
-    }
-    let hop_info: Option<String> = context
-        .sql
-        .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    ret += "\n\n";
-    ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
-
-    Ok(ret)
 }
 
 pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
