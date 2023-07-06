@@ -1038,7 +1038,7 @@ fn print_logevent(logevent: &LogEvent) {
     }
 }
 
-/// Save the other account's public key as verified.
+/// Saves the other account's public key as verified.
 pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
     let mut peerstate = Peerstate::from_header(
         &EncryptHelper::new(other).await.unwrap().get_aheader(),
