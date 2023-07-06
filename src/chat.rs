@@ -93,7 +93,7 @@ pub enum ProtectionStatus {
     ///
     /// We only do this in 1:1 chats; in group chats, the chat just
     /// stays protected.
-    ProtectionBroken = 3,
+    ProtectionBroken = 3, // `2` was never used as a value.
 }
 
 /// The reason why messages cannot be sent to the chat.
@@ -1441,6 +1441,9 @@ impl Chat {
     }
 
     /// Returns true if the chat was protected, and then an incoming message broke this protection.
+    ///
+    /// This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
+    /// otherwise it will return '0' for all chats.
     ///
     /// 1:1 chats are automatically set as protected when a contact is verified.
     /// When a message comes in that is not encrypted / signed correctly,

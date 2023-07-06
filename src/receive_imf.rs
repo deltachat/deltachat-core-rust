@@ -729,7 +729,6 @@ async fn add_parts(
                     && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
                     && !is_mdn
                 {
-                    // This check is very similar to the one in check_verified_properties().
                     let mut new_protection = if check_verified_properties(
                         context,
                         mime_parser,

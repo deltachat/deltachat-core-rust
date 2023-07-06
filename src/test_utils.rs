@@ -164,7 +164,7 @@ impl TestContextManager {
 
     pub async fn execute_securejoin(&self, scanner: &TestContext, scanned: &TestContext) {
         self.section(&format!(
-            "{} scanns {}'s QR code",
+            "{} scans {}'s QR code",
             scanner.name(),
             scanned.name()
         ));

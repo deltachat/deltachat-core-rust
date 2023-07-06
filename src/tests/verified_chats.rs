@@ -474,9 +474,7 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
             .can_send(&alice)
             .await?
     );
-    println!("dbg");
     tcm.execute_securejoin(&alice, &bob_new).await;
-    println!("dbg");
     assert_verified(&alice, &bob_new, ProtectionStatus::Protected).await;
 
     Ok(())
