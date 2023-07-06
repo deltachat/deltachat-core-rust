@@ -2164,7 +2164,7 @@ async fn prepare_msg_common(
         {
             // Send out the message, the securejoin message is supposed to repair the verification
         } else {
-            bail!("cannot send to {}: {}", chat_id, reason);
+            bail!("cannot send to {chat_id}: {reason}");
         }
     }
 
