@@ -4083,6 +4083,52 @@ mod tests {
         Ok(())
     }
 
+    /// Test simultaneous removal of user from the chat and leaving the group.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_simultaneous_member_remove() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        alice.set_config(Config::E2eeEnabled, Some("0")).await?;
+        bob.set_config(Config::E2eeEnabled, Some("0")).await?;
+
+        let alice_bob_contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let alice_fiona_contact_id = Contact::create(&alice, "Fiona", "fiona@example.net").await?;
+
+        // Create and promote a group.
+        let alice_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_fiona_contact_id).await?;
+        let alice_sent_msg = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        let bob_received_msg = bob.recv_msg(&alice_sent_msg).await;
+
+        let bob_chat_id = bob_received_msg.get_chat_id();
+        bob_chat_id.accept(&bob).await?;
+
+        // Alice removes Bob from the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let alice_sent_remove_msg = alice.pop_sent_msg().await;
+
+        // Bob leaves the chat.
+        remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+
+        // Bob receives a msg about Alice removing him from the group.
+        let bob_received_remove_msg = bob.recv_msg(&alice_sent_remove_msg).await;
+
+        // Test that the message is rewritten.
+        assert_eq!(
+            bob_received_remove_msg.get_text(),
+            "Member Me (bob@example.net) removed by alice@example.org."
+        );
+
+        Ok(())
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_modify_chat_multi_device() -> Result<()> {
         let a1 = TestContext::new_alice().await;
