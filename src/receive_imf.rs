@@ -1682,6 +1682,13 @@ async fn apply_group_changes(
 
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
+
+        better_msg = if removed_id == Some(from_id) {
+            Some(stock_str::msg_group_left_local(context, from_id).await)
+        } else {
+            Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
+        };
+
         if let Some(contact_id) = removed_id {
             if allow_member_list_changes {
                 // Remove a single member from the chat.
@@ -1689,12 +1696,6 @@ async fn apply_group_changes(
                     chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
                     send_event_chat_modified = true;
                 }
-
-                better_msg = if contact_id == from_id {
-                    Some(stock_str::msg_group_left_local(context, from_id).await)
-                } else {
-                    Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
-                };
             } else {
                 info!(
                     context,
@@ -1705,6 +1706,8 @@ async fn apply_group_changes(
             warn!(context, "Removed {removed_addr:?} has no contact id.")
         }
     } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
+        better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
+
         if allow_member_list_changes {
             // Add a single member to the chat.
             if !recreate_member_list {
@@ -1717,8 +1720,6 @@ async fn apply_group_changes(
                     warn!(context, "Added {added_addr:?} has no contact id.")
                 }
             }
-
-            better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
         } else {
             info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
         }
