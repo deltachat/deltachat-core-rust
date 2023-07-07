@@ -3604,29 +3604,31 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         msgs.push(msg)
     }
 
-    if let Some(chat_id) = chat_id {
-        let chat = Chat::load_from_db(context, chat_id).await?;
-        for mut msg in msgs {
-            if msg.get_showpadlock() && !chat.is_protected() {
-                msg.param.remove(Param::GuaranteeE2ee);
-                msg.update_param(context).await?;
+    let Some(chat_id) = chat_id else {
+        return Ok(());
+    };
+
+    let chat = Chat::load_from_db(context, chat_id).await?;
+    for mut msg in msgs {
+        if msg.get_showpadlock() && !chat.is_protected() {
+            msg.param.remove(Param::GuaranteeE2ee);
+            msg.update_param(context).await?;
+        }
+        match msg.get_state() {
+            MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
+                message::update_msg_state(context, msg.id, MessageState::OutPending).await?
             }
-            match msg.get_state() {
-                MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
-                    message::update_msg_state(context, msg.id, MessageState::OutPending).await?
-                }
-                _ => bail!("unexpected message state"),
-            }
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: msg.chat_id,
-                msg_id: msg.id,
-            });
-            if create_send_msg_job(context, msg.id).await?.is_some() {
-                context
-                    .scheduler
-                    .interrupt_smtp(InterruptInfo::new(false))
-                    .await;
-            }
+            _ => bail!("unexpected message state"),
+        }
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: msg.chat_id,
+            msg_id: msg.id,
+        });
+        if create_send_msg_job(context, msg.id).await?.is_some() {
+            context
+                .scheduler
+                .interrupt_smtp(InterruptInfo::new(false))
+                .await;
         }
     }
     Ok(())
