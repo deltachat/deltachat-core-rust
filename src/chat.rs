@@ -305,12 +305,7 @@ impl ChatId {
 
         if create_protected == ProtectionStatus::Protected {
             chat_id
-                .add_protection_msg(
-                    context,
-                    ProtectionStatus::Protected,
-                    ContactId::new(0),
-                    smeared_time,
-                )
+                .add_protection_msg(context, ProtectionStatus::Protected, None, smeared_time)
                 .await?;
         }
 
@@ -495,7 +490,7 @@ impl ChatId {
         self,
         context: &Context,
         protect: ProtectionStatus,
-        contact_id: ContactId,
+        contact_id: Option<ContactId>,
         timestamp_sort: i64,
     ) -> Result<()> {
         let text = context.stock_protection_msg(protect, contact_id).await;
@@ -518,7 +513,7 @@ impl ChatId {
         context: &Context,
         protect: ProtectionStatus,
         timestamp_sort: i64,
-        contact_id: ContactId,
+        contact_id: Option<ContactId>,
     ) -> Result<()> {
         match self.inner_set_protection(context, protect).await {
             Ok(protection_status_modified) => {
@@ -2053,7 +2048,7 @@ impl ChatIdBlocked {
                 .add_protection_msg(
                     context,
                     ProtectionStatus::Protected,
-                    contact_id,
+                    Some(contact_id),
                     smeared_time,
                 )
                 .await?;
@@ -2938,7 +2933,7 @@ pub async fn create_group_chat(
 
     if protect == ProtectionStatus::Protected {
         chat_id
-            .set_protection(context, protect, timestamp, ContactId::new(0))
+            .set_protection(context, protect, timestamp, None)
             .await?;
     }
 

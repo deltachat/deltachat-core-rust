@@ -702,7 +702,12 @@ async fn secure_connection_established(
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
     chat_id
-        .set_protection(context, ProtectionStatus::Protected, time(), contact_id)
+        .set_protection(
+            context,
+            ProtectionStatus::Protected,
+            time(),
+            Some(contact_id),
+        )
         .await?;
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())

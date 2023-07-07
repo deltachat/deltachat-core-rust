@@ -758,7 +758,7 @@ async fn add_parts(
                         let sort_timestamp =
                             calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
                         chat_id
-                            .set_protection(context, new_protection, sort_timestamp, from_id)
+                            .set_protection(context, new_protection, sort_timestamp, Some(from_id))
                             .await?;
                     }
                 }

@@ -1320,11 +1320,17 @@ impl Context {
     pub(crate) async fn stock_protection_msg(
         &self,
         protect: ProtectionStatus,
-        contact_id: ContactId,
+        contact_id: Option<ContactId>,
     ) -> String {
         match protect {
             ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {
-                chat_protection_disabled(self, contact_id).await
+                if let Some(contact_id) = contact_id {
+                    chat_protection_disabled(self, contact_id).await
+                } else {
+                    // In a group chat, it's not possible to downgrade verification.
+                    // In a 1:1 chat, the `contact_id` always has to be provided.
+                    "[Error] No contact_id given".to_string()
+                }
             }
             ProtectionStatus::Protected => chat_protection_enabled(self).await,
         }
