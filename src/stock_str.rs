@@ -408,14 +408,10 @@ pub enum StockMessage {
     #[strum(props(fallback = "I left the group."))]
     MsgILeftGroup = 166,
 
-    // TODO remove "Tap to learn more.", instead put a link to the online help when the online help is ready
-    #[strum(props(
-        fallback = "Messages are guaranteed to be end-to-end encrypted from now on. Tap to learn more."
-    ))]
+    #[strum(props(fallback = "Messages are guaranteed to be end-to-end encrypted from now on."))]
     ChatProtectionEnabled = 170,
 
-    // TODO remove "Tap to learn more.", instead put a link to the online help when the online help is ready
-    #[strum(props(fallback = "%1$s sent a message from another device. Tap to learn more."))]
+    #[strum(props(fallback = "%1$s sent a message from another device."))]
     ChatProtectionDisabled = 171,
 }
 
@@ -1055,12 +1051,12 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
     translated(context, StockMessage::ErrorNoNetwork).await
 }
 
-/// Stock string: TODO.
+/// Stock string: `Messages are guaranteed to be end-to-end encrypted from now on.`
 pub(crate) async fn chat_protection_enabled(context: &Context) -> String {
     translated(context, StockMessage::ChatProtectionEnabled).await
 }
 
-/// Stock string: TODO.
+/// Stock string: `%1$s sent a message from another device.`
 pub(crate) async fn chat_protection_disabled(context: &Context, contact_id: ContactId) -> String {
     translated(context, StockMessage::ChatProtectionDisabled)
         .await

@@ -7205,12 +7205,12 @@ void dc_event_unref(dc_event_t* event);
 /// Used as a device message after a successful backup transfer.
 #define DC_STR_BACKUP_TRANSFER_MSG_BODY 163
 
-/// "Messages are guaranteed to be end-to-end encrypted from now on. See https://TODO to learn more" // Replace TODO with a link to the online help
+/// "Messages are guaranteed to be end-to-end encrypted from now on."
 ///
 /// Used in info messages.
 #define DC_STR_CHAT_PROTECTION_ENABLED 170
 
-/// "%1$s sent a message from another device. See https://TODO to learn more" // Replace TODO with a link to the online help
+/// "%1$s sent a message from another device."
 ///
 /// Used in info messages.
 #define DC_STR_CHAT_PROTECTION_DISABLED 171
