@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{Context as _, Result};
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -729,19 +729,17 @@ async fn add_parts(
                     && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
                     && !is_mdn
                 {
-                    let mut new_protection = if check_verified_properties(
+                    let mut new_protection = match has_verified_encryption(
                         context,
                         mime_parser,
                         from_id,
                         to_ids,
                         Chattype::Single,
                     )
-                    .await
-                    .is_ok()
+                    .await?
                     {
-                        ProtectionStatus::Protected
-                    } else {
-                        ProtectionStatus::Unprotected
+                        VerifiedEncryption::Verified => ProtectionStatus::Protected,
+                        VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
                     };
 
                     let chat = Chat::load_from_db(context, chat_id).await?;
@@ -1030,8 +1028,8 @@ async fn add_parts(
         let chat = Chat::load_from_db(context, chat_id).await?;
 
         if chat.is_protected() {
-            if let Err(err) =
-                check_verified_properties(context, mime_parser, from_id, to_ids, chat.typ).await
+            if let VerifiedEncryption::NotVerified(err) =
+                has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
             {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
@@ -1537,8 +1535,8 @@ async fn create_or_lookup_group(
     }
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) =
-            check_verified_properties(context, mime_parser, from_id, to_ids, Chattype::Group).await
+        if let VerifiedEncryption::NotVerified(err) =
+            has_verified_encryption(context, mime_parser, from_id, to_ids, Chattype::Group).await?
         {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
@@ -2123,13 +2121,24 @@ async fn create_adhoc_group(
     Ok(Some(new_chat_id))
 }
 
-async fn check_verified_properties(
+enum VerifiedEncryption {
+    Verified,
+    NotVerified(String), // The string contains the reason why it's not verified
+}
+
+/// Checks whether the message is allowed to appear in a protected chat.
+///
+/// This means that it is encrypted, signed with a verified key,
+/// and if it's a group, all the recipients are verified.
+async fn has_verified_encryption(
     context: &Context,
     mimeparser: &MimeMessage,
     from_id: ContactId,
     to_ids: &[ContactId],
     chat_type: Chattype,
-) -> Result<()> {
+) -> Result<VerifiedEncryption> {
+    use VerifiedEncryption::*;
+
     if from_id == ContactId::SELF && chat_type == Chattype::Single {
         // For outgoing emails in the 1:1 chat, we have an exception that
         // they are allowed to be unencrypted:
@@ -2139,10 +2148,12 @@ async fn check_verified_properties(
         //    -> Showing info messages everytime would be a lot of noise
         // 3. The info messages that are shown to the user ("Your chat partner
         //    likely reinstalled DC" or similar) would be wrong.
-        return Ok(());
+        return Ok(Verified);
     }
 
-    ensure!(mimeparser.was_encrypted(), "This message is not encrypted");
+    if !mimeparser.was_encrypted() {
+        return Ok(NotVerified("This message is not encrypted".to_string()));
+    };
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
@@ -2150,12 +2161,14 @@ async fn check_verified_properties(
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
         let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
-            bail!("No peerstate, the contact isn't verified");
+            return Ok(NotVerified("No peerstate, the contact isn't verified".to_string()));
         };
-        ensure!(
-            peerstate.has_verified_key(&mimeparser.signatures),
-            "The message was sent with non-verified encryption"
-        );
+
+        if !peerstate.has_verified_key(&mimeparser.signatures) {
+            return Ok(NotVerified(
+                "The message was sent with non-verified encryption".to_string(),
+            ));
+        }
     }
 
     // we do not need to check if we are verified with ourself
@@ -2166,7 +2179,7 @@ async fn check_verified_properties(
         .collect::<Vec<ContactId>>();
 
     if to_ids.is_empty() {
-        return Ok(());
+        return Ok(Verified);
     }
 
     let rows = context
@@ -2195,7 +2208,7 @@ async fn check_verified_properties(
     for (to_addr, mut is_verified) in rows {
         info!(
             context,
-            "check_verified_properties: {:?} self={:?}.",
+            "has_verified_encryption: {:?} self={:?}.",
             to_addr,
             context.is_self_addr(&to_addr).await
         );
@@ -2229,13 +2242,13 @@ async fn check_verified_properties(
             }
         }
         if !is_verified {
-            bail!(
+            return Ok(NotVerified(format!(
                 "{} is not a member of this protected chat",
                 to_addr.to_string()
-            );
+            )));
         }
     }
-    Ok(())
+    Ok(Verified)
 }
 
 /// Returns the last message referenced from `References` header if it is in the database.
