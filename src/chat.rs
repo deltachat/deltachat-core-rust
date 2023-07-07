@@ -2202,7 +2202,7 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    // protect all system messages againts RTLO attacks
+    // protect all system messages against RTLO attacks
     if msg.is_system_message() {
         msg.text = strip_rtlo_characters(&msg.text);
     }
