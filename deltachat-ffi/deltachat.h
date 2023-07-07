@@ -420,11 +420,11 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=watch all folders normally (default)
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
- *                    show direct replies to chats only (default),
+ *                    show direct replies to chats only,
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=
  *                    also show all mails of confirmed contacts,
  *                    DC_SHOW_EMAILS_ALL (2)=
- *                    also show mails of unconfirmed contacts.
+ *                    also show mails of unconfirmed contacts (default).
  * - `key_gen_type` = DC_KEY_GEN_DEFAULT (0)=
  *                    generate recommended key type (default),
  *                    DC_KEY_GEN_RSA2048 (1)=
