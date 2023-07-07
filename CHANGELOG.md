@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.118.0] - 2023-07-07
+
+### API-Changes
+
+- [**breaking**] Remove `Contact::load_from_db()` in favor of `Contact::get_by_id()`.
+- Add `Contact::get_by_id_optional()` API.
+- [**breaking**] Make `Message.text` non-optional.
+- [**breaking**] Replace `message::get_msg_info()` with `MsgId.get_info()`.
+- Move `handle_mdn` and `handle_ndn` to mimeparser and make them private.
+  Previously `handle_mdn` was erroneously exposed in the public API.
+- python: flatten the API of `deltachat` module.
+
+### Fixes
+
+- Use different member added/removal messages locally and on the network.
+- Update tokio to 1.29.1 to fix core panic after sending 29 offline messages ([#4414](https://github.com/deltachat/deltachat-core-rust/issues/4414)).
+- Make SVG avatar image work on more platforms (use `xlink:href`).
+- Preserve indentation when converting plaintext to HTML.
+- Do not run simplify() on dehtml() output.
+- Rewrite member added/removed messages even if the change is not allowed PR ([#4529](https://github.com/deltachat/deltachat-core-rust/pull/4529)).
+
+### Documentation
+
+- Document how to regenerate Node.js constants before the release.
+
+### Build system
+
+- git-cliff: Do not fail if commit.footers is undefined.
+
+### Other
+
+- Dependency updates.
+- Update MPL 2.0 license text.
+- Add LICENSE file to deltachat-rpc-client.
+- deltachat-rpc-client: Add Trove classifiers.
+- python: Change bindings status to production/stable.
+
+### Tests
+
+- Add `make-python-testenv.sh` script.
+
 ## [1.117.0] - 2023-06-15
 
 ### Features
@@ -2630,3 +2671,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.115.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.114.0...v1.115.0
 [1.116.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.115.0...v1.116.0
 [1.117.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.116.0...v1.117.0
+[1.118.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.117.0...v1.118.0
