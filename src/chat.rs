@@ -431,9 +431,6 @@ impl ChatId {
 
     /// Sets protection without sending a message.
     ///
-    /// Used when a message arrives indicating that someone else has
-    /// changed the protection value for a chat.
-    ///
     /// Returns whether the protection status was actually modified.
     pub(crate) async fn inner_set_protection(
         self,
