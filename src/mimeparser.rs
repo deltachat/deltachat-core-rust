@@ -2156,7 +2156,7 @@ async fn handle_ndn(
     let mut first = true;
     for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, msg_id, &error).await;
+        set_msg_failed(context, msg_id, &error).await?;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
