@@ -3546,7 +3546,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                 .await?;
             curr_timestamp += 1;
-            let save_param = msg.param.clone();
             msg.param = original_param;
             msg.id = src_msg_id;
 
@@ -3559,7 +3558,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
             }
 
             msg.update_param(context).await?;
-            msg.param = save_param;
         } else {
             msg.state = MessageState::OutPending;
             new_msg_id = chat
