@@ -2388,7 +2388,7 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    let row_id = create_send_msg_job(context, msg.id).await?;
+    let row_id = create_send_msg_job(context, msg).await?;
     Ok(row_id)
 }
 
@@ -2398,10 +2398,10 @@ async fn prepare_send_msg(
 /// group with only self and no BCC-to-self configured.
 ///
 /// The caller has to interrupt SMTP loop or otherwise process a new row.
-async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<i64>> {
-    let mut msg = Message::load_from_db(context, msg_id).await?;
-
-    /* create message */
+pub(crate) async fn create_send_msg_job(
+    context: &Context,
+    msg: &mut Message,
+) -> Result<Option<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
 
     let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
@@ -2412,7 +2412,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         }
     };
 
-    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+    let mimefactory = MimeFactory::from_msg(context, msg, attach_selfavatar).await?;
 
     let mut recipients = mimefactory.recipients();
 
@@ -2434,16 +2434,17 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         // may happen eg. for groups with only SELF and bcc_self disabled
         info!(
             context,
-            "Message {msg_id} has no recipient, skipping smtp-send."
+            "Message {} has no recipient, skipping smtp-send.", msg.id
         );
-        msg_id.set_delivered(context).await?;
+        msg.id.set_delivered(context).await?;
+        msg.state = MessageState::OutDelivered;
         return Ok(None);
     }
 
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
         Err(err) => {
-            message::set_msg_failed(context, msg_id, &err.to_string()).await?;
+            message::set_msg_failed(context, msg.id, &err.to_string()).await?;
             Err(err)
         }
     }?;
@@ -2452,13 +2453,13 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         /* unrecoverable */
         message::set_msg_failed(
             context,
-            msg_id,
+            msg.id,
             "End-to-end-encryption unavailable unexpectedly.",
         )
         .await?;
         bail!(
             "e2e encryption unavailable {} - {:?}",
-            msg_id,
+            msg.id,
             needs_encryption
         );
     }
@@ -2514,7 +2515,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
                 &rendered_msg.rfc724_mid,
                 recipients,
                 &rendered_msg.message,
-                msg_id,
+                msg.id,
             ),
         )
         .await?;
@@ -3568,7 +3569,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                 .await?;
             curr_timestamp += 1;
-            if create_send_msg_job(context, new_msg_id).await?.is_some() {
+            if create_send_msg_job(context, &mut msg).await?.is_some() {
                 context
                     .scheduler
                     .interrupt_smtp(InterruptInfo::new(false))
@@ -3628,7 +3629,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             chat_id: msg.chat_id,
             msg_id: msg.id,
         });
-        if create_send_msg_job(context, msg.id).await?.is_some() {
+        if create_send_msg_job(context, &mut msg).await?.is_some() {
             context
                 .scheduler
                 .interrupt_smtp(InterruptInfo::new(false))
