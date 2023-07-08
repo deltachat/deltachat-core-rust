@@ -909,10 +909,8 @@ mod tests {
     }
 
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
-        let file = t.get_blobdir().join(name);
-        tokio::fs::write(&file, bytes).await?;
         let mut instance = Message::new(Viewtype::File);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance.set_file_from_bytes(t, name, bytes, None).await?;
         Ok(instance)
     }
 
@@ -940,10 +938,10 @@ mod tests {
         assert_eq!(instance.chat_id, chat_id);
 
         // sending using bad extension is not working, even when setting Viewtype to webxdc
-        let file = t.get_blobdir().join("index.html");
-        tokio::fs::write(&file, b"<html>ola!</html>").await?;
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance
+            .set_file_from_bytes(&t, "index.html", b"<html>ola!</html>", None)
+            .await?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())
@@ -967,14 +965,15 @@ mod tests {
         assert_eq!(test.viewtype, Viewtype::File);
 
         // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
-        let file = t.get_blobdir().join("invalid2.xdc");
-        tokio::fs::write(
-            &file,
-            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
-        )
-        .await?;
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance
+            .set_file_from_bytes(
+                &t,
+                "invalid2.xdc",
+                include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+                None,
+            )
+            .await?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())

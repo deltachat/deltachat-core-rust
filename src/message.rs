@@ -7,6 +7,7 @@ use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
+use crate::blob::BlobObject;
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
@@ -981,6 +982,20 @@ impl Message {
         }
         self.param.set(Param::File, file);
         self.param.set_optional(Param::MimeType, filemime);
+    }
+
+    /// Creates a new blob and sets it as a file associated with a message.
+    pub async fn set_file_from_bytes(
+        &mut self,
+        context: &Context,
+        suggested_name: &str,
+        data: &[u8],
+        filemime: Option<&str>,
+    ) -> Result<()> {
+        let blob = BlobObject::create(context, suggested_name, data).await?;
+        self.param.set(Param::File, blob.as_name());
+        self.param.set_optional(Param::MimeType, filemime);
+        Ok(())
     }
 
     /// Set different sender name for a message.
