@@ -2244,7 +2244,7 @@ async fn has_verified_encryption(
         if !is_verified {
             return Ok(NotVerified(format!(
                 "{} is not a member of this protected chat",
-                to_addr.to_string()
+                to_addr
             )));
         }
     }

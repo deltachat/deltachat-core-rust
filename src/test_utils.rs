@@ -1167,8 +1167,8 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
         if msg.is_info() {
             if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
                 "[INFO 🛡️]"
-            } else if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
-                "[INFO ❌🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionDisabled {
+                "[INFO 🛡️❌]"
             } else {
                 "[INFO]"
             }

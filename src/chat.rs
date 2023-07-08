@@ -1435,7 +1435,7 @@ impl Chat {
     /// Returns true if the chat was protected, and then an incoming message broke this protection.
     ///
     /// This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
-    /// otherwise it will return '0' for all chats.
+    /// otherwise it will return false for all chats.
     ///
     /// 1:1 chats are automatically set as protected when a contact is verified.
     /// When a message comes in that is not encrypted / signed correctly,
