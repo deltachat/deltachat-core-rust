@@ -181,6 +181,9 @@ impl ChatId {
     }
 
     /// Set ephemeral timer value without sending a message.
+    ///
+    /// Used when a message arrives indicating that someone else has
+    /// changed the timer value for a chat.
     pub(crate) async fn inner_set_ephemeral_timer(
         self,
         context: &Context,
