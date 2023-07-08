@@ -1713,6 +1713,11 @@ impl Chat {
             None
         };
 
+        msg.chat_id = self.id;
+        msg.from_id = ContactId::SELF;
+        msg.rfc724_mid = new_rfc724_mid;
+        msg.timestamp_sort = timestamp;
+
         // add message to the database
         if let Some(update_msg_id) = update_msg_id {
             context
@@ -1726,11 +1731,11 @@ impl Chat {
                          ephemeral_timestamp=?
                      WHERE id=?;",
                     params_slice![
-                        new_rfc724_mid,
-                        self.id,
-                        ContactId::SELF,
+                        msg.rfc724_mid,
+                        msg.chat_id,
+                        msg.from_id,
                         to_id,
-                        timestamp,
+                        msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
                         msg.text,
@@ -1775,11 +1780,11 @@ impl Chat {
                         ephemeral_timestamp)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?);",
                     params_slice![
-                        new_rfc724_mid,
-                        self.id,
-                        ContactId::SELF,
+                        msg.rfc724_mid,
+                        msg.chat_id,
+                        msg.from_id,
                         to_id,
-                        timestamp,
+                        msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
                         msg.text,
