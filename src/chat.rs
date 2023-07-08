@@ -2214,6 +2214,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
 
+        msg.try_calc_and_set_dimensions(context).await?;
+
         info!(
             context,
             "Attaching \"{}\" for message type #{}.",
@@ -2393,9 +2395,6 @@ async fn prepare_send_msg(
 /// The caller has to interrupt SMTP loop or otherwise process a new row.
 async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<i64>> {
     let mut msg = Message::load_from_db(context, msg_id).await?;
-    msg.try_calc_and_set_dimensions(context)
-        .await
-        .context("failed to calculate media dimensions")?;
 
     /* create message */
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
@@ -3698,7 +3697,6 @@ pub async fn add_device_msg_with_importance(
         chat_id = ChatId::get_for_contact(context, ContactId::DEVICE).await?;
 
         let rfc724_mid = create_outgoing_rfc724_mid(None, "@device");
-        msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
 
         let timestamp_sent = create_smeared_timestamp(context);
