@@ -583,13 +583,21 @@ impl Message {
                 if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
                     && !self.param.exists(Param::Width)
                 {
-                    self.param.set_int(Param::Width, 0);
-                    self.param.set_int(Param::Height, 0);
+                    let buf = read_file(context, &path_and_filename).await?;
 
-                    if let Ok(buf) = read_file(context, path_and_filename).await {
-                        if let Ok((width, height)) = get_filemeta(&buf) {
+                    match get_filemeta(&buf) {
+                        Ok((width, height)) => {
                             self.param.set_int(Param::Width, width as i32);
                             self.param.set_int(Param::Height, height as i32);
+                        }
+                        Err(err) => {
+                            self.param.set_int(Param::Width, 0);
+                            self.param.set_int(Param::Height, 0);
+                            warn!(
+                                context,
+                                "Failed to get width and height for {}: {err:#}.",
+                                path_and_filename.display()
+                            );
                         }
                     }
 
