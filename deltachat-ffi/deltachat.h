@@ -485,6 +485,13 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `verified_one_on_one_chats` = Feature flag for verified 1:1 chats; the UI should set it
+ *                    to 1 if it supports verified 1:1 chats.
+ *                    Regardless of this setting, `dc_chat_is_protected()` returns true while the key is verified,
+ *                    and when the key changes, an info message is posted into the chat.
+ *                    0=Nothing else happens when the key changes.
+ *                    1=After the key changed, `dc_chat_can_send()` returns false and `dc_chat_is_protection_broken()` returns true
+ *                    until `dc_accept_chat()` is called.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.
@@ -1468,24 +1475,6 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
  *     If there is not next/previous message, the function returns 0.
  */
 uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t msg_id, int dir, int msg_type, int msg_type2, int msg_type3);
-
-
-/**
- * Enable or disable protection against active attacks.
- * To enable protection, it is needed that all members are verified;
- * if this condition is met, end-to-end-encryption is always enabled
- * and only the verified keys are used.
- *
- * Sends out #DC_EVENT_CHAT_MODIFIED on changes
- * and #DC_EVENT_MSGS_CHANGED if a status message was sent.
- *
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param chat_id The ID of the chat to change the protection for.
- * @param protect 1=protect chat, 0=unprotect chat
- * @return 1=success, 0=error, e.g. some members may be unverified
- */
-int             dc_set_chat_protection       (dc_context_t* context, uint32_t chat_id, int protect);
 
 
 /**
@@ -3712,13 +3701,32 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
  * Check if a chat is protected.
  * Protected chats contain only verified members and encryption is always enabled.
  * Protected chats are created using dc_create_group_chat() by setting the 'protect' parameter to 1.
- * The status can be changed using dc_set_chat_protection().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
  * @return 1=chat protected, 0=chat is not protected.
  */
 int             dc_chat_is_protected         (const dc_chat_t* chat);
+
+
+/**
+ * Checks if the chat was protected, and then an incoming message broke this protection.
+ *
+ * This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
+ * otherwise it will return false for all chats.
+ *
+ * 1:1 chats are automatically set as protected when a contact is verified.
+ * When a message comes in that is not encrypted / signed correctly,
+ * the chat is automatically set as unprotected again.
+ * dc_chat_is_protection_broken() will return true until dc_accept_chat() is called.
+ *
+ * The UI should let the user confirm that this is OK with a message like
+ * `Bob sent a message from another device. Tap to learn more` and then call dc_accept_chat().
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat protection broken, 0=otherwise.
+ */
+int             dc_chat_is_protection_broken (const dc_chat_t* chat);
 
 
 /**
@@ -4315,7 +4323,7 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * Check if the message is an informational message, created by the
  * device or by another users. Such messages are not "typed" by the user but
  * created due to other actions,
- * e.g. dc_set_chat_name(), dc_set_chat_profile_image(), dc_set_chat_protection()
+ * e.g. dc_set_chat_name(), dc_set_chat_profile_image(),
  * or dc_add_contact_to_chat().
  *
  * These messages are typically shown in the center of the chat view,
@@ -6749,15 +6757,6 @@ void dc_event_unref(dc_event_t* event);
 /// Used in error strings.
 #define DC_STR_ERROR_NO_NETWORK           87
 
-/// "Chat protection enabled."
-///
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_ENABLED_PROTECTION and DC_STR_MSG_PROTECTION_ENABLED_BY.
-#define DC_STR_PROTECTION_ENABLED         88
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_DISABLED_PROTECTION and DC_STR_MSG_PROTECTION_DISABLED_BY.
-#define DC_STR_PROTECTION_DISABLED        89
-
 /// "Reply"
 ///
 /// Used in summaries.
@@ -7202,26 +7201,6 @@ void dc_event_unref(dc_event_t* event);
 /// `%2$s` will be replaced by name and address of the contact.
 #define DC_STR_EPHEMERAL_TIMER_WEEKS_BY_OTHER 157
 
-/// "You enabled chat protection."
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_YOU 158
-
-/// "Chat protection enabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_OTHER 159
-
-/// "You disabled chat protection."
-#define DC_STR_PROTECTION_DISABLED_BY_YOU 160
-
-/// "Chat protection disabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-#define DC_STR_PROTECTION_DISABLED_BY_OTHER 161
-
 /// "Scan to set up second device for %1$s"
 ///
 /// `%1$s` will be replaced by name and address of the account.
@@ -7231,6 +7210,16 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as a device message after a successful backup transfer.
 #define DC_STR_BACKUP_TRANSFER_MSG_BODY 163
+
+/// "Messages are guaranteed to be end-to-end encrypted from now on."
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_ENABLED 170
+
+/// "%1$s sent a message from another device."
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_DISABLED 171
 
 /**
  * @}

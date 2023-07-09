@@ -86,6 +86,14 @@ pub enum ProtectionStatus {
     ///
     /// All members of the chat must be verified.
     Protected = 1,
+
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    /// The user has to confirm that this is OK.
+    ///
+    /// We only do this in 1:1 chats; in group chats, the chat just
+    /// stays protected.
+    ProtectionBroken = 3, // `2` was never used as a value.
 }
 
 /// The reason why messages cannot be sent to the chat.
@@ -102,6 +110,10 @@ pub(crate) enum CantSendReason {
     /// The chat is a contact request, it needs to be accepted before sending a message.
     ContactRequest,
 
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    ProtectionBroken,
+
     /// Mailing list without known List-Post header.
     ReadOnlyMailingList,
 
@@ -117,6 +129,10 @@ impl fmt::Display for CantSendReason {
             Self::ContactRequest => write!(
                 f,
                 "contact request chat should be accepted before sending messages"
+            ),
+            Self::ProtectionBroken => write!(
+                f,
+                "accept that the encryption isn't verified anymore before sending messages"
             ),
             Self::ReadOnlyMailingList => {
                 write!(f, "mailing list does not have a know post address")
@@ -270,6 +286,7 @@ impl ChatId {
         param: Option<String>,
     ) -> Result<Self> {
         let grpname = strip_rtlo_characters(grpname);
+        let smeared_time = create_smeared_timestamp(context);
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -278,13 +295,20 @@ impl ChatId {
                     &grpname,
                     grpid,
                     create_blocked,
-                    create_smeared_timestamp(context),
+                    smeared_time,
                     create_protected,
                     param.unwrap_or_default(),
                 ),
             ).await?;
 
         let chat_id = ChatId::new(u32::try_from(row_id)?);
+
+        if create_protected == ProtectionStatus::Protected {
+            chat_id
+                .add_protection_msg(context, ProtectionStatus::Protected, None, smeared_time)
+                .await?;
+        }
+
         info!(
             context,
             "Created group/mailinglist '{}' grpid={} as {}, blocked={}.",
@@ -374,6 +398,13 @@ impl ChatId {
 
         match chat.typ {
             Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
+            Chattype::Single if chat.protected == ProtectionStatus::ProtectionBroken => {
+                // The chat was in the 'Request' state because the protection was broken.
+                // The user clicked 'Accept', so, now we want to set the status to Unprotected again:
+                chat.id
+                    .inner_set_protection(context, ProtectionStatus::Unprotected)
+                    .await?;
+            }
             Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                 // User has "created a chat" with all these contacts.
                 //
@@ -400,20 +431,19 @@ impl ChatId {
 
     /// Sets protection without sending a message.
     ///
-    /// Used when a message arrives indicating that someone else has
-    /// changed the protection value for a chat.
+    /// Returns whether the protection status was actually modified.
     pub(crate) async fn inner_set_protection(
         self,
         context: &Context,
         protect: ProtectionStatus,
-    ) -> Result<()> {
-        ensure!(!self.is_special(), "Invalid chat-id.");
+    ) -> Result<bool> {
+        ensure!(!self.is_special(), "Invalid chat-id {self}.");
 
         let chat = Chat::load_from_db(context, self).await?;
 
         if protect == chat.protected {
             info!(context, "Protection status unchanged for {}.", self);
-            return Ok(());
+            return Ok(false);
         }
 
         match protect {
@@ -430,7 +460,7 @@ impl ChatId {
                 Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
                 Chattype::Undefined => bail!("Undefined group type"),
             },
-            ProtectionStatus::Unprotected => {}
+            ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {}
         };
 
         context
@@ -443,68 +473,58 @@ impl ChatId {
         // make sure, the receivers will get all keys
         self.reset_gossiped_timestamp(context).await?;
 
-        Ok(())
+        Ok(true)
     }
 
-    /// Send protected status message to the chat.
+    /// Adds an info message to the chat, telling the user that the protection status changed.
     ///
-    /// This sends the message with the protected status change to the chat,
-    /// notifying the user on this device as well as the other users in the chat.
+    /// Params:
     ///
-    /// If `promote` is false this means, the message must not be sent out
-    /// and only a local info message should be added to the chat.
-    /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
+    /// * `contact_id`: In a 1:1 chat, pass the chat partner's contact id.
+    /// * `timestamp_sort` is used as the timestamp of the added message
+    ///   and should be the timestamp of the change happening.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promote: bool,
-        from_id: ContactId,
+        contact_id: Option<ContactId>,
+        timestamp_sort: i64,
     ) -> Result<()> {
-        let text = context.stock_protection_msg(protect, from_id).await;
+        let text = context.stock_protection_msg(protect, contact_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+            ProtectionStatus::ProtectionBroken => SystemMessage::ChatProtectionDisabled,
         };
-
-        if promote {
-            let mut msg = Message {
-                viewtype: Viewtype::Text,
-                text,
-                ..Default::default()
-            };
-            msg.param.set_cmd(cmd);
-            send_msg(context, self, &mut msg).await?;
-        } else {
-            add_info_msg_with_cmd(
-                context,
-                self,
-                &text,
-                cmd,
-                create_smeared_timestamp(context),
-                None,
-                None,
-                None,
-            )
-            .await?;
-        }
+        add_info_msg_with_cmd(context, self, &text, cmd, timestamp_sort, None, None, None).await?;
 
         Ok(())
     }
 
     /// Sets protection and sends or adds a message.
-    pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
-        ensure!(!self.is_special(), "set protection: invalid chat-id.");
-
-        let chat = Chat::load_from_db(context, self).await?;
-
-        if let Err(e) = self.inner_set_protection(context, protect).await {
-            error!(context, "Cannot set protection: {e:#}."); // make error user-visible
-            return Err(e);
+    ///
+    /// `timestamp_sort` is used as the timestamp of the added message
+    /// and should be the timestamp of the change happening.
+    pub(crate) async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        timestamp_sort: i64,
+        contact_id: Option<ContactId>,
+    ) -> Result<()> {
+        match self.inner_set_protection(context, protect).await {
+            Ok(protection_status_modified) => {
+                if protection_status_modified {
+                    self.add_protection_msg(context, protect, contact_id, timestamp_sort)
+                        .await?;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                error!(context, "Cannot set protection: {e:#}."); // make error user-visible
+                Err(e)
+            }
         }
-
-        self.add_protection_msg(context, protect, chat.is_promoted(), ContactId::SELF)
-            .await
     }
 
     /// Archives or unarchives a chat.
@@ -1141,7 +1161,7 @@ pub struct Chat {
     pub grpid: String,
 
     /// Whether the chat is blocked, unblocked or a contact request.
-    pub(crate) blocked: Blocked,
+    pub blocked: Blocked,
 
     /// Additional chat parameters stored in the database.
     pub param: Params,
@@ -1153,7 +1173,7 @@ pub struct Chat {
     pub mute_duration: MuteDuration,
 
     /// If the chat is protected (verified).
-    protected: ProtectionStatus,
+    pub(crate) protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -1247,6 +1267,8 @@ impl Chat {
             Some(DeviceChat)
         } else if self.is_contact_request() {
             Some(ContactRequest)
+        } else if self.is_protection_broken() {
+            Some(ProtectionBroken)
         } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
             Some(ReadOnlyMailingList)
         } else if !self.is_self_in_chat(context).await? {
@@ -1410,6 +1432,27 @@ impl Chat {
         self.protected == ProtectionStatus::Protected
     }
 
+    /// Returns true if the chat was protected, and then an incoming message broke this protection.
+    ///
+    /// This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
+    /// otherwise it will return false for all chats.
+    ///
+    /// 1:1 chats are automatically set as protected when a contact is verified.
+    /// When a message comes in that is not encrypted / signed correctly,
+    /// the chat is automatically set as unprotected again.
+    /// `is_protection_broken()` will return true until `chat_id.accept()` is called.
+    ///
+    /// The UI should let the user confirm that this is OK with a message like
+    /// `Bob sent a message from another device. Tap to learn more`
+    /// and then call `chat_id.accept()`.
+    pub fn is_protection_broken(&self) -> bool {
+        match self.protected {
+            ProtectionStatus::Protected => false,
+            ProtectionStatus::Unprotected => false,
+            ProtectionStatus::ProtectionBroken => true,
+        }
+    }
+
     /// Returns true if location streaming is enabled in the chat.
     pub fn is_sending_locations(&self) -> bool {
         self.is_sending_locations
@@ -1439,15 +1482,6 @@ impl Chat {
         let mut new_references = "".into();
         let mut to_id = 0;
         let mut location_id = 0;
-
-        if let Some(reason) = self.why_cant_send(context).await? {
-            if self.typ == Chattype::Group && reason == CantSendReason::NotAMember {
-                context.emit_event(EventType::ErrorSelfNotInGroup(
-                    "Cannot send message; self not in group.".into(),
-                ));
-            }
-            bail!("Cannot send message to {}: {}", self.id, reason);
-        }
 
         let from = context.get_primary_self_addr().await?;
         let new_rfc724_mid = {
@@ -1964,19 +1998,28 @@ impl ChatIdBlocked {
             _ => (),
         }
 
+        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+        let protected = peerstate.map_or(false, |p| p.is_using_verified_key());
+        let smeared_time = create_smeared_timestamp(context);
+
         let chat_id = context
             .sql
             .transaction(move |transaction| {
                 transaction.execute(
                     "INSERT INTO chats
-                     (type, name, param, blocked, created_timestamp)
-                     VALUES(?, ?, ?, ?, ?)",
+                     (type, name, param, blocked, created_timestamp, protected)
+                     VALUES(?, ?, ?, ?, ?, ?)",
                     (
                         Chattype::Single,
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        create_smeared_timestamp(context),
+                        smeared_time,
+                        if protected {
+                            ProtectionStatus::Protected
+                        } else {
+                            ProtectionStatus::Unprotected
+                        },
                     ),
                 )?;
                 let chat_id = ChatId::new(
@@ -1996,6 +2039,17 @@ impl ChatIdBlocked {
                 Ok(chat_id)
             })
             .await?;
+
+        if protected {
+            chat_id
+                .add_protection_msg(
+                    context,
+                    ProtectionStatus::Protected,
+                    Some(contact_id),
+                    smeared_time,
+                )
+                .await?;
+        }
 
         match contact_id {
             ContactId::SELF => update_saved_messages_icon(context).await?,
@@ -2100,7 +2154,13 @@ async fn prepare_msg_common(
 
     // Check if the chat can be sent to.
     if let Some(reason) = chat.why_cant_send(context).await? {
-        bail!("cannot send to {}: {}", chat_id, reason);
+        if reason == CantSendReason::ProtectionBroken
+            && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
+        {
+            // Send out the message, the securejoin message is supposed to repair the verification
+        } else {
+            bail!("cannot send to {chat_id}: {reason}");
+        }
     }
 
     // check current MessageState for drafts (to keep msg_id) ...
@@ -2850,18 +2910,14 @@ pub async fn create_group_chat(
 
     let grpid = create_id();
 
+    let timestamp = create_smeared_timestamp(context);
     let row_id = context
         .sql
         .insert(
             "INSERT INTO chats
         (type, name, grpid, param, created_timestamp)
         VALUES(?, ?, ?, \'U=1\', ?);",
-            (
-                Chattype::Group,
-                chat_name,
-                grpid,
-                create_smeared_timestamp(context),
-            ),
+            (Chattype::Group, chat_name, grpid, timestamp),
         )
         .await?;
 
@@ -2873,9 +2929,9 @@ pub async fn create_group_chat(
     context.emit_msgs_changed_without_ids();
 
     if protect == ProtectionStatus::Protected {
-        // this part is to stay compatible to verified groups,
-        // in some future, we will drop the "protect"-flag from create_group_chat()
-        chat_id.inner_set_protection(context, protect).await?;
+        chat_id
+            .set_protection(context, protect, timestamp, None)
+            .await?;
     }
 
     Ok(chat_id)
@@ -5128,72 +5184,6 @@ mod tests {
 
         let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_set_protection() -> Result<()> {
-        let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::BccSelf, false).await?;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        // enable protection on unpromoted chat, the info-message is added via add_info_msg()
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 1);
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // disable protection again, still unpromoted
-        chat_id
-            .set_protection(&t, ProtectionStatus::Unprotected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // send a message, this switches to promoted state
-        send_text_msg(&t, chat_id, "hi!".to_string()).await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 3);
-
-        // enable protection on promoted chat, the info-message is sent via send_msg() this time
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
-
         Ok(())
     }
 

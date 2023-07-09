@@ -699,23 +699,6 @@ export class Context extends EventEmitter {
     )
   }
 
-  /**
-   *
-   * @param chatId
-   * @param protect
-   * @returns success boolean
-   */
-  setChatProtection(chatId: number, protect: boolean) {
-    debug(`setChatProtection ${chatId} ${protect}`)
-    return Boolean(
-      binding.dcn_set_chat_protection(
-        this.dcn_context,
-        Number(chatId),
-        protect ? 1 : 0
-      )
-    )
-  }
-
   getChatEphemeralTimer(chatId: number): number {
     debug(`getChatEphemeralTimer ${chatId}`)
     return binding.dcn_get_chat_ephemeral_timer(

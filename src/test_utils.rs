@@ -31,11 +31,14 @@ use crate::constants::Chattype;
 use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
+use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
 use crate::key::{self, DcKey, KeyPair, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
-use crate::mimeparser::MimeMessage;
+use crate::mimeparser::{MimeMessage, SystemMessage};
+use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
+use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
 use crate::tools::EmailAddress;
 
@@ -108,9 +111,15 @@ impl TestContextManager {
     /// - Let one TestContext send a message
     /// - Let the other TestContext receive it and accept the chat
     /// - Assert that the message arrived
-    pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
+    pub async fn send_recv_accept(
+        &self,
+        from: &TestContext,
+        to: &TestContext,
+        msg: &str,
+    ) -> Message {
         let received_msg = self.send_recv(from, to, msg).await;
         received_msg.chat_id.accept(to).await.unwrap();
+        received_msg
     }
 
     /// - Let one TestContext send a message
@@ -151,6 +160,27 @@ impl TestContextManager {
             test_context.get_primary_self_addr().await.unwrap(),
             new_addr
         );
+    }
+
+    pub async fn execute_securejoin(&self, scanner: &TestContext, scanned: &TestContext) {
+        self.section(&format!(
+            "{} scans {}'s QR code",
+            scanner.name(),
+            scanned.name()
+        ));
+
+        let qr = get_securejoin_qr(&scanned.ctx, None).await.unwrap();
+        join_securejoin(&scanner.ctx, &qr).await.unwrap();
+
+        loop {
+            if let Some(sent) = scanner.pop_sent_msg_opt(Duration::ZERO).await {
+                scanned.recv_msg(&sent).await;
+            } else if let Some(sent) = scanned.pop_sent_msg_opt(Duration::ZERO).await {
+                scanner.recv_msg(&sent).await;
+            } else {
+                break;
+            }
+        }
     }
 }
 
@@ -636,7 +666,7 @@ impl TestContext {
         // We're using `unwrap_or_default()` here so that if the file doesn't exist,
         // it can be created using `write` below.
         let expected = fs::read(&filename).await.unwrap_or_default();
-        let expected = String::from_utf8(expected).unwrap();
+        let expected = String::from_utf8(expected).unwrap().replace("\r\n", "\n");
         if (std::env::var("UPDATE_GOLDEN_TESTS") == Ok("1".to_string())) && actual != expected {
             fs::write(&filename, &actual)
                 .await
@@ -1008,6 +1038,26 @@ fn print_logevent(logevent: &LogEvent) {
     }
 }
 
+/// Saves the other account's public key as verified.
+pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
+    let mut peerstate = Peerstate::from_header(
+        &EncryptHelper::new(other).await.unwrap().get_aheader(),
+        // We have to give 0 as the time, not the current time:
+        // The time is going to be saved in peerstate.last_seen.
+        // The code in `peerstate.rs` then compares `if message_time > self.last_seen`,
+        // and many similar checks in peerstate.rs, and doesn't allow changes otherwise.
+        // Giving the current time would mean that message_time == peerstate.last_seen,
+        // so changes would not be allowed.
+        // This might lead to flaky tests.
+        0,
+    );
+
+    peerstate.verified_key = peerstate.public_key.clone();
+    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+
+    peerstate.save_to_db(&this.sql).await.unwrap();
+}
+
 /// Pretty-print an event to stdout
 ///
 /// Done during tests this is captured by `cargo test` and associated with the test itself.
@@ -1114,7 +1164,17 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
         } else {
             "[FRESH]"
         },
-        if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_info() {
+            if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO 🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionDisabled {
+                "[INFO 🛡️❌]"
+            } else {
+                "[INFO]"
+            }
+        } else {
+            ""
+        },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
                 "[VIDEOCHAT-INVITATION: {}, type={}]",

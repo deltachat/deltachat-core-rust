@@ -1399,18 +1399,6 @@ NAPI_METHOD(dcn_set_chat_name) {
   NAPI_RETURN_INT32(result);
 }
 
-NAPI_METHOD(dcn_set_chat_protection) {
-  NAPI_ARGV(3);
-  NAPI_DCN_CONTEXT();
-  NAPI_ARGV_UINT32(chat_id, 1);
-  NAPI_ARGV_INT32(protect, 1);
-
-  int result = dc_set_chat_protection(dcn_context->dc_context,
-                                      chat_id,
-                                      protect);
-  NAPI_RETURN_INT32(result);
-}
-
 NAPI_METHOD(dcn_get_chat_ephemeral_timer) {
   NAPI_ARGV(2);
   NAPI_DCN_CONTEXT();
@@ -3491,7 +3479,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(dcn_send_msg);
   NAPI_EXPORT_FUNCTION(dcn_send_videochat_invitation);
   NAPI_EXPORT_FUNCTION(dcn_set_chat_name);
-  NAPI_EXPORT_FUNCTION(dcn_set_chat_protection);
   NAPI_EXPORT_FUNCTION(dcn_get_chat_ephemeral_timer);
   NAPI_EXPORT_FUNCTION(dcn_set_chat_ephemeral_timer);
   NAPI_EXPORT_FUNCTION(dcn_set_chat_profile_image);

@@ -1430,32 +1430,6 @@ pub unsafe extern "C" fn dc_get_next_media(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_set_chat_protection(
-    context: *mut dc_context_t,
-    chat_id: u32,
-    protect: libc::c_int,
-) -> libc::c_int {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_set_chat_protection()");
-        return 0;
-    }
-    let ctx = &*context;
-    let protect = if let Some(s) = ProtectionStatus::from_i32(protect) {
-        s
-    } else {
-        warn!(ctx, "bad protect-value for dc_set_chat_protection()");
-        return 0;
-    };
-
-    block_on(async move {
-        match ChatId::new(chat_id).set_protection(ctx, protect).await {
-            Ok(()) => 1,
-            Err(_) => 0,
-        }
-    })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_visibility(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -3082,6 +3056,16 @@ pub unsafe extern "C" fn dc_chat_is_protected(chat: *mut dc_chat_t) -> libc::c_i
     }
     let ffi_chat = &*chat;
     ffi_chat.chat.is_protected() as libc::c_int
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_protection_broken(chat: *mut dc_chat_t) -> libc::c_int {
+    if chat.is_null() {
+        eprintln!("ignoring careless call to dc_chat_is_protection_broken()");
+        return 0;
+    }
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_protection_broken() as libc::c_int
 }
 
 #[no_mangle]

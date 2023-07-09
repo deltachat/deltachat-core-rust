@@ -755,6 +755,12 @@ impl Context {
             "last_msg_id",
             self.get_config_int(Config::LastMsgId).await?.to_string(),
         );
+        res.insert(
+            "verified_one_on_one_chats",
+            self.get_config_bool(Config::VerifiedOneOnOneChats)
+                .await?
+                .to_string(),
+        );
 
         let elapsed = self.creation_time.elapsed();
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));

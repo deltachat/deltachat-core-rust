@@ -311,6 +311,16 @@ pub enum Config {
 
     /// Last message processed by the bot.
     LastMsgId,
+
+    /// Feature flag for verified 1:1 chats; the UI should set it
+    /// to 1 if it supports verified 1:1 chats.
+    /// Regardless of this setting, `chat.is_protected()` returns true while the key is verified,
+    /// and when the key changes, an info message is posted into the chat.
+    /// 0=Nothing else happens when the key changes.
+    /// 1=After the key changed, `can_send()` returns false and `is_protection_broken()` returns true
+    /// until `chat_id.accept()` is called.
+    #[strum(props(default = "0"))]
+    VerifiedOneOnOneChats,
 }
 
 impl Context {
