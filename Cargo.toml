@@ -118,11 +118,6 @@ members = [
   "format-flowed",
 ]
 
-[[example]]
-name = "simple"
-path = "examples/simple.rs"
-
-
 [[bench]]
 name = "create_account"
 harness = false
