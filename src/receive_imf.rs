@@ -2347,7 +2347,7 @@ async fn add_or_lookup_contacts_by_address_list(
     origin: Origin,
 ) -> Result<Vec<ContactId>> {
     let mut contact_ids = HashSet::new();
-    for info in address_list.iter() {
+    for info in address_list {
         let addr = &info.addr;
         if !may_be_valid_addr(addr) {
             continue;
