@@ -234,7 +234,7 @@ fn parse_serverparams(in_emailaddr: &str, xml_raw: &str) -> Result<Vec<ServerPar
     let res = moz_ac
         .incoming_servers
         .into_iter()
-        .chain(moz_ac.outgoing_servers.into_iter())
+        .chain(moz_ac.outgoing_servers)
         .filter_map(|server| {
             let protocol = match server.typ.as_ref() {
                 "imap" => Some(Protocol::Imap),

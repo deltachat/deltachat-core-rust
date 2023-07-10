@@ -55,7 +55,7 @@ impl Smtp {
     }
 
     /// Disconnect the SMTP transport and drop it entirely.
-    pub async fn disconnect(&mut self) {
+    pub fn disconnect(&mut self) {
         if let Some(mut transport) = self.transport.take() {
             // Closing connection with a QUIT command may take some time, especially if it's a
             // stale connection and an attempt to send the command times out. Send a command in a
@@ -88,7 +88,7 @@ impl Smtp {
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
         if self.has_maybe_stale_connection() {
             info!(context, "Closing stale connection");
-            self.disconnect().await;
+            self.disconnect();
         }
 
         if self.is_connected() {
@@ -465,13 +465,13 @@ pub(crate) async fn smtp_send(
 
             // this clears last_success info
             info!(context, "Failed to send message over SMTP, disconnecting");
-            smtp.disconnect().await;
+            smtp.disconnect();
 
             res
         }
         Err(crate::smtp::send::Error::Envelope(err)) => {
             // Local error, job is invalid, do not retry.
-            smtp.disconnect().await;
+            smtp.disconnect();
             warn!(context, "SMTP job is invalid: {}", err);
             SendResult::Failure(err)
         }
@@ -483,7 +483,7 @@ pub(crate) async fn smtp_send(
         }
         Err(crate::smtp::send::Error::Other(err)) => {
             // Local error, job is invalid, do not retry.
-            smtp.disconnect().await;
+            smtp.disconnect();
             warn!(context, "unable to load job: {}", err);
             SendResult::Failure(err)
         }

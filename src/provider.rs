@@ -223,7 +223,7 @@ pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'sta
         }
 
         if let Ok(mx_domains) = resolver.mx_lookup(fqdn).await {
-            for (provider_domain, provider) in PROVIDER_DATA.iter() {
+            for (provider_domain, provider) in &*PROVIDER_DATA {
                 if provider.id != "gmail" {
                     // MX lookup is limited to Gmail for security reasons
                     continue;

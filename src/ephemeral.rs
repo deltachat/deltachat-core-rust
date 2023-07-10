@@ -545,7 +545,7 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
 
     ephemeral_timestamp
         .into_iter()
-        .chain(delete_device_after_timestamp.into_iter())
+        .chain(delete_device_after_timestamp)
         .min()
 }
 
