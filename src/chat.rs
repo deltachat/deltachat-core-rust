@@ -1999,7 +1999,9 @@ impl ChatIdBlocked {
         }
 
         let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
-        let protected = peerstate.map_or(false, |p| p.is_using_verified_key());
+        let protected = peerstate.map_or(false, |p| {
+            p.is_using_verified_key() && p.prefer_encrypt == EncryptPreference::Mutual
+        });
         let smeared_time = create_smeared_timestamp(context);
 
         let chat_id = context
