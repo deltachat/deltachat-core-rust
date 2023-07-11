@@ -1177,7 +1177,7 @@ mod tests {
         assert_eq!(bob_instance.download_state, DownloadState::Available);
 
         // Bob downloads instance, updates should be assigned correctly
-        receive_imf_inner(
+        let received_msg = receive_imf_inner(
             &bob,
             &alice_instance.rfc724_mid,
             sent1.payload().as_bytes(),
@@ -1185,7 +1185,9 @@ mod tests {
             None,
             false,
         )
-        .await?;
+        .await?
+        .unwrap();
+        assert_eq!(*received_msg.msg_ids.get(0).unwrap(), bob_instance.id);
         let bob_instance = bob.get_last_msg().await;
         assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(bob_instance.download_state, DownloadState::Done);
