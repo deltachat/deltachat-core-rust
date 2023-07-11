@@ -1,4 +1,18 @@
 //! # Handle webxdc messages.
+//!
+//! Internally status updates are stored in the `msgs_status_updates` SQL table.
+//! `msgs_status_updates` contains the following columns:
+//! - `id` - status update serial number
+//! - `msg_id` - ID of the message in the `msgs` table
+//! - `update_item` - JSON representation of the status update
+//!
+//! Status updates are scheduled for sending by adding a record
+//! to `smtp_status_updates_table` SQL table.
+//! `smtp_status_updates` contains the following columns:
+//! - `msg_id` - ID of the message in the `msgs` table
+//! - `first_serial` - serial number of the first status update to send
+//! - `last_serial` - serial number of the last status update to send
+//! - `descr` - text to send along with the updates
 
 use std::convert::TryFrom;
 use std::path::Path;
