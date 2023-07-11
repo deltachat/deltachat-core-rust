@@ -449,12 +449,7 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
     mark_as_verified(&alice, &bob).await;
     mark_as_verified(&bob, &alice).await;
 
-    alice
-        .create_chat(&bob)
-        .await
-        .id
-        .inner_set_protection(&alice, ProtectionStatus::Protected)
-        .await?;
+    alice.create_chat(&bob).await;
     assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
 
     tcm.section("Bob reinstalls DC");
