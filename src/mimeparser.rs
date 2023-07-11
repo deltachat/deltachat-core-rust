@@ -2062,7 +2062,8 @@ async fn handle_mdn(
                 Ok((msg_id, chat_id, msg_state))
             },
         )
-        .await? else {
+        .await?
+    else {
         info!(
             context,
             "Ignoring MDN, found no message with Message-ID {rfc724_mid:?} sent by us in the database.",
