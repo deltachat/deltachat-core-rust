@@ -679,6 +679,10 @@ impl Context {
     ///
     /// Example: `{"updates": [{"payload":"any update data"},
     ///                        {"payload":"another update data"}]}`
+    ///
+    /// `range` is an optional range of status update serials to send.
+    /// If it is `None`, all updates are sent.
+    /// This is used when a message is resent using [`crate::chat::resend_msgs`].
     pub(crate) async fn render_webxdc_status_update_object(
         &self,
         instance_msg_id: MsgId,
