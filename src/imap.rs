@@ -747,9 +747,51 @@ impl Imap {
                 }
             };
 
-            // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_or_create_message_id(&headers);
-            let target = target_folder(context, folder, folder_meaning, &headers).await?;
+            let message_id = prefetch_get_message_id(&headers);
+
+            // Determine the target folder where the message should be moved to.
+            //
+            // If we have seen the message on the IMAP server before, do not move it.
+            // This is required to avoid infinite MOVE loop on IMAP servers
+            // that alias `DeltaChat` folder to other names.
+            // For example, some Dovecot servers alias `DeltaChat` folder to `INBOX.DeltaChat`.
+            // In this case Delta Chat configured with `DeltaChat` as the destination folder
+            // would detect messages in the `INBOX.DeltaChat` folder
+            // and try to move them to the `DeltaChat` folder.
+            // Such move to the same folder results in the messages
+            // getting a new UID, so the messages will be detected as new
+            // in the `INBOX.DeltaChat` folder again.
+            let target = if let Some(message_id) = &message_id {
+                if context
+                    .sql
+                    .exists(
+                        "SELECT COUNT (*) FROM imap WHERE rfc724_mid=?",
+                        (message_id,),
+                    )
+                    .await?
+                {
+                    info!(
+                        context,
+                        "Not moving the message {} that we have seen before.", &message_id
+                    );
+                    folder.to_string()
+                } else {
+                    target_folder(context, folder, folder_meaning, &headers).await?
+                }
+            } else {
+                // Do not move the messages without Message-ID.
+                // We cannot reliably determine if we have seen them before,
+                // so it is safer not to move them.
+                warn!(
+                    context,
+                    "Not moving the message that does not have a Message-ID."
+                );
+                folder.to_string()
+            };
+
+            // Generate a fake Message-ID to identify the message in the database
+            // if the message has no real Message-ID.
+            let message_id = message_id.unwrap_or_else(create_message_id);
 
             context
                 .sql
@@ -2060,16 +2102,15 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     }
 }
 
-fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
+pub(crate) fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
     headers
         .get_header_value(HeaderDef::XMicrosoftOriginalMessageId)
         .or_else(|| headers.get_header_value(HeaderDef::MessageId))
         .and_then(|msgid| mimeparser::parse_message_id(&msgid).ok())
 }
 
-pub(crate) fn prefetch_get_or_create_message_id(headers: &[mailparse::MailHeader]) -> String {
-    prefetch_get_message_id(headers)
-        .unwrap_or_else(|| format!("{}{}", GENERATED_PREFIX, create_id()))
+pub(crate) fn create_message_id() -> String {
+    format!("{}{}", GENERATED_PREFIX, create_id())
 }
 
 /// Returns chat by prefetched headers.
