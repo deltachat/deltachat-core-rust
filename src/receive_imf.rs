@@ -74,7 +74,8 @@ pub async fn receive_imf(
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
-    let rfc724_mid = imap::prefetch_get_or_create_message_id(&mail.headers);
+    let rfc724_mid =
+        imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
