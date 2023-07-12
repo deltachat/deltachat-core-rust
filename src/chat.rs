@@ -761,14 +761,6 @@ impl ChatId {
             }
         }
 
-        let chat = Chat::load_from_db(context, self).await?;
-        if let Some(cant_send_reason) = chat.why_cant_send(context).await? {
-            bail!(
-                "Can't set a draft because chat is not writeable: {}",
-                cant_send_reason
-            );
-        }
-
         // set back draft information to allow identifying the draft later on -
         // no matter if message object is reused or reloaded from db
         msg.state = MessageState::OutDraft;
