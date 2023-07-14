@@ -74,7 +74,8 @@ pub async fn receive_imf(
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
-    let rfc724_mid = imap::prefetch_get_or_create_message_id(&mail.headers);
+    let rfc724_mid =
+        imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -1193,8 +1194,9 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,
     mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
     ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
+RETURNING id
 "#)?;
-                stmt.execute(params![
+                let row_id: MsgId = stmt.query_row(params![
                     replace_msg_id,
                     rfc724_mid,
                     if trash { DC_CHAT_ID_TRASH } else { chat_id },
@@ -1233,8 +1235,12 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
                         DownloadState::Done
                     },
                     mime_parser.hop_info
-                ])?;
-                let row_id = conn.last_insert_rowid();
+                ],
+                |row| {
+                    let msg_id: MsgId = row.get(0)?;
+                    Ok(msg_id)
+                }
+                )?;
                 Ok(row_id)
             })
             .await?;
@@ -1243,7 +1249,8 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         // afterwards insert additional parts.
         replace_msg_id = None;
 
-        created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
+        debug_assert!(!row_id.is_special());
+        created_db_entries.push(row_id);
     }
 
     // check all parts whether they contain a new logging webxdc

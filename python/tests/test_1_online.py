@@ -353,6 +353,41 @@ def test_move_works(acfactory):
     assert ev.data2 > dc.const.DC_CHAT_ID_LAST_SPECIAL
 
 
+def test_move_avoids_loop(acfactory):
+    """Test that the message is only moved once.
+
+    This is to avoid busy loop if moved message reappears in the Inbox
+    or some scanned folder later.
+    For example, this happens on servers that alias `INBOX.DeltaChat` to `DeltaChat` folder,
+    so the message moved to `DeltaChat` appears as a new message in the `INBOX.DeltaChat` folder.
+    We do not want to move this message from `INBOX.DeltaChat` to `DeltaChat` again.
+    """
+    ac1 = acfactory.new_online_configuring_account()
+    ac2 = acfactory.new_online_configuring_account(mvbox_move=True)
+    acfactory.bring_accounts_online()
+    ac1_chat = acfactory.get_accepted_chat(ac1, ac2)
+    ac1_chat.send_text("Message 1")
+
+    # Message is moved to the DeltaChat folder and downloaded.
+    ac2_msg1 = ac2._evtracker.wait_next_incoming_message()
+    assert ac2_msg1.text == "Message 1"
+
+    # Move the message to the INBOX again.
+    ac2.direct_imap.select_folder("DeltaChat")
+    ac2.direct_imap.conn.move(["*"], "INBOX")
+
+    ac1_chat.send_text("Message 2")
+    ac2_msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert ac2_msg2.text == "Message 2"
+
+    # Check that Message 1 is still in the INBOX folder
+    # and Message 2 is in the DeltaChat folder.
+    ac2.direct_imap.select_folder("INBOX")
+    assert len(ac2.direct_imap.get_all_messages()) == 1
+    ac2.direct_imap.select_folder("DeltaChat")
+    assert len(ac2.direct_imap.get_all_messages()) == 1
+
+
 def test_move_works_on_self_sent(acfactory):
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True)
     ac2 = acfactory.new_online_configuring_account()
