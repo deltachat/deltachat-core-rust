@@ -754,6 +754,9 @@ async fn add_parts(
                             new_protection = ProtectionStatus::ProtectionBroken;
                         }
 
+                        // The message itself will be sorted under the device message since the device
+                        // message is `MessageState::InNoticed`, which means that all following
+                        // messages are sorted under it.
                         let sort_timestamp =
                             calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
                         chat_id
@@ -948,7 +951,7 @@ async fn add_parts(
     };
 
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, in_fresh).await?;
+    let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, false).await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -1376,25 +1379,33 @@ async fn calc_sort_timestamp(
     context: &Context,
     message_timestamp: i64,
     chat_id: ChatId,
-    is_fresh_msg: bool,
+    always_sort_to_bottom: bool,
 ) -> Result<i64> {
     let mut sort_timestamp = message_timestamp;
 
-    // get newest non fresh message for this chat
-    // update sort_timestamp if less than that
-    if is_fresh_msg {
-        let last_msg_time: Option<i64> = context
+    let last_msg_time: Option<i64> = if always_sort_to_bottom {
+        // get newest message for this chat
+        context
+            .sql
+            .query_get_value(
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                (chat_id,),
+            )
+            .await?
+    } else {
+        // get newest non fresh message for this chat
+        context
             .sql
             .query_get_value(
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
                 (chat_id, MessageState::InFresh),
             )
-            .await?;
+            .await?
+    };
 
-        if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > sort_timestamp {
-                sort_timestamp = last_msg_time;
-            }
+    if let Some(last_msg_time) = last_msg_time {
+        if last_msg_time > sort_timestamp {
+            sort_timestamp = last_msg_time;
         }
     }
 
