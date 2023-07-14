@@ -39,6 +39,7 @@ use futures_lite::StreamExt;
 use iroh::bytes::get::{fsm, Stats};
 use iroh::bytes::protocol::{AnyGetRequest, GetRequest, RequestToken};
 use iroh::bytes::provider::Event as ProviderEvent;
+use iroh::bytes::util::runtime;
 use iroh::collection::Collection;
 use iroh::database::flat::DataSource;
 use iroh::dial::Ticket;
@@ -189,9 +190,11 @@ impl BackupProvider {
         let (db, hash) = iroh::database::flat::create_collection(files).await?;
         context.emit_event(SendProgress::CollectionCreated.into());
         let auth_token_handler = StaticTokenAuthHandler::new(Some(token.clone()));
+        let rt = runtime::Handle::from_currrent(1)?;
         let provider = Node::builder(db)
             .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
             .custom_auth_handler(Arc::new(auth_token_handler))
+            .runtime(&rt)
             .spawn()
             .await?;
         context.emit_event(SendProgress::ProviderListening.into());
