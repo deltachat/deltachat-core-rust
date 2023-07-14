@@ -2444,7 +2444,7 @@ pub(crate) async fn create_send_msg_job(
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
         Err(err) => {
-            message::set_msg_failed(context, msg.id, &err.to_string()).await?;
+            message::set_msg_failed(context, msg, &err.to_string()).await?;
             Err(err)
         }
     }?;
@@ -2453,7 +2453,7 @@ pub(crate) async fn create_send_msg_job(
         /* unrecoverable */
         message::set_msg_failed(
             context,
-            msg.id,
+            msg,
             "End-to-end-encryption unavailable unexpectedly.",
         )
         .await?;
