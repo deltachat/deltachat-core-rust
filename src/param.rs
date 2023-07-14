@@ -281,6 +281,16 @@ impl Params {
         self
     }
 
+    /// Sets the given key from an optional value.
+    /// Removes the key if the value is `None`.
+    pub fn set_optional(&mut self, key: Param, value: Option<impl ToString>) -> &mut Self {
+        if let Some(value) = value {
+            self.set(key, value)
+        } else {
+            self.remove(key)
+        }
+    }
+
     /// Check if there are any values in this.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()

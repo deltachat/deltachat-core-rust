@@ -980,19 +980,14 @@ impl Message {
             }
         }
         self.param.set(Param::File, file);
-        if let Some(filemime) = filemime {
-            self.param.set(Param::MimeType, filemime);
-        }
+        self.param.set_optional(Param::MimeType, filemime);
     }
 
     /// Set different sender name for a message.
     /// This overrides the name set by the `set_config()`-option `displayname`.
     pub fn set_override_sender_name(&mut self, name: Option<String>) {
-        if let Some(name) = name {
-            self.param.set(Param::OverrideSenderDisplayname, name);
-        } else {
-            self.param.remove(Param::OverrideSenderDisplayname);
-        }
+        self.param
+            .set_optional(Param::OverrideSenderDisplayname, name);
     }
 
     /// Sets the dimensions of associated image or video file.
