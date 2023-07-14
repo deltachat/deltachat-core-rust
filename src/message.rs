@@ -1667,30 +1667,33 @@ pub(crate) async fn update_msg_state(
 
 // Context functions to work with messages
 
-pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) -> Result<()> {
-    let mut msg = Message::load_from_db(context, msg_id).await?;
-
+pub(crate) async fn set_msg_failed(
+    context: &Context,
+    msg: &mut Message,
+    error: &str,
+) -> Result<()> {
     if msg.state.can_fail() {
         msg.state = MessageState::OutFailed;
-        warn!(context, "{} failed: {}", msg_id, error);
+        warn!(context, "{} failed: {}", msg.id, error);
     } else {
         warn!(
             context,
-            "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
+            "{} seems to have failed ({}), but state is {}", msg.id, error, msg.state
         )
     }
+    msg.error = Some(error.to_string());
 
     context
         .sql
         .execute(
             "UPDATE msgs SET state=?, error=? WHERE id=?;",
-            (msg.state, error, msg_id),
+            (msg.state, error, msg.id),
         )
         .await?;
 
     context.emit_event(EventType::MsgFailed {
         chat_id: msg.chat_id,
-        msg_id,
+        msg_id: msg.id,
     });
 
     Ok(())
@@ -2300,7 +2303,7 @@ mod tests {
         update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await?;
         assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
 
-        set_msg_failed(&alice, alice_msg.id, "badly failed").await?;
+        set_msg_failed(&alice, &mut alice_msg, "badly failed").await?;
         assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
 
         // check incoming message states on receiver side

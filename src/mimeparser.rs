@@ -29,7 +29,9 @@ use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::keyring::Keyring;
-use crate::message::{self, set_msg_failed, update_msg_state, MessageState, MsgId, Viewtype};
+use crate::message::{
+    self, set_msg_failed, update_msg_state, Message, MessageState, MsgId, Viewtype,
+};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::simplify::{simplify, SimplifiedText};
@@ -2156,7 +2158,8 @@ async fn handle_ndn(
     let mut first = true;
     for msg in msgs {
         let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, msg_id, &error).await?;
+        let mut message = Message::load_from_db(context, msg_id).await?;
+        set_msg_failed(context, &mut message, &error).await?;
         if first {
             // Add only one info msg for all failed messages
             ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
