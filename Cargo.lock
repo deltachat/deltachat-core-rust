@@ -2622,6 +2622,7 @@ checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
 [[package]]
 name = "iroh"
 version = "0.4.1"
+source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2653,6 +2654,7 @@ dependencies = [
 [[package]]
 name = "iroh-bytes"
 version = "0.4.1"
+source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2700,6 +2702,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.4.1"
+source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
 dependencies = [
  "erased_set",
  "hyper",
@@ -2713,6 +2716,7 @@ dependencies = [
 [[package]]
 name = "iroh-net"
 version = "0.4.1"
+source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
 dependencies = [
  "anyhow",
  "backoff",
