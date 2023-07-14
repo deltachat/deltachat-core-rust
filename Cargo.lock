@@ -1242,6 +1242,7 @@ dependencies = [
  "humansize",
  "image",
  "iroh",
+ "iroh-io",
  "kamadak-exif",
  "lettre_email",
  "libc",

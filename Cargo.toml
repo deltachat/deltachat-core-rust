@@ -51,6 +51,7 @@ hex = "0.4.0"
 humansize = "2"
 image = { version = "0.24.6", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh = { version = "0.4.1", default-features = false, git = "https://github.com/n0-computer/iroh", branch = "main", features = ["iroh-collection", "flat-db"] }
+iroh-io = "0.2.1"
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
