@@ -5,7 +5,7 @@ use crate::chat::{Chat, ProtectionStatus};
 use crate::config::Config;
 use crate::contact::VerifiedStatus;
 use crate::contact::{Contact, Origin};
-use crate::message::Message;
+use crate::message::{Message, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
@@ -461,14 +461,21 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
 
     tcm.send_recv(&bob_new, &alice, "I have a new device").await;
     assert_verified(&alice, &bob_new, ProtectionStatus::ProtectionBroken).await;
-    assert!(
-        !alice
-            .get_chat(&bob_new)
-            .await
-            .unwrap()
-            .can_send(&alice)
-            .await?
-    );
+
+    {
+        let alice_bob_chat = alice.get_chat(&bob_new).await.unwrap();
+        assert!(!alice_bob_chat.can_send(&alice).await?);
+
+        // Alice's UI should still be able to save a draft, which Alice started to type right when she got Bob's message:
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("Draftttt".to_string());
+        alice_bob_chat.id.set_draft(&alice, Some(&mut msg)).await?;
+        assert_eq!(
+            alice_bob_chat.id.get_draft(&alice).await?.unwrap().text,
+            "Draftttt"
+        );
+    }
+
     tcm.execute_securejoin(&alice, &bob_new).await;
     assert_verified(&alice, &bob_new, ProtectionStatus::Protected).await;
 
