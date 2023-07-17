@@ -335,3 +335,13 @@ async def test_wait_next_messages(acfactory) -> None:
     assert len(next_messages) == 1
     snapshot = await next_messages[0].get_snapshot()
     assert snapshot.text == "Hello!"
+
+
+@pytest.mark.asyncio()
+async def test_import_export(acfactory, tmp_path) -> None:
+    alice = await acfactory.new_configured_account()
+    await alice.export_backup(tmp_path)
+
+    files = list(tmp_path.glob("*.tar"))
+    alice2 = await acfactory.get_unconfigured_account()
+    await alice2.import_backup(files[0])
