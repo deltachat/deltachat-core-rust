@@ -462,9 +462,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 910);
 
-    if ctx.get_config(Config::ConfiguredAddr).await?.as_deref() != Some(&param.addr) {
-        // Switched account, all server UIDs we know are invalid
-        job::schedule_resync(ctx).await?;
+    if let Some(configured_addr) = ctx.get_config(Config::ConfiguredAddr).await? {
+        if configured_addr != param.addr {
+            // Switched account, all server UIDs we know are invalid
+            info!(ctx, "Scheduling resync because the address has changed.");
+            job::schedule_resync(ctx).await?;
+        }
     }
 
     // the trailing underscore is correct
