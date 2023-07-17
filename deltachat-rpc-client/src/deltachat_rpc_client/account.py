@@ -259,3 +259,11 @@ class Account:
         )
         fresh_msg_ids = sorted(await self._rpc.get_fresh_msgs(self.id))
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]
+
+    async def export_backup(self, path, passphrase: str = "") -> None:
+        """Export backup."""
+        await self._rpc.export_backup(self.id, str(path), passphrase)
+
+    async def import_backup(self, path, passphrase: str = "") -> None:
+        """Import backup."""
+        await self._rpc.import_backup(self.id, str(path), passphrase)
