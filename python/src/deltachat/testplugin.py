@@ -682,13 +682,6 @@ class BotProcess:
                     print("+++IGN:", line)
                     ignored.append(line)
 
-    def await_resync(self):
-        self.fnmatch_lines(
-            """
-            *Resync: collected * message IDs in folder INBOX*
-        """,
-        )
-
 
 @pytest.fixture()
 def tmp_db_path(tmpdir):
