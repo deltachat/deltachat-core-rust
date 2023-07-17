@@ -40,7 +40,7 @@ use iroh::bytes::get::{fsm, Stats};
 use iroh::bytes::protocol::{AnyGetRequest, GetRequest, RequestToken};
 use iroh::bytes::provider::Event as ProviderEvent;
 use iroh::bytes::util::runtime;
-use iroh::collection::Collection;
+use iroh::collection::{Collection, IrohCollectionParser};
 use iroh::database::flat::DataSource;
 use iroh::dial::Ticket;
 use iroh::net::defaults::default_derp_map;
@@ -194,6 +194,7 @@ impl BackupProvider {
         let provider = Node::builder(db)
             .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
             .custom_auth_handler(Arc::new(auth_token_handler))
+            .collection_parser(IrohCollectionParser)
             .runtime(&rt)
             .spawn()
             .await?;
@@ -500,8 +501,8 @@ async fn run_get_request(
     ticket: Ticket,
 ) -> anyhow::Result<Stats> {
     let opts = ticket.as_get_options(Keypair::generate(), Some(default_derp_map()));
-    let request = AnyGetRequest::Get(GetRequest::all(ticket.hash()))
-        .with_token(ticket.token().cloned());
+    let request =
+        AnyGetRequest::Get(GetRequest::all(ticket.hash())).with_token(ticket.token().cloned());
     let connection = iroh::dial::dial(opts).await?;
     let initial = fsm::start(connection, request);
     use fsm::*;

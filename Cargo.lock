@@ -1198,9 +1198,9 @@ dependencies = [
 
 [[package]]
 name = "default-net"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae47401ee27418babbf80e20de5ff240a19c850ec6000326342cdb198b341687"
+checksum = "cfe553014b8511f63a1324f7cc9b91cf0117289321ad14b4781ef4fed005f30c"
 dependencies = [
  "dlopen2",
  "libc",
@@ -2623,7 +2623,7 @@ checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
 [[package]]
 name = "iroh"
 version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
+source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2649,13 +2649,14 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tracing",
+ "url",
  "walkdir",
 ]
 
 [[package]]
 name = "iroh-bytes"
 version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
+source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2703,7 +2704,7 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
+source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
 dependencies = [
  "erased_set",
  "hyper",
@@ -2717,7 +2718,7 @@ dependencies = [
 [[package]]
 name = "iroh-net"
 version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#58d42ba7da1f3eca199f4952643d1de6ac812664"
+source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
 dependencies = [
  "anyhow",
  "backoff",
