@@ -27,7 +27,7 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::Chattype;
+use crate::constants::{Blocked, Chattype};
 use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
@@ -119,6 +119,7 @@ impl TestContextManager {
         msg: &str,
     ) -> Message {
         let received_msg = self.send_recv(from, to, msg).await;
+        assert_eq!(received_msg.chat_blocked, Blocked::Request);
         received_msg.chat_id.accept(to).await.unwrap();
         received_msg
     }
@@ -658,7 +659,6 @@ impl TestContext {
         res
     }
 
-    #[allow(unused)]
     pub async fn golden_test_chat(&self, chat_id: ChatId, filename: &str) {
         let filename = Path::new("test-data/golden/").join(filename);
 
@@ -685,8 +685,6 @@ impl TestContext {
     /// You can use this to debug your test by printing the entire chat conversation.
     // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
     // merge them to a public function in the `deltachat` crate.
-    #[allow(dead_code)]
-    #[allow(clippy::indexing_slicing)]
     async fn display_chat(&self, chat_id: ChatId) -> String {
         let mut res = String::new();
 
