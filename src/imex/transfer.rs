@@ -199,7 +199,7 @@ impl BackupProvider {
             .await?;
         context.emit_event(SendProgress::ProviderListening.into());
         info!(context, "Waiting for remote to connect");
-        let ticket = provider.ticket(hash, Some(token)).await?;
+        let ticket = provider.ticket(hash).await?.with_token(Some(token));
         Ok((provider, ticket))
     }
 
@@ -500,7 +500,8 @@ async fn run_get_request(
     ticket: Ticket,
 ) -> anyhow::Result<Stats> {
     let opts = ticket.as_get_options(Keypair::generate(), Some(default_derp_map()));
-    let request = AnyGetRequest::Get(GetRequest::all(ticket.hash()));
+    let request = AnyGetRequest::Get(GetRequest::all(ticket.hash()))
+        .with_token(ticket.token().cloned());
     let connection = iroh::dial::dial(opts).await?;
     let initial = fsm::start(connection, request);
     use fsm::*;
