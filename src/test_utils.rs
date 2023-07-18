@@ -119,7 +119,10 @@ impl TestContextManager {
         msg: &str,
     ) -> Message {
         let received_msg = self.send_recv(from, to, msg).await;
-        assert_eq!(received_msg.chat_blocked, Blocked::Request);
+        assert_eq!(
+            received_msg.chat_blocked, Blocked::Request,
+            "`send_recv_accept()` is meant to be used for chat requests. Use `send_recv()` if the chat is already accepted."
+        );
         received_msg.chat_id.accept(to).await.unwrap();
         received_msg
     }
