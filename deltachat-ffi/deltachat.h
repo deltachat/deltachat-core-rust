@@ -5017,7 +5017,12 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 /**
  * Return the address that verified a contact
  *
- * The UI may use this in addition to a checkmark showing the verification status
+ * The UI may use this in addition to a checkmark showing the verification status.
+ * In case of verification chains,
+ * the last contact in the chain is shown.
+ * This is because of privacy reasons, but also as it would not help the user
+ * to see a unknown name here - where one can mostly always ask the shown name
+ * as it is directly known.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
