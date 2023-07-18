@@ -319,6 +319,11 @@ async fn set_self_key(
         None => {
             if prefer_encrypt_required {
                 bail!("missing Autocrypt-Prefer-Encrypt header");
+            } else {
+                context
+                    .sql
+                    .set_raw_config_int("e2ee_enabled", 1)
+                    .await?;
             }
         }
     };
