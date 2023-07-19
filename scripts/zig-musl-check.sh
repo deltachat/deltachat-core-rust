@@ -9,7 +9,7 @@ set -e
 unset RUSTFLAGS
 
 # Pin Rust version to avoid uncontrolled changes in the compiler and linker flags.
-export RUSTUP_TOOLCHAIN=1.70.0
+export RUSTUP_TOOLCHAIN=1.71.0
 
 ZIG_VERSION=0.11.0-dev.2213+515e1c93e
 

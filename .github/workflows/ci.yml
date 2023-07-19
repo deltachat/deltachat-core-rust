@@ -24,7 +24,7 @@ jobs:
     name: Lint Rust
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.70.0
+      RUSTUP_TOOLCHAIN: 1.71.0
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
@@ -80,19 +80,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            rust: 1.68.2
+            rust: 1.71.0
           - os: windows-latest
-            rust: 1.68.2
+            rust: 1.71.0
           - os: macos-latest
-            rust: 1.68.2
+            rust: 1.71.0
 
-          # Minimum Supported Rust Version = 1.65.0
+          # Minimum Supported Rust Version = 1.66.0
           #
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
           # built.
           - os: ubuntu-latest
-            rust: 1.65.0
+            rust: 1.66.0
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
