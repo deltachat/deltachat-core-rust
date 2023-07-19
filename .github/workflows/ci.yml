@@ -87,10 +87,6 @@ jobs:
             rust: 1.71.0
 
           # Minimum Supported Rust Version = 1.66.0
-          #
-          # Minimum Supported Python Version = 3.7
-          # This is the minimum version for which manylinux Python wheels are
-          # built.
           - os: ubuntu-latest
             rust: 1.66.0
     runs-on: ${{ matrix.os }}
