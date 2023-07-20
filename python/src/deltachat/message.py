@@ -486,6 +486,9 @@ class Message:
         dc_msg = ffi.gc(lib.dc_get_msg(self.account._dc_context, self.id), lib.dc_msg_unref)
         return lib.dc_msg_get_download_state(dc_msg)
 
+    def download_full(self) -> None:
+        lib.dc_download_full_msg(self.account._dc_context, self.id)
+
 
 # some code for handling DC_MSG_* view types
 
