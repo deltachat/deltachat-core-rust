@@ -318,7 +318,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
 
     // respect certificate setting from function parameters
-    for mut server in &mut servers {
+    for server in &mut servers {
         let certificate_checks = match server.protocol {
             Protocol::Imap => param.imap.certificate_checks,
             Protocol::Smtp => param.smtp.certificate_checks,

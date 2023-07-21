@@ -643,7 +643,7 @@ impl MimeMessage {
                     .parts
                     .iter_mut()
                     .find(|part| !part.msg.is_empty() && !part.is_reaction);
-                if let Some(mut part) = part_with_text {
+                if let Some(part) = part_with_text {
                     part.msg = format!("{} – {}", subject, part.msg);
                 }
             }
