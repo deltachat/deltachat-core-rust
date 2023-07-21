@@ -324,6 +324,27 @@ def test_webxdc_message(acfactory, data, lp):
     assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
 
 
+def test_webxdc_huge_update(acfactory, data, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat = ac1.create_chat(ac2)
+
+    msg1 = Message.new_empty(ac1, "webxdc")
+    msg1.set_text("message1")
+    msg1.set_file(data.get_path("webxdc/minimal.xdc"))
+    msg1 = chat.send_msg(msg1)
+    assert msg1.is_webxdc()
+    assert msg1.filename
+
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.is_webxdc()
+
+    payload = "A" * 1000
+    assert msg1.send_status_update({"payload": payload}, "some test data")
+    ac2._evtracker.get_matching("DC_EVENT_WEBXDC_STATUS_UPDATE")
+    update = msg2.get_status_updates()[0]
+    assert update["payload"] == payload
+
+
 def test_webxdc_download_on_demand(acfactory, data, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
     acfactory.introduce_each_other([ac1, ac2])

@@ -18,6 +18,7 @@ use crate::contact::ContactId;
 use crate::context::Context;
 use crate::download::DownloadState;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
+use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
@@ -535,13 +536,16 @@ impl Context {
     }
 
     pub(crate) fn build_status_update_part(&self, json: &str) -> PartBuilder {
+        let encoded_body = wrapped_base64_encode(json.as_bytes());
+
         PartBuilder::new()
             .content_type(&"application/json".parse::<mime::Mime>().unwrap())
             .header((
                 "Content-Disposition",
                 "attachment; filename=\"status-update.json\"",
             ))
-            .body(json)
+            .header(("Content-Transfer-Encoding", "base64"))
+            .body(encoded_body)
     }
 
     /// Receives status updates from receive_imf to the database
@@ -1785,7 +1789,6 @@ mod tests {
         assert_eq!(bob_instance.get_filename(), Some("minimal.xdc".to_string()));
         assert!(sent1.payload().contains("Content-Type: application/json"));
         assert!(sent1.payload().contains("status-update.json"));
-        assert!(sent1.payload().contains(r#""payload":{"foo":"bar"}"#));
         assert_eq!(
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
