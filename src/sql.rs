@@ -755,6 +755,17 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         .log_err(context)
         .ok();
 
+    context
+        .sql
+        .execute(
+            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN (SELECT id FROM msgs)",
+            (),
+        )
+        .await
+        .context("failed to remove old webxdc status updates")
+        .log_err(context)
+        .ok();
+
     info!(context, "Housekeeping done.");
     Ok(())
 }
