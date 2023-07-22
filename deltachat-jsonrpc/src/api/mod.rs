@@ -1709,6 +1709,20 @@ impl CommandApi {
         forward_msgs(&ctx, &message_ids, ChatId::new(chat_id)).await
     }
 
+    /// Resend messages and make information available for newly added chat members.
+    /// Resending sends out the original message, however, recipients and webxdc-status may differ.
+    /// Clients that already have the original message can still ignore the resent message as
+    /// they have tracked the state by dedicated updates.
+    ///
+    /// Some messages cannot be resent, eg. info-messages, drafts, already pending messages or messages that are not sent by SELF.
+    ///
+    /// message_ids all message IDs that should be resend. All messages must belong to the same chat.
+    async fn resend_messages(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        chat::resend_msgs(&ctx, &message_ids).await
+    }
+
     async fn send_sticker(
         &self,
         account_id: u32,
