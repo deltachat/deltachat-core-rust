@@ -1269,7 +1269,7 @@ RETURNING id
 
     if let Some(replace_msg_id) = replace_msg_id {
         // "Replace" placeholder with a message that has no parts.
-        replace_msg_id.delete_from_db(context).await?;
+        replace_msg_id.trash(context).await?;
     }
 
     chat_id.unarchive_if_not_muted(context, state).await?;

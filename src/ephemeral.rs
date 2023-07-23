@@ -986,7 +986,7 @@ mod tests {
         t.send_text(self_chat.id, "Saved message, which we delete manually")
             .await;
         let msg = t.get_last_msg_in(self_chat.id).await;
-        msg.id.delete_from_db(&t).await?;
+        msg.id.trash(&t).await?;
         check_msg_is_deleted(&t, &self_chat, msg.id).await;
 
         self_chat
@@ -1003,7 +1003,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Set DeleteDeviceAfter to 1800s. Thend send a saved message which will
+        // Set DeleteDeviceAfter to 1800s. Then send a saved message which will
         // still be deleted after 3600s because DeleteDeviceAfter doesn't apply to saved messages.
         t.set_config(Config::DeleteDeviceAfter, Some("1800"))
             .await?;
@@ -1261,8 +1261,8 @@ mod tests {
         );
         let msg = alice.get_last_msg().await;
 
-        // Message is deleted from the database when its timer expires.
-        msg.id.delete_from_db(&alice).await?;
+        // Message is deleted when its timer expires.
+        msg.id.trash(&alice).await?;
 
         // Message with Message-ID <third@example.com>, referencing <first@example.com> and
         // <second@example.com>, is received.  The message <second@example.come> is not in the
