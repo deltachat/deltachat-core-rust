@@ -34,7 +34,7 @@ pub struct MessageObject {
     quote: Option<MessageQuote>,
     parent_id: Option<u32>,
 
-    text: Option<String>,
+    text: String,
     has_location: bool,
     has_html: bool,
     view_type: MessageViewtype,
@@ -180,7 +180,7 @@ impl MessageObject {
             from_id: message.get_from_id().to_u32(),
             quote,
             parent_id,
-            text: Some(message.get_text()).filter(|s| !s.is_empty()),
+            text: message.get_text(),
             has_location: message.has_location(),
             has_html: message.has_html(),
             view_type: message.get_viewtype().into(),

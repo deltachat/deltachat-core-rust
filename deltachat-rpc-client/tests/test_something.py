@@ -101,6 +101,16 @@ async def test_account(acfactory) -> None:
     assert await alice.get_fresh_messages()
     assert await alice.get_next_messages()
 
+    # Test sending empty message.
+    assert len(await bob.wait_next_messages()) == 0
+    await alice_chat_bob.send_text("")
+    messages = await bob.wait_next_messages()
+    assert len(messages) == 1
+    message = messages[0]
+    snapshot = await message.get_snapshot()
+    assert snapshot.text == ""
+    await bob.mark_seen_messages([message])
+
     group = await alice.create_group("test group")
     await group.add_contact(alice_contact_bob)
     group_msg = await group.send_message(text="hello")
