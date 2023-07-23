@@ -2,6 +2,7 @@ import os
 import queue
 import sys
 import time
+import base64
 from datetime import datetime, timezone
 
 import pytest
@@ -321,6 +322,33 @@ def test_webxdc_message(acfactory, data, lp):
     ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     ac2.direct_imap.select_folder("Inbox")
     assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
+
+
+def test_webxdc_download_on_demand(acfactory, data, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    acfactory.introduce_each_other([ac1, ac2])
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    msg1 = Message.new_empty(ac1, "webxdc")
+    msg1.set_text("message1")
+    msg1.set_file(data.get_path("webxdc/minimal.xdc"))
+    msg1 = chat.send_msg(msg1)
+    assert msg1.is_webxdc()
+    assert msg1.filename
+
+    msg2 = ac2._evtracker.wait_next_incoming_message()
+    assert msg2.is_webxdc()
+
+    lp.sec("ac2 sets download limit")
+    ac2.set_config("download_limit", "100")
+    assert msg1.send_status_update({"payload": base64.b64encode(os.urandom(50000))}, "some test data")
+    ac2_update = ac2._evtracker.wait_next_incoming_message()
+    assert ac2_update.download_state == dc.const.DC_DOWNLOAD_AVAILABLE
+    assert not msg2.get_status_updates()
+
+    ac2_update.download_full()
+    ac2._evtracker.get_matching("DC_EVENT_WEBXDC_STATUS_UPDATE")
+    assert msg2.get_status_updates()
 
 
 def test_mvbox_sentbox_threads(acfactory, lp):

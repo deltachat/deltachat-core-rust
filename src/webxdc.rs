@@ -13,6 +13,7 @@ use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
 use crate::chat::Chat;
+use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::download::DownloadState;
@@ -560,6 +561,7 @@ impl Context {
         json: &str,
     ) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
+        let chat_id = msg.chat_id;
         let (timestamp, mut instance, can_info_msg) = if msg.viewtype == Viewtype::Webxdc {
             (msg.timestamp_sort, msg, false)
         } else if let Some(parent) = msg.parent(self).await? {
@@ -577,7 +579,14 @@ impl Context {
         if from_id != ContactId::SELF
             && !chat::is_contact_in_chat(self, instance.chat_id, from_id).await?
         {
-            bail!("receive_status_update: status sender not chat member.")
+            let chat_type: Chattype = self
+                .sql
+                .query_get_value("SELECT type FROM chats WHERE id=?", (chat_id,))
+                .await?
+                .with_context(|| format!("Chat type for chat {chat_id} not found"))?;
+            if chat_type != Chattype::Mailinglist {
+                bail!("receive_status_update: status sender not chat member.")
+            }
         }
 
         let updates: StatusUpdates = serde_json::from_str(json)?;
@@ -828,9 +837,9 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::message;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
+    use crate::{message, sql};
 
     #[allow(clippy::assertions_on_constants)]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1205,6 +1214,66 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_delete_webxdc_instance() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        t.receive_status_update(
+            ContactId::SELF,
+            instance.id,
+            r#"{"updates":[{"payload":1}]}"#,
+        )
+        .await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", ())
+                .await?,
+            1
+        );
+
+        message::delete_msgs(&t, &[instance.id]).await?;
+        sql::housekeeping(&t).await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", ())
+                .await?,
+            0
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_chat_with_webxdc() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
+        let instance = send_webxdc_instance(&t, chat_id).await?;
+        t.receive_status_update(
+            ContactId::SELF,
+            instance.id,
+            r#"{"updates":[{"payload":1}, {"payload":2}]}"#,
+        )
+        .await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", ())
+                .await?,
+            2
+        );
+
+        chat_id.delete(&t).await?;
+        sql::housekeeping(&t).await?;
+        assert_eq!(
+            t.sql
+                .count("SELECT COUNT(*) FROM msgs_status_updates;", ())
+                .await?,
+            0
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_webxdc_draft() -> Result<()> {
         let t = TestContext::new_alice().await;
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
 
