@@ -150,13 +150,49 @@ WHERE id=?;
         self.0
     }
 
+    /// Returns raw text of a message, used for message info
+    pub async fn get_info_rawtext(self, context: &Context) -> Result<Option<String>> {
+        context
+            .sql
+            .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
+            .await
+    }
+
+    /// Returns server foldernames and UIDs of a message, used for message info
+    pub async fn get_info_server_uids(
+        context: &Context,
+        rfc724_mid: String,
+    ) -> Result<Vec<(String, u32)>> {
+        context
+            .sql
+            .query_map(
+                "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
+                (rfc724_mid,),
+                |row| {
+                    let folder: String = row.get("folder")?;
+                    let uid: u32 = row.get("uid")?;
+                    Ok((folder, uid))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+    }
+
+    /// Returns informtion about hops of a message, used for message info
+    pub async fn get_info_hop_info(self, context: &Context) -> Result<Option<String>> {
+        context
+            .sql
+            .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (self,))
+            .await
+    }
+
     /// Returns detailed message information in a multi-line text form.
     pub async fn get_info(self, context: &Context) -> Result<String> {
         let msg = Message::load_from_db(context, self).await?;
-        let rawtxt: Option<String> = context
-            .sql
-            .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
-            .await?;
+        let rawtxt: Option<String> = self.get_info_rawtext(context).await?;
 
         let mut ret = String::new();
 
@@ -282,32 +318,14 @@ WHERE id=?;
         if !msg.rfc724_mid.is_empty() {
             ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
 
-            let server_uids = context
-                .sql
-                .query_map(
-                    "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
-                    (msg.rfc724_mid,),
-                    |row| {
-                        let folder: String = row.get("folder")?;
-                        let uid: u32 = row.get("uid")?;
-                        Ok((folder, uid))
-                    },
-                    |rows| {
-                        rows.collect::<std::result::Result<Vec<_>, _>>()
-                            .map_err(Into::into)
-                    },
-                )
-                .await?;
+            let server_uids = Self::get_info_server_uids(context, msg.rfc724_mid).await?;
 
             for (folder, uid) in server_uids {
                 // Format as RFC 5092 relative IMAP URL.
                 ret += &format!("\n</{folder}/;UID={uid}>");
             }
         }
-        let hop_info: Option<String> = context
-            .sql
-            .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (self,))
-            .await?;
+        let hop_info: Option<String> = self.get_info_hop_info(context).await?;
 
         ret += "\n\n";
         ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
@@ -647,6 +665,12 @@ impl Message {
     /// Returns the message ID.
     pub fn get_id(&self) -> MsgId {
         self.id
+    }
+
+    /// Returns the rfc724 message ID
+    /// May be empty
+    pub fn get_rfc724_mid(&self) -> &str {
+        &self.rfc724_mid
     }
 
     /// Returns the ID of the contact who wrote the message.

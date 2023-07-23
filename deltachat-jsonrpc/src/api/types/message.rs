@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Ok, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
 use deltachat::chat::ChatVisibility;
@@ -551,4 +551,96 @@ pub struct MessageData {
 pub struct MessageReadReceipt {
     pub contact_id: u32,
     pub timestamp: i64,
+}
+
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageInfo {
+    /// Sender name and address
+    rawtext: Option<String>,
+    sender: String,
+    // timestamps are already in the MessageObject
+    ephemeral_timer: EphemeralTimer,
+    /// When message is ephemeral this contains the timestamp of the message expiry
+    ephemeral_timestamp: Option<i64>,
+    // Read state is already in getMessageReadReceipts
+    // message_state, has_location is already in the MessageObject
+    error: Option<String>,
+    // file properties are already in the MessageObject
+    // view_type is already in the MessageObject
+    // width, height and duration are already in the MessageObject
+    rfc724_mid: String,
+    server_uids: Vec<MessageInfoServerUID>,
+    hop_info: Option<String>,
+    // Reactions are already in getMessageReactions
+}
+
+impl MessageInfo {
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
+        let message = Message::load_from_db(context, msg_id).await?;
+        let rawtext = msg_id.get_info_rawtext(context).await?;
+        let sender = Contact::get_by_id(context, message.get_from_id())
+            .await
+            .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_default();
+        let ephemeral_timer = message.get_ephemeral_timer().into();
+        let ephemeral_timestamp = if message.get_ephemeral_timer().to_u32() == 0 {
+            Some(message.get_ephemeral_timestamp())
+        } else {
+            None
+        };
+
+        let server_uids = MsgId::get_info_server_uids(context, message.get_rfc724_mid().to_owned())
+            .await?
+            .into_iter()
+            .map(|(folder, uid)| MessageInfoServerUID { folder, uid })
+            .collect();
+
+        let hop_info = msg_id.get_info_hop_info(context).await?;
+
+        Ok(Self {
+            rawtext,
+            sender,
+            ephemeral_timer,
+            ephemeral_timestamp,
+            error: message.error(),
+            rfc724_mid: message.get_rfc724_mid().to_owned(),
+            server_uids,
+            hop_info,
+        })
+    }
+}
+
+#[derive(
+    Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema,
+)]
+#[serde(rename_all = "camelCase", tag = "variant")]
+pub enum EphemeralTimer {
+    /// Timer is disabled.
+    Disabled,
+
+    /// Timer is enabled.
+    Enabled {
+        /// Timer duration in seconds.
+        ///
+        /// The value cannot be 0.
+        duration: u32,
+    },
+}
+
+impl From<deltachat::ephemeral::Timer> for EphemeralTimer {
+    fn from(value: deltachat::ephemeral::Timer) -> Self {
+        match value {
+            deltachat::ephemeral::Timer::Disabled => EphemeralTimer::Disabled,
+            deltachat::ephemeral::Timer::Enabled { duration } => {
+                EphemeralTimer::Enabled { duration }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Serialize, TypeDef, schemars::JsonSchema)]
+struct MessageInfoServerUID {
+    folder: String,
+    uid: u32,
 }
