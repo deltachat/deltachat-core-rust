@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- deltachat-rpc-client: fix bug in client.py and add missing `EventType.MSG_DELETED`
+
 ## [1.118.0] - 2023-07-07
 
 ### API-Changes

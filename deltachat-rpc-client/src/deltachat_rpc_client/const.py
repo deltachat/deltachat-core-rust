@@ -45,6 +45,7 @@ class EventType(str, Enum):
     MSG_DELIVERED = "MsgDelivered"
     MSG_FAILED = "MsgFailed"
     MSG_READ = "MsgRead"
+    MSG_DELETED = "MsgDeleted"
     CHAT_MODIFIED = "ChatModified"
     CHAT_EPHEMERAL_TIMER_MODIFIED = "ChatEphemeralTimerModified"
     CONTACTS_CHANGED = "ContactsChanged"

@@ -155,7 +155,7 @@ class Client:
 
     async def _on_new_msg(self, snapshot: AttrDict) -> None:
         event = AttrDict(command="", payload="", message_snapshot=snapshot)
-        if not snapshot.is_info and snapshot.text.startswith(COMMAND_PREFIX):
+        if not snapshot.is_info and (snapshot.text or "").startswith(COMMAND_PREFIX):
             await self._parse_command(event)
         await self._on_event(event, NewMessage)
 
