@@ -552,3 +552,71 @@ pub struct MessageReadReceipt {
     pub contact_id: u32,
     pub timestamp: i64,
 }
+
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageInfo {
+    rawtext: String,
+    ephemeral_timer: EphemeralTimer,
+    /// When message is ephemeral this contains the timestamp of the message expiry
+    ephemeral_timestamp: Option<i64>,
+    error: Option<String>,
+    rfc724_mid: String,
+    server_urls: Vec<String>,
+    hop_info: Option<String>,
+}
+
+impl MessageInfo {
+    pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
+        let message = Message::load_from_db(context, msg_id).await?;
+        let rawtext = msg_id.rawtext(context).await?;
+        let ephemeral_timer = message.get_ephemeral_timer().into();
+        let ephemeral_timestamp = match message.get_ephemeral_timer() {
+            deltachat::ephemeral::Timer::Disabled => None,
+            deltachat::ephemeral::Timer::Enabled { .. } => Some(message.get_ephemeral_timestamp()),
+        };
+
+        let server_urls =
+            MsgId::get_info_server_urls(context, message.rfc724_mid().to_owned()).await?;
+
+        let hop_info = msg_id.hop_info(context).await?;
+
+        Ok(Self {
+            rawtext,
+            ephemeral_timer,
+            ephemeral_timestamp,
+            error: message.error(),
+            rfc724_mid: message.rfc724_mid().to_owned(),
+            server_urls,
+            hop_info,
+        })
+    }
+}
+
+#[derive(
+    Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema,
+)]
+#[serde(rename_all = "camelCase", tag = "variant")]
+pub enum EphemeralTimer {
+    /// Timer is disabled.
+    Disabled,
+
+    /// Timer is enabled.
+    Enabled {
+        /// Timer duration in seconds.
+        ///
+        /// The value cannot be 0.
+        duration: u32,
+    },
+}
+
+impl From<deltachat::ephemeral::Timer> for EphemeralTimer {
+    fn from(value: deltachat::ephemeral::Timer) -> Self {
+        match value {
+            deltachat::ephemeral::Timer::Disabled => EphemeralTimer::Disabled,
+            deltachat::ephemeral::Timer::Enabled { duration } => {
+                EphemeralTimer::Enabled { duration }
+            }
+        }
+    }
+}

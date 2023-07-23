@@ -47,7 +47,7 @@ use types::provider_info::ProviderInfo;
 use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
 
-use self::types::message::MessageLoadResult;
+use self::types::message::{MessageInfo, MessageLoadResult};
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
     location::JsonrpcLocation,
@@ -1124,6 +1124,16 @@ impl CommandApi {
     async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
         MsgId::new(message_id).get_info(&ctx).await
+    }
+
+    /// Returns additional information for single message.
+    async fn get_message_info_object(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<MessageInfo> {
+        let ctx = self.get_context(account_id).await?;
+        MessageInfo::from_msg_id(&ctx, MsgId::new(message_id)).await
     }
 
     /// Returns contacts that sent read receipts and the time of reading.
