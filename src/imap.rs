@@ -611,8 +611,7 @@ impl Imap {
                 if uid_next < old_uid_next {
                     warn!(
                         context,
-                        "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...", 
-                        folder, old_uid_next, uid_next, new_uid_validity,
+                        "The server illegally decreased the uid_next of folder {folder:?} from {old_uid_next} to {uid_next} without changing validity ({new_uid_validity}), resyncing UIDs...",
                     );
                     set_uid_next(context, folder, uid_next).await?;
                     job::schedule_resync(context).await?;
@@ -628,7 +627,7 @@ impl Imap {
         set_modseq(context, folder, 0).await?;
 
         if mailbox.exists == 0 {
-            info!(context, "Folder \"{}\" is empty.", folder);
+            info!(context, "Folder {folder:?} is empty.");
 
             // set uid_next=1 for empty folders.
             // If we do not do this here, we'll miss the first message
@@ -646,7 +645,7 @@ impl Imap {
             None => {
                 warn!(
                     context,
-                    "IMAP folder has no uid_next, fall back to fetching"
+                    "IMAP folder {folder:?} has no uid_next, fall back to fetching."
                 );
                 // note that we use fetch by sequence number
                 // and thus we only need to get exactly the
@@ -685,7 +684,7 @@ impl Imap {
         }
         info!(
             context,
-            "uid/validity change folder {}: new {}/{} previous {}/{}",
+            "uid/validity change folder {}: new {}/{} previous {}/{}.",
             folder,
             new_uid_next,
             new_uid_validity,
@@ -706,17 +705,17 @@ impl Imap {
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
         if should_ignore_folder(context, folder, folder_meaning).await? {
-            info!(context, "Not fetching from {}", folder);
+            info!(context, "Not fetching from {folder:?}.");
             return Ok(false);
         }
 
         let new_emails = self
             .select_with_uidvalidity(context, folder)
             .await
-            .with_context(|| format!("failed to select folder {folder}"))?;
+            .with_context(|| format!("Failed to select folder {folder:?}"))?;
 
         if !new_emails && !fetch_existing_msgs {
-            info!(context, "No new emails in folder {}", folder);
+            info!(context, "No new emails in folder {folder:?}.");
             return Ok(false);
         }
 
@@ -742,7 +741,7 @@ impl Imap {
             let headers = match get_fetch_headers(fetch_response) {
                 Ok(headers) => headers,
                 Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    warn!(context, "Failed to parse FETCH headers: {err:#}.");
                     continue;
                 }
             };
@@ -933,7 +932,7 @@ impl Imap {
                 if let Some(folder) = context.get_config(config).await? {
                     info!(
                         context,
-                        "Fetching existing messages from folder \"{}\"", folder
+                        "Fetching existing messages from folder {folder:?}."
                     );
                     self.fetch_new_messages(context, &folder, meaning, true)
                         .await
