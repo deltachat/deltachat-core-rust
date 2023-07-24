@@ -144,14 +144,10 @@ impl EncryptHelper {
 /// sent but in a few locations there are no such guarantees,
 /// e.g. when exporting keys, and calling this function ensures a
 /// private key will be present.
-///
-/// If this succeeds you are also guaranteed that the
-/// [Config::ConfiguredAddr] is configured, this address is returned.
 // TODO, remove this once deltachat::key::Key no longer exists.
-pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context.get_primary_self_addr().await?;
+pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
     SignedPublicKey::load_self(context).await?;
-    Ok(self_addr)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -168,10 +164,7 @@ mod tests {
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn test_prexisting() {
             let t = TestContext::new_alice().await;
-            assert_eq!(
-                ensure_secret_key_exists(&t).await.unwrap(),
-                "alice@example.org"
-            );
+            assert!(ensure_secret_key_exists(&t).await.is_ok());
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
