@@ -474,10 +474,10 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
     let progress = ProgressEmitter::new(0, ReceiveProgress::max_blob_progress());
     spawn_progress_proxy(context.clone(), progress.subscribe());
 
-    let jobs = Mutex::new(JoinSet::default());
+    let jobs = Arc::new(Mutex::new(JoinSet::default()));
 
     // Perform the transfer.
-    let stats = run_get_request(context, &progress, &jobs, ticket.clone()).await?;
+    let stats = run_get_request(context, &progress, jobs.clone(), ticket.clone()).await?;
 
     let mut jobs = jobs.lock().await;
     while let Some(job) = jobs.join_next().await {
@@ -496,7 +496,7 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
 async fn run_get_request(
     context: &Context,
     progress: &ProgressEmitter,
-    jobs: &Mutex<JoinSet<()>>,
+    jobs: Arc<Mutex<JoinSet<()>>>,
     ticket: Ticket,
 ) -> anyhow::Result<Stats> {
     // DERP usage for NAT traversal and relay are currently disabled.
@@ -510,6 +510,8 @@ async fn run_get_request(
 
     let connected = initial.next().await?;
     context.emit_event(ReceiveProgress::Connected.into());
+
+    let rt = runtime::Handle::from_currrent(1)?;
 
     // we assume that the request includes the entire collection
     let (mut next, _root, collection) = {
@@ -541,7 +543,18 @@ async fn run_get_request(
         };
 
         let start = start.next(blob.hash);
-        let done = on_blob(context, jobs, &ticket, start, &blob.name).await?;
+
+        // `iroh_io` io needs to be done on a local spawn
+        let ticket = ticket.clone();
+        let context = context.clone();
+        let name = blob.name.clone();
+        let jobs = jobs.clone();
+        let done = rt
+            .local_pool()
+            .spawn_pinned(move || {
+                Box::pin(async move { on_blob(context, jobs, ticket, start, &name).await })
+            })
+            .await??;
 
         next = done.next();
     };
@@ -555,9 +568,9 @@ async fn run_get_request(
 /// This writes the blobs to the blobdir.  If the blob is the database it will import it to
 /// the database of the current [`Context`].
 async fn on_blob(
-    context: &Context,
-    jobs: &Mutex<JoinSet<()>>,
-    ticket: &Ticket,
+    context: Context,
+    jobs: Arc<Mutex<JoinSet<()>>>,
+    ticket: Ticket,
     state: fsm::AtBlobHeader,
     name: &str,
 ) -> Result<fsm::AtEndBlob> {
