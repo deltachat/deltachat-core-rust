@@ -561,7 +561,6 @@ impl Context {
         json: &str,
     ) -> Result<()> {
         let msg = Message::load_from_db(self, msg_id).await?;
-        let chat_id = msg.chat_id;
         let (timestamp, mut instance, can_info_msg) = if msg.viewtype == Viewtype::Webxdc {
             (msg.timestamp_sort, msg, false)
         } else if let Some(parent) = msg.parent(self).await? {
@@ -575,17 +574,16 @@ impl Context {
         } else {
             bail!("receive_status_update: status message has no parent.")
         };
+        let chat_id = instance.chat_id;
 
-        if from_id != ContactId::SELF
-            && !chat::is_contact_in_chat(self, instance.chat_id, from_id).await?
-        {
+        if from_id != ContactId::SELF && !chat::is_contact_in_chat(self, chat_id, from_id).await? {
             let chat_type: Chattype = self
                 .sql
                 .query_get_value("SELECT type FROM chats WHERE id=?", (chat_id,))
                 .await?
                 .with_context(|| format!("Chat type for chat {chat_id} not found"))?;
             if chat_type != Chattype::Mailinglist {
-                bail!("receive_status_update: status sender not chat member.")
+                bail!("receive_status_update: status sender {from_id} is not a member of chat {chat_id}")
             }
         }
 
