@@ -43,7 +43,6 @@ use iroh::bytes::util::runtime;
 use iroh::collection::{Collection, IrohCollectionParser};
 use iroh::database::flat::DataSource;
 use iroh::dial::Ticket;
-use iroh::net::defaults::default_derp_map;
 use iroh::net::tls::Keypair;
 use iroh::node::{Event, Node as IrohNode, StaticTokenAuthHandler};
 use iroh::util::progress::ProgressEmitter;
@@ -500,7 +499,10 @@ async fn run_get_request(
     jobs: &Mutex<JoinSet<()>>,
     ticket: Ticket,
 ) -> anyhow::Result<Stats> {
-    let opts = ticket.as_get_options(Keypair::generate(), Some(default_derp_map()));
+    // DERP usage for NAT traversal and relay are currently disabled.
+    let derp_map = None;
+
+    let opts = ticket.as_get_options(Keypair::generate(), derp_map);
     let request =
         AnyGetRequest::Get(GetRequest::all(ticket.hash())).with_token(ticket.token().cloned());
     let connection = iroh::dial::dial(opts).await?;
