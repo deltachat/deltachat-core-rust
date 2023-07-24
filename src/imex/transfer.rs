@@ -507,14 +507,13 @@ async fn run_get_request(
         AnyGetRequest::Get(GetRequest::all(ticket.hash())).with_token(ticket.token().cloned());
     let connection = iroh::dial::dial(opts).await?;
     let initial = fsm::start(connection, request);
-    use fsm::*;
 
     let connected = initial.next().await?;
     context.emit_event(ReceiveProgress::Connected.into());
 
     // we assume that the request includes the entire collection
     let (mut next, _root, collection) = {
-        let ConnectedNext::StartRoot(sc) = connected.next().await? else {
+        let fsm::ConnectedNext::StartRoot(sc) = connected.next().await? else {
             bail!("request did not include collection");
         };
 
@@ -532,8 +531,8 @@ async fn run_get_request(
     let mut blobs = collection.blobs().iter();
     let finishing = loop {
         let start = match next {
-            EndBlobNext::MoreChildren(start) => start,
-            EndBlobNext::Closing(finishing) => break finishing,
+            fsm::EndBlobNext::MoreChildren(start) => start,
+            fsm::EndBlobNext::Closing(finishing) => break finishing,
         };
 
         // get the hash of the next blob, or finish if there are no more
