@@ -313,6 +313,173 @@ async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
     Ok(())
 }
 
+/// Messages with old timestamps are difficult for verified chats:
+/// - They must not be sorted over a protection-changed info message.
+///   That's what `test_old_message_2` tests
+/// - If they change the protection, then they must not be sorted over existing other messages,
+///   because then the protection-changed info message would also be above these existing messages.
+///   That's what `test_old_message_3` tests.
+///
+/// `test_old_message_1` tests the case where both the old and the new message
+/// change verification
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_old_message_1() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
+
+    mark_as_verified(&alice, &bob).await;
+
+    let chat = alice.create_chat(&bob).await; // This creates a protection-changed info message
+    assert!(chat.is_protected());
+
+    // This creates protection-changed info message #2;
+    // even though the date is old, info message and email must be sorted below the original info message.
+    receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2-3@example.org>\n\
+          Date: Sat, 07 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Message from Thunderbird\n",
+        true,
+    )
+    .await?;
+
+    alice.golden_test_chat(chat.id, "test_old_message_1").await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_old_message_2() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
+
+    mark_as_verified(&alice, &bob).await;
+
+    // This creates protection-changed info message #1:
+    let chat = alice.create_chat(&bob).await;
+    assert!(chat.is_protected());
+    let protection_msg = alice.get_last_msg().await;
+    assert_eq!(
+        protection_msg.param.get_cmd(),
+        SystemMessage::ChatProtectionEnabled
+    );
+
+    // This creates protection-changed info message #2.
+    let first_email = receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2-3@example.org>\n\
+          Date: Sun, 08 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Somewhat old message\n",
+        false,
+    )
+    .await?
+    .unwrap();
+
+    // Both messages will get the same timestamp as the protection-changed
+    // message, so this one will be sorted under the previous one
+    // even though it has an older timestamp.
+    let second_email = receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <2319-2-3@example.org>\n\
+          Date: Sat, 07 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Even older message, that must NOT be shown before the info message\n",
+        true,
+    )
+    .await?
+    .unwrap();
+
+    assert_eq!(first_email.sort_timestamp, second_email.sort_timestamp);
+    assert_eq!(first_email.sort_timestamp, protection_msg.timestamp_sort);
+
+    alice.golden_test_chat(chat.id, "test_old_message_2").await;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_old_message_3() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
+
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    tcm.send_recv_accept(&bob, &alice, "Heyho from my verified device!")
+        .await;
+
+    // This unverified message must not be sorted over the message sent in the previous line:
+    receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2-3@example.org>\n\
+          Date: Sat, 07 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Old, unverified message\n",
+        true,
+    )
+    .await?;
+
+    alice
+        .golden_test_chat(alice.get_chat(&bob).await.unwrap().id, "test_old_message_3")
+        .await;
+
+    Ok(())
+}
+
+/// Alice is offline for some time.
+/// When she comes online, first her inbox is synced and then her sentbox.
+/// This test tests that the messages are still in the right order.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_old_message_4() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let msg_incoming = receive_imf(
+        &alice,
+        b"From: Bob <bob@example.net>\n\
+          To: alice@example.org\n\
+          Message-ID: <1234-2-3@example.org>\n\
+          Date: Sun, 08 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Thanks, Alice!\n",
+        true,
+    )
+    .await?
+    .unwrap();
+
+    let msg_sent = receive_imf(
+        &alice,
+        b"From: alice@example.org\n\
+          To: Bob <bob@example.net>\n\
+          Message-ID: <1234-2-4@example.org>\n\
+          Date: Sat, 07 Dec 2019 19:00:27 +0000\n\
+          \n\
+          Happy birthday, Bob!\n",
+        true,
+    )
+    .await?
+    .unwrap();
+
+    // The "Happy birthday" message should be shown first, and then the "Thanks" message
+    assert!(msg_sent.sort_timestamp < msg_incoming.sort_timestamp);
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mdn_doesnt_disable_verification() -> Result<()> {
     let mut tcm = TestContextManager::new();

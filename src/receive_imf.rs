@@ -754,8 +754,12 @@ async fn add_parts(
                             new_protection = ProtectionStatus::ProtectionBroken;
                         }
 
+                        // The message itself will be sorted under the device message since the device
+                        // message is `MessageState::InNoticed`, which means that all following
+                        // messages are sorted under it.
                         let sort_timestamp =
-                            calc_sort_timestamp(context, sent_timestamp, chat_id, true).await?;
+                            calc_sort_timestamp(context, sent_timestamp, chat_id, true, incoming)
+                                .await?;
                         chat_id
                             .set_protection(context, new_protection, sort_timestamp, Some(from_id))
                             .await?;
@@ -948,7 +952,8 @@ async fn add_parts(
     };
 
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, in_fresh).await?;
+    let sort_timestamp =
+        calc_sort_timestamp(context, sent_timestamp, chat_id, false, incoming).await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -1376,25 +1381,41 @@ async fn calc_sort_timestamp(
     context: &Context,
     message_timestamp: i64,
     chat_id: ChatId,
-    is_fresh_msg: bool,
+    always_sort_to_bottom: bool,
+    incoming: bool,
 ) -> Result<i64> {
     let mut sort_timestamp = message_timestamp;
 
-    // get newest non fresh message for this chat
-    // update sort_timestamp if less than that
-    if is_fresh_msg {
-        let last_msg_time: Option<i64> = context
+    let last_msg_time: Option<i64> = if always_sort_to_bottom {
+        // get newest message for this chat
+        context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
-                (chat_id, MessageState::InFresh),
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                (chat_id,),
             )
-            .await?;
+            .await?
+    } else if incoming {
+        // get newest incoming non fresh message for this chat.
 
-        if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > sort_timestamp {
-                sort_timestamp = last_msg_time;
-            }
+        // If a user hasn't been online for some time, the Inbox is
+        // fetched first and then the Sentbox. In order for Inbox
+        // and Sent messages to be allowed to mingle,
+        // outgoing messages are purely sorted by their sent timestamp.
+        context
+            .sql
+            .query_get_value(
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>? AND from_id!=?",
+                (chat_id, MessageState::InFresh, ContactId::SELF),
+            )
+            .await?
+    } else {
+        None
+    };
+
+    if let Some(last_msg_time) = last_msg_time {
+        if last_msg_time > sort_timestamp {
+            sort_timestamp = last_msg_time;
         }
     }
 
