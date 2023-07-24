@@ -1213,28 +1213,13 @@ impl Contact {
     /// The UI may draw a checkbox or something like that beside verified contacts.
     ///
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
-        self.is_verified_ex(context, None).await
-    }
-
-    /// Same as `Contact::is_verified` but allows speeding up things
-    /// by adding the peerstate belonging to the contact.
-    /// If you do not have the peerstate available, it is loaded automatically.
-    pub async fn is_verified_ex(
-        &self,
-        context: &Context,
-        peerstate: Option<&Peerstate>,
-    ) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
         if self.id == ContactId::SELF {
             return Ok(VerifiedStatus::BidirectVerified);
         }
 
-        if let Some(peerstate) = peerstate {
-            if peerstate.verified_key.is_some() {
-                return Ok(VerifiedStatus::BidirectVerified);
-            }
-        } else if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
+        if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
             if peerstate.verified_key.is_some() {
                 return Ok(VerifiedStatus::BidirectVerified);
             }
