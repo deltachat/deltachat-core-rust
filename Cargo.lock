@@ -2171,9 +2171,9 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "governor"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c390a940a5d157878dd057c78680a33ce3415bcd05b4799509ea44210914b4d5"
+checksum = "821239e5672ff23e2a7060901fa622950bbd80b649cdaadd78d1c1767ed14eb4"
 dependencies = [
  "cfg-if",
  "dashmap",
@@ -2622,8 +2622,9 @@ checksum = "28b29a3cd74f0f4598934efe3aeba42bae0eb4680554128851ebbecb02af14e6"
 
 [[package]]
 name = "iroh"
-version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e23563988ed2782c0d581c91eb08548e75372899b4e7d96aaeb016eb29bb3d72"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2655,8 +2656,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-bytes"
-version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fd5a737cd35e3ce47abd53e4995f5b42e94c8b430101e6309340fca70ab3506"
 dependencies = [
  "anyhow",
  "bao-tree",
@@ -2703,8 +2705,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10c7a91729a395f63ff934cc68394044daa8b51f18340e90450d35144ea6b837"
 dependencies = [
  "erased_set",
  "hyper",
@@ -2717,8 +2720,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-net"
-version = "0.4.1"
-source = "git+https://github.com/n0-computer/iroh?branch=main#456f96305954a23299d02ed65b8838ba168232e1"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a81d6cb57a59c8df3d1734091274fc54e943434f4dcac7c2feeec7769b6bc38"
 dependencies = [
  "anyhow",
  "backoff",
@@ -2742,6 +2746,7 @@ dependencies = [
  "iroh-metrics",
  "libc",
  "netlink-packet-route",
+ "num_enum",
  "once_cell",
  "os_info",
  "postcard",
@@ -2769,6 +2774,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "trust-dns-resolver",
+ "ucd-parse",
  "url",
  "webpki",
  "webpki-roots 0.23.1",
@@ -2938,10 +2944,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "mach"
-version = "0.3.2"
+name = "mach2"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b823e83b2affd8f40a9ee8c29dbc56404c1e34cd2710921f2801e2cf29527afa"
+checksum = "6d0d1830bcd151a6fc4aea1369af235b36c1528fe976b8ff678683c9995eade8"
 dependencies = [
  "libc",
 ]
@@ -3320,6 +3326,27 @@ checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
+dependencies = [
+ "num_enum_derive",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.25",
 ]
 
 [[package]]
@@ -3891,6 +3918,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-crate"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
+dependencies = [
+ "once_cell",
+ "toml_edit",
+]
+
+[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3971,16 +4008,16 @@ checksum = "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142"
 
 [[package]]
 name = "quanta"
-version = "0.9.3"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20afe714292d5e879d8b12740aa223c6a88f118af41870e8b6196e39a02238a8"
+checksum = "a17e662a7a8291a865152364c20c7abc5e60486ab2001e8ec10b24862de0b9ab"
 dependencies = [
  "crossbeam-utils",
  "libc",
- "mach",
+ "mach2",
  "once_cell",
  "raw-cpuid",
- "wasi 0.10.0+wasi-snapshot-preview1",
+ "wasi 0.11.0+wasi-snapshot-preview1",
  "web-sys",
  "winapi",
 ]
@@ -4317,12 +4354,6 @@ dependencies = [
  "memchr",
  "regex-syntax 0.7.4",
 ]
-
-[[package]]
-name = "regex-lite"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f96ede7f386ba6e910092e7ccdc04176cface62abebea07ed6b46d870ed95ca2"
 
 [[package]]
 name = "regex-syntax"
@@ -5806,11 +5837,12 @@ dependencies = [
 
 [[package]]
 name = "ucd-parse"
-version = "0.1.12"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "212c59636157b18c2f57eed2799e6606c52fc49c6a11685ffb0d08f06e55f428"
+checksum = "fc2d0556a998f4c55500ce1730901ba32bafbe820068cbdc091421525d61253b"
 dependencies = [
- "regex-lite",
+ "once_cell",
+ "regex",
 ]
 
 [[package]]
