@@ -70,7 +70,6 @@ mod scheduler;
 #[macro_use]
 mod job;
 pub mod key;
-mod keyring;
 pub mod location;
 mod login_param;
 pub mod message;

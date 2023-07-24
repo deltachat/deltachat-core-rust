@@ -13,7 +13,6 @@ use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
-use crate::keyring::Keyring;
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -26,8 +25,8 @@ use crate::pgp;
 pub fn try_decrypt(
     context: &Context,
     mail: &ParsedMail<'_>,
-    private_keyring: &Keyring<SignedSecretKey>,
-    public_keyring_for_validate: &Keyring<SignedPublicKey>,
+    private_keyring: &[SignedSecretKey],
+    public_keyring_for_validate: &[SignedPublicKey],
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let encrypted_data_part = match get_autocrypt_mime(mail)
         .or_else(|| get_mixed_up_mime(mail))
@@ -211,8 +210,8 @@ fn get_autocrypt_mime<'a, 'b>(mail: &'a ParsedMail<'b>) -> Option<&'a ParsedMail
 /// Returns Ok(None) if nothing encrypted was found.
 fn decrypt_part(
     mail: &ParsedMail<'_>,
-    private_keyring: &Keyring<SignedSecretKey>,
-    public_keyring_for_validate: &Keyring<SignedPublicKey>,
+    private_keyring: &[SignedSecretKey],
+    public_keyring_for_validate: &[SignedPublicKey],
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
     let data = mail.get_body_raw()?;
 
@@ -247,7 +246,7 @@ fn has_decrypted_pgp_armor(input: &[u8]) -> bool {
 /// Returns None if the message is not Multipart/Signed or doesn't contain necessary parts.
 pub(crate) fn validate_detached_signature<'a, 'b>(
     mail: &'a ParsedMail<'b>,
-    public_keyring_for_validate: &Keyring<SignedPublicKey>,
+    public_keyring_for_validate: &[SignedPublicKey],
 ) -> Option<(&'a ParsedMail<'b>, HashSet<Fingerprint>)> {
     if mail.ctype.mimetype != "multipart/signed" {
         return None;
@@ -267,13 +266,13 @@ pub(crate) fn validate_detached_signature<'a, 'b>(
     }
 }
 
-pub(crate) fn keyring_from_peerstate(peerstate: Option<&Peerstate>) -> Keyring<SignedPublicKey> {
-    let mut public_keyring_for_validate: Keyring<SignedPublicKey> = Keyring::new();
+pub(crate) fn keyring_from_peerstate(peerstate: Option<&Peerstate>) -> Vec<SignedPublicKey> {
+    let mut public_keyring_for_validate = Vec::new();
     if let Some(peerstate) = peerstate {
         if let Some(key) = &peerstate.public_key {
-            public_keyring_for_validate.add(key.clone());
+            public_keyring_for_validate.push(key.clone());
         } else if let Some(key) = &peerstate.gossip_key {
-            public_keyring_for_validate.add(key.clone());
+            public_keyring_for_validate.push(key.clone());
         }
     }
     public_keyring_for_validate

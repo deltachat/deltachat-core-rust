@@ -7,7 +7,6 @@ use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
 use crate::key::{DcKey, SignedPublicKey, SignedSecretKey};
-use crate::keyring::Keyring;
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::pgp;
 
@@ -104,7 +103,7 @@ impl EncryptHelper {
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
-        let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
+        let mut keyring: Vec<SignedPublicKey> = Vec::new();
 
         for (peerstate, addr) in peerstates
             .into_iter()
@@ -113,9 +112,9 @@ impl EncryptHelper {
             let key = peerstate
                 .take_key(min_verified)
                 .with_context(|| format!("proper enc-key for {addr} missing, cannot encrypt"))?;
-            keyring.add(key);
+            keyring.push(key);
         }
-        keyring.add(self.public_key.clone());
+        keyring.push(self.public_key.clone());
         let sign_key = SignedSecretKey::load_self(context).await?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();

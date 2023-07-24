@@ -846,7 +846,7 @@ EXCLUDE_PATTERNS       =
 # exclude all test directories use the pattern */test/*
 
 ######################################################
-EXCLUDE_SYMBOLS        = dc_aheader_t dc_apeerstate_t dc_e2ee_helper_t dc_imap_t dc_job*_t dc_key_t dc_keyring_t dc_loginparam_t dc_mime*_t
+EXCLUDE_SYMBOLS        = dc_aheader_t dc_apeerstate_t dc_e2ee_helper_t dc_imap_t dc_job*_t dc_key_t dc_loginparam_t dc_mime*_t
 EXCLUDE_SYMBOLS       += dc_saxparser_t dc_simplify_t dc_smtp_t dc_sqlite3_t dc_strbuilder_t dc_param_t dc_hash_t dc_hashelem_t
 EXCLUDE_SYMBOLS       += _dc_* jsmn*
 ######################################################
