@@ -414,7 +414,7 @@ impl From<SendProgress> for EventType {
 /// This is a long running operation which will only when completed.
 ///
 /// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
-/// does avoid having [`iroh::provider::Ticket`] in the primary API however, without
+/// does avoid having [`iroh::dial::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     ensure!(
