@@ -3603,7 +3603,7 @@ dependencies = [
 [[package]]
 name = "pgp"
 version = "0.10.1"
-source = "git+https://github.com/rpgp/rpgp?branch=new-dalek#e84a95df572a2f789f047d6df7b9803321b7b52f"
+source = "git+https://github.com/rpgp/rpgp?branch=master#93866d24673e4407f3c83873f83bf917c20feaba"
 dependencies = [
  "aes",
  "base64 0.21.2",
@@ -3619,6 +3619,7 @@ dependencies = [
  "chrono",
  "cipher",
  "crc24",
+ "curve25519-dalek",
  "derive_builder",
  "des",
  "digest",
