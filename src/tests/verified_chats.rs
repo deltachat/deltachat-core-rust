@@ -627,7 +627,18 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
     e2ee::ensure_secret_key_exists(&bob_new).await?;
 
     tcm.send_recv(&bob_new, &alice, "I have a new device").await;
-    assert_verified(&alice, &bob_new, ProtectionStatus::ProtectionBroken).await;
+
+    let contact = alice.add_or_lookup_contact(&bob_new).await;
+    assert_eq!(
+        contact.is_verified(&alice).await.unwrap(),
+        // Bob sent a message with a new key, so he most likely doesn't have
+        // the old key anymore. This means that Alice's device should show
+        // him as unverified:
+        VerifiedStatus::Unverified
+    );
+    let chat = alice.get_chat(&bob_new).await.unwrap();
+    assert_eq!(chat.is_protected(), false);
+    assert_eq!(chat.is_protection_broken(), true);
 
     {
         let alice_bob_chat = alice.get_chat(&bob_new).await.unwrap();
