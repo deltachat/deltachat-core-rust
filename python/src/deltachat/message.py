@@ -107,8 +107,8 @@ class Message:
         lib.dc_msg_set_html(self._dc_msg, as_dc_charpointer(html_text))
 
     @props.with_doc
-    def filename(self):
-        """filename if there was an attachment, otherwise empty string."""
+    def file_path(self):
+        """file path if there was an attachment, otherwise empty string."""
         return from_dc_charpointer(lib.dc_msg_get_file(self._dc_msg))
 
     def set_file(self, path, mime_type=None):
@@ -119,9 +119,8 @@ class Message:
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc
-    def basename(self) -> str:
-        """basename of the attachment if it exists, otherwise empty string."""
-        # FIXME, it does not return basename
+    def filename(self) -> str:
+        """filename of the attachment if any, otherwise empty string."""
         return from_dc_charpointer(lib.dc_msg_get_filename(self._dc_msg))
 
     @props.with_doc

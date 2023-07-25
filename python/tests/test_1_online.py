@@ -181,16 +181,16 @@ def test_send_file_twice_unicode_filename_mangling(tmp_path, acfactory, lp):
 
     msg = send_and_receive_message()
     assert msg.text == "withfile"
-    assert open(msg.filename).read() == "some data"
-    msg.filename.index(basename)
-    assert msg.filename.endswith(ext)
+    assert open(msg.file_path).read() == "some data"
+    msg.file_path.index(basename)
+    assert msg.file_path.endswith(ext)
 
     msg2 = send_and_receive_message()
     assert msg2.text == "withfile"
-    assert open(msg2.filename).read() == "some data"
-    msg2.filename.index(basename)
-    assert msg2.filename.endswith(ext)
-    assert msg.filename != msg2.filename
+    assert open(msg2.file_path).read() == "some data"
+    msg2.file_path.index(basename)
+    assert msg2.file_path.endswith(ext)
+    assert msg.file_path != msg2.file_path
 
 
 def test_send_file_html_attachment(tmp_path, acfactory, lp):
@@ -214,9 +214,9 @@ def test_send_file_html_attachment(tmp_path, acfactory, lp):
     assert ev.data2 > dc.const.DC_CHAT_ID_LAST_SPECIAL
     msg = ac2.get_message_by_id(ev.data2)
 
-    assert open(msg.filename).read() == content
-    msg.filename.index(basename)
-    assert msg.filename.endswith(ext)
+    assert open(msg.file_path).read() == content
+    msg.file_path.index(basename)
+    assert msg.file_path.endswith(ext)
 
 
 def test_html_message(acfactory, lp):
@@ -310,7 +310,7 @@ def test_webxdc_message(acfactory, data, lp):
     msg1.set_file(data.get_path("webxdc/minimal.xdc"))
     msg1 = chat.send_msg(msg1)
     assert msg1.is_webxdc()
-    assert msg1.filename
+    assert msg1.file_path
 
     assert msg1.send_status_update({"payload": "test1"}, "some test data")
     assert msg1.send_status_update({"payload": "test2"}, "more test data")
@@ -323,7 +323,7 @@ def test_webxdc_message(acfactory, data, lp):
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.text == "message1"
     assert msg2.is_webxdc()
-    assert msg2.filename
+    assert msg2.file_path
     ac2._evtracker.get_info_contains("Marked messages [0-9]+ in folder INBOX as seen.")
     ac2.direct_imap.select_folder("Inbox")
     assert len(list(ac2.direct_imap.conn.fetch(AND(seen=True)))) == 1
@@ -338,7 +338,7 @@ def test_webxdc_huge_update(acfactory, data, lp):
     msg1.set_file(data.get_path("webxdc/minimal.xdc"))
     msg1 = chat.send_msg(msg1)
     assert msg1.is_webxdc()
-    assert msg1.filename
+    assert msg1.file_path
 
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.is_webxdc()
@@ -360,7 +360,7 @@ def test_webxdc_download_on_demand(acfactory, data, lp):
     msg1.set_file(data.get_path("webxdc/minimal.xdc"))
     msg1 = chat.send_msg(msg1)
     assert msg1.is_webxdc()
-    assert msg1.filename
+    assert msg1.file_path
 
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.is_webxdc()
@@ -1350,7 +1350,7 @@ def test_quote_attachment(tmp_path, acfactory, lp):
     received_reply = ac1._evtracker.wait_next_incoming_message()
     assert received_reply.text == "message reply"
     assert received_reply.quoted_text == received_message.text
-    assert open(received_reply.filename).read() == "data to send"
+    assert open(received_reply.file_path).read() == "data to send"
 
 
 def test_saved_mime_on_received_message(acfactory, lp):
@@ -1443,8 +1443,8 @@ def test_send_and_receive_image(acfactory, lp, data):
     assert ev.data2 == msg_out.id
     msg_in = ac2.get_message_by_id(msg_out.id)
     assert msg_in.is_image()
-    assert os.path.exists(msg_in.filename)
-    assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
+    assert os.path.exists(msg_in.file_path)
+    assert os.stat(msg_in.file_path).st_size == os.stat(path).st_size
     m = message_queue.get()
     assert m == msg_in
 
@@ -1577,7 +1577,7 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
         assert len(messages) == 3
         assert messages[0].text == "msg1"
         assert messages[1].filemime == "image/png"
-        assert os.stat(messages[1].filename).st_size == os.stat(original_image_path).st_size
+        assert os.stat(messages[1].file_path).st_size == os.stat(original_image_path).st_size
         ac.set_config("displayname", "new displayname")
         assert ac.get_config("displayname") == "new displayname"
 
@@ -1650,7 +1650,7 @@ def test_ac_setup_message(acfactory, lp):
     with pytest.raises(ValueError):
         msg.continue_key_transfer(str(reversed(setup_code)))
     lp.sec("try a good setup code")
-    print("*************** Incoming ASM File at: ", msg.filename)
+    print("*************** Incoming ASM File at: ", msg.file_path)
     print("*************** Setup Code: ", setup_code)
     msg.continue_key_transfer(setup_code)
     assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
