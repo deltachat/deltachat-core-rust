@@ -50,8 +50,8 @@ class TestOnlineInCreation:
         src = tmp_path / "file.txt"
         src.write_text("hello there\n")
         msg = chat.send_file(str(src))
-        assert msg.filename.startswith(os.path.join(ac1.get_blobdir(), "file"))
-        assert msg.filename.endswith(".txt")
+        assert msg.file_path.startswith(os.path.join(ac1.get_blobdir(), "file"))
+        assert msg.file_path.endswith(".txt")
 
     def test_forward_increation(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)
@@ -99,9 +99,9 @@ class TestOnlineInCreation:
 
         lp.sec("wait1 for original or forwarded messages to arrive")
         received_original = ac2._evtracker.wait_next_incoming_message()
-        assert cmp(received_original.filename, orig, shallow=False)
+        assert cmp(received_original.file_path, orig, shallow=False)
 
         lp.sec("wait2 for original or forwarded messages to arrive")
         received_copy = ac2._evtracker.wait_next_incoming_message()
         assert received_copy.id != received_original.id
-        assert cmp(received_copy.filename, orig, shallow=False)
+        assert cmp(received_copy.file_path, orig, shallow=False)
