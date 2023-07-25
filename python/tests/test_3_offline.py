@@ -444,27 +444,30 @@ class TestOfflineChat:
         assert msg.filemime == "image/png"
 
     @pytest.mark.parametrize(
-        ("fn", "typein", "typeout"),
+        ("stem", "ext", "typein", "typeout"),
         [
-            ("r", None, "application/octet-stream"),
-            ("r.txt", None, "text/plain"),
-            ("r.txt", "text/plain", "text/plain"),
-            ("r.txt", "image/png", "image/png"),
+            ("r", "", None, "application/octet-stream"),
+            ("r", ".txt", None, "text/plain"),
+            ("r", ".txt", "text/plain", "text/plain"),
+            ("r", ".txt", "image/png", "image/png"),
         ],
     )
-    def test_message_file(self, chat1, data, lp, fn, typein, typeout):
+    def test_message_file(self, chat1, data, lp, stem, ext, typein, typeout):
         lp.sec("sending file")
+        fn = stem + ext
         fp = data.get_path(fn)
         msg = chat1.send_file(fp, typein)
         assert msg
         assert msg.id > 0
         assert msg.is_file()
         assert os.path.exists(msg.filename)
-        assert msg.filename.endswith(msg.basename)
+        assert msg.filename.endswith(ext)
+        assert msg.basename == fn
         assert msg.filemime == typeout
         msg2 = chat1.send_file(fp, typein)
         assert msg2 != msg
         assert msg2.filename != msg.filename
+        assert msg2.basename == fn
 
     def test_create_contact(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()

@@ -4520,6 +4520,7 @@ mod tests {
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{sync, TestContext, TestContextManager};
+    use regex::Regex;
     use strum::IntoEnumIterator;
     use tokio::fs;
 
@@ -7078,9 +7079,11 @@ mod tests {
 
         // the file bob receives should not contain BIDI-control characters
         assert_eq!(
-            Some("$BLOBDIR/harmless_file.txt.exe"),
-            msg.param.get(Param::File),
+            msg.param.get(Param::Filename).unwrap(),
+            "harmless_file.txt.exe"
         );
+        let re = Regex::new("^\\$BLOBDIR/harmless_file-[[:xdigit:]]{16}.txt.exe$").unwrap();
+        assert!(re.is_match(msg.param.get(Param::File).unwrap()));
         Ok(())
     }
 
