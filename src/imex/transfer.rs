@@ -474,10 +474,10 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
     let progress = ProgressEmitter::new(0, ReceiveProgress::max_blob_progress());
     spawn_progress_proxy(context.clone(), progress.subscribe());
 
-    let jobs = Arc::new(Mutex::new(JoinSet::default()));
+    let jobs = Mutex::new(JoinSet::default());
 
     // Perform the transfer.
-    let stats = run_get_request(context, &progress, jobs.clone(), ticket.clone()).await?;
+    let stats = run_get_request(context, &progress, &jobs, ticket.clone()).await?;
 
     let mut jobs = jobs.lock().await;
     while let Some(job) = jobs.join_next().await {
@@ -496,7 +496,7 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
 async fn run_get_request(
     context: &Context,
     progress: &ProgressEmitter,
-    jobs: Arc<Mutex<JoinSet<()>>>,
+    jobs: &Mutex<JoinSet<()>>,
     ticket: Ticket,
 ) -> anyhow::Result<Stats> {
     // DERP usage for NAT traversal and relay are currently disabled.
@@ -559,7 +559,7 @@ async fn run_get_request(
 async fn on_blob(
     context: &Context,
     rt: &runtime::Handle,
-    jobs: &Arc<Mutex<JoinSet<()>>>,
+    jobs: &Mutex<JoinSet<()>>,
     ticket: &Ticket,
     state: fsm::AtBlobHeader,
     name: &str,
