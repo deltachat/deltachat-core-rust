@@ -543,18 +543,7 @@ async fn run_get_request(
         };
 
         let start = start.next(blob.hash);
-
-        // `iroh_io` io needs to be done on a local spawn
-        let ticket = ticket.clone();
-        let context = context.clone();
-        let name = blob.name.clone();
-        let jobs = jobs.clone();
-        let done = rt
-            .local_pool()
-            .spawn_pinned(move || {
-                Box::pin(async move { on_blob(context, jobs, ticket, start, &name).await })
-            })
-            .await??;
+        let done = on_blob(context, &rt, &jobs, &ticket, start, &blob.name).await?;
 
         next = done.next();
     };
@@ -568,9 +557,10 @@ async fn run_get_request(
 /// This writes the blobs to the blobdir.  If the blob is the database it will import it to
 /// the database of the current [`Context`].
 async fn on_blob(
-    context: Context,
-    jobs: Arc<Mutex<JoinSet<()>>>,
-    ticket: Ticket,
+    context: &Context,
+    rt: &runtime::Handle,
+    jobs: &Arc<Mutex<JoinSet<()>>>,
+    ticket: &Ticket,
     state: fsm::AtBlobHeader,
     name: &str,
 ) -> Result<fsm::AtEndBlob> {
@@ -592,12 +582,23 @@ async fn on_blob(
         context.get_blobdir().join(blobname)
     };
 
+    // `iroh_io` io needs to be done on a local spawn
     let file_path = path.clone();
-    let mut file = iroh_io::File::create(move || std::fs::File::create(&file_path)).await?;
-    // TODO: ProgressEmitter doesn't support writers :(
-    // let mut wrapped_file = progress.wrap_async_write(&mut file);
-    let done = state.write_all(&mut file).await?;
-    file.sync().await?;
+    let done = rt
+        .local_pool()
+        .spawn_pinned(move || {
+            let file_path = file_path.clone();
+            Box::pin(async move {
+                let mut file =
+                    iroh_io::File::create(move || std::fs::File::create(&file_path)).await?;
+                // TODO: ProgressEmitter doesn't support writers :(
+                // let mut wrapped_file = progress.wrap_async_write(&mut file);
+                let done = state.write_all(&mut file).await?;
+                file.sync().await?;
+                anyhow::Ok(done)
+            })
+        })
+        .await??;
 
     if name.starts_with("db/") {
         let context = context.clone();
