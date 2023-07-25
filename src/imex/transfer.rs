@@ -543,7 +543,7 @@ async fn run_get_request(
         };
 
         let start = start.next(blob.hash);
-        let done = on_blob(context, &rt, &jobs, &ticket, start, &blob.name).await?;
+        let done = on_blob(context, &rt, jobs, &ticket, start, &blob.name).await?;
 
         next = done.next();
     };
