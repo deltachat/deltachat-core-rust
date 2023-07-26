@@ -1268,6 +1268,7 @@ impl MimeMessage {
         part.mimetype = Some(mime_type);
         part.bytes = decoded_data.len();
         part.param.set(Param::File, blob.as_name());
+        part.param.set(Param::Filename, filename);
         part.param.set(Param::MimeType, raw_mime);
         part.is_related = is_related;
 

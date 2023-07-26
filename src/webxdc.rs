@@ -1088,7 +1088,7 @@ mod tests {
         .await?;
         let instance = t.get_last_msg().await;
         assert_eq!(instance.viewtype, Viewtype::Webxdc);
-        assert_eq!(instance.get_filename(), Some("minimal.xdc".to_string()));
+        assert_eq!(instance.get_filename().unwrap(), "minimal.xdc");
 
         receive_imf(
             &t,
@@ -1098,7 +1098,7 @@ mod tests {
         .await?;
         let instance = t.get_last_msg().await;
         assert_eq!(instance.viewtype, Viewtype::File); // we require the correct extension, only a mime type is not sufficient
-        assert_eq!(instance.get_filename(), Some("index.html".to_string()));
+        assert_eq!(instance.get_filename().unwrap(), "index.html");
 
         Ok(())
     }
@@ -1786,7 +1786,7 @@ mod tests {
         // bob receives the instance together with the initial updates in a single message
         let bob_instance = bob.recv_msg(&sent1).await;
         assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
-        assert_eq!(bob_instance.get_filename(), Some("minimal.xdc".to_string()));
+        assert_eq!(bob_instance.get_filename().unwrap(), "minimal.xdc");
         assert!(sent1.payload().contains("Content-Type: application/json"));
         assert!(sent1.payload().contains("status-update.json"));
         assert_eq!(

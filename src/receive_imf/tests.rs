@@ -1456,7 +1456,9 @@ async fn test_pdf_filename_simple() {
     .await;
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
-    assert_eq!(msg.param.get(Param::File).unwrap(), "$BLOBDIR/simple.pdf");
+    let file_path = msg.param.get(Param::File).unwrap();
+    assert!(file_path.starts_with("$BLOBDIR/simple"));
+    assert!(file_path.ends_with(".pdf"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1470,10 +1472,9 @@ async fn test_pdf_filename_continuation() {
     .await;
     assert_eq!(msg.viewtype, Viewtype::File);
     assert_eq!(msg.text, "mail body");
-    assert_eq!(
-        msg.param.get(Param::File).unwrap(),
-        "$BLOBDIR/test pdf äöüß.pdf"
-    );
+    let file_path = msg.param.get(Param::File).unwrap();
+    assert!(file_path.starts_with("$BLOBDIR/test pdf äöüß"));
+    assert!(file_path.ends_with(".pdf"));
 }
 
 /// HTML-images may come with many embedded images, eg. tiny icons, corners for formatting,
@@ -2797,7 +2798,7 @@ Reply from different address
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_long_filenames() -> Result<()> {
+async fn test_long_and_duplicated_filenames() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
@@ -2808,6 +2809,7 @@ async fn test_long_filenames() -> Result<()> {
         "fooo...tar.gz",
         "foo. .tar.gz",
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
+        "a.tar.gz",
         "a.tar.gz",
         "a.a..a.a.a.a.tar.gz",
     ] {
@@ -2823,22 +2825,19 @@ async fn test_long_filenames() -> Result<()> {
 
         let msg_bob = bob.recv_msg(&sent).await;
 
-        async fn check_message(msg: &Message, t: &TestContext, content: &str) {
+        async fn check_message(msg: &Message, t: &TestContext, filename: &str, content: &str) {
             assert_eq!(msg.get_viewtype(), Viewtype::File);
             let resulting_filename = msg.get_filename().unwrap();
+            assert_eq!(resulting_filename, filename);
             let path = msg.get_file(t).unwrap();
-            assert!(
-                resulting_filename.ends_with(".tar.gz"),
-                "{resulting_filename:?} doesn't end with .tar.gz, path: {path:?}"
-            );
             assert!(
                 path.to_str().unwrap().ends_with(".tar.gz"),
                 "path {path:?} doesn't end with .tar.gz"
             );
             assert_eq!(fs::read_to_string(path).await.unwrap(), content);
         }
-        check_message(&msg_alice, &alice, &content).await;
-        check_message(&msg_bob, &bob, &content).await;
+        check_message(&msg_alice, &alice, filename_sent, &content).await;
+        check_message(&msg_bob, &bob, filename_sent, &content).await;
     }
 
     Ok(())

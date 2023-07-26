@@ -1386,7 +1386,7 @@ async fn build_body_file(
         .param
         .get_blob(Param::File, context, true)
         .await?
-        .context("msg has no filename")?;
+        .context("msg has no file")?;
     let suffix = blob.suffix().unwrap_or("dat");
 
     // Get file name to use for sending.  For privacy purposes, we do
@@ -1431,7 +1431,11 @@ async fn build_body_file(
                 ),
             &suffix
         ),
-        _ => blob.as_file_name().to_string(),
+        _ => msg
+            .param
+            .get(Param::Filename)
+            .unwrap_or_else(|| blob.as_file_name())
+            .to_string(),
     };
 
     /* check mimetype */
