@@ -656,6 +656,12 @@ mod tests {
         let text = fs::read_to_string(&path).await.unwrap();
         assert_eq!(text, "i am attachment");
 
+        let path = path.with_file_name("saved.txt");
+        msg.save_file(&ctx1, &path).await.unwrap();
+        let text = fs::read_to_string(&path).await.unwrap();
+        assert_eq!(text, "i am attachment");
+        assert!(msg.save_file(&ctx1, &path).await.is_err());
+
         // Check that both received the ImexProgress events.
         ctx0.evtracker
             .get_matching(|ev| matches!(ev, EventType::ImexProgress(1000)))

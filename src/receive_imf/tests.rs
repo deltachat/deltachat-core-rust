@@ -2994,11 +2994,15 @@ async fn test_long_and_duplicated_filenames() -> Result<()> {
             let resulting_filename = msg.get_filename().unwrap();
             assert_eq!(resulting_filename, filename);
             let path = msg.get_file(t).unwrap();
+            let path2 = path.with_file_name("saved.txt");
+            msg.save_file(t, &path2).await.unwrap();
             assert!(
                 path.to_str().unwrap().ends_with(".tar.gz"),
                 "path {path:?} doesn't end with .tar.gz"
             );
-            assert_eq!(fs::read_to_string(path).await.unwrap(), content);
+            assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
+            assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
+            fs::remove_file(path2).await.unwrap();
         }
         check_message(&msg_alice, &alice, filename_sent, &content).await;
         check_message(&msg_bob, &bob, filename_sent, &content).await;

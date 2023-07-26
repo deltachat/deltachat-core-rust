@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
+use tokio::{fs, io};
 
 use crate::blob::BlobObject;
 use crate::chat::{Chat, ChatId};
@@ -603,6 +604,19 @@ impl Message {
     /// Returns the full path to the file associated with a message.
     pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
+    }
+
+    /// Save file copy at the user-provided path.
+    pub async fn save_file(&self, context: &Context, path: &Path) -> Result<()> {
+        let path_src = self.get_file(context).context("No file")?;
+        let mut src = fs::OpenOptions::new().read(true).open(path_src).await?;
+        let mut dst = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .await?;
+        io::copy(&mut src, &mut dst).await?;
+        Ok(())
     }
 
     /// If message is an image or gif, set Param::Width and Param::Height

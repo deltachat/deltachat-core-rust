@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{collections::HashMap, str::FromStr};
@@ -1878,6 +1879,15 @@ impl CommandApi {
         Ok(can_send)
     }
 
+    /// Saves a file copy at the user-provided path.
+    ///
+    /// Fails if file already exists at the provided path.
+    async fn save_msg_file(&self, account_id: u32, msg_id: u32, path: String) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+        message.save_file(&ctx, Path::new(&path)).await
+    }
+
     // ---------------------------------------------
     //           functions for the composer
     //    the composer is the message input field
@@ -1950,19 +1960,21 @@ impl CommandApi {
         );
         let destination_path = account_folder.join("stickers").join(collection);
         fs::create_dir_all(&destination_path).await?;
-        let file = message.get_file(&ctx).context("no file")?;
-        fs::copy(
-            &file,
-            destination_path.join(format!(
-                "{}.{}",
-                msg_id,
-                file.extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-            )),
-        )
-        .await?;
+        let file = message.get_filename().context("no file?")?;
+        message
+            .save_file(
+                &ctx,
+                &destination_path.join(format!(
+                    "{}.{}",
+                    msg_id,
+                    Path::new(&file)
+                        .extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default()
+                )),
+            )
+            .await?;
         Ok(())
     }
 
