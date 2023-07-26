@@ -151,7 +151,7 @@ WHERE id=?;
     }
 
     /// Returns raw text of a message, used for message info
-    pub async fn get_info_rawtext(self, context: &Context) -> Result<Option<String>> {
+    pub async fn rawtext(self, context: &Context) -> Result<Option<String>> {
         context
             .sql
             .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
@@ -182,17 +182,17 @@ WHERE id=?;
     }
 
     /// Returns informtion about hops of a message, used for message info
-    pub async fn get_info_hop_info(self, context: &Context) -> Result<Option<String>> {
+    pub async fn hop_info(self, context: &Context) -> Result<Option<String>> {
         context
             .sql
-            .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (self,))
+            .query_get_value("SELECT hop_info FROM msgs WHERE id=?", (self,))
             .await
     }
 
     /// Returns detailed message information in a multi-line text form.
     pub async fn get_info(self, context: &Context) -> Result<String> {
         let msg = Message::load_from_db(context, self).await?;
-        let rawtxt: Option<String> = self.get_info_rawtext(context).await?;
+        let rawtxt: Option<String> = self.rawtext(context).await?;
 
         let mut ret = String::new();
 
@@ -325,7 +325,7 @@ WHERE id=?;
                 ret += &format!("\n</{folder}/;UID={uid}>");
             }
         }
-        let hop_info: Option<String> = self.get_info_hop_info(context).await?;
+        let hop_info: Option<String> = self.hop_info(context).await?;
 
         ret += "\n\n";
         ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
@@ -669,7 +669,7 @@ impl Message {
 
     /// Returns the rfc724 message ID
     /// May be empty
-    pub fn get_rfc724_mid(&self) -> &str {
+    pub fn rfc724_mid(&self) -> &str {
         &self.rfc724_mid
     }
 

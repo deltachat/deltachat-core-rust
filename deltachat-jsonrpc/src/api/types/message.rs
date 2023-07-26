@@ -556,9 +556,7 @@ pub struct MessageReadReceipt {
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageInfo {
-    /// Sender name and address
     rawtext: Option<String>,
-    sender: String,
     // timestamps are already in the MessageObject
     ephemeral_timer: EphemeralTimer,
     /// When message is ephemeral this contains the timestamp of the message expiry
@@ -570,7 +568,7 @@ pub struct MessageInfo {
     // view_type is already in the MessageObject
     // width, height and duration are already in the MessageObject
     rfc724_mid: String,
-    server_uids: Vec<MessageInfoServerUID>,
+    imap_uids: Vec<MessageInfoServerUID>,
     hop_info: Option<String>,
     // Reactions are already in getMessageReactions
 }
@@ -578,11 +576,7 @@ pub struct MessageInfo {
 impl MessageInfo {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
-        let rawtext = msg_id.get_info_rawtext(context).await?;
-        let sender = Contact::get_by_id(context, message.get_from_id())
-            .await
-            .map(|contact| contact.get_name_n_addr())
-            .unwrap_or_default();
+        let rawtext = msg_id.rawtext(context).await?;
         let ephemeral_timer = message.get_ephemeral_timer().into();
         let ephemeral_timestamp = if message.get_ephemeral_timer().to_u32() == 0 {
             Some(message.get_ephemeral_timestamp())
@@ -590,22 +584,21 @@ impl MessageInfo {
             None
         };
 
-        let server_uids = MsgId::get_info_server_uids(context, message.get_rfc724_mid().to_owned())
+        let imap_uids = MsgId::get_info_server_uids(context, message.rfc724_mid().to_owned())
             .await?
             .into_iter()
             .map(|(folder, uid)| MessageInfoServerUID { folder, uid })
             .collect();
 
-        let hop_info = msg_id.get_info_hop_info(context).await?;
+        let hop_info = msg_id.hop_info(context).await?;
 
         Ok(Self {
             rawtext,
-            sender,
             ephemeral_timer,
             ephemeral_timestamp,
             error: message.error(),
-            rfc724_mid: message.get_rfc724_mid().to_owned(),
-            server_uids,
+            rfc724_mid: message.rfc724_mid().to_owned(),
+            imap_uids,
             hop_info,
         })
     }
