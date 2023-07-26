@@ -556,7 +556,7 @@ pub struct MessageReadReceipt {
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageInfo {
-    rawtext: Option<String>,
+    rawtext: String,
     // timestamps are already in the MessageObject
     ephemeral_timer: EphemeralTimer,
     /// When message is ephemeral this contains the timestamp of the message expiry

@@ -1127,7 +1127,11 @@ impl CommandApi {
     }
 
     /// Returns additional information for single message.
-    async fn get_message_info_object(&self, account_id: u32, message_id: u32) -> Result<MessageInfo> {
+    async fn get_message_info_object(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<MessageInfo> {
         let ctx = self.get_context(account_id).await?;
         MessageInfo::from_msg_id(&ctx, MsgId::new(message_id)).await
     }

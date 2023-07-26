@@ -151,11 +151,12 @@ WHERE id=?;
     }
 
     /// Returns raw text of a message, used for message info
-    pub async fn rawtext(self, context: &Context) -> Result<Option<String>> {
-        context
+    pub async fn rawtext(self, context: &Context) -> Result<String> {
+        Ok(context
             .sql
             .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
-            .await
+            .await?
+            .unwrap_or_default())
     }
 
     /// Returns server foldernames and UIDs of a message, used for message info
@@ -192,15 +193,10 @@ WHERE id=?;
     /// Returns detailed message information in a multi-line text form.
     pub async fn get_info(self, context: &Context) -> Result<String> {
         let msg = Message::load_from_db(context, self).await?;
-        let rawtxt: Option<String> = self.rawtext(context).await?;
+        let rawtxt: String = self.rawtext(context).await?;
 
         let mut ret = String::new();
 
-        if rawtxt.is_none() {
-            ret += &format!("Cannot load message {self}.");
-            return Ok(ret);
-        }
-        let rawtxt = rawtxt.unwrap_or_default();
         let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
 
         let fts = timestamp_to_str(msg.get_timestamp());
