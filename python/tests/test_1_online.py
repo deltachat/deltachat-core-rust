@@ -162,8 +162,9 @@ def test_send_file_twice_unicode_filename_mangling(tmp_path, acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
     chat = acfactory.get_accepted_chat(ac1, ac2)
 
-    basename = "somedäüta.html.zip"
-    p = tmp_path / basename
+    basename = "somedäüta"
+    ext = ".html.zip"
+    p = tmp_path / (basename + ext)
     p.write_text("some data")
 
     def send_and_receive_message():
@@ -181,12 +182,14 @@ def test_send_file_twice_unicode_filename_mangling(tmp_path, acfactory, lp):
     msg = send_and_receive_message()
     assert msg.text == "withfile"
     assert open(msg.filename).read() == "some data"
-    assert msg.filename.endswith(basename)
+    msg.filename.index(basename)
+    assert msg.filename.endswith(ext)
 
     msg2 = send_and_receive_message()
     assert msg2.text == "withfile"
     assert open(msg2.filename).read() == "some data"
-    assert msg2.filename.endswith("html.zip")
+    msg2.filename.index(basename)
+    assert msg2.filename.endswith(ext)
     assert msg.filename != msg2.filename
 
 
@@ -194,10 +197,11 @@ def test_send_file_html_attachment(tmp_path, acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
     chat = acfactory.get_accepted_chat(ac1, ac2)
 
-    basename = "test.html"
+    basename = "test"
+    ext = ".html"
     content = "<html><body>text</body>data"
 
-    p = tmp_path / basename
+    p = tmp_path / (basename + ext)
     # write wrong html to see if core tries to parse it
     # (it shouldn't as it's a file attachment)
     p.write_text(content)
@@ -211,7 +215,8 @@ def test_send_file_html_attachment(tmp_path, acfactory, lp):
     msg = ac2.get_message_by_id(ev.data2)
 
     assert open(msg.filename).read() == content
-    assert msg.filename.endswith(basename)
+    msg.filename.index(basename)
+    assert msg.filename.endswith(ext)
 
 
 def test_html_message(acfactory, lp):

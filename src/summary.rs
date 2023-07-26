@@ -9,7 +9,6 @@ use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
-use crate::param::Param;
 use crate::stock_str;
 use crate::tools::truncate;
 
@@ -133,14 +132,8 @@ impl Message {
                     append_text = false;
                     stock_str::ac_setup_msg_subject(context).await
                 } else {
-                    let file_name: String = self
-                        .param
-                        .get_path(Param::File, context)
-                        .unwrap_or(None)
-                        .and_then(|path| {
-                            path.file_name()
-                                .map(|fname| fname.to_string_lossy().into_owned())
-                        })
+                    let file_name = self
+                        .get_filename()
                         .unwrap_or_else(|| String::from("ErrFileName"));
                     let label = if self.viewtype == Viewtype::Audio {
                         stock_str::audio(context).await
@@ -200,6 +193,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::param::Param;
     use crate::test_utils as test;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

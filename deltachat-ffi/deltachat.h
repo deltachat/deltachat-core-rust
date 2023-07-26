@@ -3978,16 +3978,17 @@ char*           dc_msg_get_text               (const dc_msg_t* msg);
  */
 char*           dc_msg_get_subject            (const dc_msg_t* msg);
 
+
 /**
- * Find out full path, file name and extension of the file associated with a
- * message.
+ * Find out full path of the file associated with a message.
  *
  * Typically files are associated with images, videos, audios, documents.
  * Plain text messages do not have a file.
+ * File name may be mangled. To obtain the original attachment filename use dc_msg_get_filename().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return The full path, the file name, and the extension of the file associated with the message.
+ * @return The full path (with file name and extension) of the file associated with the message.
  *     If there is no file associated with the message, an empty string is returned.
  *     NULL is never returned and the returned value must be released using dc_str_unref().
  */
@@ -3995,14 +3996,13 @@ char*           dc_msg_get_file               (const dc_msg_t* msg);
 
 
 /**
- * Get a base file name without the path. The base file name includes the extension; the path
- * is not returned. To get the full path, use dc_msg_get_file().
+ * Get an original attachment filename, with extension but without the path. To get the full path,
+ * use dc_msg_get_file().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return The base file name plus the extension without part. If there is no file
- *     associated with the message, an empty string is returned. The returned
- *     value must be released using dc_str_unref().
+ * @return The attachment filename. If there is no file associated with the message, an empty string
+ *     is returned. The returned value must be released using dc_str_unref().
  */
 char*           dc_msg_get_filename           (const dc_msg_t* msg);
 

@@ -49,10 +49,9 @@ class TestOnlineInCreation:
         assert str(tmp_path) != ac1.get_blobdir()
         src = tmp_path / "file.txt"
         src.write_text("hello there\n")
-        chat.send_file(str(src))
-
-        blob_src = os.path.join(ac1.get_blobdir(), "file.txt")
-        assert os.path.exists(blob_src), "file.txt not copied to blobdir"
+        msg = chat.send_file(str(src))
+        assert msg.filename.startswith(os.path.join(ac1.get_blobdir(), "file"))
+        assert msg.filename.endswith(".txt")
 
     def test_forward_increation(self, acfactory, data, lp):
         ac1, ac2 = acfactory.get_online_accounts(2)

@@ -688,11 +688,13 @@ impl Message {
         &self.subject
     }
 
-    /// Returns base file name without the path.
-    /// The base file name includes the extension.
+    /// Returns original filename (as shown in chat).
     ///
     /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
+        if let Some(name) = self.param.get(Param::Filename) {
+            return Some(name.to_string());
+        }
         self.param
             .get(Param::File)
             .and_then(|file| Path::new(file).file_name())
@@ -972,6 +974,11 @@ impl Message {
     /// the file will only be used when the message is prepared
     /// for sending.
     pub fn set_file(&mut self, file: impl ToString, filemime: Option<&str>) {
+        if let Some(name) = Path::new(&file.to_string()).file_name() {
+            if let Some(name) = name.to_str() {
+                self.param.set(Param::Filename, name);
+            }
+        }
         self.param.set(Param::File, file);
         if let Some(filemime) = filemime {
             self.param.set(Param::MimeType, filemime);

@@ -2042,6 +2042,14 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
         msg.param.set(Param::File, blob.as_name());
+        if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
+            let stem = match filename.rsplit_once('.') {
+                Some((stem, _)) => stem,
+                None => filename,
+            };
+            msg.param
+                .set(Param::Filename, stem.to_string() + "." + blob_ext);
+        }
 
         if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
             // Correct the type, take care not to correct already very special
@@ -5521,7 +5529,7 @@ mod tests {
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, bob_chat.id);
         assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
-        assert_eq!(msg.get_filename(), Some(filename.to_string()));
+        assert_eq!(msg.get_filename().unwrap(), filename);
         assert_eq!(msg.get_width(), w);
         assert_eq!(msg.get_height(), h);
         assert!(msg.get_filebytes(&bob).await?.unwrap() > 250);
