@@ -3363,6 +3363,34 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_save_file(
+    msg: *mut dc_msg_t,
+    path: *const libc::c_char,
+) -> libc::c_int {
+    if msg.is_null() || path.is_null() {
+        eprintln!("ignoring careless call to dc_msg_save_file()");
+        return 0;
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+    let path = to_string_lossy(path);
+    let r = block_on(
+        ffi_msg
+            .message
+            .save_file(ctx, &std::path::PathBuf::from(path)),
+    );
+    match r {
+        Ok(()) => 1,
+        Err(_) => {
+            r.context("Failed to save file from message")
+                .log_err(ctx)
+                .unwrap_or_default();
+            0
+        }
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_filename()");

@@ -4051,6 +4051,19 @@ char*           dc_msg_get_file               (const dc_msg_t* msg);
 
 
 /**
+ * Save file copy at the user-provided path.
+ *
+ * Fails if file already exists at the provided path.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param path Destination file path with filename and extension.
+ * @return 0 on failure, 1 on success.
+ */
+int             dc_msg_save_file              (const dc_msg_t* msg, const char* path);
+
+
+/**
  * Get an original attachment filename, with extension but without the path. To get the full path,
  * use dc_msg_get_file().
  *

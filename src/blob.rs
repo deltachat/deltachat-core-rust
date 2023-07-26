@@ -1182,23 +1182,26 @@ mod tests {
         let alice_msg = alice.get_last_msg().await;
         assert_eq!(alice_msg.get_width() as u32, compressed_width);
         assert_eq!(alice_msg.get_height() as u32, compressed_height);
-        check_image_size(
-            alice_msg.get_file(&alice).unwrap(),
-            compressed_width,
-            compressed_height,
-        );
+        let file_saved = alice
+            .get_blobdir()
+            .join("saved-".to_string() + &alice_msg.get_filename().unwrap());
+        alice_msg.save_file(&alice, &file_saved).await?;
+        check_image_size(file_saved, compressed_width, compressed_height);
 
         let bob_msg = bob.recv_msg(&sent).await;
         assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
         assert_eq!(bob_msg.get_height() as u32, compressed_height);
-        let file = bob_msg.get_file(&bob).unwrap();
+        let file_saved = bob
+            .get_blobdir()
+            .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
+        bob_msg.save_file(&bob, &file_saved).await?;
 
-        let blob = BlobObject::new_from_path(&bob, &file).await?;
+        let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
         let (_, exif) = blob.metadata()?;
         assert!(exif.is_none());
 
-        let img = check_image_size(file, compressed_width, compressed_height);
+        let img = check_image_size(file_saved, compressed_width, compressed_height);
         Ok(img)
     }
 
