@@ -143,7 +143,7 @@ pub(crate) async fn receive_imf_inner(
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
-    let replace_partial_download =
+    let (replace_partial_download, replace_chat_id) =
         if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
@@ -152,14 +152,14 @@ pub(crate) async fn receive_imf_inner(
                     context,
                     "Message already partly in DB, replacing by full message."
                 );
-                Some(old_msg_id)
+                (Some(old_msg_id), Some(msg.chat_id))
             } else {
                 // the message was probably moved around.
                 info!(context, "Message already in DB, doing nothing.");
                 return Ok(None);
             }
         } else {
-            None
+            (None, None)
         };
 
     let prevent_rename =
@@ -347,8 +347,8 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    if replace_partial_download.is_some() {
-        context.emit_msgs_changed(chat_id, MsgId::new(0));
+    if let Some(replace_chat_id) = replace_chat_id {
+        context.emit_msgs_changed(replace_chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {

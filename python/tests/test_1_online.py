@@ -371,6 +371,11 @@ def test_webxdc_download_on_demand(acfactory, data, lp):
     ac2._evtracker.get_matching("DC_EVENT_WEBXDC_STATUS_UPDATE")
     assert msg2.get_status_updates()
 
+    # Get a event notifying that the message disappeared from the chat.
+    msgs_changed_event = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+    assert msgs_changed_event.data1 == msg2.chat.id
+    assert msgs_changed_event.data2 == 0
+
 
 def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac1: start with mvbox thread")
