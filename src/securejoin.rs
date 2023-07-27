@@ -14,7 +14,7 @@ use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey, Fingerprint};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -130,7 +130,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
 }
 
 async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
-    match SignedPublicKey::load_self(context).await {
+    match load_self_public_key(context).await {
         Ok(key) => Some(key.fingerprint()),
         Err(_) => {
             warn!(context, "get_self_fingerprint(): failed to load key");
@@ -884,10 +884,7 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx)
-            .await
-            .unwrap()
-            .fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await.unwrap().fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1029,7 +1026,7 @@ mod tests {
         let bob = tcm.bob().await;
 
         // Ensure Bob knows Alice_FP
-        let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
+        let alice_pubkey = load_self_public_key(&alice.ctx).await?;
         let peerstate = Peerstate {
             addr: "alice@example.org".into(),
             last_seen: 10,
@@ -1083,7 +1080,7 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1254,7 +1251,7 @@ mod tests {
             "vg-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()

@@ -25,7 +25,7 @@ use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
 use crate::context::Context;
 use crate::events::EventType;
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey};
 use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
@@ -1009,7 +1009,7 @@ impl Contact {
                 let finger_prints = stock_str::finger_prints(context).await;
                 ret += &format!("{stock_message}.\n{finger_prints}:");
 
-                let fingerprint_self = SignedPublicKey::load_self(context)
+                let fingerprint_self = load_self_public_key(context)
                     .await?
                     .fingerprint()
                     .to_string();

@@ -19,7 +19,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
@@ -580,7 +580,7 @@ impl Context {
             .sql
             .count("SELECT COUNT(*) FROM acpeerstates;", ())
             .await?;
-        let fingerprint_str = match SignedPublicKey::load_self(self).await {
+        let fingerprint_str = match load_self_public_key(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {err}>"),
         };

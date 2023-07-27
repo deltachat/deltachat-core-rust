@@ -27,7 +27,7 @@ use crate::decrypt::{
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
+use crate::key::{load_self_secret_key, DcKey, Fingerprint, SignedPublicKey};
 use crate::message::{self, set_msg_failed, update_msg_state, MessageState, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
@@ -275,7 +275,7 @@ impl MimeMessage {
         headers.remove("chat-verified");
 
         let from = from.context("No from in message")?;
-        let private_keyring = vec![SignedSecretKey::load_self(context)
+        let private_keyring = vec![load_self_secret_key(context)
             .await
             .context("Failed to get own key")?];
 

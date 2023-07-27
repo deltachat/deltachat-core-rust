@@ -19,7 +19,9 @@ use crate::contact::ContactId;
 use crate::context::Context;
 use crate::e2ee;
 use crate::events::EventType;
-use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
+use crate::key::{
+    self, load_self_secret_key, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey,
+};
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
@@ -186,7 +188,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
     } else {
         bail!("Passphrase must be at least 2 chars long.");
     };
-    let private_key = SignedSecretKey::load_self(context).await?;
+    let private_key = load_self_secret_key(context).await?;
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await? {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
