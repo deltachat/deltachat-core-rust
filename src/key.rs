@@ -18,8 +18,7 @@ use tokio::runtime::Handle;
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
-// Re-export key types
-pub use crate::pgp::KeyPair;
+use crate::pgp::KeyPair;
 use crate::tools::{time, EmailAddress};
 
 /// Convenience trait for working with keys.

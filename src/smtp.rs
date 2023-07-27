@@ -12,6 +12,7 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
+use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::Message;
@@ -22,9 +23,9 @@ use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
-use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout.
 const SMTP_TIMEOUT: Duration = Duration::from_secs(30);

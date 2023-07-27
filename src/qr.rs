@@ -17,11 +17,12 @@ use crate::contact::{
     addr_normalize, may_be_valid_addr, Contact, ContactAddress, ContactId, Origin,
 };
 use crate::context::Context;
+use crate::events::EventType;
 use crate::key::Fingerprint;
 use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::socks::Socks5Config;
-use crate::{token, EventType};
+use crate::token;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";

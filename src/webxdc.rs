@@ -12,11 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
-use crate::chat::Chat;
+use crate::chat::{self, Chat};
 use crate::constants::Chattype;
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::download::DownloadState;
+use crate::events::EventType;
 use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -24,7 +25,6 @@ use crate::param::Params;
 use crate::scheduler::InterruptInfo;
 use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
-use crate::{chat, EventType};
 
 /// The current API version.
 /// If `min_api` in manifest.toml is set to a larger value,

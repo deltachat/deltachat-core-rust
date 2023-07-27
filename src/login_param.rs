@@ -5,9 +5,10 @@ use std::fmt;
 use anyhow::{ensure, Result};
 
 use crate::constants::{DC_LP_AUTH_FLAGS, DC_LP_AUTH_NORMAL, DC_LP_AUTH_OAUTH2};
+use crate::context::Context;
+use crate::provider::Socket;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::socks::Socks5Config;
-use crate::{context::Context, provider::Socket};
 
 #[derive(Copy, Clone, Debug, Display, FromPrimitive, ToPrimitive, PartialEq, Eq)]
 #[repr(u32)]

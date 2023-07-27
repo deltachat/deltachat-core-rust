@@ -32,6 +32,7 @@ use deltachat::imex::BackupProvider;
 use deltachat::key::DcKey;
 use deltachat::message::MsgId;
 use deltachat::net::read_url_blob;
+use deltachat::pgp::KeyPair;
 use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
@@ -799,7 +800,7 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
         let addr = tools::EmailAddress::new(&to_string_lossy(addr))?;
         let public = key::SignedPublicKey::from_asc(&to_string_lossy(public_data))?.0;
         let secret = key::SignedSecretKey::from_asc(&to_string_lossy(secret_data))?.0;
-        let keypair = key::KeyPair {
+        let keypair = KeyPair {
             addr,
             public,
             secret,

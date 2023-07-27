@@ -33,10 +33,11 @@ use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
-use crate::key::{self, DcKey, KeyPair, KeyPairUse};
+use crate::key::{self, DcKey, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::peerstate::Peerstate;
+use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
 use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
@@ -910,7 +911,7 @@ pub fn alice_keypair() -> KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/alice-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,
@@ -928,7 +929,7 @@ pub fn bob_keypair() -> KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,
@@ -938,7 +939,7 @@ pub fn bob_keypair() -> KeyPair {
 /// Load a pre-generated keypair for fiona@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
-pub fn fiona_keypair() -> key::KeyPair {
+pub fn fiona_keypair() -> KeyPair {
     let addr = EmailAddress::new("fiona@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
         .unwrap()
@@ -946,7 +947,7 @@ pub fn fiona_keypair() -> key::KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/fiona-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,

@@ -1,14 +1,12 @@
 //! Forward log messages to logging webxdc
-use crate::{
-    chat::ChatId,
-    config::Config,
-    context::Context,
-    message::{Message, MsgId, Viewtype},
-    param::Param,
-    tools::time,
-    webxdc::StatusUpdateItem,
-    EventType,
-};
+use crate::chat::ChatId;
+use crate::config::Config;
+use crate::context::Context;
+use crate::events::EventType;
+use crate::message::{Message, MsgId, Viewtype};
+use crate::param::Param;
+use crate::tools::time;
+use crate::webxdc::StatusUpdateItem;
 use async_channel::{self as channel, Receiver, Sender};
 use serde_json::json;
 use std::path::PathBuf;

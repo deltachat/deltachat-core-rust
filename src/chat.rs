@@ -25,6 +25,7 @@ use crate::debug_logging::maybe_set_logging_xdc;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
+use crate::location;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -33,6 +34,7 @@ use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::receive_imf::ReceivedMsg;
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
+use crate::sql;
 use crate::stock_str;
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
@@ -40,7 +42,6 @@ use crate::tools::{
     strip_rtlo_characters, time, IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
-use crate::{location, sql};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
