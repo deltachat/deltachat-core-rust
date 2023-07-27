@@ -21,6 +21,9 @@ pub enum Param {
     /// For messages and jobs
     File = b'f',
 
+    /// For messages: original filename (as shown in chat)
+    Filename = b'v',
+
     /// For messages: This name should be shown instead of contact.get_display_name()
     /// (used if this is a mailinglist
     /// or explicitly set using set_override_sender_name(), eg. by bots)
@@ -528,7 +531,7 @@ mod tests {
 
         fs::write(fname, b"boo").await.unwrap();
         let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
-        assert_eq!(blob, BlobObject::from_name(&t, "foo".to_string()).unwrap());
+        assert!(blob.as_file_name().starts_with("foo"));
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");

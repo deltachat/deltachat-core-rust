@@ -1378,7 +1378,7 @@ impl<'a> MimeFactory<'a> {
 ///
 /// This line length limit is an
 /// [RFC5322 requirement](https://tools.ietf.org/html/rfc5322#section-2.1.1).
-fn wrapped_base64_encode(buf: &[u8]) -> String {
+pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
     let base64 = base64::engine::general_purpose::STANDARD.encode(buf);
     let mut chars = base64.chars();
     std::iter::repeat_with(|| chars.by_ref().take(78).collect::<String>())
@@ -1396,7 +1396,7 @@ async fn build_body_file(
         .param
         .get_blob(Param::File, context, true)
         .await?
-        .context("msg has no filename")?;
+        .context("msg has no file")?;
     let suffix = blob.suffix().unwrap_or("dat");
 
     // Get file name to use for sending.  For privacy purposes, we do
@@ -1441,7 +1441,11 @@ async fn build_body_file(
                 ),
             &suffix
         ),
-        _ => blob.as_file_name().to_string(),
+        _ => msg
+            .param
+            .get(Param::Filename)
+            .unwrap_or_else(|| blob.as_file_name())
+            .to_string(),
     };
 
     /* check mimetype */
