@@ -2389,14 +2389,13 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         msg.chat_id.set_gossiped_timestamp(context, time()).await?;
     }
 
-    if 0 != rendered_msg.last_added_location_id {
+    if let Some(last_added_location_id) = rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
             error!(context, "Failed to set kml sent_timestamp: {err:#}.");
         }
         if !msg.hidden {
             if let Err(err) =
-                location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
-                    .await
+                location::set_msg_location_id(context, msg.id, last_added_location_id).await
             {
                 error!(context, "Failed to set msg_location_id: {err:#}.");
             }
