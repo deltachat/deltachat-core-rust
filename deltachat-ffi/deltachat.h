@@ -1110,7 +1110,7 @@ dc_reactions_t* dc_get_msg_reactions (dc_context_t *context, int msg_id);
  *
  * In JS land, that would be mapped to something as:
  * ```
- * success = window.webxdc.sendUpdate('{"action":"move","src":"A3","dest":"B4"}', 'move A3 B4');
+ * success = window.webxdc.sendUpdate('{payload: {"action":"move","src":"A3","dest":"B4"}}', 'move A3 B4');
  * ```
  * `context` and `msg_id` are not needed in JS as those are unique within a webxdc instance.
  * See dc_get_webxdc_status_updates() for the receiving counterpart.
