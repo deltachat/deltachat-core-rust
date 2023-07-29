@@ -164,7 +164,7 @@ impl DcKey for SignedSecretKey {
 /// Deltachat extension trait for secret keys.
 ///
 /// Provides some convenience wrappers only applicable to [SignedSecretKey].
-pub trait DcSecretKey {
+pub(crate) trait DcSecretKey {
     /// Create a public key from a private one.
     fn split_public_key(&self) -> Result<SignedPublicKey>;
 }
