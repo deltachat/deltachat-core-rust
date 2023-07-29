@@ -24,7 +24,7 @@ use crate::tools::{time, EmailAddress};
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
-pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
+pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self> {
         Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
@@ -304,6 +304,29 @@ pub async fn store_self_keypair(
         })
         .await?;
 
+    Ok(())
+}
+
+/// Saves a keypair as the default keys.
+///
+/// This API is used for testing purposes
+/// to avoid generating the key in tests.
+/// Use import/export APIs instead.
+pub async fn preconfigure_keypair(
+    context: &Context,
+    addr: &str,
+    public_data: &str,
+    secret_data: &str,
+) -> Result<()> {
+    let addr = EmailAddress::new(addr)?;
+    let public = SignedPublicKey::from_asc(public_data)?.0;
+    let secret = SignedSecretKey::from_asc(secret_data)?.0;
+    let keypair = KeyPair {
+        addr,
+        public,
+        secret,
+    };
+    store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
     Ok(())
 }
 
