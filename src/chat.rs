@@ -7023,7 +7023,7 @@ mod tests {
             msg.param.get(Param::Filename).unwrap(),
             "harmless_file.txt.exe"
         );
-        let re = Regex::new("^\\$BLOBDIR/harmless_file-[[:xdigit:]]{16}.txt.exe$").unwrap();
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}.txt.exe$").unwrap();
         assert!(re.is_match(msg.param.get(Param::File).unwrap()));
         Ok(())
     }

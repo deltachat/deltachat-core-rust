@@ -3741,7 +3741,7 @@ Message.
             mime_message.parts[0].msg,
             "this is a classic email – I attached the .EML file".to_string()
         );
-        let re = Regex::new("^\\$BLOBDIR/-[[:xdigit:]]{16}.eml$").unwrap();
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}.eml$").unwrap();
         assert!(re.is_match(mime_message.parts[0].param.get(Param::File).unwrap()));
 
         assert_eq!(mime_message.parts[0].org_filename, Some(".eml".to_string()));

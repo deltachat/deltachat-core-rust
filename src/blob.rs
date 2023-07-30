@@ -47,8 +47,8 @@ impl<'a> BlobObject<'a> {
         data: &[u8],
     ) -> Result<BlobObject<'a>> {
         let blobdir = context.get_blobdir();
-        let (stem, ext) = BlobObject::sanitise_name(suggested_name);
-        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &stem, &ext).await?;
+        let ext = BlobObject::get_extension(suggested_name);
+        let (name, mut file) = BlobObject::create_new_file(context, blobdir, &ext).await?;
         file.write_all(data).await.context("file write failure")?;
 
         // workaround a bug in async-std
@@ -68,12 +68,11 @@ impl<'a> BlobObject<'a> {
     async fn create_new_file(
         context: &Context,
         dir: &Path,
-        stem: &str,
         ext: &str,
     ) -> Result<(String, fs::File)> {
         let mut attempt = 0;
         loop {
-            let name = format!("{}-{:016x}{}", stem, rand::random::<u64>(), ext);
+            let name = format!("{:016x}{}", rand::random::<u64>(), ext);
             attempt += 1;
             let path = dir.join(&name);
             match fs::OpenOptions::new()
@@ -104,9 +103,9 @@ impl<'a> BlobObject<'a> {
         let mut src_file = fs::File::open(src)
             .await
             .with_context(|| format!("failed to open file {}", src.display()))?;
-        let (stem, ext) = BlobObject::sanitise_name(&src.to_string_lossy());
+        let ext = BlobObject::get_extension(&src.to_string_lossy());
         let (name, mut dst_file) =
-            BlobObject::create_new_file(context, context.get_blobdir(), &stem, &ext).await?;
+            BlobObject::create_new_file(context, context.get_blobdir(), &ext).await?;
         let name_for_err = name.clone();
         if let Err(err) = io::copy(&mut src_file, &mut dst_file).await {
             // Attempt to remove the failed file, swallow errors resulting from that.
@@ -130,10 +129,8 @@ impl<'a> BlobObject<'a> {
     ///
     /// If the source file is not a path to into the blob directory
     /// the file will be copied into the blob directory first.  If the
-    /// source file is already in the blobdir it will not be copied
-    /// and only be created if it is a valid blobname, that is no
-    /// subdirectory is used and [BlobObject::sanitise_name] does not
-    /// modify the filename.
+    /// source file is already in the blobdir (but not in a subdirectory)
+    /// it will not be copied and only be created if it is a valid blobname.
     ///
     /// Paths into the blob directory may be either defined by an absolute path
     /// or by the relative prefix `$BLOBDIR`.
@@ -150,8 +147,7 @@ impl<'a> BlobObject<'a> {
     /// Returns a [BlobObject] for an existing blob from a path.
     ///
     /// The path must designate a file directly in the blobdir and
-    /// must use a valid blob name.  That is after sanitisation the
-    /// name must still be the same, that means it must be valid UTF-8
+    /// must use a valid blob name. That means it must be valid UTF-8
     /// and not have any special characters in it.
     pub fn from_path(context: &'a Context, path: &Path) -> Result<BlobObject<'a>> {
         let rel_path = path
@@ -225,21 +221,8 @@ impl<'a> BlobObject<'a> {
         }
     }
 
-    /// Create a safe name based on a messy input string.
-    ///
-    /// The safe name will be a valid filename on Unix and Windows and
-    /// not contain any path separators.  The input can contain path
-    /// segments separated by either Unix or Windows path separators,
-    /// the rightmost non-empty segment will be used as name,
-    /// sanitised for special characters.
-    ///
-    /// The resulting name is returned as a tuple, the first part
-    /// being the stem or basename and the second being an extension,
-    /// including the dot.  E.g. "foo.txt" is returned as `("foo",
-    /// ".txt")` while "bar" is returned as `("bar", "")`.
-    ///
-    /// The extension part will always be lowercased.
-    fn sanitise_name(name: &str) -> (String, String) {
+    /// Get a file extension if any, including the dot, in lower case, otherwise an empty string.
+    fn get_extension(name: &str) -> String {
         let mut name = name.to_string();
         for part in name.rsplit('/') {
             if !part.is_empty() {
@@ -253,20 +236,12 @@ impl<'a> BlobObject<'a> {
                 break;
             }
         }
-        let opts = sanitize_filename::Options {
-            truncate: true,
-            windows: true,
-            replacement: "",
-        };
 
-        let clean = sanitize_filename::sanitize_with_options(name, opts);
         // Let's take the tricky filename
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
         // Split it into "file" and "with_lots_of_characters_behind_point_and_double_ending.tar.gz":
-        let mut iter = clean.splitn(2, '.');
-
-        let stem: String = iter.next().unwrap_or_default().chars().take(64).collect();
-        // stem == "file"
+        let mut iter = name.splitn(2, '.');
+        iter.next();
 
         let ext_chars = iter.next().unwrap_or_default().chars();
         let ext: String = ext_chars
@@ -279,11 +254,10 @@ impl<'a> BlobObject<'a> {
         // ext == "d_point_and_double_ending.tar.gz"
 
         if ext.is_empty() {
-            (stem, "".to_string())
+            ext
         } else {
-            (stem, format!(".{ext}").to_lowercase())
-            // Return ("file", ".d_point_and_double_ending.tar.gz")
-            // which is not perfect but acceptable.
+            format!(".{ext}").to_lowercase()
+            // Return ".d_point_and_double_ending.tar.gz", which is not perfect but acceptable.
         }
     }
 
@@ -691,7 +665,7 @@ mod tests {
     async fn test_create() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo", b"hello").await.unwrap();
-        let re = Regex::new("^foo-[[:xdigit:]]{16}$").unwrap();
+        let re = Regex::new("^[[:xdigit:]]{16}$").unwrap();
         assert!(re.is_match(blob.as_file_name()));
         let fname = t.get_blobdir().join(blob.as_file_name());
         let data = fs::read(fname).await.unwrap();
@@ -710,7 +684,7 @@ mod tests {
     async fn test_lowercase_ext() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.TXT", b"hello").await.unwrap();
-        let re = Regex::new("^\\$BLOBDIR/foo-[[:xdigit:]]{16}.txt$").unwrap();
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}.txt$").unwrap();
         assert!(re.is_match(blob.as_name()));
     }
 
@@ -718,7 +692,7 @@ mod tests {
     async fn test_as_file_name() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        let re = Regex::new("^foo-[[:xdigit:]]{16}.txt$").unwrap();
+        let re = Regex::new("^[[:xdigit:]]{16}.txt$").unwrap();
         assert!(re.is_match(blob.as_file_name()));
     }
 
@@ -726,7 +700,7 @@ mod tests {
     async fn test_as_rel_path() {
         let t = TestContext::new().await;
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
-        let re = Regex::new("^foo-[[:xdigit:]]{16}.txt$").unwrap();
+        let re = Regex::new("^[[:xdigit:]]{16}.txt$").unwrap();
         assert!(re.is_match(blob.as_rel_path().to_str().unwrap()));
     }
 
@@ -742,7 +716,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_dup() {
         let t = TestContext::new().await;
-        let re = Regex::new("^foo-[[:xdigit:]]{16}.txt$").unwrap();
+        let re = Regex::new("^[[:xdigit:]]{16}.txt$").unwrap();
 
         let blob = BlobObject::create(&t, "foo.txt", b"hello").await.unwrap();
         assert!(re.is_match(blob.as_rel_path().to_str().unwrap()));
@@ -763,7 +737,7 @@ mod tests {
         let blob = BlobObject::create(&t, "foo.tar.gz", b"hello")
             .await
             .unwrap();
-        let re = Regex::new("^foo-[[:xdigit:]]{16}.tar.gz$").unwrap();
+        let re = Regex::new("^[[:xdigit:]]{16}.tar.gz$").unwrap();
         assert!(re.is_match(blob.as_file_name()));
         let foo_path = t.get_blobdir().join(blob.as_file_name());
         assert!(foo_path.exists());
@@ -778,7 +752,6 @@ mod tests {
             } else {
                 let name = fname.to_str().unwrap();
                 println!("{name}");
-                assert!(name.starts_with("foo"));
                 assert!(name.ends_with(".tar.gz"));
             }
         }
@@ -799,7 +772,7 @@ mod tests {
         let src = t.dir.path().join("src");
         fs::write(&src, b"boo").await.unwrap();
         let blob = BlobObject::create_and_copy(&t, src.as_ref()).await.unwrap();
-        let re = Regex::new("^\\$BLOBDIR/src-[[:xdigit:]]{16}$").unwrap();
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}$").unwrap();
         assert!(re.is_match(blob.as_name()));
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
@@ -821,7 +794,7 @@ mod tests {
         let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
             .await
             .unwrap();
-        let re = Regex::new("^\\$BLOBDIR/external-[[:xdigit:]]{16}$").unwrap();
+        let re = Regex::new("^\\$BLOBDIR/[[:xdigit:]]{16}$").unwrap();
         assert!(re.is_match(blob.as_name()));
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
@@ -832,20 +805,6 @@ mod tests {
         assert_eq!(blob.as_name(), "$BLOBDIR/internal");
         let data = fs::read(blob.to_abs_path()).await.unwrap();
         assert_eq!(data, b"boo");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_create_from_name_long() {
-        let t = TestContext::new().await;
-        let src_ext = t.dir.path().join("autocrypt-setup-message-4137848473.html");
-        fs::write(&src_ext, b"boo").await.unwrap();
-        let blob = BlobObject::new_from_path(&t, src_ext.as_ref())
-            .await
-            .unwrap();
-        let re =
-            Regex::new("^\\$BLOBDIR/autocrypt-setup-message-4137848473-[[:xdigit:]]{16}.html$")
-                .unwrap();
-        assert!(re.is_match(blob.as_name()));
     }
 
     #[test]
@@ -859,42 +818,24 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitise_name() {
-        let (stem, ext) =
-            BlobObject::sanitise_name("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
+    fn test_get_extension() {
+        let ext = BlobObject::get_extension("Я ЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ.txt");
         assert_eq!(ext, ".txt");
-        assert!(!stem.is_empty());
 
-        // the extensions are kept together as between stem and extension a number may be added -
-        // and `foo.tar.gz` should become `foo-1234.tar.gz` and not `foo.tar-1234.gz`
-        let (stem, ext) = BlobObject::sanitise_name("wot.tar.gz");
-        assert_eq!(stem, "wot");
+        let ext = BlobObject::get_extension("wot.tar.gz");
         assert_eq!(ext, ".tar.gz");
 
-        let (stem, ext) = BlobObject::sanitise_name(".foo.bar");
-        assert_eq!(stem, "");
+        let ext = BlobObject::get_extension(".foo.bar");
         assert_eq!(ext, ".foo.bar");
 
-        let (stem, ext) = BlobObject::sanitise_name("foo?.bar");
-        assert!(stem.contains("foo"));
-        assert!(!stem.contains('?'));
+        let ext = BlobObject::get_extension("foo?.bar");
         assert_eq!(ext, ".bar");
 
-        let (stem, ext) = BlobObject::sanitise_name("no-extension");
-        assert_eq!(stem, "no-extension");
+        let ext = BlobObject::get_extension("no-extension");
         assert_eq!(ext, "");
 
-        let (stem, ext) = BlobObject::sanitise_name("path/ignored\\this: is* forbidden?.c");
+        let ext = BlobObject::get_extension("path/ignored\\this: is* forbidden?.c");
         assert_eq!(ext, ".c");
-        assert!(!stem.contains("path"));
-        assert!(!stem.contains("ignored"));
-        assert!(stem.contains("this"));
-        assert!(stem.contains("forbidden"));
-        assert!(!stem.contains('/'));
-        assert!(!stem.contains('\\'));
-        assert!(!stem.contains(':'));
-        assert!(!stem.contains('*'));
-        assert!(!stem.contains('?'));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -909,7 +850,7 @@ mod tests {
         let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         let blobdir = t.get_blobdir().to_str().unwrap();
         assert!(avatar_blob.starts_with(blobdir));
-        let re = Regex::new("avatar-[[:xdigit:]]{16}.jpg$").unwrap();
+        let re = Regex::new("[[:xdigit:]]{16}.jpg$").unwrap();
         assert!(re.is_match(&avatar_blob));
         let avatar_blob = Path::new(&avatar_blob);
         assert!(avatar_blob.exists());
@@ -986,7 +927,7 @@ mod tests {
         let avatar_blob = t.get_config(Config::Selfavatar).await.unwrap().unwrap();
         let blobdir = t.get_blobdir().to_str().unwrap();
         assert!(avatar_blob.starts_with(blobdir));
-        let re = Regex::new("avatar-[[:xdigit:]]{16}.png$").unwrap();
+        let re = Regex::new("[[:xdigit:]]{16}.png$").unwrap();
         assert!(re.is_match(&avatar_blob));
         assert!(Path::new(&avatar_blob).exists());
         assert_eq!(
