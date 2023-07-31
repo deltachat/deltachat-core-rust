@@ -355,3 +355,5 @@ async def test_import_export(acfactory, tmp_path) -> None:
     files = list(tmp_path.glob("*.tar"))
     alice2 = await acfactory.get_unconfigured_account()
     await alice2.import_backup(files[0])
+
+    assert await alice2.manager.get_system_info()
