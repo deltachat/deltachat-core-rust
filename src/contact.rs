@@ -1211,7 +1211,6 @@ impl Contact {
     /// and if the key has not changed since this verification.
     ///
     /// The UI may draw a checkbox or something like that beside verified contacts.
-    ///
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
@@ -1220,7 +1219,7 @@ impl Contact {
         }
 
         if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
-            if peerstate.verified_key.is_some() {
+            if peerstate.is_using_verified_key() {
                 return Ok(VerifiedStatus::BidirectVerified);
             }
         }
