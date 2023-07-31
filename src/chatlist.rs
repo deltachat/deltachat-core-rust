@@ -324,7 +324,7 @@ impl Chatlist {
                             .context("loading contact failed")?;
                         (Some(lastmsg), Some(lastcontact))
                     }
-                    Chattype::Single | Chattype::Undefined => (Some(lastmsg), None),
+                    Chattype::Single => (Some(lastmsg), None),
                 }
             }
         } else {

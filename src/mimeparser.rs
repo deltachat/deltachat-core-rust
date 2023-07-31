@@ -2182,7 +2182,7 @@ async fn ndn_maybe_add_info_msg(
             // If we get an NDN for the mailing list, just issue a warning.
             warn!(context, "ignoring NDN for mailing list.");
         }
-        Chattype::Single | Chattype::Undefined => {}
+        Chattype::Single => {}
     }
     Ok(())
 }
