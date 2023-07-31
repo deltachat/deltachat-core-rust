@@ -402,8 +402,8 @@ impl ChatId {
                 if chat.blocked == Blocked::Not
                     && chat.protected == ProtectionStatus::ProtectionBroken =>
             {
-                // The chat was in the 'Request' state because the protection was broken.
-                // The user clicked 'Accept', so, now we want to set the status to Unprotected again:
+                // The protection was broken, then the user clicked 'Accept'/'OK',
+                // so, now we want to set the status to Unprotected again:
                 chat.id
                     .inner_set_protection(context, ProtectionStatus::Unprotected)
                     .await?;
