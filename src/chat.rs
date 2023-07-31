@@ -357,7 +357,7 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Undefined | Chattype::Broadcast => {
+            Chattype::Broadcast => {
                 bail!("Can't block chat of type {:?}", chat.typ)
             }
             Chattype::Single => {
@@ -398,7 +398,6 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
             Chattype::Single if chat.protected == ProtectionStatus::ProtectionBroken => {
                 // The chat was in the 'Request' state because the protection was broken.
                 // The user clicked 'Accept', so, now we want to set the status to Unprotected again:
@@ -459,7 +458,6 @@ impl ChatId {
                     }
                 }
                 Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
-                Chattype::Undefined => bail!("Undefined group type"),
             },
             ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {}
         };
@@ -1286,7 +1284,6 @@ impl Chat {
         match self.typ {
             Chattype::Single | Chattype::Broadcast | Chattype::Mailinglist => Ok(true),
             Chattype::Group => is_contact_in_chat(context, self.id, ContactId::SELF).await,
-            Chattype::Undefined => Ok(false),
         }
     }
 

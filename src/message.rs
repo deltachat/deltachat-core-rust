@@ -755,7 +755,7 @@ impl Message {
                 Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                     Some(Contact::get_by_id(context, self.from_id).await?)
                 }
-                Chattype::Single | Chattype::Undefined => None,
+                Chattype::Single => None,
             }
         } else {
             None

@@ -897,7 +897,6 @@ impl<'a> MimeFactory<'a> {
         let mut meta_part = None;
 
         let send_verified_headers = match chat.typ {
-            Chattype::Undefined => bail!("Undefined chat type"),
             // In single chats, the protection status isn't necessarily the same for both sides,
             // so we don't send the Chat-Verified header:
             Chattype::Single => false,

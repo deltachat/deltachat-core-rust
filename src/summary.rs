@@ -82,7 +82,7 @@ impl Summary {
                             .map(SummaryPrefix::Username)
                     }
                 }
-                Chattype::Single | Chattype::Undefined => None,
+                Chattype::Single => None,
             }
         };
 
