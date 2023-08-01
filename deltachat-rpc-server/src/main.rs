@@ -10,6 +10,7 @@ use deltachat::constants::DC_VERSION_STR;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use yerpc::RpcServer as _;
 
 #[cfg(target_family = "unix")]
 use tokio::signal::unix as signal_unix;
@@ -38,6 +39,12 @@ async fn main_impl() -> Result<()> {
                 return Err(anyhow!("Unrecognized argument {:?}", arg));
             }
             eprintln!("{}", &*DC_VERSION_STR);
+            return Ok(());
+        } else if first_arg.to_str() == Some("--openrpc") {
+            if let Some(arg) = args.next() {
+                return Err(anyhow!("Unrecognized argument {:?}", arg));
+            }
+            println!("{}", CommandApi::openrpc_specification()?);
             return Ok(());
         } else {
             return Err(anyhow!("Unrecognized option {:?}", first_arg));

@@ -1,4 +1,6 @@
 import asyncio
+import json
+import subprocess
 from unittest.mock import MagicMock
 
 import pytest
@@ -357,3 +359,11 @@ async def test_import_export(acfactory, tmp_path) -> None:
     await alice2.import_backup(files[0])
 
     assert await alice2.manager.get_system_info()
+
+
+def test_openrpc_command_line() -> None:
+    """Test that "deltachat-rpc-server --openrpc" command returns an OpenRPC specification."""
+    out = subprocess.run(["deltachat-rpc-server", "--openrpc"], capture_output=True).stdout
+    openrpc = json.loads(out)
+    assert "openrpc" in openrpc
+    assert "methods" in openrpc
