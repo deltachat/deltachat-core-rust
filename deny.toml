@@ -10,7 +10,6 @@ ignore = [
 # when upgrading.
 # Please keep this list alphabetically sorted.
 skip = [
-     { name = "ahash", version = "0.7.6" },
      { name = "base16ct", version = "0.1.1" },
      { name = "base64", version = "<0.21" },
      { name = "bitflags", version = "1.3.2" },
@@ -36,6 +35,7 @@ skip = [
      { name = "rand_core", version = "<0.6" },
      { name = "rand", version = "<0.8" },
      { name = "redox_syscall", version = "0.2.16" },
+     { name = "regex-automata", version = "0.1.10" },
      { name = "regex-syntax", version = "0.6.29" },
      { name = "sec1", version = "0.3.0" },
      { name = "sha2", version = "<0.10" },
