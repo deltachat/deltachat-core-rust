@@ -3,7 +3,7 @@ name = "deltachat"
 version = "1.118.0"
 edition = "2021"
 license = "MPL-2.0"
-rust-version = "1.66"
+rust-version = "1.67"
 
 [profile.dev]
 debug = 0
