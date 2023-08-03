@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.119.0] - 2023-08-03
+
+### Fixes
+
+- imap: Avoid IMAP move loops when DeltaChat folder is aliased.
+- imap: Do not resync IMAP after initial configuration.
+
+- webxdc: Accept WebXDC updates in mailing lists.
+- webxdc: Base64-encode WebXDC updates to prevent corruption of large unencrypted WebXDC updates.
+- webxdc: Delete old webxdc status updates during housekeeping.
+
+- Return valid MsgId from `receive_imf()` when the message is replaced.
+- Emit MsgsChanged event with correct chat id for replaced messages.
+
+- deltachat-rpc-server: Update tokio-tar to fix backup import.
+
+### Features / Changes
+
+- deltachat-rpc-client: Add `MSG_DELETED` constant.
+- Make `dc_msg_get_filename()` return the original attachment filename ([#4309](https://github.com/deltachat/deltachat-core-rust/pull/4309)).
+
+### API-Changes
+
+- deltachat-rpc-client: Add `Account.{import,export}_backup` methods.
+- deltachat-jsonrpc: Make `MessageObject.text` non-optional.
+
+### Documentation
+
+- Update default value for `show_emails` in `dc_set_config()` documentation.
+
+### Refactor
+
+- Improve IMAP logs.
+
+### Tests
+
+- Add basic import/export test for async python.
+- Add `test_webxdc_download_on_demand`.
+- Add tests for deletion of webxdc status-updates.
+
 ## [1.118.0] - 2023-07-07
 
 ### API-Changes
