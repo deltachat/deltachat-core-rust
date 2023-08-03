@@ -35,7 +35,7 @@ async function run() {
     const accounts = await client.rpc.getAllAccounts();
     console.log("accounts loaded", accounts);
     for (const account of accounts) {
-      if (account.type === "Configured") {
+      if (account.kind === "Configured") {
         write(
           $head,
           `<a href="#" onclick="selectDeltaAccount(${account.id})">
@@ -57,7 +57,7 @@ async function run() {
     clear($main);
     const selectedAccount = SELECTED_ACCOUNT;
     const info = await client.rpc.getAccountInfo(selectedAccount);
-    if (info.type !== "Configured") {
+    if (info.kind !== "Configured") {
       return write($main, "Account is not configured");
     }
     write($main, `<h2>${info.addr!}</h2>`);
@@ -81,8 +81,7 @@ async function run() {
         messageIds
       );
       for (const [_messageId, message] of Object.entries(messages)) {
-        if (message.variant === "message")
-          write($main, `<p>${message.text}</p>`);
+        if (message.kind === "message") write($main, `<p>${message.text}</p>`);
         else write($main, `<p>loading error: ${message.error}</p>`);
       }
     }
@@ -93,9 +92,9 @@ async function run() {
       $side,
       `
         <p class="message">
-          [<strong>${event.type}</strong> on account ${accountId}]<br>
+          [<strong>${event.kind}</strong> on account ${accountId}]<br>
           <em>f1:</em> ${JSON.stringify(
-            Object.assign({}, event, { type: undefined })
+            Object.assign({}, event, { kind: undefined })
           )}
         </p>`
     );

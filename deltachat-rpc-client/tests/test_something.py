@@ -45,7 +45,7 @@ async def test_acfactory(acfactory) -> None:
     account = await acfactory.new_configured_account()
     while True:
         event = await account.wait_for_event()
-        if event.type == EventType.CONFIGURE_PROGRESS:
+        if event.kind == EventType.CONFIGURE_PROGRESS:
             assert event.progress != 0  # Progress 0 indicates error.
             if event.progress == 1000:  # Success
                 break
@@ -76,7 +76,7 @@ async def test_account(acfactory) -> None:
 
     while True:
         event = await bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -146,7 +146,7 @@ async def test_chat(acfactory) -> None:
 
     while True:
         event = await bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -232,7 +232,7 @@ async def test_message(acfactory) -> None:
 
     while True:
         event = await bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -272,7 +272,7 @@ async def test_is_bot(acfactory) -> None:
 
     while True:
         event = await bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             msg_id = event.msg_id
             message = bob.get_message_by_id(msg_id)
             snapshot = await message.get_snapshot()

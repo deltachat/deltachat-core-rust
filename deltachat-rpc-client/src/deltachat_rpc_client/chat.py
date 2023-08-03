@@ -54,14 +54,14 @@ class Chat:
         """
         if duration is not None:
             assert duration > 0, "Invalid duration"
-            dur: Union[str, dict] = {"Until": duration}
+            dur: dict = {"kind": "Until", "duration": duration}
         else:
-            dur = "Forever"
+            dur = {"kind": "Forever"}
         await self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
 
     async def unmute(self) -> None:
         """Unmute this chat."""
-        await self._rpc.set_chat_mute_duration(self.account.id, self.id, "NotMuted")
+        await self._rpc.set_chat_mute_duration(self.account.id, self.id, {"kind": "NotMuted"})
 
     async def pin(self) -> None:
         """Pin this chat."""

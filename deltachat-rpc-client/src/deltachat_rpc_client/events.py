@@ -83,7 +83,7 @@ class RawEvent(EventFilter):
         return False
 
     async def filter(self, event: "AttrDict") -> bool:
-        if self.types and event.type not in self.types:
+        if self.types and event.kind not in self.types:
             return False
         return await self._call_func(event)
 

@@ -18,7 +18,7 @@ use super::message::MessageViewtype;
 pub struct ChatListEntry(pub u32, pub u32);
 
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "kind")]
 pub enum ChatListItemFetchResult {
     #[serde(rename_all = "camelCase")]
     ChatListItem {

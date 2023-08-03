@@ -167,10 +167,11 @@ impl BasicChat {
 }
 
 #[derive(Clone, Serialize, Deserialize, TypeDef, schemars::JsonSchema)]
+#[serde(tag = "kind")]
 pub enum MuteDuration {
     NotMuted,
     Forever,
-    Until(i64),
+    Until { duration: i64 },
 }
 
 impl MuteDuration {
@@ -178,13 +179,13 @@ impl MuteDuration {
         match self {
             MuteDuration::NotMuted => Ok(chat::MuteDuration::NotMuted),
             MuteDuration::Forever => Ok(chat::MuteDuration::Forever),
-            MuteDuration::Until(n) => {
-                if n <= 0 {
+            MuteDuration::Until { duration } => {
+                if duration <= 0 {
                     bail!("failed to read mute duration")
                 }
 
                 Ok(SystemTime::now()
-                    .checked_add(Duration::from_secs(n as u64))
+                    .checked_add(Duration::from_secs(duration as u64))
                     .map_or(chat::MuteDuration::Forever, chat::MuteDuration::Until))
             }
         }

@@ -22,7 +22,7 @@ impl From<CoreEvent> for Event {
 }
 
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "kind")]
 pub enum EventType {
     /// The library-user may write an informational string to the log.
     ///

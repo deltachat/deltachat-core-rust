@@ -57,7 +57,7 @@ class ACFactory:
         while True:
             event = await account.wait_for_event()
             print(event)
-            if event.type == EventType.IMAP_INBOX_IDLE:
+            if event.kind == EventType.IMAP_INBOX_IDLE:
                 break
         return account
 
@@ -98,7 +98,7 @@ class ACFactory:
             group=group,
         )
 
-        return await to_client.run_until(lambda e: e.type == EventType.INCOMING_MSG)
+        return await to_client.run_until(lambda e: e.kind == EventType.INCOMING_MSG)
 
 
 @pytest_asyncio.fixture
