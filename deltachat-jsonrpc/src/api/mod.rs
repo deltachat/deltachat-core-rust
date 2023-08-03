@@ -153,12 +153,12 @@ impl CommandApi {
     //  Misc top level functions
     // ---------------------------------------------
 
-    /// Check if an email address is valid.
+    /// Checks if an email address is valid.
     async fn check_email_validity(&self, email: String) -> bool {
         may_be_valid_addr(&email)
     }
 
-    /// Get general system info.
+    /// Returns general system info.
     async fn get_system_info(&self) -> BTreeMap<&'static str, String> {
         get_info()
     }
@@ -219,11 +219,13 @@ impl CommandApi {
         Ok(accounts)
     }
 
+    /// Starts background tasks for all accounts.
     async fn start_io_for_all_accounts(&self) -> Result<()> {
         self.accounts.read().await.start_io().await;
         Ok(())
     }
 
+    /// Stops background tasks for all accounts.
     async fn stop_io_for_all_accounts(&self) -> Result<()> {
         self.accounts.read().await.stop_io().await;
         Ok(())
@@ -233,14 +235,16 @@ impl CommandApi {
     // Methods that work on individual accounts
     // ---------------------------------------------
 
-    async fn start_io(&self, id: u32) -> Result<()> {
-        let ctx = self.get_context(id).await?;
+    /// Starts background tasks for a single account.
+    async fn start_io(&self, account_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
         ctx.start_io().await;
         Ok(())
     }
 
-    async fn stop_io(&self, id: u32) -> Result<()> {
-        let ctx = self.get_context(id).await?;
+    /// Stops background tasks for a single account.
+    async fn stop_io(&self, account_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
         Ok(())
     }
@@ -307,11 +311,13 @@ impl CommandApi {
         ctx.get_info().await
     }
 
+    /// Sets the given configuration key.
     async fn set_config(&self, account_id: u32, key: String, value: Option<String>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         set_config(&ctx, &key, value.as_deref()).await
     }
 
+    /// Updates a batch of configuration values.
     async fn batch_set_config(
         &self,
         account_id: u32,
@@ -343,6 +349,7 @@ impl CommandApi {
         Ok(qr_object)
     }
 
+    /// Returns configuration value for the given key.
     async fn get_config(&self, account_id: u32, key: String) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         get_config(&ctx, &key).await
@@ -1863,7 +1870,7 @@ impl CommandApi {
             .context("path conversion to string failed")
     }
 
-    /// save a sticker to a collection/folder in the account's sticker folder
+    /// Saves a sticker to a collection/folder in the account's sticker folder.
     async fn misc_save_sticker(
         &self,
         account_id: u32,
