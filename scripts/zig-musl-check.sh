@@ -11,7 +11,7 @@ unset RUSTFLAGS
 # Pin Rust version to avoid uncontrolled changes in the compiler and linker flags.
 export RUSTUP_TOOLCHAIN=1.71.0
 
-ZIG_VERSION=0.11.0-dev.2213+515e1c93e
+ZIG_VERSION=0.11.0
 
 # Download Zig
 rm -fr "$ZIG_VERSION" "zig-linux-x86_64-$ZIG_VERSION.tar.xz"
