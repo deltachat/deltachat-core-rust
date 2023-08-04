@@ -182,7 +182,7 @@ WHERE id=?;
             .await
     }
 
-    /// Returns informtion about hops of a message, used for message info
+    /// Returns information about hops of a message, used for message info
     pub async fn hop_info(self, context: &Context) -> Result<Option<String>> {
         context
             .sql
