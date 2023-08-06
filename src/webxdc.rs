@@ -2568,4 +2568,42 @@ sth_for_the = "future""#
         );
         Ok(())
     }
+
+    /// Tests extensibility of WebXDC updates.
+    ///
+    /// If an update sent by WebXDC contains unknown properties,
+    /// such as `aNewUnknownProperty` or a reserved property
+    /// like `serial` or `max_serial`,
+    /// they are silently dropped and are not sent over the wire.
+    ///
+    /// This ensures new WebXDC can try to send new properties
+    /// added in later revisions of the WebXDC API
+    /// and this will not result in a failure to send the whole update.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_webxdc_status_update_extensibility() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+
+        let bob_instance = bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload":"p","info":"i","aNewUnknownProperty":"x","max_serial":123}"#,
+                "Some description",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":"p","info":"i","serial":1,"max_serial":1}]"#
+        );
+
+        Ok(())
+    }
 }
