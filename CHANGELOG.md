@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.119.1] - 2023-08-06
+
+Bugfix release attempting to fix the [iOS build error](https://github.com/deltachat/deltachat-core-rust/issues/4610).
+
+### Features / Changes
+
+- Guess message viewtype from "application/octet-stream" attachment extension ([#4378](https://github.com/deltachat/deltachat-core-rust/pull/4378)).
+
+### Fixes
+
+- Update `xattr` from 1.0.0 to 1.0.1 to fix UnsupportedPlatformError import.
+
+### Tests
+
+- webxdc: Ensure unknown WebXDC update properties do not result in an error.
+
 ## [1.119.0] - 2023-08-03
 
 ### Fixes
@@ -2712,3 +2728,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.116.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.115.0...v1.116.0
 [1.117.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.116.0...v1.117.0
 [1.118.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.117.0...v1.118.0
+[1.119.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.118.0...v1.119.0
+[1.119.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.0...v1.119.1
