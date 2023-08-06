@@ -135,10 +135,8 @@ impl Imap {
         };
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
-        // check every minute if there are new messages
-        // TODO: grow sleep durations / make them more flexible
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
-
+        const TIMEOUT_INIT_MS: u64 = 60_000;
+        let mut timeout_ms: u64 = TIMEOUT_INIT_MS;
         enum Event {
             Tick,
             Interrupt,
@@ -146,6 +144,12 @@ impl Imap {
         // loop until we are interrupted or if we fetched something
         loop {
             use futures::future::FutureExt;
+            use rand::Rng;
+
+            let mut interval = tokio::time::interval(Duration::from_millis(timeout_ms));
+            timeout_ms = timeout_ms
+                .saturating_add(rand::thread_rng().gen_range((timeout_ms / 2)..=timeout_ms));
+            interval.tick().await; // The first tick completes immediately.
             match interval
                 .tick()
                 .map(|_| Event::Tick)
@@ -188,6 +192,7 @@ impl Imap {
                     {
                         Ok(res) => {
                             info!(context, "fetch_new_messages returned {:?}", res);
+                            timeout_ms = TIMEOUT_INIT_MS;
                             if res {
                                 break;
                             }
