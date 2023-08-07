@@ -587,19 +587,21 @@ impl TestContext {
         Contact::get_by_id(&self.ctx, contact_id).await.unwrap()
     }
 
-    /// Returns 1:1 [`Chat`] with another account, if it exists.
+    /// Returns 1:1 [`Chat`] with another account. Panics if it doesn't exist.
     ///
     /// This first creates a contact using the configured details on the other account, then
-    /// creates a 1:1 chat with this contact.
-    pub async fn get_chat(&self, other: &TestContext) -> Option<Chat> {
+    /// gets the 1:1 chat with this contact.
+    pub async fn get_chat(&self, other: &TestContext) -> Chat {
         let contact = self.add_or_lookup_contact(other).await;
-        match ChatId::lookup_by_contact(&self.ctx, contact.id)
+        let chat_id = ChatId::lookup_by_contact(&self.ctx, contact.id)
             .await
             .unwrap()
-        {
-            Some(id) => Some(Chat::load_from_db(&self.ctx, id).await.unwrap()),
-            None => None,
-        }
+            .expect(
+                "There is no chat with this contact. \
+                Hint: Use create_chat() instead of get_chat() if this is expected.",
+            );
+
+        Chat::load_from_db(&self.ctx, chat_id).await.unwrap()
     }
 
     /// Creates or returns an existing 1:1 [`Chat`] with another account.

@@ -2941,7 +2941,7 @@ async fn test_outgoing_private_reply_multidevice() -> Result<()> {
     let received = alice2.get_last_msg().await;
 
     // That's a regression test for https://github.com/deltachat/deltachat-core-rust/issues/2949:
-    assert_eq!(received.chat_id, alice2.get_chat(&bob).await.unwrap().id);
+    assert_eq!(received.chat_id, alice2.get_chat(&bob).await.id);
 
     let alice2_bob_contact = alice2.add_or_lookup_contact(&bob).await;
     assert_eq!(received.from_id, ContactId::SELF);

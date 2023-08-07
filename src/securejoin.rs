@@ -1287,10 +1287,7 @@ mod tests {
             // Now Alice's chat with Bob should still be hidden, the verified message should
             // appear in the group chat.
 
-            let chat = alice
-                .get_chat(&bob)
-                .await
-                .expect("Alice has no 1:1 chat with bob");
+            let chat = alice.get_chat(&bob).await;
             assert_eq!(
                 chat.blocked,
                 Blocked::Yes,
@@ -1325,10 +1322,7 @@ mod tests {
                 contact_alice.is_verified(&bob.ctx).await?,
                 VerifiedStatus::BidirectVerified
             );
-            let chat = bob
-                .get_chat(&alice)
-                .await
-                .expect("Bob has no 1:1 chat with Alice");
+            let chat = bob.get_chat(&alice).await;
             assert_eq!(
                 chat.blocked,
                 Blocked::Yes,

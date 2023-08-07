@@ -159,7 +159,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
 
     // The chat should be and stay unprotected
     {
-        let chat = alice.get_chat(&fiona_new).await.unwrap();
+        let chat = alice.get_chat(&fiona_new).await;
         assert!(!chat.is_protected());
         assert!(chat.is_protection_broken());
 
@@ -287,21 +287,21 @@ async fn test_verified_oneonone_chat_enable_disable() -> Result<()> {
         )
         .await?;
 
-        let chat = alice.get_chat(&bob).await.unwrap();
+        let chat = alice.get_chat(&bob).await;
         assert!(!chat.is_protected());
         assert!(chat.is_protection_broken());
 
         if alice_accepts_breakage {
             tcm.section("Alice clicks 'Accept' on the input-bar-dialog");
             chat.id.accept(&alice).await?;
-            let chat = alice.get_chat(&bob).await.unwrap();
+            let chat = alice.get_chat(&bob).await;
             assert!(!chat.is_protected());
             assert!(!chat.is_protection_broken());
         }
 
         // Bob sends a message from DC again
         tcm.send_recv(&bob, &alice, "Hello from DC").await;
-        let chat = alice.get_chat(&bob).await.unwrap();
+        let chat = alice.get_chat(&bob).await;
         assert!(chat.is_protected());
         assert!(!chat.is_protection_broken());
     }
@@ -436,7 +436,7 @@ async fn test_old_message_3() -> Result<()> {
     .await?;
 
     alice
-        .golden_test_chat(alice.get_chat(&bob).await.unwrap().id, "test_old_message_3")
+        .golden_test_chat(alice.get_chat(&bob).await.id, "test_old_message_3")
         .await;
 
     Ok(())
@@ -636,12 +636,12 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
         // him as unverified:
         VerifiedStatus::Unverified
     );
-    let chat = alice.get_chat(&bob_new).await.unwrap();
+    let chat = alice.get_chat(&bob_new).await;
     assert_eq!(chat.is_protected(), false);
     assert_eq!(chat.is_protection_broken(), true);
 
     {
-        let alice_bob_chat = alice.get_chat(&bob_new).await.unwrap();
+        let alice_bob_chat = alice.get_chat(&bob_new).await;
         assert!(!alice_bob_chat.can_send(&alice).await?);
 
         // Alice's UI should still be able to save a draft, which Alice started to type right when she got Bob's message:
@@ -706,7 +706,7 @@ async fn assert_verified(this: &TestContext, other: &TestContext, protected: Pro
         VerifiedStatus::BidirectVerified
     );
 
-    let chat = this.get_chat(other).await.unwrap();
+    let chat = this.get_chat(other).await;
     let (expect_protected, expect_broken) = match protected {
         ProtectionStatus::Unprotected => (false, false),
         ProtectionStatus::Protected => (true, false),
