@@ -134,11 +134,11 @@ async fn check_aeap_transition(
         let fiona = tcm.fiona().await;
 
         tcm.send_recv_accept(&fiona, &bob, "Hi").await;
-        tcm.send_recv_accept(&bob, &fiona, "Hi back").await;
+        tcm.send_recv(&bob, &fiona, "Hi back").await;
     }
 
     tcm.send_recv_accept(&alice, &bob, "Hi").await;
-    tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+    tcm.send_recv(&bob, &alice, "Hi back").await;
 
     if verified {
         mark_as_verified(&alice, &bob).await;
@@ -355,7 +355,7 @@ async fn test_aeap_replay_attack() -> Result<()> {
     let bob = tcm.bob().await;
 
     tcm.send_recv_accept(&alice, &bob, "Hi").await;
-    tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+    tcm.send_recv(&bob, &alice, "Hi back").await;
 
     let group =
         chat::create_group_chat(&bob, chat::ProtectionStatus::Unprotected, "Group 0").await?;

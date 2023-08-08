@@ -528,8 +528,7 @@ async fn test_outgoing_mua_msg() -> Result<()> {
     )
     .await?
     .unwrap();
-    tcm.send_recv_accept(&alice, &bob, "Sending with DC again")
-        .await;
+    tcm.send_recv(&alice, &bob, "Sending with DC again").await;
 
     alice
         .golden_test_chat(sent.chat_id, "test_outgoing_mua_msg")
@@ -560,7 +559,7 @@ async fn test_reply() -> Result<()> {
         }
 
         tcm.send_recv_accept(&bob, &alice, "Heyho from DC").await;
-        let encrypted_msg = tcm.send_recv_accept(&alice, &bob, "Heyho back").await;
+        let encrypted_msg = tcm.send_recv(&alice, &bob, "Heyho back").await;
 
         let unencrypted_msg = receive_imf(
             &alice,

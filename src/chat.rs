@@ -398,9 +398,12 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Single if chat.protected == ProtectionStatus::ProtectionBroken => {
-                // The chat was in the 'Request' state because the protection was broken.
-                // The user clicked 'Accept', so, now we want to set the status to Unprotected again:
+            Chattype::Single
+                if chat.blocked == Blocked::Not
+                    && chat.protected == ProtectionStatus::ProtectionBroken =>
+            {
+                // The protection was broken, then the user clicked 'Accept'/'OK',
+                // so, now we want to set the status to Unprotected again:
                 chat.id
                     .inner_set_protection(context, ProtectionStatus::Unprotected)
                     .await?;
