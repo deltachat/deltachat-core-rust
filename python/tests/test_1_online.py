@@ -1467,13 +1467,18 @@ def test_reaction_to_partially_fetched_msg(acfactory, lp, tmp_path):
     path = tmp_path / "large"
     path.write_bytes(os.urandom(download_limit + 1))
     msgs.append(chat.send_file(str(path)))
-
-    lp.sec("sending a reaction to the large message from ac1 to ac2")
-    react_str = "\N{THUMBS UP SIGN}"
-    msgs.append(msgs[-1].send_reaction(react_str))
-
     for m in msgs:
         ac1._evtracker.wait_msg_delivered(m)
+
+    lp.sec("sending a reaction to the large message from ac1 to ac2")
+    # TODO: Find the reason of an occasional message reordering on the server (so that the reaction
+    # has a lower UID than the previous message). W/a is to sleep for some time to let the reaction
+    # have a later INTERNALDATE.
+    time.sleep(1.1)
+    react_str = "\N{THUMBS UP SIGN}"
+    msgs.append(msgs[-1].send_reaction(react_str))
+    ac1._evtracker.wait_msg_delivered(msgs[-1])
+
     ac2.start_io()
 
     lp.sec("wait for ac2 to receive a reaction")
@@ -1505,7 +1510,7 @@ def test_reactions_for_a_reordering_move(acfactory, lp):
     ac1._evtracker.wait_msg_delivered(msg1)
     # It's is sad, but messages must differ in their INTERNALDATEs to be processed in the correct
     # order by DC, and most (if not all) mail servers provide only seconds precision.
-    time.sleep(2)
+    time.sleep(1.1)
     react_str = "\N{THUMBS UP SIGN}"
     ac1._evtracker.wait_msg_delivered(msg1.send_reaction(react_str))
 
