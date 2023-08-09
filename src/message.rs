@@ -1421,6 +1421,7 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     let mut modified_chat_ids = BTreeSet::new();
+    let mut res = Ok(());
 
     for &msg_id in msg_ids {
         let msg = Message::load_from_db(context, msg_id).await?;
@@ -1444,13 +1445,19 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         modified_chat_ids.insert(msg.chat_id);
 
         let target = context.get_delete_msgs_target().await?;
-        context
-            .sql
-            .execute(
+        let update_db = |conn: &mut rusqlite::Connection| {
+            conn.execute(
                 "UPDATE imap SET target=? WHERE rfc724_mid=?",
                 (target, msg.rfc724_mid),
-            )
-            .await?;
+            )?;
+            conn.execute("DELETE FROM smtp WHERE msg_id=?", (msg_id,))?;
+            Ok(())
+        };
+        if let Err(e) = context.sql.call_write(update_db).await {
+            error!(context, "delete_msgs: failed to update db: {e:#}.");
+            res = Err(e);
+            continue;
+        }
 
         let logging_xdc_id = context
             .debug_logging
@@ -1465,6 +1472,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             }
         }
     }
+    res?;
 
     for modified_chat_id in modified_chat_ids {
         context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
@@ -1632,24 +1640,6 @@ pub(crate) async fn update_msg_state(
 // The value is also used for CC:-summaries
 
 // Context functions to work with messages
-
-/// Returns true if given message ID exists in the database and is not trashed.
-pub(crate) async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
-    if msg_id.is_special() {
-        return Ok(false);
-    }
-
-    let chat_id: Option<ChatId> = context
-        .sql
-        .query_get_value("SELECT chat_id FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    if let Some(chat_id) = chat_id {
-        Ok(!chat_id.is_trash())
-    } else {
-        Ok(false)
-    }
-}
 
 pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
     if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
@@ -2419,6 +2409,25 @@ def hello():
         let sent = alice.send_text(chat.id, python_program).await;
         let received = bob.recv_msg(&sent).await;
         assert_eq!(received.text, python_program);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_msgs_offline() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("hi".to_string());
+        assert!(chat::send_msg_sync(&alice, chat.id, &mut msg)
+            .await
+            .is_err());
+        let stmt = "SELECT COUNT(*) FROM smtp WHERE msg_id=?";
+        assert!(alice.sql.exists(stmt, (msg.id,)).await?);
+        delete_msgs(&alice, &[msg.id]).await?;
+        assert!(!alice.sql.exists(stmt, (msg.id,)).await?);
 
         Ok(())
     }
