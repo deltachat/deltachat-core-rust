@@ -10,8 +10,10 @@ use crate::constants::{
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::message::{Message, MessageState, MsgId};
+use crate::param::{Param, Params};
 use crate::stock_str;
 use crate::summary::Summary;
+use crate::tools::IsNoneOrEmpty;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -204,34 +206,84 @@ impl Chatlist {
                 )
                 .await?
         } else {
-            //  show normal chatlist
-            let sort_id_up = if flag_for_forwarding {
-                ChatId::lookup_by_contact(context, ContactId::SELF)
+            let mut ids = if flag_for_forwarding {
+                let sort_id_up = ChatId::lookup_by_contact(context, ContactId::SELF)
                     .await?
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                let process_row = |row: &rusqlite::Row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let typ: Chattype = row.get(1)?;
+                    let param: Params = row.get::<_, String>(2)?.parse().unwrap_or_default();
+                    let msg_id: Option<MsgId> = row.get(3)?;
+                    Ok((chat_id, typ, param, msg_id))
+                };
+                let process_rows = |rows: rusqlite::MappedRows<_>| {
+                    rows.filter_map(|row: std::result::Result<(_, _, Params, _), _>| match row {
+                        Ok((chat_id, typ, param, msg_id)) => {
+                            if typ == Chattype::Mailinglist
+                                && param.get(Param::ListPost).is_none_or_empty()
+                            {
+                                None
+                            } else {
+                                Some(Ok((chat_id, msg_id)))
+                            }
+                        }
+                        Err(e) => Some(Err(e)),
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+                };
+                // Return ProtectionBroken chats also, as that may happen to a verified chat at any
+                // time. It may be confusing if a chat that is normally in the list disappears
+                // suddenly. The UI need to deal with that case anyway.
+                context.sql.query_map(
+                    "SELECT c.id, c.type, c.param, m.id
+                     FROM chats c
+                     LEFT JOIN msgs m
+                            ON c.id=m.chat_id
+                           AND m.id=(
+                                   SELECT id
+                                     FROM msgs
+                                    WHERE chat_id=c.id
+                                      AND (hidden=0 OR state=?)
+                                      ORDER BY timestamp DESC, id DESC LIMIT 1)
+                     WHERE c.id>9 AND c.id!=?
+                       AND c.blocked=0
+                       AND NOT c.archived=?
+                       AND (c.type!=? OR c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?))
+                     GROUP BY c.id
+                     ORDER BY c.id=? DESC, c.archived=? DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                    (
+                        MessageState::OutDraft, skip_id, ChatVisibility::Archived,
+                        Chattype::Group, ContactId::SELF,
+                        sort_id_up, ChatVisibility::Pinned,
+                    ),
+                    process_row,
+                    process_rows,
+                ).await?
             } else {
-                ChatId::new(0)
+                //  show normal chatlist
+                context.sql.query_map(
+                    "SELECT c.id, m.id
+                     FROM chats c
+                     LEFT JOIN msgs m
+                            ON c.id=m.chat_id
+                           AND m.id=(
+                                   SELECT id
+                                     FROM msgs
+                                    WHERE chat_id=c.id
+                                      AND (hidden=0 OR state=?)
+                                      ORDER BY timestamp DESC, id DESC LIMIT 1)
+                     WHERE c.id>9 AND c.id!=?
+                       AND (c.blocked=0 OR c.blocked=2)
+                       AND NOT c.archived=?
+                     GROUP BY c.id
+                     ORDER BY c.id=0 DESC, c.archived=? DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                    (MessageState::OutDraft, skip_id, ChatVisibility::Archived, ChatVisibility::Pinned),
+                    process_row,
+                    process_rows,
+                ).await?
             };
-            let mut ids = context.sql.query_map(
-                "SELECT c.id, m.id
-                 FROM chats c
-                 LEFT JOIN msgs m
-                        ON c.id=m.chat_id
-                       AND m.id=(
-                               SELECT id
-                                 FROM msgs
-                                WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?1)
-                                  ORDER BY timestamp DESC, id DESC LIMIT 1)
-                 WHERE c.id>9 AND c.id!=?2
-                   AND (c.blocked=0 OR (c.blocked=2 AND NOT ?3))
-                   AND NOT c.archived=?4
-                 GROUP BY c.id
-                 ORDER BY c.id=?5 DESC, c.archived=?6 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                (MessageState::OutDraft, skip_id, flag_for_forwarding, ChatVisibility::Archived, sort_id_up, ChatVisibility::Pinned),
-                process_row,
-                process_rows,
-            ).await?;
             if !flag_no_specials && get_archived_cnt(context).await? > 0 {
                 if ids.is_empty() && flag_add_alldone_hint {
                     ids.push((DC_CHAT_ID_ALLDONE_HINT, None));
@@ -388,7 +440,9 @@ pub async fn get_last_message_for_chat(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::{create_group_chat, get_chat_contacts, ProtectionStatus};
+    use crate::chat::{
+        create_group_chat, get_chat_contacts, remove_contact_from_chat, ProtectionStatus,
+    };
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;
     use crate::stock_str::StockMessage;
@@ -473,6 +527,14 @@ mod tests {
             .await
             .unwrap()
             .is_self_talk());
+
+        remove_contact_from_chat(&t, chats.get_chat_id(1).unwrap(), ContactId::SELF)
+            .await
+            .unwrap();
+        let chats = Chatlist::try_load(&t, DC_GCL_FOR_FORWARDING, None, None)
+            .await
+            .unwrap();
+        assert!(chats.len() == 1);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
