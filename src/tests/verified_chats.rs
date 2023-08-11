@@ -2,7 +2,9 @@ use anyhow::Result;
 use pretty_assertions::assert_eq;
 
 use crate::chat::{Chat, ProtectionStatus};
+use crate::chatlist::Chatlist;
 use crate::config::Config;
+use crate::constants::DC_GCL_FOR_FORWARDING;
 use crate::contact::VerifiedStatus;
 use crate::contact::{Contact, Origin};
 use crate::message::{Message, Viewtype};
@@ -657,6 +659,8 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
 
     alice.create_chat(&bob).await;
     assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+    let chats = Chatlist::try_load(&alice, DC_GCL_FOR_FORWARDING, None, None).await?;
+    assert!(chats.len() == 1);
 
     tcm.section("Bob reinstalls DC");
     drop(bob);
@@ -678,6 +682,8 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
     let chat = alice.get_chat(&bob_new).await;
     assert_eq!(chat.is_protected(), false);
     assert_eq!(chat.is_protection_broken(), true);
+    let chats = Chatlist::try_load(&alice, DC_GCL_FOR_FORWARDING, None, None).await?;
+    assert!(chats.len() == 1);
 
     {
         let alice_bob_chat = alice.get_chat(&bob_new).await;
