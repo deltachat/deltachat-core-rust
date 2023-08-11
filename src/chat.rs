@@ -1255,6 +1255,7 @@ impl Chat {
     pub(crate) async fn why_cant_send(&self, context: &Context) -> Result<Option<CantSendReason>> {
         use CantSendReason::*;
 
+        // NB: Don't forget to update Chatlist::try_load() when changing this function!
         let reason = if self.id.is_special() {
             Some(SpecialChat)
         } else if self.is_device_talk() {
@@ -1263,7 +1264,7 @@ impl Chat {
             Some(ContactRequest)
         } else if self.is_protection_broken() {
             Some(ProtectionBroken)
-        } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
+        } else if self.is_mailing_list() && self.get_mailinglist_addr().is_none_or_empty() {
             Some(ReadOnlyMailingList)
         } else if !self.is_self_in_chat(context).await? {
             Some(NotAMember)
