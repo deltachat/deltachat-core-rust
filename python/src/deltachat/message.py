@@ -510,8 +510,7 @@ def get_viewtype_code_from_name(view_type_name):
     if code is not None:
         return code
     raise ValueError(
-        "message typecode not found for {!r}, "
-        "available {!r}".format(view_type_name, list(_view_type_mapping.keys())),
+        f"message typecode not found for {view_type_name!r}, available {list(_view_type_mapping.keys())!r}",
     )
 
 
