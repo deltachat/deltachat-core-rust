@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
 use futures::StreamExt;
-use image::{DynamicImage, ImageFormat, ImageOutputFormat};
+use image::{DynamicImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
@@ -323,18 +323,35 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => constants::WORSE_AVATAR_SIZE,
             };
 
+        let maybe_sticker = &mut false;
         let strict_limits = true;
         // max_bytes is 20_000 bytes: Outlook servers don't allow headers larger than 32k.
         // 32 / 4 * 3 = 24k if you account for base64 encoding. To be safe, we reduced this to 20k.
-        if let Some(new_name) =
-            self.recode_to_size(context, blob_abs, img_wh, 20_000, strict_limits)?
-        {
+        if let Some(new_name) = self.recode_to_size(
+            context,
+            blob_abs,
+            maybe_sticker,
+            img_wh,
+            20_000,
+            strict_limits,
+        )? {
             self.name = new_name;
         }
         Ok(())
     }
 
-    pub async fn recode_to_image_size(&mut self, context: &Context) -> Result<()> {
+    /// Recodes an image pointed by a [BlobObject] so that it fits into limits on the image width,
+    /// height and file size specified by the config.
+    ///
+    /// On some platforms images are passed to the core as [`crate::message::Viewtype::Sticker`] in
+    /// which case `maybe_sticker` flag should be set. We recheck if an image is a true sticker
+    /// assuming that it must have at least one fully transparent corner, otherwise this flag is
+    /// reset.
+    pub async fn recode_to_image_size(
+        &mut self,
+        context: &Context,
+        maybe_sticker: &mut bool,
+    ) -> Result<()> {
         let blob_abs = self.to_abs_path();
         let (img_wh, max_bytes) =
             match MediaQuality::from_i32(context.get_config_int(Config::MediaQuality).await?)
@@ -347,9 +364,14 @@ impl<'a> BlobObject<'a> {
                 MediaQuality::Worse => (constants::WORSE_IMAGE_SIZE, constants::WORSE_IMAGE_BYTES),
             };
         let strict_limits = false;
-        if let Some(new_name) =
-            self.recode_to_size(context, blob_abs, img_wh, max_bytes, strict_limits)?
-        {
+        if let Some(new_name) = self.recode_to_size(
+            context,
+            blob_abs,
+            maybe_sticker,
+            img_wh,
+            max_bytes,
+            strict_limits,
+        )? {
             self.name = new_name;
         }
         Ok(())
@@ -358,9 +380,10 @@ impl<'a> BlobObject<'a> {
     /// If `!strict_limits`, then if `max_bytes` is exceeded, reduce the image to `img_wh` and just
     /// proceed with the result.
     fn recode_to_size(
-        &self,
+        &mut self,
         context: &Context,
         mut blob_abs: PathBuf,
+        maybe_sticker: &mut bool,
         mut img_wh: u32,
         max_bytes: usize,
         strict_limits: bool,
@@ -371,6 +394,19 @@ impl<'a> BlobObject<'a> {
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
             let mut changed_name = None;
+
+            if *maybe_sticker {
+                let x_max = img.width().saturating_sub(1);
+                let y_max = img.height().saturating_sub(1);
+                *maybe_sticker = img.in_bounds(x_max, y_max)
+                    && (img.get_pixel(0, 0).0[3] == 0
+                        || img.get_pixel(x_max, 0).0[3] == 0
+                        || img.get_pixel(0, y_max).0[3] == 0
+                        || img.get_pixel(x_max, y_max).0[3] == 0);
+            }
+            if *maybe_sticker && exif.is_none() {
+                return Ok(None);
+            }
 
             img = match orientation {
                 Some(90) => img.rotate90(),
@@ -860,10 +896,18 @@ mod tests {
             file.metadata().await.unwrap().len()
         }
 
-        let blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+        let mut blob = BlobObject::new_from_path(&t, &avatar_blob).await.unwrap();
+        let maybe_sticker = &mut false;
         let strict_limits = true;
-        blob.recode_to_size(&t, blob.to_abs_path(), 1000, 3000, strict_limits)
-            .unwrap();
+        blob.recode_to_size(
+            &t,
+            blob.to_abs_path(),
+            maybe_sticker,
+            1000,
+            3000,
+            strict_limits,
+        )
+        .unwrap();
         assert!(file_size(&avatar_blob).await <= 3000);
         assert!(file_size(&avatar_blob).await > 2000);
         tokio::task::block_in_place(move || {
@@ -923,6 +967,7 @@ mod tests {
     async fn test_recode_image_1() {
         let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
         send_image_check_mediaquality(
+            Viewtype::Image,
             Some("0"),
             bytes,
             "jpg",
@@ -936,6 +981,7 @@ mod tests {
         .await
         .unwrap();
         send_image_check_mediaquality(
+            Viewtype::Image,
             Some("1"),
             bytes,
             "jpg",
@@ -955,6 +1001,7 @@ mod tests {
         // The "-rotated" files are rotated by 270 degrees using the Exif metadata
         let bytes = include_bytes!("../test-data/image/rectangle2000x1800-rotated.jpg");
         let img_rotated = send_image_check_mediaquality(
+            Viewtype::Image,
             Some("0"),
             bytes,
             "jpg",
@@ -974,6 +1021,7 @@ mod tests {
         let bytes = buf.into_inner();
 
         let img_rotated = send_image_check_mediaquality(
+            Viewtype::Image,
             Some("1"),
             &bytes,
             "jpg",
@@ -994,6 +1042,7 @@ mod tests {
         let bytes = include_bytes!("../test-data/image/screenshot.png");
 
         send_image_check_mediaquality(
+            Viewtype::Image,
             Some("0"),
             bytes,
             "png",
@@ -1008,6 +1057,7 @@ mod tests {
         .unwrap();
 
         send_image_check_mediaquality(
+            Viewtype::Image,
             Some("1"),
             bytes,
             "png",
@@ -1020,12 +1070,29 @@ mod tests {
         )
         .await
         .unwrap();
+
+        // This will be sent as Image, see [`BlobObject::maybe_sticker`] for explanation.
+        send_image_check_mediaquality(
+            Viewtype::Sticker,
+            Some("0"),
+            bytes,
+            "png",
+            false, // no Exif
+            1920,
+            1080,
+            0,
+            1920,
+            1080,
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_recode_image_huge_jpg() {
         let bytes = include_bytes!("../test-data/image/screenshot.jpg");
         send_image_check_mediaquality(
+            Viewtype::Image,
             Some("0"),
             bytes,
             "jpg",
@@ -1059,6 +1126,7 @@ mod tests {
 
     #[allow(clippy::too_many_arguments)]
     async fn send_image_check_mediaquality(
+        viewtype: Viewtype,
         media_quality_config: Option<&str>,
         bytes: &[u8],
         extension: &str,
@@ -1090,7 +1158,7 @@ mod tests {
             assert!(exif.is_none());
         }
 
-        let mut msg = Message::new(Viewtype::Image);
+        let mut msg = Message::new(viewtype);
         msg.set_file(file.to_str().unwrap(), None);
         let chat = alice.create_chat(&bob).await;
         let sent = alice.send_msg(chat.id, &mut msg).await;
@@ -1104,6 +1172,7 @@ mod tests {
         );
 
         let bob_msg = bob.recv_msg(&sent).await;
+        assert_eq!(bob_msg.get_viewtype(), Viewtype::Image);
         assert_eq!(bob_msg.get_width() as u32, compressed_width);
         assert_eq!(bob_msg.get_height() as u32, compressed_height);
         let file = bob_msg.get_file(&bob).unwrap();

@@ -2033,12 +2033,17 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
-        if msg.viewtype == Viewtype::Image {
-            if let Err(err) = blob.recode_to_image_size(context).await {
+        let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
+        if msg.viewtype == Viewtype::Image || maybe_sticker {
+            // TODO: Ignore errors only if the image has no Exif.
+            if let Err(err) = blob.recode_to_image_size(context, &mut maybe_sticker).await {
                 warn!(
                     context,
                     "Cannot recode image, using original data: {err:#}."
                 );
+            }
+            if !maybe_sticker {
+                msg.viewtype = Viewtype::Image;
             }
         }
         msg.param.set(Param::File, blob.as_name());
@@ -5510,7 +5515,13 @@ mod tests {
         Ok(())
     }
 
-    async fn test_sticker(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+    async fn test_sticker(
+        filename: &str,
+        bytes: &[u8],
+        res_viewtype: Viewtype,
+        w: i32,
+        h: i32,
+    ) -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -5524,12 +5535,19 @@ mod tests {
 
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let mime = sent_msg.payload();
-        assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+        if res_viewtype == Viewtype::Sticker {
+            assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+        }
 
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, bob_chat.id);
-        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
-        assert_eq!(msg.get_filename().unwrap(), filename);
+        assert_eq!(msg.get_viewtype(), res_viewtype);
+        let msg_filename = msg.get_filename().unwrap();
+        match res_viewtype {
+            Viewtype::Sticker => assert_eq!(msg_filename, filename),
+            Viewtype::Image => assert!(msg_filename.starts_with("image_")),
+            _ => panic!("Not implemented"),
+        }
         assert_eq!(msg.get_width(), w);
         assert_eq!(msg.get_height(), h);
         assert!(msg.get_filebytes(&bob).await?.unwrap() > 250);
@@ -5541,9 +5559,10 @@ mod tests {
     async fn test_sticker_png() -> Result<()> {
         test_sticker(
             "sticker.png",
-            include_bytes!("../test-data/image/avatar64x64.png"),
-            64,
-            64,
+            include_bytes!("../test-data/image/logo.png"),
+            Viewtype::Sticker,
+            135,
+            135,
         )
         .await
     }
@@ -5553,6 +5572,7 @@ mod tests {
         test_sticker(
             "sticker.jpg",
             include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            Viewtype::Image,
             1000,
             1000,
         )
@@ -5563,9 +5583,10 @@ mod tests {
     async fn test_sticker_gif() -> Result<()> {
         test_sticker(
             "sticker.gif",
-            include_bytes!("../test-data/image/image100x50.gif"),
-            100,
-            50,
+            include_bytes!("../test-data/image/logo.gif"),
+            Viewtype::Sticker,
+            135,
+            135,
         )
         .await
     }
@@ -5579,8 +5600,8 @@ mod tests {
         let bob_chat = bob.create_chat(&alice).await;
 
         // create sticker
-        let file_name = "sticker.jpg";
-        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        let file_name = "sticker.png";
+        let bytes = include_bytes!("../test-data/image/logo.png");
         let file = alice.get_blobdir().join(file_name);
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
@@ -6117,7 +6138,7 @@ mod tests {
             chat_id1,
             Viewtype::Sticker,
             "b.png",
-            include_bytes!("../test-data/image/avatar64x64.png"),
+            include_bytes!("../test-data/image/logo.png"),
         )
         .await?;
         let second_image_msg_id = send_media(
