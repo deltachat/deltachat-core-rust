@@ -2035,13 +2035,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
 
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
         if msg.viewtype == Viewtype::Image || maybe_sticker {
-            // TODO: Ignore errors only if the image has no Exif.
-            if let Err(err) = blob.recode_to_image_size(context, &mut maybe_sticker).await {
-                warn!(
-                    context,
-                    "Cannot recode image, using original data: {err:#}."
-                );
-            }
+            blob.recode_to_image_size(context, &mut maybe_sticker)
+                .await?;
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
             }

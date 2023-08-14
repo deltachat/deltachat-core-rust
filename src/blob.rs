@@ -388,9 +388,12 @@ impl<'a> BlobObject<'a> {
         max_bytes: usize,
         strict_limits: bool,
     ) -> Result<Option<String>> {
-        tokio::task::block_in_place(move || {
-            let mut img = image::open(&blob_abs).context("image decode failure")?;
+        let mut no_exif = false;
+        let no_exif_ref = &mut no_exif;
+        let res = tokio::task::block_in_place(move || {
             let (nr_bytes, exif) = self.metadata()?;
+            *no_exif_ref = exif.is_none();
+            let mut img = image::open(&blob_abs).context("image decode failure")?;
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
             let mut changed_name = None;
@@ -505,7 +508,21 @@ impl<'a> BlobObject<'a> {
             }
 
             Ok(changed_name)
-        })
+        });
+        match res {
+            Ok(_) => res,
+            Err(err) => {
+                if !strict_limits && no_exif {
+                    warn!(
+                        context,
+                        "Cannot recode image, using original data: {err:#}.",
+                    );
+                    Ok(None)
+                } else {
+                    Err(err)
+                }
+            }
+        }
     }
 
     /// Returns image file size and Exif.
