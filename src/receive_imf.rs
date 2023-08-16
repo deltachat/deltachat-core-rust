@@ -516,6 +516,10 @@ async fn add_parts(
                     securejoin_seen = true;
                 }
             }
+            // Peerstate could be updated by handling the Securejoin handshake.
+            let contact = Contact::get_by_id(context, from_id).await?;
+            mime_parser.decryption_info.peerstate =
+                Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
             securejoin_seen = false;
         }
