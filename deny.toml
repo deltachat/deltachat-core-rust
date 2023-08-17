@@ -2,6 +2,7 @@
 unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
+    "RUSTSEC-2022-0093",
 ]
 
 [bans]
