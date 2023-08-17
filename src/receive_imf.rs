@@ -1400,17 +1400,19 @@ async fn calc_sort_timestamp(
             )
             .await?
     } else if incoming {
-        // get newest incoming non fresh message for this chat.
+        // get newest non fresh message for this chat.
 
-        // If a user hasn't been online for some time, the Inbox is
-        // fetched first and then the Sentbox. In order for Inbox
-        // and Sent messages to be allowed to mingle,
-        // outgoing messages are purely sorted by their sent timestamp.
+        // If a user hasn't been online for some time, the Inbox is fetched first and then the
+        // Sentbox. In order for Inbox and Sent messages to be allowed to mingle, outgoing messages
+        // are purely sorted by their sent timestamp. NB: The Inbox must be fetched first otherwise
+        // Inbox messages would be always below old Sentbox messages. We could take in the query
+        // below only incoming messages, but then new incoming messages would mingle with just sent
+        // outgoing ones and apear somewhere in the middle of the chat.
         context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>? AND from_id!=?",
-                (chat_id, MessageState::InFresh, ContactId::SELF),
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                (chat_id, MessageState::InFresh),
             )
             .await?
     } else {
