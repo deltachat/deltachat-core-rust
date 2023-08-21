@@ -205,10 +205,12 @@ jobs:
           name: ${{ matrix.os }}-libdeltachat.a
           path: target/debug
 
+      # TODO: Temporarily hardcode Python version to 3.7 until
+      # https://github.com/breathe-doc/breathe/issues/943 is done.
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python }}
+          python-version: 3.7
 
       - name: Install tox
         run: pip install tox
