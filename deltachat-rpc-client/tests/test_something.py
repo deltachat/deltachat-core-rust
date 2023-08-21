@@ -363,7 +363,7 @@ async def test_import_export(acfactory, tmp_path) -> None:
 
 def test_openrpc_command_line() -> None:
     """Test that "deltachat-rpc-server --openrpc" command returns an OpenRPC specification."""
-    out = subprocess.run(["deltachat-rpc-server", "--openrpc"], capture_output=True).stdout
+    out = subprocess.run(["deltachat-rpc-server", "--openrpc"], capture_output=True, check=True).stdout
     openrpc = json.loads(out)
     assert "openrpc" in openrpc
     assert "methods" in openrpc
