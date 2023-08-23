@@ -3,6 +3,11 @@ unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
     "RUSTSEC-2022-0093",
+
+    # Exponential CPU time usage for TLS certificate processing in webpki.
+    # It is only used for backup transfer, so does not affect IMAP and SMTP connections.
+    # Waiting for `iroh` to update dependencies.
+    "RUSTSEC-2023-0052",
 ]
 
 [bans]
