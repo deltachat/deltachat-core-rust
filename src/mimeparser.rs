@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::path::Path;
 use std::pin::Pin;
 use std::str;
 
@@ -861,7 +862,7 @@ impl MimeMessage {
         is_related: bool,
     ) -> Result<bool> {
         let mut any_part_added = false;
-        let mimetype = get_mime_type(mail)?.0;
+        let mimetype = get_mime_type(mail, &get_attachment_filename(context, mail)?)?.0;
         match (mimetype.type_(), mimetype.subtype().as_str()) {
             /* Most times, multipart/alternative contains true alternatives
             as text/plain and text/html.  If we find a multipart/mixed
@@ -869,9 +870,9 @@ impl MimeMessage {
             apple mail: "plaintext" as an alternative to "html+PDF attachment") */
             (mime::MULTIPART, "alternative") => {
                 for cur_data in &mail.subparts {
-                    if get_mime_type(cur_data)?.0 == "multipart/mixed"
-                        || get_mime_type(cur_data)?.0 == "multipart/related"
-                    {
+                    let mime_type =
+                        get_mime_type(cur_data, &get_attachment_filename(context, cur_data)?)?.0;
+                    if mime_type == "multipart/mixed" || mime_type == "multipart/related" {
                         any_part_added = self
                             .parse_mime_recursive(context, cur_data, is_related)
                             .await?;
@@ -881,7 +882,11 @@ impl MimeMessage {
                 if !any_part_added {
                     /* search for text/plain and add this */
                     for cur_data in &mail.subparts {
-                        if get_mime_type(cur_data)?.0.type_() == mime::TEXT {
+                        if get_mime_type(cur_data, &get_attachment_filename(context, cur_data)?)?
+                            .0
+                            .type_()
+                            == mime::TEXT
+                        {
                             any_part_added = self
                                 .parse_mime_recursive(context, cur_data, is_related)
                                 .await?;
@@ -1007,10 +1012,9 @@ impl MimeMessage {
         is_related: bool,
     ) -> Result<bool> {
         // return true if a part was added
-        let (mime_type, msg_type) = get_mime_type(mail)?;
-        let raw_mime = mail.ctype.mimetype.to_lowercase();
-
         let filename = get_attachment_filename(context, mail)?;
+        let (mime_type, msg_type) = get_mime_type(mail, &filename)?;
+        let raw_mime = mail.ctype.mimetype.to_lowercase();
 
         let old_part_count = self.parts.len();
 
@@ -1865,7 +1869,10 @@ pub struct Part {
 }
 
 /// return mimetype and viewtype for a parsed mail
-fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
+fn get_mime_type(
+    mail: &mailparse::ParsedMail<'_>,
+    filename: &Option<String>,
+) -> Result<(Mime, Viewtype)> {
     let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
 
     let viewtype = match mimetype.type_() {
@@ -1901,7 +1908,16 @@ fn get_mime_type(mail: &mailparse::ParsedMail<'_>) -> Result<(Mime, Viewtype)> {
                 Viewtype::Unknown
             }
         }
-        mime::APPLICATION => Viewtype::File,
+        mime::APPLICATION => match mimetype.subtype() {
+            mime::OCTET_STREAM => match filename {
+                Some(filename) => match message::guess_msgtype_from_suffix(Path::new(&filename)) {
+                    Some((viewtype, _)) => viewtype,
+                    None => Viewtype::File,
+                },
+                None => Viewtype::File,
+            },
+            _ => Viewtype::File,
+        },
         _ => Viewtype::Unknown,
     };
 
@@ -3753,6 +3769,24 @@ Content-Disposition: reaction\n\
                 .unwrap(),
             "12345@example.org"
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_jpeg_as_application_octet_stream() -> Result<()> {
+        let context = TestContext::new_alice().await;
+        let raw = include_bytes!("../test-data/message/jpeg-as-application-octet-stream.eml");
+
+        let msg = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(msg.parts.len(), 1);
+        assert_eq!(msg.parts[0].typ, Viewtype::Image);
+
+        receive_imf(&context, &raw[..], false).await?;
+        let msg = context.get_last_msg().await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Image);
 
         Ok(())
     }
