@@ -9,6 +9,7 @@ use super::bobstate::{BobHandshakeStage, BobState};
 use super::qrinvite::QrInvite;
 use super::HandshakeMessage;
 use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
+use crate::config::Config;
 use crate::constants::{Blocked, Chattype};
 use crate::contact::Contact;
 use crate::context::Context;
@@ -222,14 +223,22 @@ impl BobState {
         let msg = stock_str::contact_verified(context, &contact).await;
         let chat_id = self.joining_chat_id(context).await?;
         chat::add_info_msg(context, chat_id, &msg, time()).await?;
-        chat_id
-            .set_protection(
-                context,
-                ProtectionStatus::Protected,
-                time(),
-                Some(contact.id),
-            )
-            .await?;
+
+        if context
+            .get_config_bool(Config::VerifiedOneOnOneChats)
+            .await?
+            && chat_id == self.alice_chat()
+        {
+            chat_id
+                .set_protection(
+                    context,
+                    ProtectionStatus::Protected,
+                    time(),
+                    Some(contact.id),
+                )
+                .await?;
+        }
+
         context.emit_event(EventType::ChatModified(chat_id));
         Ok(())
     }
