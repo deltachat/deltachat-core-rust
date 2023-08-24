@@ -1731,6 +1731,22 @@ async fn apply_group_changes(
         false
     };
 
+    if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
+        if let VerifiedEncryption::NotVerified(err) =
+            has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
+        {
+            warn!(context, "Verification problem: {err:#}.");
+            let s = format!("{err}. See 'Info' for more details");
+            mime_parser.repl_msg_by_error(&s);
+        }
+
+        if !chat.is_protected() {
+            chat_id
+                .inner_set_protection(context, ProtectionStatus::Protected)
+                .await?;
+        }
+    }
+
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
 

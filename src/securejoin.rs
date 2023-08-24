@@ -8,7 +8,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::Blocked;
+use crate::constants::{Blocked, Chattype};
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
@@ -701,14 +701,22 @@ async fn secure_connection_established(
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
-    chat_id
-        .set_protection(
-            context,
-            ProtectionStatus::Protected,
-            time(),
-            Some(contact_id),
-        )
-        .await?;
+    if context
+        .get_config_bool(Config::VerifiedOneOnOneChats)
+        .await?
+    {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        if chat.typ == Chattype::Single {
+            chat_id
+                .set_protection(
+                    context,
+                    ProtectionStatus::Protected,
+                    time(),
+                    Some(contact_id),
+                )
+                .await?;
+        }
+    }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
@@ -786,7 +794,6 @@ mod tests {
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
-    use crate::constants::Chattype;
     use crate::contact::ContactAddress;
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
@@ -801,6 +808,14 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
+        alice
+            .set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+        bob.set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+
         assert_eq!(
             Chatlist::try_load(&alice, 0, None, None)
                 .await
