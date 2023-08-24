@@ -728,12 +728,17 @@ async fn add_parts(
                     }
                 }
 
-                // The next block checks if the message was sent with verified encryption
-                // and sets the protection of the 1:1 chat accordingly.
-                if is_partial_download.is_none()
+                // Check if the message was sent with verified encryption and set the protection of
+                // the 1:1 chat accordingly.
+                let chat = match is_partial_download.is_none()
                     && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
                     && !is_mdn
                 {
+                    true => Some(Chat::load_from_db(context, chat_id).await?)
+                        .filter(|chat| chat.typ == Chattype::Single),
+                    false => None,
+                };
+                if let Some(chat) = chat {
                     let mut new_protection = match has_verified_encryption(
                         context,
                         mime_parser,
@@ -747,17 +752,15 @@ async fn add_parts(
                         VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
                     };
 
-                    let chat = Chat::load_from_db(context, chat_id).await?;
-
+                    if chat.protected != ProtectionStatus::Unprotected
+                        && new_protection == ProtectionStatus::Unprotected
+                        // `chat.protected` must be maintained regardless of the `Config::VerifiedOneOnOneChats`.
+                        // That's why the config is checked here, and not above.
+                        && context.get_config_bool(Config::VerifiedOneOnOneChats).await?
+                    {
+                        new_protection = ProtectionStatus::ProtectionBroken;
+                    }
                     if chat.protected != new_protection {
-                        if new_protection == ProtectionStatus::Unprotected
-                            && context
-                                .get_config_bool(Config::VerifiedOneOnOneChats)
-                                .await?
-                        {
-                            new_protection = ProtectionStatus::ProtectionBroken;
-                        }
-
                         // The message itself will be sorted under the device message since the device
                         // message is `MessageState::InNoticed`, which means that all following
                         // messages are sorted under it.
