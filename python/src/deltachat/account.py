@@ -427,7 +427,7 @@ class Account:
 
         assert dc_chatlist != ffi.NULL
         chatlist = []
-        for i in range(0, lib.dc_chatlist_get_cnt(dc_chatlist)):
+        for i in range(lib.dc_chatlist_get_cnt(dc_chatlist)):
             chat_id = lib.dc_chatlist_get_chat_id(dc_chatlist, i)
             chatlist.append(Chat(self, chat_id))
         return chatlist
