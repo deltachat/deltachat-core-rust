@@ -291,7 +291,7 @@ mod tests {
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
             parser.html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -299,7 +299,7 @@ mod tests {
 This message does not have Content-Type nor Subject.<br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 
@@ -310,7 +310,7 @@ This message does not have Content-Type nor Subject.<br/>
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
             parser.html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -318,7 +318,7 @@ This message does not have Content-Type nor Subject.<br/>
 message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 
@@ -330,7 +330,7 @@ message with a non-UTF-8 encoding: äöüßÄÖÜ<br/>
         assert!(parser.plain.unwrap().flowed);
         assert_eq!(
             parser.html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -341,7 +341,7 @@ This line does not end with a space<br/>
 and will be wrapped as usual.<br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 
@@ -352,7 +352,7 @@ and will be wrapped as usual.<br/>
         let parser = HtmlMsgParser::from_bytes(&t.ctx, raw).await.unwrap();
         assert_eq!(
             parser.html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -363,7 +363,7 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 <br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 

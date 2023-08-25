@@ -26,10 +26,10 @@ impl PlainText {
     /// The function handles quotes, links, fixed and floating text paragraphs.
     pub fn to_html(&self) -> String {
         static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
-            Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
+            Lazy::new(|| regex::Regex::new(r"\b([\w.\-+]+@[\w.\-]+)\b").unwrap());
 
         static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
-            regex::Regex::new(r#"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
+            regex::Regex::new(r"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)").unwrap()
         });
 
         let lines = split_lines(&self.text);
@@ -127,7 +127,7 @@ http://link-at-start-of-line.org
         .to_html();
         assert_eq!(
             html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -138,7 +138,7 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
 <a href="http://link-at-start-of-line.org">http://link-at-start-of-line.org</a><br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 

@@ -131,7 +131,7 @@ async fn on_configure_completed(
 ) -> Result<()> {
     if let Some(provider) = param.provider {
         if let Some(config_defaults) = &provider.config_defaults {
-            for def in config_defaults.iter() {
+            for def in config_defaults {
                 if !context.config_exists(def.key).await? {
                     info!(context, "apply config_defaults {}={}", def.key, def.value);
                     context.set_config(def.key, Some(def.value)).await?;
@@ -656,7 +656,7 @@ async fn try_smtp_one_param(
         })
     } else {
         info!(context, "success: {}", inf);
-        smtp.disconnect().await;
+        smtp.disconnect();
         Ok(())
     }
 }
