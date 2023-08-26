@@ -2214,7 +2214,9 @@ async fn has_verified_encryption(
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
         let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
-            return Ok(NotVerified("No peerstate, the contact isn't verified".to_string()));
+            return Ok(NotVerified(
+                "No peerstate, the contact isn't verified".to_string(),
+            ));
         };
 
         if !peerstate.has_verified_key(&mimeparser.signatures) {
