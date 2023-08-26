@@ -23,6 +23,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
+use crate::key::DcKey;
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
@@ -766,7 +767,18 @@ async fn add_parts(
                         // That's why the config is checked here, and not above.
                         && context.get_config_bool(Config::VerifiedOneOnOneChats).await?
                     {
-                        new_protection = ProtectionStatus::ProtectionBroken;
+                        let decryption_info = &mime_parser.decryption_info;
+                        new_protection =
+                            match decryption_info.autocrypt_header.as_ref().filter(|ah| {
+                                Some(&ah.public_key.fingerprint())
+                                    == decryption_info
+                                        .peerstate
+                                        .as_ref()
+                                        .and_then(|p| p.verified_key_fingerprint.as_ref())
+                            }) {
+                                Some(_) => chat.protected,
+                                None => ProtectionStatus::ProtectionBroken,
+                            };
                     }
                     if chat.protected != new_protection {
                         // The message itself will be sorted under the device message since the device

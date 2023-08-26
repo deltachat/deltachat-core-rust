@@ -136,6 +136,22 @@ impl TestContextManager {
         received_msg
     }
 
+    /// - Let one TestContext send a message.
+    /// - Let the other TestContext receive it.
+    /// - Assert that the message text is the formatted `err`.
+    /// - Assert that the message info contains the original text.
+    pub async fn send_recv_with_err(
+        &self,
+        from: &TestContext,
+        to: &TestContext,
+        err: &str,
+        msg: &str,
+    ) -> Message {
+        let received_msg = self.try_send_recv(from, to, msg).await;
+        check_msg_with_err(to, &received_msg, err, msg).await;
+        received_msg
+    }
+
     /// - Let one TestContext send a message
     /// - Let the other TestContext receive it
     pub async fn try_send_recv(&self, from: &TestContext, to: &TestContext, msg: &str) -> Message {
@@ -1196,6 +1212,18 @@ async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut Str
         statestr,
     )
     .unwrap();
+}
+
+/// - Assert that the message text is the formatted error `err`.
+/// - Assert that the message info contains the original text.
+pub async fn check_msg_with_err(ctx: &TestContext, msg: &Message, err: &str, text: &str) {
+    assert_eq!(msg.text, format!("[{err}]"));
+    assert!(msg
+        .id
+        .get_info(ctx)
+        .await
+        .unwrap()
+        .contains(&format!("\n\n{text}\n\n")));
 }
 
 #[cfg(test)]

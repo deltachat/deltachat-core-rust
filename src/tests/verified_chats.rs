@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
 
-use crate::chat::{Chat, ProtectionStatus};
+use crate::chat::{add_contact_to_chat, create_broadcast_list, Chat, ProtectionStatus};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::DC_GCL_FOR_FORWARDING;
@@ -12,7 +12,9 @@ use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
-use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
+use crate::test_utils::{
+    check_msg_with_err, get_chat_msg, mark_as_verified, TestContext, TestContextManager,
+};
 use crate::{e2ee, message};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -738,6 +740,45 @@ async fn test_create_oneonone_chat_with_former_verified_contact() -> Result<()> 
     alice.create_chat(&bob).await;
 
     assert_verified(&alice, &bob, ProtectionStatus::Unprotected).await;
+
+    Ok(())
+}
+
+/// Some messages are sent unencrypted, but they mustn't break a verified chat protection.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_unencrypted() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice]).await;
+    mark_as_verified(&alice, &bob).await;
+
+    let err_str = "This message is not encrypted. See 'Info' for more details";
+    let msg = tcm.send_recv_with_err(&bob, &alice, err_str, "hi").await;
+    assert!(!msg.get_showpadlock());
+    let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert!(alice_chat.is_protected());
+    assert!(!alice_chat.is_protection_broken());
+
+    let broadcast_id = create_broadcast_list(&bob).await?;
+    add_contact_to_chat(
+        &bob,
+        broadcast_id,
+        bob.add_or_lookup_contact(&alice).await.id,
+    )
+    .await?;
+    let sent_msg = bob.send_text(broadcast_id, "hi all").await;
+    let msg = alice.recv_msg(&sent_msg).await;
+    check_msg_with_err(&alice, &msg, err_str, "hi all").await;
+    assert!(!msg.get_showpadlock());
+    assert_eq!(msg.chat_id, alice_chat.id);
+    let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert!(alice_chat.is_protected());
+    assert!(!alice_chat.is_protection_broken());
+
+    alice
+        .golden_test_chat(alice_chat.id, "verified_chats_test_unencrypted")
+        .await;
 
     Ok(())
 }
