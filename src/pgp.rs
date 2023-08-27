@@ -24,7 +24,8 @@ use crate::keyring::Keyring;
 use crate::tools::EmailAddress;
 
 #[allow(missing_docs)]
-pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
+#[cfg(test)]
+pub(crate) const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 
 #[allow(missing_docs)]
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
