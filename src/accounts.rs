@@ -296,10 +296,10 @@ impl Accounts {
 }
 
 /// Configuration file name.
-pub const CONFIG_NAME: &str = "accounts.toml";
+const CONFIG_NAME: &str = "accounts.toml";
 
 /// Database file name.
-pub const DB_NAME: &str = "dc.db";
+const DB_NAME: &str = "dc.db";
 
 /// Account manager configuration file.
 #[derive(Debug, Clone, PartialEq)]
