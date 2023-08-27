@@ -78,7 +78,7 @@ pub mod mimeparser;
 pub mod oauth2;
 mod param;
 pub mod peerstate;
-pub mod pgp;
+mod pgp;
 pub mod provider;
 pub mod qr;
 pub mod qr_code_generator;

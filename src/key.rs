@@ -239,7 +239,7 @@ pub(crate) async fn load_keypair(
     })
 }
 
-/// Use of a [KeyPair] for encryption or decryption.
+/// Use of a key pair for encryption or decryption.
 ///
 /// This is used by [store_self_keypair] to know what kind of key is
 /// being saved.

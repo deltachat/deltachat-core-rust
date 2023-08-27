@@ -299,13 +299,13 @@ impl Accounts {
 }
 
 /// Configuration file name.
-pub const CONFIG_NAME: &str = "accounts.toml";
+const CONFIG_NAME: &str = "accounts.toml";
 
 /// Lockfile name.
-pub const LOCKFILE_NAME: &str = "accounts.lock";
+const LOCKFILE_NAME: &str = "accounts.lock";
 
 /// Database file name.
-pub const DB_NAME: &str = "dc.db";
+const DB_NAME: &str = "dc.db";
 
 /// Account manager configuration file.
 #[derive(Debug)]
