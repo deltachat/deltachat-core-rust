@@ -707,7 +707,7 @@ fn parse_webxdc_manifest(bytes: &[u8]) -> Result<WebxdcManifest> {
     Ok(manifest)
 }
 
-async fn get_blob(archive: &mut async_zip::read::fs::ZipFileReader, name: &str) -> Result<Vec<u8>> {
+async fn get_blob(archive: &async_zip::read::fs::ZipFileReader, name: &str) -> Result<Vec<u8>> {
     let (i, _) = find_zip_entry(archive.file(), name)
         .ok_or_else(|| anyhow!("no entry found for {}", name))?;
     let mut reader = archive.entry(i).await?;
@@ -750,10 +750,10 @@ impl Message {
             name
         };
 
-        let mut archive = self.get_webxdc_archive(context).await?;
+        let archive = self.get_webxdc_archive(context).await?;
 
         if name == "index.html" {
-            if let Ok(bytes) = get_blob(&mut archive, "manifest.toml").await {
+            if let Ok(bytes) = get_blob(&archive, "manifest.toml").await {
                 if let Ok(manifest) = parse_webxdc_manifest(&bytes) {
                     if let Some(min_api) = manifest.min_api {
                         if min_api > WEBXDC_API_VERSION {
@@ -766,15 +766,15 @@ impl Message {
             }
         }
 
-        get_blob(&mut archive, name).await
+        get_blob(&archive, name).await
     }
 
     /// Return info from manifest.toml or from fallbacks.
     pub async fn get_webxdc_info(&self, context: &Context) -> Result<WebxdcInfo> {
         ensure!(self.viewtype == Viewtype::Webxdc, "No webxdc instance.");
-        let mut archive = self.get_webxdc_archive(context).await?;
+        let archive = self.get_webxdc_archive(context).await?;
 
-        let mut manifest = get_blob(&mut archive, "manifest.toml")
+        let mut manifest = get_blob(&archive, "manifest.toml")
             .await
             .map(|bytes| parse_webxdc_manifest(&bytes).unwrap_or_default())
             .unwrap_or_default();
