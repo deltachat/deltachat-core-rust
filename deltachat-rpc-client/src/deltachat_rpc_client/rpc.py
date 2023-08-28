@@ -89,16 +89,14 @@ class Rpc:
         return await queue.get()
 
     def __getattr__(self, attr: str):
-        async def method(*args, **kwargs) -> Any:
+        async def method(*args) -> Any:
             self.id += 1
             request_id = self.id
-
-            assert not (args and kwargs), "Mixing positional and keyword arguments"
 
             request = {
                 "jsonrpc": "2.0",
                 "method": attr,
-                "params": kwargs or args,
+                "params": args,
                 "id": self.id,
             }
             data = (json.dumps(request) + "\n").encode()
