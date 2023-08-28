@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.120.0] - 2023-08-28
+
+### API-Changes
+
+- jsonrpc: Add `resend_messages`.
+
+### Fixes
+
+- Update async-imap to 0.9.1 to fix memory leak.
+- Delete messages from SMTP queue only on user demand ([#4579](https://github.com/deltachat/deltachat-core-rust/pull/4579)).
+- Do not send images without transparency as stickers ([#4611](https://github.com/deltachat/deltachat-core-rust/pull/4611)).
+- `prepare_msg_blob()`: do not use the image if it has Exif metadata but the image cannot be recoded.
+
+### Refactor
+
+- Hide accounts.rs constants from public API.
+- Hide pgp module from public API.
+
+### Build system
+
+- Update to Zig 0.11.0.
+- Update to Rust 1.72.0.
+
+### CI
+
+- Run on push to stable branch.
+
+### Miscellaneous Tasks
+
+- python: Fix lint errors.
+- python: Fix `ruff` 0.0.286 warnings.
+- Fix beta clippy warnings.
+
 ## [1.119.1] - 2023-08-06
 
 Bugfix release attempting to fix the [iOS build error](https://github.com/deltachat/deltachat-core-rust/issues/4610).
@@ -2730,3 +2763,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.118.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.117.0...v1.118.0
 [1.119.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.118.0...v1.119.0
 [1.119.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.0...v1.119.1
+[1.120.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.1...v1.120.0
