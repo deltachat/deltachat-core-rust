@@ -71,7 +71,7 @@ async fn get_unique_quota_roots_and_usage(
                 // messages could be received and so the usage could have been changed
                 *unique_quota_roots
                     .entry(quota_root_name.clone())
-                    .or_insert_with(Vec::new) = quota.resources;
+                    .or_default() = quota.resources;
             }
         }
     }
