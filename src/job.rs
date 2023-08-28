@@ -155,8 +155,8 @@ impl<'a> Connection<'a> {
 pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_>, mut job: Job) {
     info!(context, "Job {} started...", &job);
 
-    let try_res = match perform_job_action(context, &mut job, &mut connection, 0).await {
-        Status::RetryNow => perform_job_action(context, &mut job, &mut connection, 1).await,
+    let try_res = match perform_job_action(context, &job, &mut connection, 0).await {
+        Status::RetryNow => perform_job_action(context, &job, &mut connection, 1).await,
         x => x,
     };
 
@@ -205,7 +205,7 @@ pub(crate) async fn perform_job(context: &Context, mut connection: Connection<'_
 
 async fn perform_job_action(
     context: &Context,
-    job: &mut Job,
+    job: &Job,
     connection: &mut Connection<'_>,
     tries: u32,
 ) -> Status {
