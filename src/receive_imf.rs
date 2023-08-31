@@ -1068,7 +1068,7 @@ async fn add_parts(
     let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        let headers = if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
+        let headers = if !mime_parser.decoded_data.is_empty() {
             mime_parser.decoded_data.clone()
         } else {
             imf_raw.to_vec()

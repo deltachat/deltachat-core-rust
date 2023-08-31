@@ -29,14 +29,30 @@ pub fn try_decrypt(
     private_keyring: &Keyring<SignedSecretKey>,
     public_keyring_for_validate: &Keyring<SignedPublicKey>,
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
-    let encrypted_data_part = match get_autocrypt_mime(mail)
-        .or_else(|| get_mixed_up_mime(mail))
-        .or_else(|| get_attachment_mime(mail))
-    {
+    let encrypted_data_part = match {
+        let mime = get_autocrypt_mime(mail);
+        if mime.is_some() {
+            info!(context, "Detected Autocrypt-mime message.");
+        }
+        mime
+    }
+    .or_else(|| {
+        let mime = get_mixed_up_mime(mail);
+        if mime.is_some() {
+            info!(context, "Detected mixed-up mime message.");
+        }
+        mime
+    })
+    .or_else(|| {
+        let mime = get_attachment_mime(mail);
+        if mime.is_some() {
+            info!(context, "Detected attached Autocrypt-mime message.");
+        }
+        mime
+    }) {
         None => return Ok(None),
         Some(res) => res,
     };
-    info!(context, "Detected Autocrypt-mime message");
 
     decrypt_part(
         encrypted_data_part,
@@ -401,6 +417,20 @@ mod tests {
         let msg = bob.get_last_msg().await;
         assert_eq!(msg.text, "Hello from Thunderbird!");
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mixed_up_mime_long() -> Result<()> {
+        // Long "mixed-up" mail as received when sending an encrypted message using Delta Chat
+        // Desktop via MS Exchange (actually made with TB though).
+        let mixed_up_mime = include_bytes!("../test-data/message/mixed-up-long.eml");
+        let bob = TestContext::new_bob().await;
+        receive_imf(&bob, mixed_up_mime, false).await?;
+        let msg = bob.get_last_msg().await;
+        assert!(!msg.get_text().is_empty());
+        assert!(msg.has_html());
+        assert!(msg.id.get_html(&bob).await?.unwrap().len() > 40000);
         Ok(())
     }
 }
