@@ -24,7 +24,7 @@ futures = { version = "0.3.28" }
 serde_json = "1.0.99"
 yerpc = { version = "0.5.2", features = ["anyhow_expose", "openrpc"] }
 typescript-type-def = { version = "0.5.5", features = ["json_value"] }
-tokio = { version = "1.29.1" }
+tokio = { version = "1.32.0" }
 sanitize-filename = "0.5"
 walkdir = "2.3.3"
 base64 = "0.21"
@@ -34,7 +34,7 @@ axum = { version = "0.6.18", optional = true, features = ["ws"] }
 env_logger = { version = "0.10.0", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.29.1", features = ["full", "rt-multi-thread"] }
+tokio = { version = "1.32.0", features = ["full", "rt-multi-thread"] }
 
 
 [features]
