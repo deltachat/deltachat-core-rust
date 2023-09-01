@@ -6,8 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "deltachat-rpc-client"
 description = "Python client for Delta Chat core JSON-RPC interface"
 dependencies = [
-    "aiohttp",
-    "aiodns"
+    "aiohttp"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
