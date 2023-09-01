@@ -3562,3 +3562,52 @@ async fn test_mua_can_add() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_mua_can_readd() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+
+    // Alice creates chat with 3 contacts.
+    let msg = receive_imf(
+        &alice,
+        b"Subject: =?utf-8?q?Message_from_alice=40example=2Eorg?=\r\n\
+            From: alice@example.org\r\n\
+            To: <bob@example.net>, <claire@example.org>, <fiona@example.org> \r\n\
+            Date: Mon, 12 Dec 2022 14:30:39 +0000\r\n\
+            Message-ID: <Mr.alices_original_mail@example.org>\r\n\
+            Chat-Version: 1.0\r\n\
+            \r\n\
+            Hi!\r\n",
+        false,
+    )
+    .await?
+    .unwrap();
+    let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_chat.typ, Chattype::Group);
+    assert!(is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
+
+    // And leaves it.
+    remove_contact_from_chat(&alice, alice_chat.id, ContactId::SELF).await?;
+    let alice_chat = Chat::load_from_db(&alice, alice_chat.id).await?;
+    assert!(!is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
+
+    // Bob uses a classical MUA to answer, adding Alice back.
+    receive_imf(
+        &alice,
+        b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>, <fiona@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
+            Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
+            In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+        false,
+    )
+    .await?
+    .unwrap();
+
+    let alice_chat = Chat::load_from_db(&alice, alice_chat.id).await?;
+    assert!(is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
+    Ok(())
+}

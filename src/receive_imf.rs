@@ -1095,7 +1095,7 @@ async fn add_parts(
     let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        let headers = if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
+        let headers = if !mime_parser.decoded_data.is_empty() {
             mime_parser.decoded_data.clone()
         } else {
             imf_raw.to_vec()
@@ -1702,19 +1702,22 @@ async fn apply_group_changes(
         };
 
     // Whether to allow any changes to the member list at all.
-    let allow_member_list_changes =
-        if chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await? || self_added {
-            // Reject old group changes.
-            chat_id
-                .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-                .await?
-        } else {
-            // Member list changes are not allowed if we're not in the group
-            // and are not explicitly added.
-            // This message comes from a Delta Chat that restored an old backup
-            // or the message is a MUA reply to an old message.
-            false
-        };
+    let allow_member_list_changes = if chat::is_contact_in_chat(context, chat_id, ContactId::SELF)
+        .await?
+        || self_added
+        || !mime_parser.has_chat_version()
+    {
+        // Reject old group changes.
+        chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+    } else {
+        // Member list changes are not allowed if we're not in the group
+        // and are not explicitly added.
+        // This message comes from a Delta Chat that restored an old backup
+        // or the message is a MUA reply to an old message.
+        false
+    };
 
     // Whether to rebuild the member list from scratch.
     let recreate_member_list = if allow_member_list_changes {

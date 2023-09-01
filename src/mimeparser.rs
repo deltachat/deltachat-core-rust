@@ -12,7 +12,6 @@ use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
-use once_cell::sync::Lazy;
 
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
@@ -1617,25 +1616,21 @@ impl MimeMessage {
             false
         };
         if maybe_ndn && self.delivery_report.is_none() {
-            static RE: Lazy<regex::Regex> =
-                Lazy::new(|| regex::Regex::new(r"Message-ID:(.*)").unwrap());
-            for captures in self
+            for original_message_id in self
                 .parts
                 .iter()
                 .filter_map(|part| part.msg_raw.as_ref())
                 .flat_map(|part| part.lines())
-                .filter_map(|line| RE.captures(line))
+                .filter_map(|line| line.split_once("Message-ID:"))
+                .filter_map(|(_, message_id)| parse_message_id(message_id).ok())
             {
-                if let Ok(original_message_id) = parse_message_id(&captures[1]) {
-                    if let Ok(Some(_)) =
-                        message::rfc724_mid_exists(context, &original_message_id).await
-                    {
-                        self.delivery_report = Some(DeliveryReport {
-                            rfc724_mid: original_message_id,
-                            failed_recipient: None,
-                            failure: true,
-                        })
-                    }
+                if let Ok(Some(_)) = message::rfc724_mid_exists(context, &original_message_id).await
+                {
+                    self.delivery_report = Some(DeliveryReport {
+                        rfc724_mid: original_message_id,
+                        failed_recipient: None,
+                        failure: true,
+                    })
                 }
             }
         }
