@@ -62,7 +62,6 @@ skip = [
      { name = "windows_x86_64_gnullvm", version = "<0.48" },
      { name = "windows_x86_64_gnu", version = "<0.48" },
      { name = "windows_x86_64_msvc", version = "<0.48" },
-     { name = "winreg", version = "0.10.1" },
 ]
 
 
