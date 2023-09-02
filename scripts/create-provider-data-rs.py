@@ -62,7 +62,7 @@ def process_opt(data):
 def process_config_defaults(data):
     if not "config_defaults" in data:
         return "None"
-    defaults = "Some(vec![\n"
+    defaults = "Some(&[\n"
     config_defaults = data.get("config_defaults", "")
     for key in config_defaults:
         value = str(config_defaults[key])
@@ -162,7 +162,7 @@ def process_data(data, file):
         provider += '    before_login_hint: "' + before_login_hint + '",\n'
         provider += '    after_login_hint: "' + after_login_hint + '",\n'
         provider += '    overview_page: "' + file2url(file) + '",\n'
-        provider += "    server: vec![\n" + server + "    ],\n"
+        provider += "    server: &[\n" + server + "    ],\n"
         provider += "    opt: " + opt + ",\n"
         provider += "    config_defaults: " + config_defaults + ",\n"
         provider += "    oauth2_authorizer: " + oauth2 + ",\n"
