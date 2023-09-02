@@ -1,6 +1,7 @@
 //! # Key-value configuration management.
 
 use std::env;
+use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
@@ -329,7 +330,11 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_raw_config(key.as_ref()).await?;
-                rel_path.map(|p| get_abs_path(self, p).to_string_lossy().into_owned())
+                rel_path.map(|p| {
+                    get_abs_path(self, Path::new(&p))
+                        .to_string_lossy()
+                        .into_owned()
+                })
             }
             Config::SysVersion => Some((*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{RECOMMENDED_FILE_SIZE}")),

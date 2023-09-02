@@ -1311,11 +1311,11 @@ impl Chat {
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         } else if self.id.is_archived_link() {
             if let Ok(image_rel) = get_archive_icon(context).await {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id).await?;
@@ -1326,7 +1326,7 @@ impl Chat {
             }
         } else if self.typ == Chattype::Broadcast {
             if let Ok(image_rel) = get_broadcast_icon(context).await {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         }
         Ok(None)
