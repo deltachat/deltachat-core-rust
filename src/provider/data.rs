@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 
 // 163.md: 163.com
-static P_163: Lazy<Provider> = Lazy::new(|| Provider {
+static P_163: Provider = Provider {
     id: "163",
     status: Status::Ok,
     before_login_hint: "",
@@ -33,13 +33,13 @@ static P_163: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // aktivix.org.md: aktivix.org
-static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_AKTIVIX_ORG: Provider = Provider {
     id: "aktivix.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -61,14 +61,13 @@ static P_AKTIVIX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // aol.md: aol.com
-static P_AOL: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_AOL: Provider = Provider {
     id: "aol",
     status: Status::Preparation,
     before_login_hint: "To log in to AOL with Delta Chat, you need to set up an app password in the AOL web interface.",
@@ -78,14 +77,13 @@ static P_AOL: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "imap.aol.com", port: 993, username_pattern: Email },
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.aol.com", port: 465, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // arcor.de.md: arcor.de
-static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ARCOR_DE: Provider = Provider {
     id: "arcor.de",
     status: Status::Ok,
     before_login_hint: "",
@@ -107,13 +105,13 @@ static P_ARCOR_DE: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // autistici.org.md: autistici.org
-static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_AUTISTICI_ORG: Provider = Provider {
     id: "autistici.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -135,13 +133,13 @@ static P_AUTISTICI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // blindzeln.org.md: delta.blinzeln.de, delta.blindzeln.org
-static P_BLINDZELN_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_BLINDZELN_ORG: Provider = Provider {
     id: "blindzeln.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -163,13 +161,13 @@ static P_BLINDZELN_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // bluewin.ch.md: bluewin.ch
-static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
+static P_BLUEWIN_CH: Provider = Provider {
     id: "bluewin.ch",
     status: Status::Ok,
     before_login_hint: "",
@@ -191,13 +189,13 @@ static P_BLUEWIN_CH: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // buzon.uy.md: buzon.uy
-static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
+static P_BUZON_UY: Provider = Provider {
     id: "buzon.uy",
     status: Status::Ok,
     before_login_hint: "",
@@ -219,13 +217,13 @@ static P_BUZON_UY: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // chello.at.md: chello.at
-static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
+static P_CHELLO_AT: Provider = Provider {
     id: "chello.at",
     status: Status::Ok,
     before_login_hint: "",
@@ -247,39 +245,39 @@ static P_CHELLO_AT: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // comcast.md: xfinity.com, comcast.net
-static P_COMCAST: Lazy<Provider> = Lazy::new(|| Provider {
+static P_COMCAST: Provider = Provider {
     id: "comcast",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/comcast",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // dismail.de.md: dismail.de
-static P_DISMAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
+static P_DISMAIL_DE: Provider = Provider {
     id: "dismail.de",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/dismail-de",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // disroot.md: disroot.org
-static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
+static P_DISROOT: Provider = Provider {
     id: "disroot",
     status: Status::Ok,
     before_login_hint: "",
@@ -301,13 +299,13 @@ static P_DISROOT: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // e.email.md: e.email
-static P_E_EMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+static P_E_EMAIL: Provider = Provider {
     id: "e.email",
     status: Status::Ok,
     before_login_hint: "",
@@ -329,27 +327,26 @@ static P_E_EMAIL: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // espiv.net.md: espiv.net
-static P_ESPIV_NET: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ESPIV_NET: Provider = Provider {
     id: "espiv.net",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/espiv-net",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // example.com.md: example.com, example.org, example.net
-static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_EXAMPLE_COM: Provider = Provider {
     id: "example.com",
     status: Status::Broken,
     before_login_hint: "Hush this provider doesn't exist!",
@@ -359,14 +356,13 @@ static P_EXAMPLE_COM: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "imap.example.com", port: 1337, username_pattern: Email },
         Server { protocol: Smtp, socket: Starttls, hostname: "smtp.example.com", port: 1337, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // fastmail.md: 123mail.org, 150mail.com, 150ml.com, 16mail.com, 2-mail.com, 4email.net, 50mail.com, airpost.net, allmail.net, bestmail.us, cluemail.com, elitemail.org, emailcorner.net, emailengine.net, emailengine.org, emailgroups.net, emailplus.org, emailuser.net, eml.cc, f-m.fm, fast-email.com, fast-mail.org, fastem.com, fastemail.us, fastemailer.com, fastest.cc, fastimap.com, fastmail.cn, fastmail.co.uk, fastmail.com, fastmail.com.au, fastmail.de, fastmail.es, fastmail.fm, fastmail.fr, fastmail.im, fastmail.in, fastmail.jp, fastmail.mx, fastmail.net, fastmail.nl, fastmail.org, fastmail.se, fastmail.to, fastmail.tw, fastmail.uk, fastmail.us, fastmailbox.net, fastmessaging.com, fea.st, fmail.co.uk, fmailbox.com, fmgirl.com, fmguy.com, ftml.net, h-mail.us, hailmail.net, imap-mail.com, imap.cc, imapmail.org, inoutbox.com, internet-e-mail.com, internet-mail.org, internetemails.net, internetmailing.net, jetemail.net, justemail.net, letterboxes.org, mail-central.com, mail-page.com, mailandftp.com, mailas.com, mailbolt.com, mailc.net, mailcan.com, mailforce.net, mailftp.com, mailhaven.com, mailingaddress.org, mailite.com, mailmight.com, mailnew.com, mailsent.net, mailservice.ms, mailup.net, mailworks.org, ml1.net, mm.st, myfastmail.com, mymacmail.com, nospammail.net, ownmail.net, petml.com, postinbox.com, postpro.net, proinbox.com, promessage.com, realemail.net, reallyfast.biz, reallyfast.info, rushpost.com, sent.as, sent.at, sent.com, speedpost.net, speedymail.org, ssl-mail.com, swift-mail.com, the-fastest.net, the-quickest.com, theinternetemail.com, veryfast.biz, veryspeedy.net, warpmail.net, xsmail.com, yepmail.net, your-mail.com
-static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+static P_FASTMAIL: Provider = Provider {
     id: "fastmail",
     status: Status::Preparation,
     before_login_hint:
@@ -389,14 +385,13 @@ static P_FASTMAIL: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // firemail.de.md: firemail.at, firemail.de
-static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_FIREMAIL_DE: Provider = Provider {
     id: "firemail.de",
     status: Status::Preparation,
     before_login_hint: "Firemail erlaubt nur bei bezahlten Accounts den vollen Zugriff auf das E-Mail-Protokoll. Wenn Sie nicht für Firemail bezahlen, verwenden Sie bitte einen anderen E-Mail-Anbieter.",
@@ -404,21 +399,20 @@ static P_FIREMAIL_DE: Lazy<Provider> = Lazy::new(|| {
     overview_page: "https://providers.delta.chat/firemail-de",
     server: &[
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // five.chat.md: five.chat
-static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
+static P_FIVE_CHAT: Provider = Provider {
     id: "five.chat",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/five-chat",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: Some(&[
         ConfigDefault {
             key: Config::BccSelf,
@@ -434,11 +428,10 @@ static P_FIVE_CHAT: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ]),
     oauth2_authorizer: None,
-});
+};
 
 // freenet.de.md: freenet.de
-static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_FREENET_DE: Provider = Provider {
     id: "freenet.de",
     status: Status::Preparation,
     before_login_hint: "Um deine freenet.de E-Mail-Adresse mit Delta Chat zu benutzen, musst du erst auf der freenet.de-Webseite \"POP3/IMAP/SMTP\" aktivieren.",
@@ -448,15 +441,13 @@ static P_FREENET_DE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "mx.freenet.de", port: 993, username_pattern: Email },
         Server { protocol: Smtp, socket: Starttls, hostname: "mx.freenet.de", port: 587, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // gmail.md: gmail.com, googlemail.com, google.com
-static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_GMAIL: Provider = Provider {
     id: "gmail",
     status: Status::Preparation,
     before_login_hint: "For Gmail accounts, you need to create an app-password if you have \"2-Step Verification\" enabled. If this setting is not available, you need to enable \"less secure apps\".",
@@ -468,15 +459,14 @@ static P_GMAIL: Lazy<Provider> = Lazy::new(|| {
     ],
     opt: ProviderOptions {
         delete_to_trash: true,
-        ..Default::default()
+        ..ProviderOptions::new()
     },
     config_defaults: None,
     oauth2_authorizer: Some(Oauth2Authorizer::Gmail),
-}
-});
+};
 
 // gmx.net.md: gmx.net, gmx.de, gmx.at, gmx.ch, gmx.org, gmx.eu, gmx.info, gmx.biz, gmx.com
-static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
+static P_GMX_NET: Provider = Provider {
     id: "gmx.net",
     status: Status::Preparation,
     before_login_hint: "You must allow IMAP access to your account before you can login.",
@@ -505,13 +495,13 @@ static P_GMX_NET: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // hermes.radio.md: ac.hermes.radio, ac1.hermes.radio, ac2.hermes.radio, ac3.hermes.radio, ac4.hermes.radio, ac5.hermes.radio, ac6.hermes.radio, ac7.hermes.radio, ac8.hermes.radio, ac9.hermes.radio, ac10.hermes.radio, ac11.hermes.radio, ac12.hermes.radio, ac13.hermes.radio, ac14.hermes.radio, ac15.hermes.radio, ka.hermes.radio, ka1.hermes.radio, ka2.hermes.radio, ka3.hermes.radio, ka4.hermes.radio, ka5.hermes.radio, ka6.hermes.radio, ka7.hermes.radio, ka8.hermes.radio, ka9.hermes.radio, ka10.hermes.radio, ka11.hermes.radio, ka12.hermes.radio, ka13.hermes.radio, ka14.hermes.radio, ka15.hermes.radio, ec.hermes.radio, ec1.hermes.radio, ec2.hermes.radio, ec3.hermes.radio, ec4.hermes.radio, ec5.hermes.radio, ec6.hermes.radio, ec7.hermes.radio, ec8.hermes.radio, ec9.hermes.radio, ec10.hermes.radio, ec11.hermes.radio, ec12.hermes.radio, ec13.hermes.radio, ec14.hermes.radio, ec15.hermes.radio, hermes.radio
-static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
+static P_HERMES_RADIO: Provider = Provider {
     id: "hermes.radio",
     status: Status::Ok,
     before_login_hint: "",
@@ -520,7 +510,7 @@ static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
     server: &[],
     opt: ProviderOptions {
         strict_tls: false,
-        ..Default::default()
+        ..ProviderOptions::new()
     },
     config_defaults: Some(&[
         ConfigDefault {
@@ -537,11 +527,10 @@ static P_HERMES_RADIO: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ]),
     oauth2_authorizer: None,
-});
+};
 
 // hey.com.md: hey.com
-static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_HEY_COM: Provider = Provider {
     id: "hey.com",
     status: Status::Broken,
     before_login_hint: "hey.com does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to hey.com.",
@@ -549,40 +538,39 @@ static P_HEY_COM: Lazy<Provider> = Lazy::new(|| {
     overview_page: "https://providers.delta.chat/hey-com",
     server: &[
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // i.ua.md: i.ua
-static P_I_UA: Lazy<Provider> = Lazy::new(|| Provider {
+static P_I_UA: Provider = Provider {
     id: "i.ua",
     status: Status::Broken,
     before_login_hint: "Протокол IMAP не предоставляется и не планируется.",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/i-ua",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // i3.net.md: i3.net
-static P_I3_NET: Lazy<Provider> = Lazy::new(|| Provider {
+static P_I3_NET: Provider = Provider {
     id: "i3.net",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/i3-net",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // icloud.md: icloud.com, me.com, mac.com
-static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ICLOUD: Provider = Provider {
     id: "icloud",
     status: Status::Preparation,
     before_login_hint: "You must create an app-specific password for Delta Chat before login.",
@@ -604,13 +592,13 @@ static P_ICLOUD: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // infomaniak.com.md: ik.me
-static P_INFOMANIAK_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_INFOMANIAK_COM: Provider = Provider {
     id: "infomaniak.com",
     status: Status::Ok,
     before_login_hint: "",
@@ -634,40 +622,40 @@ static P_INFOMANIAK_COM: Lazy<Provider> = Lazy::new(|| Provider {
     ],
     opt: ProviderOptions {
         max_smtp_rcpt_to: Some(10),
-        ..Default::default()
+        ..ProviderOptions::new()
     },
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // kolst.com.md: kolst.com
-static P_KOLST_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_KOLST_COM: Provider = Provider {
     id: "kolst.com",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/kolst-com",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // kontent.com.md: kontent.com
-static P_KONTENT_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_KONTENT_COM: Provider = Provider {
     id: "kontent.com",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/kontent-com",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // mail.de.md: mail.de
-static P_MAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
+static P_MAIL_DE: Provider = Provider {
     id: "mail.de",
     status: Status::Ok,
     before_login_hint: "",
@@ -689,14 +677,13 @@ static P_MAIL_DE: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // mail.ru.md: mail.ru, inbox.ru, internet.ru, bk.ru, list.ru
-static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_MAIL_RU: Provider = Provider {
     id: "mail.ru",
     status: Status::Preparation,
     before_login_hint: "Вам необходимо сгенерировать \"пароль для внешнего приложения\" в веб-интерфейсе mail.ru, чтобы mail.ru работал с Delta Chat.",
@@ -706,14 +693,13 @@ static P_MAIL_RU: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "imap.mail.ru", port: 993, username_pattern: Email },
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.ru", port: 465, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // mail2tor.md: mail2tor.com
-static P_MAIL2TOR: Lazy<Provider> = Lazy::new(|| Provider {
+static P_MAIL2TOR: Provider = Provider {
     id: "mail2tor",
     status: Status::Preparation,
     before_login_hint: "Tor is needed to connect to the email servers.",
@@ -735,13 +721,13 @@ static P_MAIL2TOR: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // mailbox.org.md: mailbox.org, secure.mailbox.org
-static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_MAILBOX_ORG: Provider = Provider {
     id: "mailbox.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -763,13 +749,13 @@ static P_MAILBOX_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // mailo.com.md: mailo.com
-static P_MAILO_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_MAILO_COM: Provider = Provider {
     id: "mailo.com",
     status: Status::Ok,
     before_login_hint: "",
@@ -791,13 +777,13 @@ static P_MAILO_COM: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // nauta.cu.md: nauta.cu
-static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
+static P_NAUTA_CU: Provider = Provider {
     id: "nauta.cu",
     status: Status::Ok,
     before_login_hint: "",
@@ -822,7 +808,7 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
     opt: ProviderOptions {
         max_smtp_rcpt_to: Some(20),
         strict_tls: false,
-        ..Default::default()
+        ..ProviderOptions::new()
     },
     config_defaults: Some(&[
         ConfigDefault {
@@ -851,10 +837,10 @@ static P_NAUTA_CU: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ]),
     oauth2_authorizer: None,
-});
+};
 
 // naver.md: naver.com
-static P_NAVER: Lazy<Provider> = Lazy::new(|| Provider {
+static P_NAVER: Provider = Provider {
     id: "naver",
     status: Status::Preparation,
     before_login_hint: "Manually enabling IMAP/SMTP is required.",
@@ -876,13 +862,13 @@ static P_NAVER: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // nubo.coop.md: nubo.coop
-static P_NUBO_COOP: Lazy<Provider> = Lazy::new(|| Provider {
+static P_NUBO_COOP: Provider = Provider {
     id: "nubo.coop",
     status: Status::Ok,
     before_login_hint: "",
@@ -904,13 +890,13 @@ static P_NUBO_COOP: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // outlook.com.md: hotmail.com, outlook.com, office365.com, outlook.com.tr, live.com, outlook.de
-static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_OUTLOOK_COM: Provider = Provider {
     id: "outlook.com",
     status: Status::Ok,
     before_login_hint: "",
@@ -932,13 +918,13 @@ static P_OUTLOOK_COM: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // ouvaton.coop.md: ouvaton.org
-static P_OUVATON_COOP: Lazy<Provider> = Lazy::new(|| Provider {
+static P_OUVATON_COOP: Provider = Provider {
     id: "ouvaton.coop",
     status: Status::Ok,
     before_login_hint: "",
@@ -960,13 +946,13 @@ static P_OUVATON_COOP: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // posteo.md: posteo.de, posteo.af, posteo.at, posteo.be, posteo.ca, posteo.ch, posteo.cl, posteo.co, posteo.co.uk, posteo.com.br, posteo.cr, posteo.cz, posteo.dk, posteo.ee, posteo.es, posteo.eu, posteo.fi, posteo.gl, posteo.gr, posteo.hn, posteo.hr, posteo.hu, posteo.ie, posteo.in, posteo.is, posteo.it, posteo.jp, posteo.la, posteo.li, posteo.lt, posteo.lu, posteo.me, posteo.mx, posteo.my, posteo.net, posteo.nl, posteo.no, posteo.nz, posteo.org, posteo.pe, posteo.pl, posteo.pm, posteo.pt, posteo.ro, posteo.ru, posteo.se, posteo.sg, posteo.si, posteo.tn, posteo.uk, posteo.us
-static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
+static P_POSTEO: Provider = Provider {
     id: "posteo",
     status: Status::Ok,
     before_login_hint: "",
@@ -1002,14 +988,13 @@ static P_POSTEO: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // protonmail.md: protonmail.com, protonmail.ch, pm.me
-static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_PROTONMAIL: Provider = Provider {
     id: "protonmail",
     status: Status::Broken,
     before_login_hint: "Protonmail does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Protonmail.",
@@ -1017,15 +1002,13 @@ static P_PROTONMAIL: Lazy<Provider> = Lazy::new(|| {
     overview_page: "https://providers.delta.chat/protonmail",
     server: &[
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // qq.md: qq.com, foxmail.com
-static P_QQ: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_QQ: Provider = Provider {
     id: "qq",
     status: Status::Preparation,
     before_login_hint: "Manually enabling IMAP/SMTP and creating an app-specific password for Delta Chat are required.",
@@ -1035,14 +1018,13 @@ static P_QQ: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "imap.qq.com", port: 993, username_pattern: Emaillocalpart },
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.qq.com", port: 465, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // riseup.net.md: riseup.net
-static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
+static P_RISEUP_NET: Provider = Provider {
     id: "riseup.net",
     status: Status::Ok,
     before_login_hint: "",
@@ -1064,39 +1046,39 @@ static P_RISEUP_NET: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // rogers.com.md: rogers.com
-static P_ROGERS_COM: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ROGERS_COM: Provider = Provider {
     id: "rogers.com",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/rogers-com",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // sonic.md: sonic.net
-static P_SONIC: Lazy<Provider> = Lazy::new(|| Provider {
+static P_SONIC: Provider = Provider {
     id: "sonic",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/sonic",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // systemausfall.org.md: systemausfall.org, solidaris.me
-static P_SYSTEMAUSFALL_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_SYSTEMAUSFALL_ORG: Provider = Provider {
     id: "systemausfall.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -1118,13 +1100,13 @@ static P_SYSTEMAUSFALL_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // systemli.org.md: systemli.org
-static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
+static P_SYSTEMLI_ORG: Provider = Provider {
     id: "systemli.org",
     status: Status::Ok,
     before_login_hint: "",
@@ -1146,14 +1128,13 @@ static P_SYSTEMLI_ORG: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // t-online.md: t-online.de, magenta.de
-static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_T_ONLINE: Provider = Provider {
     id: "t-online",
     status: Status::Preparation,
     before_login_hint: "To use Delta Chat with a T-Online email address, you need to create an app password in the web interface.",
@@ -1163,14 +1144,13 @@ static P_T_ONLINE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "secureimap.t-online.de", port: 993, username_pattern: Email },
         Server { protocol: Smtp, socket: Ssl, hostname: "securesmtp.t-online.de", port: 465, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // testrun.md: testrun.org
-static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
+static P_TESTRUN: Provider = Provider {
     id: "testrun",
     status: Status::Ok,
     before_login_hint: "",
@@ -1199,7 +1179,7 @@ static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: Some(&[
         ConfigDefault {
             key: Config::BccSelf,
@@ -1215,10 +1195,10 @@ static P_TESTRUN: Lazy<Provider> = Lazy::new(|| Provider {
         },
     ]),
     oauth2_authorizer: None,
-});
+};
 
 // tiscali.it.md: tiscali.it
-static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
+static P_TISCALI_IT: Provider = Provider {
     id: "tiscali.it",
     status: Status::Ok,
     before_login_hint: "",
@@ -1240,14 +1220,13 @@ static P_TISCALI_IT: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // tutanota.md: tutanota.com, tutanota.de, tutamail.com, tuta.io, keemail.me
-static P_TUTANOTA: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_TUTANOTA: Provider = Provider {
     id: "tutanota",
     status: Status::Broken,
     before_login_hint: "Tutanota does not offer the standard IMAP e-mail protocol, so you cannot log in with Delta Chat to Tutanota.",
@@ -1255,27 +1234,26 @@ static P_TUTANOTA: Lazy<Provider> = Lazy::new(|| {
     overview_page: "https://providers.delta.chat/tutanota",
     server: &[
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // ukr.net.md: ukr.net
-static P_UKR_NET: Lazy<Provider> = Lazy::new(|| Provider {
+static P_UKR_NET: Provider = Provider {
     id: "ukr.net",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/ukr-net",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // undernet.uy.md: undernet.uy
-static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
+static P_UNDERNET_UY: Provider = Provider {
     id: "undernet.uy",
     status: Status::Ok,
     before_login_hint: "",
@@ -1297,26 +1275,26 @@ static P_UNDERNET_UY: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // vfemail.md: vfemail.net
-static P_VFEMAIL: Lazy<Provider> = Lazy::new(|| Provider {
+static P_VFEMAIL: Provider = Provider {
     id: "vfemail",
     status: Status::Ok,
     before_login_hint: "",
     after_login_hint: "",
     overview_page: "https://providers.delta.chat/vfemail",
     server: &[],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // vivaldi.md: vivaldi.net
-static P_VIVALDI: Lazy<Provider> = Lazy::new(|| Provider {
+static P_VIVALDI: Provider = Provider {
     id: "vivaldi",
     status: Status::Ok,
     before_login_hint: "",
@@ -1338,13 +1316,13 @@ static P_VIVALDI: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // vodafone.de.md: vodafone.de, vodafonemail.de
-static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
+static P_VODAFONE_DE: Provider = Provider {
     id: "vodafone.de",
     status: Status::Ok,
     before_login_hint: "",
@@ -1366,14 +1344,13 @@ static P_VODAFONE_DE: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // web.de.md: web.de, email.de, flirt.ms, hallo.ms, kuss.ms, love.ms, magic.ms, singles.ms, cool.ms, kanzler.ms, okay.ms, party.ms, pop.ms, stars.ms, techno.ms, clever.ms, deutschland.ms, genial.ms, ich.ms, online.ms, smart.ms, wichtig.ms, action.ms, fussball.ms, joker.ms, planet.ms, power.ms
-static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_WEB_DE: Provider = Provider {
     id: "web.de",
     status: Status::Preparation,
     before_login_hint: "You must allow IMAP access to your account before you can login.",
@@ -1384,15 +1361,13 @@ static P_WEB_DE: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Starttls, hostname: "imap.web.de", port: 143, username_pattern: Emaillocalpart },
         Server { protocol: Smtp, socket: Starttls, hostname: "smtp.web.de", port: 587, username_pattern: Emaillocalpart },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // yahoo.md: yahoo.com, yahoo.de, yahoo.it, yahoo.fr, yahoo.es, yahoo.se, yahoo.co.uk, yahoo.co.nz, yahoo.com.au, yahoo.com.ar, yahoo.com.br, yahoo.com.mx, ymail.com, rocketmail.com, yahoodns.net
-static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_YAHOO: Provider = Provider {
     id: "yahoo",
     status: Status::Preparation,
     before_login_hint: "To use Delta Chat with your Yahoo email address you have to create an \"App-Password\" in the account security screen.",
@@ -1402,14 +1377,13 @@ static P_YAHOO: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Ssl, hostname: "imap.mail.yahoo.com", port: 993, username_pattern: Email },
         Server { protocol: Smtp, socket: Ssl, hostname: "smtp.mail.yahoo.com", port: 465, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-}
-});
+};
 
 // yandex.ru.md: yandex.com, yandex.by, yandex.kz, yandex.ru, yandex.ua, ya.ru, narod.ru
-static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
+static P_YANDEX_RU: Provider = Provider {
     id: "yandex.ru",
     status: Status::Preparation,
     before_login_hint: "For Yandex accounts, you have to set IMAP protocol option turned on.",
@@ -1431,14 +1405,13 @@ static P_YANDEX_RU: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: Some(Oauth2Authorizer::Yandex),
-});
+};
 
 // yggmail.md: yggmail
-static P_YGGMAIL: Lazy<Provider> = Lazy::new(|| {
-    Provider {
+static P_YGGMAIL: Provider = Provider {
     id: "yggmail",
     status: Status::Preparation,
     before_login_hint: "An Yggmail companion app needs to be installed on your device to access the Yggmail network.",
@@ -1448,16 +1421,15 @@ static P_YGGMAIL: Lazy<Provider> = Lazy::new(|| {
         Server { protocol: Imap, socket: Plain, hostname: "localhost", port: 1143, username_pattern: Email },
         Server { protocol: Smtp, socket: Plain, hostname: "localhost", port: 1025, username_pattern: Email },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: Some(&[
         ConfigDefault { key: Config::MvboxMove, value: "0" },
     ]),
     oauth2_authorizer: None,
-}
-});
+};
 
 // ziggo.nl.md: ziggo.nl
-static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ZIGGO_NL: Provider = Provider {
     id: "ziggo.nl",
     status: Status::Ok,
     before_login_hint: "",
@@ -1479,13 +1451,13 @@ static P_ZIGGO_NL: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 // zoho.md: zohomail.eu, zohomail.com, zoho.com
-static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
+static P_ZOHO: Provider = Provider {
     id: "zoho",
     status: Status::Preparation,
     before_login_hint: "To use Zoho Mail, you have to turn on IMAP in the Zoho Mail backend.",
@@ -1507,441 +1479,441 @@ static P_ZOHO: Lazy<Provider> = Lazy::new(|| Provider {
             username_pattern: Email,
         },
     ],
-    opt: Default::default(),
+    opt: ProviderOptions::new(),
     config_defaults: None,
     oauth2_authorizer: None,
-});
+};
 
 pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
     HashMap::from([
-        ("163.com", &*P_163),
-        ("aktivix.org", &*P_AKTIVIX_ORG),
-        ("aol.com", &*P_AOL),
-        ("arcor.de", &*P_ARCOR_DE),
-        ("autistici.org", &*P_AUTISTICI_ORG),
-        ("delta.blinzeln.de", &*P_BLINDZELN_ORG),
-        ("delta.blindzeln.org", &*P_BLINDZELN_ORG),
-        ("bluewin.ch", &*P_BLUEWIN_CH),
-        ("buzon.uy", &*P_BUZON_UY),
-        ("chello.at", &*P_CHELLO_AT),
-        ("xfinity.com", &*P_COMCAST),
-        ("comcast.net", &*P_COMCAST),
-        ("dismail.de", &*P_DISMAIL_DE),
-        ("disroot.org", &*P_DISROOT),
-        ("e.email", &*P_E_EMAIL),
-        ("espiv.net", &*P_ESPIV_NET),
-        ("example.com", &*P_EXAMPLE_COM),
-        ("example.org", &*P_EXAMPLE_COM),
-        ("example.net", &*P_EXAMPLE_COM),
-        ("123mail.org", &*P_FASTMAIL),
-        ("150mail.com", &*P_FASTMAIL),
-        ("150ml.com", &*P_FASTMAIL),
-        ("16mail.com", &*P_FASTMAIL),
-        ("2-mail.com", &*P_FASTMAIL),
-        ("4email.net", &*P_FASTMAIL),
-        ("50mail.com", &*P_FASTMAIL),
-        ("airpost.net", &*P_FASTMAIL),
-        ("allmail.net", &*P_FASTMAIL),
-        ("bestmail.us", &*P_FASTMAIL),
-        ("cluemail.com", &*P_FASTMAIL),
-        ("elitemail.org", &*P_FASTMAIL),
-        ("emailcorner.net", &*P_FASTMAIL),
-        ("emailengine.net", &*P_FASTMAIL),
-        ("emailengine.org", &*P_FASTMAIL),
-        ("emailgroups.net", &*P_FASTMAIL),
-        ("emailplus.org", &*P_FASTMAIL),
-        ("emailuser.net", &*P_FASTMAIL),
-        ("eml.cc", &*P_FASTMAIL),
-        ("f-m.fm", &*P_FASTMAIL),
-        ("fast-email.com", &*P_FASTMAIL),
-        ("fast-mail.org", &*P_FASTMAIL),
-        ("fastem.com", &*P_FASTMAIL),
-        ("fastemail.us", &*P_FASTMAIL),
-        ("fastemailer.com", &*P_FASTMAIL),
-        ("fastest.cc", &*P_FASTMAIL),
-        ("fastimap.com", &*P_FASTMAIL),
-        ("fastmail.cn", &*P_FASTMAIL),
-        ("fastmail.co.uk", &*P_FASTMAIL),
-        ("fastmail.com", &*P_FASTMAIL),
-        ("fastmail.com.au", &*P_FASTMAIL),
-        ("fastmail.de", &*P_FASTMAIL),
-        ("fastmail.es", &*P_FASTMAIL),
-        ("fastmail.fm", &*P_FASTMAIL),
-        ("fastmail.fr", &*P_FASTMAIL),
-        ("fastmail.im", &*P_FASTMAIL),
-        ("fastmail.in", &*P_FASTMAIL),
-        ("fastmail.jp", &*P_FASTMAIL),
-        ("fastmail.mx", &*P_FASTMAIL),
-        ("fastmail.net", &*P_FASTMAIL),
-        ("fastmail.nl", &*P_FASTMAIL),
-        ("fastmail.org", &*P_FASTMAIL),
-        ("fastmail.se", &*P_FASTMAIL),
-        ("fastmail.to", &*P_FASTMAIL),
-        ("fastmail.tw", &*P_FASTMAIL),
-        ("fastmail.uk", &*P_FASTMAIL),
-        ("fastmail.us", &*P_FASTMAIL),
-        ("fastmailbox.net", &*P_FASTMAIL),
-        ("fastmessaging.com", &*P_FASTMAIL),
-        ("fea.st", &*P_FASTMAIL),
-        ("fmail.co.uk", &*P_FASTMAIL),
-        ("fmailbox.com", &*P_FASTMAIL),
-        ("fmgirl.com", &*P_FASTMAIL),
-        ("fmguy.com", &*P_FASTMAIL),
-        ("ftml.net", &*P_FASTMAIL),
-        ("h-mail.us", &*P_FASTMAIL),
-        ("hailmail.net", &*P_FASTMAIL),
-        ("imap-mail.com", &*P_FASTMAIL),
-        ("imap.cc", &*P_FASTMAIL),
-        ("imapmail.org", &*P_FASTMAIL),
-        ("inoutbox.com", &*P_FASTMAIL),
-        ("internet-e-mail.com", &*P_FASTMAIL),
-        ("internet-mail.org", &*P_FASTMAIL),
-        ("internetemails.net", &*P_FASTMAIL),
-        ("internetmailing.net", &*P_FASTMAIL),
-        ("jetemail.net", &*P_FASTMAIL),
-        ("justemail.net", &*P_FASTMAIL),
-        ("letterboxes.org", &*P_FASTMAIL),
-        ("mail-central.com", &*P_FASTMAIL),
-        ("mail-page.com", &*P_FASTMAIL),
-        ("mailandftp.com", &*P_FASTMAIL),
-        ("mailas.com", &*P_FASTMAIL),
-        ("mailbolt.com", &*P_FASTMAIL),
-        ("mailc.net", &*P_FASTMAIL),
-        ("mailcan.com", &*P_FASTMAIL),
-        ("mailforce.net", &*P_FASTMAIL),
-        ("mailftp.com", &*P_FASTMAIL),
-        ("mailhaven.com", &*P_FASTMAIL),
-        ("mailingaddress.org", &*P_FASTMAIL),
-        ("mailite.com", &*P_FASTMAIL),
-        ("mailmight.com", &*P_FASTMAIL),
-        ("mailnew.com", &*P_FASTMAIL),
-        ("mailsent.net", &*P_FASTMAIL),
-        ("mailservice.ms", &*P_FASTMAIL),
-        ("mailup.net", &*P_FASTMAIL),
-        ("mailworks.org", &*P_FASTMAIL),
-        ("ml1.net", &*P_FASTMAIL),
-        ("mm.st", &*P_FASTMAIL),
-        ("myfastmail.com", &*P_FASTMAIL),
-        ("mymacmail.com", &*P_FASTMAIL),
-        ("nospammail.net", &*P_FASTMAIL),
-        ("ownmail.net", &*P_FASTMAIL),
-        ("petml.com", &*P_FASTMAIL),
-        ("postinbox.com", &*P_FASTMAIL),
-        ("postpro.net", &*P_FASTMAIL),
-        ("proinbox.com", &*P_FASTMAIL),
-        ("promessage.com", &*P_FASTMAIL),
-        ("realemail.net", &*P_FASTMAIL),
-        ("reallyfast.biz", &*P_FASTMAIL),
-        ("reallyfast.info", &*P_FASTMAIL),
-        ("rushpost.com", &*P_FASTMAIL),
-        ("sent.as", &*P_FASTMAIL),
-        ("sent.at", &*P_FASTMAIL),
-        ("sent.com", &*P_FASTMAIL),
-        ("speedpost.net", &*P_FASTMAIL),
-        ("speedymail.org", &*P_FASTMAIL),
-        ("ssl-mail.com", &*P_FASTMAIL),
-        ("swift-mail.com", &*P_FASTMAIL),
-        ("the-fastest.net", &*P_FASTMAIL),
-        ("the-quickest.com", &*P_FASTMAIL),
-        ("theinternetemail.com", &*P_FASTMAIL),
-        ("veryfast.biz", &*P_FASTMAIL),
-        ("veryspeedy.net", &*P_FASTMAIL),
-        ("warpmail.net", &*P_FASTMAIL),
-        ("xsmail.com", &*P_FASTMAIL),
-        ("yepmail.net", &*P_FASTMAIL),
-        ("your-mail.com", &*P_FASTMAIL),
-        ("firemail.at", &*P_FIREMAIL_DE),
-        ("firemail.de", &*P_FIREMAIL_DE),
-        ("five.chat", &*P_FIVE_CHAT),
-        ("freenet.de", &*P_FREENET_DE),
-        ("gmail.com", &*P_GMAIL),
-        ("googlemail.com", &*P_GMAIL),
-        ("google.com", &*P_GMAIL),
-        ("gmx.net", &*P_GMX_NET),
-        ("gmx.de", &*P_GMX_NET),
-        ("gmx.at", &*P_GMX_NET),
-        ("gmx.ch", &*P_GMX_NET),
-        ("gmx.org", &*P_GMX_NET),
-        ("gmx.eu", &*P_GMX_NET),
-        ("gmx.info", &*P_GMX_NET),
-        ("gmx.biz", &*P_GMX_NET),
-        ("gmx.com", &*P_GMX_NET),
-        ("ac.hermes.radio", &*P_HERMES_RADIO),
-        ("ac1.hermes.radio", &*P_HERMES_RADIO),
-        ("ac2.hermes.radio", &*P_HERMES_RADIO),
-        ("ac3.hermes.radio", &*P_HERMES_RADIO),
-        ("ac4.hermes.radio", &*P_HERMES_RADIO),
-        ("ac5.hermes.radio", &*P_HERMES_RADIO),
-        ("ac6.hermes.radio", &*P_HERMES_RADIO),
-        ("ac7.hermes.radio", &*P_HERMES_RADIO),
-        ("ac8.hermes.radio", &*P_HERMES_RADIO),
-        ("ac9.hermes.radio", &*P_HERMES_RADIO),
-        ("ac10.hermes.radio", &*P_HERMES_RADIO),
-        ("ac11.hermes.radio", &*P_HERMES_RADIO),
-        ("ac12.hermes.radio", &*P_HERMES_RADIO),
-        ("ac13.hermes.radio", &*P_HERMES_RADIO),
-        ("ac14.hermes.radio", &*P_HERMES_RADIO),
-        ("ac15.hermes.radio", &*P_HERMES_RADIO),
-        ("ka.hermes.radio", &*P_HERMES_RADIO),
-        ("ka1.hermes.radio", &*P_HERMES_RADIO),
-        ("ka2.hermes.radio", &*P_HERMES_RADIO),
-        ("ka3.hermes.radio", &*P_HERMES_RADIO),
-        ("ka4.hermes.radio", &*P_HERMES_RADIO),
-        ("ka5.hermes.radio", &*P_HERMES_RADIO),
-        ("ka6.hermes.radio", &*P_HERMES_RADIO),
-        ("ka7.hermes.radio", &*P_HERMES_RADIO),
-        ("ka8.hermes.radio", &*P_HERMES_RADIO),
-        ("ka9.hermes.radio", &*P_HERMES_RADIO),
-        ("ka10.hermes.radio", &*P_HERMES_RADIO),
-        ("ka11.hermes.radio", &*P_HERMES_RADIO),
-        ("ka12.hermes.radio", &*P_HERMES_RADIO),
-        ("ka13.hermes.radio", &*P_HERMES_RADIO),
-        ("ka14.hermes.radio", &*P_HERMES_RADIO),
-        ("ka15.hermes.radio", &*P_HERMES_RADIO),
-        ("ec.hermes.radio", &*P_HERMES_RADIO),
-        ("ec1.hermes.radio", &*P_HERMES_RADIO),
-        ("ec2.hermes.radio", &*P_HERMES_RADIO),
-        ("ec3.hermes.radio", &*P_HERMES_RADIO),
-        ("ec4.hermes.radio", &*P_HERMES_RADIO),
-        ("ec5.hermes.radio", &*P_HERMES_RADIO),
-        ("ec6.hermes.radio", &*P_HERMES_RADIO),
-        ("ec7.hermes.radio", &*P_HERMES_RADIO),
-        ("ec8.hermes.radio", &*P_HERMES_RADIO),
-        ("ec9.hermes.radio", &*P_HERMES_RADIO),
-        ("ec10.hermes.radio", &*P_HERMES_RADIO),
-        ("ec11.hermes.radio", &*P_HERMES_RADIO),
-        ("ec12.hermes.radio", &*P_HERMES_RADIO),
-        ("ec13.hermes.radio", &*P_HERMES_RADIO),
-        ("ec14.hermes.radio", &*P_HERMES_RADIO),
-        ("ec15.hermes.radio", &*P_HERMES_RADIO),
-        ("hermes.radio", &*P_HERMES_RADIO),
-        ("hey.com", &*P_HEY_COM),
-        ("i.ua", &*P_I_UA),
-        ("i3.net", &*P_I3_NET),
-        ("icloud.com", &*P_ICLOUD),
-        ("me.com", &*P_ICLOUD),
-        ("mac.com", &*P_ICLOUD),
-        ("ik.me", &*P_INFOMANIAK_COM),
-        ("kolst.com", &*P_KOLST_COM),
-        ("kontent.com", &*P_KONTENT_COM),
-        ("mail.de", &*P_MAIL_DE),
-        ("mail.ru", &*P_MAIL_RU),
-        ("inbox.ru", &*P_MAIL_RU),
-        ("internet.ru", &*P_MAIL_RU),
-        ("bk.ru", &*P_MAIL_RU),
-        ("list.ru", &*P_MAIL_RU),
-        ("mail2tor.com", &*P_MAIL2TOR),
-        ("mailbox.org", &*P_MAILBOX_ORG),
-        ("secure.mailbox.org", &*P_MAILBOX_ORG),
-        ("mailo.com", &*P_MAILO_COM),
-        ("nauta.cu", &*P_NAUTA_CU),
-        ("naver.com", &*P_NAVER),
-        ("nubo.coop", &*P_NUBO_COOP),
-        ("hotmail.com", &*P_OUTLOOK_COM),
-        ("outlook.com", &*P_OUTLOOK_COM),
-        ("office365.com", &*P_OUTLOOK_COM),
-        ("outlook.com.tr", &*P_OUTLOOK_COM),
-        ("live.com", &*P_OUTLOOK_COM),
-        ("outlook.de", &*P_OUTLOOK_COM),
-        ("ouvaton.org", &*P_OUVATON_COOP),
-        ("posteo.de", &*P_POSTEO),
-        ("posteo.af", &*P_POSTEO),
-        ("posteo.at", &*P_POSTEO),
-        ("posteo.be", &*P_POSTEO),
-        ("posteo.ca", &*P_POSTEO),
-        ("posteo.ch", &*P_POSTEO),
-        ("posteo.cl", &*P_POSTEO),
-        ("posteo.co", &*P_POSTEO),
-        ("posteo.co.uk", &*P_POSTEO),
-        ("posteo.com.br", &*P_POSTEO),
-        ("posteo.cr", &*P_POSTEO),
-        ("posteo.cz", &*P_POSTEO),
-        ("posteo.dk", &*P_POSTEO),
-        ("posteo.ee", &*P_POSTEO),
-        ("posteo.es", &*P_POSTEO),
-        ("posteo.eu", &*P_POSTEO),
-        ("posteo.fi", &*P_POSTEO),
-        ("posteo.gl", &*P_POSTEO),
-        ("posteo.gr", &*P_POSTEO),
-        ("posteo.hn", &*P_POSTEO),
-        ("posteo.hr", &*P_POSTEO),
-        ("posteo.hu", &*P_POSTEO),
-        ("posteo.ie", &*P_POSTEO),
-        ("posteo.in", &*P_POSTEO),
-        ("posteo.is", &*P_POSTEO),
-        ("posteo.it", &*P_POSTEO),
-        ("posteo.jp", &*P_POSTEO),
-        ("posteo.la", &*P_POSTEO),
-        ("posteo.li", &*P_POSTEO),
-        ("posteo.lt", &*P_POSTEO),
-        ("posteo.lu", &*P_POSTEO),
-        ("posteo.me", &*P_POSTEO),
-        ("posteo.mx", &*P_POSTEO),
-        ("posteo.my", &*P_POSTEO),
-        ("posteo.net", &*P_POSTEO),
-        ("posteo.nl", &*P_POSTEO),
-        ("posteo.no", &*P_POSTEO),
-        ("posteo.nz", &*P_POSTEO),
-        ("posteo.org", &*P_POSTEO),
-        ("posteo.pe", &*P_POSTEO),
-        ("posteo.pl", &*P_POSTEO),
-        ("posteo.pm", &*P_POSTEO),
-        ("posteo.pt", &*P_POSTEO),
-        ("posteo.ro", &*P_POSTEO),
-        ("posteo.ru", &*P_POSTEO),
-        ("posteo.se", &*P_POSTEO),
-        ("posteo.sg", &*P_POSTEO),
-        ("posteo.si", &*P_POSTEO),
-        ("posteo.tn", &*P_POSTEO),
-        ("posteo.uk", &*P_POSTEO),
-        ("posteo.us", &*P_POSTEO),
-        ("protonmail.com", &*P_PROTONMAIL),
-        ("protonmail.ch", &*P_PROTONMAIL),
-        ("pm.me", &*P_PROTONMAIL),
-        ("qq.com", &*P_QQ),
-        ("foxmail.com", &*P_QQ),
-        ("riseup.net", &*P_RISEUP_NET),
-        ("rogers.com", &*P_ROGERS_COM),
-        ("sonic.net", &*P_SONIC),
-        ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
-        ("solidaris.me", &*P_SYSTEMAUSFALL_ORG),
-        ("systemli.org", &*P_SYSTEMLI_ORG),
-        ("t-online.de", &*P_T_ONLINE),
-        ("magenta.de", &*P_T_ONLINE),
-        ("testrun.org", &*P_TESTRUN),
-        ("tiscali.it", &*P_TISCALI_IT),
-        ("tutanota.com", &*P_TUTANOTA),
-        ("tutanota.de", &*P_TUTANOTA),
-        ("tutamail.com", &*P_TUTANOTA),
-        ("tuta.io", &*P_TUTANOTA),
-        ("keemail.me", &*P_TUTANOTA),
-        ("ukr.net", &*P_UKR_NET),
-        ("undernet.uy", &*P_UNDERNET_UY),
-        ("vfemail.net", &*P_VFEMAIL),
-        ("vivaldi.net", &*P_VIVALDI),
-        ("vodafone.de", &*P_VODAFONE_DE),
-        ("vodafonemail.de", &*P_VODAFONE_DE),
-        ("web.de", &*P_WEB_DE),
-        ("email.de", &*P_WEB_DE),
-        ("flirt.ms", &*P_WEB_DE),
-        ("hallo.ms", &*P_WEB_DE),
-        ("kuss.ms", &*P_WEB_DE),
-        ("love.ms", &*P_WEB_DE),
-        ("magic.ms", &*P_WEB_DE),
-        ("singles.ms", &*P_WEB_DE),
-        ("cool.ms", &*P_WEB_DE),
-        ("kanzler.ms", &*P_WEB_DE),
-        ("okay.ms", &*P_WEB_DE),
-        ("party.ms", &*P_WEB_DE),
-        ("pop.ms", &*P_WEB_DE),
-        ("stars.ms", &*P_WEB_DE),
-        ("techno.ms", &*P_WEB_DE),
-        ("clever.ms", &*P_WEB_DE),
-        ("deutschland.ms", &*P_WEB_DE),
-        ("genial.ms", &*P_WEB_DE),
-        ("ich.ms", &*P_WEB_DE),
-        ("online.ms", &*P_WEB_DE),
-        ("smart.ms", &*P_WEB_DE),
-        ("wichtig.ms", &*P_WEB_DE),
-        ("action.ms", &*P_WEB_DE),
-        ("fussball.ms", &*P_WEB_DE),
-        ("joker.ms", &*P_WEB_DE),
-        ("planet.ms", &*P_WEB_DE),
-        ("power.ms", &*P_WEB_DE),
-        ("yahoo.com", &*P_YAHOO),
-        ("yahoo.de", &*P_YAHOO),
-        ("yahoo.it", &*P_YAHOO),
-        ("yahoo.fr", &*P_YAHOO),
-        ("yahoo.es", &*P_YAHOO),
-        ("yahoo.se", &*P_YAHOO),
-        ("yahoo.co.uk", &*P_YAHOO),
-        ("yahoo.co.nz", &*P_YAHOO),
-        ("yahoo.com.au", &*P_YAHOO),
-        ("yahoo.com.ar", &*P_YAHOO),
-        ("yahoo.com.br", &*P_YAHOO),
-        ("yahoo.com.mx", &*P_YAHOO),
-        ("ymail.com", &*P_YAHOO),
-        ("rocketmail.com", &*P_YAHOO),
-        ("yahoodns.net", &*P_YAHOO),
-        ("yandex.com", &*P_YANDEX_RU),
-        ("yandex.by", &*P_YANDEX_RU),
-        ("yandex.kz", &*P_YANDEX_RU),
-        ("yandex.ru", &*P_YANDEX_RU),
-        ("yandex.ua", &*P_YANDEX_RU),
-        ("ya.ru", &*P_YANDEX_RU),
-        ("narod.ru", &*P_YANDEX_RU),
-        ("yggmail", &*P_YGGMAIL),
-        ("ziggo.nl", &*P_ZIGGO_NL),
-        ("zohomail.eu", &*P_ZOHO),
-        ("zohomail.com", &*P_ZOHO),
-        ("zoho.com", &*P_ZOHO),
+        ("163.com", &P_163),
+        ("aktivix.org", &P_AKTIVIX_ORG),
+        ("aol.com", &P_AOL),
+        ("arcor.de", &P_ARCOR_DE),
+        ("autistici.org", &P_AUTISTICI_ORG),
+        ("delta.blinzeln.de", &P_BLINDZELN_ORG),
+        ("delta.blindzeln.org", &P_BLINDZELN_ORG),
+        ("bluewin.ch", &P_BLUEWIN_CH),
+        ("buzon.uy", &P_BUZON_UY),
+        ("chello.at", &P_CHELLO_AT),
+        ("xfinity.com", &P_COMCAST),
+        ("comcast.net", &P_COMCAST),
+        ("dismail.de", &P_DISMAIL_DE),
+        ("disroot.org", &P_DISROOT),
+        ("e.email", &P_E_EMAIL),
+        ("espiv.net", &P_ESPIV_NET),
+        ("example.com", &P_EXAMPLE_COM),
+        ("example.org", &P_EXAMPLE_COM),
+        ("example.net", &P_EXAMPLE_COM),
+        ("123mail.org", &P_FASTMAIL),
+        ("150mail.com", &P_FASTMAIL),
+        ("150ml.com", &P_FASTMAIL),
+        ("16mail.com", &P_FASTMAIL),
+        ("2-mail.com", &P_FASTMAIL),
+        ("4email.net", &P_FASTMAIL),
+        ("50mail.com", &P_FASTMAIL),
+        ("airpost.net", &P_FASTMAIL),
+        ("allmail.net", &P_FASTMAIL),
+        ("bestmail.us", &P_FASTMAIL),
+        ("cluemail.com", &P_FASTMAIL),
+        ("elitemail.org", &P_FASTMAIL),
+        ("emailcorner.net", &P_FASTMAIL),
+        ("emailengine.net", &P_FASTMAIL),
+        ("emailengine.org", &P_FASTMAIL),
+        ("emailgroups.net", &P_FASTMAIL),
+        ("emailplus.org", &P_FASTMAIL),
+        ("emailuser.net", &P_FASTMAIL),
+        ("eml.cc", &P_FASTMAIL),
+        ("f-m.fm", &P_FASTMAIL),
+        ("fast-email.com", &P_FASTMAIL),
+        ("fast-mail.org", &P_FASTMAIL),
+        ("fastem.com", &P_FASTMAIL),
+        ("fastemail.us", &P_FASTMAIL),
+        ("fastemailer.com", &P_FASTMAIL),
+        ("fastest.cc", &P_FASTMAIL),
+        ("fastimap.com", &P_FASTMAIL),
+        ("fastmail.cn", &P_FASTMAIL),
+        ("fastmail.co.uk", &P_FASTMAIL),
+        ("fastmail.com", &P_FASTMAIL),
+        ("fastmail.com.au", &P_FASTMAIL),
+        ("fastmail.de", &P_FASTMAIL),
+        ("fastmail.es", &P_FASTMAIL),
+        ("fastmail.fm", &P_FASTMAIL),
+        ("fastmail.fr", &P_FASTMAIL),
+        ("fastmail.im", &P_FASTMAIL),
+        ("fastmail.in", &P_FASTMAIL),
+        ("fastmail.jp", &P_FASTMAIL),
+        ("fastmail.mx", &P_FASTMAIL),
+        ("fastmail.net", &P_FASTMAIL),
+        ("fastmail.nl", &P_FASTMAIL),
+        ("fastmail.org", &P_FASTMAIL),
+        ("fastmail.se", &P_FASTMAIL),
+        ("fastmail.to", &P_FASTMAIL),
+        ("fastmail.tw", &P_FASTMAIL),
+        ("fastmail.uk", &P_FASTMAIL),
+        ("fastmail.us", &P_FASTMAIL),
+        ("fastmailbox.net", &P_FASTMAIL),
+        ("fastmessaging.com", &P_FASTMAIL),
+        ("fea.st", &P_FASTMAIL),
+        ("fmail.co.uk", &P_FASTMAIL),
+        ("fmailbox.com", &P_FASTMAIL),
+        ("fmgirl.com", &P_FASTMAIL),
+        ("fmguy.com", &P_FASTMAIL),
+        ("ftml.net", &P_FASTMAIL),
+        ("h-mail.us", &P_FASTMAIL),
+        ("hailmail.net", &P_FASTMAIL),
+        ("imap-mail.com", &P_FASTMAIL),
+        ("imap.cc", &P_FASTMAIL),
+        ("imapmail.org", &P_FASTMAIL),
+        ("inoutbox.com", &P_FASTMAIL),
+        ("internet-e-mail.com", &P_FASTMAIL),
+        ("internet-mail.org", &P_FASTMAIL),
+        ("internetemails.net", &P_FASTMAIL),
+        ("internetmailing.net", &P_FASTMAIL),
+        ("jetemail.net", &P_FASTMAIL),
+        ("justemail.net", &P_FASTMAIL),
+        ("letterboxes.org", &P_FASTMAIL),
+        ("mail-central.com", &P_FASTMAIL),
+        ("mail-page.com", &P_FASTMAIL),
+        ("mailandftp.com", &P_FASTMAIL),
+        ("mailas.com", &P_FASTMAIL),
+        ("mailbolt.com", &P_FASTMAIL),
+        ("mailc.net", &P_FASTMAIL),
+        ("mailcan.com", &P_FASTMAIL),
+        ("mailforce.net", &P_FASTMAIL),
+        ("mailftp.com", &P_FASTMAIL),
+        ("mailhaven.com", &P_FASTMAIL),
+        ("mailingaddress.org", &P_FASTMAIL),
+        ("mailite.com", &P_FASTMAIL),
+        ("mailmight.com", &P_FASTMAIL),
+        ("mailnew.com", &P_FASTMAIL),
+        ("mailsent.net", &P_FASTMAIL),
+        ("mailservice.ms", &P_FASTMAIL),
+        ("mailup.net", &P_FASTMAIL),
+        ("mailworks.org", &P_FASTMAIL),
+        ("ml1.net", &P_FASTMAIL),
+        ("mm.st", &P_FASTMAIL),
+        ("myfastmail.com", &P_FASTMAIL),
+        ("mymacmail.com", &P_FASTMAIL),
+        ("nospammail.net", &P_FASTMAIL),
+        ("ownmail.net", &P_FASTMAIL),
+        ("petml.com", &P_FASTMAIL),
+        ("postinbox.com", &P_FASTMAIL),
+        ("postpro.net", &P_FASTMAIL),
+        ("proinbox.com", &P_FASTMAIL),
+        ("promessage.com", &P_FASTMAIL),
+        ("realemail.net", &P_FASTMAIL),
+        ("reallyfast.biz", &P_FASTMAIL),
+        ("reallyfast.info", &P_FASTMAIL),
+        ("rushpost.com", &P_FASTMAIL),
+        ("sent.as", &P_FASTMAIL),
+        ("sent.at", &P_FASTMAIL),
+        ("sent.com", &P_FASTMAIL),
+        ("speedpost.net", &P_FASTMAIL),
+        ("speedymail.org", &P_FASTMAIL),
+        ("ssl-mail.com", &P_FASTMAIL),
+        ("swift-mail.com", &P_FASTMAIL),
+        ("the-fastest.net", &P_FASTMAIL),
+        ("the-quickest.com", &P_FASTMAIL),
+        ("theinternetemail.com", &P_FASTMAIL),
+        ("veryfast.biz", &P_FASTMAIL),
+        ("veryspeedy.net", &P_FASTMAIL),
+        ("warpmail.net", &P_FASTMAIL),
+        ("xsmail.com", &P_FASTMAIL),
+        ("yepmail.net", &P_FASTMAIL),
+        ("your-mail.com", &P_FASTMAIL),
+        ("firemail.at", &P_FIREMAIL_DE),
+        ("firemail.de", &P_FIREMAIL_DE),
+        ("five.chat", &P_FIVE_CHAT),
+        ("freenet.de", &P_FREENET_DE),
+        ("gmail.com", &P_GMAIL),
+        ("googlemail.com", &P_GMAIL),
+        ("google.com", &P_GMAIL),
+        ("gmx.net", &P_GMX_NET),
+        ("gmx.de", &P_GMX_NET),
+        ("gmx.at", &P_GMX_NET),
+        ("gmx.ch", &P_GMX_NET),
+        ("gmx.org", &P_GMX_NET),
+        ("gmx.eu", &P_GMX_NET),
+        ("gmx.info", &P_GMX_NET),
+        ("gmx.biz", &P_GMX_NET),
+        ("gmx.com", &P_GMX_NET),
+        ("ac.hermes.radio", &P_HERMES_RADIO),
+        ("ac1.hermes.radio", &P_HERMES_RADIO),
+        ("ac2.hermes.radio", &P_HERMES_RADIO),
+        ("ac3.hermes.radio", &P_HERMES_RADIO),
+        ("ac4.hermes.radio", &P_HERMES_RADIO),
+        ("ac5.hermes.radio", &P_HERMES_RADIO),
+        ("ac6.hermes.radio", &P_HERMES_RADIO),
+        ("ac7.hermes.radio", &P_HERMES_RADIO),
+        ("ac8.hermes.radio", &P_HERMES_RADIO),
+        ("ac9.hermes.radio", &P_HERMES_RADIO),
+        ("ac10.hermes.radio", &P_HERMES_RADIO),
+        ("ac11.hermes.radio", &P_HERMES_RADIO),
+        ("ac12.hermes.radio", &P_HERMES_RADIO),
+        ("ac13.hermes.radio", &P_HERMES_RADIO),
+        ("ac14.hermes.radio", &P_HERMES_RADIO),
+        ("ac15.hermes.radio", &P_HERMES_RADIO),
+        ("ka.hermes.radio", &P_HERMES_RADIO),
+        ("ka1.hermes.radio", &P_HERMES_RADIO),
+        ("ka2.hermes.radio", &P_HERMES_RADIO),
+        ("ka3.hermes.radio", &P_HERMES_RADIO),
+        ("ka4.hermes.radio", &P_HERMES_RADIO),
+        ("ka5.hermes.radio", &P_HERMES_RADIO),
+        ("ka6.hermes.radio", &P_HERMES_RADIO),
+        ("ka7.hermes.radio", &P_HERMES_RADIO),
+        ("ka8.hermes.radio", &P_HERMES_RADIO),
+        ("ka9.hermes.radio", &P_HERMES_RADIO),
+        ("ka10.hermes.radio", &P_HERMES_RADIO),
+        ("ka11.hermes.radio", &P_HERMES_RADIO),
+        ("ka12.hermes.radio", &P_HERMES_RADIO),
+        ("ka13.hermes.radio", &P_HERMES_RADIO),
+        ("ka14.hermes.radio", &P_HERMES_RADIO),
+        ("ka15.hermes.radio", &P_HERMES_RADIO),
+        ("ec.hermes.radio", &P_HERMES_RADIO),
+        ("ec1.hermes.radio", &P_HERMES_RADIO),
+        ("ec2.hermes.radio", &P_HERMES_RADIO),
+        ("ec3.hermes.radio", &P_HERMES_RADIO),
+        ("ec4.hermes.radio", &P_HERMES_RADIO),
+        ("ec5.hermes.radio", &P_HERMES_RADIO),
+        ("ec6.hermes.radio", &P_HERMES_RADIO),
+        ("ec7.hermes.radio", &P_HERMES_RADIO),
+        ("ec8.hermes.radio", &P_HERMES_RADIO),
+        ("ec9.hermes.radio", &P_HERMES_RADIO),
+        ("ec10.hermes.radio", &P_HERMES_RADIO),
+        ("ec11.hermes.radio", &P_HERMES_RADIO),
+        ("ec12.hermes.radio", &P_HERMES_RADIO),
+        ("ec13.hermes.radio", &P_HERMES_RADIO),
+        ("ec14.hermes.radio", &P_HERMES_RADIO),
+        ("ec15.hermes.radio", &P_HERMES_RADIO),
+        ("hermes.radio", &P_HERMES_RADIO),
+        ("hey.com", &P_HEY_COM),
+        ("i.ua", &P_I_UA),
+        ("i3.net", &P_I3_NET),
+        ("icloud.com", &P_ICLOUD),
+        ("me.com", &P_ICLOUD),
+        ("mac.com", &P_ICLOUD),
+        ("ik.me", &P_INFOMANIAK_COM),
+        ("kolst.com", &P_KOLST_COM),
+        ("kontent.com", &P_KONTENT_COM),
+        ("mail.de", &P_MAIL_DE),
+        ("mail.ru", &P_MAIL_RU),
+        ("inbox.ru", &P_MAIL_RU),
+        ("internet.ru", &P_MAIL_RU),
+        ("bk.ru", &P_MAIL_RU),
+        ("list.ru", &P_MAIL_RU),
+        ("mail2tor.com", &P_MAIL2TOR),
+        ("mailbox.org", &P_MAILBOX_ORG),
+        ("secure.mailbox.org", &P_MAILBOX_ORG),
+        ("mailo.com", &P_MAILO_COM),
+        ("nauta.cu", &P_NAUTA_CU),
+        ("naver.com", &P_NAVER),
+        ("nubo.coop", &P_NUBO_COOP),
+        ("hotmail.com", &P_OUTLOOK_COM),
+        ("outlook.com", &P_OUTLOOK_COM),
+        ("office365.com", &P_OUTLOOK_COM),
+        ("outlook.com.tr", &P_OUTLOOK_COM),
+        ("live.com", &P_OUTLOOK_COM),
+        ("outlook.de", &P_OUTLOOK_COM),
+        ("ouvaton.org", &P_OUVATON_COOP),
+        ("posteo.de", &P_POSTEO),
+        ("posteo.af", &P_POSTEO),
+        ("posteo.at", &P_POSTEO),
+        ("posteo.be", &P_POSTEO),
+        ("posteo.ca", &P_POSTEO),
+        ("posteo.ch", &P_POSTEO),
+        ("posteo.cl", &P_POSTEO),
+        ("posteo.co", &P_POSTEO),
+        ("posteo.co.uk", &P_POSTEO),
+        ("posteo.com.br", &P_POSTEO),
+        ("posteo.cr", &P_POSTEO),
+        ("posteo.cz", &P_POSTEO),
+        ("posteo.dk", &P_POSTEO),
+        ("posteo.ee", &P_POSTEO),
+        ("posteo.es", &P_POSTEO),
+        ("posteo.eu", &P_POSTEO),
+        ("posteo.fi", &P_POSTEO),
+        ("posteo.gl", &P_POSTEO),
+        ("posteo.gr", &P_POSTEO),
+        ("posteo.hn", &P_POSTEO),
+        ("posteo.hr", &P_POSTEO),
+        ("posteo.hu", &P_POSTEO),
+        ("posteo.ie", &P_POSTEO),
+        ("posteo.in", &P_POSTEO),
+        ("posteo.is", &P_POSTEO),
+        ("posteo.it", &P_POSTEO),
+        ("posteo.jp", &P_POSTEO),
+        ("posteo.la", &P_POSTEO),
+        ("posteo.li", &P_POSTEO),
+        ("posteo.lt", &P_POSTEO),
+        ("posteo.lu", &P_POSTEO),
+        ("posteo.me", &P_POSTEO),
+        ("posteo.mx", &P_POSTEO),
+        ("posteo.my", &P_POSTEO),
+        ("posteo.net", &P_POSTEO),
+        ("posteo.nl", &P_POSTEO),
+        ("posteo.no", &P_POSTEO),
+        ("posteo.nz", &P_POSTEO),
+        ("posteo.org", &P_POSTEO),
+        ("posteo.pe", &P_POSTEO),
+        ("posteo.pl", &P_POSTEO),
+        ("posteo.pm", &P_POSTEO),
+        ("posteo.pt", &P_POSTEO),
+        ("posteo.ro", &P_POSTEO),
+        ("posteo.ru", &P_POSTEO),
+        ("posteo.se", &P_POSTEO),
+        ("posteo.sg", &P_POSTEO),
+        ("posteo.si", &P_POSTEO),
+        ("posteo.tn", &P_POSTEO),
+        ("posteo.uk", &P_POSTEO),
+        ("posteo.us", &P_POSTEO),
+        ("protonmail.com", &P_PROTONMAIL),
+        ("protonmail.ch", &P_PROTONMAIL),
+        ("pm.me", &P_PROTONMAIL),
+        ("qq.com", &P_QQ),
+        ("foxmail.com", &P_QQ),
+        ("riseup.net", &P_RISEUP_NET),
+        ("rogers.com", &P_ROGERS_COM),
+        ("sonic.net", &P_SONIC),
+        ("systemausfall.org", &P_SYSTEMAUSFALL_ORG),
+        ("solidaris.me", &P_SYSTEMAUSFALL_ORG),
+        ("systemli.org", &P_SYSTEMLI_ORG),
+        ("t-online.de", &P_T_ONLINE),
+        ("magenta.de", &P_T_ONLINE),
+        ("testrun.org", &P_TESTRUN),
+        ("tiscali.it", &P_TISCALI_IT),
+        ("tutanota.com", &P_TUTANOTA),
+        ("tutanota.de", &P_TUTANOTA),
+        ("tutamail.com", &P_TUTANOTA),
+        ("tuta.io", &P_TUTANOTA),
+        ("keemail.me", &P_TUTANOTA),
+        ("ukr.net", &P_UKR_NET),
+        ("undernet.uy", &P_UNDERNET_UY),
+        ("vfemail.net", &P_VFEMAIL),
+        ("vivaldi.net", &P_VIVALDI),
+        ("vodafone.de", &P_VODAFONE_DE),
+        ("vodafonemail.de", &P_VODAFONE_DE),
+        ("web.de", &P_WEB_DE),
+        ("email.de", &P_WEB_DE),
+        ("flirt.ms", &P_WEB_DE),
+        ("hallo.ms", &P_WEB_DE),
+        ("kuss.ms", &P_WEB_DE),
+        ("love.ms", &P_WEB_DE),
+        ("magic.ms", &P_WEB_DE),
+        ("singles.ms", &P_WEB_DE),
+        ("cool.ms", &P_WEB_DE),
+        ("kanzler.ms", &P_WEB_DE),
+        ("okay.ms", &P_WEB_DE),
+        ("party.ms", &P_WEB_DE),
+        ("pop.ms", &P_WEB_DE),
+        ("stars.ms", &P_WEB_DE),
+        ("techno.ms", &P_WEB_DE),
+        ("clever.ms", &P_WEB_DE),
+        ("deutschland.ms", &P_WEB_DE),
+        ("genial.ms", &P_WEB_DE),
+        ("ich.ms", &P_WEB_DE),
+        ("online.ms", &P_WEB_DE),
+        ("smart.ms", &P_WEB_DE),
+        ("wichtig.ms", &P_WEB_DE),
+        ("action.ms", &P_WEB_DE),
+        ("fussball.ms", &P_WEB_DE),
+        ("joker.ms", &P_WEB_DE),
+        ("planet.ms", &P_WEB_DE),
+        ("power.ms", &P_WEB_DE),
+        ("yahoo.com", &P_YAHOO),
+        ("yahoo.de", &P_YAHOO),
+        ("yahoo.it", &P_YAHOO),
+        ("yahoo.fr", &P_YAHOO),
+        ("yahoo.es", &P_YAHOO),
+        ("yahoo.se", &P_YAHOO),
+        ("yahoo.co.uk", &P_YAHOO),
+        ("yahoo.co.nz", &P_YAHOO),
+        ("yahoo.com.au", &P_YAHOO),
+        ("yahoo.com.ar", &P_YAHOO),
+        ("yahoo.com.br", &P_YAHOO),
+        ("yahoo.com.mx", &P_YAHOO),
+        ("ymail.com", &P_YAHOO),
+        ("rocketmail.com", &P_YAHOO),
+        ("yahoodns.net", &P_YAHOO),
+        ("yandex.com", &P_YANDEX_RU),
+        ("yandex.by", &P_YANDEX_RU),
+        ("yandex.kz", &P_YANDEX_RU),
+        ("yandex.ru", &P_YANDEX_RU),
+        ("yandex.ua", &P_YANDEX_RU),
+        ("ya.ru", &P_YANDEX_RU),
+        ("narod.ru", &P_YANDEX_RU),
+        ("yggmail", &P_YGGMAIL),
+        ("ziggo.nl", &P_ZIGGO_NL),
+        ("zohomail.eu", &P_ZOHO),
+        ("zohomail.com", &P_ZOHO),
+        ("zoho.com", &P_ZOHO),
     ])
 });
 
 pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| {
     HashMap::from([
-        ("163", &*P_163),
-        ("aktivix.org", &*P_AKTIVIX_ORG),
-        ("aol", &*P_AOL),
-        ("arcor.de", &*P_ARCOR_DE),
-        ("autistici.org", &*P_AUTISTICI_ORG),
-        ("blindzeln.org", &*P_BLINDZELN_ORG),
-        ("bluewin.ch", &*P_BLUEWIN_CH),
-        ("buzon.uy", &*P_BUZON_UY),
-        ("chello.at", &*P_CHELLO_AT),
-        ("comcast", &*P_COMCAST),
-        ("dismail.de", &*P_DISMAIL_DE),
-        ("disroot", &*P_DISROOT),
-        ("e.email", &*P_E_EMAIL),
-        ("espiv.net", &*P_ESPIV_NET),
-        ("example.com", &*P_EXAMPLE_COM),
-        ("fastmail", &*P_FASTMAIL),
-        ("firemail.de", &*P_FIREMAIL_DE),
-        ("five.chat", &*P_FIVE_CHAT),
-        ("freenet.de", &*P_FREENET_DE),
-        ("gmail", &*P_GMAIL),
-        ("gmx.net", &*P_GMX_NET),
-        ("hermes.radio", &*P_HERMES_RADIO),
-        ("hey.com", &*P_HEY_COM),
-        ("i.ua", &*P_I_UA),
-        ("i3.net", &*P_I3_NET),
-        ("icloud", &*P_ICLOUD),
-        ("infomaniak.com", &*P_INFOMANIAK_COM),
-        ("kolst.com", &*P_KOLST_COM),
-        ("kontent.com", &*P_KONTENT_COM),
-        ("mail.de", &*P_MAIL_DE),
-        ("mail.ru", &*P_MAIL_RU),
-        ("mail2tor", &*P_MAIL2TOR),
-        ("mailbox.org", &*P_MAILBOX_ORG),
-        ("mailo.com", &*P_MAILO_COM),
-        ("nauta.cu", &*P_NAUTA_CU),
-        ("naver", &*P_NAVER),
-        ("nubo.coop", &*P_NUBO_COOP),
-        ("outlook.com", &*P_OUTLOOK_COM),
-        ("ouvaton.coop", &*P_OUVATON_COOP),
-        ("posteo", &*P_POSTEO),
-        ("protonmail", &*P_PROTONMAIL),
-        ("qq", &*P_QQ),
-        ("riseup.net", &*P_RISEUP_NET),
-        ("rogers.com", &*P_ROGERS_COM),
-        ("sonic", &*P_SONIC),
-        ("systemausfall.org", &*P_SYSTEMAUSFALL_ORG),
-        ("systemli.org", &*P_SYSTEMLI_ORG),
-        ("t-online", &*P_T_ONLINE),
-        ("testrun", &*P_TESTRUN),
-        ("tiscali.it", &*P_TISCALI_IT),
-        ("tutanota", &*P_TUTANOTA),
-        ("ukr.net", &*P_UKR_NET),
-        ("undernet.uy", &*P_UNDERNET_UY),
-        ("vfemail", &*P_VFEMAIL),
-        ("vivaldi", &*P_VIVALDI),
-        ("vodafone.de", &*P_VODAFONE_DE),
-        ("web.de", &*P_WEB_DE),
-        ("yahoo", &*P_YAHOO),
-        ("yandex.ru", &*P_YANDEX_RU),
-        ("yggmail", &*P_YGGMAIL),
-        ("ziggo.nl", &*P_ZIGGO_NL),
-        ("zoho", &*P_ZOHO),
+        ("163", &P_163),
+        ("aktivix.org", &P_AKTIVIX_ORG),
+        ("aol", &P_AOL),
+        ("arcor.de", &P_ARCOR_DE),
+        ("autistici.org", &P_AUTISTICI_ORG),
+        ("blindzeln.org", &P_BLINDZELN_ORG),
+        ("bluewin.ch", &P_BLUEWIN_CH),
+        ("buzon.uy", &P_BUZON_UY),
+        ("chello.at", &P_CHELLO_AT),
+        ("comcast", &P_COMCAST),
+        ("dismail.de", &P_DISMAIL_DE),
+        ("disroot", &P_DISROOT),
+        ("e.email", &P_E_EMAIL),
+        ("espiv.net", &P_ESPIV_NET),
+        ("example.com", &P_EXAMPLE_COM),
+        ("fastmail", &P_FASTMAIL),
+        ("firemail.de", &P_FIREMAIL_DE),
+        ("five.chat", &P_FIVE_CHAT),
+        ("freenet.de", &P_FREENET_DE),
+        ("gmail", &P_GMAIL),
+        ("gmx.net", &P_GMX_NET),
+        ("hermes.radio", &P_HERMES_RADIO),
+        ("hey.com", &P_HEY_COM),
+        ("i.ua", &P_I_UA),
+        ("i3.net", &P_I3_NET),
+        ("icloud", &P_ICLOUD),
+        ("infomaniak.com", &P_INFOMANIAK_COM),
+        ("kolst.com", &P_KOLST_COM),
+        ("kontent.com", &P_KONTENT_COM),
+        ("mail.de", &P_MAIL_DE),
+        ("mail.ru", &P_MAIL_RU),
+        ("mail2tor", &P_MAIL2TOR),
+        ("mailbox.org", &P_MAILBOX_ORG),
+        ("mailo.com", &P_MAILO_COM),
+        ("nauta.cu", &P_NAUTA_CU),
+        ("naver", &P_NAVER),
+        ("nubo.coop", &P_NUBO_COOP),
+        ("outlook.com", &P_OUTLOOK_COM),
+        ("ouvaton.coop", &P_OUVATON_COOP),
+        ("posteo", &P_POSTEO),
+        ("protonmail", &P_PROTONMAIL),
+        ("qq", &P_QQ),
+        ("riseup.net", &P_RISEUP_NET),
+        ("rogers.com", &P_ROGERS_COM),
+        ("sonic", &P_SONIC),
+        ("systemausfall.org", &P_SYSTEMAUSFALL_ORG),
+        ("systemli.org", &P_SYSTEMLI_ORG),
+        ("t-online", &P_T_ONLINE),
+        ("testrun", &P_TESTRUN),
+        ("tiscali.it", &P_TISCALI_IT),
+        ("tutanota", &P_TUTANOTA),
+        ("ukr.net", &P_UKR_NET),
+        ("undernet.uy", &P_UNDERNET_UY),
+        ("vfemail", &P_VFEMAIL),
+        ("vivaldi", &P_VIVALDI),
+        ("vodafone.de", &P_VODAFONE_DE),
+        ("web.de", &P_WEB_DE),
+        ("yahoo", &P_YAHOO),
+        ("yandex.ru", &P_YANDEX_RU),
+        ("yggmail", &P_YGGMAIL),
+        ("ziggo.nl", &P_ZIGGO_NL),
+        ("zoho", &P_ZOHO),
     ])
 });
 
