@@ -3993,6 +3993,36 @@ int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t* msg);
 char*           dc_msg_get_text               (const dc_msg_t* msg);
 
 
+#define         MESSAGE_PARSER_MODE_ONLY_TEXT        0x00
+#define         MESSAGE_PARSER_MODE_DESKTOP_SET      0x01
+#define         MESSAGE_PARSER_MODE_MARKDOWN         0x02
+
+/**
+ * Parse text with the message parser.
+ *
+ * @memberof dc_context_t
+ * @param input The text to parse.
+ * @param mode Sets the parsing mode, you can choose between MESSAGE_PARSER_MODE_ONLY_TEXT, MESSAGE_PARSER_MODE_DESKTOP_SET and MESSAGE_PARSER_MODE_MARKDOWN.
+ *        Look at https://github.com/deltachat/message-parser/blob/master/spec.md#modes-of-the-parser to learn more about the parser modes.
+ * @return Abstract Syntax Tree for your message that you can use to display parts of a message specially like links.
+ *         This ast is returned in json (look at the sourcecode for reference for the format: https://github.com/deltachat/message-parser/blob/master/src/parser/mod.rs#L11)
+ */
+char*           dc_parse_message_text_to_ast_json (const char* input, int mode);
+
+
+/**
+ * Parse the text of a message with the message parser.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param mode Sets the parsing mode, you can choose between MESSAGE_PARSER_MODE_ONLY_TEXT, MESSAGE_PARSER_MODE_DESKTOP_SET and MESSAGE_PARSER_MODE_MARKDOWN.
+ *        Look at https://github.com/deltachat/message-parser/blob/master/spec.md#modes-of-the-parser to learn more about the parser modes.
+ * @return Abstract Syntax Tree for your message that you can use to display parts of a message specially like links.
+ *         This ast is returned in json (look at the sourcecode for reference for the format: https://github.com/deltachat/message-parser/blob/master/src/parser/mod.rs#L11)
+ */
+char*           dc_msg_get_parsed_text_as_json (const dc_msg_t* msg, int mode);
+
+
 /**
  * Get the subject of the e-mail.
  * If there is no subject associated with the message, an empty string is returned.

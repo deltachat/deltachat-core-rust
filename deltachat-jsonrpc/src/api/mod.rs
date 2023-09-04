@@ -43,11 +43,13 @@ use types::contact::ContactObject;
 use types::events::Event;
 use types::http::HttpResponse;
 use types::message::{MessageData, MessageObject, MessageReadReceipt};
+use types::message_parser;
 use types::provider_info::ProviderInfo;
 use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::types::message::MessageLoadResult;
+use self::types::message_parser::MessageParserMode;
 use self::types::{
     chat::{BasicChat, JSONRPCChatVisibility, MuteDuration},
     location::JsonrpcLocation,
@@ -1079,6 +1081,31 @@ impl CommandApi {
     async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         MsgId::new(message_id).get_html(&ctx).await
+    }
+
+    // no specific typings because of https://github.com/dbeckwith/rust-typescript-type-def/issues/18
+    async fn get_parsed_message_text_ast_json(
+        &self,
+        account_id: u32,
+        message_id: u32,
+        mode: MessageParserMode,
+    ) -> Result<serde_json::Value> {
+        let ctx = self.get_context(account_id).await?;
+        let msg_text = Message::load_from_db(&ctx, MsgId::new(message_id))
+            .await?
+            .get_text();
+        let result = message_parser::parse_text(&msg_text, mode);
+        Ok(serde_json::to_value(result)?)
+    }
+
+    // no specific typings because of https://github.com/dbeckwith/rust-typescript-type-def/issues/18
+    async fn parse_text_to_ast_json(
+        &self,
+        text: String,
+        mode: MessageParserMode,
+    ) -> Result<serde_json::Value> {
+        let result = message_parser::parse_text(&text, mode);
+        Ok(serde_json::to_value(result)?)
     }
 
     /// get multiple messages in one call,

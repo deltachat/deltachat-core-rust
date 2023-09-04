@@ -31,6 +31,7 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::imex::BackupProvider;
 use deltachat::key::{DcKey, DcSecretKey};
 use deltachat::message::MsgId;
+use deltachat::message_parser::parser;
 use deltachat::net::read_url_blob;
 use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
@@ -3354,6 +3355,58 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
     }
     let ffi_msg = &*msg;
     ffi_msg.message.get_text().strdup()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_parse_message_text_to_ast_json(
+    text: *const libc::c_char,
+    mode: u32,
+) -> *mut libc::c_char {
+    if text.is_null() {
+        eprintln!("ignoring careless call to dc_parse_message_text_to_ast_json()");
+    }
+    let text = to_string_lossy(text);
+    let result = match mode {
+        0 /* OnlyText */ => parser::parse_only_text(&text),
+        1 /* DesktopSet */ => parser::parse_desktop_set(&text),
+        2 /* Markdown */ => parser::parse_markdown_text(&text),
+        _ => {
+            eprintln!("ignoring careless call to dc_parse_message_text_to_ast_json() - invalid mode");
+            return "".strdup();
+        }
+    };
+    if let Ok(result) = serde_json::to_string(&result) {
+        result.strdup()
+    } else {
+        "".strdup()
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_parsed_text_as_json(
+    msg: *mut dc_msg_t,
+    mode: u32,
+) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_parsed_text_as_json()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+    let text = ffi_msg.message.get_text();
+    let result = match mode {
+        0 /* OnlyText */ => parser::parse_only_text(&text),
+        1 /* DesktopSet */ => parser::parse_desktop_set(&text),
+        2 /* Markdown */ => parser::parse_markdown_text(&text),
+        _ => {
+            eprintln!("ignoring careless call to dc_msg_get_parsed_text_as_json() - invalid mode");
+            return "".strdup();
+        }
+    };
+    if let Ok(result) = serde_json::to_string(&result) {
+        result.strdup()
+    } else {
+        "".strdup()
+    }
 }
 
 #[no_mangle]
