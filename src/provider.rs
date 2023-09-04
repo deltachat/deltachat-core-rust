@@ -123,10 +123,10 @@ pub struct Provider {
     pub overview_page: &'static str,
 
     /// List of provider servers.
-    pub server: Vec<Server>,
+    pub server: &'static [Server],
 
     /// Default configuration values to set when provider is configured.
-    pub config_defaults: Option<Vec<ConfigDefault>>,
+    pub config_defaults: Option<&'static [ConfigDefault]>,
 
     /// Type of OAuth 2 authorization if provider supports it.
     pub oauth2_authorizer: Option<Oauth2Authorizer>,

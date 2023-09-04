@@ -323,17 +323,16 @@ pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32)> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub(crate) fn get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf {
-    let p: &Path = path.as_ref();
-    if let Ok(p) = p.strip_prefix("$BLOBDIR") {
+pub(crate) fn get_abs_path(context: &Context, path: &Path) -> PathBuf {
+    if let Ok(p) = path.strip_prefix("$BLOBDIR") {
         context.get_blobdir().join(p)
     } else {
-        p.into()
+        path.into()
     }
 }
 
 pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     let meta = fs::metadata(&path_abs).await?;
     Ok(meta.len())
 }
@@ -377,7 +376,7 @@ pub(crate) async fn create_folder(
     context: &Context,
     path: impl AsRef<Path>,
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
@@ -402,7 +401,7 @@ pub(crate) async fn write_file(
     path: impl AsRef<Path>,
     buf: &[u8],
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
@@ -417,7 +416,7 @@ pub(crate) async fn write_file(
 
 /// Reads the file and returns its context as a byte vector.
 pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -434,7 +433,7 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
 }
 
 pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::File> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match fs::File::open(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -450,12 +449,8 @@ pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::
     }
 }
 
-pub fn open_file_std<P: AsRef<std::path::Path>>(
-    context: &Context,
-    path: P,
-) -> Result<std::fs::File> {
-    let p: PathBuf = path.as_ref().into();
-    let path_abs = get_abs_path(context, p);
+pub fn open_file_std(context: &Context, path: impl AsRef<Path>) -> Result<std::fs::File> {
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match std::fs::File::open(path_abs) {
         Ok(bytes) => Ok(bytes),
