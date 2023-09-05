@@ -771,6 +771,11 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
             let res = conn
                 .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
                 .context("failed to export to attached backup database");
+            conn.execute(
+                "UPDATE backup.config SET value='0' WHERE keyname='verified_one_on_one_chats';",
+                [],
+            )
+            .ok(); // If verified_one_on_one_chats was not set, this errors, which we ignore
             conn.execute("DETACH DATABASE backup", [])
                 .context("failed to detach backup database")?;
             res?;
@@ -880,55 +885,73 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_backup() -> Result<()> {
-        let backup_dir = tempfile::tempdir().unwrap();
+        for set_verified_oneonone_chats in [true, false] {
+            let backup_dir = tempfile::tempdir().unwrap();
 
-        let context1 = TestContext::new_alice().await;
-        assert!(context1.is_configured().await?);
+            let context1 = TestContext::new_alice().await;
+            assert!(context1.is_configured().await?);
+            if set_verified_oneonone_chats {
+                context1
+                    .set_config_bool(Config::VerifiedOneOnOneChats, true)
+                    .await?;
+            }
 
-        let context2 = TestContext::new().await;
-        assert!(!context2.is_configured().await?);
-        assert!(has_backup(&context2, backup_dir.path()).await.is_err());
+            let context2 = TestContext::new().await;
+            assert!(!context2.is_configured().await?);
+            assert!(has_backup(&context2, backup_dir.path()).await.is_err());
 
-        // export from context1
-        assert!(
-            imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None)
-                .await
-                .is_ok()
-        );
-        let _event = context1
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
-            .await;
+            // export from context1
+            assert!(
+                imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None)
+                    .await
+                    .is_ok()
+            );
+            let _event = context1
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+                .await;
 
-        // import to context2
-        let backup = has_backup(&context2, backup_dir.path()).await?;
+            // import to context2
+            let backup = has_backup(&context2, backup_dir.path()).await?;
 
-        // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
-        assert!(imex(
-            &context2,
-            ImexMode::ImportBackup,
-            backup.as_ref(),
-            Some("foobar".to_string())
-        )
-        .await
-        .is_err());
+            // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
+            assert!(imex(
+                &context2,
+                ImexMode::ImportBackup,
+                backup.as_ref(),
+                Some("foobar".to_string())
+            )
+            .await
+            .is_err());
 
-        assert!(
-            imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
-                .await
-                .is_ok()
-        );
-        let _event = context2
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
-            .await;
+            assert!(
+                imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
+                    .await
+                    .is_ok()
+            );
+            let _event = context2
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+                .await;
 
-        assert!(context2.is_configured().await?);
-        assert_eq!(
-            context2.get_config(Config::Addr).await?,
-            Some("alice@example.org".to_string())
-        );
-
+            assert!(context2.is_configured().await?);
+            assert_eq!(
+                context2.get_config(Config::Addr).await?,
+                Some("alice@example.org".to_string())
+            );
+            assert_eq!(
+                context2
+                    .get_config_bool(Config::VerifiedOneOnOneChats)
+                    .await?,
+                false
+            );
+            assert_eq!(
+                context1
+                    .get_config_bool(Config::VerifiedOneOnOneChats)
+                    .await?,
+                set_verified_oneonone_chats
+            );
+        }
         Ok(())
     }
 
