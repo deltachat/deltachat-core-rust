@@ -1716,7 +1716,7 @@ mod tests {
         assert_eq!(may_be_valid_addr("dd.tt"), false);
         assert_eq!(may_be_valid_addr("tt.dd@uu"), true);
         assert_eq!(may_be_valid_addr("u@d"), true);
-        assert_eq!(may_be_valid_addr("u@d."), true);
+        assert_eq!(may_be_valid_addr("u@d."), false);
         assert_eq!(may_be_valid_addr("u@d.t"), true);
         assert_eq!(may_be_valid_addr("u@d.tt"), true);
         assert_eq!(may_be_valid_addr("u@.tt"), true);
@@ -1725,6 +1725,7 @@ mod tests {
         assert_eq!(may_be_valid_addr("sk <@d.tt>"), false);
         assert_eq!(may_be_valid_addr("as@sd.de>"), false);
         assert_eq!(may_be_valid_addr("ask dkl@dd.tt"), false);
+        assert_eq!(may_be_valid_addr("user@domain.tld."), false);
     }
 
     #[test]

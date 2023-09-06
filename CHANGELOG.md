@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.121.0] - 2023-09-06
+
+### API-Changes
+
+- Add `dc_context_change_passphrase()`.
+- Add `Message.set_file_from_bytes()` API.
+- Add experimental API to get similar chats.
+
+### Build system
+
+- Build node packages on Ubuntu 18.04 instead of Debian 10.
+  This reduces the requirement for glibc version from 2.28 to 2.27.
+
+### Fixes
+
+- Allow membership changes by a MUA if we're not in the group ([#4624](https://github.com/deltachat/deltachat-core-rust/pull/4624)).
+- Save mime headers for messages not signed with a known key ([#4557](https://github.com/deltachat/deltachat-core-rust/pull/4557)).
+- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/deltachat/deltachat-core-rust/pull/4616)).
+- Do not allow dots at the end of email addresses.
+- deltachat-rpc-client: Remove `aiodns` optional dependency from required dependencies.
+  `aiodns` depends on `pycares` which [fails to install in Termux](https://github.com/saghul/aiodns/issues/98).
+
 ## [1.120.0] - 2023-08-28
 
 ### API-Changes
@@ -2764,3 +2786,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.119.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.118.0...v1.119.0
 [1.119.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.0...v1.119.1
 [1.120.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.1...v1.120.0
+[1.121.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.120.0...v1.121.0

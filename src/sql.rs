@@ -304,6 +304,20 @@ impl Sql {
         }
     }
 
+    /// Changes the passphrase of encrypted database.
+    ///
+    /// The database must already be encrypted and the passphrase cannot be empty.
+    /// It is impossible to turn encrypted database into unencrypted
+    /// and vice versa this way, use import/export for this.
+    pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
+        self.call_write(move |conn| {
+            conn.pragma_update(None, "rekey", passphrase)
+                .context("failed to set PRAGMA rekey")?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Locks the write transactions mutex in order to make sure that there never are
     /// multiple write transactions at once.
     ///
@@ -1246,6 +1260,49 @@ mod tests {
         sql.open(&t, "foo".to_string())
             .await
             .context("failed to open the database second time")?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_change_passphrase() -> Result<()> {
+        use tempfile::tempdir;
+
+        // The context is used only for logging.
+        let t = TestContext::new().await;
+
+        // Create a separate empty database for testing.
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("testdb.sqlite");
+        let sql = Sql::new(dbfile.clone());
+
+        sql.open(&t, "foo".to_string())
+            .await
+            .context("failed to open the database first time")?;
+        sql.close().await;
+
+        // Change the passphrase from "foo" to "bar".
+        let sql = Sql::new(dbfile.clone());
+        sql.open(&t, "foo".to_string())
+            .await
+            .context("failed to open the database second time")?;
+        sql.change_passphrase("bar".to_string())
+            .await
+            .context("failed to change passphrase")?;
+        sql.close().await;
+
+        let sql = Sql::new(dbfile);
+
+        // Test that old passphrase is not working.
+        assert!(sql.open(&t, "foo".to_string()).await.is_err());
+
+        // Open the database with the new passphrase.
+        sql.check_passphrase("bar".to_string()).await?;
+        sql.open(&t, "bar".to_string())
+            .await
+            .context("failed to open the database third time")?;
+        sql.close().await;
+
         Ok(())
     }
 }

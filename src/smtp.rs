@@ -493,7 +493,20 @@ pub(crate) async fn smtp_send(
 
     if let SendResult::Failure(err) = &status {
         // We couldn't send the message, so mark it as failed
-        message::set_msg_failed(context, msg_id, &err.to_string()).await;
+        match Message::load_from_db(context, msg_id).await {
+            Ok(mut msg) => {
+                if let Err(err) = message::set_msg_failed(context, &mut msg, &err.to_string()).await
+                {
+                    error!(context, "Failed to mark {msg_id} as failed: {err:#}.");
+                }
+            }
+            Err(err) => {
+                error!(
+                    context,
+                    "Failed to load {msg_id} to mark it as failed: {err:#}."
+                );
+            }
+        }
     }
     status
 }
@@ -540,7 +553,8 @@ pub(crate) async fn send_msg_to_smtp(
         )
         .await?;
     if retries > 6 {
-        message::set_msg_failed(context, msg_id, "Number of retries exceeded the limit.").await;
+        let mut msg = Message::load_from_db(context, msg_id).await?;
+        message::set_msg_failed(context, &mut msg, "Number of retries exceeded the limit.").await?;
         context
             .sql
             .execute("DELETE FROM smtp WHERE id=?", (rowid,))

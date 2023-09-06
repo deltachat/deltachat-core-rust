@@ -7,6 +7,7 @@ use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
+use crate::blob::BlobObject;
 use crate::chat::{Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
@@ -574,13 +575,21 @@ impl Message {
                 if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
                     && !self.param.exists(Param::Width)
                 {
-                    self.param.set_int(Param::Width, 0);
-                    self.param.set_int(Param::Height, 0);
+                    let buf = read_file(context, &path_and_filename).await?;
 
-                    if let Ok(buf) = read_file(context, path_and_filename).await {
-                        if let Ok((width, height)) = get_filemeta(&buf) {
+                    match get_filemeta(&buf) {
+                        Ok((width, height)) => {
                             self.param.set_int(Param::Width, width as i32);
                             self.param.set_int(Param::Height, height as i32);
+                        }
+                        Err(err) => {
+                            self.param.set_int(Param::Width, 0);
+                            self.param.set_int(Param::Height, 0);
+                            warn!(
+                                context,
+                                "Failed to get width and height for {}: {err:#}.",
+                                path_and_filename.display()
+                            );
                         }
                     }
 
@@ -972,19 +981,28 @@ impl Message {
             }
         }
         self.param.set(Param::File, file);
-        if let Some(filemime) = filemime {
-            self.param.set(Param::MimeType, filemime);
-        }
+        self.param.set_optional(Param::MimeType, filemime);
+    }
+
+    /// Creates a new blob and sets it as a file associated with a message.
+    pub async fn set_file_from_bytes(
+        &mut self,
+        context: &Context,
+        suggested_name: &str,
+        data: &[u8],
+        filemime: Option<&str>,
+    ) -> Result<()> {
+        let blob = BlobObject::create(context, suggested_name, data).await?;
+        self.param.set(Param::File, blob.as_name());
+        self.param.set_optional(Param::MimeType, filemime);
+        Ok(())
     }
 
     /// Set different sender name for a message.
     /// This overrides the name set by the `set_config()`-option `displayname`.
     pub fn set_override_sender_name(&mut self, name: Option<String>) {
-        if let Some(name) = name {
-            self.param.set(Param::OverrideSenderDisplayname, name);
-        } else {
-            self.param.remove(Param::OverrideSenderDisplayname);
-        }
+        self.param
+            .set_optional(Param::OverrideSenderDisplayname, name);
     }
 
     /// Sets the dimensions of associated image or video file.
@@ -1641,35 +1659,36 @@ pub(crate) async fn update_msg_state(
 
 // Context functions to work with messages
 
-pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
-    if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
-        if msg.state.can_fail() {
-            msg.state = MessageState::OutFailed;
-            warn!(context, "{} failed: {}", msg_id, error);
-        } else {
-            warn!(
-                context,
-                "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
-            )
-        }
-
-        match context
-            .sql
-            .execute(
-                "UPDATE msgs SET state=?, error=? WHERE id=?;",
-                (msg.state, error, msg_id),
-            )
-            .await
-        {
-            Ok(_) => context.emit_event(EventType::MsgFailed {
-                chat_id: msg.chat_id,
-                msg_id,
-            }),
-            Err(e) => {
-                warn!(context, "{:?}", e);
-            }
-        }
+pub(crate) async fn set_msg_failed(
+    context: &Context,
+    msg: &mut Message,
+    error: &str,
+) -> Result<()> {
+    if msg.state.can_fail() {
+        msg.state = MessageState::OutFailed;
+        warn!(context, "{} failed: {}", msg.id, error);
+    } else {
+        warn!(
+            context,
+            "{} seems to have failed ({}), but state is {}", msg.id, error, msg.state
+        )
     }
+    msg.error = Some(error.to_string());
+
+    context
+        .sql
+        .execute(
+            "UPDATE msgs SET state=?, error=? WHERE id=?;",
+            (msg.state, error, msg.id),
+        )
+        .await?;
+
+    context.emit_event(EventType::MsgFailed {
+        chat_id: msg.chat_id,
+        msg_id: msg.id,
+    });
+
+    Ok(())
 }
 
 /// The number of messages assigned to unblocked chats
@@ -2276,7 +2295,7 @@ mod tests {
         update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await?;
         assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
 
-        set_msg_failed(&alice, alice_msg.id, "badly failed").await;
+        set_msg_failed(&alice, &mut alice_msg, "badly failed").await?;
         assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
 
         // check incoming message states on receiver side

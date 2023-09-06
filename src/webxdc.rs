@@ -1,4 +1,18 @@
 //! # Handle webxdc messages.
+//!
+//! Internally status updates are stored in the `msgs_status_updates` SQL table.
+//! `msgs_status_updates` contains the following columns:
+//! - `id` - status update serial number
+//! - `msg_id` - ID of the message in the `msgs` table
+//! - `update_item` - JSON representation of the status update
+//!
+//! Status updates are scheduled for sending by adding a record
+//! to `smtp_status_updates_table` SQL table.
+//! `smtp_status_updates` contains the following columns:
+//! - `msg_id` - ID of the message in the `msgs` table
+//! - `first_serial` - serial number of the first status update to send
+//! - `last_serial` - serial number of the last status update to send
+//! - `descr` - text to send along with the updates
 
 use std::convert::TryFrom;
 use std::path::Path;
@@ -665,6 +679,10 @@ impl Context {
     ///
     /// Example: `{"updates": [{"payload":"any update data"},
     ///                        {"payload":"another update data"}]}`
+    ///
+    /// `range` is an optional range of status update serials to send.
+    /// If it is `None`, all updates are sent.
+    /// This is used when a message is resent using [`crate::chat::resend_msgs`].
     pub(crate) async fn render_webxdc_status_update_object(
         &self,
         instance_msg_id: MsgId,
@@ -895,10 +913,8 @@ mod tests {
     }
 
     async fn create_webxdc_instance(t: &TestContext, name: &str, bytes: &[u8]) -> Result<Message> {
-        let file = t.get_blobdir().join(name);
-        tokio::fs::write(&file, bytes).await?;
         let mut instance = Message::new(Viewtype::File);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance.set_file_from_bytes(t, name, bytes, None).await?;
         Ok(instance)
     }
 
@@ -926,10 +942,10 @@ mod tests {
         assert_eq!(instance.chat_id, chat_id);
 
         // sending using bad extension is not working, even when setting Viewtype to webxdc
-        let file = t.get_blobdir().join("index.html");
-        tokio::fs::write(&file, b"<html>ola!</html>").await?;
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance
+            .set_file_from_bytes(&t, "index.html", b"<html>ola!</html>", None)
+            .await?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())
@@ -953,14 +969,15 @@ mod tests {
         assert_eq!(test.viewtype, Viewtype::File);
 
         // sending invalid .xdc as Viewtype::Webxdc should fail already on sending
-        let file = t.get_blobdir().join("invalid2.xdc");
-        tokio::fs::write(
-            &file,
-            include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
-        )
-        .await?;
         let mut instance = Message::new(Viewtype::Webxdc);
-        instance.set_file(file.to_str().unwrap(), None);
+        instance
+            .set_file_from_bytes(
+                &t,
+                "invalid2.xdc",
+                include_bytes!("../test-data/webxdc/invalid-no-zip-but-7z.xdc"),
+                None,
+            )
+            .await?;
         assert!(send_msg(&t, chat_id, &mut instance).await.is_err());
 
         Ok(())

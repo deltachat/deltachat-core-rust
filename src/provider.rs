@@ -149,8 +149,8 @@ pub struct ProviderOptions {
     pub delete_to_trash: bool,
 }
 
-impl Default for ProviderOptions {
-    fn default() -> Self {
+impl ProviderOptions {
+    const fn new() -> Self {
         Self {
             strict_tls: true,
             max_smtp_rcpt_to: None,

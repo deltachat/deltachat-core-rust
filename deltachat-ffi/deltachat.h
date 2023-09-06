@@ -302,6 +302,19 @@ int             dc_context_open              (dc_context_t *context, const char*
 
 
 /**
+ * Changes the passphrase on the open database.
+ * Existing database must already be encrypted and the passphrase cannot be NULL or empty.
+ * It is impossible to encrypt unencrypted database with this method and vice versa.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param passphrase The new passphrase.
+ * @return 1 on success, 0 on error.
+ */
+int             dc_context_change_passphrase (dc_context_t* context, const char* passphrase);
+
+
+/**
  * Returns 1 if database is open.
  *
  * @memberof dc_context_t
@@ -1327,6 +1340,20 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
  */
 int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t chat_id);
 
+
+/**
+ * Returns a list of similar chats.
+ *
+ * @warning This is an experimental API which may change or be removed in the future.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat for which to find similar chats.
+ * @return The list of similar chats.
+ *     On errors, NULL is returned.
+ *     Must be freed using dc_chatlist_unref() when no longer used.
+ */
+dc_chatlist_t*     dc_get_similar_chatlist   (dc_context_t* context, uint32_t chat_id);
 
 
 /**

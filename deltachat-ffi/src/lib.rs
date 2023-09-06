@@ -168,6 +168,24 @@ pub unsafe extern "C" fn dc_context_open(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_context_change_passphrase(
+    context: *mut dc_context_t,
+    passphrase: *const libc::c_char,
+) -> libc::c_int {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_context_change_passphrase()");
+        return 0;
+    }
+
+    let ctx = &*context;
+    let passphrase = to_string_lossy(passphrase);
+    block_on(ctx.change_passphrase(passphrase))
+        .context("dc_context_change_passphrase() failed")
+        .log_err(ctx)
+        .is_ok() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_context_is_open(context: *mut dc_context_t) -> libc::c_int {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_context_is_open()");
@@ -1232,6 +1250,30 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
             .await
             .unwrap_or_log_default(ctx, "failed to get fresh msg cnt") as libc::c_int
     })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_similar_chatlist(
+    context: *mut dc_context_t,
+    chat_id: u32,
+) -> *mut dc_chatlist_t {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_get_similar_chatlist()");
+        return ptr::null_mut();
+    }
+    let ctx = &*context;
+
+    let chat_id = ChatId::new(chat_id);
+    match block_on(chat_id.get_similar_chatlist(ctx))
+        .context("failed to get similar chatlist")
+        .log_err(ctx)
+    {
+        Ok(list) => {
+            let ffi_list = ChatlistWrapper { context, list };
+            Box::into_raw(Box::new(ffi_list))
+        }
+        Err(_) => ptr::null_mut(),
+    }
 }
 
 #[no_mangle]

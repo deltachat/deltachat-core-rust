@@ -44,7 +44,7 @@ def file2url(f):
 
 def process_opt(data):
     if not "opt" in data:
-        return "Default::default()"
+        return "ProviderOptions::new()"
     opt = "ProviderOptions {\n"
     opt_data = data.get("opt", "")
     for key in opt_data:
@@ -54,7 +54,7 @@ def process_opt(data):
         if value in {"True", "False"}:
             value = value.lower()
         opt += "        " + key + ": " + value + ",\n"
-    opt += "        ..Default::default()\n"
+    opt += "        ..ProviderOptions::new()\n"
     opt += "    }"
     return opt
 
@@ -96,11 +96,11 @@ def process_data(data, file):
             raise TypeError("domain used twice: " + domain)
         domains_set.add(domain)
 
-        domains += '    ("' + domain + '", &*' + file2varname(file) + "),\n"
+        domains += '    ("' + domain + '", &' + file2varname(file) + "),\n"
         comment += domain + ", "
 
     ids = ""
-    ids += '    ("' + file2id(file) + '", &*' + file2varname(file) + "),\n"
+    ids += '    ("' + file2id(file) + '", &' + file2varname(file) + "),\n"
 
     server = ""
     has_imap = False
@@ -155,7 +155,7 @@ def process_data(data, file):
         provider += (
             "static "
             + file2varname(file)
-            + ": Lazy<Provider> = Lazy::new(|| Provider {\n"
+            + ": Provider = Provider {\n"
         )
         provider += '    id: "' + file2id(file) + '",\n'
         provider += "    status: Status::" + status.capitalize() + ",\n"
@@ -166,7 +166,7 @@ def process_data(data, file):
         provider += "    opt: " + opt + ",\n"
         provider += "    config_defaults: " + config_defaults + ",\n"
         provider += "    oauth2_authorizer: " + oauth2 + ",\n"
-        provider += "});\n\n"
+        provider += "};\n\n"
     else:
         raise TypeError("SMTP and IMAP must be specified together or left out both")
 

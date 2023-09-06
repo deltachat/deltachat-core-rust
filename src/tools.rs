@@ -535,6 +535,9 @@ impl EmailAddress {
                 if domain.is_empty() {
                     bail!("missing domain after '@' in {:?}", input);
                 }
+                if domain.ends_with('.') {
+                    bail!("Domain {domain:?} should not contain the dot in the end");
+                }
                 Ok(EmailAddress {
                     local: (*local).to_string(),
                     domain: (*domain).to_string(),
@@ -996,7 +999,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(EmailAddress::new("dd.tt").is_ok(), false);
         assert!(EmailAddress::new("tt.dd@uu").is_ok());
         assert!(EmailAddress::new("u@d").is_ok());
-        assert!(EmailAddress::new("u@d.").is_ok());
+        assert!(EmailAddress::new("u@d.").is_err());
         assert!(EmailAddress::new("u@d.t").is_ok());
         assert_eq!(
             EmailAddress::new("u@d.tt").unwrap(),

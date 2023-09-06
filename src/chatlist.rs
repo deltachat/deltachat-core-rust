@@ -296,6 +296,27 @@ impl Chatlist {
         Ok(Chatlist { ids })
     }
 
+    /// Converts list of chat IDs to a chatlist.
+    pub(crate) async fn from_chat_ids(context: &Context, chat_ids: &[ChatId]) -> Result<Self> {
+        let mut ids = Vec::new();
+        for &chat_id in chat_ids {
+            let msg_id: Option<MsgId> = context
+                .sql
+                .query_get_value(
+                    "SELECT id
+                   FROM msgs
+                  WHERE chat_id=?1
+                    AND (hidden=0 OR state=?2)
+                  ORDER BY timestamp DESC, id DESC LIMIT 1",
+                    (chat_id, MessageState::OutDraft),
+                )
+                .await
+                .with_context(|| format!("failed to get msg ID for chat {}", chat_id))?;
+            ids.push((chat_id, msg_id));
+        }
+        Ok(Chatlist { ids })
+    }
+
     /// Find out the number of chats.
     pub fn len(&self) -> usize {
         self.ids.len()

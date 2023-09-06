@@ -332,6 +332,12 @@ impl Context {
         }
     }
 
+    /// Changes encrypted database passphrase.
+    pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
+        self.sql.change_passphrase(passphrase).await?;
+        Ok(())
+    }
+
     /// Returns true if database is open.
     pub async fn is_open(&self) -> bool {
         self.sql.is_open().await
