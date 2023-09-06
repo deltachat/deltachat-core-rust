@@ -1040,7 +1040,7 @@ impl ChatId {
         let sql = &context.sql;
         let query = format!(
             "SELECT {fields} \
-             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
+             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?) AND NOT hidden \
              ORDER BY timestamp DESC, id DESC \
              LIMIT 1;"
         );
@@ -1051,8 +1051,11 @@ impl ChatId {
                     self,
                     MessageState::OutPreparing,
                     MessageState::OutDraft,
-                    MessageState::OutPending,
-                    MessageState::OutFailed,
+                    // We don't filter `OutPending` and `OutFailed` messages because the new message
+                    // for which `parent_query()` is done may assume that it will be received in a
+                    // context affected by those messages, e.g. they could add new members to a
+                    // group and the new message will contain them in "To:". Anyway recipients must
+                    // be prepared to orphaned references.
                 ),
                 f,
             )
