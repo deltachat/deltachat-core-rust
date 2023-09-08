@@ -8,14 +8,11 @@ use deltachat::{
     chatlist::Chatlist,
 };
 use num_traits::cast::ToPrimitive;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
 use super::message::MessageViewtype;
-
-#[derive(Deserialize, Serialize, TypeDef, schemars::JsonSchema)]
-pub struct ChatListEntry(pub u32, pub u32);
 
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "type")]
