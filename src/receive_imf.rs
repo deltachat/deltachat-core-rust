@@ -546,19 +546,30 @@ async fn add_parts(
         // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
-        let create_blocked = match test_normal_chat {
-            Some(ChatIdBlocked {
-                id: _,
-                blocked: Blocked::Request,
-            }) if is_bot => Blocked::Not,
-            Some(ChatIdBlocked { id: _, blocked }) => blocked,
-            None => {
-                if is_bot {
-                    Blocked::Not
-                } else {
-                    Blocked::Request
+        let create_blocked_default = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let create_blocked = if let Some(ChatIdBlocked { id: _, blocked }) = test_normal_chat {
+            match blocked {
+                Blocked::Request => create_blocked_default,
+                Blocked::Not => Blocked::Not,
+                Blocked::Yes => {
+                    if Contact::is_blocked_load(context, from_id).await? {
+                        // User has blocked the contact.
+                        // Block the group contact created as well.
+                        Blocked::Yes
+                    } else {
+                        // 1:1 chat is blocked, but the contact is not.
+                        // This happens when 1:1 chat is hidden
+                        // during scanning of a group invitation code.
+                        Blocked::Request
+                    }
                 }
             }
+        } else {
+            create_blocked_default
         };
 
         if chat_id.is_none() {
