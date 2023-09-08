@@ -602,11 +602,7 @@ async fn add_parts(
                 context,
                 mime_parser,
                 is_partial_download.is_some(),
-                if test_normal_chat.is_none() {
-                    allow_creation
-                } else {
-                    true
-                },
+                test_normal_chat.is_some() || allow_creation,
                 create_blocked,
                 from_id,
                 to_ids,
@@ -618,6 +614,7 @@ async fn add_parts(
             }
         }
 
+        loop {
         // if the chat is somehow blocked but we want to create a non-blocked chat,
         // unblock the chat
         if chat_id_blocked != Blocked::Not && create_blocked != Blocked::Yes {
@@ -706,7 +703,7 @@ async fn add_parts(
                 }
             };
 
-            if let Some(chat) = test_normal_chat {
+            if let Some(chat) = test_normal_chat.as_ref() {
                 chat_id = Some(chat.id);
                 chat_id_blocked = chat.blocked;
             } else if allow_creation {
@@ -720,7 +717,8 @@ async fn add_parts(
                 }
             }
 
-            if let Some(chat_id) = chat_id {
+            let chat_id_ref = &mut chat_id;
+            if let Some(chat_id) = *chat_id_ref {
                 if chat_id_blocked != Blocked::Not {
                     if chat_id_blocked != create_blocked {
                         chat_id.set_blocked(context, create_blocked).await?;
@@ -776,7 +774,33 @@ async fn add_parts(
                                         .as_ref()
                                         .and_then(|p| p.verified_key_fingerprint.as_ref())
                             }) {
-                                Some(_) => chat.protected,
+                                Some(_) => {
+                                    if let Some(new_chat_id) = create_adhoc_group(
+                                        context,
+                                        mime_parser,
+                                        create_blocked,
+                                        &[ContactId::SELF, from_id],
+                                    )
+                                    .await
+                                    .context("could not create ad hoc group")?
+                                    {
+                                        info!(
+                                            context,
+                                            "Moving message to a new ad-hoc group keeping 1:1 chat \
+                                            protection.",
+                                        );
+                                        *chat_id_ref = Some(new_chat_id);
+                                        chat_id_blocked = create_blocked;
+                                        continue;
+                                    } else {
+                                        warn!(
+                                            context,
+                                            "Rejected to create an ad-hoc group, but keeping 1:1 chat \
+                                            protection.",
+                                        );
+                                    }
+                                    chat.protected
+                                }
                                 None => ProtectionStatus::ProtectionBroken,
                             };
                     }
@@ -807,6 +831,8 @@ async fn add_parts(
         } else {
             MessageState::InFresh
         };
+        break;
+        }
     } else {
         // Outgoing
 
@@ -1493,7 +1519,16 @@ async fn lookup_chat_by_reply(
 
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
-    if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+    if is_probably_private_reply(
+        context,
+        to_ids,
+        from_id,
+        mime_parser,
+        parent_chat.id,
+        &parent_chat.grpid,
+    )
+    .await?
+    {
         return Ok(None);
     }
 
@@ -1523,13 +1558,14 @@ async fn is_probably_private_reply(
     from_id: ContactId,
     mime_parser: &MimeMessage,
     parent_chat_id: ChatId,
+    parent_chat_grpid: &str,
 ) -> Result<bool> {
     // Usually we don't want to show private replies in the parent chat, but in the
     // 1:1 chat with the sender.
     //
-    // There is one exception: Classical MUA replies to two-member groups
-    // should be assigned to the group chat. We restrict this exception to classical emails, as chat-group-messages
-    // contain a Chat-Group-Id header and can be sorted into the correct chat this way.
+    // An exception is replies to 2-member groups from classical MUAs or to 2-member ad-hoc
+    // groups. Such messages can't contain a Chat-Group-Id header and need to be sorted purely by
+    // References/In-Reply-To.
 
     let private_message =
         (to_ids == [ContactId::SELF]) || (from_id == ContactId::SELF && to_ids.len() == 1);
@@ -1537,7 +1573,7 @@ async fn is_probably_private_reply(
         return Ok(false);
     }
 
-    if !mime_parser.has_chat_version() {
+    if !mime_parser.has_chat_version() || parent_chat_grpid.is_empty() {
         let chat_contacts = chat::get_chat_contacts(context, parent_chat_id).await?;
         if chat_contacts.len() == 2 && chat_contacts.contains(&ContactId::SELF) {
             return Ok(false);
@@ -1572,6 +1608,10 @@ async fn create_or_lookup_group(
             member_ids.push(ContactId::SELF);
         }
 
+        if member_ids.len() < 3 {
+            info!(context, "Not creating ad-hoc group: too few contacts.");
+            return Ok(None);
+        }
         let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
             .await
             .context("could not create ad hoc group")?
@@ -1596,7 +1636,8 @@ async fn create_or_lookup_group(
     // they belong to the group because of the Chat-Group-Id or Message-Id header
     if let Some(chat_id) = chat_id {
         if !mime_parser.has_chat_version()
-            && is_probably_private_reply(context, to_ids, from_id, mime_parser, chat_id).await?
+            && is_probably_private_reply(context, to_ids, from_id, mime_parser, chat_id, &grpid)
+                .await?
         {
             return Ok(None);
         }
@@ -2222,11 +2263,6 @@ async fn create_adhoc_group(
             context,
             "Not creating ad-hoc group for message that cannot be decrypted."
         );
-        return Ok(None);
-    }
-
-    if member_ids.len() < 3 {
-        info!(context, "Not creating ad-hoc group: too few contacts.");
         return Ok(None);
     }
 

@@ -1,10 +1,10 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
 
-use crate::chat::{add_contact_to_chat, create_broadcast_list, Chat, ProtectionStatus};
+use crate::chat::{Chat, ProtectionStatus};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::DC_GCL_FOR_FORWARDING;
+use crate::constants::{Chattype, DC_GCL_FOR_FORWARDING};
 use crate::contact::VerifiedStatus;
 use crate::contact::{Contact, Origin};
 use crate::message::{Message, Viewtype};
@@ -13,7 +13,7 @@ use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
 use crate::test_utils::{
-    check_msg_with_err, get_chat_msg, mark_as_verified, TestContext, TestContextManager,
+    get_chat_msg, mark_as_verified, TestContext, TestContextManager,
 };
 use crate::{e2ee, message};
 
@@ -745,6 +745,7 @@ async fn test_create_oneonone_chat_with_former_verified_contact() -> Result<()> 
 }
 
 /// Some messages are sent unencrypted, but they mustn't break a verified chat protection.
+/// They must go to a new 2-member ad-hoc group instead.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_unencrypted() -> Result<()> {
     let mut tcm = TestContextManager::new();
@@ -752,30 +753,34 @@ async fn test_unencrypted() -> Result<()> {
     let bob = tcm.bob().await;
     enable_verified_oneonone_chats(&[&alice]).await;
     mark_as_verified(&alice, &bob).await;
+    alice.create_chat(&bob).await;
 
-    let err_str = "This message is not encrypted. See 'Info' for more details";
-    let msg = tcm.send_recv_with_err(&bob, &alice, err_str, "hi").await;
+    let msg = tcm.send_recv(&bob, &alice, "hi").await;
     assert!(!msg.get_showpadlock());
     let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
-    assert!(alice_chat.is_protected());
-    assert!(!alice_chat.is_protection_broken());
+    assert_eq!(alice_chat.typ, Chattype::Group);
 
-    let broadcast_id = create_broadcast_list(&bob).await?;
-    add_contact_to_chat(
-        &bob,
-        broadcast_id,
-        bob.add_or_lookup_contact(&alice).await.id,
-    )
-    .await?;
-    let sent_msg = bob.send_text(broadcast_id, "hi all").await;
-    let msg = alice.recv_msg(&sent_msg).await;
-    check_msg_with_err(&alice, &msg, err_str, "hi all").await;
+    // The next unencrypted message must get to the same ad-hoc group thanks to "In-Reply-To".
+    let msg = tcm.send_recv(&bob, &alice, "hi again").await;
     assert!(!msg.get_showpadlock());
     assert_eq!(msg.chat_id, alice_chat.id);
     let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_chat.typ, Chattype::Group);
+
+    // This message is missed by Alice.
+    let chat_id = bob.get_chat(&alice).await.id;
+    bob.send_text(chat_id, "hi to the void").await;
+
+    // But the next message must get to the same ad-hoc group thanks to "References".
+    let msg = tcm.send_recv(&bob, &alice, "hi in a new group").await;
+    assert!(!msg.get_showpadlock());
+    assert_eq!(msg.chat_id, alice_chat.id);
+    let alice_chat = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_chat.typ, Chattype::Group);
+
+    let alice_chat = alice.get_chat(&bob).await;
     assert!(alice_chat.is_protected());
     assert!(!alice_chat.is_protection_broken());
-
     alice
         .golden_test_chat(alice_chat.id, "verified_chats_test_unencrypted")
         .await;
