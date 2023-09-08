@@ -39,7 +39,6 @@ pub mod types;
 use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
-use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
 use types::events::Event;
 use types::http::HttpResponse;
@@ -568,22 +567,18 @@ impl CommandApi {
     }
 
     /// Returns chats similar to the given one.
-    async fn get_similar_chatlist_entries(
-        &self,
-        account_id: u32,
-        chat_id: u32,
-    ) -> Result<Vec<ChatListEntry>> {
+    ///
+    /// Experimental API, subject to change without notice.
+    async fn get_similar_chat_ids(&self, account_id: u32, chat_id: u32) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
         let chat_id = ChatId::new(chat_id);
-        let list = chat_id.get_similar_chatlist(&ctx).await?;
-        let mut l: Vec<ChatListEntry> = Vec::with_capacity(list.len());
-        for i in 0..list.len() {
-            l.push(ChatListEntry(
-                list.get_chat_id(i)?.to_u32(),
-                list.get_msg_id(i)?.unwrap_or_default().to_u32(),
-            ));
-        }
-        Ok(l)
+        let list = chat_id
+            .get_similar_chat_ids(&ctx)
+            .await?
+            .into_iter()
+            .map(|(chat_id, _metric)| chat_id.to_u32())
+            .collect();
+        Ok(list)
     }
 
     async fn get_chatlist_items_by_entries(
