@@ -1227,6 +1227,8 @@ RETURNING id
                     ephemeral_timestamp,
                     if is_partial_download.is_some() {
                         DownloadState::Available
+                    } else if mime_parser.decrypting_failed {
+                        DownloadState::Undecipherable
                     } else {
                         DownloadState::Done
                     },
@@ -1409,11 +1411,9 @@ async fn lookup_chat_by_reply(
     if let Some(parent) = parent {
         let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if parent.error.is_some() {
-            // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
-            // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
-            // We don't have any way of finding out whether a msg is undecipherable, so we check for
-            // error.is_some() instead.
+        if parent.download_state != DownloadState::Done {
+            // If the parent msg is not fully downloaded or undecipherable, it may have been
+            // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
             return Ok(None);
         }
 
