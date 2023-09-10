@@ -187,6 +187,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         DownloadState::Available => " [⬇ Download available]",
         DownloadState::InProgress => " [⬇ Download in progress...]️",
         DownloadState::Failure => " [⬇ Download failed]",
+        DownloadState::Undecipherable => " [⬇ Decryption failed]",
     };
 
     let temp2 = timestamp_to_str(msg.get_timestamp());

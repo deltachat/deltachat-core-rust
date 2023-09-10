@@ -23,6 +23,7 @@ use crate::constants::{
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
+use crate::download::DownloadState;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
@@ -1038,11 +1039,14 @@ impl ChatId {
         T: Send + 'static,
     {
         let sql = &context.sql;
+        // Do not reply to not fully downloaded messages. Such a message could be a group chat
+        // message that we assigned to 1:1 chat.
         let query = format!(
             "SELECT {fields} \
-             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?) AND NOT hidden \
+             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?) AND NOT hidden AND download_state={} \
              ORDER BY timestamp DESC, id DESC \
-             LIMIT 1;"
+             LIMIT 1;",
+             DownloadState::Done as u32,
         );
         let row = sql
             .query_row_optional(
@@ -1067,34 +1071,17 @@ impl ChatId {
         self,
         context: &Context,
     ) -> Result<Option<(String, String, String)>> {
-        if let Some((rfc724_mid, mime_in_reply_to, mime_references, error)) = self
-            .parent_query(
-                context,
-                "rfc724_mid, mime_in_reply_to, mime_references, error",
-                |row: &rusqlite::Row| {
-                    let rfc724_mid: String = row.get(0)?;
-                    let mime_in_reply_to: String = row.get(1)?;
-                    let mime_references: String = row.get(2)?;
-                    let error: String = row.get(3)?;
-                    Ok((rfc724_mid, mime_in_reply_to, mime_references, error))
-                },
-            )
-            .await?
-        {
-            if !error.is_empty() {
-                // Do not reply to error messages.
-                //
-                // An error message could be a group chat message that we failed to decrypt and
-                // assigned to 1:1 chat. A reply to it will show up as a reply to group message
-                // on the other side. To avoid such situations, it is better not to reply to
-                // error messages at all.
-                Ok(None)
-            } else {
-                Ok(Some((rfc724_mid, mime_in_reply_to, mime_references)))
-            }
-        } else {
-            Ok(None)
-        }
+        self.parent_query(
+            context,
+            "rfc724_mid, mime_in_reply_to, mime_references",
+            |row: &rusqlite::Row| {
+                let rfc724_mid: String = row.get(0)?;
+                let mime_in_reply_to: String = row.get(1)?;
+                let mime_references: String = row.get(2)?;
+                Ok((rfc724_mid, mime_in_reply_to, mime_references))
+            },
+        )
+        .await
     }
 
     /// Returns multi-line text summary of encryption preferences of all chat contacts.
