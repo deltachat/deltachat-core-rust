@@ -1411,7 +1411,16 @@ async fn lookup_chat_by_reply(
     if let Some(parent) = parent {
         let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if parent.download_state != DownloadState::Done {
+        if parent.download_state != DownloadState::Done
+            // TODO (2023-09-12): Added for backward compatibility with versions that did not have
+            // `DownloadState::Undecipherable`. Remove eventually with the comment in
+            // `MimeMessage::from_bytes()`.
+            || parent
+                .error
+                .as_ref()
+                .filter(|e| e.starts_with("Decrypting failed:"))
+                .is_some()
+        {
             // If the parent msg is not fully downloaded or undecipherable, it may have been
             // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
             return Ok(None);
