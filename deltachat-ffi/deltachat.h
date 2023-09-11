@@ -443,7 +443,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    DC_KEY_GEN_RSA2048 (1)=
  *                    generate RSA 2048 keypair
  *                    DC_KEY_GEN_ED25519 (2)=
- *                    generate Ed25519 keypair
+ *                    generate Curve25519 keypair
+ *                    DC_KEY_GEN_RSA4096 (3)=
+ *                    generate RSA 4096 keypair
  * - `save_mime_headers` = 1=save mime headers
  *                    and make dc_get_mime_headers() work for subsequent calls,
  *                    0=do not save mime headers (default)
@@ -6293,6 +6295,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_KEY_GEN_DEFAULT 0
 #define DC_KEY_GEN_RSA2048 1
 #define DC_KEY_GEN_ED25519 2
+#define DC_KEY_GEN_RSA4096 3
 
 
 /**

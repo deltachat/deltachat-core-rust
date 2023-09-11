@@ -142,6 +142,7 @@ pub struct KeyPair {
 pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
     let (secret_key_type, public_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
     };
 
