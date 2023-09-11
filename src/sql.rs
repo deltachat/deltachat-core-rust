@@ -310,12 +310,17 @@ impl Sql {
     /// It is impossible to turn encrypted database into unencrypted
     /// and vice versa this way, use import/export for this.
     pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
-        self.call_write(move |conn| {
-            conn.pragma_update(None, "rekey", passphrase)
-                .context("failed to set PRAGMA rekey")?;
-            Ok(())
-        })
-        .await
+        let mut lock = self.pool.write().await;
+
+        let pool = lock.take().context("SQL connection pool is not open")?;
+        let conn = pool.get().await?;
+        conn.pragma_update(None, "rekey", passphrase.clone())
+            .context("failed to set PRAGMA rekey")?;
+        drop(pool);
+
+        *lock = Some(Self::new_pool(&self.dbfile, passphrase.to_string())?);
+
+        Ok(())
     }
 
     /// Locks the write transactions mutex in order to make sure that there never are
@@ -1265,7 +1270,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_change_passphrase() -> Result<()> {
+    async fn test_sql_change_passphrase() -> Result<()> {
         use tempfile::tempdir;
 
         // The context is used only for logging.
@@ -1289,6 +1294,23 @@ mod tests {
         sql.change_passphrase("bar".to_string())
             .await
             .context("failed to change passphrase")?;
+
+        // Test that at least two connections are still working.
+        // This ensures that not only the connection which changed the password is working,
+        // but other connections as well.
+        {
+            let lock = sql.pool.read().await;
+            let pool = lock.as_ref().unwrap();
+            let conn1 = pool.get().await?;
+            let conn2 = pool.get().await?;
+            conn1
+                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                .unwrap();
+            conn2
+                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                .unwrap();
+        }
+
         sql.close().await;
 
         let sql = Sql::new(dbfile);
