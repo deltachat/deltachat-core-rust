@@ -1665,17 +1665,19 @@ async fn apply_group_changes(
             false
         };
 
-    // Whether to allow any changes to the member list at all. Just reject old group changes.
-    let allow_member_list_changes = chat_id
-        .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-        .await?;
+    let is_from_in_chat = !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
+        || chat::is_contact_in_chat(context, chat_id, from_id).await?;
 
-    let is_from_in_chat = chat::is_contact_in_chat(context, chat_id, from_id).await?;
+    // Reject group membership changes from non-members and old changes.
+    let allow_member_list_changes = is_from_in_chat
+        && chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?;
 
     // Whether to rebuild the member list from scratch.
-    let recreate_member_list = allow_member_list_changes && {
+    let recreate_member_list = {
         // Recreate member list if the message comes from a MUA as these messages do _not_ set add/remove headers.
-        (is_from_in_chat && !mime_parser.has_chat_version())
+        !mime_parser.has_chat_version()
             // Always recreate membership list if SELF has been added. The older versions of DC
             // don't always set "In-Reply-To" to the latest message they sent, but to the latest
             // delivered message (so it's a race), so we have this heuristic here.
@@ -1686,6 +1688,14 @@ async fn apply_group_changes(
                 Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
                 None => false,
             }
+    } && {
+        if !allow_member_list_changes {
+            info!(
+                context,
+                "Ignoring a try to recreate member list of {chat_id} by {from_id}.",
+            );
+        }
+        allow_member_list_changes
     };
 
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
@@ -1792,12 +1802,6 @@ async fn apply_group_changes(
 
     // Recreate the member list.
     if recreate_member_list {
-        if !is_from_in_chat {
-            warn!(
-                context,
-                "Contact {from_id} modifies group chat {chat_id} member list possibly not being a member."
-            );
-        }
         // Only delete old contacts if the sender is not a classical MUA user:
         // Classical MUA users usually don't intend to remove users from an email
         // thread, so if they removed a recipient then it was probably by accident.

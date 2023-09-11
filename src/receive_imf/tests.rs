@@ -3636,7 +3636,7 @@ async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_recreate_member_list_on_missing_add_of_others() -> Result<()> {
+async fn test_keep_member_list_if_possibly_nomember() -> Result<()> {
     let alice = TestContext::new_alice().await;
     let bob = TestContext::new_bob().await;
     let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
@@ -3667,7 +3667,15 @@ async fn test_recreate_member_list_on_missing_add_of_others() -> Result<()> {
     send_text_msg(&fiona, fiona_chat_id, "hi".to_string()).await?;
     bob.recv_msg(&fiona.pop_sent_msg().await).await;
 
-    // Bob missed the message adding fiona, but must recreate the member list.
-    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 3);
+    // Bob missed the message adding fiona, but mustn't recreate the member list.
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    let bob_alice_contact = Contact::create(
+        &bob,
+        "alice",
+        &alice.get_config(Config::Addr).await?.unwrap(),
+    )
+    .await?;
+    assert!(is_contact_in_chat(&bob, bob_chat_id, bob_alice_contact).await?);
     Ok(())
 }
