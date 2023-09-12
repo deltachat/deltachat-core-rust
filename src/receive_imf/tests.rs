@@ -3369,19 +3369,14 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
 
     alice.recv_msg(&bob.pop_sent_msg().await).await;
 
-    // bob didn't receive the addition of fiona, but alice doesn't overwrite her own
-    // contact list with the one from bob which only has three members instead of four.
-    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
-
-    // bob removes a member.
-    remove_contact_from_chat(&bob, bob_chat_id, bob_blue).await?;
-
-    alice.recv_msg(&bob.pop_sent_msg().await).await;
-
-    // Bobs chat only has two members after the removal of blue, because he still
-    // didn't receive the addition of fiona. But that doesn't overwrite alice'
-    // memberlist.
+    // Bob didn't receive the addition of Fiona, so Alice must remove Fiona from the members list
+    // back to make their group members view consistent.
     assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 3);
+
+    // Just a dumb check for remove_contact_from_chat(). Let's have it in this only place.
+    remove_contact_from_chat(&bob, bob_chat_id, bob_blue).await?;
+    alice.recv_msg(&bob.pop_sent_msg().await).await;
+    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
 
     Ok(())
 }
@@ -3513,6 +3508,29 @@ async fn test_mua_cant_remove() -> Result<()> {
     assert_eq!(
         chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
         4
+    );
+
+    // But if the parent message is missing, the message must goto a new ad-hoc group.
+    let bob_removes = receive_imf(
+        &alice,
+        b"Subject: Re: Message from alice\r\n\
+            From: <bob@example.net>\r\n\
+            To: <alice@example.org>, <claire@example.org>\r\n\
+            Date: Mon, 12 Dec 2022 14:32:40 +0000\r\n\
+            Message-ID: <bobs_answer_to_two_recipients_1@example.net>\r\n\
+            In-Reply-To: <Mr.missing@example.org>\r\n\
+            \r\n\
+            Hi back!\r\n",
+        false,
+    )
+    .await?
+    .unwrap();
+    assert_ne!(bob_removes.chat_id, alice_chat.id);
+    let group_chat = Chat::load_from_db(&alice, bob_removes.chat_id).await?;
+    assert_eq!(group_chat.typ, Chattype::Group);
+    assert_eq!(
+        chat::get_chat_contacts(&alice, group_chat.id).await?.len(),
+        3,
     );
     Ok(())
 }
