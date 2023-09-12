@@ -8,6 +8,7 @@ use crate::chat::{
 };
 use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
+use crate::config::Config;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
 use crate::imap::prefetch_should_download;
 use crate::message::Message;
@@ -3609,5 +3610,72 @@ async fn test_mua_can_readd() -> Result<()> {
 
     let alice_chat = Chat::load_from_db(&alice, alice_chat.id).await?;
     assert!(is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "bob", &bob.get_config(Config::Addr).await?.unwrap()).await?,
+    )
+    .await?;
+    send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+    alice.pop_sent_msg().await;
+    remove_contact_from_chat(&alice, alice_chat_id, ContactId::SELF).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+
+    // Bob missed the message adding them, but must recreate the member list.
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
+    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_keep_member_list_if_possibly_nomember() -> Result<()> {
+    let alice = TestContext::new_alice().await;
+    let bob = TestContext::new_bob().await;
+    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "Group").await?;
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "bob", &bob.get_config(Config::Addr).await?.unwrap()).await?,
+    )
+    .await?;
+    send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+    let bob_chat_id = bob.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+
+    let fiona = TestContext::new_fiona().await;
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(
+            &alice,
+            "fiona",
+            &fiona.get_config(Config::Addr).await?.unwrap(),
+        )
+        .await?,
+    )
+    .await?;
+    let fiona_chat_id = fiona.recv_msg(&alice.pop_sent_msg().await).await.chat_id;
+    fiona_chat_id.accept(&fiona).await?;
+
+    send_text_msg(&fiona, fiona_chat_id, "hi".to_string()).await?;
+    bob.recv_msg(&fiona.pop_sent_msg().await).await;
+
+    // Bob missed the message adding fiona, but mustn't recreate the member list.
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    let bob_alice_contact = Contact::create(
+        &bob,
+        "alice",
+        &alice.get_config(Config::Addr).await?.unwrap(),
+    )
+    .await?;
+    assert!(is_contact_in_chat(&bob, bob_chat_id, bob_alice_contact).await?);
     Ok(())
 }

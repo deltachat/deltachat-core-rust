@@ -1699,6 +1699,36 @@ def test_qr_join_chat(acfactory, lp, verified_one_on_one_chats):
     assert not ch.is_protected()
 
 
+def test_qr_new_group_unblocked(acfactory, lp):
+    """Regression test for a bug intoduced in core v1.113.0.
+    ac2 scans a verified group QR code created by ac1.
+    This results in creation of a blocked 1:1 chat with ac1 on ac2,
+    but ac1 contact is not blocked on ac2.
+    Then ac1 creates a group, adds ac2 there and promotes it by sending a message.
+    ac2 should receive a message and create a contact request for the group.
+    Due to a bug previously ac2 created a blocked group.
+    """
+
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1_chat = ac1.create_group_chat("Group for joining", verified=True)
+    qr = ac1_chat.get_join_qr()
+    ac2.qr_join_chat(qr)
+
+    ac1._evtracker.wait_securejoin_inviter_progress(1000)
+
+    ac1_new_chat = ac1.create_group_chat("Another group")
+    ac1_new_chat.add_contact(ac2)
+    ac1_new_chat.send_text("Hello!")
+
+    # Receive "Member added" message.
+    ac2._evtracker.wait_next_incoming_message()
+
+    # Receive "Hello!" message.
+    ac2_msg = ac2._evtracker.wait_next_incoming_message()
+    assert ac2_msg.text == "Hello!"
+    assert ac2_msg.chat.is_contact_request()
+
+
 def test_qr_email_capitalization(acfactory, lp):
     """Regression test for a bug
     that resulted in failure to propagate verification via gossip in a verified group

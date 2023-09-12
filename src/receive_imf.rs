@@ -550,19 +550,30 @@ async fn add_parts(
         // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
-        let create_blocked = match test_normal_chat {
-            Some(ChatIdBlocked {
-                id: _,
-                blocked: Blocked::Request,
-            }) if is_bot => Blocked::Not,
-            Some(ChatIdBlocked { id: _, blocked }) => blocked,
-            None => {
-                if is_bot {
-                    Blocked::Not
-                } else {
-                    Blocked::Request
+        let create_blocked_default = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let create_blocked = if let Some(ChatIdBlocked { id: _, blocked }) = test_normal_chat {
+            match blocked {
+                Blocked::Request => create_blocked_default,
+                Blocked::Not => Blocked::Not,
+                Blocked::Yes => {
+                    if Contact::is_blocked_load(context, from_id).await? {
+                        // User has blocked the contact.
+                        // Block the group contact created as well.
+                        Blocked::Yes
+                    } else {
+                        // 1:1 chat is blocked, but the contact is not.
+                        // This happens when 1:1 chat is hidden
+                        // during scanning of a group invitation code.
+                        Blocked::Request
+                    }
                 }
             }
+        } else {
+            create_blocked_default
         };
 
         if chat_id.is_none() {
@@ -1701,40 +1712,37 @@ async fn apply_group_changes(
             false
         };
 
-    // Whether to allow any changes to the member list at all.
-    let allow_member_list_changes = if chat::is_contact_in_chat(context, chat_id, ContactId::SELF)
-        .await?
-        || self_added
-        || !mime_parser.has_chat_version()
-    {
-        // Reject old group changes.
-        chat_id
+    let is_from_in_chat = !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
+        || chat::is_contact_in_chat(context, chat_id, from_id).await?;
+
+    // Reject group membership changes from non-members and old changes.
+    let allow_member_list_changes = is_from_in_chat
+        && chat_id
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-    } else {
-        // Member list changes are not allowed if we're not in the group
-        // and are not explicitly added.
-        // This message comes from a Delta Chat that restored an old backup
-        // or the message is a MUA reply to an old message.
-        false
-    };
+            .await?;
 
     // Whether to rebuild the member list from scratch.
-    let recreate_member_list = if allow_member_list_changes {
+    let recreate_member_list = {
         // Recreate member list if the message comes from a MUA as these messages do _not_ set add/remove headers.
-        // Always recreate membership list if self has been added.
-        if !mime_parser.has_chat_version() || self_added {
-            true
-        } else {
-            match mime_parser.get_header(HeaderDef::InReplyTo) {
+        !mime_parser.has_chat_version()
+            // Always recreate membership list if SELF has been added. The older versions of DC
+            // don't always set "In-Reply-To" to the latest message they sent, but to the latest
+            // delivered message (so it's a race), so we have this heuristic here.
+            || self_added
+            || match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message, we missed some messages.
                 // Maybe they added/removed members, so we need to recreate our member list.
                 Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
                 None => false,
             }
+    } && {
+        if !allow_member_list_changes {
+            info!(
+                context,
+                "Ignoring a try to recreate member list of {chat_id} by {from_id}.",
+            );
         }
-    } else {
-        false
+        allow_member_list_changes
     };
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
@@ -1843,43 +1851,35 @@ async fn apply_group_changes(
 
     // Recreate the member list.
     if recreate_member_list {
-        if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
-            warn!(
-                context,
-                "Contact {from_id} attempts to modify group chat {chat_id} member list without being a member."
-            );
-        } else {
-            // Only delete old contacts if the sender is not a classical MUA user:
-            // Classical MUA users usually don't intend to remove users from an email
-            // thread, so if they removed a recipient then it was probably by accident.
-            if mime_parser.has_chat_version() {
-                context
-                    .sql
-                    .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (chat_id,))
-                    .await?;
-            }
-
-            let mut members_to_add = HashSet::new();
-            members_to_add.extend(to_ids);
-            members_to_add.insert(ContactId::SELF);
-
-            if !from_id.is_special() {
-                members_to_add.insert(from_id);
-            }
-
-            if let Some(removed_id) = removed_id {
-                members_to_add.remove(&removed_id);
-            }
-
-            info!(
-                context,
-                "Recreating chat {chat_id} with members {members_to_add:?}."
-            );
-
-            chat::add_to_chat_contacts_table(context, chat_id, &Vec::from_iter(members_to_add))
+        // Only delete old contacts if the sender is not a classical MUA user:
+        // Classical MUA users usually don't intend to remove users from an email
+        // thread, so if they removed a recipient then it was probably by accident.
+        if mime_parser.has_chat_version() {
+            context
+                .sql
+                .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (chat_id,))
                 .await?;
-            send_event_chat_modified = true;
         }
+
+        let mut members_to_add = HashSet::new();
+        members_to_add.extend(to_ids);
+        members_to_add.insert(ContactId::SELF);
+
+        if !from_id.is_special() {
+            members_to_add.insert(from_id);
+        }
+
+        if let Some(removed_id) = removed_id {
+            members_to_add.remove(&removed_id);
+        }
+
+        info!(
+            context,
+            "Recreating chat {chat_id} with members {members_to_add:?}."
+        );
+
+        chat::add_to_chat_contacts_table(context, chat_id, &Vec::from_iter(members_to_add)).await?;
+        send_event_chat_modified = true;
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {

@@ -34,6 +34,7 @@ dynamic = [
 "Home" = "https://github.com/deltachat/deltachat-core-rust/"
 "Bug Tracker" = "https://github.com/deltachat/deltachat-core-rust/issues"
 "Documentation" = "https://py.delta.chat/"
+"Mastodon" = "https://chaos.social/@delta"
 
 [project.entry-points.pytest11]
 "deltachat.testplugin" = "deltachat.testplugin"

@@ -29,6 +29,12 @@ pub(crate) const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 #[allow(missing_docs)]
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
 
+/// Preferred symmetric encryption algorithm.
+const SYMMETRIC_KEY_ALGORITHM: SymmetricKeyAlgorithm = SymmetricKeyAlgorithm::AES128;
+
+/// Preferred cryptographic hash.
+const HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::SHA2_256;
+
 /// A wrapper for rPGP public key types
 #[derive(Debug)]
 enum SignedPublicKeyOrSubkey<'a> {
@@ -135,6 +141,7 @@ pub struct KeyPair {
 pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
     let (secret_key_type, public_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
     };
 
@@ -247,11 +254,13 @@ pub async fn pk_encrypt(
             // TODO: measure time
             let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
                 lit_msg
-                    .sign(skey, || "".into(), Default::default())
+                    .sign(skey, || "".into(), HASH_ALGORITHM)
                     .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-                    .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
+                    .and_then(|msg| {
+                        msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
+                    })
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
+                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
             };
 
             let msg = encrypted_msg?;
@@ -270,7 +279,7 @@ pub fn pk_calc_signature(
     let msg = Message::new_literal_bytes("", plain).sign(
         private_key_for_signing,
         || "".into(),
-        Default::default(),
+        HASH_ALGORITHM,
     )?;
     let signature = msg.into_signature().to_armored_string(None)?;
     Ok(signature)
@@ -359,7 +368,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
-            lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
+            lit_msg.encrypt_with_password(&mut rng, s2k, SYMMETRIC_KEY_ALGORITHM, || passphrase)?;
 
         let encoded_msg = msg.to_armored_string(None)?;
 

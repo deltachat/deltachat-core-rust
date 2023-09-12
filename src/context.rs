@@ -1466,6 +1466,35 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_context_change_passphrase() -> Result<()> {
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("db.sqlite");
+
+        let id = 1;
+        let context = Context::new_closed(&dbfile, id, Events::new(), StockStrings::new())
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.open("foo".to_string()).await?, true);
+        assert_eq!(context.is_open().await, true);
+
+        context
+            .set_config(Config::Addr, Some("alice@example.org"))
+            .await?;
+
+        context
+            .change_passphrase("bar".to_string())
+            .await
+            .context("Failed to change passphrase")?;
+
+        assert_eq!(
+            context.get_config(Config::Addr).await?.unwrap(),
+            "alice@example.org"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_ongoing() -> Result<()> {
         let context = TestContext::new().await;
 
