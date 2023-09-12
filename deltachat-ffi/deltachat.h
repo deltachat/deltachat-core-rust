@@ -2284,6 +2284,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  *
  * - **DC_IMEX_IMPORT_SELF_KEYS** (2) - Import private keys found in the directory given as `param1`.
  *   The last imported key is made the default keys unless its name contains the string `legacy`. Public keys are not imported.
+ *   If `param1` is a filename, import the private key from the file and make it the default.
  *
  * While dc_imex() returns immediately, the started job may take a while,
  * you can stop it using dc_stop_ongoing_process(). During execution of the job,
