@@ -6,3 +6,4 @@ FROM $BASEIMAGE
 RUN pipx install tox
 COPY install-rust.sh /scripts/
 RUN /scripts/install-rust.sh
+RUN yum install -y perl-IPC-Cmd
