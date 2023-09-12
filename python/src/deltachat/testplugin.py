@@ -478,10 +478,9 @@ class ACFactory:
         except IndexError:
             pass
         else:
-            fname_pub = self.data.read_path(f"key/{keyname}-public.asc")
             fname_sec = self.data.read_path(f"key/{keyname}-secret.asc")
-            if fname_pub and fname_sec:
-                account._preconfigure_keypair(addr, fname_pub, fname_sec)
+            if fname_sec:
+                account._preconfigure_keypair(addr, fname_sec)
                 return True
             print(f"WARN: could not use preconfigured keys for {addr!r}")
 

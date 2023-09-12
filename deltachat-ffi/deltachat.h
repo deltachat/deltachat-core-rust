@@ -822,7 +822,7 @@ void            dc_maybe_network             (dc_context_t* context);
  * @param context The context as created by dc_context_new().
  * @param addr The e-mail address of the user. This must match the
  *    configured_addr setting of the context as well as the UID of the key.
- * @param public_data ASCII armored public key.
+ * @param public_data Ignored, actual public key is extracted from secret_data.
  * @param secret_data ASCII armored secret key.
  * @return 1 on success, 0 on failure.
  */

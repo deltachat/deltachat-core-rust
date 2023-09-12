@@ -29,7 +29,7 @@ use deltachat::contact::{Contact, ContactId, Origin};
 use deltachat::context::Context;
 use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::imex::BackupProvider;
-use deltachat::key::DcKey;
+use deltachat::key::{DcKey, DcSecretKey};
 use deltachat::message::MsgId;
 use deltachat::net::read_url_blob;
 use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
@@ -805,7 +805,7 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_preconfigure_keypair(
     context: *mut dc_context_t,
     addr: *const libc::c_char,
-    public_data: *const libc::c_char,
+    _public_data: *const libc::c_char,
     secret_data: *const libc::c_char,
 ) -> i32 {
     if context.is_null() {
@@ -815,8 +815,8 @@ pub unsafe extern "C" fn dc_preconfigure_keypair(
     let ctx = &*context;
     block_on(async move {
         let addr = tools::EmailAddress::new(&to_string_lossy(addr))?;
-        let public = key::SignedPublicKey::from_asc(&to_string_lossy(public_data))?.0;
         let secret = key::SignedSecretKey::from_asc(&to_string_lossy(secret_data))?.0;
+        let public = secret.split_public_key()?;
         let keypair = key::KeyPair {
             addr,
             public,
