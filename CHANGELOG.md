@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.122.0] - 2023-09-12
+
+### API-Changes
+
+- jsonrpc: Return only chat IDs for similar chats.
+
+### Fixes
+
+- Reopen all connections on database passpharse change.
+- Do not block new group chats if 1:1 chat is blocked.
+- Improve group membership consistency algorithm ([#3782](https://github.com/deltachat/deltachat-core-rust/pull/3782))([#4624](https://github.com/deltachat/deltachat-core-rust/pull/4624)).
+- Forbid membership changes from possible non-members ([#3782](https://github.com/deltachat/deltachat-core-rust/pull/3782)).
+- `ChatId::parent_query()`: Don't filter out OutPending and OutFailed messages.
+
+### Build system
+
+- Update to OpenSSL 3.0.
+- Bump webpki from 0.22.0 to 0.22.1.
+- python: Add link to Mastodon into projects.urls.
+
+### Features / Changes
+
+- Add RSA-4096 key generation support.
+
+### Refactor
+
+- pgp: Add constants for encryption algorithm and hash.
+
 ## [1.121.0] - 2023-09-06
 
 ### API-Changes
@@ -2787,3 +2815,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.119.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.0...v1.119.1
 [1.120.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.1...v1.120.0
 [1.121.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.120.0...v1.121.0
+[1.122.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.121.0...v1.122.0
