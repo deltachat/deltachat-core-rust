@@ -82,7 +82,7 @@ sha2 = "0.10"
 smallvec = "1"
 strum = "0.25"
 strum_macros = "0.25"
-tagger = "4.3.4"
+tagger = "4.3.5"
 textwrap = "0.16.0"
 thiserror = "1"
 tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
