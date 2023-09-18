@@ -1135,7 +1135,7 @@ dependencies = [
  "log",
  "mailparse",
  "mime",
- "num-derive 0.4.0",
+ "num-derive",
  "num-traits",
  "num_cpus",
  "once_cell",
@@ -2968,17 +2968,6 @@ dependencies = [
 
 [[package]]
 name = "num-derive"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "num-derive"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e6a0fd4f737c707bd9086cc16c925f294943eb62eb71499e9fd4cf71f8b9f4e"
@@ -3278,9 +3267,9 @@ checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
 name = "pgp"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37a79d6411154d1a9908e7a2c4bac60a5742f6125823c2c30780c7039aef02f0"
+checksum = "27e1f8e085bfa9b85763fe3ddaacbe90a09cd847b3833129153a6cb063bbe132"
 dependencies = [
  "aes",
  "base64 0.21.2",
@@ -3296,6 +3285,7 @@ dependencies = [
  "chrono",
  "cipher",
  "crc24",
+ "curve25519-dalek 4.0.0-rc.3",
  "derive_builder",
  "des",
  "digest 0.10.7",
@@ -3309,13 +3299,13 @@ dependencies = [
  "md-5",
  "nom",
  "num-bigint-dig",
- "num-derive 0.3.3",
+ "num-derive",
  "num-traits",
  "p256 0.13.2",
  "p384 0.13.0",
  "rand 0.8.5",
  "ripemd",
- "rsa 0.9.0-pre.2",
+ "rsa 0.9.2",
  "sha1",
  "sha2 0.10.7",
  "sha3",
@@ -3977,9 +3967,9 @@ dependencies = [
 
 [[package]]
 name = "rsa"
-version = "0.9.0-pre.2"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65db0998ad35adcaca498b7358992e088ee16cc783fe6fb899da203e113a63e5"
+checksum = "6ab43bb47d23c1a631b4b680199a45255dce26fa9ab2fa902581f624ff13e6a8"
 dependencies = [
  "byteorder",
  "const-oid",
@@ -3992,6 +3982,7 @@ dependencies = [
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
  "signature 2.1.0",
+ "spki 0.7.2",
  "subtle",
  "zeroize",
 ]
@@ -5723,12 +5714,13 @@ dependencies = [
 
 [[package]]
 name = "x25519-dalek"
-version = "2.0.0-pre.1"
+version = "2.0.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5da623d8af10a62342bcbbb230e33e58a63255a58012f8653c578e54bab48df"
+checksum = "ec7fae07da688e17059d5886712c933bb0520f15eff2e09cfa18e30968f4e63a"
 dependencies = [
- "curve25519-dalek 3.2.0",
+ "curve25519-dalek 4.0.0-rc.3",
  "rand_core 0.6.4",
+ "serde",
  "zeroize",
 ]
 
