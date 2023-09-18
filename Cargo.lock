@@ -5776,9 +5776,9 @@ dependencies = [
 
 [[package]]
 name = "yerpc"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30fc983d32883ecb563227a2dcdcbe8567decd9c533b5ecca7e3099e2f7d4c96"
+checksum = "75b5547af776328f66a5476ea3b7c0789e6fed164eb32d1a2122cfb39ffa505d"
 dependencies = [
  "anyhow",
  "async-channel",
