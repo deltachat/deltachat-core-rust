@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::AsyncReadExt;
 
+use crate::blob::BlobObject;
 use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::ContactId;
@@ -843,6 +844,35 @@ impl Message {
             internet_access,
         })
     }
+}
+
+/// Replaces WebXDC blob of existing message.
+///
+/// This API is supposed to be called from within a WebXDC to replace itself
+/// e.g. with an updated or persistently reconfigured version.
+pub async fn replace_webxdc(context: &Context, msg_id: MsgId, data: &[u8]) -> Result<()> {
+    let mut msg = Message::load_from_db(context, msg_id).await?;
+
+    ensure!(
+        msg.get_viewtype() == Viewtype::Webxdc,
+        "Message {msg_id} is not a WebXDC instance"
+    );
+
+    let blob = BlobObject::create(
+        context,
+        &msg.get_filename()
+            .context("Cannot get filename of exising WebXDC instance")?,
+        data,
+    )
+    .await
+    .context("Failed to create WebXDC replacement blob")?;
+
+    let mut param = msg.param.clone();
+    param.set(Param::File, blob.as_name());
+    msg.param = param;
+    msg.update_param(context).await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -2619,6 +2649,64 @@ sth_for_the = "future""#
             bob.get_webxdc_status_updates(bob_instance.id, StatusUpdateSerial(0))
                 .await?,
             r#"[{"payload":"p","info":"i","serial":1,"max_serial":1}]"#
+        );
+
+        Ok(())
+    }
+
+    /// Tests replacing WebXDC with a newer version.
+    ///
+    /// Updates should be preserved after upgrading.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_replace_webxdc() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends WebXDC instance.
+        let alice_chat = alice.create_chat(&bob).await;
+        let mut alice_instance = create_webxdc_instance(
+            &alice,
+            "minimal.xdc",
+            include_bytes!("../test-data/webxdc/minimal.xdc"),
+        )
+        .await?;
+        alice_instance.set_text("user added text".to_string());
+        send_msg(&alice, alice_chat.id, &mut alice_instance).await?;
+        let alice_instance = alice.get_last_msg().await;
+        assert_eq!(alice_instance.get_text(), "user added text");
+
+        // Bob receives that instance.
+        let alice_sent_instance = alice.pop_sent_msg().await;
+        let bob_received_instance = bob.recv_msg(&alice_sent_instance).await;
+        assert_eq!(bob_received_instance.get_text(), "user added text");
+
+        // Alice sends WebXDC update.
+        alice
+            .send_webxdc_status_update(alice_instance.id, r#"{"payload": 1}"#, "Alice update")
+            .await?;
+        alice.flush_status_updates().await?;
+        let alice_sent_update = alice.pop_sent_msg().await;
+        bob.recv_msg(&alice_sent_update).await;
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_received_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":1,"serial":1,"max_serial":1}]"#
+        );
+
+        // Bob replaces WebXDC.
+        replace_webxdc(
+            &bob,
+            bob_received_instance.id,
+            include_bytes!("../test-data/webxdc/with-minimal-manifest.xdc"),
+        )
+        .await
+        .context("Failed to replace WebXDC")?;
+
+        // Updates are not modified.
+        assert_eq!(
+            bob.get_webxdc_status_updates(bob_received_instance.id, StatusUpdateSerial(0))
+                .await?,
+            r#"[{"payload":1,"serial":1,"max_serial":1}]"#
         );
 
         Ok(())

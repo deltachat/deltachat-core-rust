@@ -36,7 +36,7 @@ use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
 use deltachat::stock_str::StockStrings;
-use deltachat::webxdc::StatusUpdateSerial;
+use deltachat::webxdc::{replace_webxdc, StatusUpdateSerial};
 use deltachat::*;
 use deltachat::{accounts::Accounts, log::LogExt};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -1098,6 +1098,32 @@ pub unsafe extern "C" fn dc_get_webxdc_status_updates(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_replace_webxdc(
+    context: *mut dc_context_t,
+    msg_id: u32,
+    blob: *const u8,
+    n: libc::size_t,
+) {
+    if context.is_null() {
+        eprintln!("ignoring careless call to dc_replace_webxdc()");
+        return;
+    }
+
+    let msg_id = MsgId::new(msg_id);
+    let blob_slice = std::slice::from_raw_parts(blob, n);
+
+    let ctx = &*context;
+
+    block_on(async move {
+        replace_webxdc(ctx, msg_id, blob_slice)
+            .await
+            .context("Failed to replace WebXDC")
+            .log_err(ctx)
+            .ok();
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_set_draft(
     context: *mut dc_context_t,
     chat_id: u32,
@@ -1539,14 +1565,10 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     }
     let ctx = &*context;
 
-    block_on(async move {
-        ChatId::new(chat_id)
-            .delete(ctx)
-            .await
-            .context("Failed chat delete")
-            .log_err(ctx)
-            .ok();
-    })
+    block_on(ChatId::new(chat_id).delete(ctx))
+        .context("Failed chat delete")
+        .log_err(ctx)
+        .ok();
 }
 
 #[no_mangle]

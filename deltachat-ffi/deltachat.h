@@ -1175,6 +1175,24 @@ int dc_send_webxdc_status_update (dc_context_t* context, uint32_t msg_id, const 
  */
 char* dc_get_webxdc_status_updates (dc_context_t* context, uint32_t msg_id, uint32_t serial);
 
+
+/**
+ * Replaces webxdc app with a new version.
+ *
+ * On the JavaScript side this API could be used like this:
+ * ```
+ * window.webxdc.replaceWebxdc(blob);
+ * ```
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param msg_id The ID of the WebXDC message to be replaced.
+ * @param blob New blob to replace WebXDC with.
+ * @param n Blob size.
+ */
+void dc_replace_webxdc(dc_context_t* context, uint32_t msg_id, uint8_t *blob, size_t n);
+
+
 /**
  * Save a draft for a chat in the database.
  *
