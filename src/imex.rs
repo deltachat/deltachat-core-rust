@@ -673,7 +673,8 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         .await?;
 
     for (id, public_key, private_key, is_default) in keys {
-        let id = Some(id).filter(|_| is_default != 0);
+        let id = Some(id).filter(|_| is_default == 0);
+
         if let Ok(key) = public_key {
             if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
                 error!(context, "Failed to export public key: {:#}.", err);
