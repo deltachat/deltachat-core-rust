@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.123.0] - 2023-09-22
+
+### API-Changes
+
+- Make it possible to import secret key from a file with `DC_IMEX_IMPORT_SELF_KEYS`.
+- [**breaking**] Make `dc_jsonrpc_blocking_call` accept JSON-RPC request.
+
+### Fixes
+
+- `lookup_chat_by_reply()`: Skip not fully downloaded and undecipherable messages ([#4676](https://github.com/deltachat/deltachat-core-rust/pull/4676)).
+- `lookup_chat_by_reply()`: Skip undecipherable parent messages created by older versions ([#4676](https://github.com/deltachat/deltachat-core-rust/pull/4676)).
+- imex: Use "default" in the filename of the default key.
+
+### Miscellaneous Tasks
+
+- Update OpenSSL from 3.1.2 to 3.1.3.
+
 ## [1.122.0] - 2023-09-12
 
 ### API-Changes
@@ -2816,3 +2833,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.120.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.119.1...v1.120.0
 [1.121.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.120.0...v1.121.0
 [1.122.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.121.0...v1.122.0
+[1.123.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.122.0...v1.123.0

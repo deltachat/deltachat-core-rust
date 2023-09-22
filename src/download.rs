@@ -59,6 +59,9 @@ pub enum DownloadState {
     /// Failed to fully download the message.
     Failure = 20,
 
+    /// Undecipherable message.
+    Undecipherable = 30,
+
     /// Full download of the message is in progress.
     InProgress = 1000,
 }
@@ -80,7 +83,9 @@ impl MsgId {
     pub async fn download_full(self, context: &Context) -> Result<()> {
         let msg = Message::load_from_db(context, self).await?;
         match msg.download_state() {
-            DownloadState::Done => return Err(anyhow!("Nothing to download.")),
+            DownloadState::Done | DownloadState::Undecipherable => {
+                return Err(anyhow!("Nothing to download."))
+            }
             DownloadState::InProgress => return Err(anyhow!("Download already in progress.")),
             DownloadState::Available | DownloadState::Failure => {
                 self.update_download_state(context, DownloadState::InProgress)

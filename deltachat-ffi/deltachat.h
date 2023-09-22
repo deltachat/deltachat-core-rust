@@ -2273,6 +2273,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  *
  * - **DC_IMEX_IMPORT_SELF_KEYS** (2) - Import private keys found in the directory given as `param1`.
  *   The last imported key is made the default keys unless its name contains the string `legacy`. Public keys are not imported.
+ *   If `param1` is a filename, import the private key from the file and make it the default.
  *
  * While dc_imex() returns immediately, the started job may take a while,
  * you can stop it using dc_stop_ongoing_process(). During execution of the job,
@@ -5770,12 +5771,11 @@ char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
  *
  * @memberof dc_jsonrpc_instance_t
  * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
- * @param method JSON-RPC method name, e.g. `check_email_validity`.
- * @param params JSON-RPC method parameters, e.g. `["alice@example.org"]`.
+ * @param input JSON-RPC request.
  * @return JSON-RPC response as string, must be freed using dc_str_unref() after usage.
- *     On error, NULL is returned.
+ *     If there is no response, NULL is returned.
  */
-char* dc_jsonrpc_blocking_call(dc_jsonrpc_instance_t* jsonrpc_instance, const char *method, const char *params);
+char* dc_jsonrpc_blocking_call(dc_jsonrpc_instance_t* jsonrpc_instance, const char *input);
 
 /**
  * @class dc_event_emitter_t

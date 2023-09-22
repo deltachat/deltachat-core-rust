@@ -588,63 +588,74 @@ async fn export_backup_inner(
     Ok(())
 }
 
-/*******************************************************************************
- * Classic key import
- ******************************************************************************/
-async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
-    /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
-    plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
-    Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
+/// Imports secret key from a file.
+async fn import_secret_key(context: &Context, path: &Path, set_default: bool) -> Result<()> {
+    let buf = read_file(context, &path).await?;
+    let armored = std::string::String::from_utf8_lossy(&buf);
+    set_self_key(context, &armored, set_default, false).await?;
+    Ok(())
+}
 
-    Maybe we should make the "default" key handlong also a little bit smarter
-    (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut set_default: bool;
+/// Imports secret keys from the provided file or directory.
+///
+/// If provided path is a file, ASCII-armored secret key is read from the file
+/// and set as the default key.
+///
+/// If provided path is a directory, all files with .asc extension
+/// containing secret keys are imported and the last successfully
+/// imported which does not contain "legacy" in its filename
+/// is set as the default.
+async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
+    let attr = tokio::fs::metadata(path).await?;
+
+    if attr.is_file() {
+        info!(
+            context,
+            "Importing secret key from {} as the default key.",
+            path.display()
+        );
+        let set_default = true;
+        import_secret_key(context, path, set_default).await?;
+        return Ok(());
+    }
+
     let mut imported_cnt = 0;
 
-    let dir_name = dir.to_string_lossy();
-    let mut dir_handle = tokio::fs::read_dir(&dir).await?;
+    let mut dir_handle = tokio::fs::read_dir(&path).await?;
     while let Ok(Some(entry)) = dir_handle.next_entry().await {
         let entry_fn = entry.file_name();
         let name_f = entry_fn.to_string_lossy();
-        let path_plus_name = dir.join(&entry_fn);
-        match get_filesuffix_lc(&name_f) {
-            Some(suffix) => {
-                if suffix != "asc" {
-                    continue;
-                }
-                set_default = if name_f.contains("legacy") {
-                    info!(context, "found legacy key '{}'", path_plus_name.display());
-                    false
-                } else {
-                    true
-                }
-            }
-            None => {
+        let path_plus_name = path.join(&entry_fn);
+        if let Some(suffix) = get_filesuffix_lc(&name_f) {
+            if suffix != "asc" {
                 continue;
             }
-        }
+        } else {
+            continue;
+        };
+        let set_default = !name_f.contains("legacy");
         info!(
             context,
-            "considering key file: {}",
+            "Considering key file: {}.",
             path_plus_name.display()
         );
 
-        match read_file(context, &path_plus_name).await {
-            Ok(buf) => {
-                let armored = std::string::String::from_utf8_lossy(&buf);
-                if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    info!(context, "set_self_key: {}", err);
-                    continue;
-                }
-            }
-            Err(_) => continue,
+        if let Err(err) = import_secret_key(context, &path_plus_name, set_default).await {
+            warn!(
+                context,
+                "Failed to import secret key from {}: {:#}.",
+                path_plus_name.display(),
+                err
+            );
+            continue;
         }
+
         imported_cnt += 1;
     }
     ensure!(
         imported_cnt > 0,
-        "No private keys found in \"{}\".",
-        dir_name
+        "No private keys found in {}.",
+        path.display()
     );
     Ok(())
 }
@@ -675,7 +686,8 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         .await?;
 
     for (id, public_key, private_key, is_default) in keys {
-        let id = Some(id).filter(|_| is_default != 0);
+        let id = Some(id).filter(|_| is_default == 0);
+
         if let Ok(key) = public_key {
             if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
                 error!(context, "Failed to export public key: {:#}.", err);
@@ -871,14 +883,35 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_key() {
+        let export_dir = tempfile::tempdir().unwrap();
+
         let context = TestContext::new_alice().await;
-        let blobdir = context.ctx.get_blobdir();
-        if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir, None).await {
+        if let Err(err) = imex(
+            &context.ctx,
+            ImexMode::ExportSelfKeys,
+            export_dir.path(),
+            None,
+        )
+        .await
+        {
             panic!("got error on export: {err:#}");
         }
 
         let context2 = TestContext::new_alice().await;
-        if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir, None).await {
+        if let Err(err) = imex(
+            &context2.ctx,
+            ImexMode::ImportSelfKeys,
+            export_dir.path(),
+            None,
+        )
+        .await
+        {
+            panic!("got error on import: {err:#}");
+        }
+
+        let keyfile = export_dir.path().join("private-key-default.asc");
+        let context3 = TestContext::new_alice().await;
+        if let Err(err) = imex(&context3.ctx, ImexMode::ImportSelfKeys, &keyfile, None).await {
             panic!("got error on import: {err:#}");
         }
     }

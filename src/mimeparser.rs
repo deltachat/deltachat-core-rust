@@ -438,6 +438,8 @@ impl MimeMessage {
                         typ: Viewtype::Text,
                         msg_raw: Some(txt.clone()),
                         msg: txt,
+                        // Don't change the error prefix for now,
+                        // receive_imf.rs:lookup_chat_by_reply() checks it.
                         error: Some(format!("Decrypting failed: {err:#}")),
                         ..Default::default()
                     };
