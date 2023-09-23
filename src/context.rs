@@ -382,7 +382,7 @@ impl Context {
             translated_stockstrings: stockstrings,
             events,
             scheduler: SchedulerState::new(),
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow at least 1 message every 10 seconds + a burst of 6
             quota: RwLock::new(None),
             quota_update_request: AtomicBool::new(false),
             resync_request: AtomicBool::new(false),
