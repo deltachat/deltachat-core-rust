@@ -2,6 +2,7 @@ import calendar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
+from ._generated_types import MuteDurationEnum
 from ._utils import AttrDict
 from .const import ChatVisibility, ViewType
 from .contact import Contact
@@ -54,14 +55,14 @@ class Chat:
         """
         if duration is not None:
             assert duration > 0, "Invalid duration"
-            dur: dict = {"kind": "Until", "duration": duration}
+            dur: dict = MuteDurationEnum.Until(duration=duration)
         else:
-            dur = {"kind": "Forever"}
+            dur = MuteDurationEnum.Forever()
         self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
 
     def unmute(self) -> None:
         """Unmute this chat."""
-        self._rpc.set_chat_mute_duration(self.account.id, self.id, {"kind": "NotMuted"})
+        self._rpc.set_chat_mute_duration(self.account.id, self.id, MuteDurationEnum.NotMuted())
 
     def pin(self) -> None:
         """Pin this chat."""

@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import os
@@ -10,6 +11,13 @@ from typing import Any, Dict, Optional
 
 class JsonRpcError(Exception):
     pass
+
+
+class DataclassEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)
+        return json.JSONEncoder.default(self, obj)
 
 
 class Rpc:
@@ -109,7 +117,7 @@ class Rpc:
                 request = self.request_queue.get()
                 if not request:
                     break
-                data = (json.dumps(request) + "\n").encode()
+                data = (json.dumps(request, cls=DataclassEncoder) + "\n").encode()
                 self.process.stdin.write(data)
                 self.process.stdin.flush()
 
