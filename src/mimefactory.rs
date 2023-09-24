@@ -1363,15 +1363,16 @@ impl<'a> MimeFactory<'a> {
     }
 }
 
-/// Returns base64-encoded buffer `buf` split into 78-bytes long
+/// Returns base64-encoded buffer `buf` split into 76-bytes long
 /// chunks separated by CRLF.
 ///
-/// This line length limit is an
-/// [RFC5322 requirement](https://tools.ietf.org/html/rfc5322#section-2.1.1).
+/// [RFC2045 specification of base64 Content-Transfer-Encoding](https://datatracker.ietf.org/doc/html/rfc2045#section-6.8)
+/// says that "The encoded output stream must be represented in lines of no more than 76 characters each."
+/// Longer lines trigger `BASE64_LENGTH_78_79` rule of SpamAssassin.
 pub(crate) fn wrapped_base64_encode(buf: &[u8]) -> String {
     let base64 = base64::engine::general_purpose::STANDARD.encode(buf);
     let mut chars = base64.chars();
-    std::iter::repeat_with(|| chars.by_ref().take(78).collect::<String>())
+    std::iter::repeat_with(|| chars.by_ref().take(76).collect::<String>())
         .take_while(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("\r\n")
@@ -1611,8 +1612,8 @@ mod tests {
     fn test_wrapped_base64_encode() {
         let input = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
         let output =
-            "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQU\r\n\
-             FBQUFBQUFBQQ==";
+            "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB\r\n\
+             QUFBQUFBQUFBQQ==";
         assert_eq!(wrapped_base64_encode(input), output);
     }
 
