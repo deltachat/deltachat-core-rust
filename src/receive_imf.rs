@@ -77,6 +77,24 @@ pub async fn receive_imf(
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
     let rfc724_mid =
         imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
+    if let Some(download_limit) = context.download_limit().await? {
+        let download_limit: usize = download_limit.try_into()?;
+        if imf_raw.len() > download_limit {
+            let head = std::str::from_utf8(imf_raw)?
+                .split("\r\n\r\n")
+                .next()
+                .context("No empty line in the message")?;
+            return receive_imf_inner(
+                context,
+                &rfc724_mid,
+                head.as_bytes(),
+                seen,
+                Some(imf_raw.len().try_into()?),
+                false,
+            )
+            .await;
+        }
+    }
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -1186,8 +1204,8 @@ INSERT INTO msgs
   )
 ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
-    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
-    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
+    type=excluded.type, msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
     bytes=excluded.bytes, mime_headers=excluded.mime_headers,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,

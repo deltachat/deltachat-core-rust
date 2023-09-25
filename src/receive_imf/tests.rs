@@ -10,8 +10,9 @@ use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
+use crate::download::{DownloadState, MIN_DOWNLOAD_LIMIT};
 use crate::imap::prefetch_should_download;
-use crate::message::Message;
+use crate::message::{self, Message};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3695,5 +3696,32 @@ async fn test_keep_member_list_if_possibly_nomember() -> Result<()> {
     )
     .await?;
     assert!(is_contact_in_chat(&bob, bob_chat_id, bob_alice_contact).await?);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_download_later() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    alice.set_config(Config::DownloadLimit, Some("1")).await?;
+    assert_eq!(alice.download_limit().await?, Some(MIN_DOWNLOAD_LIMIT));
+
+    let bob = tcm.bob().await;
+    let bob_chat = bob.create_chat(&alice).await;
+    let text = String::from_utf8(vec![b'a'; MIN_DOWNLOAD_LIMIT as usize])?;
+    let sent_msg = bob.send_text(bob_chat.id, &text).await;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Available);
+    assert_eq!(msg.state, MessageState::InFresh);
+
+    let hi_msg = tcm.send_recv(&bob, &alice, "hi").await;
+
+    alice.set_config(Config::DownloadLimit, None).await?;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Done);
+    assert_eq!(msg.state, MessageState::InFresh);
+    assert_eq!(alice.get_last_msg_in(msg.chat_id).await.id, hi_msg.id);
+    assert!(msg.timestamp_sort <= hi_msg.timestamp_sort);
+
     Ok(())
 }
