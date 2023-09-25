@@ -4531,7 +4531,14 @@ pub unsafe extern "C" fn dc_provider_new_from_email(
 
     let ctx = &*context;
 
-    match block_on(provider::get_provider_info(ctx, addr.as_str(), true)) {
+    match block_on(provider::get_provider_info_by_addr(
+        ctx,
+        addr.as_str(),
+        true,
+    ))
+    .log_err(ctx)
+    .unwrap_or_default()
+    {
         Some(provider) => provider,
         None => ptr::null_mut(),
     }
@@ -4558,11 +4565,14 @@ pub unsafe extern "C" fn dc_provider_new_from_email_with_dns(
 
     match socks5_enabled {
         Ok(socks5_enabled) => {
-            match block_on(provider::get_provider_info(
+            match block_on(provider::get_provider_info_by_addr(
                 ctx,
                 addr.as_str(),
                 socks5_enabled,
-            )) {
+            ))
+            .log_err(ctx)
+            .unwrap_or_default()
+            {
                 Some(provider) => provider,
                 None => ptr::null_mut(),
             }
