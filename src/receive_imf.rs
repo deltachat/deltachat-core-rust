@@ -1408,56 +1408,53 @@ async fn lookup_chat_by_reply(
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
-    if let Some(parent) = parent {
-        let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
+    let Some(parent) = parent else {
+        return Ok(None);
+    };
 
-        if parent.download_state != DownloadState::Done
-            // TODO (2023-09-12): Added for backward compatibility with versions that did not have
-            // `DownloadState::Undecipherable`. Remove eventually with the comment in
-            // `MimeMessage::from_bytes()`.
-            || parent
-                .error
-                .as_ref()
-                .filter(|e| e.starts_with("Decrypting failed:"))
-                .is_some()
-        {
-            // If the parent msg is not fully downloaded or undecipherable, it may have been
-            // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
-            return Ok(None);
-        }
+    let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if parent_chat.id == DC_CHAT_ID_TRASH {
-            return Ok(None);
-        }
-
-        // If this was a private message just to self, it was probably a private reply.
-        // It should not go into the group then, but into the private chat.
-        if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
-            return Ok(None);
-        }
-
-        // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
-        // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
-        // newly created ad-hoc group.
-        if parent_chat.typ == Chattype::Single
-            && !mime_parser.has_chat_version()
-            && to_ids.len() > 1
-        {
-            let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
-            chat_contacts.push(ContactId::SELF);
-            if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
-                return Ok(None);
-            }
-        }
-
-        info!(
-            context,
-            "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
-        );
-        return Ok(Some((parent_chat.id, parent_chat.blocked)));
+    if parent.download_state != DownloadState::Done
+        // TODO (2023-09-12): Added for backward compatibility with versions that did not have
+        // `DownloadState::Undecipherable`. Remove eventually with the comment in
+        // `MimeMessage::from_bytes()`.
+        || parent
+            .error
+            .as_ref()
+            .filter(|e| e.starts_with("Decrypting failed:"))
+            .is_some()
+    {
+        // If the parent msg is not fully downloaded or undecipherable, it may have been
+        // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
+        return Ok(None);
     }
 
-    Ok(None)
+    if parent_chat.id == DC_CHAT_ID_TRASH {
+        return Ok(None);
+    }
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+    if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+        return Ok(None);
+    }
+
+    // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
+    // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
+    // newly created ad-hoc group.
+    if parent_chat.typ == Chattype::Single && !mime_parser.has_chat_version() && to_ids.len() > 1 {
+        let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+        chat_contacts.push(ContactId::SELF);
+        if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
+            return Ok(None);
+        }
+    }
+
+    info!(
+        context,
+        "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
+    );
+    Ok(Some((parent_chat.id, parent_chat.blocked)))
 }
 
 /// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
