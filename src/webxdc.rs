@@ -1012,7 +1012,7 @@ mod tests {
         let instance = send_webxdc_instance(&t, chat_id).await?;
         t.send_webxdc_status_update(
             instance.id,
-            r#"{"info": "foo", "summary":"bar", "payload": 42}"#,
+            r#"{"info": "foo", "summary":"bar", "document":"doc", "payload": 42}"#,
             "descr",
         )
         .await?;
@@ -1020,7 +1020,7 @@ mod tests {
         assert_eq!(
             t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
                 .await?,
-            r#"[{"payload":42,"info":"foo","summary":"bar","serial":1,"max_serial":1}]"#
+            r#"[{"payload":42,"info":"foo","document":"doc","summary":"bar","serial":1,"max_serial":1}]"#
         );
         assert_eq!(chat_id.get_msg_cnt(&t).await?, 2); // instance and info
         let info = Message::load_from_db(&t, instance.id)
@@ -1028,6 +1028,7 @@ mod tests {
             .get_webxdc_info(&t)
             .await?;
         assert_eq!(info.summary, "bar".to_string());
+        assert_eq!(info.document, "doc".to_string());
 
         // forwarding an instance creates a fresh instance; updates etc. are not forwarded
         forward_msgs(&t, &[instance.get_id()], chat_id).await?;
@@ -1044,6 +1045,7 @@ mod tests {
             .get_webxdc_info(&t)
             .await?;
         assert_eq!(info.summary, "".to_string());
+        assert_eq!(info.document, "".to_string());
 
         Ok(())
     }
