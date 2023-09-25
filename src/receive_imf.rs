@@ -113,20 +113,19 @@ pub(crate) async fn receive_imf_inner(
     {
         Err(err) => {
             warn!(context, "receive_imf: can't parse MIME: {err:#}.");
-            let msg_ids;
-            if !rfc724_mid.starts_with(GENERATED_PREFIX) {
-                let row_id = context
-                    .sql
-                    .execute(
-                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                        (rfc724_mid, DC_CHAT_ID_TRASH),
-                    )
-                    .await?;
-                msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
-            } else {
-                return Ok(None);
+            if rfc724_mid.starts_with(GENERATED_PREFIX) {
                 // We don't have an rfc724_mid, there's no point in adding a trash entry
+                return Ok(None);
             }
+
+            let row_id = context
+                .sql
+                .execute(
+                    "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                    (rfc724_mid, DC_CHAT_ID_TRASH),
+                )
+                .await?;
+            let msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
 
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
