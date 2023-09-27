@@ -328,13 +328,13 @@ pub async fn is_sending_locations_to_chat(
 }
 
 /// Sets current location of the user device.
-pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
+pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> Result<bool> {
     if latitude == 0.0 && longitude == 0.0 {
-        return true;
+        return Ok(true);
     }
     let mut continue_streaming = false;
 
-    if let Ok(chats) = context
+    let chats = context
         .sql
         .query_map(
             "SELECT id FROM chats WHERE locations_send_until>?;",
@@ -346,33 +346,29 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                     .map_err(Into::into)
             },
         )
-        .await
-    {
-        for chat_id in chats {
-            if let Err(err) = context.sql.execute(
-                    "INSERT INTO locations  \
-                     (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
-                     (
-                        latitude,
-                        longitude,
-                        accuracy,
-                        time(),
-                        chat_id,
-                        ContactId::SELF,
-                    )
-            ).await {
-                warn!(context, "failed to store location {:#}", err);
-            } else {
-                info!(context, "stored location for chat {}", chat_id);
-                continue_streaming = true;
-            }
-        }
-        if continue_streaming {
-            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
-        };
-    }
+        .await?;
 
-    continue_streaming
+    for chat_id in chats {
+        context.sql.execute(
+                "INSERT INTO locations  \
+                 (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
+                 (
+                    latitude,
+                    longitude,
+                    accuracy,
+                    time(),
+                    chat_id,
+                    ContactId::SELF,
+                )).await.context("Failed to store location")?;
+
+        info!(context, "Stored location for chat {chat_id}.");
+        continue_streaming = true;
+    }
+    if continue_streaming {
+        context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+    };
+
+    Ok(continue_streaming)
 }
 
 /// Searches for locations in the given time range, optionally filtering by chat and contact IDs.

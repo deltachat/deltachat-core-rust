@@ -2567,7 +2567,12 @@ pub unsafe extern "C" fn dc_set_location(
     }
     let ctx = &*context;
 
-    block_on(location::set(ctx, latitude, longitude, accuracy)) as _
+    block_on(async move {
+        location::set(ctx, latitude, longitude, accuracy)
+            .await
+            .log_err(ctx)
+            .unwrap_or_default()
+    }) as libc::c_int
 }
 
 #[no_mangle]
