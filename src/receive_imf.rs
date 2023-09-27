@@ -1128,7 +1128,8 @@ async fn add_parts(
             (&part.msg, part.typ)
         };
 
-        let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
+        let part_is_empty =
+            typ == Viewtype::Text && msg.is_empty() && part.param.get(Param::Quote).is_none();
         let mime_modified = save_mime_modified && !part_is_empty;
         if mime_modified {
             // Avoid setting mime_modified for more than one part.
@@ -1153,7 +1154,8 @@ async fn add_parts(
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
+        let trash =
+            chat_id.is_trash() || (is_location_kml && msg.is_empty() && typ == Viewtype::Text);
 
         let row_id = context
             .sql
