@@ -5047,6 +5047,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *    A string containing the verifiers address. If it is the same address as the contact itself,
  *    we verified the contact ourself. If it is an empty string, we don't have verifier 
  *    information or the contact is not verified.
+ * @deprecated 2023-09-28, use dc_contact_get_verifier_id instead
  */
 char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
 
@@ -5059,7 +5060,7 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
  * @memberof dc_contact_t
  * @param contact The contact object.
  * @return 
- *    The `ContactId` of the verifiers address. If it is the same address as the contact itself,
+ *    The contact ID of the verifier. If it is DC_CONTACT_ID_SELF,
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
