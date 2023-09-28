@@ -2007,39 +2007,40 @@ async fn apply_mailinglist_changes(
     mime_parser: &MimeMessage,
     chat_id: ChatId,
 ) -> Result<()> {
-    if let Some(list_post) = &mime_parser.list_post {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        if chat.typ != Chattype::Mailinglist {
+    let Some(list_post) = &mime_parser.list_post else {
+        return Ok(());
+    };
+
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ != Chattype::Mailinglist {
+        return Ok(());
+    }
+    let listid = &chat.grpid;
+
+    let list_post = match ContactAddress::new(list_post) {
+        Ok(list_post) => list_post,
+        Err(err) => {
+            warn!(context, "Invalid List-Post: {:#}.", err);
             return Ok(());
         }
-        let listid = &chat.grpid;
+    };
+    let (contact_id, _) = Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+    let mut contact = Contact::get_by_id(context, contact_id).await?;
+    if contact.param.get(Param::ListId) != Some(listid) {
+        contact.param.set(Param::ListId, listid);
+        contact.update_param(context).await?;
+    }
 
-        let list_post = match ContactAddress::new(list_post) {
-            Ok(list_post) => list_post,
-            Err(err) => {
-                warn!(context, "Invalid List-Post: {:#}.", err);
-                return Ok(());
-            }
-        };
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
-        let mut contact = Contact::get_by_id(context, contact_id).await?;
-        if contact.param.get(Param::ListId) != Some(listid) {
-            contact.param.set(Param::ListId, listid);
-            contact.update_param(context).await?;
-        }
-
-        if let Some(old_list_post) = chat.param.get(Param::ListPost) {
-            if list_post.as_ref() != old_list_post {
-                // Apparently the mailing list is using a different List-Post header in each message.
-                // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
-                chat.param.remove(Param::ListPost);
-                chat.update_param(context).await?;
-            }
-        } else {
-            chat.param.set(Param::ListPost, list_post);
+    if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+        if list_post.as_ref() != old_list_post {
+            // Apparently the mailing list is using a different List-Post header in each message.
+            // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
+            chat.param.remove(Param::ListPost);
             chat.update_param(context).await?;
         }
+    } else {
+        chat.param.set(Param::ListPost, list_post);
+        chat.update_param(context).await?;
     }
 
     Ok(())
