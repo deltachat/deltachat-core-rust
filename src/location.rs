@@ -460,7 +460,7 @@ pub async fn delete_all(context: &Context) -> Result<()> {
 }
 
 /// Returns `location.kml` contents.
-pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)> {
+pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<Option<(String, u32)>> {
     let mut last_added_location_id = 0;
 
     let self_addr = context.get_primary_self_addr().await?;
@@ -530,9 +530,11 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
         ret += "</Document>\n</kml>";
     }
 
-    ensure!(location_count > 0, "No locations processed");
-
-    Ok((ret, last_added_location_id))
+    if location_count > 0 {
+        Ok(Some((ret, last_added_location_id)))
+    } else {
+        Ok(None)
+    }
 }
 
 fn get_kml_timestamp(utc: i64) -> String {

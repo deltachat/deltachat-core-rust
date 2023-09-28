@@ -860,9 +860,13 @@ impl<'a> MimeFactory<'a> {
     }
 
     /// Returns MIME part with a `location.kml` attachment.
-    async fn get_location_kml_part(&mut self, context: &Context) -> Result<PartBuilder> {
-        let (kml_content, last_added_location_id) =
-            location::get_kml(context, self.msg.chat_id).await?;
+    async fn get_location_kml_part(&mut self, context: &Context) -> Result<Option<PartBuilder>> {
+        let Some((kml_content, last_added_location_id)) =
+            location::get_kml(context, self.msg.chat_id).await?
+        else {
+            return Ok(None);
+        };
+
         let part = PartBuilder::new()
             .content_type(
                 &"application/vnd.google-earth.kml+xml"
@@ -878,7 +882,7 @@ impl<'a> MimeFactory<'a> {
             // otherwise, the independent location is already filed
             self.last_added_location_id = last_added_location_id;
         }
-        Ok(part)
+        Ok(Some(part))
     }
 
     #[allow(clippy::cognitive_complexity)]
@@ -1230,11 +1234,8 @@ impl<'a> MimeFactory<'a> {
         }
 
         if location::is_sending_locations_to_chat(context, Some(self.msg.chat_id)).await? {
-            match self.get_location_kml_part(context).await {
-                Ok(part) => parts.push(part),
-                Err(err) => {
-                    warn!(context, "mimefactory: could not send location: {}", err);
-                }
+            if let Some(part) = self.get_location_kml_part(context).await? {
+                parts.push(part);
             }
         }
 
