@@ -1,6 +1,7 @@
 import sys
 
 import pytest
+import deltachat as dc
 
 
 class TestGroupStressTests:
@@ -149,9 +150,8 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     assert msg.is_encrypted()
 
     lp.sec("ac2: Check that ac2 verified ac1")
-    # If we verified the contact ourselves then verifier addr == contact addr
     ac2_ac1_contact = ac2.get_contacts()[0]
-    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact).id == dc.const.DC_CONTACT_ID_SELF
 
     lp.sec("ac2: send message and let ac1 read it")
     chat2.send_text("world")
@@ -176,9 +176,9 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
 
     lp.sec("ac2: Check that ac1 verified ac3 for ac2")
     ac2_ac1_contact = ac2.get_contacts()[0]
-    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact).id == dc.const.DC_CONTACT_ID_SELF
     ac2_ac3_contact = ac2.get_contacts()[1]
-    assert ac2.get_self_contact().get_verifier(ac2_ac3_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac3_contact).addr == ac1_addr
 
     lp.sec("ac2: send message and let ac3 read it")
     chat2.send_text("hi")
