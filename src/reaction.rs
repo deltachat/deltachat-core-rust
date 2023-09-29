@@ -464,6 +464,16 @@ Content-Disposition: reaction\n\
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
 
+        // Test that the status does not get mixed up into reactions.
+        alice
+            .set_config(
+                Config::Selfstatus,
+                Some("Buy Delta Chat today and make this banner go away!"),
+            )
+            .await?;
+        bob.set_config(Config::Selfstatus, Some("Sent from my Delta Chat Pro. 👍"))
+            .await?;
+
         let chat_alice = alice.create_chat(&bob).await;
         let alice_msg = alice.send_text(chat_alice.id, "Hi!").await;
         let bob_msg = bob.recv_msg(&alice_msg).await;
