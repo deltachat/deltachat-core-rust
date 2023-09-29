@@ -1172,7 +1172,10 @@ impl<'a> MimeFactory<'a> {
         }
         let flowed_text = format_flowed(final_text);
 
-        let footer = &self.selfstatus;
+        let is_reaction = self.msg.param.get_int(Param::Reaction).unwrap_or_default() != 0;
+
+        let footer = if is_reaction { "" } else { &self.selfstatus };
+
         let message_text = format!(
             "{}{}{}{}{}{}",
             fwdhint.unwrap_or_default(),
@@ -1195,7 +1198,7 @@ impl<'a> MimeFactory<'a> {
             ))
             .body(message_text);
 
-        if self.msg.param.get_int(Param::Reaction).unwrap_or_default() != 0 {
+        if is_reaction {
             main_part = main_part.header(("Content-Disposition", "reaction"));
         }
 
