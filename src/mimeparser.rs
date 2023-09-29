@@ -813,7 +813,7 @@ impl MimeMessage {
                     return Ok(false);
                 }
 
-                warn!(context, "Ignoring nested protected headers");
+                info!(context, "Ignoring nested protected headers");
             }
 
             enum MimeS {
