@@ -804,18 +804,6 @@ impl MimeMessage {
 
         // Boxed future to deal with recursion
         async move {
-            if mail.ctype.params.get("protected-headers").is_some() {
-                if mail.ctype.mimetype == "text/rfc822-headers" {
-                    warn!(
-                        context,
-                        "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
-                    );
-                    return Ok(false);
-                }
-
-                warn!(context, "Ignoring nested protected headers");
-            }
-
             enum MimeS {
                 Multiple,
                 Single,
@@ -852,7 +840,10 @@ impl MimeMessage {
 
                     self.parse_mime_recursive(context, &mail, is_related).await
                 }
-                MimeS::Single => self.add_single_part_if_known(context, mail, is_related).await,
+                MimeS::Single => {
+                    self.add_single_part_if_known(context, mail, is_related)
+                        .await
+                }
             }
         }
         .boxed()
