@@ -2624,6 +2624,7 @@ pub struct MessageListOptions {
 }
 
 /// Returns all messages belonging to the chat.
+/// The messages are sorted by their receival time.
 pub async fn get_chat_msgs(context: &Context, chat_id: ChatId) -> Result<Vec<ChatItem>> {
     get_chat_msgs_ex(
         context,
