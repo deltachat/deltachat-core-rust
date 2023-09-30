@@ -109,7 +109,7 @@ impl ContactId {
 
     /// ID of the contact for device messages.
     pub const DEVICE: ContactId = ContactId::new(5);
-    const LAST_SPECIAL: ContactId = ContactId::new(9);
+    pub(crate) const LAST_SPECIAL: ContactId = ContactId::new(9);
 
     /// Address to go with [`ContactId::DEVICE`].
     ///
