@@ -382,7 +382,7 @@ impl Context {
             translated_stockstrings: stockstrings,
             events,
             scheduler: SchedulerState::new(),
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow at least 1 message every 10 seconds + a burst of 6.
             quota: RwLock::new(None),
             quota_update_request: AtomicBool::new(false),
             resync_request: AtomicBool::new(false),
@@ -820,7 +820,22 @@ impl Context {
     pub async fn get_next_msgs(&self) -> Result<Vec<MsgId>> {
         let last_msg_id = match self.get_config(Config::LastMsgId).await? {
             Some(s) => MsgId::new(s.parse()?),
-            None => MsgId::new_unset(),
+            None => {
+                // If `last_msg_id` is not set yet,
+                // subtract 1 from the last id,
+                // so a single message is returned and can
+                // be marked as seen.
+                self.sql
+                    .query_row(
+                        "SELECT IFNULL((SELECT MAX(id) - 1 FROM msgs), 0)",
+                        (),
+                        |row| {
+                            let msg_id: MsgId = row.get(0)?;
+                            Ok(msg_id)
+                        },
+                    )
+                    .await?
+            }
         };
 
         let list = self

@@ -3578,6 +3578,8 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         msg.param.remove(Param::ForcePlaintext);
         msg.param.remove(Param::Cmd);
         msg.param.remove(Param::OverrideSenderDisplayname);
+        msg.param.remove(Param::WebxdcDocument);
+        msg.param.remove(Param::WebxdcDocumentTimestamp);
         msg.param.remove(Param::WebxdcSummary);
         msg.param.remove(Param::WebxdcSummaryTimestamp);
         msg.in_reply_to = None;

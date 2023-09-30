@@ -1236,11 +1236,22 @@ impl Contact {
 
     /// Returns the ContactId that verified the contact.
     pub async fn get_verifier_id(&self, context: &Context) -> Result<Option<ContactId>> {
-        let verifier_addr = self.get_verifier_addr(context).await?;
-        if let Some(addr) = verifier_addr {
-            Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
-        } else {
-            Ok(None)
+        let Some(verifier_addr) = self.get_verifier_addr(context).await? else {
+            return Ok(None);
+        };
+
+        if verifier_addr == self.addr {
+            // Contact is directly verified via QR code.
+            return Ok(Some(ContactId::SELF));
+        }
+
+        match Contact::lookup_id_by_addr(context, &verifier_addr, Origin::AddressBook).await? {
+            Some(contact_id) => Ok(Some(contact_id)),
+            None => {
+                let addr = &self.addr;
+                warn!(context, "Could not lookup contact with address {verifier_addr} which introduced {addr}.");
+                Ok(None)
+            }
         }
     }
 

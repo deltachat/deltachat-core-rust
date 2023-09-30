@@ -328,13 +328,13 @@ pub async fn is_sending_locations_to_chat(
 }
 
 /// Sets current location of the user device.
-pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> bool {
+pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> Result<bool> {
     if latitude == 0.0 && longitude == 0.0 {
-        return true;
+        return Ok(true);
     }
     let mut continue_streaming = false;
 
-    if let Ok(chats) = context
+    let chats = context
         .sql
         .query_map(
             "SELECT id FROM chats WHERE locations_send_until>?;",
@@ -346,33 +346,29 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                     .map_err(Into::into)
             },
         )
-        .await
-    {
-        for chat_id in chats {
-            if let Err(err) = context.sql.execute(
-                    "INSERT INTO locations  \
-                     (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
-                     (
-                        latitude,
-                        longitude,
-                        accuracy,
-                        time(),
-                        chat_id,
-                        ContactId::SELF,
-                    )
-            ).await {
-                warn!(context, "failed to store location {:#}", err);
-            } else {
-                info!(context, "stored location for chat {}", chat_id);
-                continue_streaming = true;
-            }
-        }
-        if continue_streaming {
-            context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
-        };
-    }
+        .await?;
 
-    continue_streaming
+    for chat_id in chats {
+        context.sql.execute(
+                "INSERT INTO locations  \
+                 (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
+                 (
+                    latitude,
+                    longitude,
+                    accuracy,
+                    time(),
+                    chat_id,
+                    ContactId::SELF,
+                )).await.context("Failed to store location")?;
+
+        info!(context, "Stored location for chat {chat_id}.");
+        continue_streaming = true;
+    }
+    if continue_streaming {
+        context.emit_event(EventType::LocationChanged(Some(ContactId::SELF)));
+    };
+
+    Ok(continue_streaming)
 }
 
 /// Searches for locations in the given time range, optionally filtering by chat and contact IDs.
@@ -464,7 +460,7 @@ pub async fn delete_all(context: &Context) -> Result<()> {
 }
 
 /// Returns `location.kml` contents.
-pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)> {
+pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<Option<(String, u32)>> {
     let mut last_added_location_id = 0;
 
     let self_addr = context.get_primary_self_addr().await?;
@@ -534,9 +530,11 @@ pub async fn get_kml(context: &Context, chat_id: ChatId) -> Result<(String, u32)
         ret += "</Document>\n</kml>";
     }
 
-    ensure!(location_count > 0, "No locations processed");
-
-    Ok((ret, last_added_location_id))
+    if location_count > 0 {
+        Ok(Some((ret, last_added_location_id)))
+    } else {
+        Ok(None)
+    }
 }
 
 fn get_kml_timestamp(utc: i64) -> String {
@@ -926,6 +924,40 @@ Content-Disposition: attachment; filename="location.kml"
 
         let locations = get_range(&alice, None, None, 0, 0).await?;
         assert_eq!(locations.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_locations_to_chat() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let alice_chat = alice.create_chat(&bob).await;
+        send_locations_to_chat(&alice, alice_chat.id, 1000).await?;
+        let sent = alice.pop_sent_msg().await;
+        let msg = bob.recv_msg(&sent).await;
+        assert_eq!(msg.text, "Location streaming enabled by alice@example.org.");
+        let bob_chat_id = msg.chat_id;
+
+        assert_eq!(set(&alice, 10.0, 20.0, 1.0).await?, true);
+
+        // Send image without text.
+        let file_name = "image.png";
+        let bytes = include_bytes!("../test-data/image/logo.png");
+        let file = alice.get_blobdir().join(file_name);
+        tokio::fs::write(&file, bytes).await?;
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file(file.to_str().unwrap(), None);
+        let sent = alice.send_msg(alice_chat.id, &mut msg).await;
+
+        let msg = bob.recv_msg_opt(&sent).await.unwrap();
+        assert!(msg.chat_id == bob_chat_id);
+        assert_eq!(msg.msg_ids.len(), 1);
+
+        let bob_msg = Message::load_from_db(&bob, *msg.msg_ids.get(0).unwrap()).await?;
+        assert_eq!(bob_msg.chat_id, bob_chat_id);
+        assert_eq!(bob_msg.viewtype, Viewtype::Image);
+
         Ok(())
     }
 }

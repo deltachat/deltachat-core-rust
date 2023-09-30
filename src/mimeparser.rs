@@ -1442,33 +1442,36 @@ impl MimeMessage {
         let (report_fields, _) = mailparse::parse_headers(&report_body)?;
 
         // must be present
-        if let Some(_disposition) = report_fields.get_header_value(HeaderDef::Disposition) {
-            let original_message_id = report_fields
-                .get_header_value(HeaderDef::OriginalMessageId)
-                // MS Exchange doesn't add an Original-Message-Id header. Instead, they put
-                // the original message id into the In-Reply-To header:
-                .or_else(|| report.headers.get_header_value(HeaderDef::InReplyTo))
-                .and_then(|v| parse_message_id(&v).ok());
-            let additional_message_ids = report_fields
-                .get_header_value(HeaderDef::AdditionalMessageIds)
-                .map_or_else(Vec::new, |v| {
-                    v.split(' ')
-                        .filter_map(|s| parse_message_id(s).ok())
-                        .collect()
-                });
+        if report_fields
+            .get_header_value(HeaderDef::Disposition)
+            .is_none()
+        {
+            warn!(
+                context,
+                "Ignoring unknown disposition-notification, Message-Id: {:?}.",
+                report_fields.get_header_value(HeaderDef::MessageId)
+            );
+            return Ok(None);
+        };
 
-            return Ok(Some(Report {
-                original_message_id,
-                additional_message_ids,
-            }));
-        }
-        warn!(
-            context,
-            "ignoring unknown disposition-notification, Message-Id: {:?}",
-            report_fields.get_header_value(HeaderDef::MessageId)
-        );
+        let original_message_id = report_fields
+            .get_header_value(HeaderDef::OriginalMessageId)
+            // MS Exchange doesn't add an Original-Message-Id header. Instead, they put
+            // the original message id into the In-Reply-To header:
+            .or_else(|| report.headers.get_header_value(HeaderDef::InReplyTo))
+            .and_then(|v| parse_message_id(&v).ok());
+        let additional_message_ids = report_fields
+            .get_header_value(HeaderDef::AdditionalMessageIds)
+            .map_or_else(Vec::new, |v| {
+                v.split(' ')
+                    .filter_map(|s| parse_message_id(s).ok())
+                    .collect()
+            });
 
-        Ok(None)
+        Ok(Some(Report {
+            original_message_id,
+            additional_message_ids,
+        }))
     }
 
     fn process_delivery_status(

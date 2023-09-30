@@ -903,7 +903,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let latitude = arg1.parse()?;
             let longitude = arg2.parse()?;
 
-            let continue_streaming = location::set(&context, latitude, longitude, 0.).await;
+            let continue_streaming = location::set(&context, latitude, longitude, 0.).await?;
             if continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {

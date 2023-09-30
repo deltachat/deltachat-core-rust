@@ -113,20 +113,19 @@ pub(crate) async fn receive_imf_inner(
     {
         Err(err) => {
             warn!(context, "receive_imf: can't parse MIME: {err:#}.");
-            let msg_ids;
-            if !rfc724_mid.starts_with(GENERATED_PREFIX) {
-                let row_id = context
-                    .sql
-                    .execute(
-                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                        (rfc724_mid, DC_CHAT_ID_TRASH),
-                    )
-                    .await?;
-                msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
-            } else {
-                return Ok(None);
+            if rfc724_mid.starts_with(GENERATED_PREFIX) {
                 // We don't have an rfc724_mid, there's no point in adding a trash entry
+                return Ok(None);
             }
+
+            let row_id = context
+                .sql
+                .execute(
+                    "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                    (rfc724_mid, DC_CHAT_ID_TRASH),
+                )
+                .await?;
+            let msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
 
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
@@ -1156,7 +1155,8 @@ async fn add_parts(
             (&part.msg, part.typ)
         };
 
-        let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
+        let part_is_empty =
+            typ == Viewtype::Text && msg.is_empty() && part.param.get(Param::Quote).is_none();
         let mime_modified = save_mime_modified && !part_is_empty;
         if mime_modified {
             // Avoid setting mime_modified for more than one part.
@@ -1181,7 +1181,8 @@ async fn add_parts(
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
+        let trash =
+            chat_id.is_trash() || (is_location_kml && msg.is_empty() && typ == Viewtype::Text);
 
         let row_id = context
             .sql
@@ -1453,56 +1454,53 @@ async fn lookup_chat_by_reply(
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
-    if let Some(parent) = parent {
-        let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
+    let Some(parent) = parent else {
+        return Ok(None);
+    };
 
-        if parent.download_state != DownloadState::Done
-            // TODO (2023-09-12): Added for backward compatibility with versions that did not have
-            // `DownloadState::Undecipherable`. Remove eventually with the comment in
-            // `MimeMessage::from_bytes()`.
-            || parent
-                .error
-                .as_ref()
-                .filter(|e| e.starts_with("Decrypting failed:"))
-                .is_some()
-        {
-            // If the parent msg is not fully downloaded or undecipherable, it may have been
-            // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
-            return Ok(None);
-        }
+    let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if parent_chat.id == DC_CHAT_ID_TRASH {
-            return Ok(None);
-        }
-
-        // If this was a private message just to self, it was probably a private reply.
-        // It should not go into the group then, but into the private chat.
-        if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
-            return Ok(None);
-        }
-
-        // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
-        // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
-        // newly created ad-hoc group.
-        if parent_chat.typ == Chattype::Single
-            && !mime_parser.has_chat_version()
-            && to_ids.len() > 1
-        {
-            let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
-            chat_contacts.push(ContactId::SELF);
-            if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
-                return Ok(None);
-            }
-        }
-
-        info!(
-            context,
-            "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
-        );
-        return Ok(Some((parent_chat.id, parent_chat.blocked)));
+    if parent.download_state != DownloadState::Done
+        // TODO (2023-09-12): Added for backward compatibility with versions that did not have
+        // `DownloadState::Undecipherable`. Remove eventually with the comment in
+        // `MimeMessage::from_bytes()`.
+        || parent
+            .error
+            .as_ref()
+            .filter(|e| e.starts_with("Decrypting failed:"))
+            .is_some()
+    {
+        // If the parent msg is not fully downloaded or undecipherable, it may have been
+        // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
+        return Ok(None);
     }
 
-    Ok(None)
+    if parent_chat.id == DC_CHAT_ID_TRASH {
+        return Ok(None);
+    }
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+    if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+        return Ok(None);
+    }
+
+    // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
+    // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
+    // newly created ad-hoc group.
+    if parent_chat.typ == Chattype::Single && !mime_parser.has_chat_version() && to_ids.len() > 1 {
+        let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+        chat_contacts.push(ContactId::SELF);
+        if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
+            return Ok(None);
+        }
+    }
+
+    info!(
+        context,
+        "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
+    );
+    Ok(Some((parent_chat.id, parent_chat.blocked)))
 }
 
 /// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
@@ -2058,39 +2056,40 @@ async fn apply_mailinglist_changes(
     mime_parser: &MimeMessage,
     chat_id: ChatId,
 ) -> Result<()> {
-    if let Some(list_post) = &mime_parser.list_post {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        if chat.typ != Chattype::Mailinglist {
+    let Some(list_post) = &mime_parser.list_post else {
+        return Ok(());
+    };
+
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ != Chattype::Mailinglist {
+        return Ok(());
+    }
+    let listid = &chat.grpid;
+
+    let list_post = match ContactAddress::new(list_post) {
+        Ok(list_post) => list_post,
+        Err(err) => {
+            warn!(context, "Invalid List-Post: {:#}.", err);
             return Ok(());
         }
-        let listid = &chat.grpid;
+    };
+    let (contact_id, _) = Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+    let mut contact = Contact::get_by_id(context, contact_id).await?;
+    if contact.param.get(Param::ListId) != Some(listid) {
+        contact.param.set(Param::ListId, listid);
+        contact.update_param(context).await?;
+    }
 
-        let list_post = match ContactAddress::new(list_post) {
-            Ok(list_post) => list_post,
-            Err(err) => {
-                warn!(context, "Invalid List-Post: {:#}.", err);
-                return Ok(());
-            }
-        };
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
-        let mut contact = Contact::get_by_id(context, contact_id).await?;
-        if contact.param.get(Param::ListId) != Some(listid) {
-            contact.param.set(Param::ListId, listid);
-            contact.update_param(context).await?;
-        }
-
-        if let Some(old_list_post) = chat.param.get(Param::ListPost) {
-            if list_post.as_ref() != old_list_post {
-                // Apparently the mailing list is using a different List-Post header in each message.
-                // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
-                chat.param.remove(Param::ListPost);
-                chat.update_param(context).await?;
-            }
-        } else {
-            chat.param.set(Param::ListPost, list_post);
+    if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+        if list_post.as_ref() != old_list_post {
+            // Apparently the mailing list is using a different List-Post header in each message.
+            // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
+            chat.param.remove(Param::ListPost);
             chat.update_param(context).await?;
         }
+    } else {
+        chat.param.set(Param::ListPost, list_post);
+        chat.update_param(context).await?;
     }
 
     Ok(())

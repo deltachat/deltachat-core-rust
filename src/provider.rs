@@ -8,6 +8,7 @@ use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
 use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS};
+use crate::tools::EmailAddress;
 
 /// Provider status according to manual testing.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -175,21 +176,30 @@ fn get_resolver() -> Result<TokioAsyncResolver> {
     Ok(resolver)
 }
 
+/// Returns provider for the given an e-mail address.
+///
+/// Returns an error if provided address is not valid.
+pub async fn get_provider_info_by_addr(
+    context: &Context,
+    addr: &str,
+    skip_mx: bool,
+) -> Result<Option<&'static Provider>> {
+    let addr = EmailAddress::new(addr)?;
+
+    let provider = get_provider_info(context, &addr.domain, skip_mx).await;
+    Ok(provider)
+}
+
 /// Returns provider for the given domain.
 ///
 /// This function looks up domain in offline database first. If not
 /// found, it queries MX record for the domain and looks up offline
 /// database for MX domains.
-///
-/// For compatibility, email address can be passed to this function
-/// instead of the domain.
 pub async fn get_provider_info(
     context: &Context,
     domain: &str,
     skip_mx: bool,
 ) -> Option<&'static Provider> {
-    let domain = domain.rsplit('@').next()?;
-
     if let Some(provider) = get_provider_by_domain(domain) {
         return Some(provider);
     }
@@ -314,15 +324,25 @@ mod tests {
         let t = TestContext::new().await;
         assert!(get_provider_info(&t, "", false).await.is_none());
         assert!(get_provider_info(&t, "google.com", false).await.unwrap().id == "gmail");
+        assert!(get_provider_info(&t, "example@google.com", false)
+            .await
+            .is_none());
+    }
 
-        // get_provider_info() accepts email addresses for backwards compatibility
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_provider_info_by_addr() -> Result<()> {
+        let t = TestContext::new().await;
+        assert!(get_provider_info_by_addr(&t, "google.com", false)
+            .await
+            .is_err());
         assert!(
-            get_provider_info(&t, "example@google.com", false)
-                .await
+            get_provider_info_by_addr(&t, "example@google.com", false)
+                .await?
                 .unwrap()
                 .id
                 == "gmail"
         );
+        Ok(())
     }
 
     #[test]
