@@ -1,4 +1,5 @@
 use core::fmt;
+use std::cmp::min;
 use std::{iter::once, ops::Deref, sync::Arc};
 
 use anyhow::{anyhow, Result};
@@ -457,7 +458,8 @@ impl Context {
                                 } else {
                                     "green"
                                 };
-                                ret += &format!("<div class=\"bar\"><div class=\"progress {color}\" style=\"width: {percent}%\">{percent}%</div></div>");
+                                let div_width_percent = min(100, percent);
+                                ret += &format!("<div class=\"bar\"><div class=\"progress {color}\" style=\"width: {div_width_percent}%\">{percent}%</div></div>");
 
                                 ret += "</li>";
                             }
