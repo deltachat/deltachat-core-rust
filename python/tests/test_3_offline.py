@@ -67,10 +67,9 @@ class TestOfflineAccountBasic:
 
     def test_preconfigure_keypair(self, acfactory, data):
         ac = acfactory.get_unconfigured_account()
-        alice_public = data.read_path("key/alice-public.asc")
         alice_secret = data.read_path("key/alice-secret.asc")
-        assert alice_public and alice_secret
-        ac._preconfigure_keypair("alice@example.org", alice_public, alice_secret)
+        assert alice_secret
+        ac._preconfigure_keypair("alice@example.org", alice_secret)
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()

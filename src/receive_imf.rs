@@ -1708,7 +1708,7 @@ async fn apply_group_changes(
     }
 
     let mut send_event_chat_modified = false;
-    let mut removed_id = None;
+    let (mut removed_id, mut added_id) = (None, None);
     let mut better_msg = None;
 
     // True if a Delta Chat client has explicitly added our current primary address.
@@ -1719,8 +1719,9 @@ async fn apply_group_changes(
             false
         };
 
-    let is_from_in_chat = !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-        || chat::is_contact_in_chat(context, chat_id, from_id).await?;
+    let mut chat_contacts = HashSet::from_iter(chat::get_chat_contacts(context, chat_id).await?);
+    let is_from_in_chat =
+        !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
 
     // Reject group membership changes from non-members and old changes.
     let allow_member_list_changes = is_from_in_chat
@@ -1730,12 +1731,10 @@ async fn apply_group_changes(
 
     // Whether to rebuild the member list from scratch.
     let recreate_member_list = {
-        // Recreate member list if the message comes from a MUA as these messages do _not_ set add/remove headers.
-        !mime_parser.has_chat_version()
-            // Always recreate membership list if SELF has been added. The older versions of DC
-            // don't always set "In-Reply-To" to the latest message they sent, but to the latest
-            // delivered message (so it's a race), so we have this heuristic here.
-            || self_added
+        // Always recreate membership list if SELF has been added. The older versions of DC
+        // don't always set "In-Reply-To" to the latest message they sent, but to the latest
+        // delivered message (so it's a race), so we have this heuristic here.
+        self_added
             || match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message, we missed some messages.
                 // Maybe they added/removed members, so we need to recreate our member list.
@@ -1777,14 +1776,8 @@ async fn apply_group_changes(
             Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
         };
 
-        if let Some(contact_id) = removed_id {
-            if allow_member_list_changes {
-                // Remove a single member from the chat.
-                if !recreate_member_list {
-                    chat::remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
-                    send_event_chat_modified = true;
-                }
-            } else {
+        if removed_id.is_some() {
+            if !allow_member_list_changes {
                 info!(
                     context,
                     "Ignoring removal of {removed_addr:?} from {chat_id}."
@@ -1797,13 +1790,11 @@ async fn apply_group_changes(
         better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
 
         if allow_member_list_changes {
-            // Add a single member to the chat.
             if !recreate_member_list {
                 if let Some(contact_id) =
                     Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
                 {
-                    chat::add_to_chat_contacts_table(context, chat_id, &[contact_id]).await?;
-                    send_event_chat_modified = true;
+                    added_id = Some(contact_id);
                 } else {
                     warn!(context, "Added {added_addr:?} has no contact id.")
                 }
@@ -1856,46 +1847,76 @@ async fn apply_group_changes(
         }
     }
 
-    // Recreate the member list.
-    if recreate_member_list {
-        // Only delete old contacts if the sender is not a classical MUA user:
-        // Classical MUA users usually don't intend to remove users from an email
-        // thread, so if they removed a recipient then it was probably by accident.
-        if mime_parser.has_chat_version() {
+    if allow_member_list_changes {
+        let mut new_members = HashSet::from_iter(to_ids.iter().copied());
+        new_members.insert(ContactId::SELF);
+        if !from_id.is_special() {
+            new_members.insert(from_id);
+        }
+
+        if !recreate_member_list {
+            let diff: HashSet<ContactId> =
+                chat_contacts.difference(&new_members).copied().collect();
+            // Only delete old contacts if the sender is not a classical MUA user:
+            // Classical MUA users usually don't intend to remove users from an email
+            // thread, so if they removed a recipient then it was probably by accident.
+            if mime_parser.has_chat_version() {
+                // This is what provides group membership consistency: we remove group members
+                // locally if we see a discrepancy with the "To" list in the received message as it
+                // is better for privacy than adding absent members locally. But it shouldn't be a
+                // big problem if somebody missed a member addition, because they will likely
+                // recreate the member list from the next received message. The problem occurs only
+                // if that "somebody" managed to reply earlier. Really, it's a problem for big
+                // groups with high message rate, but let it be for now.
+                if !diff.is_empty() {
+                    warn!(context, "Implicit removal of {diff:?} from chat {chat_id}.");
+                }
+                new_members = chat_contacts.difference(&diff).copied().collect();
+            } else {
+                new_members.extend(diff);
+            }
+        }
+        if let Some(removed_id) = removed_id {
+            new_members.remove(&removed_id);
+        }
+        if let Some(added_id) = added_id {
+            new_members.insert(added_id);
+        }
+        if recreate_member_list {
+            info!(
+                context,
+                "Recreating chat {chat_id} member list with {new_members:?}.",
+            );
+        }
+
+        if new_members != chat_contacts {
+            let new_members_ref = &new_members;
             context
                 .sql
-                .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (chat_id,))
+                .transaction(move |transaction| {
+                    transaction
+                        .execute("DELETE FROM chats_contacts WHERE chat_id=?", (chat_id,))?;
+                    for contact_id in new_members_ref {
+                        transaction.execute(
+                            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+                            (chat_id, contact_id),
+                        )?;
+                    }
+                    Ok(())
+                })
                 .await?;
+            chat_contacts = new_members;
+            send_event_chat_modified = true;
         }
-
-        let mut members_to_add = HashSet::new();
-        members_to_add.extend(to_ids);
-        members_to_add.insert(ContactId::SELF);
-
-        if !from_id.is_special() {
-            members_to_add.insert(from_id);
-        }
-
-        if let Some(removed_id) = removed_id {
-            members_to_add.remove(&removed_id);
-        }
-
-        info!(
-            context,
-            "Recreating chat {chat_id} with members {members_to_add:?}."
-        );
-
-        chat::add_to_chat_contacts_table(context, chat_id, &Vec::from_iter(members_to_add)).await?;
-        send_event_chat_modified = true;
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
-        if !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
+        if !chat_contacts.contains(&ContactId::SELF) {
             warn!(
                 context,
                 "Received group avatar update for group chat {chat_id} we are not a member of."
             );
-        } else if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
+        } else if !chat_contacts.contains(&from_id) {
             warn!(
                 context,
                 "Contact {from_id} attempts to modify group chat {chat_id} avatar without being a member.",

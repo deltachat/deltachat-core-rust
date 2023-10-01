@@ -312,15 +312,10 @@ pub async fn store_self_keypair(
 /// This API is used for testing purposes
 /// to avoid generating the key in tests.
 /// Use import/export APIs instead.
-pub async fn preconfigure_keypair(
-    context: &Context,
-    addr: &str,
-    public_data: &str,
-    secret_data: &str,
-) -> Result<()> {
+pub async fn preconfigure_keypair(context: &Context, addr: &str, secret_data: &str) -> Result<()> {
     let addr = EmailAddress::new(addr)?;
-    let public = SignedPublicKey::from_asc(public_data)?.0;
     let secret = SignedSecretKey::from_asc(secret_data)?.0;
+    let public = secret.split_public_key()?;
     let keypair = KeyPair {
         addr,
         public,
