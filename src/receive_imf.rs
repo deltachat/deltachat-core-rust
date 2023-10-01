@@ -769,12 +769,12 @@ async fn add_parts(
                         new_protection =
                             match decryption_info.autocrypt_header.as_ref().filter(|ah| {
                                 Some(&ah.public_key.fingerprint())
-                                    == decryption_info
+                                    != decryption_info
                                         .peerstate
                                         .as_ref()
                                         .and_then(|p| p.verified_key_fingerprint.as_ref())
                             }) {
-                                Some(_) => {
+                                None => {
                                     if let Some(new_chat_id) = create_adhoc_group(
                                         context,
                                         mime_parser,
@@ -801,7 +801,7 @@ async fn add_parts(
                                     }
                                     chat.protected
                                 }
-                                None => ProtectionStatus::ProtectionBroken,
+                                Some(_) => ProtectionStatus::ProtectionBroken,
                             };
                     }
                     if chat.protected != new_protection {
