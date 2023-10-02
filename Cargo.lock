@@ -1605,7 +1605,7 @@ dependencies = [
 [[package]]
 name = "email"
 version = "0.0.21"
-source = "git+https://github.com/deltachat/rust-email?branch=master#25702df99254d059483b41417cd80696a258df8e"
+source = "git+https://github.com/deltachat/rust-email?branch=master#37778c89d5eb5a94b7983f3f37ff67769bde3cf9"
 dependencies = [
  "base64 0.11.0",
  "chrono",
