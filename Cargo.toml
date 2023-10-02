@@ -90,7 +90,7 @@ tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
 tokio-io-timeout = "1.2.0"
 tokio-stream = { version = "0.1.14", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
-tokio-util = "0.7.8"
+tokio-util = "0.7.9"
 toml = "0.7"
 trust-dns-resolver = "0.23"
 url = "2"
