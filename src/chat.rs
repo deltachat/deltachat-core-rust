@@ -2898,6 +2898,9 @@ pub enum Direction {
 }
 
 /// Searches next/previous message based on the given message and list of types.
+///
+/// Deprecated since 2023-10-03.
+#[deprecated(note = "use `get_chat_media` instead")]
 pub async fn get_next_media(
     context: &Context,
     curr_msg_id: MsgId,

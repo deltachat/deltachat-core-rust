@@ -1481,6 +1481,7 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
  * Typically used to implement the "next" and "previous" buttons
  * in a gallery or in a media player.
  *
+ * @deprecated Deprecated 2023-10-03, use dc_get_chat_media() and navigate the returned array instead.
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param msg_id The ID of the current message from which the next or previous message should be searched.

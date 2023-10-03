@@ -1427,6 +1427,10 @@ impl CommandApi {
     ///
     /// one combined call for getting chat::get_next_media for both directions
     /// the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
+    ///
+    /// Deprecated 2023-10-03, use `get_chat_media` method
+    /// and navigate the returned array instead.
+    #[allow(deprecated)]
     async fn get_neighboring_chat_media(
         &self,
         account_id: u32,
