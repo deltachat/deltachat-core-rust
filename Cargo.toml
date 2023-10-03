@@ -42,7 +42,7 @@ async-smtp = { version = "0.9", default-features = false, features = ["runtime-t
 async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "fs"] }
 backtrace = "0.3"
 base64 = "0.21"
-brotli = { version = "3.3", default-features=false, features = ["std"] }
+brotli = { version = "3.4", default-features=false, features = ["std"] }
 chrono = { version = "0.4", default-features=false, features = ["clock", "std"] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
