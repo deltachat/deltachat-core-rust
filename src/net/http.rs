@@ -4,11 +4,19 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use mime::Mime;
+use once_cell::sync::Lazy;
 
 use crate::context::Context;
 use crate::socks::Socks5Config;
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(30);
+
+static LETSENCRYPT_ROOT: Lazy<reqwest::tls::Certificate> = Lazy::new(|| {
+    reqwest::tls::Certificate::from_der(include_bytes!(
+        "../../assets/root-certificates/letsencrypt/isrgrootx1.der"
+    ))
+    .unwrap()
+});
 
 /// HTTP(S) GET response.
 #[derive(Debug)]
@@ -79,7 +87,10 @@ async fn read_url_inner(context: &Context, url: &str) -> Result<reqwest::Respons
 }
 
 pub(crate) fn get_client(socks5_config: Option<Socks5Config>) -> Result<reqwest::Client> {
-    let builder = reqwest::ClientBuilder::new().timeout(HTTP_TIMEOUT);
+    let builder = reqwest::ClientBuilder::new()
+        .timeout(HTTP_TIMEOUT)
+        .add_root_certificate(LETSENCRYPT_ROOT.clone());
+
     let builder = if let Some(socks5_config) = socks5_config {
         let proxy = reqwest::Proxy::all(socks5_config.to_url())?;
         builder.proxy(proxy)
