@@ -1140,7 +1140,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha-1",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "smallvec",
  "strum",
  "strum_macros",
@@ -1529,7 +1529,7 @@ dependencies = [
  "curve25519-dalek 4.0.0-rc.3",
  "ed25519 2.2.1",
  "serde",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "zeroize",
 ]
 
@@ -3108,7 +3108,7 @@ checksum = "51f44edd08f51e2ade572f141051021c5af22677e42b7dd28a88155151c33594"
 dependencies = [
  "ecdsa 0.14.8",
  "elliptic-curve 0.12.3",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -3120,7 +3120,7 @@ dependencies = [
  "ecdsa 0.16.8",
  "elliptic-curve 0.13.5",
  "primeorder",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -3131,7 +3131,7 @@ checksum = "dfc8c5bf642dde52bb9e87c0ecd8ca5a76faac2eeed98dedb7c717997e1080aa"
 dependencies = [
  "ecdsa 0.14.8",
  "elliptic-curve 0.12.3",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -3143,7 +3143,7 @@ dependencies = [
  "ecdsa 0.16.8",
  "elliptic-curve 0.13.5",
  "primeorder",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -3256,7 +3256,7 @@ dependencies = [
  "ripemd",
  "rsa 0.9.2",
  "sha1",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "sha3",
  "signature 2.1.0",
  "smallvec",
@@ -4344,9 +4344,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "479fb9d862239e610720565ca91403019f2f00410f1864c5aa7479b950a76ed8"
+checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -4491,7 +4491,7 @@ checksum = "19cfdc32e0199062113edf41f344fbf784b8205a94600233c84eb838f45191e1"
 dependencies = [
  "base64ct",
  "pem-rfc7468 0.6.0",
- "sha2 0.10.7",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -4506,7 +4506,7 @@ dependencies = [
  "rand_core 0.6.4",
  "rsa 0.7.2",
  "sec1 0.3.0",
- "sha2 0.10.7",
+ "sha2 0.10.8",
  "signature 1.6.4",
  "ssh-encoding",
  "zeroize",
