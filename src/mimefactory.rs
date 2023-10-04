@@ -678,6 +678,12 @@ impl<'a> MimeFactory<'a> {
                 })
         };
 
+        let get_content_type_directives_header = || {
+            (
+                "Content-Type-Deltachat-Directives".to_string(),
+                "protected-headers=\"v1\"".to_string(),
+            )
+        };
         let outer_message = if is_encrypted {
             headers.protected.push(from_header);
 
@@ -714,10 +720,7 @@ impl<'a> MimeFactory<'a> {
             if !existing_ct.ends_with(';') {
                 existing_ct += ";";
             }
-            let message = message.replace_header(Header::new(
-                "Content-Type".to_string(),
-                format!("{existing_ct} protected-headers=\"v1\";"),
-            ));
+            let message = message.header(get_content_type_directives_header());
 
             // Set the appropriate Content-Type for the outer message
             let outer_message = PartBuilder::new().header((
@@ -786,11 +789,12 @@ impl<'a> MimeFactory<'a> {
             {
                 message
             } else {
+                let message = message.header(get_content_type_directives_header());
                 let (payload, signature) = encrypt_helper.sign(context, message).await?;
                 PartBuilder::new()
                     .header((
-                        "Content-Type".to_string(),
-                        "multipart/signed; protocol=\"application/pgp-signature\"".to_string(),
+                        "Content-Type",
+                        "multipart/signed; protocol=\"application/pgp-signature\"",
                     ))
                     .child(payload)
                     .child(
@@ -1544,6 +1548,7 @@ fn maybe_encode_words(words: &str) -> String {
 #[cfg(test)]
 mod tests {
     use mailparse::{addrparse_header, MailHeaderMap};
+    use std::str;
 
     use super::*;
     use crate::chat::ChatId;
@@ -1552,10 +1557,11 @@ mod tests {
         ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
+    use crate::constants;
     use crate::contact::{ContactAddress, Origin};
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::{get_chat_msg, TestContext};
+    use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
     #[test]
     fn test_render_email_address() {
         let display_name = "ä space";
@@ -2204,7 +2210,11 @@ mod tests {
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
         let part = payload.next().unwrap();
-        assert_eq!(part.match_indices("multipart/mixed").count(), 1);
+        assert_eq!(
+            part.match_indices("multipart/mixed; protected-headers=\"v1\"")
+                .count(),
+            1
+        );
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
@@ -2313,6 +2323,39 @@ mod tests {
         assert_eq!(payload.match_indices("From:").count(), 1);
 
         assert!(payload.match_indices("From:").next() < payload.match_indices("Autocrypt:").next());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_protected_headers_directive() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        let chat = tcm
+            .send_recv_accept(&alice, &bob, "alice->bob")
+            .await
+            .chat_id;
+
+        // Now Bob can send an encrypted message to Alice.
+        let mut msg = Message::new(Viewtype::File);
+        // Long messages are truncated and MimeMessage::decoded_data is set for them. We need
+        // decoded_data to check presense of the necessary headers.
+        msg.set_text("a".repeat(constants::DC_DESIRED_TEXT_LEN + 1));
+        msg.set_file_from_bytes(&bob, "foo.bar", "content".as_bytes(), None)
+            .await?;
+        let sent = bob.send_msg(chat, &mut msg).await;
+        assert!(msg.get_showpadlock());
+
+        let mime = MimeMessage::from_bytes(&alice, sent.payload.as_bytes(), None).await?;
+        let mut payload = str::from_utf8(&mime.decoded_data)?.splitn(2, "\r\n\r\n");
+        let part = payload.next().unwrap();
+        assert_eq!(
+            part.match_indices("multipart/mixed; protected-headers=\"v1\"")
+                .count(),
+            1
+        );
+        assert_eq!(part.match_indices("Subject:").count(), 1);
 
         Ok(())
     }

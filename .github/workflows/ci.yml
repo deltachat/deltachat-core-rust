@@ -180,15 +180,15 @@ jobs:
         include:
           # Currently used Rust version.
           - os: ubuntu-latest
-            python: 3.11
+            python: 3.12
           - os: macos-latest
-            python: 3.11
+            python: 3.12
 
           # PyPy tests
           - os: ubuntu-latest
-            python: pypy3.9
+            python: pypy3.10
           - os: macos-latest
-            python: pypy3.9
+            python: pypy3.10
 
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
@@ -229,6 +229,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Async Python bindings do not depend on Python version,
+          # but are tested on Python 3.11 until Python 3.12 support
+          # is added to `aiohttp` dependency:
+          # https://github.com/aio-libs/aiohttp/issues/7646
           - os: ubuntu-latest
             python: 3.11
           - os: macos-latest
@@ -236,9 +240,9 @@ jobs:
 
           # PyPy tests
           - os: ubuntu-latest
-            python: pypy3.9
+            python: pypy3.10
           - os: macos-latest
-            python: pypy3.9
+            python: pypy3.10
 
           # Minimum Supported Python Version = 3.8
           #

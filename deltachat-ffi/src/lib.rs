@@ -1422,6 +1422,7 @@ pub unsafe extern "C" fn dc_get_chat_media(
 }
 
 #[no_mangle]
+#[allow(deprecated)]
 pub unsafe extern "C" fn dc_get_next_media(
     context: *mut dc_context_t,
     msg_id: u32,

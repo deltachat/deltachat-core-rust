@@ -932,9 +932,10 @@ impl ChatId {
             .sql
             .query_map(
                 "SELECT chat_id, count(*) AS n
-                 FROM chats_contacts where contact_id > 9
+                 FROM chats_contacts
+                 WHERE contact_id > ? AND chat_id > ?
                  GROUP BY chat_id",
-                (),
+                (ContactId::LAST_SPECIAL, DC_CHAT_ID_LAST_SPECIAL),
                 |row| {
                     let chat_id: ChatId = row.get(0)?;
                     let size: f64 = row.get(1)?;
@@ -2951,6 +2952,9 @@ pub enum Direction {
 }
 
 /// Searches next/previous message based on the given message and list of types.
+///
+/// Deprecated since 2023-10-03.
+#[deprecated(note = "use `get_chat_media` instead")]
 pub async fn get_next_media(
     context: &Context,
     curr_msg_id: MsgId,
