@@ -24,7 +24,7 @@ def _tuple_of(obj, type_: type) -> tuple:
 class EventFilter(ABC):
     """The base event filter.
 
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -43,16 +43,16 @@ class EventFilter(ABC):
     def __ne__(self, other):
         return not self == other
 
-    async def _call_func(self, event) -> bool:
+    def _call_func(self, event) -> bool:
         if not self.func:
             return True
         res = self.func(event)
         if inspect.isawaitable(res):
-            return await res
+            return res
         return res
 
     @abstractmethod
-    async def filter(self, event):
+    def filter(self, event):
         """Return True-like value if the event passed the filter and should be
         used, or False-like value otherwise.
         """
@@ -62,7 +62,7 @@ class RawEvent(EventFilter):
     """Matches raw core events.
 
     :param types: The types of event to match.
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -82,10 +82,10 @@ class RawEvent(EventFilter):
             return (self.types, self.func) == (other.types, other.func)
         return False
 
-    async def filter(self, event: "AttrDict") -> bool:
+    def filter(self, event: "AttrDict") -> bool:
         if self.types and event.type not in self.types:
             return False
-        return await self._call_func(event)
+        return self._call_func(event)
 
 
 class NewMessage(EventFilter):
@@ -104,7 +104,7 @@ class NewMessage(EventFilter):
     :param is_info: If set to True only match info/system messages, if set to False
                     only match messages that are not info/system messages. If omitted
                     info/system messages as well as normal messages will be matched.
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -159,7 +159,7 @@ class NewMessage(EventFilter):
             )
         return False
 
-    async def filter(self, event: "AttrDict") -> bool:
+    def filter(self, event: "AttrDict") -> bool:
         if self.is_bot is not None and self.is_bot != event.message_snapshot.is_bot:
             return False
         if self.is_info is not None and self.is_info != event.message_snapshot.is_info:
@@ -168,11 +168,9 @@ class NewMessage(EventFilter):
             return False
         if self.pattern:
             match = self.pattern(event.message_snapshot.text)
-            if inspect.isawaitable(match):
-                match = await match
             if not match:
                 return False
-        return await super()._call_func(event)
+        return super()._call_func(event)
 
 
 class MemberListChanged(EventFilter):
@@ -184,7 +182,7 @@ class MemberListChanged(EventFilter):
     :param added: If set to True only match if a member was added, if set to False
                   only match if a member was removed. If omitted both, member additions
                   and removals, will be matched.
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -201,10 +199,10 @@ class MemberListChanged(EventFilter):
             return (self.added, self.func) == (other.added, other.func)
         return False
 
-    async def filter(self, event: "AttrDict") -> bool:
+    def filter(self, event: "AttrDict") -> bool:
         if self.added is not None and self.added != event.member_added:
             return False
-        return await self._call_func(event)
+        return self._call_func(event)
 
 
 class GroupImageChanged(EventFilter):
@@ -216,7 +214,7 @@ class GroupImageChanged(EventFilter):
     :param deleted: If set to True only match if the image was deleted, if set to False
                     only match if a new image was set. If omitted both, image changes and
                     removals, will be matched.
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -233,10 +231,10 @@ class GroupImageChanged(EventFilter):
             return (self.deleted, self.func) == (other.deleted, other.func)
         return False
 
-    async def filter(self, event: "AttrDict") -> bool:
+    def filter(self, event: "AttrDict") -> bool:
         if self.deleted is not None and self.deleted != event.image_deleted:
             return False
-        return await self._call_func(event)
+        return self._call_func(event)
 
 
 class GroupNameChanged(EventFilter):
@@ -245,7 +243,7 @@ class GroupNameChanged(EventFilter):
     Warning: registering a handler for this event will cause the messages
     to be marked as read. Its usage is mainly intended for bots.
 
-    :param func: A Callable (async or not) function that should accept the event as input
+    :param func: A Callable function that should accept the event as input
                  parameter, and return a bool value indicating whether the event
                  should be dispatched or not.
     """
@@ -258,8 +256,8 @@ class GroupNameChanged(EventFilter):
             return self.func == other.func
         return False
 
-    async def filter(self, event: "AttrDict") -> bool:
-        return await self._call_func(event)
+    def filter(self, event: "AttrDict") -> bool:
+        return self._call_func(event)
 
 
 class HookCollection:
