@@ -1,7 +1,9 @@
-import asyncio
 import json
 import logging
 import os
+import subprocess
+from queue import Queue
+from threading import Event, Thread
 from typing import Any, Dict, Optional
 
 
@@ -11,7 +13,7 @@ class JsonRpcError(Exception):
 
 class Rpc:
     def __init__(self, accounts_dir: Optional[str] = None, **kwargs):
-        """The given arguments will be passed to asyncio.create_subprocess_exec()"""
+        """The given arguments will be passed to subprocess.Popen()"""
         if accounts_dir:
             kwargs["env"] = {
                 **kwargs.get("env", os.environ),
@@ -19,92 +21,115 @@ class Rpc:
             }
 
         self._kwargs = kwargs
-        self.process: asyncio.subprocess.Process
+        self.process: subprocess.Popen
         self.id: int
-        self.event_queues: Dict[int, asyncio.Queue]
-        # Map from request ID to `asyncio.Future` returning the response.
-        self.request_events: Dict[int, asyncio.Future]
+        self.event_queues: Dict[int, Queue]
+        # Map from request ID to `threading.Event`.
+        self.request_events: Dict[int, Event]
+        # Map from request ID to the result.
+        self.request_results: Dict[int, Any]
+        self.request_queue: Queue[Any]
         self.closing: bool
-        self.reader_task: asyncio.Task
-        self.events_task: asyncio.Task
+        self.reader_thread: Thread
+        self.writer_thread: Thread
+        self.events_thread: Thread
 
-    async def start(self) -> None:
-        # Use buffer of 64 MiB.
-        # Default limit as of Python 3.11 is 2**16 bytes, this is too low for some JSON-RPC responses,
-        # such as loading large HTML message content.
-        limit = 2**26
-
-        self.process = await asyncio.create_subprocess_exec(
+    def start(self) -> None:
+        self.process = subprocess.Popen(
             "deltachat-rpc-server",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            limit=limit,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
             **self._kwargs,
         )
         self.id = 0
         self.event_queues = {}
         self.request_events = {}
+        self.request_results = {}
+        self.request_queue = Queue()
         self.closing = False
-        self.reader_task = asyncio.create_task(self.reader_loop())
-        self.events_task = asyncio.create_task(self.events_loop())
+        self.reader_thread = Thread(target=self.reader_loop)
+        self.reader_thread.start()
+        self.writer_thread = Thread(target=self.writer_loop)
+        self.writer_thread.start()
+        self.events_thread = Thread(target=self.events_loop)
+        self.events_thread.start()
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
         self.closing = True
-        await self.stop_io_for_all_accounts()
-        await self.events_task
+        self.stop_io_for_all_accounts()
+        self.events_thread.join()
         self.process.terminate()
-        await self.reader_task
+        self.reader_thread.join()
+        self.request_queue.put(None)
+        self.writer_thread.join()
 
-    async def __aenter__(self):
-        await self.start()
+    def __enter__(self):
+        self.start()
         return self
 
-    async def __aexit__(self, _exc_type, _exc, _tb):
-        await self.close()
+    def __exit__(self, _exc_type, _exc, _tb):
+        self.close()
 
-    async def reader_loop(self) -> None:
+    def reader_loop(self) -> None:
         try:
             while True:
-                line = await self.process.stdout.readline()  # noqa
+                line = self.process.stdout.readline()
                 if not line:  # EOF
                     break
                 response = json.loads(line)
                 if "id" in response:
-                    fut = self.request_events.pop(response["id"])
-                    fut.set_result(response)
+                    response_id = response["id"]
+                    event = self.request_events.pop(response_id)
+                    self.request_results[response_id] = response
+                    event.set()
                 else:
                     print(response)
         except Exception:
             # Log an exception if the reader loop dies.
             logging.exception("Exception in the reader loop")
 
-    async def get_queue(self, account_id: int) -> asyncio.Queue:
+    def writer_loop(self) -> None:
+        """Writer loop ensuring only a single thread writes requests."""
+        try:
+            while True:
+                request = self.request_queue.get()
+                if not request:
+                    break
+                data = (json.dumps(request) + "\n").encode()
+                self.process.stdin.write(data)
+                self.process.stdin.flush()
+
+        except Exception:
+            # Log an exception if the writer loop dies.
+            logging.exception("Exception in the writer loop")
+
+    def get_queue(self, account_id: int) -> Queue:
         if account_id not in self.event_queues:
-            self.event_queues[account_id] = asyncio.Queue()
+            self.event_queues[account_id] = Queue()
         return self.event_queues[account_id]
 
-    async def events_loop(self) -> None:
+    def events_loop(self) -> None:
         """Requests new events and distributes them between queues."""
         try:
             while True:
                 if self.closing:
                     return
-                event = await self.get_next_event()
+                event = self.get_next_event()
                 account_id = event["contextId"]
-                queue = await self.get_queue(account_id)
-                await queue.put(event["event"])
+                queue = self.get_queue(account_id)
+                queue.put(event["event"])
         except Exception:
             # Log an exception if the event loop dies.
             logging.exception("Exception in the event loop")
 
-    async def wait_for_event(self, account_id: int) -> Optional[dict]:
+    def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
-        queue = await self.get_queue(account_id)
-        return await queue.get()
+        queue = self.get_queue(account_id)
+        return queue.get()
 
     def __getattr__(self, attr: str):
-        async def method(*args) -> Any:
+        def method(*args) -> Any:
             self.id += 1
             request_id = self.id
 
@@ -114,12 +139,12 @@ class Rpc:
                 "params": args,
                 "id": self.id,
             }
-            data = (json.dumps(request) + "\n").encode()
-            self.process.stdin.write(data)  # noqa
-            loop = asyncio.get_running_loop()
-            fut = loop.create_future()
-            self.request_events[request_id] = fut
-            response = await fut
+            event = Event()
+            self.request_events[request_id] = event
+            self.request_queue.put(request)
+            event.wait()
+
+            response = self.request_results.pop(request_id)
             if "error" in response:
                 raise JsonRpcError(response["error"])
             if "result" in response:

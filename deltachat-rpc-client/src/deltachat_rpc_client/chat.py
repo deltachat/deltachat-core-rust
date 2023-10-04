@@ -25,7 +25,7 @@ class Chat:
     def _rpc(self) -> "Rpc":
         return self.account._rpc
 
-    async def delete(self) -> None:
+    def delete(self) -> None:
         """Delete this chat and all its messages.
 
         Note:
@@ -33,21 +33,21 @@ class Chat:
         - does not delete messages on server
         - the chat or contact is not blocked, new message will arrive
         """
-        await self._rpc.delete_chat(self.account.id, self.id)
+        self._rpc.delete_chat(self.account.id, self.id)
 
-    async def block(self) -> None:
+    def block(self) -> None:
         """Block this chat."""
-        await self._rpc.block_chat(self.account.id, self.id)
+        self._rpc.block_chat(self.account.id, self.id)
 
-    async def accept(self) -> None:
+    def accept(self) -> None:
         """Accept this contact request chat."""
-        await self._rpc.accept_chat(self.account.id, self.id)
+        self._rpc.accept_chat(self.account.id, self.id)
 
-    async def leave(self) -> None:
+    def leave(self) -> None:
         """Leave this chat."""
-        await self._rpc.leave_group(self.account.id, self.id)
+        self._rpc.leave_group(self.account.id, self.id)
 
-    async def mute(self, duration: Optional[int] = None) -> None:
+    def mute(self, duration: Optional[int] = None) -> None:
         """Mute this chat, if a duration is not provided the chat is muted forever.
 
         :param duration: mute duration from now in seconds. Must be greater than zero.
@@ -57,59 +57,59 @@ class Chat:
             dur: Union[str, dict] = {"Until": duration}
         else:
             dur = "Forever"
-        await self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
+        self._rpc.set_chat_mute_duration(self.account.id, self.id, dur)
 
-    async def unmute(self) -> None:
+    def unmute(self) -> None:
         """Unmute this chat."""
-        await self._rpc.set_chat_mute_duration(self.account.id, self.id, "NotMuted")
+        self._rpc.set_chat_mute_duration(self.account.id, self.id, "NotMuted")
 
-    async def pin(self) -> None:
+    def pin(self) -> None:
         """Pin this chat."""
-        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.PINNED)
+        self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.PINNED)
 
-    async def unpin(self) -> None:
+    def unpin(self) -> None:
         """Unpin this chat."""
-        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
+        self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
 
-    async def archive(self) -> None:
+    def archive(self) -> None:
         """Archive this chat."""
-        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.ARCHIVED)
+        self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.ARCHIVED)
 
-    async def unarchive(self) -> None:
+    def unarchive(self) -> None:
         """Unarchive this chat."""
-        await self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
+        self._rpc.set_chat_visibility(self.account.id, self.id, ChatVisibility.NORMAL)
 
-    async def set_name(self, name: str) -> None:
+    def set_name(self, name: str) -> None:
         """Set name of this chat."""
-        await self._rpc.set_chat_name(self.account.id, self.id, name)
+        self._rpc.set_chat_name(self.account.id, self.id, name)
 
-    async def set_ephemeral_timer(self, timer: int) -> None:
+    def set_ephemeral_timer(self, timer: int) -> None:
         """Set ephemeral timer of this chat."""
-        await self._rpc.set_chat_ephemeral_timer(self.account.id, self.id, timer)
+        self._rpc.set_chat_ephemeral_timer(self.account.id, self.id, timer)
 
-    async def get_encryption_info(self) -> str:
+    def get_encryption_info(self) -> str:
         """Return encryption info for this chat."""
-        return await self._rpc.get_chat_encryption_info(self.account.id, self.id)
+        return self._rpc.get_chat_encryption_info(self.account.id, self.id)
 
-    async def get_qr_code(self) -> Tuple[str, str]:
+    def get_qr_code(self) -> Tuple[str, str]:
         """Get Join-Group QR code text and SVG data."""
-        return await self._rpc.get_chat_securejoin_qr_code_svg(self.account.id, self.id)
+        return self._rpc.get_chat_securejoin_qr_code_svg(self.account.id, self.id)
 
-    async def get_basic_snapshot(self) -> AttrDict:
+    def get_basic_snapshot(self) -> AttrDict:
         """Get a chat snapshot with basic info about this chat."""
-        info = await self._rpc.get_basic_chat_info(self.account.id, self.id)
+        info = self._rpc.get_basic_chat_info(self.account.id, self.id)
         return AttrDict(chat=self, **info)
 
-    async def get_full_snapshot(self) -> AttrDict:
+    def get_full_snapshot(self) -> AttrDict:
         """Get a full snapshot of this chat."""
-        info = await self._rpc.get_full_chat_by_id(self.account.id, self.id)
+        info = self._rpc.get_full_chat_by_id(self.account.id, self.id)
         return AttrDict(chat=self, **info)
 
-    async def can_send(self) -> bool:
+    def can_send(self) -> bool:
         """Return true if messages can be sent to the chat."""
-        return await self._rpc.can_send(self.account.id, self.id)
+        return self._rpc.can_send(self.account.id, self.id)
 
-    async def send_message(
+    def send_message(
         self,
         text: Optional[str] = None,
         html: Optional[str] = None,
@@ -132,30 +132,30 @@ class Chat:
             "overrideSenderName": override_sender_name,
             "quotedMessageId": quoted_msg,
         }
-        msg_id = await self._rpc.send_msg(self.account.id, self.id, draft)
+        msg_id = self._rpc.send_msg(self.account.id, self.id, draft)
         return Message(self.account, msg_id)
 
-    async def send_text(self, text: str) -> Message:
+    def send_text(self, text: str) -> Message:
         """Send a text message and return the resulting Message instance."""
-        msg_id = await self._rpc.misc_send_text_message(self.account.id, self.id, text)
+        msg_id = self._rpc.misc_send_text_message(self.account.id, self.id, text)
         return Message(self.account, msg_id)
 
-    async def send_videochat_invitation(self) -> Message:
+    def send_videochat_invitation(self) -> Message:
         """Send a videochat invitation and return the resulting Message instance."""
-        msg_id = await self._rpc.send_videochat_invitation(self.account.id, self.id)
+        msg_id = self._rpc.send_videochat_invitation(self.account.id, self.id)
         return Message(self.account, msg_id)
 
-    async def send_sticker(self, path: str) -> Message:
+    def send_sticker(self, path: str) -> Message:
         """Send an sticker and return the resulting Message instance."""
-        msg_id = await self._rpc.send_sticker(self.account.id, self.id, path)
+        msg_id = self._rpc.send_sticker(self.account.id, self.id, path)
         return Message(self.account, msg_id)
 
-    async def forward_messages(self, messages: List[Message]) -> None:
+    def forward_messages(self, messages: List[Message]) -> None:
         """Forward a list of messages to this chat."""
         msg_ids = [msg.id for msg in messages]
-        await self._rpc.forward_messages(self.account.id, msg_ids, self.id)
+        self._rpc.forward_messages(self.account.id, msg_ids, self.id)
 
-    async def set_draft(
+    def set_draft(
         self,
         text: Optional[str] = None,
         file: Optional[str] = None,
@@ -164,15 +164,15 @@ class Chat:
         """Set draft message."""
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
-        await self._rpc.misc_set_draft(self.account.id, self.id, text, file, quoted_msg)
+        self._rpc.misc_set_draft(self.account.id, self.id, text, file, quoted_msg)
 
-    async def remove_draft(self) -> None:
+    def remove_draft(self) -> None:
         """Remove draft message."""
-        await self._rpc.remove_draft(self.account.id, self.id)
+        self._rpc.remove_draft(self.account.id, self.id)
 
-    async def get_draft(self) -> Optional[AttrDict]:
+    def get_draft(self) -> Optional[AttrDict]:
         """Get draft message."""
-        snapshot = await self._rpc.get_draft(self.account.id, self.id)
+        snapshot = self._rpc.get_draft(self.account.id, self.id)
         if not snapshot:
             return None
         snapshot = AttrDict(snapshot)
@@ -181,61 +181,61 @@ class Chat:
         snapshot["message"] = Message(self.account, snapshot.id)
         return snapshot
 
-    async def get_messages(self, info_only: bool = False, add_daymarker: bool = False) -> List[Message]:
+    def get_messages(self, info_only: bool = False, add_daymarker: bool = False) -> List[Message]:
         """get the list of messages in this chat."""
-        msgs = await self._rpc.get_message_ids(self.account.id, self.id, info_only, add_daymarker)
+        msgs = self._rpc.get_message_ids(self.account.id, self.id, info_only, add_daymarker)
         return [Message(self.account, msg_id) for msg_id in msgs]
 
-    async def get_fresh_message_count(self) -> int:
+    def get_fresh_message_count(self) -> int:
         """Get number of fresh messages in this chat"""
-        return await self._rpc.get_fresh_msg_cnt(self.account.id, self.id)
+        return self._rpc.get_fresh_msg_cnt(self.account.id, self.id)
 
-    async def mark_noticed(self) -> None:
+    def mark_noticed(self) -> None:
         """Mark all messages in this chat as noticed."""
-        await self._rpc.marknoticed_chat(self.account.id, self.id)
+        self._rpc.marknoticed_chat(self.account.id, self.id)
 
-    async def add_contact(self, *contact: Union[int, str, Contact]) -> None:
+    def add_contact(self, *contact: Union[int, str, Contact]) -> None:
         """Add contacts to this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                contact_id = (await self.account.create_contact(cnt)).id
+                contact_id = self.account.create_contact(cnt).id
             elif not isinstance(cnt, int):
                 contact_id = cnt.id
             else:
                 contact_id = cnt
-            await self._rpc.add_contact_to_chat(self.account.id, self.id, contact_id)
+            self._rpc.add_contact_to_chat(self.account.id, self.id, contact_id)
 
-    async def remove_contact(self, *contact: Union[int, str, Contact]) -> None:
+    def remove_contact(self, *contact: Union[int, str, Contact]) -> None:
         """Remove members from this group."""
         for cnt in contact:
             if isinstance(cnt, str):
-                contact_id = (await self.account.create_contact(cnt)).id
+                contact_id = self.account.create_contact(cnt).id
             elif not isinstance(cnt, int):
                 contact_id = cnt.id
             else:
                 contact_id = cnt
-            await self._rpc.remove_contact_from_chat(self.account.id, self.id, contact_id)
+            self._rpc.remove_contact_from_chat(self.account.id, self.id, contact_id)
 
-    async def get_contacts(self) -> List[Contact]:
+    def get_contacts(self) -> List[Contact]:
         """Get the contacts belonging to this chat.
 
         For single/direct chats self-address is not included.
         """
-        contacts = await self._rpc.get_chat_contacts(self.account.id, self.id)
+        contacts = self._rpc.get_chat_contacts(self.account.id, self.id)
         return [Contact(self.account, contact_id) for contact_id in contacts]
 
-    async def set_image(self, path: str) -> None:
+    def set_image(self, path: str) -> None:
         """Set profile image of this chat.
 
         :param path: Full path of the image to use as the group image.
         """
-        await self._rpc.set_chat_profile_image(self.account.id, self.id, path)
+        self._rpc.set_chat_profile_image(self.account.id, self.id, path)
 
-    async def remove_image(self) -> None:
+    def remove_image(self) -> None:
         """Remove profile image of this chat."""
-        await self._rpc.set_chat_profile_image(self.account.id, self.id, None)
+        self._rpc.set_chat_profile_image(self.account.id, self.id, None)
 
-    async def get_locations(
+    def get_locations(
         self,
         contact: Optional[Contact] = None,
         timestamp_from: Optional["datetime"] = None,
@@ -246,7 +246,7 @@ class Chat:
         time_to = calendar.timegm(timestamp_to.utctimetuple()) if timestamp_to else 0
         contact_id = contact.id if contact else 0
 
-        result = await self._rpc.get_locations(self.account.id, self.id, contact_id, time_from, time_to)
+        result = self._rpc.get_locations(self.account.id, self.id, contact_id, time_from, time_to)
         locations = []
         contacts: Dict[int, Contact] = {}
         for loc in result:
