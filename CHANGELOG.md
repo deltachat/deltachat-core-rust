@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.124.0] - 2023-10-04
+
+### API-Changes
+
+- [**breaking**] Return `DC_CONTACT_ID_SELF` from `dc_contact_get_verifier_id()` for directly verified contacts.
+- Deprecate `dc_contact_get_verifier_addr`.
+- python: use `dc_contact_get_verifier_id()`. `get_verifier()` returns a Contact rather than an address now.
+- Deprecate `get_next_media()`.
+- Ignore public key argument in `dc_preconfigure_keypair()`. Public key is extracted from the private key.
+
+### Fixes
+
+- Wrap base64-encoded parts to 76 characters.
+- Require valid email addresses in `dc_provider_new_from_email[_with_dns]`.
+- Do not trash messages with attachments and no text when `location.kml` is attached ([#4749](https://github.com/deltachat/deltachat-core-rust/issues/4749)).
+- Initialise `last_msg_id` to the highest known row id. This ensures bots migrated from older version to `dc_get_next_msgs()` API do not process all previous messages from scratch.
+- Do not put the status footer into reaction MIME parts.
+- Ignore special chats in `get_similar_chat_ids()`. This prevents trash chat from showing up in similar chat list ([#4756](https://github.com/deltachat/deltachat-core-rust/issues/4756)).
+- Cap percentage in connectivity layout to 100% ([#4765](https://github.com/deltachat/deltachat-core-rust/pull/4765)).
+- Add Let's Encrypt root certificate to `reqwest`. This should allow scanning `DCACCOUNT` QR-codes on older Android phones when the server has a Let's Encrypt certificate.
+- deltachat-rpc-client: Increase stdio buffer to 64 MiB to avoid Python bots crashing when trying to load large messages via a JSON-RPC call.
+- Add `protected-headers` directive to Content-Type of encrypted messages with attachments ([#2302](https://github.com/deltachat/deltachat-core-rust/issues/2302)). This makes Thunderbird show encrypted Subject for Delta Chat messages.
+- webxdc: Reset `document.update` on forwarding. This fixes the test `test_forward_webxdc_instance()`.
+
+### Features / Changes
+
+- Remove extra members from the local list in sake of group membership consistency ([#3782](https://github.com/deltachat/deltachat-core-rust/issues/3782)).
+- deltachat-rpc-client: Log exceptions when long-running tasks die.
+
+### Build
+
+- Build wheels for Python 3.12 and PyPy 3.10.
+
 ## [1.123.0] - 2023-09-22
 
 ### API-Changes
@@ -2834,3 +2867,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.121.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.120.0...v1.121.0
 [1.122.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.121.0...v1.122.0
 [1.123.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.122.0...v1.123.0
+[1.124.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.123.0...v1.124.0
