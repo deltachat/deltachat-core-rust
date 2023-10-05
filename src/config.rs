@@ -465,6 +465,27 @@ impl Context {
                     .set_raw_config(key.as_ref(), value.as_deref())
                     .await?;
             }
+            Config::Socks5Enabled
+            | Config::BccSelf
+            | Config::E2eeEnabled
+            | Config::MdnsEnabled
+            | Config::SentboxWatch
+            | Config::MvboxMove
+            | Config::OnlyFetchMvbox
+            | Config::FetchExistingMsgs
+            | Config::DeleteToTrash
+            | Config::SaveMimeHeaders
+            | Config::Configured
+            | Config::Bot
+            | Config::NotifyAboutWrongPw
+            | Config::SendSyncMsgs
+            | Config::SignUnencrypted => {
+                ensure!(
+                    matches!(value, None | Some("0") | Some("1")),
+                    "Boolean value must be either 0 or 1"
+                );
+                self.sql.set_raw_config(key.as_ref(), value).await?;
+            }
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
@@ -612,6 +633,18 @@ mod tests {
             Config::from_str("sys.config_keys"),
             Ok(Config::SysConfigKeys)
         );
+    }
+
+    /// Tests that "bot" config can only be set to "0" or "1".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_set_config_bot() {
+        let t = TestContext::new().await;
+
+        assert!(t.set_config(Config::Bot, None).await.is_ok());
+        assert!(t.set_config(Config::Bot, Some("0")).await.is_ok());
+        assert!(t.set_config(Config::Bot, Some("1")).await.is_ok());
+        assert!(t.set_config(Config::Bot, Some("2")).await.is_err());
+        assert!(t.set_config(Config::Bot, Some("Foobar")).await.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
