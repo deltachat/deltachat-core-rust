@@ -138,11 +138,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
         /* import a directory */
         let dir_name = std::path::Path::new(&real_spec);
         let dir = fs::read_dir(dir_name).await;
-        if dir.is_err() {
-            error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
-            return false;
-        } else {
-            let mut dir = dir.unwrap();
+        if let Ok(mut dir) = dir {
             while let Ok(Some(entry)) = dir.next_entry().await {
                 let name_f = entry.file_name();
                 let name = name_f.to_string_lossy();
@@ -154,6 +150,9 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
                     }
                 }
             }
+        } else {
+            error!(context, "Import: Cannot open directory \"{}\".", &real_spec);
+            return false;
         }
     }
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
