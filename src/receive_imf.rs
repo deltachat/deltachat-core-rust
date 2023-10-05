@@ -35,6 +35,7 @@ use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
+use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{
@@ -1092,12 +1093,13 @@ async fn add_parts(
 
     for part in &mut mime_parser.parts {
         if part.is_reaction {
+            let reaction_str = simplify::remove_footers(part.msg.as_str());
             set_msg_reaction(
                 context,
                 &mime_in_reply_to,
                 orig_chat_id.unwrap_or_default(),
                 from_id,
-                Reaction::from(part.msg.as_str()),
+                Reaction::from(reaction_str.as_str()),
             )
             .await?;
         }

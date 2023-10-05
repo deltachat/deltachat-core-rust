@@ -67,6 +67,15 @@ fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     (lines, false)
 }
 
+/// Remove footers if any.
+/// This also makes all newlines "\n", but why not.
+pub(crate) fn remove_footers(msg: &str) -> String {
+    let lines = split_lines(msg);
+    let lines = remove_message_footer(&lines).0;
+    let lines = remove_nonstandard_footer(lines).0;
+    lines.join("\n")
+}
+
 pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
     buf.split('\n').collect()
 }
