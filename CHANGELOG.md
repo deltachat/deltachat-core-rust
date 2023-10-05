@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.124.1] - 2023-10-05
+
+### Fixes
+
+- Remove footer from reactions on the receiver side ([#4780](https://github.com/deltachat/deltachat-core-rust/pull/4780)).
+
+### CI
+
+- Pin `urllib3` version to `<2`. ([#4788](https://github.com/deltachat/deltachat-core-rust/issues/4788))
+
 ## [1.124.0] - 2023-10-04
 
 ### API-Changes
@@ -2868,3 +2878,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.122.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.121.0...v1.122.0
 [1.123.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.122.0...v1.123.0
 [1.124.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.123.0...v1.124.0
+[1.124.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.0...v1.124.1
