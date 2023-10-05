@@ -2157,6 +2157,57 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_housekeeping_deletes_unused_contacts() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        assert!(Contact::delete(&alice, ContactId::SELF).await.is_err());
+
+        // Create Bob contact
+        let (contact_id, _) = Contact::add_or_lookup(
+            &alice,
+            "Bob",
+            ContactAddress::new("bob@example.net")?,
+            Origin::ManuallyCreated,
+        )
+        .await?;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.net")
+            .await;
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            1
+        );
+
+        // If a contact has ongoing chats, contact is only hidden on deletion
+        Contact::delete(&alice, contact_id).await?;
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
+        assert_eq!(contact.origin, Origin::Hidden);
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            0
+        );
+
+        // Delete chat.
+        chat.get_id().delete(&alice).await?;
+
+        sql::housekeeping(&alice).await?;
+
+        assert!(Contact::get_by_id(&alice, contact_id).await.is_err());
+        assert_eq!(
+            Contact::get_all(&alice, 0, Some("bob@example.net"))
+                .await?
+                .len(),
+            0
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_delete_and_recreate_contact() -> Result<()> {
         let t = TestContext::new_alice().await;
 

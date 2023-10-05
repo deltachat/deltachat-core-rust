@@ -12,6 +12,7 @@ use crate::blob::BlobObject;
 use crate::chat::{add_device_msg, update_device_icon, update_saved_messages_icon};
 use crate::config::Config;
 use crate::constants::DC_CHAT_ID_TRASH;
+use crate::contact::Origin;
 use crate::context::Context;
 use crate::debug_logging::set_debug_logging_xdc;
 use crate::ephemeral::start_ephemeral_timers;
@@ -782,6 +783,17 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         )
         .await
         .context("failed to remove old webxdc status updates")
+        .log_err(context)
+        .ok();
+
+    context
+        .sql
+        .execute(
+            "DELETE FROM contacts WHERE origin=? AND id NOT IN (SELECT contact_id FROM chats_contacts);",
+            (Origin::Hidden,),
+        )
+        .await
+        .context("Failed to remove hidden contacts with no chats")
         .log_err(context)
         .ok();
 
