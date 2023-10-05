@@ -1930,10 +1930,13 @@ def test_set_get_group_image(acfactory, data, lp):
     chat.send_text("hi")  # sends another message
     assert chat.is_promoted()
 
-    lp.sec("ac2: wait for receiving message from ac1")
+    lp.sec("ac2: receive messages from ac1")
     msg1 = ac2._evtracker.wait_next_incoming_message()
-    assert msg1.is_system_message()  # Member added
+    print(f"ac2: msg1={msg1}")
+    # DEBUG: Postpone assertions to have more info in the log.
     msg2 = ac2._evtracker.wait_next_incoming_message()
+    print(f"ac2: msg2={msg2}")
+    assert msg1.is_system_message()  # Member added
     assert msg2.text == "hi"
     assert msg1.chat.id == msg2.chat.id
 
