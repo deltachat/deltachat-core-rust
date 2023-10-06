@@ -596,7 +596,7 @@ impl<'a> MimeFactory<'a> {
 
         if let Loaded::Message { chat } = &self.loaded {
             if chat.typ == Chattype::Broadcast {
-                headers.unprotected.push(Header::new(
+                headers.protected.push(Header::new(
                     "List-ID".into(),
                     format!("{} <{}>", chat.name, chat.grpid),
                 ));
