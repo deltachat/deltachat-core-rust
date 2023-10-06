@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from queue import Queue
 from threading import Event, Thread
 from typing import Any, Dict, Optional
@@ -35,16 +36,24 @@ class Rpc:
         self.events_thread: Thread
 
     def start(self) -> None:
-        self.process = subprocess.Popen(
-            "deltachat-rpc-server",
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            # Prevent subprocess from capturing SIGINT.
-            # We are not using `process_group`
-            # because it is not supported before Python 3.11.
-            preexec_fn=os.setpgrp,
-            **self._kwargs,
-        )
+        if sys.version_info >= (3, 11):
+            self.process = subprocess.Popen(
+                "deltachat-rpc-server",
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                # Prevent subprocess from capturing SIGINT.
+                process_group=0,
+                **self._kwargs,
+            )
+        else:
+            self.process = subprocess.Popen(
+                "deltachat-rpc-server",
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                # `process_group` is not supported before Python 3.11.
+                preexec_fn=os.setpgrp,  # noqa: PLW1509
+                **self._kwargs,
+            )
         self.id = 0
         self.event_queues = {}
         self.request_events = {}
