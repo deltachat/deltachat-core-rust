@@ -39,6 +39,10 @@ class Rpc:
             "deltachat-rpc-server",
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            # Prevent subprocess from capturing SIGINT.
+            # We are not using `process_group`
+            # because it is not supported before Python 3.11.
+            preexec_fn=os.setpgrp,
             **self._kwargs,
         )
         self.id = 0
