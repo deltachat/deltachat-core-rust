@@ -242,12 +242,9 @@ jobs:
           - os: macos-latest
             python: pypy3.10
 
-          # Minimum Supported Python Version = 3.8
-          #
-          # Python 3.7 has at least one known bug related to starting subprocesses
-          # in asyncio programs: <https://bugs.python.org/issue35621>
+          # Minimum Supported Python Version = 3.7
           - os: ubuntu-latest
-            python: 3.8
+            python: 3.7
 
     runs-on: ${{ matrix.os }}
     steps:
