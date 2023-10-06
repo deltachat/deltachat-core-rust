@@ -63,7 +63,7 @@ class Rpc:
         self.closing = True
         self.stop_io_for_all_accounts()
         self.events_thread.join()
-        self.process.terminate()
+        self.process.stdin.close()
         self.reader_thread.join()
         self.request_queue.put(None)
         self.writer_thread.join()
