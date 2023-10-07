@@ -97,7 +97,7 @@ class Rpc:
                     self.request_results[response_id] = response
                     event.set()
                 else:
-                    print(response)
+                    logging.warning("Got a response without ID: %s", response)
         except Exception:
             # Log an exception if the reader loop dies.
             logging.exception("Exception in the reader loop")

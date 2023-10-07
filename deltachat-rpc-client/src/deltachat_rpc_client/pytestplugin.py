@@ -54,7 +54,6 @@ class ACFactory:
         account.start_io()
         while True:
             event = account.wait_for_event()
-            print(event)
             if event.type == EventType.IMAP_INBOX_IDLE:
                 break
         return account
