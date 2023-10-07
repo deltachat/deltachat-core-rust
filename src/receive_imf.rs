@@ -596,6 +596,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 mime_parser,
+                is_partial_download.is_some(),
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -822,6 +823,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     mime_parser,
+                    is_partial_download.is_some(),
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -1518,6 +1520,7 @@ async fn is_probably_private_reply(
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
+    is_partial_download: bool,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: ContactId,
@@ -1648,7 +1651,7 @@ async fn create_or_lookup_group(
 
     if let Some(chat_id) = chat_id {
         Ok(Some((chat_id, chat_id_blocked)))
-    } else if mime_parser.decrypting_failed {
+    } else if is_partial_download || mime_parser.decrypting_failed {
         // It is possible that the message was sent to a valid,
         // yet unknown group, which was rejected because
         // Chat-Group-Name, which is in the encrypted part, was
