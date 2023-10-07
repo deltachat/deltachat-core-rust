@@ -3725,3 +3725,87 @@ async fn test_download_later() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_create_group_with_big_msg() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    let ba_contact = Contact::create(
+        &bob,
+        "alice",
+        &alice.get_config(Config::Addr).await?.unwrap(),
+    )
+    .await?;
+    let file_bytes = include_bytes!("../../test-data/image/screenshot.png");
+
+    let bob_grp_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "Group").await?;
+    add_contact_to_chat(&bob, bob_grp_id, ba_contact).await?;
+    let mut msg = Message::new(Viewtype::Image);
+    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)
+        .await?;
+    let sent_msg = bob.send_msg(bob_grp_id, &mut msg).await;
+    assert!(!msg.get_showpadlock());
+
+    alice.set_config(Config::DownloadLimit, Some("1")).await?;
+    assert_eq!(alice.download_limit().await?, Some(MIN_DOWNLOAD_LIMIT));
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Available);
+    let alice_grp = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_grp.typ, Chattype::Group);
+    assert_eq!(alice_grp.name, "Group");
+    assert_eq!(
+        chat::get_chat_contacts(&alice, alice_grp.id).await?.len(),
+        2
+    );
+
+    alice.set_config(Config::DownloadLimit, None).await?;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Done);
+    assert_eq!(msg.state, MessageState::InFresh);
+    assert_eq!(msg.viewtype, Viewtype::Image);
+    assert_eq!(msg.chat_id, alice_grp.id);
+    let alice_grp = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_grp.typ, Chattype::Group);
+    assert_eq!(alice_grp.name, "Group");
+    assert_eq!(
+        chat::get_chat_contacts(&alice, alice_grp.id).await?.len(),
+        2
+    );
+
+    let ab_chat_id = tcm.send_recv_accept(&alice, &bob, "hi").await.chat_id;
+    // Now Bob can send encrypted messages to Alice.
+
+    let bob_grp_id = create_group_chat(&bob, ProtectionStatus::Unprotected, "Group1").await?;
+    add_contact_to_chat(&bob, bob_grp_id, ba_contact).await?;
+    let mut msg = Message::new(Viewtype::Image);
+    msg.set_file_from_bytes(&bob, "a.jpg", file_bytes, None)
+        .await?;
+    let sent_msg = bob.send_msg(bob_grp_id, &mut msg).await;
+    assert!(msg.get_showpadlock());
+
+    alice.set_config(Config::DownloadLimit, Some("1")).await?;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Available);
+    // Until fully downloaded, an encrypted message must sit in the 1:1 chat.
+    assert_eq!(msg.chat_id, ab_chat_id);
+
+    alice.set_config(Config::DownloadLimit, None).await?;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.download_state, DownloadState::Done);
+    assert_eq!(msg.state, MessageState::InFresh);
+    assert_eq!(msg.viewtype, Viewtype::Image);
+    assert_ne!(msg.chat_id, ab_chat_id);
+    let alice_grp = Chat::load_from_db(&alice, msg.chat_id).await?;
+    assert_eq!(alice_grp.typ, Chattype::Group);
+    assert_eq!(alice_grp.name, "Group1");
+    assert_eq!(
+        chat::get_chat_contacts(&alice, alice_grp.id).await?.len(),
+        2
+    );
+
+    // The big message must go away from the 1:1 chat.
+    assert_eq!(alice.get_last_msg_in(ab_chat_id).await.text, "hi");
+
+    Ok(())
+}
