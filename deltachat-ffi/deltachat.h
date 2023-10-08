@@ -492,6 +492,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `disable_idle` = 1=disable IMAP IDLE even if the server supports it,
+ *                    0=use IMAP IDLE if the server supports it.
+ *                    This is a developer option used for testing polling used as an IDLE fallback.
  * - `download_limit` = Messages up to this number of bytes are downloaded automatically.
  *                    For larger messages, only the header is downloaded and a placeholder is shown.
  *                    These messages can be downloaded fully using dc_download_full_msg() later.
