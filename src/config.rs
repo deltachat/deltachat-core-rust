@@ -286,6 +286,12 @@ pub enum Config {
     #[strum(props(default = "60"))]
     ScanAllFoldersDebounceSecs,
 
+    /// Whether to avoid using IMAP IDLE even if the server supports it.
+    ///
+    /// This is a developer option for testing "fake idle".
+    #[strum(props(default = "0"))]
+    DisableIdle,
+
     /// Defines the max. size (in bytes) of messages downloaded automatically.
     /// 0 = no limit.
     #[strum(props(default = "0"))]
@@ -479,7 +485,8 @@ impl Context {
             | Config::Bot
             | Config::NotifyAboutWrongPw
             | Config::SendSyncMsgs
-            | Config::SignUnencrypted => {
+            | Config::SignUnencrypted
+            | Config::DisableIdle => {
                 ensure!(
                     matches!(value, None | Some("0") | Some("1")),
                     "Boolean value must be either 0 or 1"

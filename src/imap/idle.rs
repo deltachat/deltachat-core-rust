@@ -7,7 +7,9 @@ use futures_lite::FutureExt;
 
 use super::session::Session;
 use super::Imap;
+use crate::config::Config;
 use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
+use crate::log::LogExt;
 use crate::{context::Context, scheduler::InterruptInfo};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
@@ -20,6 +22,10 @@ impl Session {
         watch_folder: Option<String>,
     ) -> Result<(Self, InterruptInfo)> {
         use futures::future::FutureExt;
+
+        if context.get_config_bool(Config::DisableIdle).await? {
+            bail!("IMAP IDLE is disabled");
+        }
 
         if !self.can_idle() {
             bail!("IMAP server does not have IDLE capability");
@@ -163,7 +169,14 @@ impl Imap {
                         continue;
                     }
                     if let Some(session) = &self.session {
-                        if session.can_idle() {
+                        if session.can_idle()
+                            && !context
+                                .get_config_bool(Config::DisableIdle)
+                                .await
+                                .context("Failed to get disable_idle config")
+                                .log_err(context)
+                                .unwrap_or_default()
+                        {
                             // we only fake-idled because network was gone during IDLE, probably
                             break InterruptInfo::new(false);
                         }
