@@ -24,63 +24,63 @@ class Account:
     def _rpc(self) -> "Rpc":
         return self.manager.rpc
 
-    async def wait_for_event(self) -> AttrDict:
+    def wait_for_event(self) -> AttrDict:
         """Wait until the next event and return it."""
-        return AttrDict(await self._rpc.wait_for_event(self.id))
+        return AttrDict(self._rpc.wait_for_event(self.id))
 
-    async def remove(self) -> None:
+    def remove(self) -> None:
         """Remove the account."""
-        await self._rpc.remove_account(self.id)
+        self._rpc.remove_account(self.id)
 
-    async def start_io(self) -> None:
+    def start_io(self) -> None:
         """Start the account I/O."""
-        await self._rpc.start_io(self.id)
+        self._rpc.start_io(self.id)
 
-    async def stop_io(self) -> None:
+    def stop_io(self) -> None:
         """Stop the account I/O."""
-        await self._rpc.stop_io(self.id)
+        self._rpc.stop_io(self.id)
 
-    async def get_info(self) -> AttrDict:
+    def get_info(self) -> AttrDict:
         """Return dictionary of this account configuration parameters."""
-        return AttrDict(await self._rpc.get_info(self.id))
+        return AttrDict(self._rpc.get_info(self.id))
 
-    async def get_size(self) -> int:
+    def get_size(self) -> int:
         """Get the combined filesize of an account in bytes."""
-        return await self._rpc.get_account_file_size(self.id)
+        return self._rpc.get_account_file_size(self.id)
 
-    async def is_configured(self) -> bool:
+    def is_configured(self) -> bool:
         """Return True if this account is configured."""
-        return await self._rpc.is_configured(self.id)
+        return self._rpc.is_configured(self.id)
 
-    async def set_config(self, key: str, value: Optional[str] = None) -> None:
+    def set_config(self, key: str, value: Optional[str] = None) -> None:
         """Set configuration value."""
-        await self._rpc.set_config(self.id, key, value)
+        self._rpc.set_config(self.id, key, value)
 
-    async def get_config(self, key: str) -> Optional[str]:
+    def get_config(self, key: str) -> Optional[str]:
         """Get configuration value."""
-        return await self._rpc.get_config(self.id, key)
+        return self._rpc.get_config(self.id, key)
 
-    async def update_config(self, **kwargs) -> None:
+    def update_config(self, **kwargs) -> None:
         """update config values."""
         for key, value in kwargs.items():
-            await self.set_config(key, value)
+            self.set_config(key, value)
 
-    async def set_avatar(self, img_path: Optional[str] = None) -> None:
+    def set_avatar(self, img_path: Optional[str] = None) -> None:
         """Set self avatar.
 
         Passing None will discard the currently set avatar.
         """
-        await self.set_config("selfavatar", img_path)
+        self.set_config("selfavatar", img_path)
 
-    async def get_avatar(self) -> Optional[str]:
+    def get_avatar(self) -> Optional[str]:
         """Get self avatar."""
-        return await self.get_config("selfavatar")
+        return self.get_config("selfavatar")
 
-    async def configure(self) -> None:
+    def configure(self) -> None:
         """Configure an account."""
-        await self._rpc.configure(self.id)
+        self._rpc.configure(self.id)
 
-    async def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
+    def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
 
         Calling this method will always result in the same
@@ -94,24 +94,24 @@ class Account:
         if isinstance(obj, int):
             obj = Contact(self, obj)
         if isinstance(obj, Contact):
-            obj = (await obj.get_snapshot()).address
-        return Contact(self, await self._rpc.create_contact(self.id, obj, name))
+            obj = obj.get_snapshot().address
+        return Contact(self, self._rpc.create_contact(self.id, obj, name))
 
     def get_contact_by_id(self, contact_id: int) -> Contact:
         """Return Contact instance for the given contact ID."""
         return Contact(self, contact_id)
 
-    async def get_contact_by_addr(self, address: str) -> Optional[Contact]:
+    def get_contact_by_addr(self, address: str) -> Optional[Contact]:
         """Check if an e-mail address belongs to a known and unblocked contact."""
-        contact_id = await self._rpc.lookup_contact_id_by_addr(self.id, address)
+        contact_id = self._rpc.lookup_contact_id_by_addr(self.id, address)
         return contact_id and Contact(self, contact_id)
 
-    async def get_blocked_contacts(self) -> List[AttrDict]:
+    def get_blocked_contacts(self) -> List[AttrDict]:
         """Return a list with snapshots of all blocked contacts."""
-        contacts = await self._rpc.get_blocked_contacts(self.id)
+        contacts = self._rpc.get_blocked_contacts(self.id)
         return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
 
-    async def get_contacts(
+    def get_contacts(
         self,
         query: Optional[str] = None,
         with_self: bool = False,
@@ -133,9 +133,9 @@ class Account:
             flags |= ContactFlag.ADD_SELF
 
         if snapshot:
-            contacts = await self._rpc.get_contacts(self.id, flags, query)
+            contacts = self._rpc.get_contacts(self.id, flags, query)
             return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
-        contacts = await self._rpc.get_contact_ids(self.id, flags, query)
+        contacts = self._rpc.get_contact_ids(self.id, flags, query)
         return [Contact(self, contact_id) for contact_id in contacts]
 
     @property
@@ -143,7 +143,7 @@ class Account:
         """This account's identity as a Contact."""
         return Contact(self, SpecialContactId.SELF)
 
-    async def get_chatlist(
+    def get_chatlist(
         self,
         query: Optional[str] = None,
         contact: Optional[Contact] = None,
@@ -175,29 +175,29 @@ class Account:
         if alldone_hint:
             flags |= ChatlistFlag.ADD_ALLDONE_HINT
 
-        entries = await self._rpc.get_chatlist_entries(self.id, flags, query, contact and contact.id)
+        entries = self._rpc.get_chatlist_entries(self.id, flags, query, contact and contact.id)
         if not snapshot:
             return [Chat(self, entry) for entry in entries]
 
-        items = await self._rpc.get_chatlist_items_by_entries(self.id, entries)
+        items = self._rpc.get_chatlist_items_by_entries(self.id, entries)
         chats = []
         for item in items.values():
             item["chat"] = Chat(self, item["id"])
             chats.append(AttrDict(item))
         return chats
 
-    async def create_group(self, name: str, protect: bool = False) -> Chat:
+    def create_group(self, name: str, protect: bool = False) -> Chat:
         """Create a new group chat.
 
         After creation, the group has only self-contact as member and is in unpromoted state.
         """
-        return Chat(self, await self._rpc.create_group_chat(self.id, name, protect))
+        return Chat(self, self._rpc.create_group_chat(self.id, name, protect))
 
     def get_chat_by_id(self, chat_id: int) -> Chat:
         """Return the Chat instance with the given ID."""
         return Chat(self, chat_id)
 
-    async def secure_join(self, qrdata: str) -> Chat:
+    def secure_join(self, qrdata: str) -> Chat:
         """Continue a Setup-Contact or Verified-Group-Invite protocol started on
         another device.
 
@@ -208,62 +208,62 @@ class Account:
 
         :param qrdata: The text of the scanned QR code.
         """
-        return Chat(self, await self._rpc.secure_join(self.id, qrdata))
+        return Chat(self, self._rpc.secure_join(self.id, qrdata))
 
-    async def get_qr_code(self) -> Tuple[str, str]:
+    def get_qr_code(self) -> Tuple[str, str]:
         """Get Setup-Contact QR Code text and SVG data.
 
         this data needs to be transferred to another Delta Chat account
         in a second channel, typically used by mobiles with QRcode-show + scan UX.
         """
-        return await self._rpc.get_chat_securejoin_qr_code_svg(self.id, None)
+        return self._rpc.get_chat_securejoin_qr_code_svg(self.id, None)
 
     def get_message_by_id(self, msg_id: int) -> Message:
         """Return the Message instance with the given ID."""
         return Message(self, msg_id)
 
-    async def mark_seen_messages(self, messages: List[Message]) -> None:
+    def mark_seen_messages(self, messages: List[Message]) -> None:
         """Mark the given set of messages as seen."""
-        await self._rpc.markseen_msgs(self.id, [msg.id for msg in messages])
+        self._rpc.markseen_msgs(self.id, [msg.id for msg in messages])
 
-    async def delete_messages(self, messages: List[Message]) -> None:
+    def delete_messages(self, messages: List[Message]) -> None:
         """Delete messages (local and remote)."""
-        await self._rpc.delete_messages(self.id, [msg.id for msg in messages])
+        self._rpc.delete_messages(self.id, [msg.id for msg in messages])
 
-    async def get_fresh_messages(self) -> List[Message]:
+    def get_fresh_messages(self) -> List[Message]:
         """Return the list of fresh messages, newest messages first.
 
         This call is intended for displaying notifications.
         If you are writing a bot, use `get_fresh_messages_in_arrival_order()` instead,
         to process oldest messages first.
         """
-        fresh_msg_ids = await self._rpc.get_fresh_msgs(self.id)
+        fresh_msg_ids = self._rpc.get_fresh_msgs(self.id)
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]
 
-    async def get_next_messages(self) -> List[Message]:
+    def get_next_messages(self) -> List[Message]:
         """Return a list of next messages."""
-        next_msg_ids = await self._rpc.get_next_msgs(self.id)
+        next_msg_ids = self._rpc.get_next_msgs(self.id)
         return [Message(self, msg_id) for msg_id in next_msg_ids]
 
-    async def wait_next_messages(self) -> List[Message]:
+    def wait_next_messages(self) -> List[Message]:
         """Wait for new messages and return a list of them."""
-        next_msg_ids = await self._rpc.wait_next_msgs(self.id)
+        next_msg_ids = self._rpc.wait_next_msgs(self.id)
         return [Message(self, msg_id) for msg_id in next_msg_ids]
 
-    async def get_fresh_messages_in_arrival_order(self) -> List[Message]:
+    def get_fresh_messages_in_arrival_order(self) -> List[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
         warn(
             "get_fresh_messages_in_arrival_order is deprecated, use get_next_messages instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        fresh_msg_ids = sorted(await self._rpc.get_fresh_msgs(self.id))
+        fresh_msg_ids = sorted(self._rpc.get_fresh_msgs(self.id))
         return [Message(self, msg_id) for msg_id in fresh_msg_ids]
 
-    async def export_backup(self, path, passphrase: str = "") -> None:
+    def export_backup(self, path, passphrase: str = "") -> None:
         """Export backup."""
-        await self._rpc.export_backup(self.id, str(path), passphrase)
+        self._rpc.export_backup(self.id, str(path), passphrase)
 
-    async def import_backup(self, path, passphrase: str = "") -> None:
+    def import_backup(self, path, passphrase: str = "") -> None:
         """Import backup."""
-        await self._rpc.import_backup(self.id, str(path), passphrase)
+        self._rpc.import_backup(self.id, str(path), passphrase)

@@ -1,70 +1,67 @@
-import asyncio
 import json
 import os
+import urllib.request
 from typing import AsyncGenerator, List, Optional
 
-import aiohttp
-import pytest_asyncio
+import pytest
 
 from . import Account, AttrDict, Bot, Client, DeltaChat, EventType, Message
 from .rpc import Rpc
 
 
-async def get_temp_credentials() -> dict:
+def get_temp_credentials() -> dict:
     url = os.getenv("DCC_NEW_TMP_EMAIL")
     assert url, "Failed to get online account, DCC_NEW_TMP_EMAIL is not set"
 
-    # Replace default 5 minute timeout with a 1 minute timeout.
-    timeout = aiohttp.ClientTimeout(total=60)
-    async with aiohttp.ClientSession() as session, session.post(url, timeout=timeout) as response:
-        return json.loads(await response.text())
+    request = urllib.request.Request(url, method="POST")
+    with urllib.request.urlopen(request, timeout=60) as f:
+        return json.load(f)
 
 
 class ACFactory:
     def __init__(self, deltachat: DeltaChat) -> None:
         self.deltachat = deltachat
 
-    async def get_unconfigured_account(self) -> Account:
-        return await self.deltachat.add_account()
+    def get_unconfigured_account(self) -> Account:
+        return self.deltachat.add_account()
 
-    async def get_unconfigured_bot(self) -> Bot:
-        return Bot(await self.get_unconfigured_account())
+    def get_unconfigured_bot(self) -> Bot:
+        return Bot(self.get_unconfigured_account())
 
-    async def new_preconfigured_account(self) -> Account:
+    def new_preconfigured_account(self) -> Account:
         """Make a new account with configuration options set, but configuration not started."""
-        credentials = await get_temp_credentials()
-        account = await self.get_unconfigured_account()
-        await account.set_config("addr", credentials["email"])
-        await account.set_config("mail_pw", credentials["password"])
-        assert not await account.is_configured()
+        credentials = get_temp_credentials()
+        account = self.get_unconfigured_account()
+        account.set_config("addr", credentials["email"])
+        account.set_config("mail_pw", credentials["password"])
+        assert not account.is_configured()
         return account
 
-    async def new_configured_account(self) -> Account:
-        account = await self.new_preconfigured_account()
-        await account.configure()
-        assert await account.is_configured()
+    def new_configured_account(self) -> Account:
+        account = self.new_preconfigured_account()
+        account.configure()
+        assert account.is_configured()
         return account
 
-    async def new_configured_bot(self) -> Bot:
-        credentials = await get_temp_credentials()
-        bot = await self.get_unconfigured_bot()
-        await bot.configure(credentials["email"], credentials["password"])
+    def new_configured_bot(self) -> Bot:
+        credentials = get_temp_credentials()
+        bot = self.get_unconfigured_bot()
+        bot.configure(credentials["email"], credentials["password"])
         return bot
 
-    async def get_online_account(self) -> Account:
-        account = await self.new_configured_account()
-        await account.start_io()
+    def get_online_account(self) -> Account:
+        account = self.new_configured_account()
+        account.start_io()
         while True:
-            event = await account.wait_for_event()
-            print(event)
+            event = account.wait_for_event()
             if event.kind == EventType.IMAP_INBOX_IDLE:
                 break
         return account
 
-    async def get_online_accounts(self, num: int) -> List[Account]:
-        return await asyncio.gather(*[self.get_online_account() for _ in range(num)])
+    def get_online_accounts(self, num: int) -> List[Account]:
+        return [self.get_online_account() for _ in range(num)]
 
-    async def send_message(
+    def send_message(
         self,
         to_account: Account,
         from_account: Optional[Account] = None,
@@ -73,16 +70,16 @@ class ACFactory:
         group: Optional[str] = None,
     ) -> Message:
         if not from_account:
-            from_account = (await self.get_online_accounts(1))[0]
-        to_contact = await from_account.create_contact(await to_account.get_config("addr"))
+            from_account = (self.get_online_accounts(1))[0]
+        to_contact = from_account.create_contact(to_account.get_config("addr"))
         if group:
-            to_chat = await from_account.create_group(group)
-            await to_chat.add_contact(to_contact)
+            to_chat = from_account.create_group(group)
+            to_chat.add_contact(to_contact)
         else:
-            to_chat = await to_contact.create_chat()
-        return await to_chat.send_message(text=text, file=file)
+            to_chat = to_contact.create_chat()
+        return to_chat.send_message(text=text, file=file)
 
-    async def process_message(
+    def process_message(
         self,
         to_client: Client,
         from_account: Optional[Account] = None,
@@ -90,7 +87,7 @@ class ACFactory:
         file: Optional[str] = None,
         group: Optional[str] = None,
     ) -> AttrDict:
-        await self.send_message(
+        self.send_message(
             to_account=to_client.account,
             from_account=from_account,
             text=text,
@@ -98,16 +95,16 @@ class ACFactory:
             group=group,
         )
 
-        return await to_client.run_until(lambda e: e.kind == EventType.INCOMING_MSG)
+        return to_client.run_until(lambda e: e.kind == EventType.INCOMING_MSG)
 
 
-@pytest_asyncio.fixture
-async def rpc(tmp_path) -> AsyncGenerator:
+@pytest.fixture()
+def rpc(tmp_path) -> AsyncGenerator:
     rpc_server = Rpc(accounts_dir=str(tmp_path / "accounts"))
-    async with rpc_server:
+    with rpc_server:
         yield rpc_server
 
 
-@pytest_asyncio.fixture
-async def acfactory(rpc) -> AsyncGenerator:
-    yield ACFactory(DeltaChat(rpc))
+@pytest.fixture()
+def acfactory(rpc) -> AsyncGenerator:
+    return ACFactory(DeltaChat(rpc))
