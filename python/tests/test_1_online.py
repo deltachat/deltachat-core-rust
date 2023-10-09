@@ -1926,13 +1926,15 @@ def test_set_get_group_image(acfactory, data, lp):
     lp.sec("ac1: add ac2 to promoted group chat")
     chat.add_contact(ac2)  # sends one message
 
+    lp.sec("ac2: wait for receiving member added message from ac1")
+    msg1 = ac2._evtracker.wait_next_incoming_message()
+    assert msg1.is_system_message()  # Member added
+
     lp.sec("ac1: send a first message to ac2")
     chat.send_text("hi")  # sends another message
     assert chat.is_promoted()
 
     lp.sec("ac2: wait for receiving message from ac1")
-    msg1 = ac2._evtracker.wait_next_incoming_message()
-    assert msg1.is_system_message()  # Member added
     msg2 = ac2._evtracker.wait_next_incoming_message()
     assert msg2.text == "hi"
     assert msg1.chat.id == msg2.chat.id
