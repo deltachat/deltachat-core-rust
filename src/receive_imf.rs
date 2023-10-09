@@ -701,10 +701,14 @@ async fn add_parts(
                 Blocked::Not
             } else {
                 let contact = Contact::get_by_id(context, from_id).await?;
-                match contact.is_blocked() {
-                    true => Blocked::Yes,
-                    false if is_bot => Blocked::Not,
-                    false => Blocked::Request,
+                if is_bot {
+                    Contact::scaleup_origin_by_id(context, from_id, Origin::CreateChat).await?;
+                    Blocked::Not
+                } else {
+                    match contact.is_blocked() {
+                        true => Blocked::Yes,
+                        false => Blocked::Request,
+                    }
                 }
             };
 

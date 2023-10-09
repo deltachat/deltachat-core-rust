@@ -2973,6 +2973,7 @@ async fn test_auto_accept_for_bots() -> Result<()> {
     let msg = t.get_last_msg().await;
     let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
     assert!(!chat.is_contact_request());
+    assert!(Contact::get_all(&t, 0, None).await?.len() == 1);
     Ok(())
 }
 
