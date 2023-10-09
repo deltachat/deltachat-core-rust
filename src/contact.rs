@@ -1261,7 +1261,7 @@ impl Contact {
             return Ok(Some(ContactId::SELF));
         }
 
-        match Contact::lookup_id_by_addr(context, &verifier_addr, Origin::AddressBook).await? {
+        match Contact::lookup_id_by_addr(context, &verifier_addr, Origin::Unknown).await? {
             Some(contact_id) => Ok(Some(contact_id)),
             None => {
                 let addr = &self.addr;
