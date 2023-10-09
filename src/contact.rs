@@ -812,7 +812,11 @@ impl Contact {
         let mut ret = Vec::new();
         let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;
         let flag_add_self = (listflags & DC_GCL_ADD_SELF) != 0;
-
+        let minimal_origin = if context.get_config_bool(Config::Bot).await? {
+            Origin::Unknown
+        } else {
+            Origin::IncomingReplyTo
+        };
         if flag_verified_only || query.is_some() {
             let s3str_like_cmd = format!("%{}%", query.unwrap_or(""));
             context
@@ -832,7 +836,7 @@ impl Contact {
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
                         ContactId::LAST_SPECIAL,
-                        Origin::IncomingReplyTo,
+                        minimal_origin,
                         s3str_like_cmd,
                         s3str_like_cmd,
                         if flag_verified_only { 0i32 } else { 1i32 }
@@ -882,10 +886,10 @@ impl Contact {
                  ORDER BY last_seen DESC, id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
-                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
-                        ContactId::LAST_SPECIAL,
-                        Origin::IncomingReplyTo
-                    ])),
+                    rusqlite::params_from_iter(
+                        params_iter(&self_addrs)
+                            .chain(params_slice![ContactId::LAST_SPECIAL, minimal_origin]),
+                    ),
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
                         for id in ids {
