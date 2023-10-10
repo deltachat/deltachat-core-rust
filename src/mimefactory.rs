@@ -359,9 +359,10 @@ impl<'a> MimeFactory<'a> {
     async fn should_do_gossip(&self, context: &Context) -> Result<bool> {
         match &self.loaded {
             Loaded::Message { chat } => {
-                // beside key- and member-changes, force re-gossip every 48 hours
+                // beside key- and member-changes, force a periodic re-gossip.
                 let gossiped_timestamp = chat.id.get_gossiped_timestamp(context).await?;
-                if time() > gossiped_timestamp + (2 * 24 * 60 * 60) {
+                let gossip_period = context.get_config_i64(Config::GossipPeriod).await?;
+                if time() >= gossiped_timestamp + gossip_period {
                     Ok(true)
                 } else {
                     let cmd = self.msg.param.get_cmd();

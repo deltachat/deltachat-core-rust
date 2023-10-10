@@ -754,7 +754,6 @@ impl Context {
                 .await?
                 .to_string(),
         );
-
         res.insert(
             "debug_logging",
             self.get_config_int(Config::DebugLogging).await?.to_string(),
@@ -762,6 +761,10 @@ impl Context {
         res.insert(
             "last_msg_id",
             self.get_config_int(Config::LastMsgId).await?.to_string(),
+        );
+        res.insert(
+            "gossip_period",
+            self.get_config_int(Config::GossipPeriod).await?.to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();
