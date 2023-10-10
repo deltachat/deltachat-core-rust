@@ -2207,11 +2207,12 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
-        let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
+        let mut maybe_sticker =
+            msg.viewtype == Viewtype::Sticker || msg.viewtype == Viewtype::ForceSticker;
         if msg.viewtype == Viewtype::Image || maybe_sticker {
             blob.recode_to_image_size(context, &mut maybe_sticker)
                 .await?;
-            if !maybe_sticker {
+            if !maybe_sticker && msg.viewtype != Viewtype::ForceSticker {
                 msg.viewtype = Viewtype::Image;
             }
         }
@@ -3573,7 +3574,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         // by not marking own forwarded messages as such,
         // however, this turned out to be to confusing and unclear.
 
-        if msg.get_viewtype() != Viewtype::Sticker {
+        if msg.get_viewtype() != Viewtype::Sticker && msg.get_viewtype() != Viewtype::ForceSticker {
             msg.param
                 .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
         }
@@ -5618,6 +5619,7 @@ mod tests {
     async fn test_sticker(
         filename: &str,
         bytes: &[u8],
+        viewtype: Viewtype,
         res_viewtype: Viewtype,
         w: i32,
         h: i32,
@@ -5630,12 +5632,12 @@ mod tests {
         let file = alice.get_blobdir().join(filename);
         tokio::fs::write(&file, bytes).await?;
 
-        let mut msg = Message::new(Viewtype::Sticker);
+        let mut msg = Message::new(viewtype);
         msg.set_file(file.to_str().unwrap(), None);
 
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let mime = sent_msg.payload();
-        if res_viewtype == Viewtype::Sticker {
+        if res_viewtype == Viewtype::Sticker || res_viewtype == Viewtype::ForceSticker {
             assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
         }
 
@@ -5644,7 +5646,7 @@ mod tests {
         assert_eq!(msg.get_viewtype(), res_viewtype);
         let msg_filename = msg.get_filename().unwrap();
         match res_viewtype {
-            Viewtype::Sticker => assert_eq!(msg_filename, filename),
+            Viewtype::Sticker | Viewtype::ForceSticker => assert_eq!(msg_filename, filename),
             Viewtype::Image => assert!(msg_filename.starts_with("image_")),
             _ => panic!("Not implemented"),
         }
@@ -5661,6 +5663,7 @@ mod tests {
             "sticker.png",
             include_bytes!("../test-data/image/logo.png"),
             Viewtype::Sticker,
+            Viewtype::Sticker,
             135,
             135,
         )
@@ -5672,7 +5675,21 @@ mod tests {
         test_sticker(
             "sticker.jpg",
             include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            Viewtype::Sticker,
             Viewtype::Image,
+            1000,
+            1000,
+        )
+        .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sticker_jpeg_force() -> Result<()> {
+        test_sticker(
+            "sticker.jpg",
+            include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            Viewtype::ForceSticker,
+            Viewtype::Sticker,
             1000,
             1000,
         )
@@ -5684,6 +5701,7 @@ mod tests {
         test_sticker(
             "sticker.gif",
             include_bytes!("../test-data/image/logo.gif"),
+            Viewtype::Sticker,
             Viewtype::Sticker,
             135,
             135,

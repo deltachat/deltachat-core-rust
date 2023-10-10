@@ -95,6 +95,7 @@ impl Summary {
         let thumbnail_path = if msg.viewtype == Viewtype::Image
             || msg.viewtype == Viewtype::Gif
             || msg.viewtype == Viewtype::Sticker
+            || msg.viewtype == Viewtype::ForceSticker
         {
             msg.get_file(context)
                 .and_then(|path| path.to_str().map(|p| p.to_owned()))
@@ -124,7 +125,7 @@ impl Message {
         let prefix = match self.viewtype {
             Viewtype::Image => stock_str::image(context).await,
             Viewtype::Gif => stock_str::gif(context).await,
-            Viewtype::Sticker => stock_str::sticker(context).await,
+            Viewtype::Sticker | Viewtype::ForceSticker => stock_str::sticker(context).await,
             Viewtype::Video => stock_str::video(context).await,
             Viewtype::Voice => stock_str::voice_message(context).await,
             Viewtype::Audio | Viewtype::File => {

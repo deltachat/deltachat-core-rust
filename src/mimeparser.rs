@@ -552,6 +552,7 @@ impl MimeMessage {
                     Viewtype::Image
                     | Viewtype::Gif
                     | Viewtype::Sticker
+                    | Viewtype::ForceSticker
                     | Viewtype::Audio
                     | Viewtype::Voice
                     | Viewtype::Video

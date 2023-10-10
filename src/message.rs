@@ -1858,6 +1858,12 @@ pub enum Viewtype {
     /// A click on a sticker will offer to install the sticker set in some future.
     Sticker = 23,
 
+    /// Message containing a sticker, similar to image.
+    /// If possible, the ui should display the image without borders in a transparent way.
+    /// A click on a sticker will offer to install the sticker set in some future.
+    /// This stick is guaranteed to be displayed as a stick in the ui.
+    ForceSticker = 24,
+
     /// Message containing an Audio file.
     /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
     /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
@@ -1898,6 +1904,7 @@ impl Viewtype {
             Viewtype::Image => true,
             Viewtype::Gif => true,
             Viewtype::Sticker => true,
+            Viewtype::ForceSticker => true,
             Viewtype::Audio => true,
             Viewtype::Voice => true,
             Viewtype::Video => true,

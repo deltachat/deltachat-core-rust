@@ -147,6 +147,7 @@ impl MessageObject {
                         image: if quote.get_viewtype() == Viewtype::Image
                             || quote.get_viewtype() == Viewtype::Gif
                             || quote.get_viewtype() == Viewtype::Sticker
+                            || quote.get_viewtype() == Viewtype::ForceSticker
                         {
                             match quote.get_file(context) {
                                 Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
@@ -257,6 +258,12 @@ pub enum MessageViewtype {
     /// A click on a sticker will offer to install the sticker set in some future.
     Sticker,
 
+    /// Message containing a sticker, similar to image.
+    /// If possible, the ui should display the image without borders in a transparent way.
+    /// A click on a sticker will offer to install the sticker set in some future.
+    /// This stick is guaranteed to be displayed as a stick in the ui.
+    ForceSticker,
+
     /// Message containing an Audio file.
     Audio,
 
@@ -285,6 +292,7 @@ impl From<Viewtype> for MessageViewtype {
             Viewtype::Image => MessageViewtype::Image,
             Viewtype::Gif => MessageViewtype::Gif,
             Viewtype::Sticker => MessageViewtype::Sticker,
+            Viewtype::ForceSticker => MessageViewtype::ForceSticker,
             Viewtype::Audio => MessageViewtype::Audio,
             Viewtype::Voice => MessageViewtype::Voice,
             Viewtype::Video => MessageViewtype::Video,
@@ -303,6 +311,7 @@ impl From<MessageViewtype> for Viewtype {
             MessageViewtype::Image => Viewtype::Image,
             MessageViewtype::Gif => Viewtype::Gif,
             MessageViewtype::Sticker => Viewtype::Sticker,
+            MessageViewtype::ForceSticker => Viewtype::ForceSticker,
             MessageViewtype::Audio => Viewtype::Audio,
             MessageViewtype::Voice => Viewtype::Voice,
             MessageViewtype::Video => Viewtype::Video,

@@ -1118,7 +1118,7 @@ impl<'a> MimeFactory<'a> {
                 .push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
         }
 
-        if self.msg.viewtype == Viewtype::Sticker {
+        if self.msg.viewtype == Viewtype::Sticker || self.msg.viewtype == Viewtype::ForceSticker {
             headers
                 .protected
                 .push(Header::new("Chat-Content".into(), "sticker".into()));
