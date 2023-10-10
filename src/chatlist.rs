@@ -172,8 +172,11 @@ impl Chatlist {
                 )
                 .await?
         } else if let Some(query) = query {
-            let query = query.trim().to_string();
-            ensure!(!query.is_empty(), "missing query");
+            let mut query = query.trim().to_string();
+            let regex = regex::Regex::new(r"\bunread\b").unwrap();
+            let only_unread = regex.find(&query).is_some();
+            ensure!(!query.is_empty(), "query mustn't be empty");
+            query = regex.replace(&query, "").trim().to_string();
 
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
@@ -185,7 +188,8 @@ impl Chatlist {
             context
                 .sql
                 .query_map(
-                    "SELECT c.id, m.id
+                    &format!(
+                        "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
                         ON c.id=m.chat_id
@@ -194,12 +198,20 @@ impl Chatlist {
                                  FROM msgs
                                 WHERE chat_id=c.id
                                   AND (hidden=0 OR state=?1)
+                                  {}
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
-                 WHERE c.id>9 AND c.id!=?2
+                 WHERE c.id>9 
+                   AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                        if only_unread {
+                            format!("AND state<={}", MessageState::InNoticed as u32)
+                        } else {
+                            "".to_string()
+                        }
+                    ),
                     (MessageState::OutDraft, skip_id, str_like_cmd),
                     process_row,
                     process_rows,
@@ -462,7 +474,8 @@ pub async fn get_last_message_for_chat(
 mod tests {
     use super::*;
     use crate::chat::{
-        create_group_chat, get_chat_contacts, remove_contact_from_chat, ProtectionStatus,
+        add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
+        send_text_msg, ProtectionStatus,
     };
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;
@@ -471,7 +484,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_try_load() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_bob().await;
         let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
@@ -509,6 +522,38 @@ mod tests {
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
         assert_eq!(chats.len(), 1);
+
+        // receive a message from alice
+        let alice = TestContext::new_alice().await;
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "alice chat")
+            .await
+            .unwrap();
+        add_contact_to_chat(
+            &alice,
+            alice_chat_id,
+            Contact::create(&alice, "bob", "bob@example.net")
+                .await
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        send_text_msg(&alice, alice_chat_id, "hi".into())
+            .await
+            .unwrap();
+        let sent_msg = alice.pop_sent_msg().await;
+
+        let rec = t.recv_msg(&sent_msg).await;
+        let chats = Chatlist::try_load(&t, 0, Some("unread"), None)
+            .await
+            .unwrap();
+
+        // ensure that only the newly created chat with alice has messages
+        assert!(chats
+            .ids
+            .into_iter()
+            .filter(|item| item.1.is_some())
+            .map(|item| item.0 == rec.chat_id)
+            .all(|item| item));
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
