@@ -318,6 +318,13 @@ pub enum Config {
 
     /// Last message processed by the bot.
     LastMsgId,
+
+    /// How often to gossip Autocrypt keys in chats with multiple recipients, in seconds. 2 days by
+    /// default.
+    ///
+    /// This is not supposed to be changed by UIs and only used for testing.
+    #[strum(props(default = "172800"))]
+    GossipPeriod,
 }
 
 impl Context {
