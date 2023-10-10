@@ -1750,10 +1750,15 @@ impl CommandApi {
         account_id: u32,
         chat_id: u32,
         sticker_path: String,
+        force: bool,
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
 
-        let mut msg = Message::new(Viewtype::Sticker);
+        let mut msg = Message::new(if force {
+            Viewtype::ForceSticker
+        } else {
+            Viewtype::Sticker
+        });
         msg.set_file(&sticker_path, None);
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
