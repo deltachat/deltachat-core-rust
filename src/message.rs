@@ -403,6 +403,9 @@ pub struct Message {
 
     /// Type of the message.
     pub(crate) viewtype: Viewtype,
+    /// Whether the sticker-viewtype should be forced
+    /// e.g it will not be turned to image by the core
+    pub(crate) force_sticker: bool,
 
     /// State of the message.
     pub(crate) state: MessageState,
@@ -518,6 +521,7 @@ impl Message {
                         ephemeral_timer: row.get("ephemeral_timer")?,
                         ephemeral_timestamp: row.get("ephemeral_timestamp")?,
                         viewtype: row.get("type")?,
+                        force_sticker: false,
                         state: row.get("state")?,
                         download_state: row.get("download_state")?,
                         error: Some(row.get::<_, String>("error")?)
@@ -662,6 +666,11 @@ impl Message {
     /// Returns the type of the message.
     pub fn get_viewtype(&self) -> Viewtype {
         self.viewtype
+    }
+
+    /// Forces the message to **keep** the sticker viewtype.
+    pub fn force_sticker(&mut self) {
+        self.force_sticker = true;
     }
 
     /// Returns the state of the message.
