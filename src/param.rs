@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blob::BlobObject;
 use crate::context::Context;
-use crate::message::{MsgId};
+use crate::message::MsgId;
 use crate::mimeparser::SystemMessage;
 
 /// Available param keys.
