@@ -1698,12 +1698,10 @@ def test_qr_new_group_unblocked(acfactory, lp):
 
     ac1_new_chat = ac1.create_group_chat("Another group")
     ac1_new_chat.add_contact(ac2)
-    ac1_new_chat.send_text("Hello!")
-
     # Receive "Member added" message.
     ac2._evtracker.wait_next_incoming_message()
 
-    # Receive "Hello!" message.
+    ac1_new_chat.send_text("Hello!")
     ac2_msg = ac2._evtracker.wait_next_incoming_message()
     assert ac2_msg.text == "Hello!"
     assert ac2_msg.chat.is_contact_request()
