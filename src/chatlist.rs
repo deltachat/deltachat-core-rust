@@ -173,7 +173,9 @@ impl Chatlist {
                 .await?
         } else if let Some(query) = query {
             let mut query = query.trim().to_string();
+            // let regex = regex::Regex::new(r"(?<unread>is:unread)? ?(?<query>.*)").unwrap();
             let regex = regex::Regex::new(r"\bunread\b").unwrap();
+
             let only_unread = regex.find(&query).is_some();
             ensure!(!query.is_empty(), "query mustn't be empty");
             query = regex.replace(&query, "").trim().to_string();
@@ -198,16 +200,24 @@ impl Chatlist {
                                  FROM msgs
                                 WHERE chat_id=c.id
                                   AND (hidden=0 OR state=?1)
-                                  {}
                                   ORDER BY timestamp DESC, id DESC LIMIT 1)
                  WHERE c.id>9 
                    AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
+                   {}
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                         if only_unread {
-                            format!("AND state<={}", MessageState::InNoticed as u32)
+                            format!(
+                                "AND EXISTS (
+                                SELECT 1
+                                FROM msgs m
+                                WHERE m.chat_id = c.id
+                                AND m.state  <= {}
+                            );",
+                                MessageState::InNoticed as u32
+                            )
                         } else {
                             "".to_string()
                         }
@@ -542,18 +552,11 @@ mod tests {
             .unwrap();
         let sent_msg = alice.pop_sent_msg().await;
 
-        let rec = t.recv_msg(&sent_msg).await;
+        t.recv_msg(&sent_msg).await;
         let chats = Chatlist::try_load(&t, 0, Some("unread"), None)
             .await
             .unwrap();
-
-        // ensure that only the newly created chat with alice has messages
-        assert!(chats
-            .ids
-            .into_iter()
-            .filter(|item| item.1.is_some())
-            .map(|item| item.0 == rec.chat_id)
-            .all(|item| item));
+        assert!(chats.len() == 1);
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
