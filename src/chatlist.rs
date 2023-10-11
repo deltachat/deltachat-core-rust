@@ -172,6 +172,13 @@ impl Chatlist {
                 )
                 .await?
         } else if let Some(query) = query {
+            let mut query = query.trim().to_string();
+            // let regex = regex::Regex::new(r"(?<unread>is:unread)? ?(?<query>.*)").unwrap();
+            let regex = regex::Regex::new(r"\bunread\b").unwrap();
+
+            let only_unread = regex.find(&query).is_some();
+            ensure!(!query.is_empty(), "query mustn't be empty");
+            query = regex.replace(&query, "").trim().to_string();
             let query = query.trim().to_string();
             ensure!(!query.is_empty(), "missing query");
 
@@ -198,8 +205,23 @@ impl Chatlist {
                  WHERE c.id>9 AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
+                   {}
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                        if only_unread {
+                            format!(
+                                "AND EXISTS (
+                                SELECT 1
+                                FROM msgs m
+                                WHERE m.chat_id = c.id
+                                AND m.state  <= {}
+                            );",
+                                MessageState::InNoticed as u32
+                            )
+                        } else {
+                            "".to_string()
+                        }
+                    ),
                     (MessageState::OutDraft, skip_id, str_like_cmd),
                     process_row,
                     process_rows,
@@ -509,6 +531,31 @@ mod tests {
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
         assert_eq!(chats.len(), 1);
+
+        // receive a message from alice
+        let alice = TestContext::new_alice().await;
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "alice chat")
+            .await
+            .unwrap();
+        add_contact_to_chat(
+            &alice,
+            alice_chat_id,
+            Contact::create(&alice, "bob", "bob@example.net")
+                .await
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        send_text_msg(&alice, alice_chat_id, "hi".into())
+            .await
+            .unwrap();
+        let sent_msg = alice.pop_sent_msg().await;
+
+        t.recv_msg(&sent_msg).await;
+        let chats = Chatlist::try_load(&t, 0, Some("unread"), None)
+            .await
+            .unwrap();
+        assert!(chats.len() == 1);
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
