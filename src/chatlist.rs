@@ -1,6 +1,7 @@
 //! # Chat list module.
 
 use anyhow::{ensure, Context as _, Result};
+use once_cell::sync::Lazy;
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
@@ -14,6 +15,10 @@ use crate::param::{Param, Params};
 use crate::stock_str;
 use crate::summary::Summary;
 use crate::tools::IsNoneOrEmpty;
+
+/// Regex to find out if a query should filter by unread messages.
+pub static IS_UNREAD_FILTER: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\bis:unread\b").unwrap());
 
 /// An object representing a single chatlist in memory.
 ///
@@ -173,12 +178,9 @@ impl Chatlist {
                 .await?
         } else if let Some(query) = query {
             let mut query = query.trim().to_string();
-            // let regex = regex::Regex::new(r"(?<unread>is:unread)? ?(?<query>.*)").unwrap();
-            let regex = regex::Regex::new(r"\bunread\b").unwrap();
-
-            let only_unread = regex.find(&query).is_some();
+            let only_unread = IS_UNREAD_FILTER.find(&query).is_some();
+            query = IS_UNREAD_FILTER.replace(&query, "").trim().to_string();
             ensure!(!query.is_empty(), "query mustn't be empty");
-            query = regex.replace(&query, "").trim().to_string();
 
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
