@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::blob::BlobObject;
 use crate::context::Context;
-use crate::message::MsgId;
+use crate::message::{MsgId};
 use crate::mimeparser::SystemMessage;
 
 /// Available param keys.
@@ -188,7 +188,7 @@ pub enum Param {
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
 
-    /// For messages: Whether [Viewtype::Sticker] should be forced.
+    /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
 }
 
