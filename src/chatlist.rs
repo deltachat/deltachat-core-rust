@@ -178,9 +178,9 @@ impl Chatlist {
                 .await?
         } else if let Some(query) = query {
             let mut query = query.trim().to_string();
+            ensure!(!query.is_empty(), "query mustn't be empty");
             let only_unread = IS_UNREAD_FILTER.find(&query).is_some();
             query = IS_UNREAD_FILTER.replace(&query, "").trim().to_string();
-            ensure!(!query.is_empty(), "query mustn't be empty");
 
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
@@ -192,7 +192,6 @@ impl Chatlist {
             context
                 .sql
                 .query_map(
-                    &format!(
                         "SELECT c.id, m.id
                  FROM chats c
                  LEFT JOIN msgs m
@@ -207,24 +206,10 @@ impl Chatlist {
                    AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
-                   {}
+                   AND (NOT ?4 OR EXISTS (SELECT 1 FROM msgs m WHERE m.chat_id = c.id AND m.state < ?5))
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                        if only_unread {
-                            format!(
-                                "AND EXISTS (
-                                SELECT 1
-                                FROM msgs m
-                                WHERE m.chat_id = c.id
-                                AND m.state  <= {}
-                            );",
-                                MessageState::InNoticed as u32
-                            )
-                        } else {
-                            "".to_string()
-                        }
-                    ),
-                    (MessageState::OutDraft, skip_id, str_like_cmd),
+                    (MessageState::OutDraft, skip_id, str_like_cmd, only_unread, MessageState::InSeen),
                     process_row,
                     process_rows,
                 )
@@ -555,7 +540,7 @@ mod tests {
         let sent_msg = alice.pop_sent_msg().await;
 
         t.recv_msg(&sent_msg).await;
-        let chats = Chatlist::try_load(&t, 0, Some("unread"), None)
+        let chats = Chatlist::try_load(&t, 0, Some("is:unread"), None)
             .await
             .unwrap();
         assert!(chats.len() == 1);
