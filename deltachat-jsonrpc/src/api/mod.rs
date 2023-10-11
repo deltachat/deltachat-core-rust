@@ -1756,7 +1756,7 @@ impl CommandApi {
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(&sticker_path, None);
 
-        // JSON-rpc does not need heuristical to turn [Viewtype::Sticker] into [Viewtype::Image]
+        // JSON-rpc does not need heuristics to turn [Viewtype::Sticker] into [Viewtype::Image]
         msg.force_sticker();
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;

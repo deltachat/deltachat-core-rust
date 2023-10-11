@@ -188,7 +188,7 @@ pub enum Param {
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
 
-    /// For messages: Wheter the sticker-viewtype should be forced.
+    /// For messages: Whether [Viewtype::Sticker] should be forced.
     ForceSticker = b'X',
 }
 
