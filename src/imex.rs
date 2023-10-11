@@ -484,12 +484,12 @@ async fn import_backup(
 /// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
 /// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn get_next_backup_path(folder: &Path, addr: &str, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
         .context("can't get next backup path")?
         // Don't change this file name format, in `dc_imex_has_backup` we use string comparison to determine which backup is newer:
-        .format("delta-chat-backup-%Y-%m-%d")
+        .format(&format!("delta-chat-{}-%Y-%m-%d", &addr).to_string())
         .to_string();
 
     // 64 backup files per day should be enough for everyone
@@ -516,7 +516,8 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
 async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
+    let self_addr = context.get_primary_self_addr().await?;
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, &self_addr, now)?;
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
 
