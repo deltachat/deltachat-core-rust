@@ -2208,11 +2208,11 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
-        if msg.viewtype == Viewtype::Image || maybe_sticker {
+        if msg.viewtype == Viewtype::Image || maybe_sticker && !msg.param.exists(Param::ForceSticker){
             blob.recode_to_image_size(context, &mut maybe_sticker)
                 .await?;
 
-            if !maybe_sticker && !msg.param.exists(Param::ForceSticker) {
+            if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
             }
         }

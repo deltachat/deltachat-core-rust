@@ -1087,22 +1087,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        // This will be sent as Image, see [`BlobObject::maybe_sticker`] for explanation.
-        send_image_check_mediaquality(
-            Viewtype::Sticker,
-            Some("0"),
-            bytes,
-            "png",
-            false, // no Exif
-            1920,
-            1080,
-            0,
-            1920,
-            1080,
-        )
-        .await
-        .unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
