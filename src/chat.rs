@@ -2211,7 +2211,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         if msg.viewtype == Viewtype::Image || maybe_sticker {
             blob.recode_to_image_size(context, &mut maybe_sticker)
                 .await?;
-            if !maybe_sticker && !msg.force_sticker {
+
+            if !maybe_sticker && !msg.param.exists(Param::ForceSticker) {
                 msg.viewtype = Viewtype::Image;
             }
         }
@@ -5703,7 +5704,22 @@ mod tests {
         // Images with `force_sticker = true` should keep [Viewtype::Sticker]
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(file.to_str().unwrap(), None);
-        msg.force_sticker = true;
+        msg.force_sticker();
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+
+        // Images with `force_sticker = true` should keep [Viewtype::Sticker]
+        // even on drafted messages
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        msg.force_sticker();
+        alice_chat
+            .id
+            .set_draft(&alice, Some(&mut msg))
+            .await
+            .unwrap();
+        let mut msg = alice_chat.id.get_draft(&alice).await.unwrap().unwrap();
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.get_viewtype(), Viewtype::Sticker);

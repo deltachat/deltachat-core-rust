@@ -187,6 +187,9 @@ pub enum Param {
 
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
+
+    /// For messages: Wheter the sticker-viewtype should be forced.
+    ForceSticker = b'X',
 }
 
 /// An object for handling key=value parameter lists.
