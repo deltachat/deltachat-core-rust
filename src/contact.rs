@@ -139,6 +139,15 @@ impl ContactId {
     pub const fn to_u32(&self) -> u32 {
         self.0
     }
+
+    /// Mark contact as bot.
+    pub async fn mark_bot(&self, context: &Context, is_bot: bool) -> Result<()> {
+        context
+            .sql
+            .execute("UPDATE contacts SET is_bot=? WHERE id=?;", (self.0, is_bot))
+            .await?;
+        Ok(())
+    }
 }
 
 impl fmt::Display for ContactId {
@@ -223,6 +232,9 @@ pub struct Contact {
 
     /// Last seen message signature for this contact, to be displayed in the profile.
     status: String,
+
+    /// If the contact is a bot.
+    is_bot: bool,
 }
 
 /// Possible origins of a contact.
@@ -366,7 +378,7 @@ impl Contact {
             .sql
             .query_row_optional(
                 "SELECT c.name, c.addr, c.origin, c.blocked, c.last_seen,
-                c.authname, c.param, c.status
+                c.authname, c.param, c.status, c.is_bot
                FROM contacts c
               WHERE c.id=?;",
                 (contact_id,),
@@ -379,6 +391,7 @@ impl Contact {
                     let authname: String = row.get(5)?;
                     let param: String = row.get(6)?;
                     let status: Option<String> = row.get(7)?;
+                    let is_bot: bool = row.get(8)?;
                     let contact = Self {
                         id: contact_id,
                         name,
@@ -389,6 +402,7 @@ impl Contact {
                         origin,
                         param: param.parse().unwrap_or_default(),
                         status: status.unwrap_or_default(),
+                        is_bot,
                     };
                     Ok(contact)
                 },
@@ -496,6 +510,20 @@ impl Contact {
             )
             .await?;
         Ok(())
+    }
+
+    /// Mark bot.
+    pub async fn mark_bot(context: &Context, id: ContactId) -> Result<()> {
+        context
+            .sql
+            .execute("UPDATE contacts SET is_bot=1 WHERE id=?;", (id,))
+            .await?;
+        Ok(())
+    }
+
+    /// Returns whether contact is a bot.
+    pub fn is_bot(&self) -> bool {
+        self.is_bot
     }
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
