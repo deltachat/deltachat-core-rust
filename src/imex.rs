@@ -484,7 +484,11 @@ async fn import_backup(
 /// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
 /// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-fn get_next_backup_path(folder: &Path, addr: &str, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn get_next_backup_path(
+    folder: &Path,
+    addr: &str,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
         .context("can't get next backup path")?
