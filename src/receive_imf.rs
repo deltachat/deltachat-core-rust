@@ -28,9 +28,7 @@ use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
-use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
-};
+use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::reaction::{set_msg_reaction, Reaction};
@@ -654,40 +652,18 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // check if the message belongs to a mailing list
-            match mime_parser.get_mailinglist_type() {
-                MailinglistType::ListIdBased => {
-                    if let Some(list_id) = mime_parser.get_header(HeaderDef::ListId) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                list_id,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
+            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
+                if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_mailinglist(
+                    context,
+                    allow_creation,
+                    mailinglist_header,
+                    mime_parser,
+                )
+                .await?
+                {
+                    chat_id = Some(new_chat_id);
+                    chat_id_blocked = new_chat_id_blocked;
                 }
-                MailinglistType::SenderBased => {
-                    if let Some(sender) = mime_parser.get_header(HeaderDef::Sender) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                sender,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
-                }
-                MailinglistType::None => {}
             }
         }
 
