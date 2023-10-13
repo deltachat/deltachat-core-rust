@@ -3135,6 +3135,13 @@ async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
         .unwrap();
     assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
 
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted.eml");
+    receive_imf(&t, raw, false).await?;
+    let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+        .await?
+        .unwrap();
+    assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
     Ok(())
 }
 
