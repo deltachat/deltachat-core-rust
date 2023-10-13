@@ -471,7 +471,8 @@ pub async fn get_last_message_for_chat(
 mod tests {
     use super::*;
     use crate::chat::{
-        create_group_chat, get_chat_contacts, remove_contact_from_chat, ProtectionStatus,
+        add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
+        send_text_msg, ProtectionStatus,
     };
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;
