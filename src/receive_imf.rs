@@ -668,7 +668,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+            apply_mailinglist_changes(context, mime_parser, sent_timestamp, chat_id).await?;
         }
 
         // if contact renaming is prevented (for mailinglists and bots),
@@ -2039,9 +2039,10 @@ fn compute_mailinglist_name(
 async fn apply_mailinglist_changes(
     context: &Context,
     mime_parser: &MimeMessage,
+    sent_timestamp: i64,
     chat_id: ChatId,
 ) -> Result<()> {
-    let Some(list_post) = &mime_parser.list_post else {
+    let Some(mailinglist_header) = mime_parser.get_mailinglist_header() else {
         return Ok(());
     };
 
@@ -2050,6 +2051,27 @@ async fn apply_mailinglist_changes(
         return Ok(());
     }
     let listid = &chat.grpid;
+
+    let new_name = compute_mailinglist_name(mailinglist_header, listid, mime_parser);
+    if chat.name != new_name
+        && chat_id
+            .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+            .await?
+    {
+        info!(context, "Updating listname for chat {chat_id}.");
+        context
+            .sql
+            .execute(
+                "UPDATE chats SET name=? WHERE id=?;",
+                (strip_rtlo_characters(&new_name), chat_id),
+            )
+            .await?;
+        context.emit_event(EventType::ChatModified(chat_id));
+    }
+
+    let Some(list_post) = &mime_parser.list_post else {
+        return Ok(());
+    };
 
     let list_post = match ContactAddress::new(list_post) {
         Ok(list_post) => list_post,
