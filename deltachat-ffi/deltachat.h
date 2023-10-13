@@ -884,7 +884,8 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *     - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
  *       is added as needed.
  * @param query_str An optional query for filtering the list. Only chats matching this query
- *     are returned. Give NULL for no filtering.
+ *     are returned. Give NULL for no filtering. When `is:unread` is contained in the query,
+ *     the chatlist is filtered such that only chats with unread messages show up.
  * @param query_id An optional contact ID for filtering the list. Only chats including this contact ID
  *     are returned. Give 0 for no filtering.
  * @return A chatlist as an dc_chatlist_t object.

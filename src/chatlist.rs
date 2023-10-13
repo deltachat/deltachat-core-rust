@@ -1,6 +1,7 @@
 //! # Chat list module.
 
 use anyhow::{ensure, Context as _, Result};
+use once_cell::sync::Lazy;
 
 use crate::chat::{update_special_chat_names, Chat, ChatId, ChatVisibility};
 use crate::constants::{
@@ -14,6 +15,10 @@ use crate::param::{Param, Params};
 use crate::stock_str;
 use crate::summary::Summary;
 use crate::tools::IsNoneOrEmpty;
+
+/// Regex to find out if a query should filter by unread messages.
+pub static IS_UNREAD_FILTER: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\bis:unread\b").unwrap());
 
 /// An object representing a single chatlist in memory.
 ///
@@ -78,7 +83,8 @@ impl Chatlist {
     /// - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
     ///   is added as needed.
     /// `query`: An optional query for filtering the list. Only chats matching this query
-    ///     are returned.
+    ///     are returned. When `is:unread` is contained in the query, the chatlist is
+    ///     filtered such that only chats with unread messages show up.
     /// `query_contact_id`: An optional contact ID for filtering the list. Only chats including this contact ID
     ///     are returned.
     pub async fn try_load(
@@ -172,8 +178,10 @@ impl Chatlist {
                 )
                 .await?
         } else if let Some(query) = query {
-            let query = query.trim().to_string();
-            ensure!(!query.is_empty(), "missing query");
+            let mut query = query.trim().to_string();
+            ensure!(!query.is_empty(), "query mustn't be empty");
+            let only_unread = IS_UNREAD_FILTER.find(&query).is_some();
+            query = IS_UNREAD_FILTER.replace(&query, "").trim().to_string();
 
             // allow searching over special names that may change at any time
             // when the ui calls set_stock_translation()
@@ -198,9 +206,10 @@ impl Chatlist {
                  WHERE c.id>9 AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
+                   AND (NOT ?4 OR EXISTS (SELECT 1 FROM msgs m WHERE m.chat_id = c.id AND m.state < ?5))
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    (MessageState::OutDraft, skip_id, str_like_cmd),
+                    (MessageState::OutDraft, skip_id, str_like_cmd, only_unread, MessageState::InSeen),
                     process_row,
                     process_rows,
                 )
@@ -462,7 +471,8 @@ pub async fn get_last_message_for_chat(
 mod tests {
     use super::*;
     use crate::chat::{
-        create_group_chat, get_chat_contacts, remove_contact_from_chat, ProtectionStatus,
+        add_contact_to_chat, create_group_chat, get_chat_contacts, remove_contact_from_chat,
+        send_text_msg, ProtectionStatus,
     };
     use crate::message::Viewtype;
     use crate::receive_imf::receive_imf;
@@ -509,6 +519,31 @@ mod tests {
         // check chatlist query and archive functionality
         let chats = Chatlist::try_load(&t, 0, Some("b"), None).await.unwrap();
         assert_eq!(chats.len(), 1);
+
+        // receive a message from alice
+        let alice = TestContext::new_alice().await;
+        let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "alice chat")
+            .await
+            .unwrap();
+        add_contact_to_chat(
+            &alice,
+            alice_chat_id,
+            Contact::create(&alice, "bob", "bob@example.net")
+                .await
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        send_text_msg(&alice, alice_chat_id, "hi".into())
+            .await
+            .unwrap();
+        let sent_msg = alice.pop_sent_msg().await;
+
+        t.recv_msg(&sent_msg).await;
+        let chats = Chatlist::try_load(&t, 0, Some("is:unread"), None)
+            .await
+            .unwrap();
+        assert!(chats.len() == 1);
 
         let chats = Chatlist::try_load(&t, DC_GCL_ARCHIVED_ONLY, None, None)
             .await
