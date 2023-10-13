@@ -1921,6 +1921,8 @@ async fn apply_group_changes(
     Ok(better_msg)
 }
 
+static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
+
 /// Create or lookup a mailing list chat.
 ///
 /// `list_id_header` contains the Id that must be used for the mailing list
@@ -1937,22 +1939,70 @@ async fn create_or_lookup_mailinglist(
     list_id_header: &str,
     mime_parser: &MimeMessage,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
-    let (mut name, listid) = match LIST_ID.captures(list_id_header) {
-        Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
-        None => (
-            "".to_string(),
-            list_id_header
-                .trim()
-                .trim_start_matches('<')
-                .trim_end_matches('>')
-                .to_string(),
-        ),
+    let listid = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[2].trim().to_string(),
+        None => list_id_header
+            .trim()
+            .trim_start_matches('<')
+            .trim_end_matches('>')
+            .to_string(),
     };
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
         return Ok(Some((chat_id, blocked)));
     }
+
+    let name = compute_mailinglist_name(list_id_header, &listid, mime_parser);
+
+    if allow_creation {
+        // list does not exist but should be created
+        let param = mime_parser.list_post.as_ref().map(|list_post| {
+            let mut p = Params::new();
+            p.set(Param::ListPost, list_post);
+            p.to_string()
+        });
+
+        let is_bot = context.get_config_bool(Config::Bot).await?;
+        let blocked = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let chat_id = ChatId::create_multiuser_record(
+            context,
+            Chattype::Mailinglist,
+            &listid,
+            &name,
+            blocked,
+            ProtectionStatus::Unprotected,
+            param,
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "failed to create mailinglist '{}' for grpid={}",
+                &name, &listid
+            )
+        })?;
+
+        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
+        Ok(Some((chat_id, blocked)))
+    } else {
+        info!(context, "Creating list forbidden by caller.");
+        Ok(None)
+    }
+}
+
+#[allow(clippy::indexing_slicing)]
+fn compute_mailinglist_name(
+    list_id_header: &str,
+    listid: &str,
+    mime_parser: &MimeMessage,
+) -> String {
+    let mut name = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[1].trim().to_string(),
+        None => "".to_string(),
+    };
 
     // for mailchimp lists, the name in `ListId` is just a long number.
     // a usable name for these lists is in the `From` header
@@ -1997,50 +2047,14 @@ async fn create_or_lookup_mailinglist(
         // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
-        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(&listid) {
+        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(listid) {
             name = cap[2].to_string();
         } else {
-            name = listid.clone();
+            name = listid.to_string();
         }
     }
 
-    if allow_creation {
-        // list does not exist but should be created
-        let param = mime_parser.list_post.as_ref().map(|list_post| {
-            let mut p = Params::new();
-            p.set(Param::ListPost, list_post);
-            p.to_string()
-        });
-
-        let is_bot = context.get_config_bool(Config::Bot).await?;
-        let blocked = if is_bot {
-            Blocked::Not
-        } else {
-            Blocked::Request
-        };
-        let chat_id = ChatId::create_multiuser_record(
-            context,
-            Chattype::Mailinglist,
-            &listid,
-            &name,
-            blocked,
-            ProtectionStatus::Unprotected,
-            param,
-        )
-        .await
-        .with_context(|| {
-            format!(
-                "failed to create mailinglist '{}' for grpid={}",
-                &name, &listid
-            )
-        })?;
-
-        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
-        Ok(Some((chat_id, blocked)))
-    } else {
-        info!(context, "Creating list forbidden by caller.");
-        Ok(None)
-    }
+    strip_rtlo_characters(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.
