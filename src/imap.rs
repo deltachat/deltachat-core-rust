@@ -391,6 +391,7 @@ impl Imap {
                     "IMAP-LOGIN as {}",
                     self.config.lp.user
                 )));
+                self.connectivity.set_connected(context).await;
                 info!(context, "Successfully logged into IMAP server");
                 Ok(())
             }

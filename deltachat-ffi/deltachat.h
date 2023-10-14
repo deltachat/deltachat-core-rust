@@ -492,6 +492,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `disable_idle` = 1=disable IMAP IDLE even if the server supports it,
+ *                    0=use IMAP IDLE if the server supports it.
+ *                    This is a developer option used for testing polling used as an IDLE fallback.
  * - `download_limit` = Messages up to this number of bytes are downloaded automatically.
  *                    For larger messages, only the header is downloaded and a placeholder is shown.
  *                    These messages can be downloaded fully using dc_download_full_msg() later.
@@ -500,6 +503,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `gossip_period` = How often to gossip Autocrypt keys in chats with multiple recipients, in
+ *                    seconds. 2 days by default.
+ *                    This is not supposed to be changed by UIs and only used for testing.
  * - `verified_one_on_one_chats` = Feature flag for verified 1:1 chats; the UI should set it
  *                    to 1 if it supports verified 1:1 chats.
  *                    Regardless of this setting, `dc_chat_is_protected()` returns true while the key is verified,

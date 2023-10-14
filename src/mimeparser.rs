@@ -109,7 +109,7 @@ pub(crate) struct MimeMessage {
 
     /// The decrypted, raw mime structure.
     ///
-    /// This is non-empty only if the message was actually encrypted.  It is used
+    /// This is non-empty iff `is_mime_modified` and the message was actually encrypted. It is used
     /// for e.g. late-parsing HTML.
     pub decoded_data: Vec<u8>,
 

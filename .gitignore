@@ -18,6 +18,9 @@ python/.eggs
 __pycache__
 python/src/deltachat/capi*.so
 python/.venv/
+python/venv/
+venv/
+env/
 
 python/liveconfig*
 

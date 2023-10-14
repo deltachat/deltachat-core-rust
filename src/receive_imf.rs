@@ -77,6 +77,24 @@ pub async fn receive_imf(
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
     let rfc724_mid =
         imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
+    if let Some(download_limit) = context.download_limit().await? {
+        let download_limit: usize = download_limit.try_into()?;
+        if imf_raw.len() > download_limit {
+            let head = std::str::from_utf8(imf_raw)?
+                .split("\r\n\r\n")
+                .next()
+                .context("No empty line in the message")?;
+            return receive_imf_inner(
+                context,
+                &rfc724_mid,
+                head.as_bytes(),
+                seen,
+                Some(imf_raw.len().try_into()?),
+                false,
+            )
+            .await;
+        }
+    }
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -582,6 +600,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 mime_parser,
+                is_partial_download.is_some(),
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -858,6 +877,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     mime_parser,
+                    is_partial_download.is_some(),
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -1213,8 +1233,8 @@ INSERT INTO msgs
   )
 ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
-    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
-    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
+    type=excluded.type, msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
     bytes=excluded.bytes, mime_headers=excluded.mime_headers,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,
@@ -1545,6 +1565,7 @@ async fn is_probably_private_reply(
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
+    is_partial_download: bool,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: ContactId,
@@ -1677,7 +1698,7 @@ async fn create_or_lookup_group(
 
     if let Some(chat_id) = chat_id {
         Ok(Some((chat_id, chat_id_blocked)))
-    } else if mime_parser.decrypting_failed {
+    } else if is_partial_download || mime_parser.decrypting_failed {
         // It is possible that the message was sent to a valid,
         // yet unknown group, which was rejected because
         // Chat-Group-Name, which is in the encrypted part, was

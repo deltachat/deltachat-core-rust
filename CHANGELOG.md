@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.125.0] - 2023-10-14
+
+### API-Changes
+
+- [**breaking**] deltachat-rpc-client: Replace `asyncio` with threads.
+- Validate boolean values passed to `set_config`. Attempts to set values other than `0` and `1` will result in an error.
+
+### CI
+
+- Reduce required Python version for deltachat-rpc-client from 3.8 to 3.7.
+
+### Features / Changes
+
+- Add developer option to disable IDLE.
+
+### Fixes
+
+- `deltachat-rpc-client`: Run `deltachat-rpc-server` in its own process group. This prevents reception of `SIGINT` by the server when the bot is terminated with `^C`.
+- python: Don't automatically set the displayname to "bot" when setting log level.
+- Don't update `timestamp`, `timestamp_rcvd`, `state` when replacing partially downloaded message ([#4700](https://github.com/deltachat/deltachat-core-rust/pull/4700)).
+- Assign encrypted partially downloaded group messages to 1:1 chat ([#4757](https://github.com/deltachat/deltachat-core-rust/pull/4757)).
+- Return all contacts from `Contact::get_all` for bots ([#4811](https://github.com/deltachat/deltachat-core-rust/pull/4811)).
+- Set connectivity status to "connected" during fake idle.
+- Return verifier contacts regardless of their origin.
+- Don't try to send more MDNs if there's a temporary SMTP error ([#4534](https://github.com/deltachat/deltachat-core-rust/pull/4534)).
+
+### Refactor
+
+- deltachat-rpc-client: Close stdin instead of sending `SIGTERM`.
+- deltachat-rpc-client: Remove print() calls. Standard `logging` package is for logging instead.
+
+### Tests
+
+- deltachat-rpc-client: Enable logs in pytest.
+
 ## [1.124.1] - 2023-10-05
 
 ### Fixes
@@ -2879,3 +2914,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.123.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.122.0...v1.123.0
 [1.124.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.123.0...v1.124.0
 [1.124.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.0...v1.124.1
+[1.125.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.1...v1.125.0

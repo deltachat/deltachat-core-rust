@@ -579,6 +579,7 @@ impl Context {
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
         let send_sync_msgs = self.get_config_int(Config::SendSyncMsgs).await?;
+        let disable_idle = self.get_config_bool(Config::DisableIdle).await?;
 
         let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;", ()).await?;
 
@@ -691,6 +692,7 @@ impl Context {
         );
         res.insert("bcc_self", bcc_self.to_string());
         res.insert("send_sync_msgs", send_sync_msgs.to_string());
+        res.insert("disable_idle", disable_idle.to_string());
         res.insert("private_key_count", prv_key_cnt.to_string());
         res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);
@@ -752,7 +754,6 @@ impl Context {
                 .await?
                 .to_string(),
         );
-
         res.insert(
             "debug_logging",
             self.get_config_int(Config::DebugLogging).await?.to_string(),
@@ -760,6 +761,10 @@ impl Context {
         res.insert(
             "last_msg_id",
             self.get_config_int(Config::LastMsgId).await?.to_string(),
+        );
+        res.insert(
+            "gossip_period",
+            self.get_config_int(Config::GossipPeriod).await?.to_string(),
         );
         res.insert(
             "verified_one_on_one_chats",

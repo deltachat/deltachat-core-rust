@@ -574,6 +574,19 @@ async fn fetch_idle(
                 .await;
         }
 
+        if ctx
+            .get_config_bool(Config::DisableIdle)
+            .await
+            .context("Failed to get disable_idle config")
+            .log_err(ctx)
+            .unwrap_or_default()
+        {
+            info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
+            return connection
+                .fake_idle(ctx, Some(watch_folder), folder_meaning)
+                .await;
+        }
+
         info!(ctx, "IMAP session supports IDLE, using it.");
         match session
             .idle(

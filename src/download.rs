@@ -23,7 +23,7 @@ use crate::{job_try, stock_str, EventType};
 /// eg. to assign them to the correct chat.
 /// As these messages are typically small,
 /// they're caught by `MIN_DOWNLOAD_LIMIT`.
-const MIN_DOWNLOAD_LIMIT: u32 = 32768;
+pub(crate) const MIN_DOWNLOAD_LIMIT: u32 = 32768;
 
 /// If a message is downloaded only partially
 /// and `delete_server_after` is set to small timeouts (eg. "at once"),

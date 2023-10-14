@@ -617,18 +617,18 @@ class Account:
     # meta API for start/stop and event based processing
     #
 
-    def run_account(self, addr=None, password=None, account_plugins=None, show_ffi=False):
-        from .events import FFIEventLogger
-
+    def run_account(self, addr=None, password=None, account_plugins=None, show_ffi=False, displayname=None):
         """get the account running, configure it if necessary. add plugins if provided.
 
         :param addr: the email address of the account
         :param password: the password of the account
         :param account_plugins: a list of plugins to add
         :param show_ffi: show low level ffi events
+        :param displayname: the display name of the account
         """
+        from .events import FFIEventLogger
+
         if show_ffi:
-            self.set_config("displayname", "bot")
             log = FFIEventLogger(self)
             self.add_account_plugin(log)
 
@@ -644,6 +644,8 @@ class Account:
             configtracker = self.configure()
             configtracker.wait_finish()
 
+        if displayname:
+            self.set_config("displayname", displayname)
         # start IO threads and configure if necessary
         self.start_io()
 

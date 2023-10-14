@@ -674,12 +674,14 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
 /// On failure returns an error without removing any `smtp_mdns` entries, the caller is responsible
 /// for removing the corresponding entry to prevent endless loop in case the entry is invalid, e.g.
 /// points to non-existent message or contact.
+///
+/// Returns true on success, false on temporary error.
 async fn send_mdn_msg_id(
     context: &Context,
     msg_id: MsgId,
     contact_id: ContactId,
     smtp: &mut Smtp,
-) -> Result<()> {
+) -> Result<bool> {
     let contact = Contact::get_by_id(context, contact_id).await?;
     if contact.is_blocked() {
         return Err(format_err!("Contact is blocked"));
@@ -731,14 +733,14 @@ async fn send_mdn_msg_id(
                     .execute(&q, rusqlite::params_from_iter(additional_msg_ids))
                     .await?;
             }
-            Ok(())
+            Ok(true)
         }
         SendResult::Retry => {
             info!(
                 context,
                 "Temporary SMTP failure while sending an MDN for {}", msg_id
             );
-            Ok(())
+            Ok(false)
         }
         SendResult::Failure(err) => Err(err),
     }
@@ -785,15 +787,20 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .await
         .context("failed to update MDN retries count")?;
 
-    if let Err(err) = send_mdn_msg_id(context, msg_id, contact_id, smtp).await {
+    let res = send_mdn_msg_id(context, msg_id, contact_id, smtp).await;
+    if let Err(ref err) = res {
         // If there is an error, for example there is no message corresponding to the msg_id in the
         // database, do not try to send this MDN again.
+        warn!(
+            context,
+            "Error sending MDN for {msg_id}, removing it: {err:#}."
+        );
         context
             .sql
             .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
             .await?;
-        Err(err)
-    } else {
-        Ok(true)
     }
+    // If there's a temporary error, pretend there are no more MDNs to send. It's unlikely that
+    // other MDNs could be sent successfully in case of connectivity problems.
+    res
 }
