@@ -141,10 +141,10 @@ impl ContactId {
     }
 
     /// Mark contact as bot.
-    pub async fn mark_bot(&self, context: &Context, is_bot: bool) -> Result<()> {
+    pub(crate) async fn mark_bot(&self, context: &Context, is_bot: bool) -> Result<()> {
         context
             .sql
-            .execute("UPDATE contacts SET is_bot=? WHERE id=?;", (self.0, is_bot))
+            .execute("UPDATE contacts SET is_bot=? WHERE id=?;", (is_bot, self.0))
             .await?;
         Ok(())
     }
@@ -508,15 +508,6 @@ impl Contact {
                 "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
                 (MessageState::InNoticed, id, MessageState::InFresh),
             )
-            .await?;
-        Ok(())
-    }
-
-    /// Mark bot.
-    pub async fn mark_bot(context: &Context, id: ContactId) -> Result<()> {
-        context
-            .sql
-            .execute("UPDATE contacts SET is_bot=1 WHERE id=?;", (id,))
             .await?;
         Ok(())
     }
