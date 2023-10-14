@@ -787,9 +787,10 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .context("failed to update MDN retries count")?;
 
     let res = send_mdn_msg_id(context, msg_id, contact_id, smtp).await;
-    if res.is_err() {
+    if let Err(ref err) = res {
         // If there is an error, for example there is no message corresponding to the msg_id in the
         // database, do not try to send this MDN again.
+        warn!(context, "Error sending MDN for {msg_id}, removing it: {err:#}.");
         context
             .sql
             .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
