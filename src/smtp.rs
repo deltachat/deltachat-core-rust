@@ -790,7 +790,10 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
     if let Err(ref err) = res {
         // If there is an error, for example there is no message corresponding to the msg_id in the
         // database, do not try to send this MDN again.
-        warn!(context, "Error sending MDN for {msg_id}, removing it: {err:#}.");
+        warn!(
+            context,
+            "Error sending MDN for {msg_id}, removing it: {err:#}."
+        );
         context
             .sql
             .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
