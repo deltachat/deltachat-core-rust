@@ -2208,9 +2208,12 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
         let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
-        if msg.viewtype == Viewtype::Image || maybe_sticker {
+        if msg.viewtype == Viewtype::Image
+            || maybe_sticker && !msg.param.exists(Param::ForceSticker)
+        {
             blob.recode_to_image_size(context, &mut maybe_sticker)
                 .await?;
+
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
             }
@@ -5677,6 +5680,51 @@ mod tests {
             1000,
         )
         .await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sticker_jpeg_force() {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+
+        let file = alice.get_blobdir().join("sticker.jpg");
+        tokio::fs::write(
+            &file,
+            include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+        )
+        .await
+        .unwrap();
+
+        // Images without force_sticker should be turned into [Viewtype::Image]
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Image);
+
+        // Images with `force_sticker = true` should keep [Viewtype::Sticker]
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        msg.force_sticker();
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+
+        // Images with `force_sticker = true` should keep [Viewtype::Sticker]
+        // even on drafted messages
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        msg.force_sticker();
+        alice_chat
+            .id
+            .set_draft(&alice, Some(&mut msg))
+            .await
+            .unwrap();
+        let mut msg = alice_chat.id.get_draft(&alice).await.unwrap().unwrap();
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -664,6 +664,12 @@ impl Message {
         self.viewtype
     }
 
+    /// Forces the message to **keep** [Viewtype::Sticker]
+    /// e.g the message will not be converted to a [Viewtype::Image].
+    pub fn force_sticker(&mut self) {
+        self.param.set_int(Param::ForceSticker, 1);
+    }
+
     /// Returns the state of the message.
     pub fn get_state(&self) -> MessageState {
         self.state
