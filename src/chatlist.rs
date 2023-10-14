@@ -206,10 +206,10 @@ impl Chatlist {
                  WHERE c.id>9 AND c.id!=?2
                    AND c.blocked!=1
                    AND c.name LIKE ?3
-                   AND (NOT ?4 OR EXISTS (SELECT 1 FROM msgs m WHERE m.chat_id = c.id AND m.state < ?5))
+                   AND (NOT ?4 OR EXISTS (SELECT 1 FROM msgs m WHERE m.chat_id = c.id AND m.state == ?5 AND hidden=0))
                  GROUP BY c.id
                  ORDER BY IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
-                    (MessageState::OutDraft, skip_id, str_like_cmd, only_unread, MessageState::InSeen),
+                    (MessageState::OutDraft, skip_id, str_like_cmd, only_unread, MessageState::InFresh),
                     process_row,
                     process_rows,
                 )
@@ -481,7 +481,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_try_load() {
-        let t = TestContext::new().await;
+        let t = TestContext::new_bob().await;
         let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
             .await
             .unwrap();
