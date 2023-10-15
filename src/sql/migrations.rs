@@ -740,6 +740,15 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
 
+    // Add is_bot column to contacts table with default false.
+    if dbversion < 103 {
+        sql.execute_migration(
+            "ALTER TABLE contacts ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
+            103,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

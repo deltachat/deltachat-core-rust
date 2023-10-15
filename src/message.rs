@@ -2341,6 +2341,8 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.get_text(), "hello".to_string());
         assert!(msg.is_bot());
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+        assert!(contact.is_bot());
 
         // Alice receives a message from Bob who is not the bot anymore.
         receive_imf(
@@ -2358,6 +2360,8 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.get_text(), "hello again".to_string());
         assert!(!msg.is_bot());
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+        assert!(!contact.is_bot());
 
         Ok(())
     }
