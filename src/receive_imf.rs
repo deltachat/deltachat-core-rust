@@ -184,28 +184,49 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    info!(context, "Receiving message {rfc724_mid:?}, seen={seen}...");
+    let rfc724_mid_orig = &mime_parser
+        .get_rfc724_mid()
+        .unwrap_or(rfc724_mid.to_string());
+    info!(
+        context,
+        "Receiving message {rfc724_mid_orig:?}, seen={seen}...",
+    );
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
-    let (replace_msg_id, replace_chat_id) =
-        if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
-            let msg = Message::load_from_db(context, old_msg_id).await?;
-            if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
-                // the message was partially downloaded before and is fully downloaded now.
-                info!(
-                    context,
-                    "Message already partly in DB, replacing by full message."
-                );
-                (Some(old_msg_id), Some(msg.chat_id))
-            } else {
-                // the message was probably moved around.
-                info!(context, "Message already in DB, doing nothing.");
-                return Ok(None);
-            }
+    let (replace_msg_id, replace_chat_id);
+    if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
+        if is_partial_download.is_some() {
+            info!(
+                context,
+                "Got a partial download and message is already in DB."
+            );
+            return Ok(None);
+        }
+        let msg = Message::load_from_db(context, old_msg_id).await?;
+        replace_msg_id = Some(old_msg_id);
+        replace_chat_id = if msg.download_state() != DownloadState::Done {
+            // the message was partially downloaded before and is fully downloaded now.
+            info!(
+                context,
+                "Message already partly in DB, replacing by full message."
+            );
+            Some(msg.chat_id)
         } else {
-            (None, None)
+            None
         };
+    } else {
+        replace_msg_id = if rfc724_mid_orig != rfc724_mid {
+            message::rfc724_mid_exists(context, rfc724_mid_orig).await?
+        } else {
+            None
+        };
+        replace_chat_id = None;
+    }
+    if replace_msg_id.is_some() && replace_chat_id.is_none() {
+        info!(context, "Message is already downloaded.");
+        return Ok(None);
+    };
 
     let prevent_rename =
         mime_parser.is_mailinglist_message() || mime_parser.get_header(HeaderDef::Sender).is_some();
@@ -301,7 +322,7 @@ pub(crate) async fn receive_imf_inner(
             imf_raw,
             incoming,
             &to_ids,
-            rfc724_mid,
+            rfc724_mid_orig,
             from_id,
             seen || replace_msg_id.is_some(),
             is_partial_download,
@@ -421,20 +442,30 @@ pub(crate) async fn receive_imf_inner(
     let delete_server_after = context.get_config_delete_server_after().await?;
 
     if !received_msg.msg_ids.is_empty() {
-        if received_msg.needs_delete_job
+        let target = if received_msg.needs_delete_job
             || (delete_server_after == Some(0) && is_partial_download.is_none())
         {
-            let target = context.get_delete_msgs_target().await?;
+            Some(context.get_delete_msgs_target().await?)
+        } else {
+            None
+        };
+        if target.is_some() || rfc724_mid_orig != rfc724_mid {
+            let target_subst = match &target {
+                Some(target) => format!("target='{target}',"),
+                None => "".to_string(),
+            };
             context
                 .sql
                 .execute(
-                    "UPDATE imap SET target=? WHERE rfc724_mid=?",
-                    (target, rfc724_mid),
+                    &format!("UPDATE imap SET {target_subst} rfc724_mid=?1 WHERE rfc724_mid=?2"),
+                    (rfc724_mid_orig, rfc724_mid),
                 )
                 .await?;
-        } else if !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version() {
+        }
+        if target.is_none() && !mime_parser.mdn_reports.is_empty() && mime_parser.has_chat_version()
+        {
             // This is a Delta Chat MDN. Mark as read.
-            markseen_on_imap_table(context, rfc724_mid).await?;
+            markseen_on_imap_table(context, rfc724_mid_orig).await?;
         }
     }
 
@@ -528,6 +559,10 @@ async fn add_parts(
     prevent_rename: bool,
     verified_encryption: VerifiedEncryption,
 ) -> Result<ReceivedMsg> {
+    let rfc724_mid_orig = &mime_parser
+        .get_rfc724_mid()
+        .unwrap_or(rfc724_mid.to_string());
+
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
 
@@ -1308,7 +1343,7 @@ RETURNING id
 "#)?;
                 let row_id: MsgId = stmt.query_row(params![
                     replace_msg_id,
-                    rfc724_mid,
+                    rfc724_mid_orig,
                     if trash { DC_CHAT_ID_TRASH } else { chat_id },
                     if trash { ContactId::UNDEFINED } else { from_id },
                     if trash { ContactId::UNDEFINED } else { to_id },

@@ -124,7 +124,8 @@ struct MessageHeaders {
     /// Headers that MUST NOT go into IMF header section.
     ///
     /// These are large headers which may hit the header section size limit on the server, such as
-    /// Chat-User-Avatar with a base64-encoded image inside.
+    /// Chat-User-Avatar with a base64-encoded image inside. Also there are headers duplicated here
+    /// that servers mess up with in the IMF header section, like Message-ID.
     pub hidden: Vec<Header>,
 }
 
@@ -560,24 +561,9 @@ impl<'a> MimeFactory<'a> {
             Loaded::Mdn { .. } => create_outgoing_rfc724_mid(None, &self.from_addr),
         };
         let rfc724_mid_headervalue = render_rfc724_mid(&rfc724_mid);
-
-        // Amazon's SMTP servers change the `Message-ID`, just as Outlook's SMTP servers do.
-        // Outlook's servers add an `X-Microsoft-Original-Message-ID` header with the original `Message-ID`,
-        // and when downloading messages we look for this header in order to correctly identify
-        // messages.
-        // Amazon's servers do not add such a header, so we just add it ourselves.
-        if let Some(server) = context.get_config(Config::ConfiguredSendServer).await? {
-            if server.ends_with(".amazonaws.com") {
-                headers.unprotected.push(Header::new(
-                    "X-Microsoft-Original-Message-ID".into(),
-                    rfc724_mid_headervalue.clone(),
-                ))
-            }
-        }
-
-        headers
-            .unprotected
-            .push(Header::new("Message-ID".into(), rfc724_mid_headervalue));
+        let rfc724_mid_header = Header::new("Message-ID".into(), rfc724_mid_headervalue);
+        headers.unprotected.push(rfc724_mid_header.clone());
+        headers.hidden.push(rfc724_mid_header);
 
         // Reply headers as in <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.2>.
         if !self.in_reply_to.is_empty() {
@@ -783,19 +769,14 @@ impl<'a> MimeFactory<'a> {
                 )
                 .header(("Subject".to_string(), "...".to_string()))
         } else {
-            let message = if headers.hidden.is_empty() {
-                message
-            } else {
-                // Store hidden headers in the inner unencrypted message.
-                let message = headers
-                    .hidden
-                    .into_iter()
-                    .fold(message, |message, header| message.header(header));
-
-                PartBuilder::new()
-                    .message_type(MimeMultipartType::Mixed)
-                    .child(message.build())
-            };
+            // Store hidden headers in the inner unencrypted message.
+            let message = headers
+                .hidden
+                .into_iter()
+                .fold(message, |message, header| message.header(header));
+            let message = PartBuilder::new()
+                .message_type(MimeMultipartType::Mixed)
+                .child(message.build());
 
             // Store protected headers in the outer message.
             let message = headers
@@ -803,9 +784,7 @@ impl<'a> MimeFactory<'a> {
                 .iter()
                 .fold(message, |message, header| message.header(header.clone()));
 
-            if self.should_skip_autocrypt()
-                || !context.get_config_bool(Config::SignUnencrypted).await?
-            {
+            if skip_autocrypt || !context.get_config_bool(Config::SignUnencrypted).await? {
                 let protected: HashSet<Header> = HashSet::from_iter(headers.protected.into_iter());
                 for h in headers.unprotected.split_off(0) {
                     if !protected.contains(&h) {
@@ -2165,33 +2144,37 @@ mod tests {
         let body = payload.next().unwrap();
 
         assert_eq!(outer.match_indices("multipart/mixed").count(), 1);
+        assert_eq!(outer.match_indices("Message-ID:").count(), 1);
         assert_eq!(outer.match_indices("Subject:").count(), 1);
         assert_eq!(outer.match_indices("Autocrypt:").count(), 1);
         assert_eq!(outer.match_indices("Chat-User-Avatar:").count(), 0);
 
         assert_eq!(inner.match_indices("text/plain").count(), 1);
+        assert_eq!(inner.match_indices("Message-ID:").count(), 1);
         assert_eq!(inner.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(inner.match_indices("Subject:").count(), 0);
 
         assert_eq!(body.match_indices("this is the text!").count(), 1);
 
         // if another message is sent, that one must not contain the avatar
-        // and no artificial multipart/mixed nesting
         let sent_msg = t.send_msg(chat.id, &mut msg).await;
-        let mut payload = sent_msg.payload().splitn(2, "\r\n\r\n");
+        let mut payload = sent_msg.payload().splitn(3, "\r\n\r\n");
         let outer = payload.next().unwrap();
+        let inner = payload.next().unwrap();
         let body = payload.next().unwrap();
 
-        assert_eq!(outer.match_indices("text/plain").count(), 1);
+        assert_eq!(outer.match_indices("multipart/mixed").count(), 1);
+        assert_eq!(outer.match_indices("Message-ID:").count(), 1);
         assert_eq!(outer.match_indices("Subject:").count(), 1);
         assert_eq!(outer.match_indices("Autocrypt:").count(), 1);
-        assert_eq!(outer.match_indices("multipart/mixed").count(), 0);
         assert_eq!(outer.match_indices("Chat-User-Avatar:").count(), 0);
 
+        assert_eq!(inner.match_indices("text/plain").count(), 1);
+        assert_eq!(inner.match_indices("Message-ID:").count(), 1);
+        assert_eq!(inner.match_indices("Chat-User-Avatar:").count(), 0);
+        assert_eq!(inner.match_indices("Subject:").count(), 0);
+
         assert_eq!(body.match_indices("this is the text!").count(), 1);
-        assert_eq!(body.match_indices("text/plain").count(), 0);
-        assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
-        assert_eq!(body.match_indices("Subject:").count(), 0);
 
         Ok(())
     }
@@ -2223,6 +2206,7 @@ mod tests {
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
+        assert_eq!(part.match_indices("Message-ID:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
@@ -2234,6 +2218,7 @@ mod tests {
             1
         );
         assert_eq!(part.match_indices("From:").count(), 1);
+        assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
@@ -2241,6 +2226,7 @@ mod tests {
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("text/plain").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 0);
+        assert_eq!(part.match_indices("Message-ID:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
 
@@ -2261,31 +2247,38 @@ mod tests {
             .is_some());
 
         // if another message is sent, that one must not contain the avatar
-        // and no artificial multipart/mixed nesting
         let sent_msg = t.send_msg(chat.id, &mut msg).await;
-        let mut payload = sent_msg.payload().splitn(3, "\r\n\r\n");
+        let mut payload = sent_msg.payload().splitn(4, "\r\n\r\n");
 
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
+        assert_eq!(part.match_indices("Message-ID:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
         let part = payload.next().unwrap();
-        assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(
+            part.match_indices("multipart/mixed; protected-headers=\"v1\"")
+                .count(),
+            1
+        );
         assert_eq!(part.match_indices("From:").count(), 1);
+        assert_eq!(part.match_indices("Message-ID:").count(), 0);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
-        assert_eq!(part.match_indices("multipart/mixed").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+
+        let part = payload.next().unwrap();
+        assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(body.match_indices("From:").count(), 0);
+        assert_eq!(part.match_indices("Message-ID:").count(), 1);
+        assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
+        assert_eq!(part.match_indices("Subject:").count(), 0);
 
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);
-        assert_eq!(body.match_indices("text/plain").count(), 0);
-        assert_eq!(body.match_indices("From:").count(), 0);
-        assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
-        assert_eq!(body.match_indices("Subject:").count(), 0);
 
         bob.recv_msg(&sent_msg).await;
         let alice_contact = Contact::get_by_id(&bob.ctx, alice_id).await.unwrap();

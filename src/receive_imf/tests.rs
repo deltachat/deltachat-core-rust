@@ -3223,6 +3223,22 @@ async fn test_thunderbird_unsigned_with_unencrypted_subject() -> Result<()> {
     Ok(())
 }
 
+/// Tests that DC takes the correct Message-ID from the encrypted message part, not the unencrypted
+/// one messed up by the server.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_messed_up_message_id() -> Result<()> {
+    let t = TestContext::new_bob().await;
+
+    let raw = include_bytes!("../../test-data/message/messed_up_message_id.eml");
+    receive_imf(&t, raw, false).await?;
+    assert_eq!(
+        t.get_last_msg().await.rfc724_mid,
+        "0bb9ffe1-2596-d997-95b4-1fef8cc4808e@example.org"
+    );
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_mua_user_adds_member() -> Result<()> {
     let t = TestContext::new_alice().await;
