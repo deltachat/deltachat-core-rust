@@ -2061,10 +2061,7 @@ async fn apply_mailinglist_changes(
         info!(context, "Updating listname for chat {chat_id}.");
         context
             .sql
-            .execute(
-                "UPDATE chats SET name=? WHERE id=?;",
-                (strip_rtlo_characters(&new_name), chat_id),
-            )
+            .execute("UPDATE chats SET name=? WHERE id=?;", (new_name, chat_id))
             .await?;
         context.emit_event(EventType::ChatModified(chat_id));
     }
