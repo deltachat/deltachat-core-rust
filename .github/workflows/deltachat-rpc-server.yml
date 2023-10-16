@@ -26,8 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Build
+      - name: Build deltachat-rpc-server binaries
         run: sh scripts/zig-rpc-server.sh
+
+      - name: Build deltachat-rpc-server wheels
+        run: |
+          pip install wheel
+          scripts/wheel-rpc-server.py
 
       - name: Upload x86_64 binary
         uses: actions/upload-artifact@v3
