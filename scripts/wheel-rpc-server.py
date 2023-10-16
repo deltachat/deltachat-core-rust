@@ -51,22 +51,22 @@ def main():
     build_wheel(
         version,
         "target/x86_64-unknown-linux-musl/release/deltachat-rpc-server",
-        "py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.musllinux_1_1_x86_64",
+        "py3-none-linux_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.musllinux_1_1_x86_64",
     )
     build_wheel(
         version,
         "target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server",
-        "py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l",
+        "py3-none-linux_armv7l.manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l",
     )
     build_wheel(
         version,
         "target/aarch64-unknown-linux-musl/release/deltachat-rpc-server",
-        "py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64",
+        "py3-none-linux_aarch64.manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64",
     )
     build_wheel(
         version,
         "target/i686-unknown-linux-musl/release/deltachat-rpc-server",
-        "py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686",
+        "py3-none-linux_i686.manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686",
     )
 
 
