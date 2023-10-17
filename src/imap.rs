@@ -1963,7 +1963,7 @@ async fn needs_move_to_mvbox(
         return Ok(false);
     }
 
-    if headers.get_header_value(HeaderDef::ChatVersion).is_some() {
+    if headers.get_header_value(HeaderDef::ChatVersion).is_some() || headers.get_header_value(HeaderDef::ChatDispositionNotificationTo).is_some()  {
         Ok(true)
     } else if let Some(parent) = get_prefetch_parent_message(context, headers).await? {
         match parent.is_dc_message {
@@ -2713,6 +2713,38 @@ mod tests {
             Some(expected_destination)
         };
         assert_eq!(expected, actual.as_deref(), "For folder {folder}, mvbox_move {mvbox_move}, chat_msg {chat_msg}, accepted {accepted_chat}, outgoing {outgoing}, setupmessage {setupmessage}: expected {expected:?}, got {actual:?}");
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn check_target_folder_ndn() -> Result<()> {
+        let t = TestContext::new_alice().await;
+        t.ctx
+            .set_config(Config::ConfiguredMvboxFolder, Some("DeltaChat"))
+            .await?;
+        t.ctx.set_config(Config::MvboxMove, Some("1")).await?;
+
+        /* if accepted_chat {
+            let contact_id = Contact::create(&t.ctx, "", "bob@example.net").await?;
+            ChatId::create_for_contact(&t.ctx, contact_id).await?;
+        } */
+
+        let bytes =
+            b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+        From: alice@gmail.com\n\
+        To: bob@example.com, assidhfaaspocwaeofi@gmail.com\n\
+        Subject: foo\n\
+        Message-ID: <CADWx9Cs32Wa7Gy-gM0bvbq54P_FEHe7UcsAV=yW7sVVW=fiMYQ@mail.gmail.com>\n\
+        Chat-Group-ID: abcde\n\
+        Chat-Group-Name: foo\n\
+        Chat-Disposition-Notification-To: alice@example.org\n\
+        Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+        \n\
+        hello\n";
+
+        let (headers, _) = mailparse::parse_headers(bytes)?;
+        assert_eq!(target_folder_cfg(&t, "INBOX", get_folder_meaning_by_name("INBOX"), &headers).await?, Some(Config::ConfiguredMvboxFolder));
+
         Ok(())
     }
 
