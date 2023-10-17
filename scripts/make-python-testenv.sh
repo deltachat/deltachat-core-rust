@@ -14,4 +14,4 @@ export DCC_RS_DEV="$PWD"
 cargo build -p deltachat_ffi --features jsonrpc
 
 tox -c python -e py --devenv venv
-env/bin/pip install --upgrade pip
+venv/bin/pip install --upgrade pip
