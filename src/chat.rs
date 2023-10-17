@@ -1591,7 +1591,7 @@ impl Chat {
                 );
                 bail!("Cannot set message, contact for {} not found.", self.id);
             }
-        } else if self.typ == Chattype::Group
+        } else if (self.typ == Chattype::Group || self.typ == Chattype::Broadcast)
             && self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
         {
             msg.param.set_int(Param::AttachGroupImage, 1);
@@ -3427,12 +3427,8 @@ pub async fn set_chat_profile_image(
 ) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
     let mut chat = Chat::load_from_db(context, chat_id).await?;
-    ensure!(
-        chat.typ == Chattype::Group || chat.typ == Chattype::Mailinglist,
-        "Failed to set profile image; group does not exist"
-    );
     /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-    if !is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
+    if !chat.is_self_in_chat(context).await? {
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot set chat profile image; self not in group.".into(),
         ));
@@ -3453,7 +3449,7 @@ pub async fn set_chat_profile_image(
         msg.text = stock_str::msg_grp_img_changed(context, ContactId::SELF).await;
     }
     chat.update_param(context).await?;
-    if chat.is_promoted() && !chat.is_mailing_list() {
+    if chat.is_promoted() && !chat.is_mailing_list() && chat.typ != Chattype::Broadcast {
         msg.id = send_msg(context, chat_id, &mut msg).await?;
         context.emit_msgs_changed(chat_id, msg.id);
     }

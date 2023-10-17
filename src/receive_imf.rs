@@ -2050,6 +2050,28 @@ async fn apply_mailinglist_changes(
     if chat.typ != Chattype::Mailinglist {
         return Ok(());
     }
+
+    let mut send_event_chat_modified = false;
+
+    if let Some(avatar_action) = &mime_parser.group_avatar {
+        info!(context, "Mailinglist-avatar change for {chat_id}.");
+        if chat
+            .param
+            .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+        {
+            match avatar_action {
+                AvatarAction::Change(profile_image) => {
+                    chat.param.set(Param::ProfileImage, profile_image);
+                }
+                AvatarAction::Delete => {
+                    chat.param.remove(Param::ProfileImage);
+                }
+            };
+            chat.update_param(context).await?;
+            send_event_chat_modified = true;
+        }
+    }
+
     let listid = &chat.grpid;
 
     let new_name = compute_mailinglist_name(mailinglist_header, listid, mime_parser);
@@ -2063,6 +2085,10 @@ async fn apply_mailinglist_changes(
             .sql
             .execute("UPDATE chats SET name=? WHERE id=?;", (new_name, chat_id))
             .await?;
+        send_event_chat_modified = true;
+    }
+
+    if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
     }
 

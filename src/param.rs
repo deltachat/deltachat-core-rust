@@ -119,7 +119,7 @@ pub enum Param {
     /// For MDN-sending job
     MsgId = b'I',
 
-    /// For Groups
+    /// For Groups and Broadcast Lists
     ///
     /// An unpromoted group has not had any messages sent to it and thus only exists on the
     /// creator's device.  Any changes made to an unpromoted group do not need to send
