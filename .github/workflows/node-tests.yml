@@ -63,5 +63,5 @@ jobs:
         working-directory: node
         run: npm run test
         env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          CHATMAIL_DOMAIN: ${{ secrets.CHATMAIL_DOMAIN }}
           NODE_OPTIONS: "--force-node-api-uncaught-exceptions-policy=true"

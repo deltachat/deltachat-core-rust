@@ -1,6 +1,5 @@
-import json
 import os
-import urllib.request
+import random
 from typing import AsyncGenerator, List, Optional
 
 import pytest
@@ -10,12 +9,11 @@ from .rpc import Rpc
 
 
 def get_temp_credentials() -> dict:
-    url = os.getenv("DCC_NEW_TMP_EMAIL")
-    assert url, "Failed to get online account, DCC_NEW_TMP_EMAIL is not set"
-
-    request = urllib.request.Request(url, method="POST")
-    with urllib.request.urlopen(request, timeout=60) as f:
-        return json.load(f)
+    domain = os.getenv("CHATMAIL_DOMAIN")
+    username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
+    password = f"{username}${username}"
+    addr = f"{username}@{domain}"
+    return {"email": addr, "password": password}
 
 
 class ACFactory:

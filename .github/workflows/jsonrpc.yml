@@ -31,7 +31,7 @@ jobs:
         working-directory: deltachat-jsonrpc/typescript
         run: npm run test
         env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          CHATMAIL_DOMAIN: ${{ secrets.CHATMAIL_DOMAIN }}
       - name: make sure websocket server version still builds
         working-directory: deltachat-jsonrpc
         run: cargo build --bin deltachat-jsonrpc-server --features webserver

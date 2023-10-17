@@ -28,7 +28,7 @@ ssh $SSHTARGET <<_HERE
     export RUSTC_WRAPPER=\`which sccache\`
     cd $BUILDDIR
     export TARGET=release
-    export DCC_NEW_TMP_EMAIL=$DCC_NEW_TMP_EMAIL
+    export CHATMAIL_DOMAIN=$CHATMAIL_DOMAIN
 
     #we rely on tox/virtualenv being available in the host
     #rm -rf virtualenv venv
