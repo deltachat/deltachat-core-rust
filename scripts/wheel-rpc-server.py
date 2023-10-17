@@ -4,6 +4,98 @@ Run scripts/zig-rpc-server.sh first."""
 from pathlib import Path
 from wheel.wheelfile import WheelFile
 import tomllib
+import tarfile
+from io import BytesIO
+
+
+def metadata_contents(version):
+    return f"""Metadata-Version: 2.1
+Name: deltachat-rpc-server
+Version: {version}
+Summary: Delta Chat JSON-RPC server
+"""
+
+
+SETUP_PY = """
+import sys
+from setuptools import setup, find_packages
+from distutils.cmd import Command
+from setuptools.command.install import install
+from setuptools.command.build import build
+import subprocess
+import platform
+import tempfile
+from zipfile import ZipFile
+from pathlib import Path
+import shutil
+
+
+class BuildCommand(build):
+    def run(self):
+        tmpdir = tempfile.mkdtemp()
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "download",
+                "--no-input",
+                "--timeout",
+                "1000",
+                "--platform",
+                "musllinux_1_1_" + platform.machine(),
+                "--only-binary=:all:",
+                "deltachat-rpc-server",
+            ],
+            cwd=tmpdir,
+        )
+
+        wheel_path = next(Path(tmpdir).glob("*.whl"))
+        with ZipFile(wheel_path, "r") as wheel:
+            exe_path = wheel.extract("deltachat_rpc_server/deltachat-rpc-server", "src")
+            Path(exe_path).chmod(0o700)
+            wheel.extract("deltachat_rpc_server/__init__.py", "src")
+
+        shutil.rmtree(tmpdir)
+        return super().run()
+
+
+setup(
+    cmdclass={"build": BuildCommand},
+    package_data={"deltachat_rpc_server": ["deltachat-rpc-server"]},
+)
+"""
+
+
+def build_source_package(version):
+    filename = f"dist/deltachat-rpc-server-{version}.tar.gz"
+
+    with tarfile.open(filename, "w:gz") as pkg:
+
+        def pack(name, contents):
+            contents = contents.encode()
+            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
+            tar_info.mode = 0o644
+            tar_info.size = len(contents)
+            pkg.addfile(tar_info, BytesIO(contents))
+
+        pack("PKG-INFO", metadata_contents(version))
+        pack(
+            "pyproject.toml",
+            """[build-system]
+requires = ["setuptools==68.2.2", "pip"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deltachat-rpc-server"
+version = "1.125.0"
+
+[project.scripts]
+deltachat-rpc-server = "deltachat_rpc_server:main"
+""",
+        )
+        pack("setup.py", SETUP_PY)
+        pack("src/deltachat_rpc_server/__init__.py", "")
 
 
 def build_wheel(version, binary, tag):
@@ -27,11 +119,7 @@ def main():
         )
         wheel.writestr(
             f"deltachat_rpc_server-{version}.dist-info/METADATA",
-            f"""Metadata-Version: 2.1
-Name: deltachat-rpc-server
-Version: {version}
-Summary: Delta Chat JSON-RPC server
-""",
+            metadata_contents(version),
         )
         wheel.writestr(
             f"deltachat_rpc_server-{version}.dist-info/WHEEL",
@@ -48,6 +136,7 @@ def main():
         cargo_toml = tomllib.load(f)
         version = cargo_toml["package"]["version"]
     Path("dist").mkdir(exist_ok=True)
+    build_source_package(version)
     build_wheel(
         version,
         "target/x86_64-unknown-linux-musl/release/deltachat-rpc-server",
