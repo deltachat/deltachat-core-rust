@@ -1443,10 +1443,6 @@ impl Chat {
                     return contact.get_profile_image(context).await;
                 }
             }
-        } else if self.typ == Chattype::Broadcast {
-            if let Ok(image_rel) = get_broadcast_icon(context).await {
-                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
-            }
         }
         Ok(None)
     }
@@ -1939,21 +1935,6 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
         contact.update_param(context).await?;
     }
     Ok(())
-}
-
-pub(crate) async fn get_broadcast_icon(context: &Context) -> Result<String> {
-    if let Some(icon) = context.sql.get_raw_config("icon-broadcast").await? {
-        return Ok(icon);
-    }
-
-    let icon = include_bytes!("../assets/icon-broadcast.png");
-    let blob = BlobObject::create(context, "icon-broadcast.png", icon).await?;
-    let icon = blob.as_name().to_string();
-    context
-        .sql
-        .set_raw_config("icon-broadcast", Some(&icon))
-        .await?;
-    Ok(icon)
 }
 
 pub(crate) async fn get_archive_icon(context: &Context) -> Result<String> {
