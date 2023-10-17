@@ -12,22 +12,14 @@ import fetch from 'node-fetch'
 chai.use(chaiAsPromised)
 chai.config.truncateThreshold = 0 // Do not truncate assertion errors.
 
-async function createTempUser(url) {
-  async function postData(url = '') {
-    // Default options are marked with *
-    const response = await fetch(url, {
-      method: 'POST', // *GET, POST, PUT, DELETE, etc.
-      headers: {
-        'cache-control': 'no-cache',
-      },
-    })
-    if (!response.ok) {
-      throw new Error('request failed: ' + response.body.read())
-    }
-    return response.json() // parses JSON response into native JavaScript objects
+function createTempUser(chatmailDomain) {
+  const charset = "2345789acdefghjkmnpqrstuvwxyz";
+  let user = "ci-";
+  for (let i = 0; i < 6; i++) {
+    user += charset[Math.floor(Math.random() * charset.length)];
   }
-
-  return await postData(url)
+  const email = user + "@" + chatmailDomain;
+  return { email: email, password: user + "$" + user };
 }
 
 describe('static tests', function () {
@@ -768,14 +760,7 @@ describe('Integration tests', function () {
   })
 
   this.beforeAll(async function () {
-    if (!process.env.DCC_NEW_TMP_EMAIL) {
-      console.log(
-        'Missing DCC_NEW_TMP_EMAIL environment variable!, skip integration tests'
-      )
-      this.skip()
-    }
-
-    account = await createTempUser(process.env.DCC_NEW_TMP_EMAIL)
+    account = createTempUser(process.env.CHATMAIL_DOMAIN)
     if (!account || !account.email || !account.password) {
       console.log(
         "We didn't got back an account from the api, skip integration tests"

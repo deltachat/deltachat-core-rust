@@ -13,16 +13,16 @@ describe("online tests", function () {
 
   before(async function () {
     this.timeout(60000);
-    if (!process.env.DCC_NEW_TMP_EMAIL) {
+    if (!process.env.CHATMAIL_DOMAIN) {
       if (process.env.COVERAGE && !process.env.COVERAGE_OFFLINE) {
         console.error(
-          "CAN NOT RUN COVERAGE correctly: Missing DCC_NEW_TMP_EMAIL environment variable!\n\n",
+          "CAN NOT RUN COVERAGE correctly: Missing CHATMAIL_DOMAIN environment variable!\n\n",
           "You can set COVERAGE_OFFLINE=1 to circumvent this check and skip the online tests, but those coverage results will be wrong, because some functions can only be tested in the online test"
         );
         process.exit(1);
       }
       console.log(
-        "Missing DCC_NEW_TMP_EMAIL environment variable!, skip integration tests"
+        "Missing CHATMAIL_DOMAIN environment variable!, skip integration tests"
       );
       this.skip();
     }
@@ -33,7 +33,7 @@ describe("online tests", function () {
       if (kind !== "Info") console.log(contextId, kind);
     });
 
-    account1 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
+    account1 = createTempUser(process.env.CHATMAIL_DOMAIN);
     if (!account1 || !account1.email || !account1.password) {
       console.log(
         "We didn't got back an account from the api, skip integration tests"
@@ -41,7 +41,7 @@ describe("online tests", function () {
       this.skip();
     }
 
-    account2 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
+    account2 = createTempUser(process.env.CHATMAIL_DOMAIN);
     if (!account2 || !account2.email || !account2.password) {
       console.log(
         "We didn't got back an account2 from the api, skip integration tests"

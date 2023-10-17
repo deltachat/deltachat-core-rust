@@ -211,7 +211,7 @@ jobs:
 
       - name: Run python tests
         env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          CHATMAIL_DOMAIN: ${{ secrets.CHATMAIL_DOMAIN }}
           DCC_RS_TARGET: debug
           DCC_RS_DEV: ${{ github.workspace }}
         working-directory: python
@@ -274,6 +274,6 @@ jobs:
 
       - name: Run deltachat-rpc-client tests
         env:
-          DCC_NEW_TMP_EMAIL: ${{ secrets.DCC_NEW_TMP_EMAIL }}
+          CHATMAIL_DOMAIN: ${{ secrets.CHATMAIL_DOMAIN }}
         working-directory: deltachat-rpc-client
         run: tox -e py

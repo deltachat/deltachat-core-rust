@@ -108,10 +108,10 @@ This will build the `deltachat-jsonrpc-server` binary and then run a test suite 
 
 The test suite includes some tests that need online connectivity and a way to create test email accounts. To run these tests, talk to DeltaChat developers to get a token for the `testrun.org` service, or use a local instance of [`mailadm`](https://github.com/deltachat/docker-mailadm).
 
-Then, set the `DCC_NEW_TMP_EMAIL` environment variable to your mailadm token before running the tests.
+Then, set the `CHATMAIL_DOMAIN` environment variable to your testing email server domain.
 
 ```
-DCC_NEW_TMP_EMAIL=https://testrun.org/new_email?t=yourtoken npm run test
+CHATMAIL_DOMAIN=chat.example.org npm run test
 ```
 
 #### Test Coverage

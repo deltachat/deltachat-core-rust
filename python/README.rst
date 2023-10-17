@@ -53,14 +53,14 @@ end-to-end tests that require accounts on real e-mail servers.
 Running "live" tests with temporary accounts
 --------------------------------------------
 
-If you want to run live functional tests you can set ``DCC_NEW_TMP_EMAIL`` to a URL that creates e-mail accounts.  Most developers use https://testrun.org URLs created and managed by `mailadm <https://mailadm.readthedocs.io/>`_.
+If you want to run live functional tests
+you can set ``CHATMAIL_DOMAIN`` to a domain of the email server
+that creates e-mail accounts like this::
 
-Please feel free to contact us through a github issue or by e-mail and we'll send you a URL that you can then use for functional tests like this::
+    export CHATMAIL_DOMAIN=nine.testrun.org
 
-    export DCC_NEW_TMP_EMAIL=<URL you got from us>
-
-With this account-creation setting, pytest runs create ephemeral e-mail accounts on the http://testrun.org server.
-These accounts are removed automatically as they expire.
+With this account-creation setting, pytest runs create ephemeral e-mail accounts on the server.
+These accounts have the pattern `ci-{6 characters}@{CHATMAIL_DOMAIN}`.
 After setting the variable, either rerun `scripts/run-python-test.sh`
 or run offline and online tests with `tox` directly::
 
@@ -159,6 +159,6 @@ find it with::
 
 This docker image can be used to run tests and build Python wheels for all interpreters::
 
-    $ docker run -e DCC_NEW_TMP_EMAIL \
+    $ docker run -e CHATMAIL_DOMAIN \
        --rm -it -v $(pwd):/mnt -w /mnt \
        deltachat/coredeps scripts/run_all.sh

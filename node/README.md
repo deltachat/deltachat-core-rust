@@ -204,10 +204,10 @@ Running `npm test` ends with showing a code coverage report, which is produced b
 
 The coverage report from `nyc` in the console is rather limited. To get a more detailed coverage report you can run `npm run coverage-html-report`. This will produce a html report from the `nyc` data and display it in a browser on your local machine.
 
-To run the integration tests you need to set the `DCC_NEW_TMP_EMAIL` environment variables. E.g.:
+To run the integration tests you need to set the `CHATMAIL_DOMAIN` environment variables. E.g.:
 
 ```
-$ export DCC_NEW_TMP_EMAIL=https://testrun.org/new_email?t=[token]
+$ export CHATMAIL_DOMAIN=chat.example.org
 $ npm run test
 ```
 
