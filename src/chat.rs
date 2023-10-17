@@ -6094,22 +6094,40 @@ mod tests {
             get_chat_contacts(&alice, chat_bob.id).await?.pop().unwrap(),
         )
         .await?;
-        let chat = Chat::load_from_db(&alice, broadcast_id).await?;
-        assert_eq!(chat.typ, Chattype::Broadcast);
-        assert_eq!(chat.name, stock_str::broadcast_list(&alice).await);
-        assert!(!chat.is_self_talk());
+        set_chat_name(&alice, broadcast_id, "Broadcast list").await?;
+        {
+            let chat = Chat::load_from_db(&alice, broadcast_id).await?;
+            assert_eq!(chat.typ, Chattype::Broadcast);
+            assert_eq!(chat.name, "Broadcast list");
+            assert!(!chat.is_self_talk());
 
-        send_text_msg(&alice, broadcast_id, "ola!".to_string()).await?;
-        let msg = alice.get_last_msg().await;
-        assert_eq!(msg.chat_id, chat.id);
+            send_text_msg(&alice, broadcast_id, "ola!".to_string()).await?;
+            let msg = alice.get_last_msg().await;
+            assert_eq!(msg.chat_id, chat.id);
+        }
 
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
-        assert_eq!(msg.get_text(), "ola!");
-        assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
-        let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
-        assert_eq!(chat.typ, Chattype::Single);
-        assert_eq!(chat.id, chat_bob.id);
-        assert!(!chat.is_self_talk());
+        {
+            let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+            assert_eq!(msg.get_text(), "ola!");
+            assert_eq!(msg.subject, "Broadcast list");
+            assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
+            let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+            assert_eq!(chat.typ, Chattype::Mailinglist);
+            assert_ne!(chat.id, chat_bob.id);
+            assert_eq!(chat.name, "Broadcast list");
+            assert!(!chat.is_self_talk());
+        }
+
+        {
+            // Alice changes the name:
+            set_chat_name(&alice, broadcast_id, "My great broadcast").await?;
+            let sent = alice.send_text(broadcast_id, "I changed the title!").await;
+
+            let msg = bob.recv_msg(&sent).await;
+            assert_eq!(msg.subject, "Re: My great broadcast");
+            let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+            assert_eq!(bob_chat.name, "My great broadcast");
+        }
 
         Ok(())
     }

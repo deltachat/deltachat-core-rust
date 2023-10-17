@@ -1718,24 +1718,12 @@ uint32_t        dc_create_group_chat         (dc_context_t* context, int protect
  * Create a new broadcast list.
  *
  * Broadcast lists are similar to groups on the sending device,
- * however, recipients get the messages in normal one-to-one chats
- * and will not be aware of other members.
+ * however, recipients get the messages in a read-only chat
+ * and will see who the other members are.
  *
- * Replies to broadcasts go only to the sender
- * and not to all broadcast recipients.
- * Moreover, replies will not appear in the broadcast list
- * but in the one-to-one chat with the person answering.
- *
- * The name and the image of the broadcast list is set automatically
- * and is visible to the sender only.
- * Not asking for these data allows more focused creation
- * and we bypass the question who will get which data.
- * Also, many users will have at most one broadcast list
- * so, a generic name and image is sufficient at the first place.
- *
- * Later on, however, the name can be changed using dc_set_chat_name().
- * The image cannot be changed to have a unique, recognizable icon in the chat lists.
- * All in all, this is also what other messengers are doing here.
+ * For historical reasons, this function does not take a name directly,
+ * instead you have to set the name using dc_set_chat_name()
+ * after creating the broadcast list.
  *
  * @memberof dc_context_t
  * @param context The context object.
