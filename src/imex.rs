@@ -493,19 +493,19 @@ fn get_next_backup_path(
     let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
         .context("can't get next backup path")?
         // Don't change this file name format, in `dc_imex_has_backup` we use string comparison to determine which backup is newer:
-        .format(&format!("delta-chat-%Y-%m-%d-{}", &addr).to_string())
+        .format("delta-chat-backup-%Y-%m-%d")
         .to_string();
 
     // 64 backup files per day should be enough for everyone
     for i in 0..64 {
         let mut tempdbfile = folder.clone();
-        tempdbfile.push(format!("{stem}-{i:02}.db"));
+        tempdbfile.push(format!("{stem}-{i:02}-{addr}.db"));
 
         let mut tempfile = folder.clone();
-        tempfile.push(format!("{stem}-{i:02}.tar.part"));
+        tempfile.push(format!("{stem}-{i:02}-{addr}.tar.part"));
 
         let mut destfile = folder.clone();
-        destfile.push(format!("{stem}-{i:02}.tar"));
+        destfile.push(format!("{stem}-{i:02}-{addr}.tar"));
 
         if !tempdbfile.exists() && !tempfile.exists() && !destfile.exists() {
             return Ok((tempdbfile, tempfile, destfile));
