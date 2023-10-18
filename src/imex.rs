@@ -58,7 +58,7 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `path` with the given `passphrase`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is `delta-chat-<day>-<number>-<addr>.tar`.
+    /// The name of the backup is `delta-chat-backup-<day>-<number>-<addr>.tar`.
     ExportBackup = 11,
 
     /// `path` is the file (not: directory) to import. The file is normally
@@ -127,7 +127,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
             && (newest_backup_name.is_empty() || name > newest_backup_name)
         {
             // We just use string comparison to determine which backup is newer.
-            // This works fine because the filenames have the form `delta-chat-2023-10-18-00-foo@example.com.tar`
+            // This works fine because the filenames have the form `delta-chat-backup-2023-10-18-00-foo@example.com.tar`
             newest_backup_path = Some(path);
             newest_backup_name = name;
         }
