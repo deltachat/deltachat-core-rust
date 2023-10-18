@@ -127,7 +127,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
             && (newest_backup_name.is_empty() || name > newest_backup_name)
         {
             // We just use string comparison to determine which backup is newer.
-            // This works fine because the filenames have the form ...delta-chat-2020-07-24-foo@example.com-00.tar
+            // This works fine because the filenames have the form `delta-chat-2023-10-18-00-foo@example.com.tar`
             newest_backup_path = Some(path);
             newest_backup_name = name;
         }
