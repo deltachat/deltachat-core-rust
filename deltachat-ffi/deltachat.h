@@ -2266,8 +2266,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  *   the backup is not encrypted.
  *   The backup contains all contacts, chats, images and other data and device independent settings.
  *   The backup does not contain device dependent settings as ringtones or LED notification settings.
- *   The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
- *   the format is `delta-chat-<day>-<number>.tar`
+ *   The name of the backup is `delta-chat-backup-<day>-<number>-<addr>.tar`.
  *
  * - **DC_IMEX_IMPORT_BACKUP** (12) - `param1` is the file (not: directory) to import. `param2` is the passphrase.
  *   The file is normally created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup

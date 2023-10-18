@@ -58,8 +58,7 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `path` with the given `passphrase`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
-    /// the format is `delta-chat-<day>-<number>.tar`
+    /// The name of the backup is `delta-chat-backup-<day>-<number>-<addr>.tar`.
     ExportBackup = 11,
 
     /// `path` is the file (not: directory) to import. The file is normally
@@ -128,7 +127,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
             && (newest_backup_name.is_empty() || name > newest_backup_name)
         {
             // We just use string comparison to determine which backup is newer.
-            // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+            // This works fine because the filenames have the form `delta-chat-backup-2023-10-18-00-foo@example.com.tar`
             newest_backup_path = Some(path);
             newest_backup_name = name;
         }
@@ -484,7 +483,11 @@ async fn import_backup(
 /// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
 /// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn get_next_backup_path(
+    folder: &Path,
+    addr: &str,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
         .context("can't get next backup path")?
@@ -495,13 +498,13 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
     // 64 backup files per day should be enough for everyone
     for i in 0..64 {
         let mut tempdbfile = folder.clone();
-        tempdbfile.push(format!("{stem}-{i:02}.db"));
+        tempdbfile.push(format!("{stem}-{i:02}-{addr}.db"));
 
         let mut tempfile = folder.clone();
-        tempfile.push(format!("{stem}-{i:02}.tar.part"));
+        tempfile.push(format!("{stem}-{i:02}-{addr}.tar.part"));
 
         let mut destfile = folder.clone();
-        destfile.push(format!("{stem}-{i:02}.tar"));
+        destfile.push(format!("{stem}-{i:02}-{addr}.tar"));
 
         if !tempdbfile.exists() && !tempfile.exists() && !destfile.exists() {
             return Ok((tempdbfile, tempfile, destfile));
@@ -516,7 +519,8 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
 async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
+    let self_addr = context.get_primary_self_addr().await?;
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, &self_addr, now)?;
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
 
