@@ -82,7 +82,6 @@ const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              MESSAGE-ID \
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
                              )])";
-const JUST_UID: &str = "(UID)";
 const BODY_FULL: &str = "(FLAGS BODY.PEEK[])";
 const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 
@@ -627,18 +626,6 @@ impl Imap {
         // UIDVALIDITY is modified, reset highest seen MODSEQ.
         set_modseq(context, folder, 0).await?;
 
-        if mailbox.exists == 0 {
-            info!(context, "Folder {folder:?} is empty.");
-
-            // set uid_next=1 for empty folders.
-            // If we do not do this here, we'll miss the first message
-            // as we will get in here again and fetch from uid_next then.
-            // Also, the "fall back to fetching" below would need a non-zero mailbox.exists to work.
-            set_uid_next(context, folder, 1).await?;
-            set_uidvalidity(context, folder, new_uid_validity).await?;
-            return Ok(false);
-        }
-
         // ==============  uid_validity has changed or is being set the first time.  ==============
 
         let new_uid_next = match mailbox.uid_next {
@@ -646,25 +633,35 @@ impl Imap {
             None => {
                 warn!(
                     context,
-                    "IMAP folder {folder:?} has no uid_next, fall back to fetching."
+                    "SELECT response for IMAP folder {folder:?} has no UIDNEXT, fall back to STATUS command."
                 );
-                // note that we use fetch by sequence number
-                // and thus we only need to get exactly the
-                // last-index message.
-                let set = format!("{}", mailbox.exists);
-                let mut list = session
-                    .inner
-                    .fetch(set, JUST_UID)
-                    .await
-                    .context("Error fetching UID")?;
 
-                let mut new_last_seen_uid = None;
-                while let Some(fetch) = list.try_next().await? {
-                    if fetch.message == mailbox.exists && fetch.uid.is_some() {
-                        new_last_seen_uid = fetch.uid;
-                    }
+                // RFC 3501 says STATUS command SHOULD NOT be used
+                // on the currently seleced mailbox because the same
+                // information can be obtained by other means,
+                // such as reading SELECT response.
+                //
+                // However, it also says that UIDNEXT is REQUIRED
+                // in the SELECT response and if we are here,
+                // it is actually not returned.
+                //
+                // In particular, Winmail Pro Mail Server 5.1.0616
+                // never returns UIDNEXT in SELECT response,
+                // but responds to "SELECT INBOX (UIDNEXT)" command.
+                let status = session
+                    .inner
+                    .status(folder, "(UIDNEXT)")
+                    .await
+                    .context("STATUS (UIDNEXT) error for {folder:?}")?;
+
+                if let Some(uid_next) = status.uid_next {
+                    uid_next
+                } else {
+                    warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT");
+
+                    // Set UIDNEXT to 1 as a last resort fallback.
+                    1
                 }
-                new_last_seen_uid.context("select: failed to fetch")? + 1
             }
         };
 
