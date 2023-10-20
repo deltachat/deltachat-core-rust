@@ -179,7 +179,7 @@ impl BobState {
             } => {
                 let group_chat_id = match chat::get_chat_id_by_grpid(context, grpid).await? {
                     Some((chat_id, _protected, _blocked)) => {
-                        chat_id.unblock(context).await?;
+                        chat_id.unblock(&context.nosync()).await?;
                         chat_id
                     }
                     None => {
