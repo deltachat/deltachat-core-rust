@@ -686,6 +686,7 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
          PRAGMA secure_delete=on;
          PRAGMA busy_timeout = 0; -- fail immediately
          PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+         PRAGMA soft_heap_limit = 8388608; -- 8 MiB limit, same as set in Android SQLiteDatabase.
          PRAGMA foreign_keys=on;
          ",
     )?;
