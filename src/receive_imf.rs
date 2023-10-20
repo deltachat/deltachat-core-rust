@@ -1675,14 +1675,8 @@ async fn apply_group_changes(
     let is_from_in_chat =
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
 
-    // Reject group membership changes from non-members and old changes.
-    let allow_member_list_changes = is_from_in_chat
-        && chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?;
-
     // Whether to rebuild the member list from scratch.
-    let recreate_member_list = {
+    let recreate_member_list = is_from_in_chat && {
         // Always recreate membership list if SELF has been added. The older versions of DC
         // don't always set "In-Reply-To" to the latest message they sent, but to the latest
         // delivered message (so it's a race), so we have this heuristic here.
@@ -1693,14 +1687,6 @@ async fn apply_group_changes(
                 Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
                 None => false,
             }
-    } && {
-        if !allow_member_list_changes {
-            info!(
-                context,
-                "Ignoring a try to recreate member list of {chat_id} by {from_id}.",
-            );
-        }
-        allow_member_list_changes
     };
 
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
@@ -1713,7 +1699,10 @@ async fn apply_group_changes(
         };
 
         if removed_id.is_some() {
-            if !allow_member_list_changes {
+            if !chat_id
+                .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                .await?
+            {
                 info!(
                     context,
                     "Ignoring removal of {removed_addr:?} from {chat_id}."
@@ -1725,7 +1714,10 @@ async fn apply_group_changes(
     } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
         better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
 
-        if allow_member_list_changes {
+        if chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?
+        {
             if !recreate_member_list {
                 if let Some(contact_id) =
                     Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
@@ -1797,7 +1789,7 @@ async fn apply_group_changes(
         }
     }
 
-    if allow_member_list_changes {
+    if is_from_in_chat {
         let mut new_members = HashSet::from_iter(to_ids.iter().copied());
         new_members.insert(ContactId::SELF);
         if !from_id.is_special() {
@@ -1839,7 +1831,11 @@ async fn apply_group_changes(
             );
         }
 
-        if new_members != chat_contacts {
+        if new_members != chat_contacts
+            && chat_id
+                .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+                .await?
+        {
             let new_members_ref = &new_members;
             context
                 .sql
