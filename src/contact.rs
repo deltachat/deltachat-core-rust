@@ -523,10 +523,24 @@ impl Contact {
     ///
     /// To validate an e-mail address independently of the contact database
     /// use `may_be_valid_addr()`.
+    ///
+    /// Returns the contact ID of the contact belonging to the e-mail address or 0 if there is no
+    /// contact that is or was introduced by an accepted contact.
     pub async fn lookup_id_by_addr(
         context: &Context,
         addr: &str,
         min_origin: Origin,
+    ) -> Result<Option<ContactId>> {
+        Self::lookup_id_by_addr_ex(context, addr, min_origin, Some(Blocked::Not)).await
+    }
+
+    /// The same as `lookup_id_by_addr()`, but internal function. Currently also allows looking up
+    /// not unblocked contacts.
+    pub(crate) async fn lookup_id_by_addr_ex(
+        context: &Context,
+        addr: &str,
+        min_origin: Origin,
+        blocked: Option<Blocked>,
     ) -> Result<Option<ContactId>> {
         if addr.is_empty() {
             bail!("lookup_id_by_addr: empty address");
@@ -543,8 +557,14 @@ impl Contact {
             .query_get_value(
                 "SELECT id FROM contacts \
             WHERE addr=?1 COLLATE NOCASE \
-            AND id>?2 AND origin>=?3 AND blocked=0;",
-                (&addr_normalized, ContactId::LAST_SPECIAL, min_origin as u32),
+            AND id>?2 AND origin>=?3 AND (? OR blocked=?)",
+                (
+                    &addr_normalized,
+                    ContactId::LAST_SPECIAL,
+                    min_origin as u32,
+                    blocked.is_none(),
+                    blocked.unwrap_or_default(),
+                ),
             )
             .await?;
         Ok(id)
@@ -1415,7 +1435,7 @@ WHERE type=? AND id IN (
             if let Some((chat_id, _, _)) =
                 chat::get_chat_id_by_grpid(context, &contact.addr).await?
             {
-                chat_id.unblock(context).await?;
+                chat_id.unblock(&context.nosync()).await?;
             }
         }
     }

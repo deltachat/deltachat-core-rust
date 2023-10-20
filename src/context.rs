@@ -173,6 +173,7 @@ impl ContextBuilder {
 #[derive(Clone, Debug)]
 pub struct Context {
     pub(crate) inner: Arc<InnerContext>,
+    nosync: bool,
 }
 
 impl Deref for Context {
@@ -392,9 +393,32 @@ impl Context {
 
         let ctx = Context {
             inner: Arc::new(inner),
+            nosync: false,
         };
 
         Ok(ctx)
+    }
+
+    /// Returns a `Context` in which sending sync messages must be skipped. `Self::unwrap_nosync()`
+    /// should be used to check this.
+    pub(crate) fn nosync(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            nosync: true,
+        }
+    }
+
+    /// Checks if sending sync messages must be skipped. Returns the original context and the result
+    /// of the check. If it's `true`, calls to [`Self::add_sync_item()`] mustn't be done to prevent
+    /// extra/recursive synchronisation.
+    pub(crate) fn unwrap_nosync(&self) -> (Self, bool) {
+        (
+            Self {
+                inner: self.inner.clone(),
+                nosync: false,
+            },
+            self.nosync,
+        )
     }
 
     /// Starts the IO scheduler.

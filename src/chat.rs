@@ -38,6 +38,7 @@ use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
 use crate::stock_str;
+use crate::sync::{self, ChatAction, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
@@ -250,7 +251,7 @@ impl ChatId {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if create_blocked == Blocked::Not && chat.blocked != Blocked::Not {
-                    chat.id.unblock(context).await?;
+                    chat.id.unblock(&context.nosync()).await?;
                 }
                 chat.id
             }
@@ -356,6 +357,7 @@ impl ChatId {
 
     /// Blocks the chat as a result of explicit user action.
     pub async fn block(self, context: &Context) -> Result<()> {
+        let (context, nosync) = &context.unwrap_nosync();
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
@@ -384,12 +386,22 @@ impl ChatId {
             }
         }
 
+        if !nosync {
+            chat.add_sync_item(context, ChatAction::Block).await?;
+        }
         Ok(())
     }
 
     /// Unblocks the chat.
     pub async fn unblock(self, context: &Context) -> Result<()> {
+        let (context, nosync) = &context.unwrap_nosync();
+
         self.set_blocked(context, Blocked::Not).await?;
+
+        if !nosync {
+            let chat = Chat::load_from_db(context, self).await?;
+            chat.add_sync_item(context, ChatAction::Unblock).await?;
+        }
         Ok(())
     }
 
@@ -397,6 +409,7 @@ impl ChatId {
     ///
     /// Unblocks the chat and scales up origin of contacts.
     pub async fn accept(self, context: &Context) -> Result<()> {
+        let (context, nosync) = &context.unwrap_nosync();
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
@@ -431,6 +444,9 @@ impl ChatId {
             context.emit_event(EventType::ChatModified(self));
         }
 
+        if !nosync {
+            chat.add_sync_item(context, ChatAction::Accept).await?;
+        }
         Ok(())
     }
 
@@ -1269,7 +1285,8 @@ pub struct Chat {
     /// Whether the chat is archived or pinned.
     pub visibility: ChatVisibility,
 
-    /// Group ID.
+    /// Group ID. For [`Chattype::Mailinglist`] -- mailing list address. Empty for 1:1 chats and
+    /// ad-hoc groups.
     pub grpid: String,
 
     /// Whether the chat is blocked, unblocked or a contact request.
@@ -1825,6 +1842,42 @@ impl Chat {
         }
         context.scheduler.interrupt_ephemeral_task().await;
         Ok(msg.id)
+    }
+
+    /// Returns chat id for the purpose of synchronisation across devices.
+    async fn get_sync_id(&self, context: &Context) -> Result<Option<sync::ChatId>> {
+        match self.typ {
+            Chattype::Single => {
+                let mut r = None;
+                for contact_id in get_chat_contacts(context, self.id).await? {
+                    if contact_id == ContactId::SELF {
+                        continue;
+                    }
+                    if r.is_some() {
+                        return Ok(None);
+                    }
+                    let contact = Contact::get_by_id(context, contact_id).await?;
+                    r = Some(sync::ChatId::ContactAddr(contact.get_addr().to_string()));
+                }
+                Ok(r)
+            }
+            Chattype::Broadcast | Chattype::Group | Chattype::Mailinglist => {
+                if self.grpid.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(sync::ChatId::Grpid(self.grpid.clone())))
+            }
+        }
+    }
+
+    /// Adds a chat action to the list of items to synchronise to other devices.
+    pub(crate) async fn add_sync_item(&self, context: &Context, action: ChatAction) -> Result<()> {
+        if let Some(id) = self.get_sync_id(context).await? {
+            context
+                .add_sync_item(SyncData::AlterChat(sync::AlterChatData { id, action }))
+                .await?;
+        }
+        Ok(())
     }
 }
 
@@ -3960,6 +4013,41 @@ pub(crate) async fn update_msg_text_and_timestamp(
         .await?;
     context.emit_msgs_changed(chat_id, msg_id);
     Ok(())
+}
+
+impl Context {
+    /// Executes [`SyncData::AlterChat`] item sent by other device.
+    pub(crate) async fn sync_alter_chat(&self, data: &sync::AlterChatData) -> Result<()> {
+        let chat_id = match &data.id {
+            sync::ChatId::ContactAddr(addr) => {
+                let Some(contact_id) =
+                    Contact::lookup_id_by_addr_ex(self, addr, Origin::Unknown, None).await?
+                else {
+                    warn!(self, "sync_alter_chat: No contact for addr '{addr}'.");
+                    return Ok(());
+                };
+                let Some(chat_id) = ChatId::lookup_by_contact(self, contact_id).await? else {
+                    warn!(self, "sync_alter_chat: No chat for addr '{addr}'.");
+                    return Ok(());
+                };
+                chat_id
+            }
+            sync::ChatId::Grpid(grpid) => {
+                let Some((chat_id, ..)) = get_chat_id_by_grpid(self, grpid).await? else {
+                    warn!(self, "sync_alter_chat: No chat for grpid '{grpid}'.");
+                    return Ok(());
+                };
+                chat_id
+            }
+        };
+        match &data.action {
+            ChatAction::Block => chat_id.block(self).await,
+            ChatAction::Unblock => chat_id.unblock(self).await,
+            ChatAction::Accept => chat_id.accept(self).await,
+        }
+        .ok();
+        Ok(())
+    }
 }
 
 #[cfg(test)]
