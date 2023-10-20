@@ -221,9 +221,9 @@ dependencies = [
 
 [[package]]
 name = "async-imap"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b538b767cbf9c162a6c5795d4b932bd2c20ba10b5a91a94d2b2b6886c1dce6a8"
+checksum = "936c1b580be4373b48c9c687e0c79285441664398354df28d0860087cac0c069"
 dependencies = [
  "async-channel",
  "base64 0.21.2",
