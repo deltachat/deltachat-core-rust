@@ -1699,9 +1699,10 @@ async fn apply_group_changes(
         };
 
         if removed_id.is_some() {
-            if !chat_id
+            if !(chat_id
                 .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
                 .await?
+                && is_from_in_chat)
             {
                 info!(
                     context,
@@ -1717,6 +1718,7 @@ async fn apply_group_changes(
         if chat_id
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?
+            && is_from_in_chat
         {
             if !recreate_member_list {
                 if let Some(contact_id) =
