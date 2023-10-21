@@ -5,7 +5,7 @@ use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat};
+use crate::chat::{self, Chat, ChatVisibility};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::ContactId;
@@ -46,6 +46,7 @@ pub(crate) enum ChatAction {
     Unblock,
 
     Accept,
+    SetVisibility(ChatVisibility),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,6 +289,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use anyhow::bail;
+    use strum::IntoEnumIterator;
 
     use super::*;
     use crate::chat::Chat;
@@ -591,6 +593,19 @@ mod tests {
         a0b_chat_id.unblock(&alices[0]).await?;
         sync(&alices).await?;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
+
+        assert_eq!(
+            alices[1].get_chat(&bob).await.get_visibility(),
+            ChatVisibility::Normal
+        );
+        let mut visibilities =
+            ChatVisibility::iter().chain(std::iter::once(ChatVisibility::Normal));
+        visibilities.next();
+        for v in visibilities {
+            a0b_chat_id.set_visibility(&alices[0], v).await?;
+            sync(&alices).await?;
+            assert_eq!(alices[1].get_chat(&bob).await.get_visibility(), v);
+        }
 
         Ok(())
     }

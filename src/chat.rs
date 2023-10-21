@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::{bail, ensure, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
@@ -554,6 +555,7 @@ impl ChatId {
             "bad chat_id, can not be special chat: {}",
             self
         );
+        let (context, nosync) = &context.unwrap_nosync();
 
         context
             .sql
@@ -574,6 +576,11 @@ impl ChatId {
 
         context.emit_msgs_changed_without_ids();
 
+        if !nosync {
+            let chat = Chat::load_from_db(context, self).await?;
+            chat.add_sync_item(context, ChatAction::SetVisibility(visibility))
+                .await?;
+        }
         Ok(())
     }
 
@@ -1882,26 +1889,22 @@ impl Chat {
 }
 
 /// Whether the chat is pinned or archived.
-#[derive(Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize, EnumIter)]
+#[repr(i8)]
 pub enum ChatVisibility {
     /// Chat is neither archived nor pinned.
-    Normal,
+    Normal = 0,
 
     /// Chat is archived.
-    Archived,
+    Archived = 1,
 
     /// Chat is pinned to the top of the chatlist.
-    Pinned,
+    Pinned = 2,
 }
 
 impl rusqlite::types::ToSql for ChatVisibility {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
-        let visibility = match &self {
-            ChatVisibility::Normal => 0,
-            ChatVisibility::Archived => 1,
-            ChatVisibility::Pinned => 2,
-        };
-        let val = rusqlite::types::Value::Integer(visibility);
+        let val = rusqlite::types::Value::Integer(*self as i64);
         let out = rusqlite::types::ToSqlOutput::Owned(val);
         Ok(out)
     }
@@ -4044,6 +4047,7 @@ impl Context {
             ChatAction::Block => chat_id.block(self).await,
             ChatAction::Unblock => chat_id.unblock(self).await,
             ChatAction::Accept => chat_id.accept(self).await,
+            ChatAction::SetVisibility(v) => chat_id.set_visibility(self, *v).await,
         }
         .ok();
         Ok(())
