@@ -270,7 +270,7 @@ describe('Basic offline Tests', function () {
       'quota_exceeding',
       'scan_all_folders_debounce_secs',
       'selfavatar',
-      'send_sync_msgs',
+      'sync_msgs',
       'sentbox_watch',
       'show_emails',
       'socks5_enabled',
