@@ -1208,6 +1208,9 @@ impl MimeMessage {
             }
             msg_type
         } else if filename == "multi-device-sync.json" {
+            if !context.get_config_bool(Config::SyncMsgs).await? {
+                return Ok(());
+            }
             let serialized = String::from_utf8_lossy(decoded_data)
                 .parse()
                 .unwrap_or_default();

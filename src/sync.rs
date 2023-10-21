@@ -43,13 +43,6 @@ pub(crate) struct SyncItems {
 }
 
 impl Context {
-    /// Checks if sync messages shall be sent.
-    /// Receiving sync messages is currently always enabled;
-    /// the messages are force-encrypted anyway.
-    async fn is_sync_sending_enabled(&self) -> Result<bool> {
-        self.get_config_bool(Config::SendSyncMsgs).await
-    }
-
     /// Adds an item to the list of items that should be synchronized to other devices.
     pub(crate) async fn add_sync_item(&self, data: SyncData) -> Result<()> {
         self.add_sync_item_with_timestamp(data, time()).await
@@ -58,7 +51,7 @@ impl Context {
     /// Adds item and timestamp to the list of items that should be synchronized to other devices.
     /// If device synchronization is disabled, the function does nothing.
     async fn add_sync_item_with_timestamp(&self, data: SyncData, timestamp: i64) -> Result<()> {
-        if !self.is_sync_sending_enabled().await? {
+        if !self.get_config_bool(Config::SyncMsgs).await? {
             return Ok(());
         }
 
@@ -75,7 +68,7 @@ impl Context {
     /// If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
     pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
-        if !self.is_sync_sending_enabled().await? {
+        if !self.get_config_bool(Config::SyncMsgs).await? {
             return Ok(());
         }
 
@@ -267,20 +260,20 @@ mod tests {
     use crate::token::Namespace;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_is_sync_sending_enabled() -> Result<()> {
+    async fn test_config_sync_msgs() -> Result<()> {
         let t = TestContext::new_alice().await;
-        assert!(!t.is_sync_sending_enabled().await?);
-        t.set_config_bool(Config::SendSyncMsgs, true).await?;
-        assert!(t.is_sync_sending_enabled().await?);
-        t.set_config_bool(Config::SendSyncMsgs, false).await?;
-        assert!(!t.is_sync_sending_enabled().await?);
+        assert!(!t.get_config_bool(Config::SyncMsgs).await?);
+        t.set_config_bool(Config::SyncMsgs, true).await?;
+        assert!(t.get_config_bool(Config::SyncMsgs).await?);
+        t.set_config_bool(Config::SyncMsgs, false).await?;
+        assert!(!t.get_config_bool(Config::SyncMsgs).await?);
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_sync_json() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::SendSyncMsgs, true).await?;
+        t.set_config_bool(Config::SyncMsgs, true).await?;
 
         assert!(t.build_sync_json().await?.is_none());
 
@@ -325,7 +318,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_build_sync_json_sync_msgs_off() -> Result<()> {
         let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::SendSyncMsgs, false).await?;
+        t.set_config_bool(Config::SyncMsgs, false).await?;
         t.add_sync_item(SyncData::AddQrToken(QrTokenData {
             invitenumber: "testinvite".to_string(),
             auth: "testauth".to_string(),
@@ -453,7 +446,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_send_sync_msg() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        alice.set_config_bool(Config::SendSyncMsgs, true).await?;
+        alice.set_config_bool(Config::SyncMsgs, true).await?;
         alice
             .add_sync_item(SyncData::AddQrToken(QrTokenData {
                 invitenumber: "in".to_string(),
@@ -480,6 +473,7 @@ mod tests {
         // also here, self-talk should stay hidden
         let sent_msg = alice.pop_sent_msg().await;
         let alice2 = TestContext::new_alice().await;
+        alice2.set_config_bool(Config::SyncMsgs, true).await?;
         alice2.recv_msg(&sent_msg).await;
         assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await);
         assert_eq!(Chatlist::try_load(&alice2, 0, None, None).await?.len(), 0);

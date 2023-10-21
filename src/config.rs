@@ -297,10 +297,9 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DownloadLimit,
 
-    /// Send sync messages, requires `BccSelf` to be set as well.
-    /// In a future versions, this switch may be removed.
+    /// Enable sending and executing (applying) sync messages. Sending requires `BccSelf` to be set.
     #[strum(props(default = "0"))]
-    SendSyncMsgs,
+    SyncMsgs,
 
     /// Space-separated list of all the authserv-ids which we believe
     /// may be the one of our email server.
@@ -491,7 +490,7 @@ impl Context {
             | Config::Configured
             | Config::Bot
             | Config::NotifyAboutWrongPw
-            | Config::SendSyncMsgs
+            | Config::SyncMsgs
             | Config::SignUnencrypted
             | Config::DisableIdle => {
                 ensure!(
