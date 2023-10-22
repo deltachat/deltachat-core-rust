@@ -815,24 +815,12 @@ impl CommandApi {
     /// Create a new broadcast list.
     ///
     /// Broadcast lists are similar to groups on the sending device,
-    /// however, recipients get the messages in normal one-to-one chats
-    /// and will not be aware of other members.
+    /// however, recipients get the messages in a read-only chat
+    /// and will see who the other members are.
     ///
-    /// Replies to broadcasts go only to the sender
-    /// and not to all broadcast recipients.
-    /// Moreover, replies will not appear in the broadcast list
-    /// but in the one-to-one chat with the person answering.
-    ///
-    /// The name and the image of the broadcast list is set automatically
-    /// and is visible to the sender only.
-    /// Not asking for these data allows more focused creation
-    /// and we bypass the question who will get which data.
-    /// Also, many users will have at most one broadcast list
-    /// so, a generic name and image is sufficient at the first place.
-    ///
-    /// Later on, however, the name can be changed using dc_set_chat_name().
-    /// The image cannot be changed to have a unique, recognizable icon in the chat lists.
-    /// All in all, this is also what other messengers are doing here.
+    /// For historical reasons, this function does not take a name directly,
+    /// instead you have to set the name using dc_set_chat_name()
+    /// after creating the broadcast list.
     async fn create_broadcast_list(&self, account_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         chat::create_broadcast_list(&ctx)
@@ -2070,6 +2058,23 @@ impl CommandApi {
         }
 
         ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
+    }
+
+    // send the chat's current set draft
+    async fn misc_send_draft(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
+            let mut draft = draft;
+            let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut draft)
+                .await?
+                .to_u32();
+            Ok(msg_id)
+        } else {
+            Err(anyhow!(
+                "chat with id {} doesn't have draft message",
+                chat_id
+            ))
+        }
     }
 }
 

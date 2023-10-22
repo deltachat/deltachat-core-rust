@@ -36,7 +36,7 @@ export class Context extends EventEmitter {
     }
   }
 
-  /** Opens a stanalone context (without an account manager)
+  /** Opens a standalone context (without an account manager)
    * automatically starts the event handler */
   static open(cwd: string): Context {
     const dbFile = join(cwd, 'db.sqlite')

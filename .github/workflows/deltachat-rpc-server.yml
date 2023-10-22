@@ -26,35 +26,26 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Build
+      # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
+      - name: Install python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install ziglang and wheel
+        run: pip install wheel ziglang==0.11.0
+
+      - name: Build deltachat-rpc-server binaries
         run: sh scripts/zig-rpc-server.sh
 
-      - name: Upload x86_64 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-x86_64
-          path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
+      - name: Build deltachat-rpc-server Python wheels and source package
+        run: scripts/wheel-rpc-server.py
 
-      - name: Upload i686 binary
+      - name: Upload dist directory
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server-i686
-          path: target/i686-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
-
-      - name: Upload aarch64 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-aarch64
-          path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
-
-      - name: Upload armv7 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-armv7
-          path: target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server
+          name: dist
+          path: dist/
           if-no-files-found: error
 
   build_windows:
@@ -116,15 +107,29 @@ jobs:
       contents: write
     runs-on: "ubuntu-latest"
     steps:
-      - name: Download built binaries
-        uses: "actions/download-artifact@v3"
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist/
 
-      - name: Compose dist/ directory
-        run: |
-          mkdir dist
-          for x in x86_64 i686 aarch64 armv7 win32.exe win64.exe x86_64-macos; do
-            mv "deltachat-rpc-server-$x"/* "dist/deltachat-rpc-server-$x"
-          done
+      - name: Download win32 binary
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-win32.exe
+          path: dist/deltachat-rpc-server-win32.exe
+
+      - name: Download win64 binary
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-win64.exe
+          path: dist/deltachat-rpc-server-win32.exe
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-x86_64-macos
+          path: dist/deltachat-rpc-server-x86_64-macos
 
       - name: List downloaded artifacts
         run: ls -l dist/

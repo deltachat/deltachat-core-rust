@@ -1,6 +1,7 @@
 /target
 **/*.rs.bk
 /build
+/dist
 
 # ignore vi temporaries
 *~

@@ -148,7 +148,7 @@ describe("online tests", function () {
       waitForEvent(dc, "IncomingMsg", accountId1),
     ]);
     dc.rpc.miscSendTextMessage(accountId2, chatId, "super secret message");
-    // Check if answer arives at A and if it is encrypted
+    // Check if answer arrives at A and if it is encrypted
     await eventPromise2;
 
     const messageId = (

@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.125.0"
+version = "1.126.0"
 edition = "2021"
 license = "MPL-2.0"
 rust-version = "1.67"
@@ -24,6 +24,7 @@ lto = true
 panic = 'abort'
 opt-level = "z"
 codegen-units = 1
+strip = true
 
 [patch.crates-io]
 quinn-udp = { git = "https://github.com/quinn-rs/quinn", branch="main" }

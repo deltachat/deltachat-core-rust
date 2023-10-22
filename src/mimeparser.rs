@@ -126,23 +126,6 @@ pub(crate) enum AvatarAction {
     Change(String),
 }
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum MailinglistType {
-    /// The message belongs to a mailing list and has a `ListId:`-header
-    /// that should be used to get a unique id.
-    ListIdBased,
-
-    /// The message belongs to a mailing list, but there is no `ListId:`-header;
-    /// `Sender:`-header should be used to get a unique id.
-    /// This method is used by implementations as Majordomo.
-    /// Note, that the `Sender:` header alone is not sufficient to detect these lists,
-    /// `get_mailinglist_type()` check additional conditions therefore.
-    SenderBased,
-
-    /// The message does not belong to a mailing list.
-    None,
-}
-
 /// System message type.
 #[derive(
     Debug, Default, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql,
@@ -1348,26 +1331,28 @@ impl MimeMessage {
         self.parts.push(part);
     }
 
-    pub(crate) fn get_mailinglist_type(&self) -> MailinglistType {
-        if self.get_header(HeaderDef::ListId).is_some() {
-            return MailinglistType::ListIdBased;
-        } else if self.get_header(HeaderDef::Sender).is_some() {
+    pub(crate) fn get_mailinglist_header(&self) -> Option<&str> {
+        if let Some(list_id) = self.get_header(HeaderDef::ListId) {
+            // The message belongs to a mailing list and has a `ListId:`-header
+            // that should be used to get a unique id.
+            return Some(list_id);
+        } else if let Some(sender) = self.get_header(HeaderDef::Sender) {
             // the `Sender:`-header alone is no indicator for mailing list
             // as also used for bot-impersonation via `set_override_sender_name()`
             if let Some(precedence) = self.get_header(HeaderDef::Precedence) {
                 if precedence == "list" || precedence == "bulk" {
-                    return MailinglistType::SenderBased;
+                    // The message belongs to a mailing list, but there is no `ListId:`-header;
+                    // `Sender:`-header is be used to get a unique id.
+                    // This method is used by implementations as Majordomo.
+                    return Some(sender);
                 }
             }
         }
-        MailinglistType::None
+        None
     }
 
     pub(crate) fn is_mailinglist_message(&self) -> bool {
-        match self.get_mailinglist_type() {
-            MailinglistType::ListIdBased | MailinglistType::SenderBased => true,
-            MailinglistType::None => false,
-        }
+        self.get_mailinglist_header().is_some()
     }
 
     pub fn repl_msg_by_error(&mut self, error_msg: &str) {

@@ -3,7 +3,6 @@ import logging
 from typing import (
     TYPE_CHECKING,
     Callable,
-    Coroutine,
     Dict,
     Iterable,
     Optional,
@@ -92,7 +91,7 @@ class Client:
         """Process events forever."""
         self.run_until(lambda _: False)
 
-    def run_until(self, func: Callable[[AttrDict], Union[bool, Coroutine]]) -> AttrDict:
+    def run_until(self, func: Callable[[AttrDict], bool]) -> AttrDict:
         """Process events until the given callable evaluates to True.
 
         The callable should accept an AttrDict object representing the

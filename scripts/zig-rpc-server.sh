@@ -10,14 +10,6 @@ unset RUSTFLAGS
 # Pin Rust version to avoid uncontrolled changes in the compiler and linker flags.
 export RUSTUP_TOOLCHAIN=1.72.0
 
-ZIG_VERSION=0.11.0
-
-# Download Zig
-rm -fr "$ZIG_VERSION" "zig-linux-x86_64-$ZIG_VERSION.tar.xz"
-wget "https://ziglang.org/builds/zig-linux-x86_64-$ZIG_VERSION.tar.xz"
-tar xf "zig-linux-x86_64-$ZIG_VERSION.tar.xz"
-export PATH="$PWD/zig-linux-x86_64-$ZIG_VERSION:$PATH"
-
 rustup target add i686-unknown-linux-musl
 CC="$PWD/scripts/zig-cc" \
 TARGET_CC="$PWD/scripts/zig-cc" \
@@ -50,3 +42,9 @@ CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$PWD/scripts/zig-cc" \
 LD="$PWD/scripts/zig-cc" \
 ZIG_TARGET="aarch64-linux-musl" \
 cargo build --release --target aarch64-unknown-linux-musl -p deltachat-rpc-server --features vendored
+
+mkdir -p dist
+cp target/x86_64-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-linux
+cp target/i686-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-i686-linux
+cp target/aarch64-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-linux
+cp target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server dist/deltachat-rpc-server-armv7-linux

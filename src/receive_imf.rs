@@ -28,9 +28,7 @@ use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
-use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
-};
+use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::reaction::{set_msg_reaction, Reaction};
@@ -665,45 +663,23 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // check if the message belongs to a mailing list
-            match mime_parser.get_mailinglist_type() {
-                MailinglistType::ListIdBased => {
-                    if let Some(list_id) = mime_parser.get_header(HeaderDef::ListId) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                list_id,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
+            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
+                if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_mailinglist(
+                    context,
+                    allow_creation,
+                    mailinglist_header,
+                    mime_parser,
+                )
+                .await?
+                {
+                    chat_id = Some(new_chat_id);
+                    chat_id_blocked = new_chat_id_blocked;
                 }
-                MailinglistType::SenderBased => {
-                    if let Some(sender) = mime_parser.get_header(HeaderDef::Sender) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                sender,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
-                }
-                MailinglistType::None => {}
             }
         }
 
         if let Some(chat_id) = chat_id {
-            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+            apply_mailinglist_changes(context, mime_parser, sent_timestamp, chat_id).await?;
         }
 
         // if contact renaming is prevented (for mailinglists and bots),
@@ -1972,6 +1948,8 @@ async fn apply_group_changes(
     Ok(better_msg)
 }
 
+static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
+
 /// Create or lookup a mailing list chat.
 ///
 /// `list_id_header` contains the Id that must be used for the mailing list
@@ -1988,22 +1966,70 @@ async fn create_or_lookup_mailinglist(
     list_id_header: &str,
     mime_parser: &MimeMessage,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
-    let (mut name, listid) = match LIST_ID.captures(list_id_header) {
-        Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
-        None => (
-            "".to_string(),
-            list_id_header
-                .trim()
-                .trim_start_matches('<')
-                .trim_end_matches('>')
-                .to_string(),
-        ),
+    let listid = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[2].trim().to_string(),
+        None => list_id_header
+            .trim()
+            .trim_start_matches('<')
+            .trim_end_matches('>')
+            .to_string(),
     };
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
         return Ok(Some((chat_id, blocked)));
     }
+
+    let name = compute_mailinglist_name(list_id_header, &listid, mime_parser);
+
+    if allow_creation {
+        // list does not exist but should be created
+        let param = mime_parser.list_post.as_ref().map(|list_post| {
+            let mut p = Params::new();
+            p.set(Param::ListPost, list_post);
+            p.to_string()
+        });
+
+        let is_bot = context.get_config_bool(Config::Bot).await?;
+        let blocked = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let chat_id = ChatId::create_multiuser_record(
+            context,
+            Chattype::Mailinglist,
+            &listid,
+            &name,
+            blocked,
+            ProtectionStatus::Unprotected,
+            param,
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "failed to create mailinglist '{}' for grpid={}",
+                &name, &listid
+            )
+        })?;
+
+        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
+        Ok(Some((chat_id, blocked)))
+    } else {
+        info!(context, "Creating list forbidden by caller.");
+        Ok(None)
+    }
+}
+
+#[allow(clippy::indexing_slicing)]
+fn compute_mailinglist_name(
+    list_id_header: &str,
+    listid: &str,
+    mime_parser: &MimeMessage,
+) -> String {
+    let mut name = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[1].trim().to_string(),
+        None => "".to_string(),
+    };
 
     // for mailchimp lists, the name in `ListId` is just a long number.
     // a usable name for these lists is in the `From` header
@@ -2048,50 +2074,14 @@ async fn create_or_lookup_mailinglist(
         // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
-        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(&listid) {
+        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(listid) {
             name = cap[2].to_string();
         } else {
-            name = listid.clone();
+            name = listid.to_string();
         }
     }
 
-    if allow_creation {
-        // list does not exist but should be created
-        let param = mime_parser.list_post.as_ref().map(|list_post| {
-            let mut p = Params::new();
-            p.set(Param::ListPost, list_post);
-            p.to_string()
-        });
-
-        let is_bot = context.get_config_bool(Config::Bot).await?;
-        let blocked = if is_bot {
-            Blocked::Not
-        } else {
-            Blocked::Request
-        };
-        let chat_id = ChatId::create_multiuser_record(
-            context,
-            Chattype::Mailinglist,
-            &listid,
-            &name,
-            blocked,
-            ProtectionStatus::Unprotected,
-            param,
-        )
-        .await
-        .with_context(|| {
-            format!(
-                "failed to create mailinglist '{}' for grpid={}",
-                &name, &listid
-            )
-        })?;
-
-        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
-        Ok(Some((chat_id, blocked)))
-    } else {
-        info!(context, "Creating list forbidden by caller.");
-        Ok(None)
-    }
+    strip_rtlo_characters(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.
@@ -2100,9 +2090,10 @@ async fn create_or_lookup_mailinglist(
 async fn apply_mailinglist_changes(
     context: &Context,
     mime_parser: &MimeMessage,
+    sent_timestamp: i64,
     chat_id: ChatId,
 ) -> Result<()> {
-    let Some(list_post) = &mime_parser.list_post else {
+    let Some(mailinglist_header) = mime_parser.get_mailinglist_header() else {
         return Ok(());
     };
 
@@ -2111,6 +2102,24 @@ async fn apply_mailinglist_changes(
         return Ok(());
     }
     let listid = &chat.grpid;
+
+    let new_name = compute_mailinglist_name(mailinglist_header, listid, mime_parser);
+    if chat.name != new_name
+        && chat_id
+            .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+            .await?
+    {
+        info!(context, "Updating listname for chat {chat_id}.");
+        context
+            .sql
+            .execute("UPDATE chats SET name=? WHERE id=?;", (new_name, chat_id))
+            .await?;
+        context.emit_event(EventType::ChatModified(chat_id));
+    }
+
+    let Some(list_post) = &mime_parser.list_post else {
+        return Ok(());
+    };
 
     let list_post = match ContactAddress::new(list_post) {
         Ok(list_post) => list_post,

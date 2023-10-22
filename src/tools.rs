@@ -268,7 +268,7 @@ pub(crate) fn create_id() -> String {
 /// Function generates a Message-ID that can be used for a new outgoing message.
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
-/// - do not add a counter or any private data as this leaks information unncessarily
+/// - do not add a counter or any private data as this leaks information unnecessarily
 pub(crate) fn create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')

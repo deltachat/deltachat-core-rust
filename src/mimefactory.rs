@@ -415,7 +415,9 @@ impl<'a> MimeFactory<'a> {
                     return Ok(self.msg.subject.clone());
                 }
 
-                if chat.typ == Chattype::Group && quoted_msg_subject.is_none_or_empty() {
+                if (chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast)
+                    && quoted_msg_subject.is_none_or_empty()
+                {
                     let re = if self.in_reply_to.is_empty() {
                         ""
                     } else {
@@ -424,15 +426,13 @@ impl<'a> MimeFactory<'a> {
                     return Ok(format!("{}{}", re, chat.name));
                 }
 
-                if chat.typ != Chattype::Broadcast {
-                    let parent_subject = if quoted_msg_subject.is_none_or_empty() {
-                        chat.param.get(Param::LastSubject)
-                    } else {
-                        quoted_msg_subject.as_deref()
-                    };
-                    if let Some(last_subject) = parent_subject {
-                        return Ok(format!("Re: {}", remove_subject_prefix(last_subject)));
-                    }
+                let parent_subject = if quoted_msg_subject.is_none_or_empty() {
+                    chat.param.get(Param::LastSubject)
+                } else {
+                    quoted_msg_subject.as_deref()
+                };
+                if let Some(last_subject) = parent_subject {
+                    return Ok(format!("Re: {}", remove_subject_prefix(last_subject)));
                 }
 
                 let self_name = &match context.get_config(Config::Displayname).await? {
@@ -592,6 +592,15 @@ impl<'a> MimeFactory<'a> {
                 "Auto-Submitted".to_string(),
                 "auto-generated".to_string(),
             ));
+        }
+
+        if let Loaded::Message { chat } = &self.loaded {
+            if chat.typ == Chattype::Broadcast {
+                headers.protected.push(Header::new(
+                    "List-ID".into(),
+                    format!("{} <{}>", chat.name, chat.grpid),
+                ));
+            }
         }
 
         // Non-standard headers.
@@ -2341,7 +2350,7 @@ mod tests {
         // Now Bob can send an encrypted message to Alice.
         let mut msg = Message::new(Viewtype::File);
         // Long messages are truncated and MimeMessage::decoded_data is set for them. We need
-        // decoded_data to check presense of the necessary headers.
+        // decoded_data to check presence of the necessary headers.
         msg.set_text("a".repeat(constants::DC_DESIRED_TEXT_LEN + 1));
         msg.set_file_from_bytes(&bob, "foo.bar", "content".as_bytes(), None)
             .await?;

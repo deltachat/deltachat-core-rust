@@ -1,10 +1,20 @@
 #!/usr/bin/env python
+# /// pyproject
+# [run]
+# dependencies = [
+#   "ziglang==0.11.0"
+# ]
+# ///
+import os
 import subprocess
 import sys
-import os
 
 
 def flag_filter(flag: str) -> bool:
+    # Workaround for <https://github.com/sfackler/rust-openssl/issues/2043>.
+    if flag == "-latomic":
+        return False
+
     if flag == "-lc":
         return False
     if flag == "-Wl,-melf_i386":
@@ -24,8 +34,23 @@ def main():
     else:
         zig_cpu_args = []
 
+    # Disable atomics and use locks instead in OpenSSL.
+    # Zig toolchains do not provide atomics.
+    # This is a workaround for <https://github.com/deltachat/deltachat-core-rust/issues/4799>
+    args += ["-DBROKEN_CLANG_ATOMICS"]
+
     subprocess.run(
-        ["zig", "cc", "-target", zig_target, *zig_cpu_args, *args], check=True
+        [
+            sys.executable,
+            "-m",
+            "ziglang",
+            "cc",
+            "-target",
+            zig_target,
+            *zig_cpu_args,
+            *args,
+        ],
+        check=True,
     )
 
 
