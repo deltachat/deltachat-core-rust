@@ -268,7 +268,7 @@ pub(crate) fn create_id() -> String {
 /// Function generates a Message-ID that can be used for a new outgoing message.
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
-/// - do not add a counter or any private data as this leaks information unncessarily
+/// - do not add a counter or any private data as this leaks information unnecessarily
 pub(crate) fn create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
@@ -700,7 +700,7 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
 }
 
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
-/// This method strips all occurances of the RTLO Unicode character.
+/// This method strips all occurrences of the RTLO Unicode character.
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
 pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")

@@ -1878,7 +1878,7 @@ fn get_mime_type(
             } else {
                 // Enacapsulated messages, see <https://www.w3.org/Protocols/rfc1341/7_3_Message.html>
                 // Also used as part "message/disposition-notification" of "multipart/report", which, however, will
-                // be handled separatedly.
+                // be handled separately.
                 // I've not seen any messages using this, so we do not attach these parts (maybe they're used to attach replies,
                 // which are unwanted at all).
                 // For now, we skip these parts at all; if desired, we could return DcMimeType::File/DC_MSG_File

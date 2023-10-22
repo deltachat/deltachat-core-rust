@@ -43,7 +43,7 @@ the `Subject` header SHOULD be `Message from <sender name>`.
 Replies to messages MAY follow the typical `Re:`-format.
 
 The body MAY contain text which MUST have the content type `text/plain`
-or `mulipart/alternative` containing `text/plain`.
+or `multipart/alternative` containing `text/plain`.
 
 The text MAY be divided into a user-text-part and a footer-part using the
 line `-- ` (minus, minus, space, lineend).

@@ -1550,7 +1550,7 @@ mod tests {
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);
 
-        // a subsequent call to update_device_chats() must not re-add manally deleted messages or chats
+        // a subsequent call to update_device_chats() must not re-add manually deleted messages or chats
         t.update_device_chats().await.unwrap();
         let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
         assert_eq!(chats.len(), 0);

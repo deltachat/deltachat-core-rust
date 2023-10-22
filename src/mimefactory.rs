@@ -2341,7 +2341,7 @@ mod tests {
         // Now Bob can send an encrypted message to Alice.
         let mut msg = Message::new(Viewtype::File);
         // Long messages are truncated and MimeMessage::decoded_data is set for them. We need
-        // decoded_data to check presense of the necessary headers.
+        // decoded_data to check presence of the necessary headers.
         msg.set_text("a".repeat(constants::DC_DESIRED_TEXT_LEN + 1));
         msg.set_file_from_bytes(&bob, "foo.bar", "content".as_bytes(), None)
             .await?;

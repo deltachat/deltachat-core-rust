@@ -21,7 +21,7 @@ use crate::stock_str;
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]
 pub enum PeerstateKeyType {
-    /// Pubilc key sent in the `Autocrypt-Gossip` header.
+    /// Public key sent in the `Autocrypt-Gossip` header.
     GossipKey,
 
     /// Public key sent in the `Autocrypt` header.

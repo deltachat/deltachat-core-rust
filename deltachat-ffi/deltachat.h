@@ -3950,7 +3950,7 @@ int64_t          dc_msg_get_received_timestamp (const dc_msg_t* msg);
  * Get the message time used for sorting.
  * This function returns the timestamp that is used for sorting the message
  * into lists as returned e.g. by dc_get_chat_msgs().
- * This may be the reveived time, the sending time or another time.
+ * This may be the received time, the sending time or another time.
  *
  * To get the receiving time, use dc_msg_get_received_timestamp().
  * To get the sending time, use dc_msg_get_timestamp().

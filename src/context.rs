@@ -38,7 +38,7 @@ use crate::tools::{duration_to_str, time};
 ///
 /// # Examples
 ///
-/// Creating a new unecrypted database:
+/// Creating a new unencrypted database:
 ///
 /// ```
 /// # let rt = tokio::runtime::Runtime::new().unwrap();

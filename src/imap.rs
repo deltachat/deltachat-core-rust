@@ -637,7 +637,7 @@ impl Imap {
                 );
 
                 // RFC 3501 says STATUS command SHOULD NOT be used
-                // on the currently seleced mailbox because the same
+                // on the currently selected mailbox because the same
                 // information can be obtained by other means,
                 // such as reading SELECT response.
                 //
