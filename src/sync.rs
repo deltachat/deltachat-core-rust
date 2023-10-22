@@ -36,15 +36,7 @@ pub(crate) enum ChatId {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub(crate) enum ChatAction {
     Block,
-    // TODO: Actually unblocking a chat is not a public API. `Contact::unblock()` is what a user
-    // does actually, but it doesn't call `chat::ChatId::unblock()`. So, unblocking chats sync
-    // doesn't work now, but let it be implemented on chats nevertheless. The straightforward fix is
-    // to call `chat::ChatId::unblock()` in a context of user action.
-    //
-    // But it still works if a message is sent to a blocked contact because
-    // `chat::ChatId::unblock()` is called then.
     Unblock,
-
     Accept,
     SetVisibility(ChatVisibility),
     SetMuted(chat::MuteDuration),
@@ -603,6 +595,18 @@ mod tests {
         a0b_chat_id.unblock(&alices[0]).await?;
         sync(&alices).await?;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
+
+        // Unblocking a 1:1 chat doesn't unblock the contact currently.
+        let a0b_contact_id = alices[0].add_or_lookup_contact(&bob).await.id;
+        Contact::unblock(&alices[0], a0b_contact_id).await?;
+
+        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
+        Contact::block(&alices[0], a0b_contact_id).await?;
+        sync(&alices).await?;
+        assert!(alices[1].add_or_lookup_contact(&bob).await.is_blocked());
+        Contact::unblock(&alices[0], a0b_contact_id).await?;
+        sync(&alices).await?;
+        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
 
         assert_eq!(
             alices[1].get_chat(&bob).await.get_visibility(),

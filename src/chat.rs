@@ -372,7 +372,7 @@ impl ChatId {
                             context,
                             "Blocking the contact {contact_id} to block 1:1 chat."
                         );
-                        Contact::block(context, contact_id).await?;
+                        Contact::block(&context.nosync(), contact_id).await?;
                     }
                 }
             }
@@ -388,6 +388,7 @@ impl ChatId {
         }
 
         if !nosync {
+            // NB: For a 1:1 chat this currently triggers `Contact::block()` on other devices.
             chat.add_sync_item(context, ChatAction::Block).await?;
         }
         Ok(())
@@ -401,6 +402,9 @@ impl ChatId {
 
         if !nosync {
             let chat = Chat::load_from_db(context, self).await?;
+            // TODO: For a 1:1 chat this currently triggers `Contact::unblock()` on other devices.
+            // Maybe we should unblock the contact locally too, this would also resolve discrepancy
+            // with `block()` which also blocks the contact.
             chat.add_sync_item(context, ChatAction::Unblock).await?;
         }
         Ok(())
@@ -4035,6 +4039,11 @@ impl Context {
                     warn!(self, "sync_alter_chat: No contact for addr '{addr}'.");
                     return Ok(());
                 };
+                match &data.action {
+                    ChatAction::Block => return Contact::block(self, contact_id).await,
+                    ChatAction::Unblock => return Contact::unblock(self, contact_id).await,
+                    _ => (),
+                }
                 let Some(chat_id) = ChatId::lookup_by_contact(self, contact_id).await? else {
                     warn!(self, "sync_alter_chat: No chat for addr '{addr}'.");
                     return Ok(());
