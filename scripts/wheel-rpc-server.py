@@ -16,7 +16,36 @@ Summary: Delta Chat JSON-RPC server
 """
 
 
-SETUP_PY = """
+def build_source_package(version):
+    filename = f"dist/deltachat-rpc-server-{version}.tar.gz"
+
+    with tarfile.open(filename, "w:gz") as pkg:
+
+        def pack(name, contents):
+            contents = contents.encode()
+            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
+            tar_info.mode = 0o644
+            tar_info.size = len(contents)
+            pkg.addfile(tar_info, BytesIO(contents))
+
+        pack("PKG-INFO", metadata_contents(version))
+        pack(
+            "pyproject.toml",
+            f"""[build-system]
+requires = ["setuptools==68.2.2", "pip"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deltachat-rpc-server"
+version = "{version}"
+
+[project.scripts]
+deltachat-rpc-server = "deltachat_rpc_server:main"
+""",
+        )
+        pack(
+            "setup.py",
+            f"""
 import sys
 from setuptools import setup, find_packages
 from distutils.cmd import Command
@@ -45,7 +74,7 @@ class BuildCommand(build):
                 "--platform",
                 "musllinux_1_1_" + platform.machine(),
                 "--only-binary=:all:",
-                "deltachat-rpc-server",
+                "deltachat-rpc-server=={version}",
             ],
             cwd=tmpdir,
         )
@@ -61,40 +90,11 @@ class BuildCommand(build):
 
 
 setup(
-    cmdclass={"build": BuildCommand},
-    package_data={"deltachat_rpc_server": ["deltachat-rpc-server"]},
+    cmdclass={{"build": BuildCommand}},
+    package_data={{"deltachat_rpc_server": ["deltachat-rpc-server"]}},
 )
-"""
-
-
-def build_source_package(version):
-    filename = f"dist/deltachat-rpc-server-{version}.tar.gz"
-
-    with tarfile.open(filename, "w:gz") as pkg:
-
-        def pack(name, contents):
-            contents = contents.encode()
-            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
-            tar_info.mode = 0o644
-            tar_info.size = len(contents)
-            pkg.addfile(tar_info, BytesIO(contents))
-
-        pack("PKG-INFO", metadata_contents(version))
-        pack(
-            "pyproject.toml",
-            f"""[build-system]
-requires = ["setuptools==68.2.2", "pip"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "deltachat-rpc-server"
-version = "{version}"
-
-[project.scripts]
-deltachat-rpc-server = "deltachat_rpc_server:main"
 """,
         )
-        pack("setup.py", SETUP_PY)
         pack("src/deltachat_rpc_server/__init__.py", "")
 
 
