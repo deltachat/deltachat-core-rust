@@ -42,3 +42,9 @@ CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="$PWD/scripts/zig-cc" \
 LD="$PWD/scripts/zig-cc" \
 ZIG_TARGET="aarch64-linux-musl" \
 cargo build --release --target aarch64-unknown-linux-musl -p deltachat-rpc-server --features vendored
+
+mkdir -p dist
+cp target/x86_64-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-linux
+cp target/i686-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-i686-linux
+cp target/aarch64-unknown-linux-musl/release/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-linux
+cp target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server dist/deltachat-rpc-server-armv7-linux
