@@ -1,7 +1,13 @@
 #!/usr/bin/env python
+# /// pyproject
+# [run]
+# dependencies = [
+#   "ziglang==0.11.0"
+# ]
+# ///
+import os
 import subprocess
 import sys
-import os
 
 
 def flag_filter(flag: str) -> bool:
@@ -34,7 +40,17 @@ def main():
     args += ["-DBROKEN_CLANG_ATOMICS"]
 
     subprocess.run(
-        ["zig", "cc", "-target", zig_target, *zig_cpu_args, *args], check=True
+        [
+            sys.executable,
+            "-m",
+            "ziglang",
+            "cc",
+            "-target",
+            zig_target,
+            *zig_cpu_args,
+            *args,
+        ],
+        check=True,
     )
 
 
