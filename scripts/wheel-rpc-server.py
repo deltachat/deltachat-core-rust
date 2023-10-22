@@ -82,13 +82,13 @@ def build_source_package(version):
         pack("PKG-INFO", metadata_contents(version))
         pack(
             "pyproject.toml",
-            """[build-system]
+            f"""[build-system]
 requires = ["setuptools==68.2.2", "pip"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "deltachat-rpc-server"
-version = "1.125.0"
+version = "{version}"
 
 [project.scripts]
 deltachat-rpc-server = "deltachat_rpc_server:main"
