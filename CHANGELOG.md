@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.126.0] - 2023-10-22
+
+### API-Changes
+
+- Allow to filter by unread in `chatlist:try_load` ([#4824](https://github.com/deltachat/deltachat-core-rust/pull/4824)).
+- Add `misc_send_draft()` to JSON-RPC API ([#4839](https://github.com/deltachat/deltachat-core-rust/pull/4839)).
+
+### Features / Changes
+
+- [**breaking**] Make broadcast lists create their own chat ([#4644](https://github.com/deltachat/deltachat-core-rust/pull/4644)).
+  - This means that UIs need to ask for the name when creating a broadcast list, similar to <https://github.com/deltachat/deltachat-android/pull/2653>.
+- Add self-address to backup filename ([#4820](https://github.com/deltachat/deltachat-core-rust/pull/4820))
+
+### CI
+
+- Build Python wheels for deltachat-rpc-server.
+
+### Build system
+
+- Strip release binaries.
+- Workaround OpenSSL crate expecting libatomic to be available.
+
+### Fixes
+
+- Set `soft_heap_limit` on SQLite database.
+- imap: Fallback to `STATUS` if `SELECT` did not return UIDNEXT.
+
 ## [1.125.0] - 2023-10-14
 
 ### API-Changes
@@ -2915,3 +2942,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.124.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.123.0...v1.124.0
 [1.124.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.0...v1.124.1
 [1.125.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.1...v1.125.0
+[1.126.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.125.0...v1.126.0
