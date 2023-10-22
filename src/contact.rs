@@ -32,6 +32,7 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
+use crate::sync::{self, SyncData};
 use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress,
@@ -494,7 +495,7 @@ impl Contact {
             }
         }
         if blocked {
-            Contact::unblock(context, contact_id).await?;
+            Contact::unblock(&context.nosync(), contact_id).await?;
         }
 
         Ok(contact_id)
@@ -1393,6 +1394,7 @@ async fn set_block_contact(
         "Can't block special contact {}",
         contact_id
     );
+    let (context, nosync) = &context.unwrap_nosync();
 
     let contact = Contact::get_by_id(context, contact_id).await?;
 
@@ -1437,6 +1439,19 @@ WHERE type=? AND id IN (
             {
                 chat_id.unblock(&context.nosync()).await?;
             }
+        }
+
+        if !nosync {
+            let action = match new_blocking {
+                true => sync::ChatAction::Block,
+                false => sync::ChatAction::Unblock,
+            };
+            context
+                .add_sync_item(SyncData::AlterChat(sync::AlterChatData {
+                    id: sync::ChatId::ContactAddr(contact.addr.clone()),
+                    action,
+                }))
+                .await?;
         }
     }
 
