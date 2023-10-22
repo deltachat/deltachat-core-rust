@@ -8,10 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::events::EventType;
 use crate::imap::{scan_folders::get_watched_folder_configs, FolderMeaning};
-use crate::quota::{
-    QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_MAX_AGE_SECONDS, QUOTA_WARN_THRESHOLD_PERCENTAGE,
-};
-use crate::tools::time;
+use crate::quota::{QUOTA_ERROR_THRESHOLD_PERCENTAGE, QUOTA_WARN_THRESHOLD_PERCENTAGE};
 use crate::{context::Context, log::LogExt};
 use crate::{stock_str, tools};
 
@@ -472,14 +469,9 @@ impl Context {
                     ret += format!("<li>{e}</li>").as_str();
                 }
             }
-
-            if quota.modified + QUOTA_MAX_AGE_SECONDS < time() {
-                self.schedule_quota_update().await?;
-            }
         } else {
             let not_connected = stock_str::not_connected(self).await;
             ret += &format!("<li>{not_connected}</li>");
-            self.schedule_quota_update().await?;
         }
         ret += "</ul>";
 
