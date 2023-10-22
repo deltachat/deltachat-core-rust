@@ -47,6 +47,7 @@ pub(crate) enum ChatAction {
 
     Accept,
     SetVisibility(ChatVisibility),
+    SetMuted(chat::MuteDuration),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,6 +289,8 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, SystemTime};
+
     use anyhow::bail;
     use strum::IntoEnumIterator;
 
@@ -316,13 +319,15 @@ mod tests {
 
         assert!(t.build_sync_json().await?.is_none());
 
-        // Having one test on `SyncData::AlterChat` is sufficient here as `AlterChatData` introduces
-        // enums inside items. Let's avoid in-depth testing of the serialiser here which is an
-        // external crate.
+        // Having one test on `SyncData::AlterChat` is sufficient here as `AlterChatData` with
+        // `ChatAction::SetMuted` introduces enums inside items and SystemTime. Let's avoid in-depth
+        // testing of the serialiser here which is an external crate.
         t.add_sync_item_with_timestamp(
             SyncData::AlterChat(AlterChatData {
                 id: ChatId::ContactAddr("bob@example.net".to_string()),
-                action: ChatAction::Block,
+                action: ChatAction::SetMuted(chat::MuteDuration::Until(
+                    SystemTime::UNIX_EPOCH + Duration::from_millis(42999),
+                )),
             }),
             1631781315,
         )
@@ -351,7 +356,7 @@ mod tests {
         assert_eq!(
             serialized,
             r#"{"items":[
-{"timestamp":1631781315,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":"Block"}}},
+{"timestamp":1631781315,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":{"SetMuted":{"Until":{"secs_since_epoch":42,"nanos_since_epoch":999000000}}}}}},
 {"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"testinvite","auth":"testauth","grpid":"group123"}}},
 {"timestamp":1631781317,"data":{"DeleteQrToken":{"invitenumber":"123!?\":.;{}","auth":"456","grpid":null}}}
 ]}"#
@@ -425,16 +430,21 @@ mod tests {
             )
             .is_err()); // Unknown enum value
 
-        // Test enums inside items
+        // Test enums inside items and SystemTime
         let sync_items = t.parse_sync_items(
-          r#"{"items":[{"timestamp":1631781318,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":"Block"}}}]}"#.to_string(),
+            r#"{"items":[{"timestamp":1631781318,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":{"SetMuted":{"Until":{"secs_since_epoch":42,"nanos_since_epoch":999000000}}}}}}]}"#.to_string(),
         )?;
         assert_eq!(sync_items.items.len(), 1);
         let AlterChat(AlterChatData { id, action }) = &sync_items.items.get(0).unwrap().data else {
             bail!("bad item");
         };
         assert_eq!(*id, ChatId::ContactAddr("bob@example.net".to_string()));
-        assert_eq!(*action, ChatAction::Block);
+        assert_eq!(
+            *action,
+            ChatAction::SetMuted(chat::MuteDuration::Until(
+                SystemTime::UNIX_EPOCH + Duration::from_millis(42999)
+            ))
+        );
 
         // empty item list is okay
         assert_eq!(
@@ -605,6 +615,31 @@ mod tests {
             a0b_chat_id.set_visibility(&alices[0], v).await?;
             sync(&alices).await?;
             assert_eq!(alices[1].get_chat(&bob).await.get_visibility(), v);
+        }
+
+        use chat::MuteDuration;
+        assert_eq!(
+            alices[1].get_chat(&bob).await.mute_duration,
+            MuteDuration::NotMuted
+        );
+        let mute_durations = [
+            MuteDuration::Forever,
+            MuteDuration::Until(SystemTime::now() + Duration::from_secs(42)),
+            MuteDuration::NotMuted,
+        ];
+        for m in mute_durations {
+            chat::set_muted(&alices[0], a0b_chat_id, m).await?;
+            sync(&alices).await?;
+            let m = match m {
+                MuteDuration::Until(time) => MuteDuration::Until(
+                    SystemTime::UNIX_EPOCH
+                        + Duration::from_secs(
+                            time.duration_since(SystemTime::UNIX_EPOCH)?.as_secs(),
+                        ),
+                ),
+                _ => m,
+            };
+            assert_eq!(alices[1].get_chat(&bob).await.mute_duration, m);
         }
 
         Ok(())

@@ -3335,7 +3335,7 @@ pub(crate) async fn shall_attach_selfavatar(context: &Context, chat_id: ChatId) 
 }
 
 /// Chat mute duration.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MuteDuration {
     /// Chat is not muted.
     NotMuted,
@@ -3385,6 +3385,7 @@ impl rusqlite::types::FromSql for MuteDuration {
 /// Mutes the chat for a given duration or unmutes it.
 pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
+    let (context, nosync) = &context.unwrap_nosync();
     context
         .sql
         .execute(
@@ -3394,6 +3395,11 @@ pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuratio
         .await
         .context(format!("Failed to set mute duration for {chat_id}"))?;
     context.emit_event(EventType::ChatModified(chat_id));
+    if !nosync {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        chat.add_sync_item(context, ChatAction::SetMuted(duration))
+            .await?;
+    }
     Ok(())
 }
 
@@ -4048,6 +4054,7 @@ impl Context {
             ChatAction::Unblock => chat_id.unblock(self).await,
             ChatAction::Accept => chat_id.accept(self).await,
             ChatAction::SetVisibility(v) => chat_id.set_visibility(self, *v).await,
+            ChatAction::SetMuted(duration) => set_muted(self, chat_id, *duration).await,
         }
         .ok();
         Ok(())
