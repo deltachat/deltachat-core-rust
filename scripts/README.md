@@ -10,6 +10,8 @@ and an own build machine.
 
 - `deny.sh` runs `cargo deny` for all Rust code in the project.
 
+- `codespell.sh` spellchecks the source code using `codespell` tool.
+
 - `../.github/workflows` contains jobs run by GitHub Actions.
 
 - `remote_tests_python.sh` rsyncs to a build machine and runs
