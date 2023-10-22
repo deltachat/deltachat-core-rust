@@ -211,9 +211,6 @@ pub struct InnerContext {
     /// Set to `None` if quota was never tried to load.
     pub(crate) quota: RwLock<Option<QuotaInfo>>,
 
-    /// Set to true if quota update is requested.
-    pub(crate) quota_update_request: AtomicBool,
-
     /// IMAP UID resync request.
     pub(crate) resync_request: AtomicBool,
 
@@ -384,7 +381,6 @@ impl Context {
             scheduler: SchedulerState::new(),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow at least 1 message every 10 seconds + a burst of 6.
             quota: RwLock::new(None),
-            quota_update_request: AtomicBool::new(false),
             resync_request: AtomicBool::new(false),
             new_msgs_notify,
             server_id: RwLock::new(None),

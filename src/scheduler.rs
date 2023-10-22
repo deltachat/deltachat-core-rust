@@ -360,10 +360,20 @@ async fn inbox_loop(
                     info = Default::default();
                 }
                 None => {
-                    let quota_requested = ctx.quota_update_request.swap(false, Ordering::Relaxed);
-                    if quota_requested {
-                        if let Err(err) = ctx.update_recent_quota(&mut connection).await {
-                            warn!(ctx, "Failed to update quota: {:#}.", err);
+                    {
+                        // Update quota no more than once a minute.
+                        let quota_needs_update = {
+                            let quota = ctx.quota.read().await;
+                            quota
+                                .as_ref()
+                                .filter(|quota| quota.modified + 60 > time())
+                                .is_none()
+                        };
+
+                        if quota_needs_update {
+                            if let Err(err) = ctx.update_recent_quota(&mut connection).await {
+                                warn!(ctx, "Failed to update quota: {:#}.", err);
+                            }
                         }
                     }
 
