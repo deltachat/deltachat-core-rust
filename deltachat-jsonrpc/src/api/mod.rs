@@ -2053,6 +2053,23 @@ impl CommandApi {
 
         ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
     }
+
+    // send the chat's current set draft
+    async fn misc_send_draft(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
+            let mut draft = draft;
+            let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut draft)
+                .await?
+                .to_u32();
+            Ok(msg_id)
+        } else {
+            Err(anyhow!(
+                "chat with id {} doesn't have draft message",
+                chat_id
+            ))
+        }
+    }
 }
 
 // Helper functions (to prevent code duplication)
