@@ -98,25 +98,37 @@ setup(
         pack("src/deltachat_rpc_server/__init__.py", "")
 
 
-def build_wheel(version, binary, tag):
+def build_wheel(version, binary, tag, windows=False):
     filename = f"dist/deltachat_rpc_server-{version}-{tag}.whl"
 
     with WheelFile(filename, "w") as wheel:
         wheel.write("LICENSE", "deltachat_rpc_server/LICENSE")
         wheel.write("deltachat-rpc-server/README.md", "deltachat_rpc_server/README.md")
-        wheel.writestr(
-            "deltachat_rpc_server/__init__.py",
-            """import os, sys
+        if windows:
+            wheel.writestr(
+                "deltachat_rpc_server/__init__.py",
+                """import os, sys, subprocess
+def main():
+    argv = [os.path.join(os.path.dirname(__file__), "deltachat-rpc-server.exe"), *sys.argv[1:]]
+    sys.exit(subprocess.call(argv))
+""",
+            )
+        else:
+            wheel.writestr(
+                "deltachat_rpc_server/__init__.py",
+                """import os, sys
 def main():
     argv = [os.path.join(os.path.dirname(__file__), "deltachat-rpc-server"), *sys.argv[1:]]
     os.execv(argv[0], argv)
 """,
-        )
+            )
 
         Path(binary).chmod(0o755)
         wheel.write(
             binary,
-            "deltachat_rpc_server/deltachat-rpc-server",
+            "deltachat_rpc_server/deltachat-rpc-server.exe"
+            if windows
+            else "deltachat_rpc_server/deltachat-rpc-server",
         )
         wheel.writestr(
             f"deltachat_rpc_server-{version}.dist-info/METADATA",
@@ -169,6 +181,16 @@ def main():
         version,
         "dist/deltachat-rpc-server-aarch64-macos",
         "py3-none-macosx_11_0_arm64",
+    )
+
+    build_wheel(
+        version, "dist/deltachat-rpc-server-win32.exe", "py3-none-win32", windows=True
+    )
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-win64.exe",
+        "py3-none-win_amd64",
+        windows=True,
     )
 
 
