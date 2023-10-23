@@ -1118,6 +1118,7 @@ dependencies = [
  "chrono",
  "criterion",
  "deltachat_derive",
+ "deltachat_message_parser",
  "email",
  "encoded-words",
  "escaper",
@@ -1257,6 +1258,18 @@ dependencies = [
  "thiserror",
  "tokio",
  "yerpc",
+]
+
+[[package]]
+name = "deltachat_message_parser"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "826f80f4b32f51457773351b2d821dc1f45273a38235e8fd3bdf662b67b70bcd"
+dependencies = [
+ "nom",
+ "serde",
+ "serde_derive",
+ "unic-idna-punycode",
 ]
 
 [[package]]
@@ -5220,6 +5233,12 @@ name = "unarray"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
+
+[[package]]
+name = "unic-idna-punycode"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06feaedcbf9f1fc259144d833c0d630b8b15207b0486ab817d29258bc89f2f8a"
 
 [[package]]
 name = "unicode-bidi"

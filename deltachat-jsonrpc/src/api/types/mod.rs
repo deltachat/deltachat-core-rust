@@ -6,6 +6,7 @@ pub mod events;
 pub mod http;
 pub mod location;
 pub mod message;
+pub mod message_parser;
 pub mod provider_info;
 pub mod qr;
 pub mod reactions;

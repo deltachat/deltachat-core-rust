@@ -110,6 +110,8 @@ pub mod tools;
 pub mod accounts;
 pub mod reaction;
 
+pub use deltachat_message_parser as message_parser;
+
 /// If set IMAP/incoming and SMTP/outgoing MIME messages will be printed.
 pub const DCC_MIME_DEBUG: &str = "DCC_MIME_DEBUG";
 
