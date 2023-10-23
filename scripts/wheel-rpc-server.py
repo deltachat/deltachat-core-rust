@@ -113,6 +113,7 @@ def main():
 """,
         )
 
+        Path(binary).chmod(0o755)
         wheel.write(
             binary,
             "deltachat_rpc_server/deltachat-rpc-server",
