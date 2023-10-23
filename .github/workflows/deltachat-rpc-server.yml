@@ -146,8 +146,8 @@ jobs:
 
       - name: Flatten dist/ directory
         run: |
-          mv deltachat-rpc-server-win32.exe.d/deltachat-rpc-server dist/deltachat-rpc-server-win32.exe
-          mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server dist/deltachat-rpc-server-win64.exe
+          mv deltachat-rpc-server-win32.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win32.exe
+          mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
           mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
           mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
 
