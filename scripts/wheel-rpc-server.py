@@ -158,5 +158,17 @@ def main():
         "py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686",
     )
 
+    # macOS versions for platform compatibility tags are taken from https://doc.rust-lang.org/rustc/platform-support.html
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-x86_64-macos",
+        "py3-none-macosx_10_7_x86_64",
+    )
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-aarch64-macos",
+        "py3-none-macosx_11_0_arm64",
+    )
+
 
 main()

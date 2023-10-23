@@ -26,25 +26,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
-      - name: Install python 3.12
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.12
-
-      - name: Install ziglang and wheel
+      - name: Install ziglang
         run: pip install wheel ziglang==0.11.0
 
       - name: Build deltachat-rpc-server binaries
         run: sh scripts/zig-rpc-server.sh
 
-      - name: Build deltachat-rpc-server Python wheels and source package
-        run: scripts/wheel-rpc-server.py
-
-      - name: Upload dist directory
+      - name: Upload dist directory with Linux binaries
         uses: actions/upload-artifact@v3
         with:
-          name: dist
+          name: linux
           path: dist/
           if-no-files-found: error
 
@@ -108,16 +99,18 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Upload binaries to the release
+    name: Build wheels and upload binaries to the release
     needs: ["build_linux", "build_windows", "build_macos"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
     steps:
+      - uses: actions/checkout@v3
+
       - name: Download Linux binaries
         uses: actions/download-artifact@v3
         with:
-          name: dist
+          name: linux
           path: dist/
 
       - name: Download win32 binary
@@ -150,6 +143,18 @@ jobs:
           mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
           mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
           mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
+
+      # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
+      - name: Install python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install wheel
+        run: pip install wheel
+
+      - name: Build deltachat-rpc-server Python wheels and source package
+        run: scripts/wheel-rpc-server.py
 
       - name: List downloaded artifacts
         run: ls -l dist/
