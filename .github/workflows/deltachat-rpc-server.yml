@@ -83,21 +83,28 @@ jobs:
 
   build_macos:
     name: Build deltachat-rpc-server for macOS
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+          - arch: aarch64
+
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
 
       - name: Setup rust target
-        run: rustup target add x86_64-apple-darwin
+        run: rustup target add ${{ matrix.arch }}-apple-darwin
 
       - name: Build
-        run: cargo build --release --package deltachat-rpc-server --target x86_64-apple-darwin --features vendored
+        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.arch }}-apple-darwin --features vendored
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server-x86_64-macos
-          path: target/x86_64-apple-darwin/release/deltachat-rpc-server
+          name: deltachat-rpc-server-${{ matrix.arch }}-macos
+          path: target/${{ matrix.arch }}-apple-darwin/release/deltachat-rpc-server
           if-no-files-found: error
 
   publish:
@@ -125,17 +132,24 @@ jobs:
           name: deltachat-rpc-server-win64.exe
           path: deltachat-rpc-server-win64.exe.d
 
-      - name: Download macOS binary
+      - name: Download macOS binary for x86_64
         uses: actions/download-artifact@v3
         with:
           name: deltachat-rpc-server-x86_64-macos
           path: deltachat-rpc-server-x86_64-macos.d
+
+      - name: Download macOS binary for aarch64
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-aarch64-macos
+          path: deltachat-rpc-server-aarch64-macos.d
 
       - name: Flatten dist/ directory
         run: |
           mv deltachat-rpc-server-win32.exe.d/deltachat-rpc-server dist/deltachat-rpc-server-win32.exe
           mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server dist/deltachat-rpc-server-win64.exe
           mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
+          mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
 
       - name: List downloaded artifacts
         run: ls -l dist/
