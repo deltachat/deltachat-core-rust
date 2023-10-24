@@ -3,7 +3,7 @@
 mod data;
 
 use anyhow::Result;
-use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
+use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
 use crate::context::Context;
@@ -172,7 +172,7 @@ fn get_resolver() -> Result<TokioAsyncResolver> {
     let resolver = AsyncResolver::tokio(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
-    )?;
+    );
     Ok(resolver)
 }
 
