@@ -3,7 +3,7 @@
 mod data;
 
 use anyhow::Result;
-use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
+use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
 use crate::context::Context;

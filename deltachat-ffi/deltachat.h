@@ -384,7 +384,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
 /**
  * Configure the context. The configuration is handled by key=value pairs as:
  *
- * - `addr`         = address to display (always needed)
+ * - `addr`         = Email address to use for configuration.
+ *                    If dc_configure() fails this is not the email address actually in use.
+ *                    Use `configured_addr` to find out the email address actually in use.
+ * - `configured_addr` = Email address actually in use.
+ *                    Unless for testing, do not set this value using dc_set_config().
+ *                    Instead, set `addr` and call dc_configure().
  * - `mail_server`  = IMAP-server, guessed if left out
  * - `mail_user`    = IMAP-username, guessed if left out
  * - `mail_pw`      = IMAP-password (always needed)

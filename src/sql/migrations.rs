@@ -730,21 +730,22 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
-    if dbversion < 102 {
-        sql.execute_migration(
-            "CREATE TABLE download (
-            msg_id INTEGER NOT NULL -- id of the message stub in msgs table
-            )",
-            102,
-        )
-        .await?;
-    }
 
     // Add is_bot column to contacts table with default false.
     if dbversion < 102 {
         sql.execute_migration(
             "ALTER TABLE contacts ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
             102,
+        )
+        .await?;
+    }
+
+    if dbversion < 103 {
+        sql.execute_migration(
+            "CREATE TABLE download (
+            msg_id INTEGER NOT NULL -- id of the message stub in msgs table
+            )",
+            103,
         )
         .await?;
     }

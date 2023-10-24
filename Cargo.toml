@@ -53,6 +53,7 @@ fd-lock = "3.0.11"
 futures = "0.3"
 futures-lite = "1.13.0"
 hex = "0.4.0"
+hickory-resolver = "0.24"
 humansize = "2"
 image = { version = "0.24.7", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
 iroh = { version = "0.4.1", default-features = false }
@@ -93,7 +94,6 @@ tokio-stream = { version = "0.1.14", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
 tokio-util = "0.7.9"
 toml = "0.7"
-trust-dns-resolver = "0.23"
 url = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
 
