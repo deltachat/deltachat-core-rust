@@ -83,13 +83,13 @@ jobs:
           - os: macos-latest
             rust: 1.73.0
 
-          # Minimum Supported Rust Version = 1.65.0
+          # Minimum Supported Rust Version = 1.67.0
           #
           # Minimum Supported Python Version = 3.7
           # This is the minimum version for which manylinux Python wheels are
           # built.
           - os: ubuntu-latest
-            rust: 1.65.0
+            rust: 1.67.0
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
