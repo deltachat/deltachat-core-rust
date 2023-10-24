@@ -26,7 +26,6 @@ skip = [
      { name = "ed25519", version = "1.5.3" },
      { name = "getrandom", version = "<0.2" },
      { name = "hashbrown", version = "<0.14.0" },
-     { name = "idna", version = "<0.3" },
      { name = "indexmap", version = "<2.0.0" },
      { name = "linux-raw-sys", version = "0.3.8" },
      { name = "num-derive", version = "0.3.3" },
