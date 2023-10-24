@@ -13,16 +13,16 @@ use self::connectivity::ConnectivityStore;
 use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
+use crate::download::download_msg;
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::events::EventType;
 use crate::imap::{FolderMeaning, Imap};
-use crate::job;
 use crate::location;
 use crate::log::LogExt;
+use crate::message::MsgId;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
-use crate::tools::time;
-use crate::tools::{duration_to_str, maybe_add_time_based_warnings};
+use crate::tools::{duration_to_str, maybe_add_time_based_warnings, time};
 
 pub(crate) mod connectivity;
 
@@ -323,6 +323,37 @@ pub(crate) struct Scheduler {
     recently_seen_loop: RecentlySeenLoop,
 }
 
+async fn download_msgs(context: &Context, imap: &mut Imap) -> Result<()> {
+    let msg_ids = context
+        .sql
+        .query_map(
+            "SELECT msg_id FROM download",
+            (),
+            |row| {
+                let msg_id: MsgId = row.get(0)?;
+                Ok(msg_id)
+            },
+            |rowids| {
+                rowids
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(Into::into)
+            },
+        )
+        .await?;
+
+    for msg_id in msg_ids {
+        if let Err(err) = download_msg(context, msg_id, imap).await {
+            warn!(context, "Failed to download message {msg_id}: {:#}.", err);
+        }
+        context
+            .sql
+            .execute("DELETE FROM download WHERE msg_id=?", (msg_id,))
+            .await?;
+    }
+
+    Ok(())
+}
+
 async fn inbox_loop(
     ctx: Context,
     started: oneshot::Sender<()>,
@@ -344,79 +375,76 @@ async fn inbox_loop(
             return;
         };
 
-        let mut info = InterruptInfo::default();
         loop {
-            let job = match job::load_next(&ctx, &info).await {
-                Err(err) => {
-                    error!(ctx, "Failed loading job from the database: {:#}.", err);
-                    None
-                }
-                Ok(job) => job,
-            };
+            {
+                // Update quota no more than once a minute.
+                let quota_needs_update = {
+                    let quota = ctx.quota.read().await;
+                    quota
+                        .as_ref()
+                        .filter(|quota| quota.modified + 60 > time())
+                        .is_none()
+                };
 
-            match job {
-                Some(job) => {
-                    job::perform_job(&ctx, job::Connection::Inbox(&mut connection), job).await;
-                    info = Default::default();
-                }
-                None => {
-                    let quota_requested = ctx.quota_update_request.swap(false, Ordering::Relaxed);
-                    if quota_requested {
-                        if let Err(err) = ctx.update_recent_quota(&mut connection).await {
-                            warn!(ctx, "Failed to update quota: {:#}.", err);
-                        }
+                if quota_needs_update {
+                    if let Err(err) = ctx.update_recent_quota(&mut connection).await {
+                        warn!(ctx, "Failed to update quota: {:#}.", err);
                     }
-
-                    let resync_requested = ctx.resync_request.swap(false, Ordering::Relaxed);
-                    if resync_requested {
-                        if let Err(err) = connection.resync_folders(&ctx).await {
-                            warn!(ctx, "Failed to resync folders: {:#}.", err);
-                            ctx.resync_request.store(true, Ordering::Relaxed);
-                        }
-                    }
-
-                    maybe_add_time_based_warnings(&ctx).await;
-
-                    match ctx.get_config_i64(Config::LastHousekeeping).await {
-                        Ok(last_housekeeping_time) => {
-                            let next_housekeeping_time =
-                                last_housekeeping_time.saturating_add(60 * 60 * 24);
-                            if next_housekeeping_time <= time() {
-                                sql::housekeeping(&ctx).await.log_err(&ctx).ok();
-                            }
-                        }
-                        Err(err) => {
-                            warn!(ctx, "Failed to get last housekeeping time: {}", err);
-                        }
-                    };
-
-                    match ctx.get_config_bool(Config::FetchedExistingMsgs).await {
-                        Ok(fetched_existing_msgs) => {
-                            if !fetched_existing_msgs {
-                                // Consider it done even if we fail.
-                                //
-                                // This operation is not critical enough to retry,
-                                // especially if the error is persistent.
-                                if let Err(err) =
-                                    ctx.set_config_bool(Config::FetchedExistingMsgs, true).await
-                                {
-                                    warn!(ctx, "Can't set Config::FetchedExistingMsgs: {:#}", err);
-                                }
-
-                                if let Err(err) = connection.fetch_existing_msgs(&ctx).await {
-                                    warn!(ctx, "Failed to fetch existing messages: {:#}", err);
-                                    connection.trigger_reconnect(&ctx);
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            warn!(ctx, "Can't get Config::FetchedExistingMsgs: {:#}", err);
-                        }
-                    }
-
-                    info = fetch_idle(&ctx, &mut connection, FolderMeaning::Inbox).await;
                 }
             }
+
+            let resync_requested = ctx.resync_request.swap(false, Ordering::Relaxed);
+            if resync_requested {
+                if let Err(err) = connection.resync_folders(&ctx).await {
+                    warn!(ctx, "Failed to resync folders: {:#}.", err);
+                    ctx.resync_request.store(true, Ordering::Relaxed);
+                }
+            }
+
+            maybe_add_time_based_warnings(&ctx).await;
+
+            match ctx.get_config_i64(Config::LastHousekeeping).await {
+                Ok(last_housekeeping_time) => {
+                    let next_housekeeping_time =
+                        last_housekeeping_time.saturating_add(60 * 60 * 24);
+                    if next_housekeeping_time <= time() {
+                        sql::housekeeping(&ctx).await.log_err(&ctx).ok();
+                    }
+                }
+                Err(err) => {
+                    warn!(ctx, "Failed to get last housekeeping time: {}", err);
+                }
+            };
+
+            match ctx.get_config_bool(Config::FetchedExistingMsgs).await {
+                Ok(fetched_existing_msgs) => {
+                    if !fetched_existing_msgs {
+                        // Consider it done even if we fail.
+                        //
+                        // This operation is not critical enough to retry,
+                        // especially if the error is persistent.
+                        if let Err(err) =
+                            ctx.set_config_bool(Config::FetchedExistingMsgs, true).await
+                        {
+                            warn!(ctx, "Can't set Config::FetchedExistingMsgs: {:#}", err);
+                        }
+
+                        if let Err(err) = connection.fetch_existing_msgs(&ctx).await {
+                            warn!(ctx, "Failed to fetch existing messages: {:#}", err);
+                            connection.trigger_reconnect(&ctx);
+                        }
+                    }
+                }
+                Err(err) => {
+                    warn!(ctx, "Can't get Config::FetchedExistingMsgs: {:#}", err);
+                }
+            }
+
+            if let Err(err) = download_msgs(&ctx, &mut connection).await {
+                warn!(ctx, "Failed to download messages: {:#}", err);
+            }
+
+            fetch_idle(&ctx, &mut connection, FolderMeaning::Inbox).await;
         }
     };
 

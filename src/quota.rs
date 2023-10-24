@@ -1,7 +1,6 @@
 //! # Support for IMAP QUOTA extension.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::Ordering;
 
 use anyhow::{anyhow, Context as _, Result};
 use async_imap::types::{Quota, QuotaResource};
@@ -13,7 +12,6 @@ use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
 use crate::imap::Imap;
 use crate::message::{Message, Viewtype};
-use crate::scheduler::InterruptInfo;
 use crate::tools::time;
 use crate::{stock_str, EventType};
 
@@ -34,17 +32,12 @@ pub const QUOTA_ERROR_THRESHOLD_PERCENTAGE: u64 = 95;
 /// providers report bad values and we would then spam the user.
 pub const QUOTA_ALLCLEAR_PERCENTAGE: u64 = 75;
 
-/// if recent quota is older,
-/// it is re-fetched on dc_get_connectivity_html()
-pub const QUOTA_MAX_AGE_SECONDS: i64 = 60;
-
 /// Server quota information with an update timestamp.
 #[derive(Debug)]
 pub struct QuotaInfo {
     /// Recently loaded quota information.
     /// set to `Err()` if the provider does not support quota or on other errors,
     /// set to `Ok()` for valid quota information.
-    /// Updated by `Action::UpdateRecentQuota`
     pub(crate) recent: Result<BTreeMap<String, Vec<QuotaResource>>>,
 
     /// Timestamp when structure was modified.
@@ -110,18 +103,6 @@ pub fn needs_quota_warning(curr_percentage: u64, warned_at_percentage: u64) -> b
 }
 
 impl Context {
-    // Adds a job to update `quota.recent`
-    pub(crate) async fn schedule_quota_update(&self) -> Result<()> {
-        let requested = self.quota_update_request.swap(true, Ordering::Relaxed);
-        if !requested {
-            // Quota update was not requested before.
-            self.scheduler
-                .interrupt_inbox(InterruptInfo::new(false))
-                .await;
-        }
-        Ok(())
-    }
-
     /// Updates `quota.recent`, sets `quota.modified` to the current time
     /// and emits an event to let the UIs update connectivity view.
     ///
@@ -130,8 +111,6 @@ impl Context {
     /// As the message is added only once, the user is not spammed
     /// in case for some providers the quota is always at ~100%
     /// and new space is allocated as needed.
-    ///
-    /// Called in response to `Action::UpdateRecentQuota`.
     pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<()> {
         if let Err(err) = imap.prepare(self).await {
             warn!(self, "could not connect: {:#}", err);
@@ -165,9 +144,6 @@ impl Context {
                 Err(err) => warn!(self, "cannot get highest quota usage: {:#}", err),
             }
         }
-
-        // Clear the request to update quota.
-        self.quota_update_request.store(false, Ordering::Relaxed);
 
         *self.quota.write().await = Some(QuotaInfo {
             recent: quota,

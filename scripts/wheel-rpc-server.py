@@ -16,7 +16,36 @@ Summary: Delta Chat JSON-RPC server
 """
 
 
-SETUP_PY = """
+def build_source_package(version):
+    filename = f"dist/deltachat-rpc-server-{version}.tar.gz"
+
+    with tarfile.open(filename, "w:gz") as pkg:
+
+        def pack(name, contents):
+            contents = contents.encode()
+            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
+            tar_info.mode = 0o644
+            tar_info.size = len(contents)
+            pkg.addfile(tar_info, BytesIO(contents))
+
+        pack("PKG-INFO", metadata_contents(version))
+        pack(
+            "pyproject.toml",
+            f"""[build-system]
+requires = ["setuptools==68.2.2", "pip"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deltachat-rpc-server"
+version = "{version}"
+
+[project.scripts]
+deltachat-rpc-server = "deltachat_rpc_server:main"
+""",
+        )
+        pack(
+            "setup.py",
+            f"""
 import sys
 from setuptools import setup, find_packages
 from distutils.cmd import Command
@@ -45,7 +74,7 @@ class BuildCommand(build):
                 "--platform",
                 "musllinux_1_1_" + platform.machine(),
                 "--only-binary=:all:",
-                "deltachat-rpc-server",
+                "deltachat-rpc-server=={version}",
             ],
             cwd=tmpdir,
         )
@@ -61,61 +90,45 @@ class BuildCommand(build):
 
 
 setup(
-    cmdclass={"build": BuildCommand},
-    package_data={"deltachat_rpc_server": ["deltachat-rpc-server"]},
+    cmdclass={{"build": BuildCommand}},
+    package_data={{"deltachat_rpc_server": ["deltachat-rpc-server"]}},
 )
-"""
-
-
-def build_source_package(version):
-    filename = f"dist/deltachat-rpc-server-{version}.tar.gz"
-
-    with tarfile.open(filename, "w:gz") as pkg:
-
-        def pack(name, contents):
-            contents = contents.encode()
-            tar_info = tarfile.TarInfo(f"deltachat-rpc-server-{version}/{name}")
-            tar_info.mode = 0o644
-            tar_info.size = len(contents)
-            pkg.addfile(tar_info, BytesIO(contents))
-
-        pack("PKG-INFO", metadata_contents(version))
-        pack(
-            "pyproject.toml",
-            """[build-system]
-requires = ["setuptools==68.2.2", "pip"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "deltachat-rpc-server"
-version = "1.125.0"
-
-[project.scripts]
-deltachat-rpc-server = "deltachat_rpc_server:main"
 """,
         )
-        pack("setup.py", SETUP_PY)
         pack("src/deltachat_rpc_server/__init__.py", "")
 
 
-def build_wheel(version, binary, tag):
+def build_wheel(version, binary, tag, windows=False):
     filename = f"dist/deltachat_rpc_server-{version}-{tag}.whl"
 
     with WheelFile(filename, "w") as wheel:
         wheel.write("LICENSE", "deltachat_rpc_server/LICENSE")
         wheel.write("deltachat-rpc-server/README.md", "deltachat_rpc_server/README.md")
-        wheel.writestr(
-            "deltachat_rpc_server/__init__.py",
-            """import os, sys
+        if windows:
+            wheel.writestr(
+                "deltachat_rpc_server/__init__.py",
+                """import os, sys, subprocess
+def main():
+    argv = [os.path.join(os.path.dirname(__file__), "deltachat-rpc-server.exe"), *sys.argv[1:]]
+    sys.exit(subprocess.call(argv))
+""",
+            )
+        else:
+            wheel.writestr(
+                "deltachat_rpc_server/__init__.py",
+                """import os, sys
 def main():
     argv = [os.path.join(os.path.dirname(__file__), "deltachat-rpc-server"), *sys.argv[1:]]
     os.execv(argv[0], argv)
 """,
-        )
+            )
 
+        Path(binary).chmod(0o755)
         wheel.write(
             binary,
-            "deltachat_rpc_server/deltachat-rpc-server",
+            "deltachat_rpc_server/deltachat-rpc-server.exe"
+            if windows
+            else "deltachat_rpc_server/deltachat-rpc-server",
         )
         wheel.writestr(
             f"deltachat_rpc_server-{version}.dist-info/METADATA",
@@ -156,6 +169,28 @@ def main():
         version,
         "dist/deltachat-rpc-server-i686-linux",
         "py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686",
+    )
+
+    # macOS versions for platform compatibility tags are taken from https://doc.rust-lang.org/rustc/platform-support.html
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-x86_64-macos",
+        "py3-none-macosx_10_7_x86_64",
+    )
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-aarch64-macos",
+        "py3-none-macosx_11_0_arm64",
+    )
+
+    build_wheel(
+        version, "dist/deltachat-rpc-server-win32.exe", "py3-none-win32", windows=True
+    )
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-win64.exe",
+        "py3-none-win_amd64",
+        windows=True,
     )
 
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.126.1] - 2023-10-24
+
+### Fixes
+
+- Do not hardcode version in deltachat-rpc-server source package.
+- Do not interrupt IMAP loop from `get_connectivity_html()`.
+
+### Features / Changes
+
+- imap: Buffer `STARTTLS` command.
+
+### Build system
+
+- Build `deltachat-rpc-server` binary for aarch64 macOS.
+- Build `deltachat-rpc-server` wheels for macOS and Windows.
+
+### Refactor
+
+- Remove job queue.
+
+### Miscellaneous Tasks
+
+- cargo: Update `ahash` to make `cargo-deny` happy.
+
 ## [1.126.0] - 2023-10-22
 
 ### API-Changes

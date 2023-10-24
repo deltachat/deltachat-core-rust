@@ -742,8 +742,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Failed to deduplicate peerstates: {:#}.", err)
     }
 
-    context.schedule_quota_update().await?;
-
     // Try to clear the freelist to free some space on the disk. This
     // only works if auto_vacuum is enabled.
     match context
