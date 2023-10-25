@@ -3,8 +3,7 @@ name: Build & Deploy Documentation on rs.delta.chat
 on:
   push:
     branches:
-      - master
-      - docs-gh-action
+      - main
 
 jobs:
   build:

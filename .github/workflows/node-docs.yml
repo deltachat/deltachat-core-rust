@@ -8,7 +8,7 @@ name: Generate & upload node.js documentation
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   generate:
