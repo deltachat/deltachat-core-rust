@@ -165,8 +165,8 @@ jobs:
         working-directory: deltachat-rpc-client
         run: tox -e lint
 
-  python_tests:
-    name: Python tests
+  cffi_python_tests:
+    name: CFFI Python tests
     needs: ["c_library", "python_lint"]
     strategy:
       fail-fast: false
@@ -216,8 +216,8 @@ jobs:
         working-directory: python
         run: tox -e mypy,doc,py
 
-  aysnc_python_tests:
-    name: Async Python tests
+  rpc_python_tests:
+    name: JSON-RPC Python tests
     needs: ["python_lint", "rpc_server"]
     strategy:
       fail-fast: false
