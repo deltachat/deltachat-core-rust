@@ -3,14 +3,14 @@ resources:
     type: git
     icon: github
     source:
-      branch: master
+      branch: main
       uri: https://github.com/deltachat/deltachat-core-rust.git
 
   - name: deltachat-core-rust-release
     type: git
     icon: github
     source:
-      branch: master
+      branch: main
       uri: https://github.com/deltachat/deltachat-core-rust.git
       tag_filter: "v*"
 
