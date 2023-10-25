@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yoav-lavi/melody/actions/workflows/rust.yml">
-    <img alt="Rust CI" src="https://github.com/yoav-lavi/melody/actions/workflows/rust.yml/badge.svg">
+  <a href="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml">
+    <img alt="Rust CI" src="https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg">
   </a>
 </p>
 
