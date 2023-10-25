@@ -18,6 +18,7 @@ use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
 use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
+use deltachat::mimeparser::SystemMessage;
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::reaction::send_reaction;
@@ -210,7 +211,17 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         } else {
             "[FRESH]"
         },
-        if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_info() {
+            if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO 🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionDisabled {
+                "[INFO 🛡️❌]"
+            } else {
+                "[INFO]"
+            }
+        } else {
+            ""
+        },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
                 "[VIDEOCHAT-INVITATION: {}, type={}]",
@@ -395,8 +406,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unpin <chat-id>\n\
                  mute <chat-id> [<seconds>]\n\
                  unmute <chat-id>\n\
-                 protect <chat-id>\n\
-                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  accept <chat-id>\n\
                  decline <chat-id>\n\
@@ -1070,20 +1079,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 _ => unreachable!("arg0={:?}", arg0),
             };
             chat::set_muted(&context, chat_id, duration).await?;
-        }
-        "protect" | "unprotect" => {
-            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = ChatId::new(arg1.parse()?);
-            chat_id
-                .set_protection(
-                    &context,
-                    match arg0 {
-                        "protect" => ProtectionStatus::Protected,
-                        "unprotect" => ProtectionStatus::Unprotected,
-                        _ => unreachable!("arg0={:?}", arg0),
-                    },
-                )
-                .await?;
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");

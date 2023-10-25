@@ -905,7 +905,7 @@ impl Scheduler {
 
         // Actually shutdown tasks.
         let timeout_duration = std::time::Duration::from_secs(30);
-        for b in once(self.inbox).chain(self.oboxes.into_iter()) {
+        for b in once(self.inbox).chain(self.oboxes) {
             tokio::time::timeout(timeout_duration, b.handle)
                 .await
                 .log_err(context)

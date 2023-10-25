@@ -11,7 +11,7 @@ def test_webxdc(acfactory) -> None:
 
     while True:
         event = bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             bob_chat_alice = bob.get_chat_by_id(event.chat_id)
             message = bob.get_message_by_id(event.msg_id)
             break

@@ -7,6 +7,9 @@ use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 use crate::context::Context;
@@ -33,16 +36,16 @@ pub struct Accounts {
 
 impl Accounts {
     /// Loads or creates an accounts folder at the given `dir`.
-    pub async fn new(dir: PathBuf) -> Result<Self> {
-        if !dir.exists() {
+    pub async fn new(dir: PathBuf, writable: bool) -> Result<Self> {
+        if writable && !dir.exists() {
             Accounts::create(&dir).await?;
         }
 
-        Accounts::open(dir).await
+        Accounts::open(dir, writable).await
     }
 
     /// Creates a new default structure.
-    pub async fn create(dir: &Path) -> Result<()> {
+    async fn create(dir: &Path) -> Result<()> {
         fs::create_dir_all(dir)
             .await
             .context("failed to create folder")?;
@@ -54,13 +57,13 @@ impl Accounts {
 
     /// Opens an existing accounts structure. Will error if the folder doesn't exist,
     /// no account exists and no config exists.
-    pub async fn open(dir: PathBuf) -> Result<Self> {
+    async fn open(dir: PathBuf, writable: bool) -> Result<Self> {
         ensure!(dir.exists(), "directory does not exist");
 
         let config_file = dir.join(CONFIG_NAME);
         ensure!(config_file.exists(), "{:?} does not exist", config_file);
 
-        let config = Config::from_file(config_file)
+        let config = Config::from_file(config_file, writable)
             .await
             .context("failed to load accounts config")?;
         let events = Events::new();
@@ -298,14 +301,20 @@ impl Accounts {
 /// Configuration file name.
 const CONFIG_NAME: &str = "accounts.toml";
 
+/// Lockfile name.
+const LOCKFILE_NAME: &str = "accounts.lock";
+
 /// Database file name.
 const DB_NAME: &str = "dc.db";
 
 /// Account manager configuration file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 struct Config {
     file: PathBuf,
     inner: InnerConfig,
+    // We lock the lockfile in the Config constructors to protect also from having multiple Config
+    // objects for the same config file.
+    lock_task: Option<JoinHandle<anyhow::Result<()>>>,
 }
 
 /// Account manager configuration file contents.
@@ -319,17 +328,74 @@ struct InnerConfig {
     pub accounts: Vec<AccountConfig>,
 }
 
+impl Drop for Config {
+    fn drop(&mut self) {
+        if let Some(lock_task) = self.lock_task.take() {
+            lock_task.abort();
+        }
+    }
+}
+
 impl Config {
-    /// Creates a new configuration file in the given account manager directory.
-    pub async fn new(dir: &Path) -> Result<Self> {
+    /// Creates a new Config for `file`, but doesn't open/sync it.
+    async fn new_nosync(file: PathBuf, lock: bool) -> Result<Self> {
+        let dir = file.parent().context("Cannot get config file directory")?;
         let inner = InnerConfig {
             accounts: Vec::new(),
             selected_account: 0,
             next_id: 1,
         };
-        let file = dir.join(CONFIG_NAME);
-        let mut cfg = Self { file, inner };
+        if !lock {
+            let cfg = Self {
+                file,
+                inner,
+                lock_task: None,
+            };
+            return Ok(cfg);
+        }
+        let lockfile = dir.join(LOCKFILE_NAME);
+        let mut lock = fd_lock::RwLock::new(fs::File::create(lockfile).await?);
+        let (locked_tx, locked_rx) = oneshot::channel();
+        let lock_task: JoinHandle<anyhow::Result<()>> = tokio::spawn(async move {
+            let mut timeout = Duration::from_millis(100);
+            let _guard = loop {
+                match lock.try_write() {
+                    Ok(guard) => break Ok(guard),
+                    Err(err) => {
+                        if timeout.as_millis() > 1600 {
+                            break Err(err);
+                        }
+                        // We need to wait for the previous lock_task to be aborted thus unlocking
+                        // the lockfile. We don't open configs for writing often outside of the
+                        // tests, so this adds delays to the tests, but otherwise ok.
+                        sleep(timeout).await;
+                        if err.kind() == std::io::ErrorKind::WouldBlock {
+                            timeout *= 2;
+                        }
+                    }
+                }
+            }?;
+            locked_tx
+                .send(())
+                .ok()
+                .context("Cannot notify about lockfile locking")?;
+            let (_tx, rx) = oneshot::channel();
+            rx.await?;
+            Ok(())
+        });
+        let cfg = Self {
+            file,
+            inner,
+            lock_task: Some(lock_task),
+        };
+        locked_rx.await?;
+        Ok(cfg)
+    }
 
+    /// Creates a new configuration file in the given account manager directory.
+    pub async fn new(dir: &Path) -> Result<Self> {
+        let lock = true;
+        let mut cfg = Self::new_nosync(dir.join(CONFIG_NAME), lock).await?;
         cfg.sync().await?;
 
         Ok(cfg)
@@ -339,6 +405,11 @@ impl Config {
     /// Takes a mutable reference because the saved file is a part of the `Config` state. This
     /// protects from parallel calls resulting to a wrong file contents.
     async fn sync(&mut self) -> Result<()> {
+        ensure!(!self
+            .lock_task
+            .as_ref()
+            .context("Config is read-only")?
+            .is_finished());
         let tmp_path = self.file.with_extension("toml.tmp");
         let mut file = fs::File::create(&tmp_path)
             .await
@@ -357,24 +428,28 @@ impl Config {
     }
 
     /// Read a configuration from the given file into memory.
-    pub async fn from_file(file: PathBuf) -> Result<Self> {
-        let dir = file.parent().context("can't get config file directory")?;
-        let bytes = fs::read(&file).await.context("failed to read file")?;
+    pub async fn from_file(file: PathBuf, writable: bool) -> Result<Self> {
+        let dir = file
+            .parent()
+            .context("Cannot get config file directory")?
+            .to_path_buf();
+        let mut config = Self::new_nosync(file, writable).await?;
+        let bytes = fs::read(&config.file)
+            .await
+            .context("Failed to read file")?;
         let s = std::str::from_utf8(&bytes)?;
-        let mut inner: InnerConfig = toml::from_str(s).context("failed to parse config")?;
+        config.inner = toml::from_str(s).context("Failed to parse config")?;
 
         // Previous versions of the core stored absolute paths in account config.
         // Convert them to relative paths.
         let mut modified = false;
-        for account in &mut inner.accounts {
-            if let Ok(new_dir) = account.dir.strip_prefix(dir) {
+        for account in &mut config.inner.accounts {
+            if let Ok(new_dir) = account.dir.strip_prefix(&dir) {
                 account.dir = new_dir.to_path_buf();
                 modified = true;
             }
         }
-
-        let mut config = Self { file, inner };
-        if modified {
+        if modified && writable {
             config.sync().await?;
         }
 
@@ -518,14 +593,15 @@ mod tests {
         let p: PathBuf = dir.path().join("accounts1");
 
         {
-            let mut accounts = Accounts::new(p.clone()).await.unwrap();
+            let writable = true;
+            let mut accounts = Accounts::new(p.clone(), writable).await.unwrap();
             accounts.add_account().await.unwrap();
 
             assert_eq!(accounts.accounts.len(), 1);
             assert_eq!(accounts.config.get_selected_account(), 1);
         }
-        {
-            let accounts = Accounts::open(p).await.unwrap();
+        for writable in [true, false] {
+            let accounts = Accounts::new(p.clone(), writable).await.unwrap();
 
             assert_eq!(accounts.accounts.len(), 1);
             assert_eq!(accounts.config.get_selected_account(), 1);
@@ -533,11 +609,28 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_account_new_open_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let p: PathBuf = dir.path().join("accounts");
+        let writable = true;
+        let _accounts = Accounts::new(p.clone(), writable).await.unwrap();
+
+        let writable = true;
+        assert!(Accounts::new(p.clone(), writable).await.is_err());
+
+        let writable = false;
+        let accounts = Accounts::new(p, writable).await.unwrap();
+        assert_eq!(accounts.accounts.len(), 0);
+        assert_eq!(accounts.config.get_selected_account(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_account_new_add_remove() {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone()).await.unwrap();
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account(), 0);
 
@@ -564,7 +657,8 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone()).await?;
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable).await?;
         assert!(accounts.get_selected_account().is_none());
         assert_eq!(accounts.config.get_selected_account(), 0);
 
@@ -585,7 +679,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone()).await.unwrap();
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable).await.unwrap();
         assert_eq!(accounts.accounts.len(), 0);
         assert_eq!(accounts.config.get_selected_account(), 0);
 
@@ -622,7 +717,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone()).await.unwrap();
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable).await.unwrap();
 
         for expected_id in 1..10 {
             let id = accounts.add_account().await.unwrap();
@@ -642,7 +738,8 @@ mod tests {
         let dummy_accounts = 10;
 
         let (id0, id1, id2) = {
-            let mut accounts = Accounts::new(p.clone()).await?;
+            let writable = true;
+            let mut accounts = Accounts::new(p.clone(), writable).await?;
             accounts.add_account().await?;
             let ids = accounts.get_all();
             assert_eq!(ids.len(), 1);
@@ -677,7 +774,8 @@ mod tests {
         assert!(id2 > id1 + dummy_accounts);
 
         let (id0_reopened, id1_reopened, id2_reopened) = {
-            let accounts = Accounts::new(p.clone()).await?;
+            let writable = false;
+            let accounts = Accounts::new(p.clone(), writable).await?;
             let ctx = accounts.get_selected_account().unwrap();
             assert_eq!(
                 ctx.get_config(crate::config::Config::Addr).await?,
@@ -722,7 +820,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
 
-        let accounts = Accounts::new(p.clone()).await?;
+        let writable = true;
+        let accounts = Accounts::new(p.clone(), writable).await?;
 
         // Make sure there are no accounts.
         assert_eq!(accounts.accounts.len(), 0);
@@ -748,7 +847,8 @@ mod tests {
         let dir = tempfile::tempdir().context("failed to create tempdir")?;
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone())
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable)
             .await
             .context("failed to create accounts manager")?;
 
@@ -768,7 +868,8 @@ mod tests {
         assert!(passphrase_set_success);
         drop(accounts);
 
-        let accounts = Accounts::new(p.clone())
+        let writable = false;
+        let accounts = Accounts::new(p.clone(), writable)
             .await
             .context("failed to create second accounts manager")?;
         let account = accounts
@@ -792,7 +893,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p: PathBuf = dir.path().join("accounts");
 
-        let mut accounts = Accounts::new(p.clone()).await?;
+        let writable = true;
+        let mut accounts = Accounts::new(p.clone(), writable).await?;
         accounts.add_account().await?;
         accounts.add_account().await?;
 

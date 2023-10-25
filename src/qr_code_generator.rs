@@ -4,17 +4,15 @@ use anyhow::Result;
 use base64::Engine as _;
 use qrcodegen::{QrCode, QrCodeEcc};
 
-use crate::{
-    blob::BlobObject,
-    chat::{Chat, ChatId},
-    color::color_int_to_hex_string,
-    config::Config,
-    contact::{Contact, ContactId},
-    context::Context,
-    qr::{self, Qr},
-    securejoin,
-    stock_str::{self, backup_transfer_qr},
-};
+use crate::blob::BlobObject;
+use crate::chat::{Chat, ChatId};
+use crate::color::color_int_to_hex_string;
+use crate::config::Config;
+use crate::contact::{Contact, ContactId};
+use crate::context::Context;
+use crate::qr::{self, Qr};
+use crate::securejoin;
+use crate::stock_str::{self, backup_transfer_qr};
 
 /// Returns SVG of the QR code to join the group or verify contact.
 ///

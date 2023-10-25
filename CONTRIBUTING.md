@@ -76,6 +76,29 @@ If you have multiple changes in one PR, create multiple conventional commits, an
 [Conventional Commits]: https://www.conventionalcommits.org/
 [git-cliff]: https://git-cliff.org/
 
+### Errors
+
+Delta Chat core mostly uses [`anyhow`](https://docs.rs/anyhow/) errors.
+When using [`Context`](https://docs.rs/anyhow/latest/anyhow/trait.Context.html),
+capitalize it but do not add a full stop as the contexts will be separated by `:`.
+For example:
+```
+.with_context(|| format!("Unable to trash message {msg_id}"))
+```
+
+### Logging
+
+For logging, use `info!`, `warn!` and `error!` macros.
+Log messages should be capitalized and have a full stop in the end. For example:
+```
+info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
+```
+
+Format anyhow errors with `{:#}` to print all the contexts like this:
+```
+error!(context, "Failed to set selfavatar timestamp: {err:#}.");
+```
+
 ### Reviewing
 
 Once a PR has an approval and passes CI, it can be merged.

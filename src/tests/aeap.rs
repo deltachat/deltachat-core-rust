@@ -8,10 +8,10 @@ use crate::contact;
 use crate::contact::Contact;
 use crate::contact::ContactId;
 use crate::message::Message;
-use crate::peerstate;
 use crate::peerstate::Peerstate;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
+use crate::test_utils::mark_as_verified;
 use crate::test_utils::TestContext;
 use crate::test_utils::TestContextManager;
 
@@ -134,11 +134,11 @@ async fn check_aeap_transition(
         let fiona = tcm.fiona().await;
 
         tcm.send_recv_accept(&fiona, &bob, "Hi").await;
-        tcm.send_recv_accept(&bob, &fiona, "Hi back").await;
+        tcm.send_recv(&bob, &fiona, "Hi back").await;
     }
 
     tcm.send_recv_accept(&alice, &bob, "Hi").await;
-    tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+    tcm.send_recv(&bob, &alice, "Hi back").await;
 
     if verified {
         mark_as_verified(&alice, &bob).await;
@@ -327,19 +327,6 @@ async fn check_no_transition_done(groups: &[ChatId], old_alice_addr: &str, bob: 
     }
 }
 
-async fn mark_as_verified(this: &TestContext, other: &TestContext) {
-    let other_addr = other.get_primary_self_addr().await.unwrap();
-    let mut peerstate = peerstate::Peerstate::from_addr(this, &other_addr)
-        .await
-        .unwrap()
-        .unwrap();
-
-    peerstate.verified_key = peerstate.public_key.clone();
-    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
-
-    peerstate.save_to_db(&this.sql).await.unwrap();
-}
-
 async fn get_last_info_msg(t: &TestContext, chat_id: ChatId) -> Option<Message> {
     let msgs = chat::get_chat_msgs_ex(
         &t.ctx,
@@ -368,7 +355,7 @@ async fn test_aeap_replay_attack() -> Result<()> {
     let bob = tcm.bob().await;
 
     tcm.send_recv_accept(&alice, &bob, "Hi").await;
-    tcm.send_recv_accept(&bob, &alice, "Hi back").await;
+    tcm.send_recv(&bob, &alice, "Hi back").await;
 
     let group =
         chat::create_group_chat(&bob, chat::ProtectionStatus::Unprotected, "Group 0").await?;

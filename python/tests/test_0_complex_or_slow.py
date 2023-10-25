@@ -137,6 +137,7 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     lp.sec("ac2: read member added message")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.is_encrypted()
+    assert msg.is_system_message()
     assert "added" in msg.text.lower()
 
     lp.sec("ac1: send message")
@@ -182,8 +183,9 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
 
     lp.sec("ac2: send message and let ac3 read it")
     chat2.send_text("hi")
-    # Skip system message about added member
-    ac3._evtracker.wait_next_incoming_message()
+    # System message about the added member.
+    msg = ac3._evtracker.wait_next_incoming_message()
+    assert msg.is_system_message()
     msg = ac3._evtracker.wait_next_incoming_message()
     assert msg.text == "hi"
     assert msg.is_encrypted()
@@ -524,7 +526,8 @@ def test_see_new_verified_member_after_going_online(acfactory, tmp_path, lp):
     lp.sec("ac2: sending message")
     # Message can be sent only after a receipt of "vg-member-added" message. Just wait for
     # "Member Me (<addr>) added by <addr>." message.
-    ac2._evtracker.wait_next_incoming_message()
+    msg_in = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in.is_system_message()
     msg_out = chat2.send_text("hello")
 
     lp.sec("ac1: receiving message")
@@ -633,7 +636,7 @@ def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
     ac2_offl.start_io()
     msg_in = ac2_offl._evtracker.wait_next_incoming_message()
     assert not msg_in.is_system_message()
-    assert msg_in.text.startswith("[Sender of this message is not verified:")
+    assert msg_in.text.startswith("[The message was sent with non-verified encryption")
     ac2_offl_ac1_contact = msg_in.get_sender_contact()
     assert ac2_offl_ac1_contact.addr == ac1.get_config("addr")
     assert not ac2_offl_ac1_contact.is_verified()

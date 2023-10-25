@@ -17,7 +17,7 @@ use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -448,7 +448,7 @@ async fn send_handshake_message(
     };
 
     // Sends our own fingerprint in the Secure-Join-Fingerprint header.
-    let bob_fp = SignedPublicKey::load_self(context).await?.fingerprint();
+    let bob_fp = load_self_public_key(context).await?.fingerprint();
     msg.param.set(Param::Arg3, bob_fp.hex());
 
     // Sends the grpid in the Secure-Join-Group header.

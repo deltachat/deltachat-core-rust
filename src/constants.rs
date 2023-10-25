@@ -125,7 +125,6 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 /// Chat type.
 #[derive(
     Debug,
-    Default,
     Display,
     Clone,
     Copy,
@@ -141,10 +140,6 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 )]
 #[repr(u32)]
 pub enum Chattype {
-    /// Undefined chat type.
-    #[default]
-    Undefined = 0,
-
     /// 1:1 chat.
     Single = 100,
 
@@ -223,8 +218,6 @@ mod tests {
     #[test]
     fn test_chattype_values() {
         // values may be written to disk and must not change
-        assert_eq!(Chattype::Undefined, Chattype::default());
-        assert_eq!(Chattype::Undefined, Chattype::from_i32(0).unwrap());
         assert_eq!(Chattype::Single, Chattype::from_i32(100).unwrap());
         assert_eq!(Chattype::Group, Chattype::from_i32(120).unwrap());
         assert_eq!(Chattype::Mailinglist, Chattype::from_i32(140).unwrap());

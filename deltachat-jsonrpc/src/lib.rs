@@ -13,7 +13,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn basic_json_rpc_functionality() -> anyhow::Result<()> {
         let tmp_dir = TempDir::new().unwrap().path().into();
-        let accounts = Accounts::new(tmp_dir).await?;
+        let writable = true;
+        let accounts = Accounts::new(tmp_dir, writable).await?;
         let api = CommandApi::new(accounts);
 
         let (sender, mut receiver) = unbounded::<String>();
@@ -54,7 +55,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_batch_set_config() -> anyhow::Result<()> {
         let tmp_dir = TempDir::new().unwrap().path().into();
-        let accounts = Accounts::new(tmp_dir).await?;
+        let writable = true;
+        let accounts = Accounts::new(tmp_dir, writable).await?;
         let api = CommandApi::new(accounts);
 
         let (sender, mut receiver) = unbounded::<String>();

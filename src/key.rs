@@ -3,11 +3,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Cursor;
-use std::pin::Pin;
 
 use anyhow::{ensure, Context as _, Result};
 use base64::Engine as _;
-use futures::Future;
 use num_traits::FromPrimitive;
 use pgp::composed::Deserializable;
 pub use pgp::composed::{SignedPublicKey, SignedSecretKey};
@@ -18,8 +16,7 @@ use tokio::runtime::Handle;
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
-// Re-export key types
-pub use crate::pgp::KeyPair;
+use crate::pgp::KeyPair;
 use crate::tools::{time, EmailAddress};
 
 /// Convenience trait for working with keys.
@@ -27,7 +24,7 @@ use crate::tools::{time, EmailAddress};
 /// This trait is implemented for rPGP's [SignedPublicKey] and
 /// [SignedSecretKey] types and makes working with them a little
 /// easier in the deltachat world.
-pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
+pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     /// Create a key from some bytes.
     fn from_slice(bytes: &[u8]) -> Result<Self> {
         Ok(<Self as Deserializable>::from_bytes(Cursor::new(bytes))?)
@@ -49,11 +46,6 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
         let bytes = data.as_bytes();
         Self::from_armor_single(Cursor::new(bytes)).context("rPGP error")
     }
-
-    /// Load the users' default key from the database.
-    fn load_self<'a>(
-        context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>>;
 
     /// Serialise the key as bytes.
     fn to_bytes(&self) -> Vec<u8> {
@@ -85,38 +77,55 @@ pub trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
     }
 }
 
-impl DcKey for SignedPublicKey {
-    fn load_self<'a>(
-        context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>> {
-        Box::pin(async move {
-            let addr = context.get_primary_self_addr().await?;
-            match context
-                .sql
-                .query_row_optional(
-                    r#"
-                    SELECT public_key
-                      FROM keypairs
-                     WHERE addr=?
-                       AND is_default=1;
-                    "#,
-                    (addr,),
-                    |row| {
-                        let bytes: Vec<u8> = row.get(0)?;
-                        Ok(bytes)
-                    },
-                )
-                .await?
-            {
-                Some(bytes) => Self::from_slice(&bytes),
-                None => {
-                    let keypair = generate_keypair(context).await?;
-                    Ok(keypair.public)
-                }
-            }
-        })
+pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPublicKey> {
+    match context
+        .sql
+        .query_row_optional(
+            r#"SELECT public_key
+               FROM keypairs
+               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1"#,
+            (),
+            |row| {
+                let bytes: Vec<u8> = row.get(0)?;
+                Ok(bytes)
+            },
+        )
+        .await?
+    {
+        Some(bytes) => SignedPublicKey::from_slice(&bytes),
+        None => {
+            let keypair = generate_keypair(context).await?;
+            Ok(keypair.public)
+        }
     }
+}
 
+pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecretKey> {
+    match context
+        .sql
+        .query_row_optional(
+            r#"SELECT private_key
+               FROM keypairs
+               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               AND is_default=1"#,
+            (),
+            |row| {
+                let bytes: Vec<u8> = row.get(0)?;
+                Ok(bytes)
+            },
+        )
+        .await?
+    {
+        Some(bytes) => SignedSecretKey::from_slice(&bytes),
+        None => {
+            let keypair = generate_keypair(context).await?;
+            Ok(keypair.secret)
+        }
+    }
+}
+
+impl DcKey for SignedPublicKey {
     fn to_asc(&self, header: Option<(&str, &str)>) -> String {
         // Not using .to_armored_string() to make clear *why* it is
         // safe to ignore this error.
@@ -135,36 +144,6 @@ impl DcKey for SignedPublicKey {
 }
 
 impl DcKey for SignedSecretKey {
-    fn load_self<'a>(
-        context: &'a Context,
-    ) -> Pin<Box<dyn Future<Output = Result<Self>> + 'a + Send>> {
-        Box::pin(async move {
-            match context
-                .sql
-                .query_row_optional(
-                    r#"
-                    SELECT private_key
-                      FROM keypairs
-                     WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
-                       AND is_default=1;
-                    "#,
-                    (),
-                    |row| {
-                        let bytes: Vec<u8> = row.get(0)?;
-                        Ok(bytes)
-                    },
-                )
-                .await?
-            {
-                Some(bytes) => Self::from_slice(&bytes),
-                None => {
-                    let keypair = generate_keypair(context).await?;
-                    Ok(keypair.secret)
-                }
-            }
-        })
-    }
-
     fn to_asc(&self, header: Option<(&str, &str)>) -> String {
         // Not using .to_armored_string() to make clear *why* it is
         // safe to do these unwraps.
@@ -185,7 +164,7 @@ impl DcKey for SignedSecretKey {
 /// Deltachat extension trait for secret keys.
 ///
 /// Provides some convenience wrappers only applicable to [SignedSecretKey].
-pub trait DcSecretKey {
+pub(crate) trait DcSecretKey {
     /// Create a public key from a private one.
     fn split_public_key(&self) -> Result<SignedPublicKey>;
 }
@@ -325,6 +304,24 @@ pub async fn store_self_keypair(
         })
         .await?;
 
+    Ok(())
+}
+
+/// Saves a keypair as the default keys.
+///
+/// This API is used for testing purposes
+/// to avoid generating the key in tests.
+/// Use import/export APIs instead.
+pub async fn preconfigure_keypair(context: &Context, addr: &str, secret_data: &str) -> Result<()> {
+    let addr = EmailAddress::new(addr)?;
+    let secret = SignedSecretKey::from_asc(secret_data)?.0;
+    let public = secret.split_public_key()?;
+    let keypair = KeyPair {
+        addr,
+        public,
+        secret,
+    };
+    store_self_keypair(context, &keypair, KeyPairUse::Default).await?;
     Ok(())
 }
 
@@ -522,9 +519,9 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     async fn test_load_self_existing() {
         let alice = alice_keypair();
         let t = TestContext::new_alice().await;
-        let pubkey = SignedPublicKey::load_self(&t).await.unwrap();
+        let pubkey = load_self_public_key(&t).await.unwrap();
         assert_eq!(alice.public, pubkey);
-        let seckey = SignedSecretKey::load_self(&t).await.unwrap();
+        let seckey = load_self_secret_key(&t).await.unwrap();
         assert_eq!(alice.secret, seckey);
     }
 
@@ -534,7 +531,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
             .await
             .unwrap();
-        let key = SignedPublicKey::load_self(&t).await;
+        let key = load_self_public_key(&t).await;
         assert!(key.is_ok());
     }
 
@@ -544,7 +541,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         t.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
             .await
             .unwrap();
-        let key = SignedSecretKey::load_self(&t).await;
+        let key = load_self_secret_key(&t).await;
         assert!(key.is_ok());
     }
 
@@ -561,7 +558,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             thread::spawn(move || {
                 tokio::runtime::Runtime::new()
                     .unwrap()
-                    .block_on(SignedPublicKey::load_self(&ctx))
+                    .block_on(load_self_public_key(&ctx))
             })
         };
         let thr1 = {
@@ -569,7 +566,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
             thread::spawn(move || {
                 tokio::runtime::Runtime::new()
                     .unwrap()
-                    .block_on(SignedPublicKey::load_self(&ctx))
+                    .block_on(load_self_public_key(&ctx))
             })
         };
         let res0 = thr0.join().unwrap();

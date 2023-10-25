@@ -6,22 +6,22 @@ import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
 type Events = { ALL: (accountId: number, event: EventType) => void } & {
-  [Property in EventType["type"]]: (
+  [Property in EventType["kind"]]: (
     accountId: number,
-    event: Extract<EventType, { type: Property }>
+    event: Extract<EventType, { kind: Property }>
   ) => void;
 };
 
 type ContextEvents = { ALL: (event: EventType) => void } & {
-  [Property in EventType["type"]]: (
-    event: Extract<EventType, { type: Property }>
+  [Property in EventType["kind"]]: (
+    event: Extract<EventType, { kind: Property }>
   ) => void;
 };
 
 export type DcEvent = EventType;
-export type DcEventType<T extends EventType["type"]> = Extract<
+export type DcEventType<T extends EventType["kind"]> = Extract<
   EventType,
-  { type: T }
+  { kind: T }
 >;
 
 export class BaseDeltaChat<
@@ -46,12 +46,12 @@ export class BaseDeltaChat<
     while (true) {
       const event = await this.rpc.getNextEvent();
       //@ts-ignore
-      this.emit(event.event.type, event.contextId, event.event);
+      this.emit(event.event.kind, event.contextId, event.event);
       this.emit("ALL", event.contextId, event.event);
 
       if (this.contextEmitters[event.contextId]) {
         this.contextEmitters[event.contextId].emit(
-          event.event.type,
+          event.event.kind,
           //@ts-ignore
           event.event as any
         );

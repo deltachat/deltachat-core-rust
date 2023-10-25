@@ -19,7 +19,7 @@ use super::reactions::JSONRPCReactions;
 use super::webxdc::WebxdcMessageInfo;
 
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase", tag = "variant")]
+#[serde(rename_all = "camelCase", tag = "kind")]
 pub enum MessageLoadResult {
     Message(MessageObject),
     LoadingError { error: String },

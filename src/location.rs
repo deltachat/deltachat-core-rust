@@ -733,7 +733,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
 
             next_event = next_event
                 .into_iter()
-                .chain(u64::try_from(locations_send_until - now).into_iter())
+                .chain(u64::try_from(locations_send_until - now))
                 .min();
 
             if has_locations {
@@ -757,7 +757,7 @@ async fn maybe_send_locations(context: &Context) -> Result<Option<u64>> {
                     );
                     next_event = next_event
                         .into_iter()
-                        .chain(u64::try_from(locations_last_sent + 61 - now).into_iter())
+                        .chain(u64::try_from(locations_last_sent + 61 - now))
                         .min();
                 }
             } else {

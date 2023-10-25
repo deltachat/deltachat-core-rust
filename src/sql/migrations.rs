@@ -730,6 +730,7 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+
     if dbversion < 102 {
         sql.execute_migration(
             "CREATE TABLE download (

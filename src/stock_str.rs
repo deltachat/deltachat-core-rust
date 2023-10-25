@@ -393,18 +393,6 @@ pub enum StockMessage {
     #[strum(props(fallback = "Message deletion timer is set to %1$s weeks by %2$s."))]
     MsgEphemeralTimerWeeksBy = 157,
 
-    #[strum(props(fallback = "You enabled chat protection."))]
-    YouEnabledProtection = 158,
-
-    #[strum(props(fallback = "Chat protection enabled by %1$s."))]
-    ProtectionEnabledBy = 159,
-
-    #[strum(props(fallback = "You disabled chat protection."))]
-    YouDisabledProtection = 160,
-
-    #[strum(props(fallback = "Chat protection disabled by %1$s."))]
-    ProtectionDisabledBy = 161,
-
     #[strum(props(fallback = "Scan to set up second device for %1$s"))]
     BackupTransferQr = 162,
 
@@ -419,6 +407,12 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "I left the group."))]
     MsgILeftGroup = 166,
+
+    #[strum(props(fallback = "Messages are guaranteed to be end-to-end encrypted from now on."))]
+    ChatProtectionEnabled = 170,
+
+    #[strum(props(fallback = "%1$s sent a message from another device."))]
+    ChatProtectionDisabled = 171,
 }
 
 impl StockMessage {
@@ -515,11 +509,19 @@ trait StockStringMods: AsRef<str> + Sized {
 }
 
 impl ContactId {
-    /// Get contact name for stock string.
-    async fn get_stock_name(self, context: &Context) -> String {
+    /// Get contact name and address for stock string, e.g. `Bob (bob@example.net)`
+    async fn get_stock_name_n_addr(self, context: &Context) -> String {
         Contact::get_by_id(context, self)
             .await
             .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_else(|_| self.to_string())
+    }
+
+    /// Get contact name, e.g. `Bob`, or `bob@exmple.net` if no name is set.
+    async fn get_stock_name(self, context: &Context) -> String {
+        Contact::get_by_id(context, self)
+            .await
+            .map(|contact| contact.get_display_name().to_string())
             .unwrap_or_else(|_| self.to_string())
     }
 }
@@ -583,7 +585,7 @@ pub(crate) async fn msg_grp_name(
             .await
             .replace1(from_group)
             .replace2(to_group)
-            .replace3(&by_contact.get_stock_name(context).await)
+            .replace3(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -593,7 +595,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgChangedBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -640,7 +642,7 @@ pub(crate) async fn msg_add_member_local(
         translated(context, StockMessage::MsgAddMemberBy)
             .await
             .replace1(whom)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -687,7 +689,7 @@ pub(crate) async fn msg_del_member_local(
         translated(context, StockMessage::MsgDelMemberBy)
             .await
             .replace1(whom)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -703,7 +705,7 @@ pub(crate) async fn msg_group_left_local(context: &Context, by_contact: ContactI
     } else {
         translated(context, StockMessage::MsgGroupLeftBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -756,7 +758,7 @@ pub(crate) async fn msg_grp_img_deleted(context: &Context, by_contact: ContactId
     } else {
         translated(context, StockMessage::MsgGrpImgDeletedBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -782,13 +784,9 @@ pub(crate) async fn secure_join_started(
 
 /// Stock string: `%1$s replied, waiting for being added to the group…`.
 pub(crate) async fn secure_join_replies(context: &Context, contact_id: ContactId) -> String {
-    if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-        translated(context, StockMessage::SecureJoinReplies)
-            .await
-            .replace1(contact.get_display_name())
-    } else {
-        format!("secure_join_replies: unknown contact {contact_id}")
-    }
+    translated(context, StockMessage::SecureJoinReplies)
+        .await
+        .replace1(&contact_id.get_stock_name(context).await)
 }
 
 /// Stock string: `Scan to chat with %1$s`.
@@ -881,7 +879,7 @@ pub(crate) async fn msg_location_enabled_by(context: &Context, contact: ContactI
     } else {
         translated(context, StockMessage::MsgLocationEnabledBy)
             .await
-            .replace1(&contact.get_stock_name(context).await)
+            .replace1(&contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -950,7 +948,7 @@ pub(crate) async fn msg_ephemeral_timer_disabled(
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDisabledBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -968,7 +966,7 @@ pub(crate) async fn msg_ephemeral_timer_enabled(
         translated(context, StockMessage::MsgEphemeralTimerEnabledBy)
             .await
             .replace1(timer)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -979,7 +977,7 @@ pub(crate) async fn msg_ephemeral_timer_minute(context: &Context, by_contact: Co
     } else {
         translated(context, StockMessage::MsgEphemeralTimerMinuteBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -990,7 +988,7 @@ pub(crate) async fn msg_ephemeral_timer_hour(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerHourBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1001,7 +999,7 @@ pub(crate) async fn msg_ephemeral_timer_day(context: &Context, by_contact: Conta
     } else {
         translated(context, StockMessage::MsgEphemeralTimerDayBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1012,7 +1010,7 @@ pub(crate) async fn msg_ephemeral_timer_week(context: &Context, by_contact: Cont
     } else {
         translated(context, StockMessage::MsgEphemeralTimerWeekBy)
             .await
-            .replace1(&by_contact.get_stock_name(context).await)
+            .replace1(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1053,26 +1051,16 @@ pub(crate) async fn error_no_network(context: &Context) -> String {
     translated(context, StockMessage::ErrorNoNetwork).await
 }
 
-/// Stock string: `Chat protection enabled.`.
-pub(crate) async fn protection_enabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouEnabledProtection).await
-    } else {
-        translated(context, StockMessage::ProtectionEnabledBy)
-            .await
-            .replace1(&by_contact.get_stock_name(context).await)
-    }
+/// Stock string: `Messages are guaranteed to be end-to-end encrypted from now on.`
+pub(crate) async fn chat_protection_enabled(context: &Context) -> String {
+    translated(context, StockMessage::ChatProtectionEnabled).await
 }
 
-/// Stock string: `Chat protection disabled.`.
-pub(crate) async fn protection_disabled(context: &Context, by_contact: ContactId) -> String {
-    if by_contact == ContactId::SELF {
-        translated(context, StockMessage::YouDisabledProtection).await
-    } else {
-        translated(context, StockMessage::ProtectionDisabledBy)
-            .await
-            .replace1(&by_contact.get_stock_name(context).await)
-    }
+/// Stock string: `%1$s sent a message from another device.`
+pub(crate) async fn chat_protection_disabled(context: &Context, contact_id: ContactId) -> String {
+    translated(context, StockMessage::ChatProtectionDisabled)
+        .await
+        .replace1(&contact_id.get_stock_name(context).await)
 }
 
 /// Stock string: `Reply`.
@@ -1104,7 +1092,7 @@ pub(crate) async fn msg_ephemeral_timer_minutes(
         translated(context, StockMessage::MsgEphemeralTimerMinutesBy)
             .await
             .replace1(minutes)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1122,7 +1110,7 @@ pub(crate) async fn msg_ephemeral_timer_hours(
         translated(context, StockMessage::MsgEphemeralTimerHoursBy)
             .await
             .replace1(hours)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1140,7 +1128,7 @@ pub(crate) async fn msg_ephemeral_timer_days(
         translated(context, StockMessage::MsgEphemeralTimerDaysBy)
             .await
             .replace1(days)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1158,7 +1146,7 @@ pub(crate) async fn msg_ephemeral_timer_weeks(
         translated(context, StockMessage::MsgEphemeralTimerWeeksBy)
             .await
             .replace1(weeks)
-            .replace2(&by_contact.get_stock_name(context).await)
+            .replace2(&by_contact.get_stock_name_n_addr(context).await)
     }
 }
 
@@ -1332,11 +1320,19 @@ impl Context {
     pub(crate) async fn stock_protection_msg(
         &self,
         protect: ProtectionStatus,
-        from_id: ContactId,
+        contact_id: Option<ContactId>,
     ) -> String {
         match protect {
-            ProtectionStatus::Unprotected => protection_enabled(self, from_id).await,
-            ProtectionStatus::Protected => protection_disabled(self, from_id).await,
+            ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {
+                if let Some(contact_id) = contact_id {
+                    chat_protection_disabled(self, contact_id).await
+                } else {
+                    // In a group chat, it's not possible to downgrade verification.
+                    // In a 1:1 chat, the `contact_id` always has to be provided.
+                    "[Error] No contact_id given".to_string()
+                }
+            }
+            ProtectionStatus::Protected => chat_protection_enabled(self).await,
         }
     }
 

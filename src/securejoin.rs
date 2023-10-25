@@ -6,15 +6,15 @@ use anyhow::{bail, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::{self, Chat, ChatId, ChatIdBlocked};
+use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::Blocked;
+use crate::constants::{Blocked, Chattype};
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey, Fingerprint};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -130,7 +130,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
 }
 
 async fn get_self_fingerprint(context: &Context) -> Option<Fingerprint> {
-    match SignedPublicKey::load_self(context).await {
+    match load_self_public_key(context).await {
         Ok(key) => Some(key.fingerprint()),
         Err(_) => {
             warn!(context, "get_self_fingerprint(): failed to load key");
@@ -701,6 +701,22 @@ async fn secure_connection_established(
     let contact = Contact::get_by_id(context, contact_id).await?;
     let msg = stock_str::contact_verified(context, &contact).await;
     chat::add_info_msg(context, chat_id, &msg, time()).await?;
+    if context
+        .get_config_bool(Config::VerifiedOneOnOneChats)
+        .await?
+    {
+        let chat = Chat::load_from_db(context, chat_id).await?;
+        if chat.typ == Chattype::Single {
+            chat_id
+                .set_protection(
+                    context,
+                    ProtectionStatus::Protected,
+                    time(),
+                    Some(contact_id),
+                )
+                .await?;
+        }
+    }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }
@@ -778,11 +794,12 @@ mod tests {
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
-    use crate::constants::Chattype;
     use crate::contact::ContactAddress;
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
+    use crate::stock_str::chat_protection_enabled;
+    use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::EmailAddress;
 
@@ -791,6 +808,14 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
+        alice
+            .set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+        bob.set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+
         assert_eq!(
             Chatlist::try_load(&alice, 0, None, None)
                 .await
@@ -874,10 +899,7 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx)
-            .await
-            .unwrap()
-            .fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await.unwrap().fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -921,7 +943,7 @@ mod tests {
         // Check Alice got the verified message in her 1:1 chat.
         {
             let chat = alice.create_chat(&bob).await;
-            let msg_id = chat::get_chat_msgs(&alice.ctx, chat.get_id())
+            let msg_ids: Vec<_> = chat::get_chat_msgs(&alice.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -929,11 +951,17 @@ mod tests {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
                     _ => None,
                 })
-                .max()
-                .expect("No messages in Alice's 1:1 chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            assert!(msg.get_text().contains("bob@example.net verified"));
+                .collect();
+            assert_eq!(msg_ids.len(), 2);
+
+            let msg0 = Message::load_from_db(&alice.ctx, msg_ids[0]).await.unwrap();
+            assert!(msg0.is_info());
+            assert!(msg0.get_text().contains("bob@example.net verified"));
+
+            let msg1 = Message::load_from_db(&alice.ctx, msg_ids[1]).await.unwrap();
+            assert!(msg1.is_info());
+            let expected_text = chat_protection_enabled(&alice).await;
+            assert_eq!(msg1.get_text(), expected_text);
         }
 
         // Check Alice sent the right message to Bob.
@@ -969,7 +997,7 @@ mod tests {
         // Check Bob got the verified message in his 1:1 chat.
         {
             let chat = bob.create_chat(&alice).await;
-            let msg_id = chat::get_chat_msgs(&bob.ctx, chat.get_id())
+            let msg_ids: Vec<_> = chat::get_chat_msgs(&bob.ctx, chat.get_id())
                 .await
                 .unwrap()
                 .into_iter()
@@ -977,11 +1005,16 @@ mod tests {
                     chat::ChatItem::Message { msg_id } => Some(msg_id),
                     _ => None,
                 })
-                .max()
-                .expect("No messages in Bob's 1:1 chat");
-            let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-            assert!(msg.is_info());
-            assert!(msg.get_text().contains("alice@example.org verified"));
+                .collect();
+
+            let msg0 = Message::load_from_db(&bob.ctx, msg_ids[0]).await.unwrap();
+            assert!(msg0.is_info());
+            assert!(msg0.get_text().contains("alice@example.org verified"));
+
+            let msg1 = Message::load_from_db(&bob.ctx, msg_ids[1]).await.unwrap();
+            assert!(msg1.is_info());
+            let expected_text = chat_protection_enabled(&bob).await;
+            assert_eq!(msg1.get_text(), expected_text);
         }
 
         // Check Bob sent the final message
@@ -1008,7 +1041,7 @@ mod tests {
         let bob = tcm.bob().await;
 
         // Ensure Bob knows Alice_FP
-        let alice_pubkey = SignedPublicKey::load_self(&alice.ctx).await?;
+        let alice_pubkey = load_self_public_key(&alice.ctx).await?;
         let peerstate = Peerstate {
             addr: "alice@example.org".into(),
             last_seen: 10,
@@ -1062,7 +1095,7 @@ mod tests {
             "vc-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1233,7 +1266,7 @@ mod tests {
             "vg-request-with-auth"
         );
         assert!(msg.get_header(HeaderDef::SecureJoinAuth).is_some());
-        let bob_fp = SignedPublicKey::load_self(&bob.ctx).await?.fingerprint();
+        let bob_fp = load_self_public_key(&bob.ctx).await?.fingerprint();
         assert_eq!(
             *msg.get_header(HeaderDef::SecureJoinFingerprint).unwrap(),
             bob_fp.hex()
@@ -1269,26 +1302,17 @@ mod tests {
             // Now Alice's chat with Bob should still be hidden, the verified message should
             // appear in the group chat.
 
-            let chat = alice
-                .get_chat(&bob)
-                .await
-                .expect("Alice has no 1:1 chat with bob");
+            let chat = alice.get_chat(&bob).await;
             assert_eq!(
                 chat.blocked,
                 Blocked::Yes,
                 "Alice's 1:1 chat with Bob is not hidden"
             );
-            let msg_id = chat::get_chat_msgs(&alice.ctx, alice_chatid)
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .min()
-                .expect("No messages in Alice's group chat");
-            let msg = Message::load_from_db(&alice.ctx, msg_id).await.unwrap();
+            // There should be 3 messages in the chat:
+            // - The ChatProtectionEnabled message
+            // - bob@example.net verified
+            // - You added member bob@example.net
+            let msg = get_chat_msg(&alice, alice_chatid, 1, 3).await;
             assert!(msg.is_info());
             assert!(msg.get_text().contains("bob@example.net verified"));
         }
@@ -1313,10 +1337,7 @@ mod tests {
                 contact_alice.is_verified(&bob.ctx).await?,
                 VerifiedStatus::BidirectVerified
             );
-            let chat = bob
-                .get_chat(&alice)
-                .await
-                .expect("Bob has no 1:1 chat with Alice");
+            let chat = bob.get_chat(&alice).await;
             assert_eq!(
                 chat.blocked,
                 Blocked::Yes,

@@ -98,6 +98,8 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Tests
+        env:
+          RUST_BACKTRACE: 1
         run: cargo test --workspace
 
       - name: Test cargo vendor

@@ -15,7 +15,7 @@ use super::color_int_to_hex_string;
 use super::message::MessageViewtype;
 
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "kind")]
 pub enum ChatListItemFetchResult {
     #[serde(rename_all = "camelCase")]
     ChatListItem {

@@ -29,8 +29,8 @@ describe("online tests", function () {
     serverHandle = await startServer();
     dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout, true);
 
-    dc.on("ALL", (contextId, { type }) => {
-      if (type !== "Info") console.log(contextId, type);
+    dc.on("ALL", (contextId, { kind }) => {
+      if (kind !== "Info") console.log(contextId, kind);
     });
 
     account1 = await createTempUser(process.env.DCC_NEW_TMP_EMAIL);
@@ -177,12 +177,12 @@ describe("online tests", function () {
   });
 });
 
-async function waitForEvent<T extends DcEvent["type"]>(
+async function waitForEvent<T extends DcEvent["kind"]>(
   dc: DeltaChat,
   eventType: T,
   accountId: number,
   timeout: number = EVENT_TIMEOUT
-): Promise<Extract<DcEvent, { type: T }>> {
+): Promise<Extract<DcEvent, { kind: T }>> {
   return new Promise((resolve, reject) => {
     const rejectTimeout = setTimeout(
       () => reject(new Error("Timeout reached before event came in")),

@@ -1,4 +1,6 @@
 import concurrent.futures
+import json
+import subprocess
 from unittest.mock import MagicMock
 
 import pytest
@@ -42,7 +44,7 @@ def test_acfactory(acfactory) -> None:
     account = acfactory.new_configured_account()
     while True:
         event = account.wait_for_event()
-        if event.type == EventType.CONFIGURE_PROGRESS:
+        if event.kind == EventType.CONFIGURE_PROGRESS:
             assert event.progress != 0  # Progress 0 indicates error.
             if event.progress == 1000:  # Success
                 break
@@ -71,7 +73,7 @@ def test_account(acfactory) -> None:
 
     while True:
         event = bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -140,7 +142,7 @@ def test_chat(acfactory) -> None:
 
     while True:
         event = bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -224,7 +226,7 @@ def test_message(acfactory) -> None:
 
     while True:
         event = bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             chat_id = event.chat_id
             msg_id = event.msg_id
             break
@@ -263,7 +265,7 @@ def test_is_bot(acfactory) -> None:
 
     while True:
         event = bob.wait_for_event()
-        if event.type == EventType.INCOMING_MSG:
+        if event.kind == EventType.INCOMING_MSG:
             msg_id = event.msg_id
             message = bob.get_message_by_id(msg_id)
             snapshot = message.get_snapshot()
@@ -346,3 +348,13 @@ def test_import_export(acfactory, tmp_path) -> None:
     files = list(tmp_path.glob("*.tar"))
     alice2 = acfactory.get_unconfigured_account()
     alice2.import_backup(files[0])
+
+    assert alice2.manager.get_system_info()
+
+
+def test_openrpc_command_line() -> None:
+    """Test that "deltachat-rpc-server --openrpc" command returns an OpenRPC specification."""
+    out = subprocess.run(["deltachat-rpc-server", "--openrpc"], capture_output=True, check=True).stdout
+    openrpc = json.loads(out)
+    assert "openrpc" in openrpc
+    assert "methods" in openrpc

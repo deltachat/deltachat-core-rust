@@ -10,6 +10,7 @@ use deltachat::constants::DC_VERSION_STR;
 use deltachat_jsonrpc::api::{Accounts, CommandApi};
 use futures_lite::stream::StreamExt;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use yerpc::RpcServer as _;
 
 #[cfg(target_family = "unix")]
 use tokio::signal::unix as signal_unix;
@@ -39,6 +40,12 @@ async fn main_impl() -> Result<()> {
             }
             eprintln!("{}", &*DC_VERSION_STR);
             return Ok(());
+        } else if first_arg.to_str() == Some("--openrpc") {
+            if let Some(arg) = args.next() {
+                return Err(anyhow!("Unrecognized argument {:?}", arg));
+            }
+            println!("{}", CommandApi::openrpc_specification()?);
+            return Ok(());
         } else {
             return Err(anyhow!("Unrecognized option {:?}", first_arg));
         }
@@ -56,7 +63,8 @@ async fn main_impl() -> Result<()> {
 
     let path = std::env::var("DC_ACCOUNTS_PATH").unwrap_or_else(|_| "accounts".to_string());
     log::info!("Starting with accounts directory `{}`.", path);
-    let accounts = Accounts::new(PathBuf::from(&path)).await?;
+    let writable = true;
+    let accounts = Accounts::new(PathBuf::from(&path), writable).await?;
 
     log::info!("Creating JSON-RPC API.");
     let accounts = Arc::new(RwLock::new(accounts));

@@ -104,10 +104,10 @@ class Client:
         self._process_messages()  # Process old messages.
         while True:
             event = self.account.wait_for_event()
-            event["type"] = EventType(event.type)
+            event["kind"] = EventType(event.kind)
             event["account"] = self.account
             self._on_event(event)
-            if event.type == EventType.INCOMING_MSG:
+            if event.kind == EventType.INCOMING_MSG:
                 self._process_messages()
 
             stop = func(event)

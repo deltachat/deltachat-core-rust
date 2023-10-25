@@ -17,12 +17,12 @@ use lettre_email::mime::{self, Mime};
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
 
+use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::message::{Message, MsgId};
+use crate::message::{self, Message, MsgId};
 use crate::mimeparser::parse_message_id;
 use crate::param::Param::SendHtml;
 use crate::plaintext::PlainText;
-use crate::{context::Context, message};
 
 impl Message {
     /// Check if the message can be retrieved as HTML.
