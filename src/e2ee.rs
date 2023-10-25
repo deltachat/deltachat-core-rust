@@ -301,8 +301,11 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             gossip_key_fingerprint: Some(pub_key.fingerprint()),
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
-            fingerprint_changed: false,
             verifier: None,
+            secondary_verified_key: None,
+            secondary_verified_key_fingerprint: None,
+            secondary_verifier: None,
+            fingerprint_changed: false,
         };
         vec![(Some(peerstate), addr)]
     }
