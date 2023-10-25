@@ -192,8 +192,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81953c529336010edd6d8e358f886d9581267795c61b19475b71314bffa46d35"
 dependencies = [
  "concurrent-queue",
- "event-listener",
+ "event-listener 2.5.3",
  "futures-core",
+]
+
+[[package]]
+name = "async-channel"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "336d835910fab747186c56586562cb46f42809c2843ef3a84f47509009522838"
+dependencies = [
+ "concurrent-queue",
+ "event-listener 3.0.0",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -215,7 +228,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "936c1b580be4373b48c9c687e0c79285441664398354df28d0860087cac0c069"
 dependencies = [
- "async-channel",
+ "async-channel 1.9.0",
  "base64 0.21.5",
  "bytes",
  "chrono",
@@ -237,7 +250,7 @@ version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479db852db25d9dbf6204e6cb6253698f175c15726470f78af0d918e99d6156e"
 dependencies = [
- "event-listener",
+ "event-listener 2.5.3",
 ]
 
 [[package]]
@@ -1078,7 +1091,7 @@ version = "1.126.1"
 dependencies = [
  "ansi_term",
  "anyhow",
- "async-channel",
+ "async-channel 2.0.0",
  "async-imap",
  "async-native-tls",
  "async-smtp",
@@ -1154,7 +1167,7 @@ name = "deltachat-jsonrpc"
 version = "1.126.1"
 dependencies = [
  "anyhow",
- "async-channel",
+ "async-channel 2.0.0",
  "axum",
  "base64 0.21.5",
  "deltachat",
@@ -1775,6 +1788,27 @@ name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
+
+[[package]]
+name = "event-listener"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29e56284f00d94c1bc7fd3c77027b4623c88c1f53d8d2394c6199f2921dea325"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "event-listener-strategy"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d96b852f1345da36d551b9473fa1e2b1eb5c5195585c6c018118bc92a8d91160"
+dependencies = [
+ "event-listener 3.0.0",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "fallible-iterator"
@@ -4554,7 +4588,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af91f480ee899ab2d9f8435bfdfc14d08a5754bd9d3fef1f1a1c23336aad6c8b"
 dependencies = [
- "async-channel",
+ "async-channel 1.9.0",
  "cfg-if",
  "futures-core",
  "pin-project-lite",
@@ -5690,7 +5724,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b5547af776328f66a5476ea3b7c0789e6fed164eb32d1a2122cfb39ffa505d"
 dependencies = [
  "anyhow",
- "async-channel",
+ "async-channel 1.9.0",
  "async-mutex",
  "async-trait",
  "axum",
