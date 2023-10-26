@@ -724,18 +724,18 @@ mod tests {
 
         let raw = include_bytes!("../test-data/message/wrong-html.eml");
         let expected =
-            "Hop: From: oxbsltgw18.schlund.de; By: mrelayeu.kundenserver.de; Date: Thu, 06 Aug 2020 16:40:31 +0000\n\
-             Hop: From: mout.kundenserver.de; By: dd37930.kasserver.com; Date: Thu, 06 Aug 2020 16:40:32 +0000";
+            "Hop: From: oxbsltgw18.schlund.de; By: mrelayeu.kundenserver.de; Date: Thu, 6 Aug 2020 16:40:31 +0000\n\
+             Hop: From: mout.kundenserver.de; By: dd37930.kasserver.com; Date: Thu, 6 Aug 2020 16:40:32 +0000";
         check_parse_receive_headers(raw, expected);
 
         let raw = include_bytes!("../test-data/message/posteo_ndn.eml");
         let expected =
-            "Hop: By: mout01.posteo.de; Date: Tue, 09 Jun 2020 18:44:22 +0000\n\
-             Hop: From: mout01.posteo.de; By: mx04.posteo.de; Date: Tue, 09 Jun 2020 18:44:22 +0000\n\
-             Hop: From: mx04.posteo.de; By: mailin06.posteo.de; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
-             Hop: From: mailin06.posteo.de; By: proxy02.posteo.de; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
-             Hop: From: proxy02.posteo.de; By: proxy02.posteo.name; Date: Tue, 09 Jun 2020 18:44:23 +0000\n\
-             Hop: From: proxy02.posteo.name; By: dovecot03.posteo.local; Date: Tue, 09 Jun 2020 18:44:24 +0000";
+            "Hop: By: mout01.posteo.de; Date: Tue, 9 Jun 2020 18:44:22 +0000\n\
+             Hop: From: mout01.posteo.de; By: mx04.posteo.de; Date: Tue, 9 Jun 2020 18:44:22 +0000\n\
+             Hop: From: mx04.posteo.de; By: mailin06.posteo.de; Date: Tue, 9 Jun 2020 18:44:23 +0000\n\
+             Hop: From: mailin06.posteo.de; By: proxy02.posteo.de; Date: Tue, 9 Jun 2020 18:44:23 +0000\n\
+             Hop: From: proxy02.posteo.de; By: proxy02.posteo.name; Date: Tue, 9 Jun 2020 18:44:23 +0000\n\
+             Hop: From: proxy02.posteo.name; By: dovecot03.posteo.local; Date: Tue, 9 Jun 2020 18:44:24 +0000";
         check_parse_receive_headers(raw, expected);
     }
 
