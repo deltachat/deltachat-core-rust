@@ -35,6 +35,7 @@ skip = [
      { name = "rand", version = "<0.8" },
      { name = "redox_syscall", version = "0.2.16" },
      { name = "regex-automata", version = "0.1.10" },
+     { name = "ring", version = "0.16.20" },
      { name = "regex-syntax", version = "0.6.29" },
      { name = "sec1", version = "0.3.0" },
      { name = "sha2", version = "<0.10" },
@@ -44,15 +45,12 @@ skip = [
      { name = "spki", version = "0.6.0" },
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
+     { name = "untrusted", version = "0.7.1" },
      { name = "wasi", version = "<0.11" },
-     { name = "windows_aarch64_gnullvm", version = "<0.48" },
      { name = "windows_aarch64_msvc", version = "<0.48" },
      { name = "windows_i686_gnu", version = "<0.48" },
      { name = "windows_i686_msvc", version = "<0.48" },
-     { name = "windows-sys", version = "<0.48" },
-     { name = "windows-targets", version = "<0.48" },
      { name = "windows", version = "0.32.0" },
-     { name = "windows_x86_64_gnullvm", version = "<0.48" },
      { name = "windows_x86_64_gnu", version = "<0.48" },
      { name = "windows_x86_64_msvc", version = "<0.48" },
 ]
@@ -86,5 +84,4 @@ license-files = [
 github = [
        "async-email",
        "deltachat",
-       "quinn-rs",
 ]
