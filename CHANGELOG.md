@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.127.0] - 2023-10-26
+
+### API-Changes
+
+- [**breaking**] `dc_accounts_new` API is changed. Unused `os_name` argument is removed and `writable` argument is added.
+- jsonrpc: Add `resend_messages`.
+- [**breaking**] Remove unused function `is_verified_ex()` ([#4551](https://github.com/deltachat/deltachat-core-rust/pull/4551))
+- [**breaking**] Make `MsgId.delete_from_db()` private.
+- [**breaking**] deltachat-jsonrpc: use `kind` as a tag for all union types
+- json-rpc: Force stickers to be sent as stickers ([#4819](https://github.com/deltachat/deltachat-core-rust/pull/4819)).
+- Add mailto parse api ([#4829](https://github.com/deltachat/deltachat-core-rust/pull/4829)).
+- [**breaking**] Remove unused `DC_STR_PROTECTION_(EN)ABLED` strings
+- [**breaking**] Remove unused `dc_set_chat_protection()`
+- Hide `DcSecretKey` trait from the API.
+- Verified 1:1 chats ([#4315](https://github.com/deltachat/deltachat-core-rust/pull/4315)). Disabled by default, enable with `verified_one_on_one_chats` config.
+
+### CI
+
+- Run Rust tests with `RUST_BACKTRACE` set.
+- Replace `master` branch with `main`.  Run CI only on `main` branch pushes.
+- Test `deltachat-rpc-client` on Windows.
+
+### Documentation
+
+- Document how logs and error messages should be formatted in `CONTRIBUTING.md`.
+- Clarify transitive behaviour of `dc_contact_is_verfified()`.
+- Document `configured_addr`.
+
+### Features / Changes
+
+- Add lockfile to account manager ([#4314](https://github.com/deltachat/deltachat-core-rust/pull/4314)). 
+- Don't show a contact as verified if their key changed since the verification ([#4574](https://github.com/deltachat/deltachat-core-rust/pull/4574)).
+- deltachat-rpc-server: Add `--openrpc` option to print OpenRPC specification for JSON-RPC API. This specification can be used to generate JSON-RPC API clients.
+- Track whether contact is a bot or not ([#4821](https://github.com/deltachat/deltachat-core-rust/pull/4821)).
+- Replace `Config::SendSyncMsgs` with `SyncMsgs` ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
+
+### Fixes
+
+- Don't create 1:1 chat as protected for contact who doesn't prefer to encrypt ([#4538](https://github.com/deltachat/deltachat-core-rust/pull/4538)).
+- Allow to save a draft if the verification is broken ([#4542](https://github.com/deltachat/deltachat-core-rust/pull/4542)).
+- Fix info-message orderings of verified 1:1 chats ([#4545](https://github.com/deltachat/deltachat-core-rust/pull/4545)).
+- Fix example; this was changed some time ago, see https://docs.webxdc.org/spec.html#sendupdate
+- `receive_imf`: Update peerstate from db after handling Securejoin handshake ([#4600](https://github.com/deltachat/deltachat-core-rust/pull/4600)).
+- Sort old incoming messages below all outgoing ones ([#4621](https://github.com/deltachat/deltachat-core-rust/pull/4621)).
+- Do not mark non-verified group chats as verified when using securejoin.
+- `receive_imf`: Set protection only for Chattype::Single ([#4597](https://github.com/deltachat/deltachat-core-rust/pull/4597)).
+- Return from `dc_get_chatlist(DC_GCL_FOR_FORWARDING)` only chats where we can send ([#4616](https://github.com/deltachat/deltachat-core-rust/pull/4616)).
+- Clear VerifiedOneOnOneChats config on backup ([#4615](https://github.com/deltachat/deltachat-core-rust/pull/4615)).
+- Try removal of accounts multiple times with timeouts in case the database file is blocked (restore `try_many_times` workaround).
+
+### Build system
+
+- Remove examples/simple.rs.
+- Increase MSRV to 1.70.0.
+- Update dependencies.
+- Switch to iroh 0.4.x fork with updated dependencies.
+
 ## [1.126.1] - 2023-10-24
 
 ### Fixes
@@ -2967,3 +3024,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.124.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.0...v1.124.1
 [1.125.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.124.1...v1.125.0
 [1.126.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.125.0...v1.126.0
+[1.126.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.0...v1.126.1
+[1.127.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.1...v1.127.0
