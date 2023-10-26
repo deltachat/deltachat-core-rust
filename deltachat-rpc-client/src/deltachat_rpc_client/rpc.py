@@ -91,7 +91,7 @@ class Rpc:
 
     async def __aenter__(self):
         self.__enter__()
-        return AsyncRpc(self)
+        return self.get_async_rpc()
 
     async def __aexit__(self, _exc_type, _exc, _tb):
         self.__exit__(_exc_type, _exc, _tb)
