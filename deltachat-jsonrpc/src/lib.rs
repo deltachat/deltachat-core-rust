@@ -17,7 +17,7 @@ mod tests {
         let accounts = Accounts::new(tmp_dir, writable).await?;
         let api = CommandApi::new(accounts);
 
-        let (sender, mut receiver) = unbounded::<String>();
+        let (sender, receiver) = unbounded::<String>();
 
         let (client, mut rx) = RpcClient::new();
         let session = RpcSession::new(client, api);
@@ -36,17 +36,17 @@ mod tests {
             let request = r#"{"jsonrpc":"2.0","method":"add_account","params":[],"id":1}"#;
             let response = r#"{"jsonrpc":"2.0","id":1,"result":1}"#;
             session.handle_incoming(request).await;
-            let result = receiver.next().await;
+            let result = receiver.recv().await?;
             println!("{result:?}");
-            assert_eq!(result, Some(response.to_owned()));
+            assert_eq!(result, response.to_owned());
         }
         {
             let request = r#"{"jsonrpc":"2.0","method":"get_all_account_ids","params":[],"id":2}"#;
             let response = r#"{"jsonrpc":"2.0","id":2,"result":[1]}"#;
             session.handle_incoming(request).await;
-            let result = receiver.next().await;
+            let result = receiver.recv().await?;
             println!("{result:?}");
-            assert_eq!(result, Some(response.to_owned()));
+            assert_eq!(result, response.to_owned());
         }
 
         Ok(())
@@ -59,7 +59,7 @@ mod tests {
         let accounts = Accounts::new(tmp_dir, writable).await?;
         let api = CommandApi::new(accounts);
 
-        let (sender, mut receiver) = unbounded::<String>();
+        let (sender, receiver) = unbounded::<String>();
 
         let (client, mut rx) = RpcClient::new();
         let session = RpcSession::new(client, api);
@@ -78,15 +78,15 @@ mod tests {
             let request = r#"{"jsonrpc":"2.0","method":"add_account","params":[],"id":1}"#;
             let response = r#"{"jsonrpc":"2.0","id":1,"result":1}"#;
             session.handle_incoming(request).await;
-            let result = receiver.next().await;
-            assert_eq!(result, Some(response.to_owned()));
+            let result = receiver.recv().await?;
+            assert_eq!(result, response.to_owned());
         }
         {
             let request = r#"{"jsonrpc":"2.0","method":"batch_set_config","id":2,"params":[1,{"addr":"","mail_user":"","mail_pw":"","mail_server":"","mail_port":"","mail_security":"","imap_certificate_checks":"","send_user":"","send_pw":"","send_server":"","send_port":"","send_security":"","smtp_certificate_checks":"","socks5_enabled":"0","socks5_host":"","socks5_port":"","socks5_user":"","socks5_password":""}]}"#;
             let response = r#"{"jsonrpc":"2.0","id":2,"result":null}"#;
             session.handle_incoming(request).await;
-            let result = receiver.next().await;
-            assert_eq!(result, Some(response.to_owned()));
+            let result = receiver.recv().await?;
+            assert_eq!(result, response.to_owned());
         }
 
         Ok(())
