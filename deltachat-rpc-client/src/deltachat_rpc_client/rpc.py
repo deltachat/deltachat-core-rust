@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -34,6 +35,10 @@ class Rpc:
         self.reader_thread: Thread
         self.writer_thread: Thread
         self.events_thread: Thread
+
+    def get_async_rpc(self) -> "AsyncRpc":
+        """Get asynchronous wrapper to use the RPC methods from async code."""
+        return AsyncRpc(self)
 
     def start(self) -> None:
         if sys.version_info >= (3, 11):
@@ -83,6 +88,13 @@ class Rpc:
 
     def __exit__(self, _exc_type, _exc, _tb):
         self.close()
+
+    async def __aenter__(self):
+        self.__enter__()
+        return AsyncRpc(self)
+
+    async def __aexit__(self, _exc_type, _exc, _tb):
+        self.__exit__(_exc_type, _exc, _tb)
 
     def reader_loop(self) -> None:
         try:
@@ -165,3 +177,19 @@ class Rpc:
             return None
 
         return method
+
+
+class AsyncRpc:
+    def __init__(self, sync_rpc: Rpc) -> None:
+        self._sync_rpc = sync_rpc
+
+    def __getattr__(self, attr: str) -> Any:
+        sync_method = getattr(self._sync_rpc, attr)
+        if sync_method:
+
+            async def method(*args) -> Any:
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(None, sync_method, *args)
+
+            return method
+        return None
