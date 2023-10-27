@@ -2033,13 +2033,19 @@ impl CommandApi {
         text: Option<String>,
         file: Option<String>,
         quoted_message_id: Option<u32>,
+        view_type: Option<MessageViewtype>,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        let mut draft = Message::new(if file.is_some() {
-            Viewtype::File
-        } else {
-            Viewtype::Text
-        });
+        let mut draft = Message::new(view_type.map_or_else(
+            || {
+                if file.is_some() {
+                    Viewtype::File
+                } else {
+                    Viewtype::Text
+                }
+            },
+            |v| v.into(),
+        ));
         draft.set_text(text.unwrap_or_default());
         if let Some(file) = file {
             draft.set_file(file, None);
