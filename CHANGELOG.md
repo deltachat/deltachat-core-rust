@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.127.1] - 2023-10-27
+
+### API-Changes
+
+- jsonrpc: add `.is_protection_broken` to `FullChat` and `BasicChat`.
+- jsonrpc: Add `id` to `ProviderInfo`.
+
 ## [1.127.0] - 2023-10-26
 
 ### API-Changes
