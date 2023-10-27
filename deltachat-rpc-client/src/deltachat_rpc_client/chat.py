@@ -160,11 +160,12 @@ class Chat:
         text: Optional[str] = None,
         file: Optional[str] = None,
         quoted_msg: Optional[int] = None,
+        viewtype: Optional[str] = None,
     ) -> None:
         """Set draft message."""
         if isinstance(quoted_msg, Message):
             quoted_msg = quoted_msg.id
-        self._rpc.misc_set_draft(self.account.id, self.id, text, file, quoted_msg)
+        self._rpc.misc_set_draft(self.account.id, self.id, text, file, quoted_msg, viewtype)
 
     def remove_draft(self) -> None:
         """Remove draft message."""
