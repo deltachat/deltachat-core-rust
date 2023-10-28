@@ -1,4 +1,4 @@
-use anyhow::{Context as _, Ok, Result};
+use anyhow::{Context as _, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
 use deltachat::chat::ChatVisibility;
@@ -568,7 +568,7 @@ pub struct MessageInfo {
     // view_type is already in the MessageObject
     // width, height and duration are already in the MessageObject
     rfc724_mid: String,
-    imap_uids: Vec<MessageInfoServerUID>,
+    server_urls: Vec<String>,
     hop_info: Option<String>,
     // Reactions are already in getMessageReactions
 }
@@ -584,11 +584,8 @@ impl MessageInfo {
             None
         };
 
-        let imap_uids = MsgId::get_info_server_uids(context, message.rfc724_mid().to_owned())
-            .await?
-            .into_iter()
-            .map(|(folder, uid)| MessageInfoServerUID { folder, uid })
-            .collect();
+        let server_urls =
+            MsgId::get_info_server_urls(context, message.rfc724_mid().to_owned()).await?;
 
         let hop_info = msg_id.hop_info(context).await?;
 
@@ -598,7 +595,7 @@ impl MessageInfo {
             ephemeral_timestamp,
             error: message.error(),
             rfc724_mid: message.rfc724_mid().to_owned(),
-            imap_uids,
+            server_urls,
             hop_info,
         })
     }
@@ -630,10 +627,4 @@ impl From<deltachat::ephemeral::Timer> for EphemeralTimer {
             }
         }
     }
-}
-
-#[derive(Clone, Serialize, TypeDef, schemars::JsonSchema)]
-struct MessageInfoServerUID {
-    folder: String,
-    uid: u32,
 }

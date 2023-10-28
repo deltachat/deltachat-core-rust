@@ -160,10 +160,10 @@ WHERE id=?;
     }
 
     /// Returns server foldernames and UIDs of a message, used for message info
-    pub async fn get_info_server_uids(
+    pub async fn get_info_server_urls(
         context: &Context,
         rfc724_mid: String,
-    ) -> Result<Vec<(String, u32)>> {
+    ) -> Result<Vec<String>> {
         context
             .sql
             .query_map(
@@ -172,7 +172,7 @@ WHERE id=?;
                 |row| {
                     let folder: String = row.get("folder")?;
                     let uid: u32 = row.get("uid")?;
-                    Ok((folder, uid))
+                    Ok(format!("</{folder}/;UID={uid}>"))
                 },
                 |rows| {
                     rows.collect::<std::result::Result<Vec<_>, _>>()
@@ -314,11 +314,10 @@ WHERE id=?;
         if !msg.rfc724_mid.is_empty() {
             ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
 
-            let server_uids = Self::get_info_server_uids(context, msg.rfc724_mid).await?;
-
-            for (folder, uid) in server_uids {
+            let server_urls = Self::get_info_server_urls(context, msg.rfc724_mid).await?;
+            for server_url in server_urls {
                 // Format as RFC 5092 relative IMAP URL.
-                ret += &format!("\n</{folder}/;UID={uid}>");
+                ret += &format!("\n{server_url}");
             }
         }
         let hop_info: Option<String> = self.hop_info(context).await?;
