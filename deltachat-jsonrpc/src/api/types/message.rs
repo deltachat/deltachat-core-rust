@@ -571,10 +571,9 @@ impl MessageInfo {
         let message = Message::load_from_db(context, msg_id).await?;
         let rawtext = msg_id.rawtext(context).await?;
         let ephemeral_timer = message.get_ephemeral_timer().into();
-        let ephemeral_timestamp = if message.get_ephemeral_timer().to_u32() == 0 {
-            Some(message.get_ephemeral_timestamp())
-        } else {
-            None
+        let ephemeral_timestamp = match message.get_ephemeral_timer() {
+            deltachat::ephemeral::Timer::Disabled => None,
+            deltachat::ephemeral::Timer::Enabled { .. } => Some(message.get_ephemeral_timestamp()),
         };
 
         let server_urls =
