@@ -320,7 +320,7 @@ WHERE id=?;
                 ret += &format!("\n{server_url}");
             }
         }
-        let hop_info: Option<String> = self.hop_info(context).await?;
+        let hop_info = self.hop_info(context).await?;
 
         ret += "\n\n";
         ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
