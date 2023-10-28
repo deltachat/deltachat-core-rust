@@ -1657,6 +1657,7 @@ async fn create_or_lookup_group(
             members.push(from_id);
         }
         members.extend(to_ids);
+        members.sort_unstable();
         members.dedup();
         chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
