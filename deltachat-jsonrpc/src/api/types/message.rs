@@ -557,20 +557,13 @@ pub struct MessageReadReceipt {
 #[serde(rename_all = "camelCase")]
 pub struct MessageInfo {
     rawtext: String,
-    // timestamps are already in the MessageObject
     ephemeral_timer: EphemeralTimer,
     /// When message is ephemeral this contains the timestamp of the message expiry
     ephemeral_timestamp: Option<i64>,
-    // Read state is already in getMessageReadReceipts
-    // message_state, has_location is already in the MessageObject
     error: Option<String>,
-    // file properties are already in the MessageObject
-    // view_type is already in the MessageObject
-    // width, height and duration are already in the MessageObject
     rfc724_mid: String,
     server_urls: Vec<String>,
     hop_info: Option<String>,
-    // Reactions are already in getMessageReactions
 }
 
 impl MessageInfo {
