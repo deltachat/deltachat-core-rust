@@ -2326,13 +2326,7 @@ async fn has_verified_encryption(
 
     let contact = Contact::get_by_id(context, from_id).await?;
 
-    for (to_addr, mut is_verified) in rows {
-        info!(
-            context,
-            "has_verified_encryption: {:?} self={:?}.",
-            to_addr,
-            context.is_self_addr(&to_addr).await
-        );
+    for (to_addr, is_verified) in rows {
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
@@ -2357,15 +2351,9 @@ async fn has_verified_encryption(
                             contact.get_addr().to_owned(),
                         )?;
                         peerstate.save_to_db(&context.sql).await?;
-                        is_verified = true;
                     }
                 }
             }
-        }
-        if !is_verified {
-            return Ok(NotVerified(format!(
-                "{to_addr} is not a member of this protected chat member list {to_ids:?}",
-            )));
         }
     }
     Ok(Verified)
