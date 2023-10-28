@@ -20,9 +20,18 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use yerpc::{RpcClient, RpcSession};
 
-#[tokio::main(flavor = "multi_thread")]
-async fn main() {
-    let r = main_impl().await;
+fn main() {
+    // Build multithreaded runtime with at least two threads.
+    // This ensures that on systems with one CPU
+    // such as CI runners there are at least two threads
+    // and it is more difficult to deadlock.
+    let r = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(std::cmp::max(2, num_cpus::get()))
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(main_impl());
+
     // From tokio documentation:
     // "For technical reasons, stdin is implemented by using an ordinary blocking read on a separate
     // thread, and it is impossible to cancel that read. This can make shutdown of the runtime hang
