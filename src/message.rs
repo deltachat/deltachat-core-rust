@@ -1043,6 +1043,7 @@ impl Message {
         filemime: Option<&str>,
     ) -> Result<()> {
         let blob = BlobObject::create(context, suggested_name, data).await?;
+        self.param.set(Param::Filename, suggested_name);
         self.param.set(Param::File, blob.as_name());
         self.param.set_optional(Param::MimeType, filemime);
         Ok(())
