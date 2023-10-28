@@ -637,7 +637,7 @@ async fn add_parts(
                         chat_id = None;
                     } else {
                         let s = stock_str::unknown_sender_for_chat(context).await;
-                        mime_parser.repl_msg_by_error(&s);
+                        mime_parser.replace_msg_by_error(&s);
                     }
                 } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
@@ -1055,7 +1055,7 @@ async fn add_parts(
             {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
-                mime_parser.repl_msg_by_error(&s);
+                mime_parser.replace_msg_by_error(&s);
             }
         }
     }
@@ -1596,7 +1596,7 @@ async fn create_or_lookup_group(
         {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
-            mime_parser.repl_msg_by_error(&s);
+            mime_parser.replace_msg_by_error(&s);
         }
         ProtectionStatus::Protected
     } else {
@@ -1758,7 +1758,7 @@ async fn apply_group_changes(
         {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
-            mime_parser.repl_msg_by_error(&s);
+            mime_parser.replace_msg_by_error(&s);
         }
 
         if !chat.is_protected() {
@@ -2311,7 +2311,7 @@ async fn has_verified_encryption(
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
                 sql::repeat_vars(to_ids.len())
             ),
-            rusqlite::params_from_iter(to_ids),
+            rusqlite::params_from_iter(&to_ids),
             |row| {
                 let to_addr: String = row.get(0)?;
                 let is_verified: i32 = row.get(1).unwrap_or(0);
@@ -2364,8 +2364,7 @@ async fn has_verified_encryption(
         }
         if !is_verified {
             return Ok(NotVerified(format!(
-                "{} is not a member of this protected chat",
-                to_addr
+                "{to_addr} is not a member of this protected chat member list {to_ids:?}",
             )));
         }
     }

@@ -1358,7 +1358,7 @@ impl MimeMessage {
         self.get_mailinglist_header().is_some()
     }
 
-    pub fn repl_msg_by_error(&mut self, error_msg: &str) {
+    pub fn replace_msg_by_error(&mut self, error_msg: &str) {
         self.is_system_message = SystemMessage::Unknown;
         if let Some(part) = self.parts.first_mut() {
             part.typ = Viewtype::Text;
