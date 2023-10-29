@@ -1078,7 +1078,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 ### Changes
 - Look at Authentication-Results. Don't accept Autocrypt key changes
-  if they come with negative authentiation results while this contact
+  if they come with negative authentication results while this contact
   sent emails with positive authentication results in the past. #3583
 - jsonrpc in cffi also sends events now #3662
 - jsonrpc: new format for events and better typescript autocompletion
@@ -2664,7 +2664,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - delete all consumed secure-join handshake messagess #1209 #1212
 
-- rust-level cleanups #1218 #1217 #1210 #1205
+- rust-level clean-ups #1218 #1217 #1210 #1205
 
 - python-level cleanups #1204 #1202 #1201
 

@@ -38,11 +38,11 @@ While this describes an already working "proof of concept" usage there are alrea
 
 webxdc empowers FOSS developments in unprecedented ways: 
 
-- well-known paradim: use all the existing JS/html5 libraries and designs of your choice
+- well-known paradigm: use all the existing JS/html5 libraries and designs of your choice
 - quick onboarding: only a handful API methods to learn 
 - serverless (but really): no worrying about hosting a server or configuring DNS, AWS etc 
 - permissionless: no worrying about registering at app stores for distribution
-- unbuerocratic: no worrying about login/password/expiry procedures or leaks 
+- unbureaucratic: no worrying about login/password/expiry procedures or leaks 
 - secure: no worrying about cryptographic algos or e2e-encryption complexity
 
 On the flip side, you need to learn how to do state updates between instances of your webxdc apps. This is a classic P2P problem and there are simple (send full state update) and advanced ways (use CRDTs or similar) to arrange decentralized state. In any case, there is no DHT let alone blockchain needed and thus no Crypto or coin needed, either.

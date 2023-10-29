@@ -57,7 +57,7 @@ Note that usually a mail is signed by a key that has a UID matching the from add
 ### Notes:
   
 - We treat protected and non-protected chats the same
-- We leave the aeap transition statement away since it seems not to be needed, makes things harder on the sending side, wastes some network traffic, and is worse for privacy (since more pepole know what old addresses you had).
+- We leave the aeap transition statement away since it seems not to be needed, makes things harder on the sending side, wastes some network traffic, and is worse for privacy (since more people know what old addresses you had).
 - As soon as we encrypt read receipts, sending a read receipt will be enough to tell a lot of people that you transitioned
 - AEAP will make the problem of inconsistent group state worse, both because it doesn't work if the message is unencrypted (even if the design allowed it, it would be problematic security-wise) and because some chat partners may have gotten the transition and some not. We should do something against this at some point in the future, like asking the user whether they want to add/remove the members to restore consistent group state.
 
