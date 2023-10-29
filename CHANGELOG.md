@@ -2664,7 +2664,7 @@ Bugfix release attempting to fix the [iOS build error](https://github.com/deltac
 
 - delete all consumed secure-join handshake messagess #1209 #1212
 
-- rust-level clean-ups #1218 #1217 #1210 #1205
+- Rust-level cleanups #1218 #1217 #1210 #1205
 
 - python-level cleanups #1204 #1202 #1201
 
