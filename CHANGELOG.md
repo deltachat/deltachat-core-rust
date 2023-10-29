@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.127.2] - 2023-10-29
+
+### API-Changes
+
+- [**breaking**] Jsonrpc `misc_set_draft` now requires setting the viewtype.
+- jsonrpc: Add `get_message_info_object`.
+
+### Tests
+
+- deltachat-rpc-client: Move pytest option from pyproject.toml to tox.ini and set log level.
+- deltachat-rpc-client: Test securejoin.
+- Increase pytest timeout to 10 minutes.
+- Compile deltachat-rpc-server in debug mode for tests.
+
 ## [1.127.1] - 2023-10-27
 
 ### API-Changes
@@ -3034,3 +3048,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.126.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.0...v1.126.1
 [1.127.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.1...v1.127.0
 [1.127.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.0...v1.127.1
+[1.127.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.1...v1.127.2
