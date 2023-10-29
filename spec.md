@@ -192,7 +192,7 @@ in different orders, esp. on creating new groups.
 To remove a member, a `Chat-Group-Member-Removed` header must be sent
 with the value set to the email-address of the member to remove.
 When receiving a `Chat-Group-Member-Removed` header,
-only exaxtly the given member has to be removed from the member list.
+only exactly the given member has to be removed from the member list.
 
 Messenger clients MUST NOT construct the member list
 on other group messages
@@ -339,7 +339,7 @@ only on image changes.
 
 In older specs, the profile-image was sent as an attachment
 and `Chat-User-Avatar:` specified its name.
-However, it turned out that these attachments are kind of unuexpected to users,
+However, it turned out that these attachments are kind of unexpected to users,
 therefore the profile-image go to the header now.
 
 
