@@ -60,7 +60,7 @@ pub(crate) struct MimeMessage {
     /// Message headers.
     headers: HashMap<String, String>,
 
-    /// Addresses are normalized and lowercased:
+    /// Addresses are normalized and lowercase
     pub recipients: Vec<SingleInfo>,
 
     /// `From:` address.

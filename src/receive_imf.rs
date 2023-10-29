@@ -1690,7 +1690,19 @@ async fn apply_group_changes(
             || match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message, we missed some messages.
                 // Maybe they added/removed members, so we need to recreate our member list.
-                Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
+                Some(reply_to) => {
+                    if let Some(id) = rfc724_mid_exists(context, reply_to).await? {
+                        let msg = Message::load_from_db(context, id).await?;
+                        // Handle not downloaded messages similar to non-existing parent (#4570)
+                        if msg.download_state as u32 > 0 {
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        true
+                    }
+                }
                 None => false,
             }
     } && {
