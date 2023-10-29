@@ -4,7 +4,7 @@ from warnings import warn
 
 from ._utils import AttrDict
 from .chat import Chat
-from .const import ChatlistFlag, ContactFlag, SpecialContactId
+from .const import ChatlistFlag, ContactFlag, SpecialContactId, EventType
 from .contact import Contact
 from .message import Message
 
@@ -249,6 +249,13 @@ class Account:
         """Wait for new messages and return a list of them."""
         next_msg_ids = self._rpc.wait_next_msgs(self.id)
         return [Message(self, msg_id) for msg_id in next_msg_ids]
+
+    def wait_for_incoming_msg_event(self):
+        """Wait for incoming message event and return it."""
+        while True:
+            event = self.wait_for_event()
+            if event.kind == EventType.INCOMING_MSG:
+                return event
 
     def get_fresh_messages_in_arrival_order(self) -> List[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
