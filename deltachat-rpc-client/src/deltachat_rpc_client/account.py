@@ -4,7 +4,7 @@ from warnings import warn
 
 from ._utils import AttrDict
 from .chat import Chat
-from .const import ChatlistFlag, ContactFlag, SpecialContactId, EventType
+from .const import ChatlistFlag, ContactFlag, EventType, SpecialContactId
 from .contact import Contact
 from .message import Message
 
