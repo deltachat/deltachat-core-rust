@@ -427,42 +427,37 @@ impl Peerstate {
         &mut self,
         which_key: PeerstateKeyType,
         fingerprint: Fingerprint,
-        verified: PeerstateVerifiedStatus,
         verifier: String,
     ) -> Result<()> {
-        if verified == PeerstateVerifiedStatus::BidirectVerified {
-            match which_key {
-                PeerstateKeyType::PublicKey => {
-                    if self.public_key_fingerprint.is_some()
-                        && self.public_key_fingerprint.as_ref().unwrap() == &fingerprint
-                    {
-                        self.verified_key = self.public_key.clone();
-                        self.verified_key_fingerprint = Some(fingerprint);
-                        self.verifier = Some(verifier);
-                        Ok(())
-                    } else {
-                        Err(Error::msg(format!(
-                            "{fingerprint} is not peer's public key fingerprint",
-                        )))
-                    }
-                }
-                PeerstateKeyType::GossipKey => {
-                    if self.gossip_key_fingerprint.is_some()
-                        && self.gossip_key_fingerprint.as_ref().unwrap() == &fingerprint
-                    {
-                        self.verified_key = self.gossip_key.clone();
-                        self.verified_key_fingerprint = Some(fingerprint);
-                        self.verifier = Some(verifier);
-                        Ok(())
-                    } else {
-                        Err(Error::msg(format!(
-                            "{fingerprint} is not peer's gossip key fingerprint",
-                        )))
-                    }
+        match which_key {
+            PeerstateKeyType::PublicKey => {
+                if self.public_key_fingerprint.is_some()
+                    && self.public_key_fingerprint.as_ref().unwrap() == &fingerprint
+                {
+                    self.verified_key = self.public_key.clone();
+                    self.verified_key_fingerprint = Some(fingerprint);
+                    self.verifier = Some(verifier);
+                    Ok(())
+                } else {
+                    Err(Error::msg(format!(
+                        "{fingerprint} is not peer's public key fingerprint",
+                    )))
                 }
             }
-        } else {
-            Err(Error::msg("BidirectVerified required"))
+            PeerstateKeyType::GossipKey => {
+                if self.gossip_key_fingerprint.is_some()
+                    && self.gossip_key_fingerprint.as_ref().unwrap() == &fingerprint
+                {
+                    self.verified_key = self.gossip_key.clone();
+                    self.verified_key_fingerprint = Some(fingerprint);
+                    self.verifier = Some(verifier);
+                    Ok(())
+                } else {
+                    Err(Error::msg(format!(
+                        "{fingerprint} is not peer's gossip key fingerprint",
+                    )))
+                }
+            }
         }
     }
 
