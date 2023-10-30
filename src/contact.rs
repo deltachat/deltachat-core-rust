@@ -32,7 +32,7 @@ use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::sql::{self, params_iter};
-use crate::sync::{self, SyncData};
+use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress,
@@ -460,12 +460,12 @@ impl Contact {
 
     /// Block the given contact.
     pub async fn block(context: &Context, id: ContactId) -> Result<()> {
-        set_block_contact(context, id, true).await
+        set_blocked(context, Sync, id, true).await
     }
 
     /// Unblock the given contact.
     pub async fn unblock(context: &Context, id: ContactId) -> Result<()> {
-        set_block_contact(context, id, false).await
+        set_blocked(context, Sync, id, false).await
     }
 
     /// Add a single contact as a result of an _explicit_ user action.
@@ -495,7 +495,7 @@ impl Contact {
             }
         }
         if blocked {
-            Contact::unblock(&context.nosync(), contact_id).await?;
+            set_blocked(context, Nosync, contact_id, false).await?;
         }
 
         Ok(contact_id)
@@ -1384,8 +1384,9 @@ fn sanitize_name_and_addr(name: &str, addr: &str) -> (String, String) {
     }
 }
 
-async fn set_block_contact(
+pub(crate) async fn set_blocked(
     context: &Context,
+    sync: sync::Sync,
     contact_id: ContactId,
     new_blocking: bool,
 ) -> Result<()> {
@@ -1394,8 +1395,6 @@ async fn set_block_contact(
         "Can't block special contact {}",
         contact_id
     );
-    let (context, nosync) = &context.unwrap_nosync();
-
     let contact = Contact::get_by_id(context, contact_id).await?;
 
     if contact.blocked != new_blocking {
@@ -1437,11 +1436,11 @@ WHERE type=? AND id IN (
             if let Some((chat_id, _, _)) =
                 chat::get_chat_id_by_grpid(context, &contact.addr).await?
             {
-                chat_id.unblock(&context.nosync()).await?;
+                chat_id.unblock_ex(context, Nosync).await?;
             }
         }
 
-        if !nosync {
+        if sync.into() {
             let action = match new_blocking {
                 true => sync::ChatAction::Block,
                 false => sync::ChatAction::Unblock,

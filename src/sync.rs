@@ -18,6 +18,22 @@ use crate::token::Namespace;
 use crate::tools::time;
 use crate::{stock_str, token};
 
+/// Whether to send device sync messages. Aimed for usage in the internal API.
+#[derive(Debug)]
+pub(crate) enum Sync {
+    Nosync,
+    Sync,
+}
+
+impl From<Sync> for bool {
+    fn from(sync: Sync) -> bool {
+        match sync {
+            Sync::Nosync => false,
+            Sync::Sync => true,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct QrTokenData {
     pub(crate) invitenumber: String,
@@ -228,7 +244,7 @@ impl Context {
         Ok(sync_items)
     }
 
-    /// Execute sync items.
+    /// Executes sync items sent by other device.
     ///
     /// CAVE: When changing the code to handle other sync items,
     /// take care that does not result in calls to `add_sync_item()`
@@ -239,7 +255,7 @@ impl Context {
     /// Therefore, errors should only be returned on database errors or so.
     /// If eg. just an item cannot be deleted,
     /// that should not hold off the other items to be executed.
-    async fn execute_sync_items_inner(&self, items: &SyncItems) -> Result<()> {
+    pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
         info!(self, "executing {} sync item(s)", items.items.len());
         for item in &items.items {
             match &item.data {
@@ -271,11 +287,6 @@ impl Context {
             }
         }
         Ok(())
-    }
-
-    /// Executes sync items sent by other device.
-    pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
-        self.nosync().execute_sync_items_inner(items).await
     }
 }
 
