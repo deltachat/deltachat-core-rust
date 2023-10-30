@@ -18,7 +18,7 @@ use crate::key::{load_self_public_key, DcKey, Fingerprint};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
-use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
+use crate::peerstate::{Peerstate, PeerstateKeyType};
 use crate::qr::check_qr;
 use crate::stock_str;
 use crate::token;
@@ -614,12 +614,9 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                if let Err(err) = peerstate.set_verified(
-                    PeerstateKeyType::GossipKey,
-                    fingerprint,
-                    PeerstateVerifiedStatus::BidirectVerified,
-                    addr,
-                ) {
+                if let Err(err) =
+                    peerstate.set_verified(PeerstateKeyType::GossipKey, fingerprint, addr)
+                {
                     could_not_establish_secure_connection(
                         context,
                         contact_id,
@@ -743,12 +740,8 @@ async fn mark_peer_as_verified(
     verifier: String,
 ) -> Result<()> {
     if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, &fingerprint).await? {
-        if let Err(err) = peerstate.set_verified(
-            PeerstateKeyType::PublicKey,
-            fingerprint,
-            PeerstateVerifiedStatus::BidirectVerified,
-            verifier,
-        ) {
+        if let Err(err) = peerstate.set_verified(PeerstateKeyType::PublicKey, fingerprint, verifier)
+        {
             error!(context, "Could not mark peer as verified: {}", err);
             return Err(err);
         }

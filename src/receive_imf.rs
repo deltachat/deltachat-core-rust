@@ -30,7 +30,7 @@ use crate::message::{
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
-use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
+use crate::peerstate::{Peerstate, PeerstateKeyType};
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::simplify;
@@ -2342,7 +2342,6 @@ async fn has_verified_encryption(
                         peerstate.set_verified(
                             PeerstateKeyType::GossipKey,
                             fp,
-                            PeerstateVerifiedStatus::BidirectVerified,
                             contact.get_addr().to_owned(),
                         )?;
                         peerstate.save_to_db(&context.sql).await?;
