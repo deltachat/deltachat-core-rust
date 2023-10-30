@@ -21,7 +21,7 @@ use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
     DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{self, Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
@@ -39,7 +39,7 @@ use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
 use crate::stock_str;
-use crate::sync::{self, ChatAction, SyncData};
+use crate::sync::{self, ChatAction, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
@@ -252,7 +252,7 @@ impl ChatId {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if create_blocked == Blocked::Not && chat.blocked != Blocked::Not {
-                    chat.id.unblock(&context.nosync()).await?;
+                    chat.id.unblock_ex(context, Nosync).await?;
                 }
                 chat.id
             }
@@ -358,7 +358,10 @@ impl ChatId {
 
     /// Blocks the chat as a result of explicit user action.
     pub async fn block(self, context: &Context) -> Result<()> {
-        let (context, nosync) = &context.unwrap_nosync();
+        self.block_ex(context, Sync).await
+    }
+
+    pub(crate) async fn block_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
@@ -372,7 +375,7 @@ impl ChatId {
                             context,
                             "Blocking the contact {contact_id} to block 1:1 chat."
                         );
-                        Contact::block(&context.nosync(), contact_id).await?;
+                        contact::set_blocked(context, Nosync, contact_id, true).await?;
                     }
                 }
             }
@@ -387,7 +390,7 @@ impl ChatId {
             }
         }
 
-        if !nosync {
+        if sync.into() {
             // NB: For a 1:1 chat this currently triggers `Contact::block()` on other devices.
             chat.add_sync_item(context, ChatAction::Block).await?;
         }
@@ -396,11 +399,13 @@ impl ChatId {
 
     /// Unblocks the chat.
     pub async fn unblock(self, context: &Context) -> Result<()> {
-        let (context, nosync) = &context.unwrap_nosync();
+        self.unblock_ex(context, Sync).await
+    }
 
+    pub(crate) async fn unblock_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         self.set_blocked(context, Blocked::Not).await?;
 
-        if !nosync {
+        if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
             // TODO: For a 1:1 chat this currently triggers `Contact::unblock()` on other devices.
             // Maybe we should unblock the contact locally too, this would also resolve discrepancy
@@ -414,7 +419,10 @@ impl ChatId {
     ///
     /// Unblocks the chat and scales up origin of contacts.
     pub async fn accept(self, context: &Context) -> Result<()> {
-        let (context, nosync) = &context.unwrap_nosync();
+        self.accept_ex(context, Sync).await
+    }
+
+    pub(crate) async fn accept_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
@@ -449,7 +457,7 @@ impl ChatId {
             context.emit_event(EventType::ChatModified(self));
         }
 
-        if !nosync {
+        if sync.into() {
             chat.add_sync_item(context, ChatAction::Accept).await?;
         }
         Ok(())
@@ -554,12 +562,20 @@ impl ChatId {
 
     /// Archives or unarchives a chat.
     pub async fn set_visibility(self, context: &Context, visibility: ChatVisibility) -> Result<()> {
+        self.set_visibility_ex(context, Sync, visibility).await
+    }
+
+    pub(crate) async fn set_visibility_ex(
+        self,
+        context: &Context,
+        sync: sync::Sync,
+        visibility: ChatVisibility,
+    ) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be special chat: {}",
             self
         );
-        let (context, nosync) = &context.unwrap_nosync();
 
         context
             .sql
@@ -580,7 +596,7 @@ impl ChatId {
 
         context.emit_msgs_changed_without_ids();
 
-        if !nosync {
+        if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
             chat.add_sync_item(context, ChatAction::SetVisibility(visibility))
                 .await?;
@@ -3388,8 +3404,16 @@ impl rusqlite::types::FromSql for MuteDuration {
 
 /// Mutes the chat for a given duration or unmutes it.
 pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuration) -> Result<()> {
+    set_muted_ex(context, Sync, chat_id, duration).await
+}
+
+pub(crate) async fn set_muted_ex(
+    context: &Context,
+    sync: sync::Sync,
+    chat_id: ChatId,
+    duration: MuteDuration,
+) -> Result<()> {
     ensure!(!chat_id.is_special(), "Invalid chat ID");
-    let (context, nosync) = &context.unwrap_nosync();
     context
         .sql
         .execute(
@@ -3399,7 +3423,7 @@ pub async fn set_muted(context: &Context, chat_id: ChatId, duration: MuteDuratio
         .await
         .context(format!("Failed to set mute duration for {chat_id}"))?;
     context.emit_event(EventType::ChatModified(chat_id));
-    if !nosync {
+    if sync.into() {
         let chat = Chat::load_from_db(context, chat_id).await?;
         chat.add_sync_item(context, ChatAction::SetMuted(duration))
             .await?;
@@ -4040,8 +4064,12 @@ impl Context {
                     return Ok(());
                 };
                 match &data.action {
-                    ChatAction::Block => return Contact::block(self, contact_id).await,
-                    ChatAction::Unblock => return Contact::unblock(self, contact_id).await,
+                    ChatAction::Block => {
+                        return contact::set_blocked(self, Nosync, contact_id, true).await
+                    }
+                    ChatAction::Unblock => {
+                        return contact::set_blocked(self, Nosync, contact_id, false).await
+                    }
                     _ => (),
                 }
                 let Some(chat_id) = ChatId::lookup_by_contact(self, contact_id).await? else {
@@ -4059,11 +4087,11 @@ impl Context {
             }
         };
         match &data.action {
-            ChatAction::Block => chat_id.block(self).await,
-            ChatAction::Unblock => chat_id.unblock(self).await,
-            ChatAction::Accept => chat_id.accept(self).await,
-            ChatAction::SetVisibility(v) => chat_id.set_visibility(self, *v).await,
-            ChatAction::SetMuted(duration) => set_muted(self, chat_id, *duration).await,
+            ChatAction::Block => chat_id.block_ex(self, Nosync).await,
+            ChatAction::Unblock => chat_id.unblock_ex(self, Nosync).await,
+            ChatAction::Accept => chat_id.accept_ex(self, Nosync).await,
+            ChatAction::SetVisibility(v) => chat_id.set_visibility_ex(self, Nosync, *v).await,
+            ChatAction::SetMuted(duration) => set_muted_ex(self, Nosync, chat_id, *duration).await,
         }
         .ok();
         Ok(())

@@ -15,6 +15,7 @@ use crate::contact::Contact;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::mimeparser::MimeMessage;
+use crate::sync::Sync::*;
 use crate::tools::time;
 use crate::{chat, stock_str};
 
@@ -179,7 +180,7 @@ impl BobState {
             } => {
                 let group_chat_id = match chat::get_chat_id_by_grpid(context, grpid).await? {
                     Some((chat_id, _protected, _blocked)) => {
-                        chat_id.unblock(&context.nosync()).await?;
+                        chat_id.unblock_ex(context, Nosync).await?;
                         chat_id
                     }
                     None => {
