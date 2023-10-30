@@ -2333,15 +2333,9 @@ async fn has_verified_encryption(
         // mark gossiped keys (if any) as verified
         if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = peerstate {
-                // if we're here, we know the gossip key is verified:
-                // - use the gossip-key as verified-key if there is no verified-key
-                // - OR if the verified-key does not match public-key or gossip-key
-                //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                //   see <https://github.com/nextleap-project/countermitm/issues/46> for a discussion about this point)
-                if !is_verified
-                    || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
-                        && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
-                {
+                // If we're here, we know the gossip key is verified.
+                // Use the gossip-key as verified-key if there is no verified-key.
+                if !is_verified {
                     info!(context, "{} has verified {}.", contact.get_addr(), to_addr);
                     let fp = peerstate.gossip_key_fingerprint.clone();
                     if let Some(fp) = fp {
