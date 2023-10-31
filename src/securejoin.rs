@@ -519,28 +519,7 @@ pub(crate) async fn handle_securejoin_handshake(
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
             ==========================================================*/
 
-            if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                if contact.is_verified(context).await? == VerifiedStatus::Unverified {
-                    warn!(context, "{} invalid.", step);
-                    return Ok(HandshakeMessage::Ignore);
-                }
-                if join_vg {
-                    let field_grpid = mime_message
-                        .get_header(HeaderDef::SecureJoinGroup)
-                        .map(|s| s.as_str())
-                        .unwrap_or_else(|| "");
-                    if let Err(err) = chat::get_chat_id_by_grpid(context, field_grpid).await {
-                        warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(
-                            err.context(format!("Chat for group {} not found", &field_grpid))
-                        );
-                    }
-                }
-                Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
-            } else {
-                warn!(context, "{} invalid.", step);
-                Ok(HandshakeMessage::Ignore)
-            }
+            Ok(HandshakeMessage::Done) // "Done" deletes the message 
         }
         _ => {
             warn!(context, "invalid step: {}", step);
