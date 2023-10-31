@@ -1725,12 +1725,7 @@ def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
 
     lp.sec("ac1: let ac2 join again but shutoff ac1 in the middle of securejoin")
     ac2.qr_join_chat(ch1.get_join_qr())
-    while 1:
-        ev = ac2._evtracker.get_matching("DC_EVENT_SECUREJOIN_JOINER_PROGRESS")
-        if ev.data2 == 400:  # prevent ac1 from answering request_with_auth
-            ac1.shutdown()
-            break
-
+    ac1.shutdown()
     lp.sec("ac2 now has pending bobstate but ac1 is shutoff")
 
     # we meanwhile expect ac3/ac2 verification started in the beginning to have completed
