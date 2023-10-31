@@ -1706,7 +1706,7 @@ def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
     ac3.qr_setup_contact(ac2.get_setup_contact_qr())
     ac2._evtracker.wait_securejoin_inviter_progress(1000)
 
-    # in order for ac2 to have pending botstate with a verified group
+    # in order for ac2 to have pending bobstate with a verified group
     # we first create a fully joined verified group, and then start
     # joining a second time but interrupt it, to create pending bob state
 
@@ -1724,7 +1724,7 @@ def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
             break
 
     lp.sec("ac1: let ac2 join again but shutoff ac1 in the middle of securejoin")
-    ch1b = ac2.qr_join_chat(ch1.get_join_qr())
+    ac2.qr_join_chat(ch1.get_join_qr())
     while 1:
         ev = ac2._evtracker.get_matching("DC_EVENT_SECUREJOIN_JOINER_PROGRESS")
         if ev.data2 == 400:  # prevent ac1 from answering request_with_auth
@@ -1753,12 +1753,8 @@ def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
     ac3._evtracker.wait_securejoin_inviter_progress(1000)
     while 1:
         ev = ac2._evtracker.get()
-        if "Message does not match expected" in str(ev):
-            pytest.fail("ac2 wrongly used a pending bobstate when seeing a member-added message")
-            break
-
-    import pdb
-    pdb.set_trace()
+        if "added by unrelated SecureJoin" in str(ev):
+            return
 
 
 def test_qr_new_group_unblocked(acfactory, lp):

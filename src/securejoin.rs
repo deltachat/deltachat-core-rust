@@ -483,6 +483,19 @@ pub(crate) async fn handle_securejoin_handshake(
             ====             Bob - the joiner's side             ====
             ====   Step 7 in "Setup verified contact" protocol   ====
             =======================================================*/
+
+            if let Some(member_added) = mime_message
+                .get_header(HeaderDef::ChatGroupMemberAdded)
+                .map(|s| s.as_str())
+            {
+                if !context.is_self_addr(member_added).await? {
+                    info!(
+                        context,
+                        "Member {member_added} added by unrelated SecureJoin process"
+                    );
+                    return Ok(HandshakeMessage::Propagate);
+                }
+            }
             match BobState::from_db(&context.sql).await? {
                 Some(bobstate) => {
                     bob::handle_contact_confirm(context, bobstate, mime_message).await
