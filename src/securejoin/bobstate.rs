@@ -335,36 +335,6 @@ impl BobState {
             context,
             "Bob Step 7 - handling vc-contact-confirm/vg-member-added message"
         );
-        let vg_expect_encrypted = match self.invite {
-            QrInvite::Contact { .. } => {
-                // setup-contact is always encrypted
-                true
-            }
-            QrInvite::Group { ref grpid, .. } => {
-                // This is buggy, result will always be
-                // false since the group is created by receive_imf for
-                // the very handshake message we're handling now.  But
-                // only after we have returned.  It does not impact
-                // the security invariants of secure-join however.
-
-                chat::get_chat_id_by_grpid(context, grpid)
-                    .await?
-                    .map_or(false, |(_chat_id, is_protected, _blocked)| is_protected)
-                // when joining a non-verified group
-                // the vg-member-added message may be unencrypted
-                // when not all group members have keys or prefer encryption.
-                // So only expect encryption if this is a verified group
-            }
-        };
-        if vg_expect_encrypted
-            && !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint()))
-        {
-            self.update_next(&context.sql, SecureJoinStep::Terminated)
-                .await?;
-            return Ok(Some(BobHandshakeStage::Terminated(
-                "Contact confirm message not encrypted",
-            )));
-        }
         mark_peer_as_verified(
             context,
             self.invite.fingerprint().clone(),
@@ -374,17 +344,6 @@ impl BobState {
         Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
             .await?;
         context.emit_event(EventType::ContactsChanged(None));
-
-        if let QrInvite::Group { .. } = self.invite {
-            let member_added = mime_message
-                .get_header(HeaderDef::ChatGroupMemberAdded)
-                .map(|s| s.as_str())
-                .ok_or_else(|| Error::msg("Missing Chat-Group-Member-Added header"))?;
-            if !context.is_self_addr(member_added).await? {
-                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
-                return Ok(None);
-            }
-        }
 
         self.send_handshake_message(context, BobHandshakeMsg::ContactConfirmReceived)
             .await

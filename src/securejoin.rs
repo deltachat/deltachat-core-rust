@@ -478,34 +478,41 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
         }
-        "vg-member-added" | "vc-contact-confirm" => {
-            /*=======================================================
-            ====             Bob - the joiner's side             ====
-            ====   Step 7 in "Setup verified contact" protocol   ====
-            =======================================================*/
-
-            if let Some(member_added) = mime_message
+        /*=======================================================
+        ====             Bob - the joiner's side             ====
+        ====   Step 7 in "Setup verified contact" protocol   ====
+        =======================================================*/
+        "vg-member-added" => {
+            let Some(member_added) = mime_message
                 .get_header(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
-            {
-                if !context.is_self_addr(member_added).await? {
-                    info!(
-                        context,
-                        "Member {member_added} added by unrelated SecureJoin process"
-                    );
-                    return Ok(HandshakeMessage::Propagate);
-                }
+            else {
+                warn!(
+                    context,
+                    "vg-member-added without Chat-Group-Member-Added header"
+                );
+                return Ok(HandshakeMessage::Propagate);
+            };
+            if !context.is_self_addr(member_added).await? {
+                info!(
+                    context,
+                    "Member {member_added} added by unrelated SecureJoin process"
+                );
+                return Ok(HandshakeMessage::Propagate);
             }
             match BobState::from_db(&context.sql).await? {
                 Some(bobstate) => {
                     bob::handle_contact_confirm(context, bobstate, mime_message).await
                 }
-                None => match join_vg {
-                    true => Ok(HandshakeMessage::Propagate),
-                    false => Ok(HandshakeMessage::Ignore),
-                },
+                None => Ok(HandshakeMessage::Propagate),
             }
         }
+
+        "vc-contact-confirm" => match BobState::from_db(&context.sql).await? {
+            Some(bobstate) => bob::handle_contact_confirm(context, bobstate, mime_message).await,
+            None => Ok(HandshakeMessage::Ignore),
+        },
+
         "vg-member-added-received" | "vc-contact-confirm-received" => {
             /*==========================================================
             ====              Alice - the inviter side              ====
