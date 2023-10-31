@@ -419,14 +419,7 @@ def test_verified_group_recovery(acfactory, rpc) -> None:
             break
 
     logging.info("ac2 logs in on a new device")
-    ac2.stop_io()
-    ac2_clone = acfactory.get_unconfigured_account()
-    for i in ["addr", "mail_pw"]:
-        ac2_clone.set_config(i, ac2.get_config(i))
-    rpc.remove_account(ac2.id)
-    ac2_clone.configure()
-    ac2 = ac2_clone
-    del ac2_clone
+    ac2 = acfactory.resetup_account(ac2)
 
     logging.info("ac2 reverifies with ac3")
     qr_code, _svg = ac3.get_qr_code()
