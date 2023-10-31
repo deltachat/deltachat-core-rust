@@ -61,6 +61,16 @@ class ACFactory:
     def get_online_accounts(self, num: int) -> List[Account]:
         return [self.get_online_account() for _ in range(num)]
 
+    def resetup_account(self, ac: Account) -> Account:
+        """Resetup account from scratch, losing the encryption key."""
+        ac.stop_io()
+        ac_clone = self.get_unconfigured_account()
+        for i in ["addr", "mail_pw"]:
+            ac_clone.set_config(i, ac.get_config(i))
+        ac.remove()
+        ac_clone.configure()
+        return ac_clone
+
     def send_message(
         self,
         to_account: Account,
