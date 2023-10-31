@@ -3106,7 +3106,48 @@ async fn test_blocked_contact_creates_group() -> Result<()> {
 async fn test_thunderbird_autocrypt() -> Result<()> {
     let t = TestContext::new_bob().await;
 
+    receive_imf(
+        &t,
+        b"From: alice@example.org\n\
+          To: bob@example.net\n\
+          Subject: foo\n\
+          Message-ID: <message@example.org>\n\
+          Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+          \n\
+          hello foo\n",
+        false,
+    )
+    .await?;
+
     let raw = include_bytes!("../../test-data/message/thunderbird_with_autocrypt.eml");
+    receive_imf(&t, raw, false).await?;
+
+    let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+        .await?
+        .unwrap();
+    assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_thunderbird_encrypted_with_pubkey_attached() -> Result<()> {
+    let t = TestContext::new_bob().await;
+
+    receive_imf(
+        &t,
+        b"From: alice@example.org\n\
+          To: bob@example.net\n\
+          Subject: foo\n\
+          Message-ID: <message@example.org>\n\
+          Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+          \n\
+          hello foo\n",
+        false,
+    )
+    .await?;
+
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_with_pubkey_attached.eml");
     receive_imf(&t, raw, false).await?;
 
     let peerstate = Peerstate::from_addr(&t, "alice@example.org")
