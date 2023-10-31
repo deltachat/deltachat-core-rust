@@ -2349,9 +2349,9 @@ async fn has_verified_encryption(
     let contact = Contact::get_by_id(context, from_id).await?;
 
     for (to_addr, is_verified) in rows {
-        if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
-            // mark gossiped keys (if any) as verified
-            if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
+        // mark gossiped keys (if any) as verified
+        if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
+            if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
                 // If we're here, we know the gossip key is verified.
                 // - Store gossip key as secondary verified key if there is a verified key and
                 //   gossiped key is different.
