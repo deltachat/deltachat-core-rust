@@ -1052,8 +1052,11 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            fingerprint_changed: false,
             verifier: None,
+            secondary_verified_key: None,
+            secondary_verified_key_fingerprint: None,
+            secondary_verifier: None,
+            fingerprint_changed: false,
         };
         assert!(
             peerstate.save_to_db(&ctx.ctx.sql).await.is_ok(),

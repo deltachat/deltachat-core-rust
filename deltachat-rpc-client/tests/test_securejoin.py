@@ -1,6 +1,5 @@
 import logging
 
-import pytest
 from deltachat_rpc_client import Chat, SpecialContactId
 
 
@@ -65,7 +64,6 @@ def test_qr_securejoin(acfactory):
     assert bob_contact_alice_snapshot.is_profile_verified
 
 
-@pytest.mark.xfail()
 def test_verified_group_recovery(acfactory, rpc) -> None:
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 
@@ -156,6 +154,10 @@ def test_verified_group_recovery(acfactory, rpc) -> None:
     ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
     assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
 
+    ac1_chat_messages = snapshot.chat.get_messages()
+    ac2_addr = ac2.get_config("addr")
+    assert ac1_chat_messages[-1].get_snapshot().text == f"Changed setup for {ac2_addr}"
+
 
 def test_verified_group_member_added_recovery(acfactory) -> None:
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
@@ -230,12 +232,6 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert "added" in snapshot.text
 
-    logging.info("ac2 address is %s", ac2.get_config("addr"))
-    ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
-    ac1_contact_ac2_snapshot = ac1_contact_ac2.get_snapshot()
-    # assert ac1_contact_ac2_snapshot.is_verified
-    assert ac1_contact_ac2_snapshot.verifier_id == ac1.get_contact_by_addr(ac3.get_config("addr")).id
-
     chat = Chat(ac2, chat_id)
     chat.send_text("Works again!")
 
@@ -246,6 +242,11 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
 
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Works again!"
+
+    ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
+    ac1_contact_ac2_snapshot = ac1_contact_ac2.get_snapshot()
+    assert ac1_contact_ac2_snapshot.is_verified
+    assert ac1_contact_ac2_snapshot.verifier_id == ac1.get_contact_by_addr(ac3.get_config("addr")).id
 
     # ac2 is now verified by ac3 for ac1
     ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))

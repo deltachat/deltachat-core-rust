@@ -750,6 +750,19 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
 
+    if dbversion < 104 {
+        sql.execute_migration(
+            "ALTER TABLE acpeerstates
+             ADD COLUMN secondary_verified_key;
+             ALTER TABLE acpeerstates
+             ADD COLUMN secondary_verified_key_fingerprint TEXT DEFAULT '';
+             ALTER TABLE acpeerstates
+             ADD COLUMN secondary_verifier TEXT DEFAULT ''",
+            104,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

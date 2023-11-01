@@ -227,6 +227,9 @@ pub(crate) async fn receive_imf_inner(
         .and_then(|value| mailparse::dateparse(value).ok())
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
 
+    let updated_verified_key_addr =
+        update_verified_keys(context, &mut mime_parser, from_id).await?;
+
     // Add parts
     let received_msg = add_parts(
         context,
@@ -277,6 +280,11 @@ pub(crate) async fn receive_imf_inner(
     } else {
         MsgId::new_unset()
     };
+
+    if let Some(addr) = updated_verified_key_addr {
+        let msg = stock_str::contact_setup_changed(context, &addr).await;
+        chat::add_info_msg(context, chat_id, &msg, received_msg.sort_timestamp).await?;
+    }
 
     save_locations(context, &mime_parser, chat_id, from_id, insert_msg_id).await?;
 
@@ -2271,10 +2279,74 @@ enum VerifiedEncryption {
     NotVerified(String), // The string contains the reason why it's not verified
 }
 
+/// Moves secondary verified key to primary verified key
+/// if the message is signed with a secondary verified key.
+/// Removes secondary verified key if the message is signed with primary key.
+///
+/// Returns address of the peerstate if the primary verified key was updated,
+/// the caller then needs to add "Setup changed" notification somewhere.
+async fn update_verified_keys(
+    context: &Context,
+    mimeparser: &mut MimeMessage,
+    from_id: ContactId,
+) -> Result<Option<String>> {
+    if from_id == ContactId::SELF {
+        return Ok(None);
+    }
+
+    if !mimeparser.was_encrypted() {
+        return Ok(None);
+    }
+
+    let Some(peerstate) = &mut mimeparser.decryption_info.peerstate else {
+        // No peerstate means no verified keys.
+        return Ok(None);
+    };
+
+    let signed_with_primary_verified_key = peerstate
+        .verified_key_fingerprint
+        .as_ref()
+        .filter(|fp| mimeparser.signatures.contains(fp))
+        .is_some();
+    let signed_with_secondary_verified_key = peerstate
+        .secondary_verified_key_fingerprint
+        .as_ref()
+        .filter(|fp| mimeparser.signatures.contains(fp))
+        .is_some();
+
+    if signed_with_primary_verified_key {
+        // Remove secondary key if it exists.
+        if peerstate.secondary_verified_key.is_some()
+            || peerstate.secondary_verified_key_fingerprint.is_some()
+            || peerstate.secondary_verifier.is_some()
+        {
+            peerstate.secondary_verified_key = None;
+            peerstate.secondary_verified_key_fingerprint = None;
+            peerstate.secondary_verifier = None;
+            peerstate.save_to_db(&context.sql).await?;
+        }
+
+        // No need to notify about secondary key removal.
+        Ok(None)
+    } else if signed_with_secondary_verified_key {
+        peerstate.verified_key = peerstate.secondary_verified_key.take();
+        peerstate.verified_key_fingerprint = peerstate.secondary_verified_key_fingerprint.take();
+        peerstate.verifier = peerstate.secondary_verifier.take();
+        peerstate.save_to_db(&context.sql).await?;
+
+        // Primary verified key changed.
+        Ok(Some(peerstate.addr.clone()))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Checks whether the message is allowed to appear in a protected chat.
 ///
 /// This means that it is encrypted, signed with a verified key,
 /// and if it's a group, all the recipients are verified.
+///
+/// Also propagates gossiped keys to verified if needed.
 async fn has_verified_encryption(
     context: &Context,
     mimeparser: &MimeMessage,
@@ -2311,7 +2383,13 @@ async fn has_verified_encryption(
             ));
         };
 
-        if !peerstate.has_verified_key(&mimeparser.signatures) {
+        let signed_with_verified_key = peerstate
+            .verified_key_fingerprint
+            .as_ref()
+            .filter(|fp| mimeparser.signatures.contains(fp))
+            .is_some();
+
+        if !signed_with_verified_key {
             return Ok(NotVerified(
                 "The message was sent with non-verified encryption".to_string(),
             ));
@@ -2357,23 +2435,26 @@ async fn has_verified_encryption(
         if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
                 // If we're here, we know the gossip key is verified.
-                // Use the gossip-key as verified-key if there is no verified-key
-                // or a member is reintroduced to a verified group.
+                //
+                // Use the gossip-key as verified-key if there is no verified-key.
+                //
+                // Store gossip key as secondary verified key if there is a verified key and
+                // gossiped key is different.
                 //
                 // See <https://github.com/nextleap-project/countermitm/issues/46>
                 // and <https://github.com/deltachat/deltachat-core-rust/issues/4541> for discussion.
                 let verifier_addr = contact.get_addr().to_owned();
-                if !is_verified
-                    || mimeparser
-                        .get_header(HeaderDef::ChatGroupMemberAdded)
-                        .filter(|s| s.as_str() == to_addr)
-                        .is_some()
-                {
+                if !is_verified {
                     info!(context, "{verifier_addr} has verified {to_addr}.");
                     if let Some(fp) = peerstate.gossip_key_fingerprint.clone() {
                         peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
                         peerstate.save_to_db(&context.sql).await?;
                     }
+                } else {
+                    // The contact already has a verified key.
+                    // Store gossiped key as the secondary verified key.
+                    peerstate.set_secondary_verified_key_from_gossip(verifier_addr);
+                    peerstate.save_to_db(&context.sql).await?;
                 }
             }
         }
