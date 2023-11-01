@@ -100,16 +100,39 @@ impl EncryptHelper {
     ) -> Result<String> {
         let mut keyring: Vec<SignedPublicKey> = Vec::new();
 
+        let mut verifier_addresses: Vec<&str> = Vec::new();
+
         for (peerstate, addr) in peerstates
-            .into_iter()
-            .filter_map(|(state, addr)| state.map(|s| (s, addr)))
+            .iter()
+            .filter_map(|(state, addr)| state.clone().map(|s| (s, addr)))
         {
             let key = peerstate
                 .take_key(min_verified)
                 .with_context(|| format!("proper enc-key for {addr} missing, cannot encrypt"))?;
             keyring.push(key);
+            verifier_addresses.push(addr);
         }
+
+        // Encrypt to self.
         keyring.push(self.public_key.clone());
+
+        // Encrypt to secondary verified keys
+        // if we also encrypt to the introducer ("verifier") of the key.
+        if min_verified == PeerstateVerifiedStatus::BidirectVerified {
+            for (peerstate, _addr) in peerstates {
+                if let Some(peerstate) = peerstate {
+                    if let (Some(key), Some(verifier)) = (
+                        peerstate.secondary_verified_key.as_ref(),
+                        peerstate.secondary_verifier.as_deref(),
+                    ) {
+                        if verifier_addresses.contains(&verifier) {
+                            keyring.push(key.clone());
+                        }
+                    }
+                }
+            }
+        }
+
         let sign_key = load_self_secret_key(context).await?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
@@ -296,8 +319,11 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             gossip_key_fingerprint: Some(pub_key.fingerprint()),
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
-            fingerprint_changed: false,
             verifier: None,
+            secondary_verified_key: None,
+            secondary_verified_key_fingerprint: None,
+            secondary_verifier: None,
+            fingerprint_changed: false,
         };
         vec![(Some(peerstate), addr)]
     }
