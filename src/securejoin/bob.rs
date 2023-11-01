@@ -110,7 +110,7 @@ pub(super) async fn handle_auth_required(
 /// Handles `vc-contact-confirm` and `vg-member-added` handshake messages.
 ///
 /// # Bob - the joiner's side
-/// ## Step 4 in the "Setup Contact protocol"
+/// ## Step 7 in the "Setup Contact protocol"
 pub(super) async fn handle_contact_confirm(
     context: &Context,
     mut bobstate: BobState,

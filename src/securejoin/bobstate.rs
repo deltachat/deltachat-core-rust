@@ -7,7 +7,7 @@
 //! The [`BobState`] is only directly used to initially create it when starting the
 //! protocol.
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use rusqlite::Connection;
 
 use super::qrinvite::QrInvite;

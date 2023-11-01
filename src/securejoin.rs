@@ -9,7 +9,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype};
-use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
@@ -482,6 +482,11 @@ pub(crate) async fn handle_securejoin_handshake(
         ====             Bob - the joiner's side             ====
         ====   Step 7 in "Setup verified contact" protocol   ====
         =======================================================*/
+        "vc-contact-confirm" => match BobState::from_db(&context.sql).await? {
+            Some(bobstate) => bob::handle_contact_confirm(context, bobstate, mime_message).await,
+            None => Ok(HandshakeMessage::Ignore),
+        },
+
         "vg-member-added" => {
             let Some(member_added) = mime_message
                 .get_header(HeaderDef::ChatGroupMemberAdded)
@@ -508,18 +513,13 @@ pub(crate) async fn handle_securejoin_handshake(
             }
         }
 
-        "vc-contact-confirm" => match BobState::from_db(&context.sql).await? {
-            Some(bobstate) => bob::handle_contact_confirm(context, bobstate, mime_message).await,
-            None => Ok(HandshakeMessage::Ignore),
-        },
-
         "vg-member-added-received" | "vc-contact-confirm-received" => {
             /*==========================================================
             ====              Alice - the inviter side              ====
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
             ==========================================================*/
 
-            Ok(HandshakeMessage::Done) // "Done" deletes the message 
+            Ok(HandshakeMessage::Done) // "Done" deletes the message
         }
         _ => {
             warn!(context, "invalid step: {}", step);
