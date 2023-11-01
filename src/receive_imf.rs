@@ -1698,11 +1698,7 @@ async fn apply_group_changes(
                     if let Some(id) = rfc724_mid_exists(context, reply_to).await? {
                         let msg = Message::load_from_db(context, id).await?;
                         // Handle not downloaded messages similar to non-existing parent (#4570)
-                        if msg.download_state as u32 > 0 {
-                            true
-                        } else {
-                            false
-                        }
+                        msg.download_state as u32 > 0
                     } else {
                         true
                     }
