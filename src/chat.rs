@@ -630,7 +630,6 @@ impl ChatId {
             "bad chat_id, can not be a special chat: {}",
             self
         );
-        /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
 
         let chat = Chat::load_from_db(context, self).await?;
         context
