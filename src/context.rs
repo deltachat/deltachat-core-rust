@@ -398,10 +398,23 @@ impl Context {
     }
 
     /// Starts the IO scheduler.
-    pub async fn start_io(&self) {
-        if let Ok(false) = self.is_configured().await {
+    pub async fn start_io(&mut self) {
+        if !self.is_configured().await.unwrap_or_default() {
             warn!(self, "can not start io on a context that is not configured");
             return;
+        }
+
+        {
+            if self
+                .get_config(Config::ConfiguredAddr)
+                .await
+                .unwrap_or_default()
+                .filter(|s| s.ends_with(".testrun.org"))
+                .is_some()
+            {
+                let mut lock = self.ratelimit.write().await;
+                *lock = Ratelimit::new(Duration::new(40, 0), 6.0);
+            }
         }
         self.scheduler.start(self.clone()).await;
     }

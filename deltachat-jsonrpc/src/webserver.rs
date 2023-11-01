@@ -28,7 +28,7 @@ async fn main() -> Result<(), std::io::Error> {
         .layer(Extension(state.clone()));
 
     tokio::spawn(async move {
-        state.accounts.read().await.start_io().await;
+        state.accounts.write().await.start_io().await;
     });
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

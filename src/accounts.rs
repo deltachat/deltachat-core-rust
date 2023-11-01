@@ -258,8 +258,8 @@ impl Accounts {
     }
 
     /// Starts background tasks such as IMAP and SMTP loops for all accounts.
-    pub async fn start_io(&self) {
-        for account in self.accounts.values() {
+    pub async fn start_io(&mut self) {
+        for account in self.accounts.values_mut() {
             account.start_io().await;
         }
     }
