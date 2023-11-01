@@ -1446,10 +1446,10 @@ WHERE type=? AND id IN (
                 false => sync::ChatAction::Unblock,
             };
             context
-                .add_sync_item(SyncData::AlterChat(sync::AlterChatData {
+                .add_sync_item(SyncData::AlterChat {
                     id: sync::ChatId::ContactAddr(contact.addr.clone()),
                     action,
-                }))
+                })
                 .await?;
         }
     }

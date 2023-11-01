@@ -59,16 +59,10 @@ pub(crate) enum ChatAction {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct AlterChatData {
-    pub(crate) id: ChatId,
-    pub(crate) action: ChatAction,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum SyncData {
     AddQrToken(QrTokenData),
     DeleteQrToken(QrTokenData),
-    AlterChat(AlterChatData),
+    AlterChat { id: ChatId, action: ChatAction },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -283,7 +277,7 @@ impl Context {
                     token::delete(self, Namespace::InviteNumber, &token.invitenumber).await?;
                     token::delete(self, Namespace::Auth, &token.auth).await?;
                 }
-                AlterChat(data) => self.sync_alter_chat(data).await?,
+                AlterChat { id, action } => self.sync_alter_chat(id, action).await?,
             }
         }
         Ok(())
@@ -322,16 +316,16 @@ mod tests {
 
         assert!(t.build_sync_json().await?.is_none());
 
-        // Having one test on `SyncData::AlterChat` is sufficient here as `AlterChatData` with
-        // `ChatAction::SetMuted` introduces enums inside items and SystemTime. Let's avoid in-depth
-        // testing of the serialiser here which is an external crate.
+        // Having one test on `SyncData::AlterChat` is sufficient here as `ChatAction::SetMuted`
+        // introduces enums inside items and `SystemTime`. Let's avoid in-depth testing of the
+        // serialiser here which is an external crate.
         t.add_sync_item_with_timestamp(
-            SyncData::AlterChat(AlterChatData {
+            SyncData::AlterChat {
                 id: ChatId::ContactAddr("bob@example.net".to_string()),
                 action: ChatAction::SetMuted(chat::MuteDuration::Until(
                     SystemTime::UNIX_EPOCH + Duration::from_millis(42999),
                 )),
-            }),
+            },
             1631781315,
         )
         .await?;
@@ -438,7 +432,7 @@ mod tests {
             r#"{"items":[{"timestamp":1631781318,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":{"SetMuted":{"Until":{"secs_since_epoch":42,"nanos_since_epoch":999000000}}}}}}]}"#.to_string(),
         )?;
         assert_eq!(sync_items.items.len(), 1);
-        let AlterChat(AlterChatData { id, action }) = &sync_items.items.get(0).unwrap().data else {
+        let AlterChat { id, action } = &sync_items.items.get(0).unwrap().data else {
             bail!("bad item");
         };
         assert_eq!(*id, ChatId::ContactAddr("bob@example.net".to_string()));

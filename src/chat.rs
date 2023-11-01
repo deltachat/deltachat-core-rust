@@ -1901,7 +1901,7 @@ impl Chat {
     pub(crate) async fn add_sync_item(&self, context: &Context, action: ChatAction) -> Result<()> {
         if let Some(id) = self.get_sync_id(context).await? {
             context
-                .add_sync_item(SyncData::AlterChat(sync::AlterChatData { id, action }))
+                .add_sync_item(SyncData::AlterChat { id, action })
                 .await?;
         }
         Ok(())
@@ -4054,8 +4054,12 @@ pub(crate) async fn update_msg_text_and_timestamp(
 
 impl Context {
     /// Executes [`SyncData::AlterChat`] item sent by other device.
-    pub(crate) async fn sync_alter_chat(&self, data: &sync::AlterChatData) -> Result<()> {
-        let chat_id = match &data.id {
+    pub(crate) async fn sync_alter_chat(
+        &self,
+        id: &sync::ChatId,
+        action: &ChatAction,
+    ) -> Result<()> {
+        let chat_id = match id {
             sync::ChatId::ContactAddr(addr) => {
                 let Some(contact_id) =
                     Contact::lookup_id_by_addr_ex(self, addr, Origin::Unknown, None).await?
@@ -4063,7 +4067,7 @@ impl Context {
                     warn!(self, "sync_alter_chat: No contact for addr '{addr}'.");
                     return Ok(());
                 };
-                match &data.action {
+                match action {
                     ChatAction::Block => {
                         return contact::set_blocked(self, Nosync, contact_id, true).await
                     }
@@ -4086,7 +4090,7 @@ impl Context {
                 chat_id
             }
         };
-        match &data.action {
+        match action {
             ChatAction::Block => chat_id.block_ex(self, Nosync).await,
             ChatAction::Unblock => chat_id.unblock_ex(self, Nosync).await,
             ChatAction::Accept => chat_id.accept_ex(self, Nosync).await,
