@@ -3824,25 +3824,28 @@ async fn test_partial_group_consistency() -> Result<()> {
     let bob = tcm.bob().await;
     bob.recv_msg(&add).await;
     let bob_chat_id = bob.get_last_msg().await.chat_id;
-    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
+    let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 2);
 
+    // Get initial timestamp.
     let timestamp = bob_chat_id
         .get_param(&bob)
         .await?
         .get_i64(Param::MemberListTimestamp)
         .unwrap();
 
-    // download message from bob partially, not changing the membership-list
+    // Bob receives partial message.
     let msg_id = receive_imf_inner(
         &bob,
         "first@example.org",
         b"From: Alice <alice@example.org>\n\
-                    To: Bob <bob@example.net>\n\
-                    Chat-Version: 1.0\n\
-                    Subject: subject\n\
-                    Message-ID: <first@example.org>\n\
-                    Date: Sun, 14 Nov 2021 00:10:00 +0000\
-                    Content-Type: text/plain",
+To: Bob <bob@example.net>\n\
+Chat-Version: 1.0\n\
+Subject: subject\n\
+Message-ID: <first@example.org>\n\
+Date: Sun, 14 Nov 2021 00:10:00 +0000\
+Content-Type: text/plain
+Chat-Group-Member-Added: charlie@example.com",
         false,
         Some(100000),
         false,
@@ -3851,17 +3854,25 @@ async fn test_partial_group_consistency() -> Result<()> {
     .context("no received message")?;
 
     let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
-    assert_eq!(msg.download_state, DownloadState::Available);
-
     let timestamp2 = bob_chat_id
         .get_param(&bob)
         .await?
         .get_i64(Param::MemberListTimestamp)
         .unwrap();
 
+    // Partial download does not change the member list.
+    assert_eq!(msg.download_state, DownloadState::Available);
     assert_eq!(timestamp, timestamp2);
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
 
-    chat::send_text_msg(&alice, alice_chat_id, "hi".to_string()).await?;
+    // Alice sends normal message to bob, adding fiona.
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "fiona", "fiona@example.net").await?,
+    )
+    .await?;
+
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
     let timestamp3 = bob_chat_id
@@ -3873,17 +3884,21 @@ async fn test_partial_group_consistency() -> Result<()> {
     // Receiving a message after a partial download recreates the member list because we treat
     // such messages as if we have not seen them.
     assert_ne!(timestamp, timestamp3);
+    let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 3);
 
+    // Bob fully reives the partial message.
     let msg_id = receive_imf_inner(
         &bob,
         "first@example.org",
         b"From: Alice <alice@example.org>\n\
-                    To: Bob <bob@example.net>\n\
-                    Chat-Version: 1.0\n\
-                    Subject: subject\n\
-                    Message-ID: <first@example.org>\n\
-                    Date: Sun, 14 Nov 2021 00:10:00 +0000\
-                    Content-Type: text/plain",
+To: Bob <bob@example.net>\n\
+Chat-Version: 1.0\n\
+Subject: subject\n\
+Message-ID: <first@example.org>\n\
+Date: Sun, 14 Nov 2021 00:10:00 +0000\
+Content-Type: text/plain
+Chat-Group-Member-Added: charlie@example.com",
         false,
         None,
         false,
@@ -3892,8 +3907,6 @@ async fn test_partial_group_consistency() -> Result<()> {
     .context("no received message")?;
 
     let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
-    assert_eq!(msg.download_state, DownloadState::Done);
-
     let timestamp4 = bob_chat_id
         .get_param(&bob)
         .await?
@@ -3901,7 +3914,9 @@ async fn test_partial_group_consistency() -> Result<()> {
         .unwrap();
 
     // After full download, the old message should not change group state.
+    assert_eq!(msg.download_state, DownloadState::Done);
     assert_eq!(timestamp3, timestamp4);
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
 
     Ok(())
 }

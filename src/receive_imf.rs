@@ -500,7 +500,6 @@ async fn add_parts(
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
-
     let state: MessageState;
     let mut needs_delete_job = false;
     if incoming {
@@ -646,6 +645,7 @@ async fn add_parts(
                 chat_id,
                 from_id,
                 to_ids,
+                is_partial_download.is_some(),
             )
             .await?);
         }
@@ -845,6 +845,7 @@ async fn add_parts(
                 chat_id,
                 from_id,
                 to_ids,
+                is_partial_download.is_some(),
             )
             .await?);
         }
@@ -1646,6 +1647,7 @@ async fn create_or_lookup_group(
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
 /// Optionally returns better message to replace the original system message.
+/// is_partial: whether the message is not fully downloaded.
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1653,6 +1655,7 @@ async fn apply_group_changes(
     chat_id: ChatId,
     from_id: ContactId,
     to_ids: &[ContactId],
+    is_partial: bool,
 ) -> Result<Option<String>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
@@ -1676,7 +1679,8 @@ async fn apply_group_changes(
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
 
     // Reject group membership changes from non-members and old changes.
-    let allow_member_list_changes = is_from_in_chat
+    let allow_member_list_changes = !is_partial
+        && is_from_in_chat
         && chat_id
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?;
