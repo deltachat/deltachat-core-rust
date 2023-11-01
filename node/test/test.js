@@ -440,12 +440,6 @@ describe('Offline Tests with unconfigured account', function () {
     expect(blobPath.startsWith(blobs)).to.be.true
     expect(blobPath.includes('image')).to.be.true
     expect(blobPath.endsWith('.jpeg')).to.be.true
-
-    context.setChatProfileImage(chatId, null)
-    expect(context.getChat(chatId).getProfileImage()).to.be.equal(
-      null,
-      'image is null'
-    )
   })
 
   it('test setting ephemeral timer', function () {

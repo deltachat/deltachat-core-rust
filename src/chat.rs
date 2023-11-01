@@ -4368,8 +4368,16 @@ mod tests {
         assert_eq!(a1_chat.grpid, a2_chat.grpid);
         assert_eq!(a1_chat.name, "foo");
         assert_eq!(a2_chat.name, "foo");
-        assert_eq!(a1_chat.get_profile_image(&a1).await?, None);
-        assert_eq!(a2_chat.get_profile_image(&a2).await?, None);
+        assert!(a1_chat
+            .get_profile_image(&a1)
+            .await?
+            .unwrap()
+            .ends_with("icon-group.png"));
+        assert!(a2_chat
+            .get_profile_image(&a2)
+            .await?
+            .unwrap()
+            .ends_with("icon-group.png"));
         assert_eq!(get_chat_contacts(&a1, a1_chat_id).await?.len(), 1);
         assert_eq!(get_chat_contacts(&a2, a2_chat_id).await?.len(), 1);
 
