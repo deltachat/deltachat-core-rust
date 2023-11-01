@@ -571,11 +571,11 @@ class Account:
         return ScannedQRCode(lot)
 
     def qr_setup_contact(self, qr):
-        """setup contact and return a Chat after contact is established.
+        """setup contact and return a `Chat` instance after contact is established.
 
-        Note that this function may block for a long time as messages are exchanged
-        with the emitter of the QR code.  On success a :class:`deltachat.chat.Chat` instance
-        is returned.
+        This function triggers a network protocol in the background between
+        the emitter of the QR code and this account.
+
         :param qr: valid "setup contact" QR code (all other QR codes will result in an exception)
         """
         assert self.check_qr(qr).is_ask_verifycontact()
@@ -585,11 +585,11 @@ class Account:
         return Chat(self, chat_id)
 
     def qr_join_chat(self, qr):
-        """join a chat group through a QR code.
+        """return a `Chat` instance for which the securejoin network
+        protocol has been started.
 
-        Note that this function may block for a long time as messages are exchanged
-        with the emitter of the QR code.  On success a :class:`deltachat.chat.Chat` instance
-        is returned which is the chat that we just joined.
+        This function triggers a network protocol in the background between
+        the emitter of the QR code and this account.
 
         :param qr: valid "join-group" QR code (all other QR codes will result in an exception)
         """
