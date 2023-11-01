@@ -2250,8 +2250,6 @@ enum VerifiedEncryption {
 ///
 /// This means that it is encrypted, signed with a verified key,
 /// and if it's a group, all the recipients are verified.
-///
-/// Also propagates gossiped keys to verified if needed.
 async fn has_verified_encryption(
     context: &Context,
     mimeparser: &MimeMessage,
@@ -2288,26 +2286,7 @@ async fn has_verified_encryption(
             ));
         };
 
-        let signed_with_primary_verified_key = peerstate
-            .verified_key_fingerprint
-            .as_ref()
-            .filter(|fp| mimeparser.signatures.contains(fp))
-            .is_some();
-        let signed_with_secondary_verified_key = peerstate
-            .secondary_verified_key_fingerprint
-            .as_ref()
-            .filter(|fp| mimeparser.signatures.contains(fp))
-            .is_some();
-        if signed_with_secondary_verified_key {
-            let mut peerstate: Peerstate = peerstate.clone();
-            peerstate.verified_key = peerstate.secondary_verified_key.take();
-            peerstate.verified_key_fingerprint =
-                peerstate.secondary_verified_key_fingerprint.take();
-            peerstate.verifier = peerstate.secondary_verifier.take();
-            peerstate.save_to_db(&context.sql).await?;
-        }
-
-        if !signed_with_primary_verified_key && !signed_with_secondary_verified_key {
+        if !peerstate.has_verified_key(&mimeparser.signatures) {
             return Ok(NotVerified(
                 "The message was sent with non-verified encryption".to_string(),
             ));
@@ -2353,23 +2332,16 @@ async fn has_verified_encryption(
         if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
                 // If we're here, we know the gossip key is verified.
-                // - Store gossip key as secondary verified key if there is a verified key and
-                //   gossiped key is different.
-                // - Use the gossip-key as verified-key if there is no verified-key
-                //
-                // See <https://github.com/nextleap-project/countermitm/issues/46>
-                // and <https://github.com/deltachat/deltachat-core-rust/issues/4541> for discussion.
-                let verifier_addr = contact.get_addr().to_owned();
-                if is_verified {
-                    // The contact already has a verified key.
-                    // Store gossiped key as the secondary verified key.
-                    peerstate.set_secondary_verified_key_from_gossip(verifier_addr);
-                    peerstate.save_to_db(&context.sql).await?;
-                } else {
-                    info!(context, "{verifier_addr} has verified {to_addr}.");
+                // Use the gossip-key as verified-key if there is no verified-key.
+                if !is_verified {
+                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr);
                     let fp = peerstate.gossip_key_fingerprint.clone();
                     if let Some(fp) = fp {
-                        peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
+                        peerstate.set_verified(
+                            PeerstateKeyType::GossipKey,
+                            fp,
+                            contact.get_addr().to_owned(),
+                        )?;
                         peerstate.save_to_db(&context.sql).await?;
                     }
                 }

@@ -1,5 +1,7 @@
 //! # [Autocrypt Peer State](https://autocrypt.org/level1.html#peer-state-management) module.
 
+use std::collections::HashSet;
+
 use anyhow::{Context as _, Error, Result};
 use num_traits::FromPrimitive;
 
@@ -38,7 +40,7 @@ pub enum PeerstateVerifiedStatus {
 }
 
 /// Peerstate represents the state of an Autocrypt peer.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Peerstate {
     /// E-mail address of the contact.
     pub addr: String,
@@ -80,24 +82,13 @@ pub struct Peerstate {
     /// Fingerprint of the verified public key.
     pub verified_key_fingerprint: Option<Fingerprint>,
 
-    /// The address that verified this verified key.
-    pub verifier: Option<String>,
-
-    /// Secondary public verified key of the contact.
-    /// It could be a contact gossiped by another verified contact in a shared group
-    /// or a key that was previously used as a verified key.
-    pub secondary_verified_key: Option<SignedPublicKey>,
-
-    /// Fingerprint of the secondary verified public key.
-    pub secondary_verified_key_fingerprint: Option<Fingerprint>,
-
-    /// The address that verified secondary verified key.
-    pub secondary_verifier: Option<String>,
-
     /// True if it was detected
     /// that the fingerprint of the key used in chats with
     /// opportunistic encryption was changed after Peerstate creation.
     pub fingerprint_changed: bool,
+
+    /// The address that verified this contact
+    pub verifier: Option<String>,
 }
 
 impl Peerstate {
@@ -115,11 +106,8 @@ impl Peerstate {
             gossip_timestamp: 0,
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         }
     }
 
@@ -144,11 +132,8 @@ impl Peerstate {
             gossip_timestamp: message_time,
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         }
     }
 
@@ -156,10 +141,7 @@ impl Peerstate {
     pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint, \
-                     verifier, \
-                     secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates \
                      WHERE addr=? COLLATE NOCASE LIMIT 1;";
         Self::from_stmt(context, query, (addr,)).await
@@ -172,10 +154,7 @@ impl Peerstate {
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint, \
-                     verifier, \
-                     secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? \
                      OR gossip_key_fingerprint=? \
@@ -195,10 +174,7 @@ impl Peerstate {
     ) -> Result<Option<Peerstate>> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint, \
-                     verifier, \
-                     secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     verified_key, verified_key_fingerprint, verifier \
                      FROM acpeerstates  \
                      WHERE verified_key_fingerprint=? \
                      OR addr=? COLLATE NOCASE \
@@ -215,6 +191,11 @@ impl Peerstate {
         let peerstate = context
             .sql
             .query_row_optional(query, params, |row| {
+                // all the above queries start with this: SELECT
+                //   addr, last_seen, last_seen_autocrypt, prefer_encrypted,
+                //   public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
+                //   gossip_key_fingerprint, verified_key, verified_key_fingerprint
+
                 let res = Peerstate {
                     addr: row.get("addr")?,
                     last_seen: row.get("last_seen")?,
@@ -249,24 +230,11 @@ impl Peerstate {
                         .map(|s| s.parse::<Fingerprint>())
                         .transpose()
                         .unwrap_or_default(),
+                    fingerprint_changed: false,
                     verifier: {
                         let verifier: Option<String> = row.get("verifier")?;
-                        verifier.filter(|s| !s.is_empty())
+                        verifier.filter(|verifier| !verifier.is_empty())
                     },
-                    secondary_verified_key: row
-                        .get("secondary_verified_key")
-                        .ok()
-                        .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok()),
-                    secondary_verified_key_fingerprint: row
-                        .get::<_, Option<String>>("secondary_verified_key_fingerprint")?
-                        .map(|s| s.parse::<Fingerprint>())
-                        .transpose()
-                        .unwrap_or_default(),
-                    secondary_verifier: {
-                        let secondary_verifier: Option<String> = row.get("secondary_verifier")?;
-                        secondary_verifier.filter(|s| !s.is_empty())
-                    },
-                    fingerprint_changed: false,
                 };
 
                 Ok(res)
@@ -493,19 +461,6 @@ impl Peerstate {
         }
     }
 
-    /// Sets current gossiped key as the secondary verified key.
-    ///
-    /// If gossiped key is the same as the current verified key,
-    /// do nothing to avoid overwriting secondary verified key
-    /// which may be different.
-    pub fn set_secondary_verified_key_from_gossip(&mut self, verifier: String) {
-        if self.gossip_key_fingerprint != self.verified_key_fingerprint {
-            self.secondary_verified_key = self.gossip_key.clone();
-            self.secondary_verified_key_fingerprint = self.gossip_key_fingerprint.clone();
-            self.secondary_verifier = Some(verifier);
-        }
-    }
-
     /// Saves the peerstate to the database.
     pub async fn save_to_db(&self, sql: &Sql) -> Result<()> {
         sql.execute(
@@ -520,12 +475,9 @@ impl Peerstate {
                 gossip_key_fingerprint,
                 verified_key,
                 verified_key_fingerprint,
-                verifier,
-                secondary_verified_key,
-                secondary_verified_key_fingerprint,
-                secondary_verifier,
-                addr)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                addr,
+                verifier)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT (addr)
                 DO UPDATE SET
                   last_seen = excluded.last_seen,
@@ -538,10 +490,7 @@ impl Peerstate {
                   gossip_key_fingerprint = excluded.gossip_key_fingerprint,
                   verified_key = excluded.verified_key,
                   verified_key_fingerprint = excluded.verified_key_fingerprint,
-                  verifier = excluded.verifier,
-                  secondary_verified_key = excluded.secondary_verified_key,
-                  secondary_verified_key_fingerprint = excluded.secondary_verified_key_fingerprint,
-                  secondary_verifier = excluded.secondary_verifier",
+                  verifier = excluded.verifier",
             (
                 self.last_seen,
                 self.last_seen_autocrypt,
@@ -553,17 +502,21 @@ impl Peerstate {
                 self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                 self.verified_key.as_ref().map(|k| k.to_bytes()),
                 self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                self.verifier.as_deref().unwrap_or(""),
-                self.secondary_verified_key.as_ref().map(|k| k.to_bytes()),
-                self.secondary_verified_key_fingerprint
-                    .as_ref()
-                    .map(|fp| fp.hex()),
-                self.secondary_verifier.as_deref().unwrap_or(""),
                 &self.addr,
+                self.verifier.as_deref().unwrap_or(""),
             ),
         )
         .await?;
         Ok(())
+    }
+
+    /// Returns true if verified key is contained in the given set of fingerprints.
+    pub fn has_verified_key(&self, fingerprints: &HashSet<Fingerprint>) -> bool {
+        if let Some(vkc) = &self.verified_key_fingerprint {
+            fingerprints.contains(vkc) && self.verified_key.is_some()
+        } else {
+            false
+        }
     }
 
     /// Returns the address that verified the contact
@@ -816,11 +769,8 @@ mod tests {
             gossip_key_fingerprint: Some(pub_key.fingerprint()),
             verified_key: Some(pub_key.clone()),
             verified_key_fingerprint: Some(pub_key.fingerprint()),
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -859,11 +809,8 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -895,11 +842,8 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         assert!(
@@ -961,11 +905,8 @@ mod tests {
             gossip_key_fingerprint: None,
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         };
 
         peerstate.apply_header(&header, 100);

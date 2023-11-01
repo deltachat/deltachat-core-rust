@@ -392,6 +392,7 @@ def test_qr_setup_contact(acfactory) -> None:
             return
 
 
+@pytest.mark.xfail()
 def test_verified_group_recovery(acfactory, rpc) -> None:
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 

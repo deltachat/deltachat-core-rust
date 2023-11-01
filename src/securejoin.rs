@@ -1060,11 +1060,8 @@ mod tests {
             gossip_key_fingerprint: Some(alice_pubkey.fingerprint()),
             verified_key: None,
             verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
             fingerprint_changed: false,
+            verifier: None,
         };
         peerstate.save_to_db(&bob.ctx.sql).await?;
 
