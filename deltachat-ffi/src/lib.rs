@@ -489,7 +489,7 @@ pub unsafe extern "C" fn dc_start_io(context: *mut dc_context_t) {
     if context.is_null() {
         return;
     }
-    let ctx = &*context;
+    let ctx = &mut *context;
 
     block_on(ctx.start_io())
 }
@@ -4946,8 +4946,8 @@ pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
         return;
     }
 
-    let accounts = &*accounts;
-    block_on(async move { accounts.read().await.start_io().await });
+    let accounts = &mut *accounts;
+    block_on(async move { accounts.write().await.start_io().await });
 }
 
 #[no_mangle]

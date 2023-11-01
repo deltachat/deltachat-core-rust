@@ -221,13 +221,13 @@ impl CommandApi {
 
     /// Starts background tasks for all accounts.
     async fn start_io_for_all_accounts(&self) -> Result<()> {
-        self.accounts.read().await.start_io().await;
+        self.accounts.write().await.start_io().await;
         Ok(())
     }
 
     /// Stops background tasks for all accounts.
     async fn stop_io_for_all_accounts(&self) -> Result<()> {
-        self.accounts.read().await.stop_io().await;
+        self.accounts.write().await.stop_io().await;
         Ok(())
     }
 
@@ -237,7 +237,7 @@ impl CommandApi {
 
     /// Starts background tasks for a single account.
     async fn start_io(&self, account_id: u32) -> Result<()> {
-        let ctx = self.get_context(account_id).await?;
+        let mut ctx = self.get_context(account_id).await?;
         ctx.start_io().await;
         Ok(())
     }
@@ -383,7 +383,7 @@ impl CommandApi {
     /// Configures this account with the currently set parameters.
     /// Setup the credential config before calling this.
     async fn configure(&self, account_id: u32) -> Result<()> {
-        let ctx = self.get_context(account_id).await?;
+        let mut ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
         let result = ctx.configure().await;
         if result.is_err() {

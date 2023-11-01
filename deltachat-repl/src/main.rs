@@ -401,7 +401,7 @@ enum ExitResult {
 
 async fn handle_cmd(
     line: &str,
-    ctx: Context,
+    mut ctx: Context,
     selected_chat: &mut ChatId,
 ) -> Result<ExitResult, Error> {
     let mut args = line.splitn(2, ' ');
