@@ -3118,6 +3118,46 @@ async fn test_thunderbird_autocrypt() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_prefer_encrypt_mutual_if_encrypted() -> Result<()> {
+    let t = TestContext::new_bob().await;
+
+    let raw =
+        include_bytes!("../../test-data/message/thunderbird_encrypted_signed_with_pubkey.eml");
+    receive_imf(&t, raw, false).await?;
+    let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+        .await?
+        .unwrap();
+    assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+    receive_imf(
+        &t,
+        b"From: alice@example.org\n\
+          To: bob@example.net\n\
+          Subject: foo\n\
+          Message-ID: <message@example.org>\n\
+          Date: Thu, 2 Nov 2023 02:20:28 -0300\n\
+          \n\
+          unencrypted\n",
+        false,
+    )
+    .await?;
+    let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+        .await?
+        .unwrap();
+    assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Reset);
+
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_signed.eml");
+    receive_imf(&t, raw, false).await?;
+    let peerstate = Peerstate::from_addr(&t, "alice@example.org")
+        .await?
+        .unwrap();
+    assert!(peerstate.public_key.is_some());
+    assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_thunderbird_autocrypt_unencrypted() -> Result<()> {
     let t = TestContext::new_bob().await;
 
