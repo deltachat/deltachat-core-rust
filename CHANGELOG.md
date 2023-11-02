@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.128.0] - 2023-11-02
+
+### Build system
+- [**breaking**] Upgrade nodejs version to 18 ([#4903](https://github.com/deltachat/deltachat-core-rust/pull/4903)).
+
+### Features / Changes
+
+- deltachat-rpc-client: Add `Account.wait_for_incoming_msg_event()`.
+- Decrease ratelimit for .testrun.org subdomains.
+
+### Fixes
+
+- Do not fail securejoin due to unrelated pending bobstate  ([#4896](https://github.com/deltachat/deltachat-core-rust/pull/4896)).
+- Allow other verified group recipients to be unverified, only check the sender verification.
+- Remove not working attempt to recover from verified key changes.
+
 ## [1.127.2] - 2023-10-29
 
 ### API-Changes
@@ -3049,3 +3065,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.127.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.126.1...v1.127.0
 [1.127.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.0...v1.127.1
 [1.127.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.1...v1.127.2
+[1.128.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.2...v1.128.0
