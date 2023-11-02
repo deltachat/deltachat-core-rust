@@ -546,6 +546,7 @@ class ACFactory:
         configdict.setdefault("bcc_self", False)
         configdict.setdefault("mvbox_move", False)
         configdict.setdefault("sentbox_watch", False)
+        configdict.setdefault("sync_msgs", False)
         ac.update_config(configdict)
         self._preconfigure_key(ac, configdict["addr"])
         return ac

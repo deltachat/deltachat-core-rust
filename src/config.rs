@@ -302,7 +302,7 @@ pub enum Config {
     DownloadLimit,
 
     /// Enable sending and executing (applying) sync messages. Sending requires `BccSelf` to be set.
-    #[strum(props(default = "0"))]
+    #[strum(props(default = "1"))]
     SyncMsgs,
 
     /// Space-separated list of all the authserv-ids which we believe
