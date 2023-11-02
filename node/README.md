@@ -40,7 +40,7 @@ npm install deltachat-node
 
 ## Dependencies
 
-- Nodejs >= `v16.0.0`
+- Nodejs >= `v18.0.0`
 - rustup (optional if you can't use the prebuilds)
 
 > On Windows, you may need to also install **Perl** to be able to compile deltachat-core.
@@ -113,8 +113,8 @@ Then, in the `deltachat-desktop` repository, run:
 deltachat doesn't support universal (fat) binaries (that contain builds for both cpu architectures) yet, until it does you can use the following workaround to get x86_64 builds:
 
 ```
-$ fnm install 17 --arch x64
-$ fnm use 17
+$ fnm install 19 --arch x64
+$ fnm use 19
 $ node -p process.arch
 # result should be x64
 $ rustup target add x86_64-apple-darwin
@@ -127,8 +127,8 @@ $ npm run test
 If your node and electron are already build for arm64 you can also try building for arm:
 
 ```
-$ fnm install 16 --arch arm64
-$ fnm use 16
+$ fnm install 18 --arch arm64
+$ fnm use 18
 $ node -p process.arch
 # result should be arm64
 $ npm_config_arch=arm64 npm run build

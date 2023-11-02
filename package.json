@@ -2,28 +2,26 @@
   "dependencies": {
     "debug": "^4.1.1",
     "napi-macros": "^2.0.0",
-    "node-gyp-build": "^4.1.0"
+    "node-gyp-build": "^4.6.1"
   },
   "description": "node.js bindings for deltachat-core",
   "devDependencies": {
     "@types/debug": "^4.1.7",
-    "@types/node": "^16.11.26",
+    "@types/node": "^18.18.8",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "esm": "^3.2.25",
-    "hallmark": "^2.0.0",
     "mocha": "^8.2.1",
     "node-fetch": "^2.6.7",
-    "node-gyp": "^9.0.0",
-    "opn-cli": "^5.0.0",
-    "prebuildify": "^3.0.0",
-    "prebuildify-ci": "^1.0.4",
+    "node-gyp": "^10.0.0",
+    "prebuildify": "^5.0.1",
+    "prebuildify-ci": "^1.0.5",
     "prettier": "^2.0.5",
     "typedoc": "^0.17.0",
-    "typescript": "^3.9.10"
+    "typescript": "^5.2.2"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "files": [
     "node/scripts/*",
@@ -49,12 +47,11 @@
     "build:core:rust": "node node/scripts/rebuild-core.js",
     "clean": "rm -rf node/dist node/build node/prebuilds node/node_modules ./target",
     "download-prebuilds": "prebuildify-ci download",
-    "hallmark": "hallmark --fix",
     "install": "node node/scripts/install.js",
     "install:prebuilds": "cd node && node-gyp-build \"npm run build:core\" \"npm run build:bindings:c:postinstall\"",
     "lint": "prettier --check \"node/lib/**/*.{ts,tsx}\"",
     "lint-fix": "prettier --write \"node/lib/**/*.{ts,tsx}\" \"node/test/**/*.js\"",
-    "prebuildify": "cd node && prebuildify -t 16.13.0 --napi --strip --postinstall \"node scripts/postinstall.js --prebuild\"",
+    "prebuildify": "cd node && prebuildify -t 18.0.0 --napi --strip --postinstall \"node scripts/postinstall.js --prebuild\"",
     "test": "npm run test:lint && npm run test:mocha",
     "test:lint": "npm run lint",
     "test:mocha": "mocha -r esm node/test/test.js --growl --reporter=spec --bail --exit"
