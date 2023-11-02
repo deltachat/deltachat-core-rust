@@ -515,24 +515,22 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            match handle_securejoin_handshake(context, mime_parser, from_id).await {
-                Ok(securejoin::HandshakeMessage::Done) => {
+            match handle_securejoin_handshake(context, mime_parser, from_id)
+                .await
+                .context("error in Secure-Join message handling")?
+            {
+                securejoin::HandshakeMessage::Done => {
                     chat_id = Some(DC_CHAT_ID_TRASH);
                     needs_delete_job = true;
                     securejoin_seen = true;
                 }
-                Ok(securejoin::HandshakeMessage::Ignore) => {
+                securejoin::HandshakeMessage::Ignore => {
                     chat_id = Some(DC_CHAT_ID_TRASH);
                     securejoin_seen = true;
                 }
-                Ok(securejoin::HandshakeMessage::Propagate) => {
+                securejoin::HandshakeMessage::Propagate => {
                     // process messages as "member added" normally
                     securejoin_seen = false;
-                }
-                Err(err) => {
-                    warn!(context, "Error in Secure-Join message handling: {err:#}.");
-                    chat_id = Some(DC_CHAT_ID_TRASH);
-                    securejoin_seen = true;
                 }
             }
             // Peerstate could be updated by handling the Securejoin handshake.
@@ -809,18 +807,16 @@ async fn add_parts(
 
         // handshake may mark contacts as verified and must be processed before chats are created
         if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            match observe_securejoin_on_other_device(context, mime_parser, to_id).await {
-                Ok(securejoin::HandshakeMessage::Done)
-                | Ok(securejoin::HandshakeMessage::Ignore) => {
+            match observe_securejoin_on_other_device(context, mime_parser, to_id)
+                .await
+                .context("error in Secure-Join watching")?
+            {
+                securejoin::HandshakeMessage::Done | securejoin::HandshakeMessage::Ignore => {
                     chat_id = Some(DC_CHAT_ID_TRASH);
                 }
-                Ok(securejoin::HandshakeMessage::Propagate) => {
+                securejoin::HandshakeMessage::Propagate => {
                     // process messages as "member added" normally
                     chat_id = None;
-                }
-                Err(err) => {
-                    warn!(context, "Error in Secure-Join watching: {err:#}.");
-                    chat_id = Some(DC_CHAT_ID_TRASH);
                 }
             }
         } else if mime_parser.sync_items.is_some() && self_sent {
