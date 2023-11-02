@@ -9,7 +9,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype};
-use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
 use crate::events::EventType;
@@ -478,62 +478,48 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
         }
-        "vg-member-added" | "vc-contact-confirm" => {
-            /*=======================================================
-            ====             Bob - the joiner's side             ====
-            ====   Step 7 in "Setup verified contact" protocol   ====
-            =======================================================*/
+        /*=======================================================
+        ====             Bob - the joiner's side             ====
+        ====   Step 7 in "Setup verified contact" protocol   ====
+        =======================================================*/
+        "vc-contact-confirm" => match BobState::from_db(&context.sql).await? {
+            Some(bobstate) => bob::handle_contact_confirm(context, bobstate, mime_message).await,
+            None => Ok(HandshakeMessage::Ignore),
+        },
 
-            if let Some(member_added) = mime_message
+        "vg-member-added" => {
+            let Some(member_added) = mime_message
                 .get_header(HeaderDef::ChatGroupMemberAdded)
                 .map(|s| s.as_str())
-            {
-                if !context.is_self_addr(member_added).await? {
-                    info!(
-                        context,
-                        "Member {member_added} added by unrelated SecureJoin process"
-                    );
-                    return Ok(HandshakeMessage::Propagate);
-                }
+            else {
+                warn!(
+                    context,
+                    "vg-member-added without Chat-Group-Member-Added header"
+                );
+                return Ok(HandshakeMessage::Propagate);
+            };
+            if !context.is_self_addr(member_added).await? {
+                info!(
+                    context,
+                    "Member {member_added} added by unrelated SecureJoin process"
+                );
+                return Ok(HandshakeMessage::Propagate);
             }
             match BobState::from_db(&context.sql).await? {
                 Some(bobstate) => {
                     bob::handle_contact_confirm(context, bobstate, mime_message).await
                 }
-                None => match join_vg {
-                    true => Ok(HandshakeMessage::Propagate),
-                    false => Ok(HandshakeMessage::Ignore),
-                },
+                None => Ok(HandshakeMessage::Propagate),
             }
         }
+
         "vg-member-added-received" | "vc-contact-confirm-received" => {
             /*==========================================================
             ====              Alice - the inviter side              ====
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
             ==========================================================*/
 
-            if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                if contact.is_verified(context).await? == VerifiedStatus::Unverified {
-                    warn!(context, "{} invalid.", step);
-                    return Ok(HandshakeMessage::Ignore);
-                }
-                if join_vg {
-                    let field_grpid = mime_message
-                        .get_header(HeaderDef::SecureJoinGroup)
-                        .map(|s| s.as_str())
-                        .unwrap_or_else(|| "");
-                    if let Err(err) = chat::get_chat_id_by_grpid(context, field_grpid).await {
-                        warn!(context, "Failed to lookup chat_id from grpid: {}", err);
-                        return Err(
-                            err.context(format!("Chat for group {} not found", &field_grpid))
-                        );
-                    }
-                }
-                Ok(HandshakeMessage::Ignore) // "Done" deletes the message and breaks multi-device
-            } else {
-                warn!(context, "{} invalid.", step);
-                Ok(HandshakeMessage::Ignore)
-            }
+            Ok(HandshakeMessage::Done) // "Done" deletes the message
         }
         _ => {
             warn!(context, "invalid step: {}", step);
