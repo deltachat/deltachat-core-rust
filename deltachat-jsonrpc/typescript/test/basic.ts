@@ -79,6 +79,9 @@ describe("basic tests", () => {
       accountId = await dc.rpc.addAccount();
     });
     it("should block and unblock contact", async function () {
+      // Cannot send sync messages to self as we do not have a self address.
+      await dc.rpc.setConfig(accountId, "sync_msgs", "0");
+
       const contactId = await dc.rpc.createContact(
         accountId,
         "example@delta.chat",
