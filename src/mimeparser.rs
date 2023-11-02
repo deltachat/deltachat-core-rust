@@ -376,6 +376,12 @@ impl MimeMessage {
         if !encrypted {
             signatures.clear();
         }
+        if let Some(peerstate) = &mut decryption_info.peerstate {
+            if peerstate.prefer_encrypt != EncryptPreference::Mutual && !signatures.is_empty() {
+                peerstate.prefer_encrypt = EncryptPreference::Mutual;
+                peerstate.save_to_db(&context.sql).await?;
+            }
+        }
 
         // Auto-submitted is also set by holiday-notices so we also check `chat-version`
         let is_bot = headers.contains_key("auto-submitted") && headers.contains_key("chat-version");
