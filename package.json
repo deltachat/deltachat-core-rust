@@ -17,7 +17,7 @@
     "prebuildify": "^5.0.1",
     "prebuildify-ci": "^1.0.5",
     "prettier": "^2.0.5",
-    "typedoc": "^0.17.0",
+    "typedoc": "^0.25.3",
     "typescript": "^5.2.2"
   },
   "engines": {

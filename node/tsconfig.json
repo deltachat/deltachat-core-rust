@@ -13,10 +13,10 @@
     },
     "exclude": ["node_modules", "deltachat-core-rust", "dist", "scripts"],
     "typedocOptions": {
-        "mode": "file",
         "out": "docs",
-        "excludeNotExported": true,
+        "excludePrivate": true,
         "defaultCategory": "index",
-        "includeVersion": true
+        "includeVersion": true,
+        "entryPoints": ["lib/index.ts"]
     }
 }
