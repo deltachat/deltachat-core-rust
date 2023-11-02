@@ -1802,6 +1802,14 @@ pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<MsgId>> {
+    rfc724_mid_exists_and(context, rfc724_mid, "1").await
+}
+
+pub(crate) async fn rfc724_mid_exists_and(
+    context: &Context,
+    rfc724_mid: &str,
+    cond: &str,
+) -> Result<Option<MsgId>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
@@ -1811,7 +1819,7 @@ pub(crate) async fn rfc724_mid_exists(
     let res = context
         .sql
         .query_row_optional(
-            "SELECT id FROM msgs WHERE rfc724_mid=?",
+            &("SELECT id FROM msgs WHERE rfc724_mid=? AND ".to_string() + cond),
             (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
