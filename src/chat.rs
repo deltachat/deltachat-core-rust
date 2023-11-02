@@ -3145,6 +3145,11 @@ pub async fn create_group_chat(
             .await?;
     }
 
+    if !context.get_config_bool(Config::SkipStartMessages).await? {
+        let text = stock_str::new_group_send_first_message(context).await;
+        add_info_msg(context, chat_id, &text, create_smeared_timestamp(context)).await?;
+    }
+
     Ok(chat_id)
 }
 

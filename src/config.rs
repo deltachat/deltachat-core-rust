@@ -266,6 +266,10 @@ pub enum Config {
     /// True if it is a bot account.
     Bot,
 
+    /// True when to skip initial start messages in groups.
+    #[strum(props(default = "0"))]
+    SkipStartMessages,
+
     /// Whether we send a warning if the password is wrong (set to false when we send a warning
     /// because we do not want to send a second warning)
     #[strum(props(default = "0"))]

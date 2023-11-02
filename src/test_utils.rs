@@ -374,6 +374,10 @@ impl TestContext {
             }
         });
 
+        ctx.set_config(Config::SkipStartMessages, Some("1"))
+            .await
+            .unwrap();
+
         Self {
             ctx,
             dir,

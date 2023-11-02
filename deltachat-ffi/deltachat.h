@@ -7275,6 +7275,11 @@ void dc_event_unref(dc_event_t* event);
 /// Used in info messages.
 #define DC_STR_CHAT_PROTECTION_DISABLED 171
 
+/// "Others will only see this group after you sent a first message."
+///
+/// Used as the first info messages in newly created groups.
+#define DC_STR_NEW_GROUP_SEND_FIRST_MESSAGE 172
+
 /**
  * @}
  */

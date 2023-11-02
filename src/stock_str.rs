@@ -413,6 +413,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "%1$s sent a message from another device."))]
     ChatProtectionDisabled = 171,
+
+    #[strum(props(fallback = "Others will only see this group after you sent a first message."))]
+    NewGroupSendFirstMessage = 172,
 }
 
 impl StockMessage {
@@ -1282,6 +1285,11 @@ pub(crate) async fn aeap_explanation_and_link(
         .await
         .replace1(old_addr)
         .replace2(new_addr)
+}
+
+/// Stock string: `Others will only see this group after you sent a first message.`.
+pub(crate) async fn new_group_send_first_message(context: &Context) -> String {
+    translated(context, StockMessage::NewGroupSendFirstMessage).await
 }
 
 /// Text to put in the [`Qr::Backup`] rendered SVG image.
