@@ -1,4 +1,5 @@
 //! # Common network utilities.
+use std::net::Ipv4Addr;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::str::FromStr;
@@ -117,6 +118,22 @@ async fn lookup_host_with_cache(
                         "Failed to parse cached address {:?}: {:#}.", cached_address, err
                     );
                 }
+            }
+        }
+
+        if resolved_addrs.is_empty() {
+            // Load hardcoded cache if everything else fails.
+            //
+            // See <https://support.delta.chat/t/no-dns-resolution-result/2778> and
+            // <https://github.com/deltachat/deltachat-core-rust/issues/4920> for reasons.
+            //
+            // In the future we may pre-resolve all provider database addresses
+            // and build them in.
+            if hostname == "mail.sangham.net" {
+                resolved_addrs.push(SocketAddr::new(
+                    IpAddr::V4(Ipv4Addr::new(159, 69, 186, 85)),
+                    port,
+                ));
             }
         }
     }
