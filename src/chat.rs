@@ -1877,7 +1877,7 @@ impl Chat {
             Chattype::Single => {
                 let mut r = None;
                 for contact_id in get_chat_contacts(context, self.id).await? {
-                    if contact_id == ContactId::SELF {
+                    if contact_id == ContactId::SELF && !self.is_self_talk() {
                         continue;
                     }
                     if r.is_some() {

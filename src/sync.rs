@@ -615,17 +615,23 @@ mod tests {
         sync(&alices).await?;
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
 
+        // Test syncing of chat visibility on a self-chat. This way we test:
+        // - Self-chat synchronisation.
+        // - That sync messages don't unarchive the self-chat.
+        let a0self_chat_id = alices[0].get_self_chat().await.id;
         assert_eq!(
-            alices[1].get_chat(&bob).await.get_visibility(),
+            alices[1].get_self_chat().await.get_visibility(),
             ChatVisibility::Normal
         );
         let mut visibilities =
             ChatVisibility::iter().chain(std::iter::once(ChatVisibility::Normal));
         visibilities.next();
         for v in visibilities {
-            a0b_chat_id.set_visibility(&alices[0], v).await?;
+            a0self_chat_id.set_visibility(&alices[0], v).await?;
             sync(&alices).await?;
-            assert_eq!(alices[1].get_chat(&bob).await.get_visibility(), v);
+            for a in &alices {
+                assert_eq!(a.get_self_chat().await.get_visibility(), v);
+            }
         }
 
         use chat::MuteDuration;
