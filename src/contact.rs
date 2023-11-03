@@ -1279,15 +1279,6 @@ impl Contact {
         Ok(VerifiedStatus::Unverified)
     }
 
-    /// Returns the address that verified the contact.
-    ///
-    /// Deprecated, use [Self::get_verifier_id] instead.
-    pub async fn get_verifier_addr(&self, context: &Context) -> Result<Option<String>> {
-        Ok(Peerstate::from_addr(context, self.get_addr())
-            .await?
-            .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
-    }
-
     /// Returns the `ContactId` that verified the contact.
     ///
     /// If the function returns non-zero result,
@@ -1301,7 +1292,10 @@ impl Contact {
     /// Use [Self::is_verified] to check
     /// if a contact can be added to a verified chat instead.
     pub async fn get_verifier_id(&self, context: &Context) -> Result<Option<ContactId>> {
-        let Some(verifier_addr) = self.get_verifier_addr(context).await? else {
+        let Some(verifier_addr) = Peerstate::from_addr(context, self.get_addr())
+            .await?
+            .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned()))
+        else {
             return Ok(None);
         };
 
@@ -2765,7 +2759,6 @@ Hi."#;
 
         let contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
         let contact = Contact::get_by_id(&alice, contact_id).await?;
-        assert!(contact.get_verifier_addr(&alice).await?.is_none());
         assert!(contact.get_verifier_id(&alice).await?.is_none());
 
         // Receive a message from Bob to create a peerstate.
@@ -2774,7 +2767,6 @@ Hi."#;
         alice.recv_msg(&sent_msg).await;
 
         let contact = Contact::get_by_id(&alice, contact_id).await?;
-        assert!(contact.get_verifier_addr(&alice).await?.is_none());
         assert!(contact.get_verifier_id(&alice).await?.is_none());
 
         Ok(())

@@ -4120,23 +4120,6 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_verifier_addr(
-    contact: *mut dc_contact_t,
-) -> *mut libc::c_char {
-    if contact.is_null() {
-        eprintln!("ignoring careless call to dc_contact_get_verifier_addr()");
-        return "".strdup();
-    }
-    let ffi_contact = &*contact;
-    let ctx = &*ffi_contact.context;
-    block_on(ffi_contact.contact.get_verifier_addr(ctx))
-        .context("failed to get verifier for contact")
-        .log_err(ctx)
-        .unwrap_or_default()
-        .strdup()
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) -> u32 {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_verifier_id()");
