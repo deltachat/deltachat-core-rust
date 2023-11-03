@@ -5038,6 +5038,10 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
  *
  * The UI may draw a checkbox or something like that beside verified contacts.
  *
+ * With dc_contact_get_verifier_id() you can get more information about the verification,
+ * however, to check if a contact can be added to a verified group,
+ * always check dc_contact_is_verified().
+ *
  * @memberof dc_contact_t
  * @param contact The contact object.
  * @return 0: contact is not verified.
@@ -5072,6 +5076,11 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
  * Return the `ContactId` that verified a contact
  *
  * The UI may use this in addition to a checkmark showing the verification status
+ *
+ * If this function returns a verifier,
+ * this does not mean you can create new verified groups with that contact;
+ * the verification may be outdated.
+ * Use dc_contact_is_verified() to check if a contact can be added to a verified group.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
