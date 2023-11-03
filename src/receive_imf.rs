@@ -2329,16 +2329,21 @@ async fn has_verified_encryption(
         if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
                 // If we're here, we know the gossip key is verified.
-                // Use the gossip-key as verified-key if there is no verified-key.
-                if !is_verified {
-                    info!(context, "{} has verified {}.", contact.get_addr(), to_addr);
-                    let fp = peerstate.gossip_key_fingerprint.clone();
-                    if let Some(fp) = fp {
-                        peerstate.set_verified(
-                            PeerstateKeyType::GossipKey,
-                            fp,
-                            contact.get_addr().to_owned(),
-                        )?;
+                // Use the gossip-key as verified-key if there is no verified-key
+                // or a member is reintroduced to a verified group.
+                //
+                // See <https://github.com/nextleap-project/countermitm/issues/46>
+                // and <https://github.com/deltachat/deltachat-core-rust/issues/4541> for discussion.
+                let verifier_addr = contact.get_addr().to_owned();
+                if !is_verified
+                    || mimeparser
+                        .get_header(HeaderDef::ChatGroupMemberAdded)
+                        .filter(|s| s.as_str() == to_addr)
+                        .is_some()
+                {
+                    info!(context, "{verifier_addr} has verified {to_addr}.");
+                    if let Some(fp) = peerstate.gossip_key_fingerprint.clone() {
+                        peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
                         peerstate.save_to_db(&context.sql).await?;
                     }
                 }

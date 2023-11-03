@@ -482,3 +482,98 @@ def test_verified_group_recovery(acfactory, rpc) -> None:
     # ac2 is now verified by ac3 for ac1
     ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
     assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
+
+
+def test_verified_group_member_added_recovery(acfactory) -> None:
+    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+
+    logging.info("ac1 creates verified group")
+    chat = ac1.create_group("Verified group", protect=True)
+    assert chat.get_basic_snapshot().is_protected
+
+    logging.info("ac2 joins verified group")
+    qr_code, _svg = chat.get_qr_code()
+    ac2.secure_join(qr_code)
+    while True:
+        event = ac1.wait_for_event()
+        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
+            break
+
+    # ac1 has ac2 directly verified.
+    ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
+    assert ac1_contact_ac2.get_snapshot().verifier_id == SpecialContactId.SELF
+
+    logging.info("ac3 joins verified group")
+    ac3_chat = ac3.secure_join(qr_code)
+    while True:
+        event = ac1.wait_for_event()
+        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
+            break
+
+    logging.info("ac2 logs in on a new device")
+    ac2 = acfactory.resetup_account(ac2)
+
+    logging.info("ac2 reverifies with ac3")
+    qr_code, _svg = ac3.get_qr_code()
+    ac2.secure_join(qr_code)
+
+    while True:
+        event = ac3.wait_for_event()
+        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
+            break
+
+    logging.info("ac3 sends a message to the group")
+    assert len(ac3_chat.get_contacts()) == 3
+    ac3_chat.send_text("Hi!")
+
+    msg_id = ac2.wait_for_incoming_msg_event().msg_id
+    message = ac2.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    logging.info("Received message %s", snapshot.text)
+    assert snapshot.text == "Hi!"
+
+    ac1.wait_for_incoming_msg_event()  # Hi!
+
+    ac3_contact_ac2 = ac3.get_contact_by_addr(ac2.get_config("addr"))
+    ac3_chat.remove_contact(ac3_contact_ac2)
+    ac3_chat.add_contact(ac3_contact_ac2)
+
+    msg_id = ac2.wait_for_incoming_msg_event().msg_id
+    message = ac2.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    assert "removed" in snapshot.text
+
+    snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert "removed" in snapshot.text
+
+    event = ac2.wait_for_incoming_msg_event()
+    msg_id = event.msg_id
+    chat_id = event.chat_id
+    message = ac2.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    logging.info("ac2 got event message: %s", snapshot.text)
+    assert "added" in snapshot.text
+
+    snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert "added" in snapshot.text
+
+    logging.info("ac2 address is %s", ac2.get_config("addr"))
+    ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
+    ac1_contact_ac2_snapshot = ac1_contact_ac2.get_snapshot()
+    # assert ac1_contact_ac2_snapshot.is_verified
+    assert ac1_contact_ac2_snapshot.verifier_id == ac1.get_contact_by_addr(ac3.get_config("addr")).id
+
+    chat = Chat(ac2, chat_id)
+    chat.send_text("Works again!")
+
+    msg_id = ac3.wait_for_incoming_msg_event().msg_id
+    message = ac3.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    assert snapshot.text == "Works again!"
+
+    snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Works again!"
+
+    # ac2 is now verified by ac3 for ac1
+    ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
+    assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
