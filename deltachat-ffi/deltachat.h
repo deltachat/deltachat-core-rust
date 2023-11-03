@@ -5033,10 +5033,18 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
 
 
 /**
- * Check if a contact was verified. E.g. by a secure-join QR code scan
- * and if the key has not changed since this verification.
+ * Check if the contact
+ * can be added to verified chats,
+ * i.e. has a verified key
+ * and Autocrypt key matches the verified key.
  *
- * The UI may draw a checkbox or something like that beside verified contacts.
+ * If contact is verified
+ * UI should display green checkmark after the contact name
+ * in the title of the contact profile,
+ * in contact list items and in chat member list items.
+ *
+ * Do not use this function when displaying profile view contents.
+ * Use dc_contact_get_verifier_id instead.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
@@ -5069,9 +5077,18 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
 
 
 /**
- * Return the `ContactId` that verified a contact
+ * Return the contact ID that verified a contact.
  *
- * The UI may use this in addition to a checkmark showing the verification status
+ * If the function returns non-zero result,
+ * display green checkmark in the profile and "Introduced by ..." line
+ * with the name and address of the contact
+ * formatted by dc_contact_get_name_n_addr.
+ *
+ * If this function returns a verifier,
+ * this does not necessarily mean
+ * you can add the contact to verified chats.
+ * Use dc_contact_is_verified() to check
+ * if a contact can be added to a verified chat instead.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.

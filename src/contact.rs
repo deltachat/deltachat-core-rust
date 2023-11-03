@@ -1251,10 +1251,18 @@ impl Contact {
         self.status.as_str()
     }
 
-    /// Check if a contact was verified. E.g. by a secure-join QR code scan
-    /// and if the key has not changed since this verification.
+    /// Returns true if the contact
+    /// can be added to verified chats,
+    /// i.e. has a verified key
+    /// and Autocrypt key matches the verified key.
     ///
-    /// The UI may draw a checkbox or something like that beside verified contacts.
+    /// If contact is verified
+    /// UI should display green checkmark after the contact name
+    /// in the title of the contact profile,
+    /// in contact list items and in chat member list items.
+    ///
+    /// Do not use this function when displaying profile view contents.
+    /// Use [Self::get_verifier_id] instead.
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
@@ -1272,13 +1280,26 @@ impl Contact {
     }
 
     /// Returns the address that verified the contact.
+    ///
+    /// Deprecated, use [Self::get_verifier_id] instead.
     pub async fn get_verifier_addr(&self, context: &Context) -> Result<Option<String>> {
         Ok(Peerstate::from_addr(context, self.get_addr())
             .await?
             .and_then(|peerstate| peerstate.get_verifier().map(|addr| addr.to_owned())))
     }
 
-    /// Returns the ContactId that verified the contact.
+    /// Returns the `ContactId` that verified the contact.
+    ///
+    /// If the function returns non-zero result,
+    /// display green checkmark in the profile and "Introduced by ..." line
+    /// with the name and address of the contact
+    /// formatted by [Self::get_name_n_addr].
+    ///
+    /// If this function returns a verifier,
+    /// this does not necessarily mean
+    /// you can add the contact to verified chats.
+    /// Use [Self::is_verified] to check
+    /// if a contact can be added to a verified chat instead.
     pub async fn get_verifier_id(&self, context: &Context) -> Result<Option<ContactId>> {
         let Some(verifier_addr) = self.get_verifier_addr(context).await? else {
             return Ok(None);

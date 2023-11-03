@@ -19,11 +19,27 @@ pub struct ContactObject {
     profile_image: Option<String>, // BLOBS
     name_and_addr: String,
     is_blocked: bool,
+
+    /// True if the contact can be added to verified groups.
+    ///
+    /// If this is true
+    /// UI should display green checkmark after the contact name
+    /// in the title of the contact profile,
+    /// in contact list items and in chat member list items.
     is_verified: bool,
-    /// the address that verified this contact
+
+    /// The address that verified this contact
+    ///
+    /// Deprecated, use `verifier_id` instead.
     verifier_addr: Option<String>,
-    /// the id of the contact that verified this contact
+
+    /// The ID of the contact that verified this contact.
+    ///
+    /// If this is present,
+    /// display a green checkmark and "Introduced by ..."
+    /// string followed by the verifier contact name and address.
     verifier_id: Option<u32>,
+
     /// the contact's last seen timestamp
     last_seen: i64,
     was_seen_recently: bool,
