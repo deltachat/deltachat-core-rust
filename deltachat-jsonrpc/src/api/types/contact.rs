@@ -28,11 +28,6 @@ pub struct ContactObject {
     /// in contact list items and in chat member list items.
     is_verified: bool,
 
-    /// The address that verified this contact
-    ///
-    /// Deprecated, use `verifier_id` instead.
-    verifier_addr: Option<String>,
-
     /// The ID of the contact that verified this contact.
     ///
     /// If this is present,
@@ -56,7 +51,6 @@ impl ContactObject {
         };
         let is_verified = contact.is_verified(context).await? == VerifiedStatus::BidirectVerified;
 
-        let verifier_addr = contact.get_verifier_addr(context).await?;
         let verifier_id = contact
             .get_verifier_id(context)
             .await?
@@ -74,7 +68,6 @@ impl ContactObject {
             name_and_addr: contact.get_name_n_addr(),
             is_blocked: contact.is_blocked(),
             is_verified,
-            verifier_addr,
             verifier_id,
             last_seen: contact.last_seen(),
             was_seen_recently: contact.was_seen_recently(),
