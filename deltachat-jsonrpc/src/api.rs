@@ -1391,6 +1391,19 @@ impl CommandApi {
     //                   chat
     // ---------------------------------------------
 
+    /// Returns the [`ChatId`] for the 1:1 chat with `contact_id` if it exists.
+    ///
+    /// If it does not exist, `None` is returned.
+    async fn get_chat_id_by_contact_id(
+        &self,
+        account_id: u32,
+        contact_id: u32,
+    ) -> Result<Option<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let chat_id = ChatId::lookup_by_contact(&ctx, ContactId::new(contact_id)).await?;
+        Ok(chat_id.map(|id| id.to_u32()))
+    }
+
     /// Returns all message IDs of the given types in a chat.
     /// Typically used to show a gallery.
     ///
