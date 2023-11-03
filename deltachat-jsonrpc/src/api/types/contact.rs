@@ -40,17 +40,11 @@ impl ContactObject {
         };
         let is_verified = contact.is_verified(context).await? == VerifiedStatus::BidirectVerified;
 
-        let (verifier_addr, verifier_id) = if is_verified {
-            (
-                contact.get_verifier_addr(context).await?,
-                contact
-                    .get_verifier_id(context)
-                    .await?
-                    .map(|contact_id| contact_id.to_u32()),
-            )
-        } else {
-            (None, None)
-        };
+        let verifier_addr = contact.get_verifier_addr(context).await?;
+        let verifier_id = contact
+            .get_verifier_id(context)
+            .await?
+            .map(|contact_id| contact_id.to_u32());
 
         Ok(ContactObject {
             address: contact.get_addr().to_owned(),
