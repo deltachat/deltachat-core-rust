@@ -252,7 +252,7 @@ impl ChatId {
         let chat_id = match ChatIdBlocked::lookup_by_contact(context, contact_id).await? {
             Some(chat) => {
                 if create_blocked == Blocked::Not && chat.blocked != Blocked::Not {
-                    chat.id.unblock_ex(context, Nosync).await?;
+                    chat.id.set_blocked(context, Blocked::Not).await?;
                 }
                 chat.id
             }
@@ -1903,6 +1903,7 @@ impl Chat {
             context
                 .add_sync_item(SyncData::AlterChat { id, action })
                 .await?;
+            context.send_sync_msg().await?;
         }
         Ok(())
     }

@@ -1466,6 +1466,7 @@ WHERE type=? AND id IN (
                     action,
                 })
                 .await?;
+            context.send_sync_msg().await?;
         }
     }
 

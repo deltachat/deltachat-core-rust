@@ -78,6 +78,9 @@ pub(crate) struct SyncItems {
 
 impl Context {
     /// Adds an item to the list of items that should be synchronized to other devices.
+    ///
+    /// NB: Private and `pub(crate)` functions shouldn't call this unless `Sync::Sync` is explicitly
+    /// passed to them. This way it's always clear whether the code performs synchronisation.
     pub(crate) async fn add_sync_item(&self, data: SyncData) -> Result<()> {
         self.add_sync_item_with_timestamp(data, time()).await
     }
@@ -584,9 +587,8 @@ mod tests {
         alices[1].recv_msg(&sent_msg).await;
 
         async fn sync(alices: &[TestContext]) -> Result<()> {
-            alices.get(0).unwrap().send_sync_msg().await?.unwrap();
-            let sent_msg = alices.get(0).unwrap().pop_sent_msg().await;
-            alices.get(1).unwrap().recv_msg(&sent_msg).await;
+            let sync_msg = alices.get(0).unwrap().pop_sent_msg().await;
+            alices.get(1).unwrap().recv_msg(&sync_msg).await;
             Ok(())
         }
 
