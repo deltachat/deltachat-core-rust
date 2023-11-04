@@ -8,7 +8,7 @@ use futures_lite::FutureExt;
 use super::session::Session;
 use super::Imap;
 use crate::config::Config;
-use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
+use crate::imap::{client::IMAP_TIMEOUT, get_uid_next, FolderMeaning};
 use crate::log::LogExt;
 use crate::{context::Context, scheduler::InterruptInfo};
 
@@ -37,6 +37,31 @@ impl Session {
 
         if self.server_sent_unsolicited_exists(context)? {
             return Ok((self, info));
+        }
+
+        if let Some(folder) = watch_folder.as_ref() {
+            // Despite checking for unsolicited EXISTS above,
+            // we may have missed EXISTS if the message was
+            // received when the folder was not selected.
+            let status = self
+                .status(folder, "(UIDNEXT)")
+                .await
+                .context("STATUS (UIDNEXT) error for {folder:?}")?;
+            if let Some(uid_next) = status.uid_next {
+                let expected_uid_next = get_uid_next(context, folder)
+                    .await
+                    .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
+                if uid_next > expected_uid_next {
+                    info!(
+                        context,
+                        "Skipping IDLE because UIDNEXT indicates there are new messages."
+                    );
+                    return Ok((self, info));
+                }
+            } else {
+                warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT");
+                // Go to IDLE anyway if STATUS is broken.
+            }
         }
 
         if let Ok(info) = idle_interrupt_receiver.try_recv() {
