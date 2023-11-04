@@ -1,7 +1,6 @@
 //! # Events specification.
 
 use async_channel::{self as channel, Receiver, Sender, TrySendError};
-use pin_project::pin_project;
 
 mod payload;
 
@@ -65,8 +64,7 @@ impl Events {
 /// [`Context::get_event_emitter`]: crate::context::Context::get_event_emitter
 /// [`Stream`]: futures::stream::Stream
 #[derive(Debug, Clone)]
-#[pin_project]
-pub struct EventEmitter(#[pin] Receiver<Event>);
+pub struct EventEmitter(Receiver<Event>);
 
 impl EventEmitter {
     /// Async recv of an event. Return `None` if the `Sender` has been dropped.
@@ -79,10 +77,10 @@ impl futures::stream::Stream for EventEmitter {
     type Item = Event;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        self.project().0.poll_next(cx)
+        std::pin::Pin::new(&mut self.0).poll_next(cx)
     }
 }
 
