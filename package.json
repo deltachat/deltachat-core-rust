@@ -16,7 +16,7 @@
     "node-gyp": "^10.0.0",
     "prebuildify": "^5.0.1",
     "prebuildify-ci": "^1.0.5",
-    "prettier": "^2.0.5",
+    "prettier": "^3.0.3",
     "typedoc": "^0.25.3",
     "typescript": "^5.2.2"
   },
