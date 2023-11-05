@@ -8,7 +8,6 @@ import { EventId2EventName, C } from '../dist/constants'
 import { join } from 'path'
 import { statSync } from 'fs'
 import { Context } from '../dist/context'
-import fetch from 'node-fetch'
 chai.use(chaiAsPromised)
 chai.config.truncateThreshold = 0 // Do not truncate assertion errors.
 

@@ -12,7 +12,6 @@
     "chai-as-promised": "^7.1.1",
     "esm": "^3.2.25",
     "mocha": "^8.2.1",
-    "node-fetch": "^2.6.7",
     "node-gyp": "^10.0.0",
     "prebuildify": "^5.0.1",
     "prebuildify-ci": "^1.0.5",
