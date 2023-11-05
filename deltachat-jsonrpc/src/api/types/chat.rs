@@ -18,6 +18,17 @@ use super::contact::ContactObject;
 pub struct FullChat {
     id: u32,
     name: String,
+
+    /// True if the chat is protected.
+    ///
+    /// UI should display a green checkmark
+    /// in the chat title,
+    /// in the chat profile title and
+    /// in the chatlist item
+    /// if chat protection is enabled.
+    /// UI should also display a green checkmark
+    /// in the contact profile
+    /// if 1:1 chat with this contact exists and is protected.
     is_protected: bool,
     profile_image: Option<String>, //BLOBS ?
     archived: bool,
@@ -128,6 +139,17 @@ impl FullChat {
 pub struct BasicChat {
     id: u32,
     name: String,
+
+    /// True if the chat is protected.
+    ///
+    /// UI should display a green checkmark
+    /// in the chat title,
+    /// in the chat profile title and
+    /// in the chatlist item
+    /// if chat protection is enabled.
+    /// UI should also display a green checkmark
+    /// in the contact profile
+    /// if 1:1 chat with this contact exists and is protected.
     is_protected: bool,
     profile_image: Option<String>, //BLOBS ?
     archived: bool,

@@ -1584,6 +1584,15 @@ impl Chat {
     }
 
     /// Returns true if chat protection is enabled.
+    ///
+    /// UI should display a green checkmark
+    /// in the chat title,
+    /// in the chat profile title and
+    /// in the chatlist item
+    /// if chat protection is enabled.
+    /// UI should also display a green checkmark
+    /// in the contact profile
+    /// if 1:1 chat with this contact exists and is protected.
     pub fn is_protected(&self) -> bool {
         self.protected == ProtectionStatus::Protected
     }

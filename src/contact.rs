@@ -1258,11 +1258,14 @@ impl Contact {
     ///
     /// If contact is verified
     /// UI should display green checkmark after the contact name
-    /// in the title of the contact profile,
-    /// in contact list items and in chat member list items.
+    /// in contact list items and
+    /// in chat member list items.
     ///
-    /// Do not use this function when displaying profile view contents.
-    /// Use [Self::get_verifier_id] instead.
+    /// Do not use this function when displaying the contact profile view.
+    /// Display green checkmark in the title of the contact profile
+    /// if 1:1 chat with the contact exists and is protected.
+    /// Use [Self::get_verifier_id] to display the verifier contact
+    /// in the info section of the contact profile.
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device

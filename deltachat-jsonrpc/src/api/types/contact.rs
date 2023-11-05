@@ -25,14 +25,16 @@ pub struct ContactObject {
     /// If this is true
     /// UI should display green checkmark after the contact name
     /// in the title of the contact profile,
-    /// in contact list items and in chat member list items.
+    /// in contact list items and
+    /// in chat member list items.
     is_verified: bool,
 
     /// The ID of the contact that verified this contact.
     ///
     /// If this is present,
     /// display a green checkmark and "Introduced by ..."
-    /// string followed by the verifier contact name and address.
+    /// string followed by the verifier contact name and address
+    /// in the contact profile.
     verifier_id: Option<u32>,
 
     /// the contact's last seen timestamp
