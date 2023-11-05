@@ -2941,7 +2941,6 @@ int dc_receive_backup (dc_context_t* context, const char* qr);
  * use dc_accounts_remove_account().
  *
  * @memberof dc_accounts_t
- * @param os_name
  * @param dir The directory to create the context-databases in.
  *     If the directory does not exist,
  *     dc_accounts_new() will try to create it.
