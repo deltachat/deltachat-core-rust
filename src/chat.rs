@@ -460,6 +460,10 @@ impl ChatId {
         if sync.into() {
             chat.add_sync_item(context, ChatAction::Accept).await?;
         }
+
+        // TODO Check in the sql table `alicestate` whether we need to resume the securejoin protocol.
+        // If so, remember to also update the `alicestate` table.
+
         Ok(())
     }
 

@@ -326,6 +326,14 @@ pub(crate) async fn handle_securejoin_handshake(
                 ChatId::create_for_contact(context, contact_id).await?;
             }
 
+            // TODO Here we need to check that the token isn't too old (no more than 2 days)
+            // and if it is too old, then we need to put the chat into "Request" state.
+            // Except if `get_config(Config::IsBot)` is true, in this case we just continue normally.
+
+            // When the "Request" state is accepted (`ChatId::accept()`), we need to continue here. Also, we need to
+            // remember in the database that the user accepted a securejoin and the current timestamp.
+            // This probably needs to go into a new table `alicestate` or similar
+
             // Alice -> Bob
             send_alice_handshake_msg(
                 context,
@@ -431,6 +439,17 @@ pub(crate) async fn handle_securejoin_handshake(
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
+
+            // TODO Here we need to check that the token isn't too old
+            // and if it is too old, then we need to put the chat into "Request" state.
+
+            // Except if `get_config(Config::IsBot)` is true, in this case we just continue normally.
+
+            // Except if the user already accepted the securejoin above in the last 2 days,
+            // in this case we just continue normally.
+
+            // When the "Request" state is accepted (in `ChatId::accept()`), we need to continue here.
+
             if join_vg {
                 // the vg-member-added message is special:
                 // this is a normal Chat-Group-Member-Added message

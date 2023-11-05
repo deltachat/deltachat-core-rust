@@ -749,6 +749,13 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         )
         .await?;
     }
+    // TODO we need a new table called `alicestate` or similar for alice's state, which can be (for each chat):
+    // - Paused at step 3 because the invite code was too old.
+    // - Resumed by the user clicking "accept" after step 3. We need to save the timestamp when the user clicked "accept".
+    // - Paused at step 6 because the auth code was too old.
+    // I think that if it's none of these 3 states, there is no need to save it.
+
+    // See https://countermitm.readthedocs.io/en/latest/new.html#setup-contact-protocol
 
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
