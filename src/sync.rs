@@ -295,7 +295,7 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::chat::Chat;
+    use crate::chat::{Chat, ProtectionStatus};
     use crate::chatlist::Chatlist;
     use crate::contact::{Contact, Origin};
     use crate::test_utils::TestContext;
@@ -614,6 +614,34 @@ mod tests {
         Contact::unblock(&alices[0], a0b_contact_id).await?;
         sync(&alices).await?;
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
+
+        // Test accepting and blocking groups. This way we test:
+        // - Group chats synchronisation.
+        // - That blocking a group deletes it on other devices.
+        let fiona = TestContext::new_fiona().await;
+        let fiona_grp_chat_id = fiona
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&alices[0]])
+            .await;
+        let sent_msg = fiona.send_text(fiona_grp_chat_id, "hi").await;
+        let a0_grp_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
+        let a1_grp_chat_id = alices[1].recv_msg(&sent_msg).await.chat_id;
+        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
+        assert_eq!(a1_grp_chat.blocked, Blocked::Request);
+        a0_grp_chat_id.accept(&alices[0]).await?;
+        sync(&alices).await?;
+        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
+        assert_eq!(a1_grp_chat.blocked, Blocked::Not);
+        a0_grp_chat_id.block(&alices[0]).await?;
+        sync(&alices).await?;
+        assert!(Chat::load_from_db(&alices[1], a1_grp_chat_id)
+            .await
+            .is_err());
+        assert!(
+            !alices[1]
+                .sql
+                .exists("SELECT COUNT(*) FROM chats WHERE id=?", (a1_grp_chat_id,))
+                .await?
+        );
 
         // Test syncing of chat visibility on a self-chat. This way we test:
         // - Self-chat synchronisation.
