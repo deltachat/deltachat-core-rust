@@ -489,7 +489,7 @@ def test_forward_messages(acfactory, lp):
     lp.sec("ac2: check new chat has a forwarded message")
     assert chat3.is_promoted()
     messages = chat3.get_messages()
-    assert len(messages) == 1
+    assert len(messages) == 2
     msg = messages[-1]
     assert msg.is_forwarded()
     ac2.delete_messages(messages)
@@ -1957,7 +1957,7 @@ def test_system_group_msg_from_blocked_user(acfactory, lp):
     chat_on_ac2.send_text("This will arrive")
     msg = ac1._evtracker.wait_next_incoming_message()
     assert msg.text == "This will arrive"
-    message_texts = [m.text for m in chat_on_ac1.get_messages()]
+    message_texts = [m.text for m in chat_on_ac1.get_messages() if not m.is_system_message()]
     assert len(message_texts) == 2
     assert "First group message" in message_texts
     assert "This will arrive" in message_texts

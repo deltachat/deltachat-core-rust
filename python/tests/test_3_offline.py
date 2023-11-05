@@ -5,8 +5,6 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 import deltachat as dc
-from deltachat.capi import ffi, lib
-from deltachat.cutil import iter_array
 from deltachat.tracker import ImexFailed
 from deltachat import Account, account_hookimpl, Message
 
@@ -802,6 +800,7 @@ class TestOfflineChat:
     def test_audit_log_view_without_daymarker(self, ac1, lp):
         lp.sec("ac1: test audit log (show only system messages)")
         chat = ac1.create_group_chat(name="audit log sample data")
+
         # promote chat
         chat.send_text("hello")
         assert chat.is_promoted()
@@ -811,12 +810,6 @@ class TestOfflineChat:
         chat.set_name("audit log test group")
         chat.send_text("a message in between")
 
-        lp.sec("check message count of all messages")
-        assert len(chat.get_messages()) == 4
-
         lp.sec("check message count of only system messages (without daymarkers)")
-        dc_array = ffi.gc(
-            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, dc.const.DC_GCM_INFO_ONLY, 0),
-            lib.dc_array_unref,
-        )
-        assert len(list(iter_array(dc_array, lambda x: x))) == 2
+        sysmessages = [x for x in chat.get_messages() if x.is_system_message()]
+        assert len(sysmessages) == 3

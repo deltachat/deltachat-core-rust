@@ -1315,6 +1315,7 @@ mod tests {
             "send_port",
             "send_security",
             "server_flags",
+            "skip_start_messages",
             "smtp_certificate_checks",
             "socks5_host",
             "socks5_port",

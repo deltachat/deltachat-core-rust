@@ -667,9 +667,9 @@ describe('Offline Tests with unconfigured account', function () {
 
     const lot = chatList.getSummary(0)
     strictEqual(lot.getId(), 0, 'lot has no id')
-    strictEqual(lot.getState(), C.DC_STATE_UNDEFINED, 'correct state')
+    strictEqual(lot.getState(), C.DC_STATE_IN_NOTICED, 'correct state')
 
-    const text = 'No messages.'
+    const text = 'Others will only see this group after you sent a first message.'
     context.createGroupChat('groupchat1111')
     chatList = context.getChatList(0, 'groupchat1111', null)
     strictEqual(
