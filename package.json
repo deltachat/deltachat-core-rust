@@ -7,7 +7,7 @@
   "description": "node.js bindings for deltachat-core",
   "devDependencies": {
     "@types/debug": "^4.1.7",
-    "@types/node": "^18.18.8",
+    "@types/node": "^20.8.10",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "esm": "^3.2.25",
