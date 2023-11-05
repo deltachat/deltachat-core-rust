@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::time::Duration;
 
-use anyhow::{Context as _, Error, Result};
+use anyhow::{format_err, Context as _, Result};
 use tokio::net::{lookup_host, TcpStream};
 use tokio::time::timeout;
 use tokio_io_timeout::TimeoutStream;
@@ -195,7 +195,9 @@ pub(crate) async fn connect_tcp(
     let tcp_stream = match tcp_stream {
         Some(tcp_stream) => tcp_stream,
         None => {
-            return Err(last_error.unwrap_or_else(|| Error::msg("no DNS resolution results")));
+            return Err(
+                last_error.unwrap_or_else(|| format_err!("no DNS resolution results for {host}"))
+            );
         }
     };
 
