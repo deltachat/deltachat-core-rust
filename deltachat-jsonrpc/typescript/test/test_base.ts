@@ -2,7 +2,6 @@ import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { mkdtemp, rm } from "fs/promises";
 import { spawn, exec } from "child_process";
-import fetch from "node-fetch";
 import { Readable, Writable } from "node:stream";
 
 export type RpcServerHandle = {
