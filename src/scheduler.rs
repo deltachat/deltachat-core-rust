@@ -620,7 +620,7 @@ async fn fetch_idle(
             .idle(
                 ctx,
                 connection.idle_interrupt_receiver.clone(),
-                Some(watch_folder),
+                &watch_folder,
             )
             .await
             .context("idle")
