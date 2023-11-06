@@ -181,5 +181,5 @@ def main() -> None:
             return_when=concurrent.futures.ALL_COMPLETED,
         )
 
-
-main()
+if __name__ == "__main__":
+    main()
