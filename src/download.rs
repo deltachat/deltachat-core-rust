@@ -18,12 +18,11 @@ use crate::{stock_str, EventType};
 
 /// Download limits should not be used below `MIN_DOWNLOAD_LIMIT`.
 ///
-/// Some messages as non-delivery-reports (NDN) or read-receipts (MDN)
-/// need to be downloaded completely to handle them correctly,
-/// eg. to assign them to the correct chat.
-/// As these messages are typically small,
-/// they're caught by `MIN_DOWNLOAD_LIMIT`.
-pub(crate) const MIN_DOWNLOAD_LIMIT: u32 = 32768;
+/// For better UX, some messages as add-member, non-delivery-reports (NDN) or read-receipts (MDN)
+/// should always be downloaded completely to handle them correctly,
+/// also in larger groups and if group and contact avatar are attached.
+/// Most of these cases are caught by `MIN_DOWNLOAD_LIMIT`.
+pub(crate) const MIN_DOWNLOAD_LIMIT: u32 = 163840;
 
 /// If a message is downloaded only partially
 /// and `delete_server_after` is set to small timeouts (eg. "at once"),

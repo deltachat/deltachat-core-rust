@@ -367,7 +367,7 @@ def test_webxdc_download_on_demand(acfactory, data, lp):
 
     lp.sec("ac2 sets download limit")
     ac2.set_config("download_limit", "100")
-    assert msg1.send_status_update({"payload": base64.b64encode(os.urandom(50000))}, "some test data")
+    assert msg1.send_status_update({"payload": base64.b64encode(os.urandom(300000))}, "some test data")
     ac2_update = ac2._evtracker.wait_next_incoming_message()
     assert ac2_update.download_state == dc.const.DC_DOWNLOAD_AVAILABLE
     assert not msg2.get_status_updates()
@@ -1445,7 +1445,7 @@ def test_reaction_to_partially_fetched_msg(acfactory, lp, tmp_path):
       message, then processes a partially downloaded message.
     - As a result, Bob does not see a reaction
     """
-    download_limit = 32768
+    download_limit = 300000
     ac1, ac2 = acfactory.get_online_accounts(2)
     ac1_addr = ac1.get_config("addr")
     chat = ac1.create_chat(ac2)
