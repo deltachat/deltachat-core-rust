@@ -35,7 +35,6 @@ class Rpc:
         self.closing: bool
         self.reader_thread: Thread
         self.writer_thread: Thread
-        self.events_thread: Thread
 
     def start(self) -> None:
         if sys.version_info >= (3, 11):
@@ -67,13 +66,10 @@ class Rpc:
         self.reader_thread.start()
         self.writer_thread = Thread(target=self.writer_loop)
         self.writer_thread.start()
-        self.events_thread = Thread(target=self.events_loop)
-        self.events_thread.start()
 
     def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
         self.closing = True
-        self.events_thread.join()
         self.process.stdin.close()
         self.reader_thread.join()
         self.request_queue.put(None)
