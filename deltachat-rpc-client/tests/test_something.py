@@ -28,6 +28,15 @@ def test_sleep(rpc) -> None:
         assert sleep_5_future in pending
 
 
+def test_sleep_1000(rpc) -> None:
+    """Run lots of parallel calls to stress-test threading and synchronization."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        done, pending = concurrent.futures.wait(
+            [executor.submit(rpc.sleep, 0.1) for i in range(1000)],
+            return_when=concurrent.futures.ALL_COMPLETED,
+        )
+
+
 def test_email_address_validity(rpc) -> None:
     valid_addresses = [
         "email@example.com",
