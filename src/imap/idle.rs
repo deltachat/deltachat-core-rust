@@ -53,7 +53,7 @@ impl Session {
             if uid_next > expected_uid_next {
                 info!(
                     context,
-                    "Skipping IDLE because UIDNEXT indicates there are new messages."
+                    "Skipping IDLE on {folder:?} because UIDNEXT {uid_next}>{expected_uid_next} indicates there are new messages."
                 );
                 return Ok((self, info));
             }
