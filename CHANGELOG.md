@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.129.0] - 2023-11-06
+
+### API-Changes
+
+- Add JSON-RPC `get_chat_id_by_contact_id` API ([#4918](https://github.com/deltachat/deltachat-core-rust/pull/4918)).
+- [**breaking**] Remove deprecated `get_verifier_addr`.
+
+### Features / Changes
+
+- Sync chat `Blocked` state, chat visibility, chat mute duration and contact blocked status across devices ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
+- Add 'group created instructions' as info message ([#4916](https://github.com/deltachat/deltachat-core-rust/pull/4916)).
+- Add hardcoded fallback DNS cache.
+
+### Fixes
+
+- Switch to `EncryptionPreference::Mutual` on a receipt of encrypted+signed message ([#4707](https://github.com/deltachat/deltachat-core-rust/pull/4707)).
+- imap: Check UIDNEXT with a STATUS command before going IDLE.
+- Allow to change verified key via "member added" message.
+- json-rpc: Return verifier even if the contact is not "verified" (Autocrypt key does not equal Secure-Join key).
+
+### Documentation
+
+- Refine `Contact::get_verifier_id` and `Contact::is_verified` documentation ([#4922](https://github.com/deltachat/deltachat-core-rust/pull/4922)).
+- Contact profile view should not use `dc_contact_is_verified()`.
+- Remove documentation for non-existing `dc_accounts_new` `os_name` param.
+
+### Refactor
+
+- Remove unused or useless code paths in Secure-Join ([#4897](https://github.com/deltachat/deltachat-core-rust/pull/4897)).
+- Improve error handling in Secure-Join code.
+- Add hostname to "no DNS resolution results" error message.
+- Accept `&str` instead of `Option<String>` in idle().
+
 ## [1.128.0] - 2023-11-02
 
 ### Build system
@@ -3066,3 +3099,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.127.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.0...v1.127.1
 [1.127.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.1...v1.127.2
 [1.128.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.2...v1.128.0
+[1.129.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.128.0...v1.129.0
