@@ -26,7 +26,8 @@ use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
-    self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
+    self, rfc724_mid_exists, rfc724_mid_exists_and, Message, MessageState, MessengerMessage, MsgId,
+    Viewtype,
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
@@ -503,7 +504,6 @@ async fn add_parts(
     // - incoming messages introduce a chat only for known contacts if they are sent by a messenger
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
-
     let state: MessageState;
     let mut needs_delete_job = false;
     if incoming {
@@ -656,6 +656,7 @@ async fn add_parts(
                 group_chat_id,
                 from_id,
                 to_ids,
+                is_partial_download.is_some(),
             )
             .await?);
         }
@@ -898,6 +899,7 @@ async fn add_parts(
                 chat_id,
                 from_id,
                 to_ids,
+                is_partial_download.is_some(),
             )
             .await?);
         }
@@ -1693,6 +1695,7 @@ async fn create_or_lookup_group(
 /// Apply group member list, name, avatar and protection status changes from the MIME message.
 ///
 /// Optionally returns better message to replace the original system message.
+/// is_partial_download: whether the message is not fully downloaded.
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1700,6 +1703,7 @@ async fn apply_group_changes(
     chat_id: ChatId,
     from_id: ContactId,
     to_ids: &[ContactId],
+    is_partial_download: bool,
 ) -> Result<Option<String>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
@@ -1724,7 +1728,8 @@ async fn apply_group_changes(
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
 
     // Reject group membership changes from non-members and old changes.
-    let allow_member_list_changes = is_from_in_chat
+    let allow_member_list_changes = !is_partial_download
+        && is_from_in_chat
         && chat_id
             .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
             .await?;
@@ -1738,7 +1743,9 @@ async fn apply_group_changes(
             || match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message, we missed some messages.
                 // Maybe they added/removed members, so we need to recreate our member list.
-                Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
+                Some(reply_to) => rfc724_mid_exists_and(context, reply_to, "download_state=0")
+                    .await?
+                    .is_none(),
                 None => false,
             }
     } && {

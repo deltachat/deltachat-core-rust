@@ -3863,3 +3863,113 @@ async fn test_create_group_with_big_msg() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_partial_group_consistency() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob_id = Contact::create(&alice, "", "bob@example.net").await?;
+    let alice_chat_id = create_group_chat(&alice, ProtectionStatus::Unprotected, "foos").await?;
+    add_contact_to_chat(&alice, alice_chat_id, bob_id).await?;
+
+    send_text_msg(&alice, alice_chat_id, "populate".to_string()).await?;
+    let add = alice.pop_sent_msg().await;
+    let bob = tcm.bob().await;
+    bob.recv_msg(&add).await;
+    let bob_chat_id = bob.get_last_msg().await.chat_id;
+    let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 2);
+
+    // Get initial timestamp.
+    let timestamp = bob_chat_id
+        .get_param(&bob)
+        .await?
+        .get_i64(Param::MemberListTimestamp)
+        .unwrap();
+
+    // Bob receives partial message.
+    let msg_id = receive_imf_inner(
+        &bob,
+        "first@example.org",
+        b"From: Alice <alice@example.org>\n\
+To: <bob@example.net>, <charlie@example.com>\n\
+Chat-Version: 1.0\n\
+Subject: subject\n\
+Message-ID: <first@example.org>\n\
+Date: Sun, 14 Nov 2021 00:10:00 +0000\
+Content-Type: text/plain
+Chat-Group-Member-Added: charlie@example.com",
+        false,
+        Some(100000),
+        false,
+    )
+    .await?
+    .context("no received message")?;
+
+    let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
+    let timestamp2 = bob_chat_id
+        .get_param(&bob)
+        .await?
+        .get_i64(Param::MemberListTimestamp)
+        .unwrap();
+
+    // Partial download does not change the member list.
+    assert_eq!(msg.download_state, DownloadState::Available);
+    assert_eq!(timestamp, timestamp2);
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
+
+    // Alice sends normal message to bob, adding fiona.
+    add_contact_to_chat(
+        &alice,
+        alice_chat_id,
+        Contact::create(&alice, "fiona", "fiona@example.net").await?,
+    )
+    .await?;
+
+    bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+    let timestamp3 = bob_chat_id
+        .get_param(&bob)
+        .await?
+        .get_i64(Param::MemberListTimestamp)
+        .unwrap();
+
+    // Receiving a message after a partial download recreates the member list because we treat
+    // such messages as if we have not seen them.
+    assert_ne!(timestamp, timestamp3);
+    let contacts = get_chat_contacts(&bob, bob_chat_id).await?;
+    assert_eq!(contacts.len(), 3);
+
+    // Bob fully reives the partial message.
+    let msg_id = receive_imf_inner(
+        &bob,
+        "first@example.org",
+        b"From: Alice <alice@example.org>\n\
+To: Bob <bob@example.net>\n\
+Chat-Version: 1.0\n\
+Subject: subject\n\
+Message-ID: <first@example.org>\n\
+Date: Sun, 14 Nov 2021 00:10:00 +0000\
+Content-Type: text/plain
+Chat-Group-Member-Added: charlie@example.com",
+        false,
+        None,
+        false,
+    )
+    .await?
+    .context("no received message")?;
+
+    let msg = Message::load_from_db(&bob, msg_id.msg_ids[0]).await?;
+    let timestamp4 = bob_chat_id
+        .get_param(&bob)
+        .await?
+        .get_i64(Param::MemberListTimestamp)
+        .unwrap();
+
+    // After full download, the old message should not change group state.
+    assert_eq!(msg.download_state, DownloadState::Done);
+    assert_eq!(timestamp3, timestamp4);
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?, contacts);
+
+    Ok(())
+}
