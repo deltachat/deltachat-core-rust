@@ -177,7 +177,7 @@ def main() -> None:
     logging.basicConfig(encoding="utf-8", level=logging.INFO)
     with Rpc(accounts_dir="accounts") as rpc, concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         done, pending = concurrent.futures.wait(
-            [executor.submit(rpc.sleep, 0.0) for i in range(10000)],
+            (executor.submit(rpc.sleep, 0.0) for i in range(10000)),
             return_when=concurrent.futures.ALL_COMPLETED,
         )
 
