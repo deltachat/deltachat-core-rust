@@ -67,13 +67,8 @@ impl EncryptHelper {
                         "peerstate for {:?} is {}", addr, peerstate.prefer_encrypt
                     );
                     match peerstate.prefer_encrypt {
-                        EncryptPreference::NoPreference => {}
+                        EncryptPreference::NoPreference | EncryptPreference::Reset => {}
                         EncryptPreference::Mutual => prefer_encrypt_count += 1,
-                        EncryptPreference::Reset => {
-                            if !e2ee_guaranteed {
-                                return Ok(false);
-                            }
-                        }
                     };
                 }
                 None => {
