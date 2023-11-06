@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 from queue import Queue
-from threading import Event, Thread, Lock
+from threading import Event, Lock, Thread
 from typing import Any, Dict, Optional
 
 
@@ -151,6 +151,7 @@ def main() -> None:
             (executor.submit(rpc.sleep, 0.0) for i in range(10000)),
             return_when=concurrent.futures.ALL_COMPLETED,
         )
+
 
 if __name__ == "__main__":
     main()
