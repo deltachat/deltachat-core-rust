@@ -3839,7 +3839,7 @@ async fn test_partial_group_consistency() -> Result<()> {
         &bob,
         "first@example.org",
         b"From: Alice <alice@example.org>\n\
-To: Bob <bob@example.net>\n\
+To: <bob@example.net>, <charlie@example.com>\n\
 Chat-Version: 1.0\n\
 Subject: subject\n\
 Message-ID: <first@example.org>\n\
