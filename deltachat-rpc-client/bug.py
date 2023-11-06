@@ -73,7 +73,6 @@ class Rpc:
     def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
         self.closing = True
-        self.stop_io_for_all_accounts()
         self.events_thread.join()
         self.process.stdin.close()
         self.reader_thread.join()
@@ -129,18 +128,7 @@ class Rpc:
 
     def events_loop(self) -> None:
         """Requests new events and distributes them between queues."""
-        try:
-            while True:
-                if self.closing:
-                    return
-                event = self.get_next_event()
-                account_id = event["contextId"]
-                queue = self.get_queue(account_id)
-                queue.put(event["event"])
-        except Exception:
-            # Log an exception if the event loop dies.
-            logging.exception("Exception in the event loop")
-            raise
+        return
 
     def wait_for_event(self, account_id: int) -> Optional[dict]:
         """Waits for the next event from the given account and returns it."""
