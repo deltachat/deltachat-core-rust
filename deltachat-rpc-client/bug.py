@@ -26,7 +26,6 @@ class Rpc:
         self.process: subprocess.Popen
         self.id: int
         self.id_lock: Lock
-        self.event_queues: Dict[int, Queue]
         # Map from request ID to `threading.Event`.
         self.request_events: Dict[int, Event]
         # Map from request ID to the result.
@@ -57,7 +56,6 @@ class Rpc:
             )
         self.id = 0
         self.id_lock = Lock()
-        self.event_queues = {}
         self.request_events = {}
         self.request_results = {}
         self.request_queue = Queue()
@@ -116,20 +114,6 @@ class Rpc:
             # Log an exception if the writer loop dies.
             logging.exception("Exception in the writer loop")
             raise
-
-    def get_queue(self, account_id: int) -> Queue:
-        if account_id not in self.event_queues:
-            self.event_queues[account_id] = Queue()
-        return self.event_queues[account_id]
-
-    def events_loop(self) -> None:
-        """Requests new events and distributes them between queues."""
-        return
-
-    def wait_for_event(self, account_id: int) -> Optional[dict]:
-        """Waits for the next event from the given account and returns it."""
-        queue = self.get_queue(account_id)
-        return queue.get()
 
     def __getattr__(self, attr: str):
         def method(*args) -> Any:
