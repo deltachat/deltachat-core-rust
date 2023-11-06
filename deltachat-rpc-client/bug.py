@@ -14,15 +14,7 @@ class JsonRpcError(Exception):
 
 
 class Rpc:
-    def __init__(self, accounts_dir: Optional[str] = None, **kwargs):
-        """The given arguments will be passed to subprocess.Popen()"""
-        if accounts_dir:
-            kwargs["env"] = {
-                **kwargs.get("env", os.environ),
-                "DC_ACCOUNTS_PATH": str(accounts_dir),
-            }
-
-        self._kwargs = kwargs
+    def __init__(self):
         self.process: subprocess.Popen
         self.id: int
         self.id_lock: Lock
@@ -43,7 +35,6 @@ class Rpc:
                 stdout=subprocess.PIPE,
                 # Prevent subprocess from capturing SIGINT.
                 process_group=0,
-                **self._kwargs,
             )
         else:
             self.process = subprocess.Popen(
@@ -52,7 +43,6 @@ class Rpc:
                 stdout=subprocess.PIPE,
                 # `process_group` is not supported before Python 3.11.
                 preexec_fn=os.setpgrp,  # noqa: PLW1509
-                **self._kwargs,
             )
         self.id = 0
         self.id_lock = Lock()
@@ -146,7 +136,7 @@ class Rpc:
 def main() -> None:
     """Run lots of parallel calls to stress-test threading and synchronization."""
     logging.basicConfig(encoding="utf-8", level=logging.INFO)
-    with Rpc(accounts_dir="accounts") as rpc, concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+    with Rpc() as rpc, concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         done, pending = concurrent.futures.wait(
             (executor.submit(rpc.sleep, 0.0) for i in range(10000)),
             return_when=concurrent.futures.ALL_COMPLETED,
