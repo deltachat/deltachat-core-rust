@@ -1718,7 +1718,8 @@ async fn apply_group_changes(
             false
         };
 
-    let mut chat_contacts = HashSet::from_iter(chat::get_chat_contacts(context, chat_id).await?);
+    let mut chat_contacts =
+        HashSet::<ContactId>::from_iter(chat::get_chat_contacts(context, chat_id).await?);
     let is_from_in_chat =
         !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
 
@@ -1854,32 +1855,30 @@ async fn apply_group_changes(
         }
 
         if !recreate_member_list {
-            let diff: HashSet<ContactId> =
-                chat_contacts.difference(&new_members).copied().collect();
-            // Only delete old contacts if the sender is not a classical MUA user:
-            // Classical MUA users usually don't intend to remove users from an email
-            // thread, so if they removed a recipient then it was probably by accident.
-            if mime_parser.has_chat_version() {
-                // This is what provides group membership consistency: we remove group members
-                // locally if we see a discrepancy with the "To" list in the received message as it
-                // is better for privacy than adding absent members locally. But it shouldn't be a
-                // big problem if somebody missed a member addition, because they will likely
-                // recreate the member list from the next received message. The problem occurs only
-                // if that "somebody" managed to reply earlier. Really, it's a problem for big
-                // groups with high message rate, but let it be for now.
-                if !diff.is_empty() {
-                    warn!(context, "Implicit removal of {diff:?} from chat {chat_id}.");
-                }
-                new_members = chat_contacts.difference(&diff).copied().collect();
-            } else {
-                new_members.extend(diff);
+            // Don't delete any members locally, but instead add absent ones to provide group
+            // membership consistency for all members:
+            // - Classical MUA users usually don't intend to remove users from an email thread, so
+            //   if they removed a recipient then it was probably by accident.
+            // - DC users could miss new member additions and then better to handle this in the same
+            //   way as for classical MUA messages. Moreover, if we remove a member implicitly, they
+            //   will never know that and continue to think they're still here.
+            // But it shouldn't be a big problem if somebody missed a member removal, because they
+            // will likely recreate the member list from the next received message. The problem
+            // occurs only if that "somebody" managed to reply earlier. Really, it's a problem for
+            // big groups with high message rate, but let it be for now.
+            let mut diff: HashSet<ContactId> =
+                new_members.difference(&chat_contacts).copied().collect();
+            new_members = chat_contacts.clone();
+            new_members.extend(diff.clone());
+            if let Some(added_id) = added_id {
+                diff.remove(&added_id);
+            }
+            if !diff.is_empty() {
+                warn!(context, "Implicit addition of {diff:?} to chat {chat_id}.");
             }
         }
         if let Some(removed_id) = removed_id {
             new_members.remove(&removed_id);
-        }
-        if let Some(added_id) = added_id {
-            new_members.insert(added_id);
         }
         if recreate_member_list {
             info!(

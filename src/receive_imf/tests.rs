@@ -3411,14 +3411,24 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
 
     alice.recv_msg(&bob.pop_sent_msg().await).await;
 
-    // Bob didn't receive the addition of Fiona, so Alice must remove Fiona from the members list
-    // back to make their group members view consistent.
-    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 3);
+    // Bob didn't receive the addition of Fiona, but Alice mustn't remove Fiona from the members
+    // list back. Instead, Bob must add Fiona from the next Alice's message to make their group
+    // members view consistent.
+    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 4);
 
     // Just a dumb check for remove_contact_from_chat(). Let's have it in this only place.
     remove_contact_from_chat(&bob, bob_chat_id, bob_blue).await?;
     alice.recv_msg(&bob.pop_sent_msg().await).await;
-    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 2);
+    assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 3);
+
+    send_text_msg(
+        &alice,
+        alice_chat_id,
+        "Finally add Fiona please".to_string(),
+    )
+    .await?;
+    bob.recv_msg(&alice.pop_sent_msg().await).await;
+    assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 3);
 
     Ok(())
 }
@@ -3502,8 +3512,11 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
 
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
-    // Alice didn't receive Bobs leave message, but bob shouldn't readded himself just because of that.
-    assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+    // Alice didn't receive Bob's leave message, so Bob must readd themselves otherwise other
+    // members would think Bob is still here while they aren't, and then retry to leave if they
+    // think that Alice didn't re-add them on purpose (which is possible if Alice uses a classical
+    // MUA).
+    assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
     Ok(())
 }
 
