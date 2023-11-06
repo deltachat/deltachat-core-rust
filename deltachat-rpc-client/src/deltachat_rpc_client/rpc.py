@@ -72,7 +72,6 @@ class Rpc:
     def close(self) -> None:
         """Terminate RPC server process and wait until the reader loop finishes."""
         self.closing = True
-        self.stop_io_for_all_accounts()
         self.events_thread.join()
         self.process.stdin.close()
         self.reader_thread.join()
