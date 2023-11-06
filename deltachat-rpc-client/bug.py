@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import sys
+from pprint import pp
 from queue import Queue
 from threading import Event, Lock, Thread
 from typing import Any, Dict, Optional
@@ -77,6 +78,7 @@ class Rpc:
                 if not line:  # EOF
                     break
                 response = json.loads(line)
+                print(response)
                 if "id" in response:
                     response_id = response["id"]
                     event = self.request_events.pop(response_id)
@@ -84,6 +86,9 @@ class Rpc:
                     event.set()
                 else:
                     logging.warning("Got a response without ID: %s", response)
+        except KeyError as exp:
+            print("KEY ERROR!", exp)
+            pp(self.request_events)
         except Exception:
             # Log an exception if the reader loop dies.
             logging.exception("Exception in the reader loop")
@@ -111,6 +116,7 @@ class Rpc:
             self.id += 1
             request_id = self.id
             self.id_lock.release()
+            print(request_id)
 
             request = {
                 "jsonrpc": "2.0",
