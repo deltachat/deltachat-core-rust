@@ -122,7 +122,7 @@ class Rpc:
                 "jsonrpc": "2.0",
                 "method": attr,
                 "params": args,
-                "id": self.id,
+                "id": request_id,
             }
             event = Event()
             self.request_events[request_id] = event
