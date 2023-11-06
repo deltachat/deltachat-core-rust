@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.129.1] - 2023-11-06
+
+### Fixes
+
+- Update tokio-imap to fix Outlook STATUS parsing bug.
+- deltachat-rpc-client: Add the Lock around request ID.
+- `apply_group_changes`: Don't implicitly delete members locally, add absent ones instead ([#4934](https://github.com/deltachat/deltachat-core-rust/pull/4934)).
+- Partial messages do not change group state ([#4900](https://github.com/deltachat/deltachat-core-rust/pull/4900)).
+
+### Tests
+
+- Group chats device synchronisation.
+
 ## [1.129.0] - 2023-11-06
 
 ### API-Changes
@@ -3100,3 +3113,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.127.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.1...v1.127.2
 [1.128.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.2...v1.128.0
 [1.129.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.128.0...v1.129.0
+[1.129.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.0...v1.129.1
