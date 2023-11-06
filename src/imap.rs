@@ -568,9 +568,14 @@ impl Imap {
         Ok(())
     }
 
-    /// Select a folder and take care of uidvalidity changes.
-    /// Also, when selecting a folder for the first time, sets the uid_next to the current
+    /// Selects a folder and takes care of UIDVALIDITY changes.
+    ///
+    /// When selecting a folder for the first time, sets the uid_next to the current
     /// mailbox.uid_next so that no old emails are fetched.
+    ///
+    /// Makes sure that UIDNEXT is known for `selected_mailbox`
+    /// and errors out if UIDNEXT cannot be determined.
+    ///
     /// Returns Result<new_emails> (i.e. whether new emails arrived),
     /// if in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
@@ -591,6 +596,37 @@ impl Imap {
         let new_uid_validity = mailbox
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {folder}"))?;
+        let new_uid_next = if let Some(uid_next) = mailbox.uid_next {
+            uid_next
+        } else {
+            warn!(
+                context,
+                "SELECT response for IMAP folder {folder:?} has no UIDNEXT, fall back to STATUS command."
+            );
+
+            // RFC 3501 says STATUS command SHOULD NOT be used
+            // on the currently selected mailbox because the same
+            // information can be obtained by other means,
+            // such as reading SELECT response.
+            //
+            // However, it also says that UIDNEXT is REQUIRED
+            // in the SELECT response and if we are here,
+            // it is actually not returned.
+            //
+            // In particular, Winmail Pro Mail Server 5.1.0616
+            // never returns UIDNEXT in SELECT response,
+            // but responds to "STATUS INBOX (UIDNEXT)" command.
+            let status = session
+                .inner
+                .status(folder, "(UIDNEXT)")
+                .await
+                .context("STATUS (UIDNEXT) error for {folder:?}")?;
+
+            status
+                .uid_next
+                .context("STATUS {folder} (UIDNEXT) did not return UIDNEXT")?
+        };
+        mailbox.uid_next = Some(new_uid_next);
 
         let old_uid_validity = get_uidvalidity(context, folder)
             .await
@@ -606,18 +642,16 @@ impl Imap {
                 // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
                 // new messages is only one command, just as a SELECT command)
                 true
-            } else if let Some(uid_next) = mailbox.uid_next {
-                if uid_next < old_uid_next {
+            } else {
+                if new_uid_next < old_uid_next {
                     warn!(
                         context,
-                        "The server illegally decreased the uid_next of folder {folder:?} from {old_uid_next} to {uid_next} without changing validity ({new_uid_validity}), resyncing UIDs...",
+                        "The server illegally decreased the uid_next of folder {folder:?} from {old_uid_next} to {new_uid_next} without changing validity ({new_uid_validity}), resyncing UIDs...",
                     );
-                    set_uid_next(context, folder, uid_next).await?;
+                    set_uid_next(context, folder, new_uid_next).await?;
                     context.schedule_resync().await?;
                 }
-                uid_next != old_uid_next // If uid_next changed, there are new emails
-            } else {
-                true // We have no uid_next and if in doubt, return true
+                new_uid_next != old_uid_next // If UIDNEXT changed, there are new emails
             };
             return Ok(new_emails);
         }
@@ -626,43 +660,6 @@ impl Imap {
         set_modseq(context, folder, 0).await?;
 
         // ==============  uid_validity has changed or is being set the first time.  ==============
-
-        let new_uid_next = match mailbox.uid_next {
-            Some(uid_next) => uid_next,
-            None => {
-                warn!(
-                    context,
-                    "SELECT response for IMAP folder {folder:?} has no UIDNEXT, fall back to STATUS command."
-                );
-
-                // RFC 3501 says STATUS command SHOULD NOT be used
-                // on the currently selected mailbox because the same
-                // information can be obtained by other means,
-                // such as reading SELECT response.
-                //
-                // However, it also says that UIDNEXT is REQUIRED
-                // in the SELECT response and if we are here,
-                // it is actually not returned.
-                //
-                // In particular, Winmail Pro Mail Server 5.1.0616
-                // never returns UIDNEXT in SELECT response,
-                // but responds to "SELECT INBOX (UIDNEXT)" command.
-                let status = session
-                    .inner
-                    .status(folder, "(UIDNEXT)")
-                    .await
-                    .context("STATUS (UIDNEXT) error for {folder:?}")?;
-
-                if let Some(uid_next) = status.uid_next {
-                    uid_next
-                } else {
-                    warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT");
-
-                    // Set UIDNEXT to 1 as a last resort fallback.
-                    1
-                }
-            }
-        };
 
         set_uid_next(context, folder, new_uid_next).await?;
         set_uidvalidity(context, folder, new_uid_validity).await?;
@@ -867,14 +864,28 @@ impl Imap {
             uids_fetch_in_batch.push(uid);
         }
 
-        // determine which uid_next to use to update to
-        // receive_imf() returns an `Err` value only on recoverable errors, otherwise it just logs an error.
-        // `largest_uid_processed` is the largest uid where receive_imf() did NOT return an error.
-
-        // So: Update the uid_next to the largest uid that did NOT recoverably fail. Not perfect because if there was
-        // another message afterwards that succeeded, we will not retry. The upside is that we will not retry an infinite amount of times.
-        let largest_uid_without_errors = max(largest_uid_fetched, largest_uid_skipped.unwrap_or(0));
-        let new_uid_next = largest_uid_without_errors + 1;
+        // Advance uid_next to the maximum of the largest known UID plus 1
+        // and mailbox UIDNEXT.
+        // Largest known UID is normally less than UIDNEXT,
+        // but a message may have arrived between determining UIDNEXT
+        // and executing the FETCH command.
+        let mailbox_uid_next = self
+            .session
+            .as_ref()
+            .context("No IMAP session")?
+            .selected_mailbox
+            .as_ref()
+            .with_context(|| format!("Expected {folder:?} to be selected"))?
+            .uid_next
+            .with_context(|| {
+                format!(
+                    "Expected UIDNEXT to be determined for {folder:?} by select_with_uidvalidity"
+                )
+            })?;
+        let new_uid_next = max(
+            max(largest_uid_fetched, largest_uid_skipped.unwrap_or(0)) + 1,
+            mailbox_uid_next,
+        );
 
         if new_uid_next > old_uid_next {
             set_uid_next(context, folder, new_uid_next).await?;
