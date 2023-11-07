@@ -208,9 +208,10 @@ impl ChatId {
         self == DC_CHAT_ID_ALLDONE_HINT
     }
 
-    /// Returns the [`ChatId`] for the 1:1 chat with `contact_id` if it exists.
+    /// Returns the [`ChatId`] for the 1:1 chat with `contact_id`
+    /// if it exists and is not blocked.
     ///
-    /// If it does not exist, `None` is returned.
+    /// If the chat does not exist or is blocked, `None` is returned.
     pub async fn lookup_by_contact(
         context: &Context,
         contact_id: ContactId,
@@ -1250,6 +1251,16 @@ impl ChatId {
             .await?;
 
         Ok(())
+    }
+
+    /// Returns true if the chat is protected.
+    pub async fn is_protected(self, context: &Context) -> Result<ProtectionStatus> {
+        let protection_status = context
+            .sql
+            .query_get_value("SELECT protected FROM chats WHERE id=?", (self,))
+            .await?
+            .unwrap_or_default();
+        Ok(protection_status)
     }
 }
 

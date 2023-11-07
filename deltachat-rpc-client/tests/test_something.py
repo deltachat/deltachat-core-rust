@@ -391,6 +391,18 @@ def test_qr_setup_contact(acfactory) -> None:
         if event["kind"] == "SecurejoinInviterProgress" and event["progress"] == 1000:
             return
 
+    # Test that scanning Alice's QR code verifies Alice's profile.
+    bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
+    bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
+    assert bob_contact_alice_snapshot.is_verified
+    assert bob_contact_alice_snapshot.is_profile_verified
+
+    # Test that Alice symmetrically verified Bob's profile.
+    alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
+    alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
+    assert alice_contact_bob_snapshot.is_verified
+    assert alice_contact_bob_snapshot.is_profile_verified
+
 
 @pytest.mark.xfail()
 def test_verified_group_recovery(acfactory, rpc) -> None:
