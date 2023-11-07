@@ -514,12 +514,7 @@ impl TestContext {
             .await
             .expect("receive_imf() seems not to have added a new message to the db");
 
-        assert_eq!(
-            received.msg_ids.len(),
-            1,
-            "recv_msg() can currently only receive messages with exactly one part"
-        );
-        let msg = Message::load_from_db(self, received.msg_ids[0])
+        let msg = Message::load_from_db(self, *received.msg_ids.last().unwrap())
             .await
             .unwrap();
 

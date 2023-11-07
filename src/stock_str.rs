@@ -416,6 +416,9 @@ pub enum StockMessage {
 
     #[strum(props(fallback = "Others will only see this group after you sent a first message."))]
     NewGroupSendFirstMessage = 172,
+
+    #[strum(props(fallback = "Member %1$s added."))]
+    MsgAddMember = 173,
 }
 
 impl StockMessage {
@@ -603,6 +606,7 @@ pub(crate) async fn msg_grp_img_changed(context: &Context, by_contact: ContactId
 }
 
 /// Stock string: `I added member %1$s.`.
+/// This one is for sending in group chats.
 ///
 /// The `added_member_addr` parameter should be an email address and is looked up in the
 /// contacts to combine with the authorized display name.
@@ -637,7 +641,11 @@ pub(crate) async fn msg_add_member_local(
             .unwrap_or_else(|_| addr.to_string()),
         _ => addr.to_string(),
     };
-    if by_contact == ContactId::SELF {
+    if by_contact == ContactId::UNDEFINED {
+        translated(context, StockMessage::MsgAddMember)
+            .await
+            .replace1(whom)
+    } else if by_contact == ContactId::SELF {
         translated(context, StockMessage::MsgYouAddMember)
             .await
             .replace1(whom)
