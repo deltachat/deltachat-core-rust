@@ -222,6 +222,99 @@ static P_BUZON_UY: Provider = Provider {
     oauth2_authorizer: None,
 };
 
+// c1.testrun.org.md: c1.testrun.org
+static P_C1_TESTRUN_ORG: Provider = Provider {
+    id: "c1.testrun.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/c1-testrun-org",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "c1.testrun.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "c1.testrun.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions::new(),
+    config_defaults: Some(&[ConfigDefault {
+        key: Config::MvboxMove,
+        value: "0",
+    }]),
+    oauth2_authorizer: None,
+};
+
+// c2.testrun.org.md: c2.testrun.org
+static P_C2_TESTRUN_ORG: Provider = Provider {
+    id: "c2.testrun.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/c2-testrun-org",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "c2.testrun.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "c2.testrun.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions::new(),
+    config_defaults: Some(&[ConfigDefault {
+        key: Config::MvboxMove,
+        value: "0",
+    }]),
+    oauth2_authorizer: None,
+};
+
+// c3.testrun.org.md: c3.testrun.org
+static P_C3_TESTRUN_ORG: Provider = Provider {
+    id: "c3.testrun.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/c3-testrun-org",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "c3.testrun.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "c3.testrun.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions::new(),
+    config_defaults: Some(&[ConfigDefault {
+        key: Config::MvboxMove,
+        value: "0",
+    }]),
+    oauth2_authorizer: None,
+};
+
 // chello.at.md: chello.at
 static P_CHELLO_AT: Provider = Provider {
     id: "chello.at",
@@ -867,6 +960,37 @@ static P_NAVER: Provider = Provider {
     oauth2_authorizer: None,
 };
 
+// nine.testrun.org.md: nine.testrun.org
+static P_NINE_TESTRUN_ORG: Provider = Provider {
+    id: "nine.testrun.org",
+    status: Status::Ok,
+    before_login_hint: "",
+    after_login_hint: "",
+    overview_page: "https://providers.delta.chat/nine-testrun-org",
+    server: &[
+        Server {
+            protocol: Imap,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
+            port: 993,
+            username_pattern: Email,
+        },
+        Server {
+            protocol: Smtp,
+            socket: Ssl,
+            hostname: "nine.testrun.org",
+            port: 465,
+            username_pattern: Email,
+        },
+    ],
+    opt: ProviderOptions::new(),
+    config_defaults: Some(&[ConfigDefault {
+        key: Config::MvboxMove,
+        value: "0",
+    }]),
+    oauth2_authorizer: None,
+};
+
 // nubo.coop.md: nubo.coop
 static P_NUBO_COOP: Provider = Provider {
     id: "nubo.coop",
@@ -1495,6 +1619,9 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("delta.blindzeln.org", &P_BLINDZELN_ORG),
         ("bluewin.ch", &P_BLUEWIN_CH),
         ("buzon.uy", &P_BUZON_UY),
+        ("c1.testrun.org", &P_C1_TESTRUN_ORG),
+        ("c2.testrun.org", &P_C2_TESTRUN_ORG),
+        ("c3.testrun.org", &P_C3_TESTRUN_ORG),
         ("chello.at", &P_CHELLO_AT),
         ("xfinity.com", &P_COMCAST),
         ("comcast.net", &P_COMCAST),
@@ -1708,6 +1835,7 @@ pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> 
         ("mailo.com", &P_MAILO_COM),
         ("nauta.cu", &P_NAUTA_CU),
         ("naver.com", &P_NAVER),
+        ("nine.testrun.org", &P_NINE_TESTRUN_ORG),
         ("nubo.coop", &P_NUBO_COOP),
         ("hotmail.com", &P_OUTLOOK_COM),
         ("outlook.com", &P_OUTLOOK_COM),
@@ -1860,6 +1988,9 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("blindzeln.org", &P_BLINDZELN_ORG),
         ("bluewin.ch", &P_BLUEWIN_CH),
         ("buzon.uy", &P_BUZON_UY),
+        ("c1.testrun.org", &P_C1_TESTRUN_ORG),
+        ("c2.testrun.org", &P_C2_TESTRUN_ORG),
+        ("c3.testrun.org", &P_C3_TESTRUN_ORG),
         ("chello.at", &P_CHELLO_AT),
         ("comcast", &P_COMCAST),
         ("dismail.de", &P_DISMAIL_DE),
@@ -1888,6 +2019,7 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
         ("mailo.com", &P_MAILO_COM),
         ("nauta.cu", &P_NAUTA_CU),
         ("naver", &P_NAVER),
+        ("nine.testrun.org", &P_NINE_TESTRUN_ORG),
         ("nubo.coop", &P_NUBO_COOP),
         ("outlook.com", &P_OUTLOOK_COM),
         ("ouvaton.coop", &P_OUVATON_COOP),
@@ -1918,4 +2050,4 @@ pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> =
 });
 
 pub static _PROVIDER_UPDATED: Lazy<chrono::NaiveDate> =
-    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2023, 2, 20).unwrap());
+    Lazy::new(|| chrono::NaiveDate::from_ymd_opt(2023, 11, 5).unwrap());
