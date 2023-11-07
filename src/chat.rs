@@ -227,7 +227,7 @@ impl ChatId {
     /// This is an internal API, if **a user action** needs to get a chat
     /// [`ChatId::create_for_contact`] should be used as this also scales up the
     /// [`Contact`]'s origin.
-    pub async fn get_for_contact(context: &Context, contact_id: ContactId) -> Result<Self> {
+    pub(crate) async fn get_for_contact(context: &Context, contact_id: ContactId) -> Result<Self> {
         ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Not)
             .await
             .map(|chat| chat.id)
