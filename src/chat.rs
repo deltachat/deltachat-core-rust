@@ -4473,13 +4473,11 @@ mod tests {
         remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
 
         // Bob receives a msg about Alice adding Claire to the group.
-        let bob_received_add_msg = bob.recv_msg(&alice_sent_add_msg).await;
+        bob.recv_msg(&alice_sent_add_msg).await;
 
         // Test that add message is rewritten.
-        assert_eq!(
-            bob_received_add_msg.get_text(),
-            "Member claire@example.net added by alice@example.org."
-        );
+        bob.golden_test_chat(bob_chat_id, "chat_test_simultaneous_member_remove")
+            .await;
 
         // Bob receives a msg about Alice removing him from the group.
         let bob_received_remove_msg = bob.recv_msg(&alice_sent_remove_msg).await;

@@ -457,6 +457,7 @@ async fn add_parts(
     let mut chat_id_blocked = Blocked::Not;
 
     let mut better_msg = None;
+    let mut group_changes_msgs = Vec::new();
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
     }
@@ -649,7 +650,7 @@ async fn add_parts(
                 }
             }
 
-            better_msg = better_msg.or(apply_group_changes(
+            group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -658,7 +659,7 @@ async fn add_parts(
                 to_ids,
                 is_partial_download.is_some(),
             )
-            .await?);
+            .await?;
         }
 
         if chat_id.is_none() {
@@ -892,7 +893,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            better_msg = better_msg.or(apply_group_changes(
+            group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -901,7 +902,7 @@ async fn add_parts(
                 to_ids,
                 is_partial_download.is_some(),
             )
-            .await?);
+            .await?;
         }
 
         if chat_id.is_none() && self_sent {
@@ -1115,7 +1116,9 @@ async fn add_parts(
 
     let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
-    for part in &mut mime_parser.parts {
+    group_changes_msgs = group_changes_msgs.into_iter().rev().collect();
+    let mut parts = mime_parser.parts.iter_mut().peekable();
+    while let Some(part) = parts.peek() {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
             set_msg_reaction(
@@ -1148,7 +1151,10 @@ async fn add_parts(
         }
 
         let mut txt_raw = "".to_string();
-        let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
+        let group_changes_msg = group_changes_msgs.pop();
+        let (msg, typ): (&str, Viewtype) = if let Some(msg) = &group_changes_msg {
+            (msg, Viewtype::Text)
+        } else if let Some(better_msg) = &better_msg {
             (better_msg, Viewtype::Text)
         } else {
             (&part.msg, part.typ)
@@ -1276,6 +1282,10 @@ RETURNING id
 
         debug_assert!(!row_id.is_special());
         created_db_entries.push(row_id);
+
+        if group_changes_msg.is_none() || (group_changes_msgs.is_empty() && better_msg.is_none()) {
+            parts.next();
+        }
     }
 
     // check all parts whether they contain a new logging webxdc
@@ -1704,15 +1714,15 @@ async fn apply_group_changes(
     from_id: ContactId,
     to_ids: &[ContactId],
     is_partial_download: bool,
-) -> Result<Option<String>> {
+) -> Result<Vec<String>> {
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
-        return Ok(None);
+        return Ok(Vec::new());
     }
 
     let mut send_event_chat_modified = false;
     let (mut removed_id, mut added_id) = (None, None);
-    let mut better_msg = None;
+    let mut group_changes_msgs = Vec::new();
 
     // True if a Delta Chat client has explicitly added our current primary address.
     let self_added =
@@ -1777,11 +1787,11 @@ async fn apply_group_changes(
     if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
         removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
 
-        better_msg = if removed_id == Some(from_id) {
-            Some(stock_str::msg_group_left_local(context, from_id).await)
+        group_changes_msgs.push(if removed_id == Some(from_id) {
+            stock_str::msg_group_left_local(context, from_id).await
         } else {
-            Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
-        };
+            stock_str::msg_del_member_local(context, removed_addr, from_id).await
+        });
 
         if removed_id.is_some() {
             if !allow_member_list_changes {
@@ -1794,7 +1804,8 @@ async fn apply_group_changes(
             warn!(context, "Removed {removed_addr:?} has no contact id.")
         }
     } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
-        better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
+        group_changes_msgs
+            .push(stock_str::msg_add_member_local(context, added_addr, from_id).await);
 
         if allow_member_list_changes {
             if !recreate_member_list {
@@ -1835,21 +1846,20 @@ async fn apply_group_changes(
                 send_event_chat_modified = true;
             }
 
-            better_msg = Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+            group_changes_msgs
+                .push(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
         }
     } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
         if value == "group-avatar-changed" {
             if let Some(avatar_action) = &mime_parser.group_avatar {
                 // this is just an explicit message containing the group-avatar,
                 // apart from that, the group-avatar is send along with various other messages
-                better_msg = match avatar_action {
-                    AvatarAction::Delete => {
-                        Some(stock_str::msg_grp_img_deleted(context, from_id).await)
-                    }
+                group_changes_msgs.push(match avatar_action {
+                    AvatarAction::Delete => stock_str::msg_grp_img_deleted(context, from_id).await,
                     AvatarAction::Change(_) => {
-                        Some(stock_str::msg_grp_img_changed(context, from_id).await)
+                        stock_str::msg_grp_img_changed(context, from_id).await
                     }
-                };
+                });
             }
         }
     }
@@ -1882,6 +1892,18 @@ async fn apply_group_changes(
             }
             if !diff.is_empty() {
                 warn!(context, "Implicit addition of {diff:?} to chat {chat_id}.");
+            }
+            group_changes_msgs.reserve(diff.len());
+            for contact_id in diff {
+                let contact = Contact::get_by_id(context, contact_id).await?;
+                group_changes_msgs.push(
+                    stock_str::msg_add_member_local(
+                        context,
+                        contact.get_addr(),
+                        ContactId::UNDEFINED,
+                    )
+                    .await,
+                );
             }
         }
         if let Some(removed_id) = removed_id {
@@ -1949,7 +1971,7 @@ async fn apply_group_changes(
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
     }
-    Ok(better_msg)
+    Ok(group_changes_msgs)
 }
 
 static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
