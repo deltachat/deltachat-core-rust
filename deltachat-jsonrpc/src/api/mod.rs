@@ -1978,31 +1978,42 @@ impl CommandApi {
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())
     }
-    
+
     /// Returns message id of the sent message
-    async fn send_voice_message(&self, account_id: u32, chat_id: u32, file: String, duration: Option<i32>, mimetype: Option<String>, quoted_message_id: Option<u32>) -> Result<u32> {
+    async fn send_voice_message(
+        &self,
+        account_id: u32,
+        chat_id: u32,
+        file: String,
+        duration: Option<i32>,
+        mimetype: Option<String>,
+        quoted_message_id: Option<u32>,
+    ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let mut message = Message::new(Viewtype::Voice);
-        if let Ok(mimetype) = mimetype {
+        if let Some(mimetype) = mimetype {
             message.set_file(file, &mimetype);
         } else {
-            message.set_file(file, "audio/ogg");
+            message.set_file(file, "audio/aac");
         }
-        if let Ok(duration) = duration {
+        if let Some(duration) = duration {
             message.set_duration(duration);
         }
-        if let Ok(quoted) = quoted_message_id {
-            message.set_quote(
-                &ctx,
-                Some(&Message::load_from_db(&ctx, MsgId::new(quoted)).await
-                    .context("message to quote could not be loaded")
+        if let Some(quoted) = quoted_message_id {
+            message
+                .set_quote(
+                    &ctx,
+                    Some(
+                        &Message::load_from_db(&ctx, MsgId::new(quoted))
+                            .await
+                            .context("message to quote could not be loaded"),
+                    ),
                 )
-            ).await?;
+                .await?;
         }
-        chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
+        Ok(chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
             .await?
-            .to_u32()
-
+            .to_u32())
     }
 
     // mimics the old desktop call, will get replaced with something better in the composer rewrite,
