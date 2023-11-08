@@ -48,3 +48,7 @@ $ python
 'awesome'
 >>> rpc.close()
 ```
+
+## Usage from async code
+
+See the [echobot_async.py](./examples/echobot_async.py) example.
