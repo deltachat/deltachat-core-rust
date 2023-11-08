@@ -98,6 +98,7 @@
 - [**breaking**] Remove unused `dc_set_chat_protection()`
 - Hide `DcSecretKey` trait from the API.
 - Verified 1:1 chats ([#4315](https://github.com/deltachat/deltachat-core-rust/pull/4315)). Disabled by default, enable with `verified_one_on_one_chats` config.
+- Add api `chat::Chat::is_protection_broken`
 
 ### CI
 
