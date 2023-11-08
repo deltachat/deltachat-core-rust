@@ -8,7 +8,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::{Blocked, Chattype};
+use crate::constants::Blocked;
 use crate::contact::{Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::e2ee::ensure_secret_key_exists;
@@ -684,17 +684,17 @@ async fn secure_connection_established(
         .get_config_bool(Config::VerifiedOneOnOneChats)
         .await?
     {
-        let chat = Chat::load_from_db(context, chat_id).await?;
-        if chat.typ == Chattype::Single {
-            chat_id
-                .set_protection(
-                    context,
-                    ProtectionStatus::Protected,
-                    time(),
-                    Some(contact_id),
-                )
-                .await?;
-        }
+        let private_chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Yes)
+            .await?
+            .id;
+        private_chat_id
+            .set_protection(
+                context,
+                ProtectionStatus::Protected,
+                time(),
+                Some(contact_id),
+            )
+            .await?;
     }
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
