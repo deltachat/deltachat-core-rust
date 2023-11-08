@@ -36,17 +36,15 @@ use crate::token::Namespace;
 /// Set of characters to percent-encode in email addresses and names.
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
-macro_rules! inviter_progress {
-    ($context:tt, $contact_id:expr, $progress:expr) => {
-        assert!(
-            $progress >= 0 && $progress <= 1000,
-            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
-        );
-        $context.emit_event($crate::events::EventType::SecurejoinInviterProgress {
-            contact_id: $contact_id,
-            progress: $progress,
-        });
-    };
+fn inviter_progress(context: &Context, contact_id: ContactId, progress: usize) {
+    debug_assert!(
+        progress <= 1000,
+        "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
+    );
+    context.emit_event(EventType::SecurejoinInviterProgress {
+        contact_id,
+        progress,
+    });
 }
 
 /// Generates a Secure Join QR code.
@@ -318,7 +316,7 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             info!(context, "Secure-join requested.",);
 
-            inviter_progress!(context, contact_id, 300);
+            inviter_progress(context, contact_id, 300);
 
             // for setup-contact, make Alice's one-to-one chat with Bob visible
             // (secure-join-information are shown in the group chat)
@@ -430,7 +428,7 @@ pub(crate) async fn handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await?;
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-            inviter_progress!(context, contact_id, 600);
+            inviter_progress(context, contact_id, 600);
             if join_vg {
                 // the vg-member-added message is special:
                 // this is a normal Chat-Group-Member-Added message
@@ -450,8 +448,8 @@ pub(crate) async fn handle_securejoin_handshake(
                     }
                     None => bail!("Chat {} not found", &field_grpid),
                 }
-                inviter_progress!(context, contact_id, 800);
-                inviter_progress!(context, contact_id, 1000);
+                inviter_progress(context, contact_id, 800);
+                inviter_progress(context, contact_id, 1000);
             } else {
                 // Alice -> Bob
                 secure_connection_established(
@@ -469,7 +467,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await
                 .context("failed sending vc-contact-confirm message")?;
 
-                inviter_progress!(context, contact_id, 1000);
+                inviter_progress(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)
         }
@@ -651,10 +649,10 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 return Ok(HandshakeMessage::Ignore);
             }
             if step.as_str() == "vg-member-added" {
-                inviter_progress!(context, contact_id, 800);
+                inviter_progress(context, contact_id, 800);
             }
             if step.as_str() == "vg-member-added" || step.as_str() == "vc-contact-confirm" {
-                inviter_progress!(context, contact_id, 1000);
+                inviter_progress(context, contact_id, 1000);
             }
             if step.as_str() == "vg-request-with-auth" || step.as_str() == "vc-request-with-auth" {
                 // This actually reflects what happens on the first device (which does the secure
