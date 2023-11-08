@@ -21,7 +21,9 @@ class ACFactory:
         self.deltachat = deltachat
 
     def get_unconfigured_account(self) -> Account:
-        return self.deltachat.add_account()
+        account = self.deltachat.add_account()
+        account.set_config("verified_one_on_one_chats", "1")
+        return account
 
     def get_unconfigured_bot(self) -> Bot:
         return Bot(self.get_unconfigured_account())
