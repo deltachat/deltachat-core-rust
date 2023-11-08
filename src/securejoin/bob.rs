@@ -228,9 +228,8 @@ impl BobState {
         if context
             .get_config_bool(Config::VerifiedOneOnOneChats)
             .await?
-            && chat_id == self.alice_chat()
         {
-            chat_id
+            self.alice_chat()
                 .set_protection(
                     context,
                     ProtectionStatus::Protected,

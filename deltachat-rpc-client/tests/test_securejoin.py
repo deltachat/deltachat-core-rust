@@ -28,7 +28,6 @@ def test_qr_setup_contact(acfactory) -> None:
     assert alice_contact_bob_snapshot.is_profile_verified
 
 
-@pytest.mark.xfail()
 def test_qr_securejoin(acfactory):
     alice, bob = acfactory.get_online_accounts(2)
 
