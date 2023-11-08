@@ -1,11 +1,12 @@
+import itertools
 import json
 import logging
 import os
 import subprocess
 import sys
 from queue import Queue
-from threading import Event, Lock, Thread
-from typing import Any, Dict, Optional
+from threading import Event, Thread
+from typing import Any, Dict, Iterator, Optional
 
 
 class JsonRpcError(Exception):
@@ -23,8 +24,7 @@ class Rpc:
 
         self._kwargs = kwargs
         self.process: subprocess.Popen
-        self.id: int
-        self.id_lock: Lock
+        self.id_iterator: Iterator[int]
         self.event_queues: Dict[int, Queue]
         # Map from request ID to `threading.Event`.
         self.request_events: Dict[int, Event]
@@ -55,8 +55,7 @@ class Rpc:
                 preexec_fn=os.setpgrp,  # noqa: PLW1509
                 **self._kwargs,
             )
-        self.id = 0
-        self.id_lock = Lock()
+        self.id_iterator = itertools.count(start=1)
         self.event_queues = {}
         self.request_events = {}
         self.request_results = {}
@@ -145,11 +144,7 @@ class Rpc:
 
     def __getattr__(self, attr: str):
         def method(*args) -> Any:
-            self.id_lock.acquire()
-            self.id += 1
-            request_id = self.id
-            self.id_lock.release()
-
+            request_id = next(self.id_iterator)
             request = {
                 "jsonrpc": "2.0",
                 "method": attr,
