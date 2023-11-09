@@ -767,6 +767,7 @@ mod tests {
     use crate::chat;
     use crate::chat::ProtectionStatus;
     use crate::chatlist::Chatlist;
+    use crate::constants::Chattype;
     use crate::contact::ContactAddress;
     use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
