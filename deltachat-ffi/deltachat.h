@@ -6260,6 +6260,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 (int) The progress as:
  *     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
  *     (Bob has verified alice and waits until Alice does the same for him)
+ *     1000=vg-member-added/vc-contact-confirm received
  */
 #define DC_EVENT_SECUREJOIN_JOINER_PROGRESS       2061
 

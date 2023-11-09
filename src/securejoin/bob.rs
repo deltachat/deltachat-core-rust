@@ -132,6 +132,7 @@ pub(super) async fn handle_contact_confirm(
             // verify both contacts (this could be a bug/security issue, see
             // e.g. https://github.com/deltachat/deltachat-core-rust/issues/1177).
             bobstate.notify_peer_verified(context).await?;
+            bobstate.emit_progress(context, JoinerProgress::Succeeded);
             Ok(retval)
         }
         Some(_) => {
@@ -255,8 +256,8 @@ enum JoinerProgress {
     ///
     /// Typically shows as "alice@addr verified, introducing myself."
     RequestWithAuthSent,
-    // /// Completed securejoin.
-    // Succeeded,
+    /// Completed securejoin.
+    Succeeded,
 }
 
 impl From<JoinerProgress> for usize {
@@ -264,7 +265,7 @@ impl From<JoinerProgress> for usize {
         match progress {
             JoinerProgress::Error => 0,
             JoinerProgress::RequestWithAuthSent => 400,
-            // JoinerProgress::Succeeded => 1000,
+            JoinerProgress::Succeeded => 1000,
         }
     }
 }
