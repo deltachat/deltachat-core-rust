@@ -1923,21 +1923,7 @@ async fn apply_group_changes(
         }
 
         if new_members != chat_contacts {
-            let new_members_ref = &new_members;
-            context
-                .sql
-                .transaction(move |transaction| {
-                    transaction
-                        .execute("DELETE FROM chats_contacts WHERE chat_id=?", (chat_id,))?;
-                    for contact_id in new_members_ref {
-                        transaction.execute(
-                            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
-                            (chat_id, contact_id),
-                        )?;
-                    }
-                    Ok(())
-                })
-                .await?;
+            chat::update_chat_contacts_table(context, chat_id, &new_members).await?;
             chat_contacts = new_members;
             send_event_chat_modified = true;
         }

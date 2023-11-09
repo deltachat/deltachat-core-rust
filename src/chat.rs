@@ -1,6 +1,6 @@
 //! # Chat module.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
     DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{self, Contact, ContactId, Origin, VerifiedStatus};
+use crate::contact::{self, Contact, ContactAddress, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
@@ -1916,6 +1916,17 @@ impl Chat {
         Ok(msg.id)
     }
 
+    /// Sends a `ChatAction` synchronising chat contacts to other devices.
+    pub(crate) async fn sync_contacts(&self, context: &Context) -> Result<()> {
+        let mut addrs = Vec::new();
+        for contact_id in get_chat_contacts(context, self.id).await? {
+            let contact = Contact::get_by_id(context, contact_id).await?;
+            addrs.push(contact.get_addr().to_string());
+        }
+        self.add_sync_item(context, ChatAction::SetContacts(addrs))
+            .await
+    }
+
     /// Returns chat id for the purpose of synchronisation across devices.
     async fn get_sync_id(&self, context: &Context) -> Result<Option<sync::ChatId>> {
         match self.typ {
@@ -3235,6 +3246,28 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     Ok(chat_id)
 }
 
+/// Set chat contacts in the `chats_contacts` table.
+pub(crate) async fn update_chat_contacts_table(
+    context: &Context,
+    id: ChatId,
+    contacts: &HashSet<ContactId>,
+) -> Result<()> {
+    context
+        .sql
+        .transaction(move |transaction| {
+            transaction.execute("DELETE FROM chats_contacts WHERE chat_id=?", (id,))?;
+            for contact_id in contacts {
+                transaction.execute(
+                    "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+                    (id, contact_id),
+                )?;
+            }
+            Ok(())
+        })
+        .await?;
+    Ok(())
+}
+
 /// Adds contacts to the `chats_contacts` table.
 pub(crate) async fn add_to_chat_contacts_table(
     context: &Context,
@@ -3280,12 +3313,13 @@ pub async fn add_contact_to_chat(
     chat_id: ChatId,
     contact_id: ContactId,
 ) -> Result<()> {
-    add_contact_to_chat_ex(context, chat_id, contact_id, false).await?;
+    add_contact_to_chat_ex(context, Sync, chat_id, contact_id, false).await?;
     Ok(())
 }
 
 pub(crate) async fn add_contact_to_chat_ex(
     context: &Context,
+    mut sync: sync::Sync,
     chat_id: ChatId,
     contact_id: ContactId,
     from_handshake: bool,
@@ -3367,8 +3401,12 @@ pub(crate) async fn add_contact_to_chat_ex(
         msg.param.set(Param::Arg, contact_addr);
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg).await?;
+        sync = Nosync;
     }
     context.emit_event(EventType::ChatModified(chat_id));
+    if sync.into() {
+        chat.sync_contacts(context).await?;
+    }
     Ok(true)
 }
 
@@ -3508,6 +3546,7 @@ pub async fn remove_contact_from_chat(
             context.emit_event(EventType::ErrorSelfNotInGroup(err_msg.clone()));
             bail!("{}", err_msg);
         } else {
+            let mut sync = Nosync;
             // We do not return an error if the contact does not exist in the database.
             // This allows to delete dangling references to deleted contacts
             // in case of the database becoming inconsistent due to a bug.
@@ -3528,6 +3567,8 @@ pub async fn remove_contact_from_chat(
                     msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
                     msg.param.set(Param::Arg, contact.get_addr());
                     msg.id = send_msg(context, chat_id, &mut msg).await?;
+                } else {
+                    sync = Sync;
                 }
             }
             // we remove the member from the chat after constructing the
@@ -3542,6 +3583,9 @@ pub async fn remove_contact_from_chat(
             // check/encryption logic.
             remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
             context.emit_event(EventType::ChatModified(chat_id));
+            if sync.into() {
+                chat.sync_contacts(context).await?;
+            }
         }
     } else {
         bail!("Cannot remove members from non-group chats.");
@@ -4096,6 +4140,30 @@ pub(crate) async fn update_msg_text_and_timestamp(
     Ok(())
 }
 
+/// Set chat contacts by their addresses creating the corresponding contacts if necessary.
+async fn set_contacts_by_addrs(context: &Context, id: ChatId, addrs: &[String]) -> Result<()> {
+    let chat = Chat::load_from_db(context, id).await?;
+    ensure!(
+        chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast,
+        "{id} is not a group/broadcast",
+    );
+    let mut contacts = HashSet::new();
+    for addr in addrs {
+        let contact_addr = ContactAddress::new(addr)?;
+        let contact = Contact::add_or_lookup(context, "", contact_addr, Origin::Hidden)
+            .await?
+            .0;
+        contacts.insert(contact);
+    }
+    let contacts_old = HashSet::<ContactId>::from_iter(get_chat_contacts(context, id).await?);
+    if contacts == contacts_old {
+        return Ok(());
+    }
+    update_chat_contacts_table(context, id, &contacts).await?;
+    context.emit_event(EventType::ChatModified(id));
+    Ok(())
+}
+
 impl Context {
     /// Executes [`SyncData::AlterChat`] item sent by other device.
     pub(crate) async fn sync_alter_chat(
@@ -4140,6 +4208,7 @@ impl Context {
             ChatAction::Accept => chat_id.accept_ex(self, Nosync).await,
             ChatAction::SetVisibility(v) => chat_id.set_visibility_ex(self, Nosync, *v).await,
             ChatAction::SetMuted(duration) => set_muted_ex(self, Nosync, chat_id, *duration).await,
+            ChatAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
         }
         .ok();
         Ok(())
@@ -4365,7 +4434,7 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo")
             .await
             .unwrap();
-        let added = add_contact_to_chat_ex(&t, chat_id, ContactId::SELF, false)
+        let added = add_contact_to_chat_ex(&t, Nosync, chat_id, ContactId::SELF, false)
             .await
             .unwrap();
         assert_eq!(added, false);
@@ -4715,7 +4784,7 @@ mod tests {
 
         // adding or removing contacts from one-to-one-chats result in an error
         let claire = Contact::create(&ctx, "", "claire@foo.de").await.unwrap();
-        let added = add_contact_to_chat_ex(&ctx, chat.id, claire, false).await;
+        let added = add_contact_to_chat_ex(&ctx, Nosync, chat.id, claire, false).await;
         assert!(added.is_err());
         assert_eq!(get_chat_contacts(&ctx, chat.id).await.unwrap().len(), 1);
 
