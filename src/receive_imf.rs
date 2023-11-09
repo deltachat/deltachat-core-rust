@@ -291,9 +291,7 @@ pub(crate) async fn receive_imf_inner(
     if let Some(ref sync_items) = mime_parser.sync_items {
         if from_id == ContactId::SELF {
             if mime_parser.was_encrypted() {
-                if let Err(err) = context.execute_sync_items(sync_items).await {
-                    warn!(context, "receive_imf cannot execute sync items: {err:#}.");
-                }
+                context.execute_sync_items(sync_items).await;
             } else {
                 warn!(context, "Sync items are not encrypted.");
             }
