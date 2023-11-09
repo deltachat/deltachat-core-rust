@@ -10,6 +10,7 @@ use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::ContactId;
 use crate::context::Context;
+use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
@@ -252,41 +253,44 @@ impl Context {
     /// as otherwise we would add in a dead-loop between two devices
     /// sending message back and forth.
     ///
-    /// If an error is returned, the caller shall not try over.
-    /// Therefore, errors should only be returned on database errors or so.
-    /// If eg. just an item cannot be deleted,
-    /// that should not hold off the other items to be executed.
-    pub(crate) async fn execute_sync_items(&self, items: &SyncItems) -> Result<()> {
+    /// If an error is returned, the caller shall not try over because some sync items could be
+    /// already executed. Sync items are considered independent and executed in the given order but
+    /// regardless of whether executing of the previous items succeeded.
+    pub(crate) async fn execute_sync_items(&self, items: &SyncItems) {
         info!(self, "executing {} sync item(s)", items.items.len());
         for item in &items.items {
             match &item.data {
-                AddQrToken(token) => {
-                    let chat_id = if let Some(grpid) = &token.grpid {
-                        if let Some((chat_id, _, _)) =
-                            chat::get_chat_id_by_grpid(self, grpid).await?
-                        {
-                            Some(chat_id)
-                        } else {
-                            warn!(
-                                self,
-                                "Ignoring token for nonexistent/deleted group '{}'.", grpid
-                            );
-                            continue;
-                        }
-                    } else {
-                        None
-                    };
-                    token::save(self, Namespace::InviteNumber, chat_id, &token.invitenumber)
-                        .await?;
-                    token::save(self, Namespace::Auth, chat_id, &token.auth).await?;
-                }
-                DeleteQrToken(token) => {
-                    token::delete(self, Namespace::InviteNumber, &token.invitenumber).await?;
-                    token::delete(self, Namespace::Auth, &token.auth).await?;
-                }
-                AlterChat { id, action } => self.sync_alter_chat(id, action).await?,
+                AddQrToken(token) => self.add_qr_token(token).await,
+                DeleteQrToken(token) => self.delete_qr_token(token).await,
+                AlterChat { id, action } => self.sync_alter_chat(id, action).await,
             }
+            .log_err(self)
+            .ok();
         }
+    }
+
+    async fn add_qr_token(&self, token: &QrTokenData) -> Result<()> {
+        let chat_id = if let Some(grpid) = &token.grpid {
+            if let Some((chat_id, _, _)) = chat::get_chat_id_by_grpid(self, grpid).await? {
+                Some(chat_id)
+            } else {
+                warn!(
+                    self,
+                    "Ignoring token for nonexistent/deleted group '{}'.", grpid
+                );
+                return Ok(());
+            }
+        } else {
+            None
+        };
+        token::save(self, Namespace::InviteNumber, chat_id, &token.invitenumber).await?;
+        token::save(self, Namespace::Auth, chat_id, &token.auth).await?;
+        Ok(())
+    }
+
+    async fn delete_qr_token(&self, token: &QrTokenData) -> Result<()> {
+        token::delete(self, Namespace::InviteNumber, &token.invitenumber).await?;
+        token::delete(self, Namespace::Auth, &token.auth).await?;
         Ok(())
     }
 }
@@ -516,7 +520,7 @@ mod tests {
                 .to_string(),
             )
             ?;
-        t.execute_sync_items(&sync_items).await?;
+        t.execute_sync_items(&sync_items).await;
 
         assert!(
             Contact::lookup_id_by_addr(&t, "bob@example.net", Origin::Unknown)

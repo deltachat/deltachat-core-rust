@@ -4274,9 +4274,6 @@ impl Context {
             }
             ChatAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
         }
-        .log_err(self)
-        .ok();
-        Ok(())
     }
 }
 
