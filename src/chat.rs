@@ -1252,6 +1252,16 @@ impl ChatId {
 
         Ok(())
     }
+
+    /// Returns true if the chat is protected.
+    pub async fn is_protected(self, context: &Context) -> Result<ProtectionStatus> {
+        let protection_status = context
+            .sql
+            .query_get_value("SELECT protected FROM chats WHERE id=?", (self,))
+            .await?
+            .unwrap_or_default();
+        Ok(protection_status)
+    }
 }
 
 impl std::fmt::Display for ChatId {

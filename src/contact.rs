@@ -19,7 +19,7 @@ use tokio::task;
 use tokio::time::{timeout, Duration};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::ChatId;
+use crate::chat::{ChatId, ProtectionStatus};
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
@@ -1313,6 +1313,27 @@ impl Contact {
                 warn!(context, "Could not lookup contact with address {verifier_addr} which introduced {addr}.");
                 Ok(None)
             }
+        }
+    }
+
+    /// Returns if the contact profile title should display a green checkmark.
+    ///
+    /// This generally should be consistent with the 1:1 chat with the contact
+    /// so 1:1 chat with the contact and the contact profile
+    /// either both display the green checkmark or both don't display a green checkmark.
+    ///
+    /// UI often knows beforehand if a chat exists and can also call
+    /// `chat.is_protected()` (if there is a chat)
+    /// or `contact.is_verified()` (if there is no chat) directly.
+    /// This is often easier and also skips some database calls.
+    pub async fn is_profile_verified(&self, context: &Context) -> Result<bool> {
+        let contact_id = self.id;
+
+        if let Some(chat_id) = ChatId::lookup_by_contact(context, contact_id).await? {
+            Ok(chat_id.is_protected(context).await? == ProtectionStatus::Protected)
+        } else {
+            // 1:1 chat does not exist.
+            Ok(self.is_verified(context).await? == VerifiedStatus::BidirectVerified)
         }
     }
 

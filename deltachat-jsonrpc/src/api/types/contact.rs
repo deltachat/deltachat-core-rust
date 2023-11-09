@@ -29,6 +29,12 @@ pub struct ContactObject {
     /// and in profiles if no chat with the contact exist.
     is_verified: bool,
 
+    /// True if the contact profile title should have a green checkmark.
+    ///
+    /// This indicates whether 1:1 chat has a green checkmark
+    /// or will have a green checkmark if created.
+    is_profile_verified: bool,
+
     /// The ID of the contact that verified this contact.
     ///
     /// If this is present,
@@ -52,6 +58,7 @@ impl ContactObject {
             None => None,
         };
         let is_verified = contact.is_verified(context).await? == VerifiedStatus::BidirectVerified;
+        let is_profile_verified = contact.is_profile_verified(context).await?;
 
         let verifier_id = contact
             .get_verifier_id(context)
@@ -70,6 +77,7 @@ impl ContactObject {
             name_and_addr: contact.get_name_n_addr(),
             is_blocked: contact.is_blocked(),
             is_verified,
+            is_profile_verified,
             verifier_id,
             last_seen: contact.last_seen(),
             was_seen_recently: contact.was_seen_recently(),
