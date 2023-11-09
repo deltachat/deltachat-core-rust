@@ -3743,8 +3743,9 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
  * if `verified_one_on_one_chats` setting is enabled.
  *
  * UI should display a green checkmark
- * in the chat title and
+ * in the chat title,
  * in the chatlist item
+ * and in the chat profile
  * if chat protection is enabled.
  *
  * @memberof dc_chat_t
@@ -5052,12 +5053,9 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
  *
  * If contact is verified
  * UI should display green checkmark after the contact name
- * in contact list items and
- * in chat member list items.
- *
- * Do not use this function when displaying the contact profile view.
- * Display green checkmark in the title of the contact profile
- * if dc_contact_profile_is_verified() returns true.
+ * in contact list items,
+ * in chat member list items
+ * and in profiles if no chat with the contact exist (otherwise, use dc_chat_is_protected()).
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
@@ -5065,24 +5063,6 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
  *    2: SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
  */
 int             dc_contact_is_verified       (dc_contact_t* contact);
-
-
-/**
- * Check if the contact profile title
- * should contain a green checkmark.
- * This indicates whether 1:1 chat with
- * this contact has a green checkmark
- * or will have if such chat is created.
- *
- * Use dc_contact_get_verified_id to display the verifier contact
- * in the info section of the contact profile.
- *
- * @memberof dc_contact_t
- * @param contact The contact object.
- * @return 1=contact profile has a green checkmark in the title,
- *   0=contact profile has no green checkmark in the title.
- */
-int             dc_contact_profile_is_verified (dc_contact_t* contact);
 
 
 /**
