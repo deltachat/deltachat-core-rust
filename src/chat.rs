@@ -215,9 +215,16 @@ impl ChatId {
         context: &Context,
         contact_id: ContactId,
     ) -> Result<Option<Self>> {
-        ChatIdBlocked::lookup_by_contact(context, contact_id)
-            .await
-            .map(|lookup| lookup.map(|chat| chat.id))
+        let Some(chat_id_blocked) = ChatIdBlocked::lookup_by_contact(context, contact_id).await?
+        else {
+            return Ok(None);
+        };
+
+        let chat_id = match chat_id_blocked.blocked {
+            Blocked::Not | Blocked::Request => Some(chat_id_blocked.id),
+            Blocked::Yes => None,
+        };
+        Ok(chat_id)
     }
 
     /// Returns the [`ChatId`] for the 1:1 chat with `contact_id`.
