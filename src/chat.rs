@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{anyhow, bail, ensure, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -29,6 +29,7 @@ use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
 use crate::location;
+use crate::log::LogExt;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -3230,23 +3231,54 @@ async fn find_unused_broadcast_list_name(context: &Context) -> Result<String> {
 pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     let chat_name = find_unused_broadcast_list_name(context).await?;
     let grpid = create_id();
-    let row_id = context
-        .sql
-        .insert(
-            "INSERT INTO chats
-        (type, name, grpid, param, created_timestamp)
-        VALUES(?, ?, ?, \'U=1\', ?);",
-            (
-                Chattype::Broadcast,
-                chat_name,
-                grpid,
-                create_smeared_timestamp(context),
-            ),
-        )
-        .await?;
+    create_broadcast_list_ex(context, Sync, grpid, chat_name).await
+}
+
+async fn create_broadcast_list_ex(
+    context: &Context,
+    sync: sync::Sync,
+    grpid: String,
+    chat_name: String,
+) -> Result<ChatId> {
+    let row_id = {
+        let chat_name = &chat_name;
+        let grpid = &grpid;
+        let trans_fn = |t: &mut rusqlite::Transaction| {
+            let cnt = t.execute("UPDATE chats SET name=? WHERE grpid=?", (chat_name, grpid))?;
+            ensure!(cnt <= 1, "{cnt} chats exist with grpid {grpid}");
+            if cnt == 1 {
+                return Ok(t.query_row(
+                    "SELECT id FROM chats WHERE grpid=? AND type=?",
+                    (grpid, Chattype::Broadcast),
+                    |row| {
+                        let id: isize = row.get(0)?;
+                        Ok(id)
+                    },
+                )?);
+            }
+            t.execute(
+                "INSERT INTO chats \
+                (type, name, grpid, param, created_timestamp) \
+                VALUES(?, ?, ?, \'U=1\', ?);",
+                (
+                    Chattype::Broadcast,
+                    &chat_name,
+                    &grpid,
+                    create_smeared_timestamp(context),
+                ),
+            )?;
+            Ok(t.last_insert_rowid().try_into()?)
+        };
+        context.sql.transaction(trans_fn).await?
+    };
     let chat_id = ChatId::new(u32::try_from(row_id)?);
 
     context.emit_msgs_changed_without_ids();
+    if sync.into() {
+        let id = sync::ChatId::Grpid(grpid);
+        let action = ChatAction::CreateBroadcast(chat_name);
+        self::sync(context, id, action).await.log_err(context).ok();
+    }
     Ok(chat_id)
 }
 
@@ -4198,6 +4230,10 @@ impl Context {
                 chat_id
             }
             sync::ChatId::Grpid(grpid) => {
+                if let ChatAction::CreateBroadcast(name) = action {
+                    create_broadcast_list_ex(self, Nosync, grpid.clone(), name.clone()).await?;
+                    return Ok(());
+                }
                 let Some((chat_id, ..)) = get_chat_id_by_grpid(self, grpid).await? else {
                     warn!(self, "sync_alter_chat: No chat for grpid '{grpid}'.");
                     return Ok(());
@@ -4211,8 +4247,12 @@ impl Context {
             ChatAction::Accept => chat_id.accept_ex(self, Nosync).await,
             ChatAction::SetVisibility(v) => chat_id.set_visibility_ex(self, Nosync, *v).await,
             ChatAction::SetMuted(duration) => set_muted_ex(self, Nosync, chat_id, *duration).await,
+            ChatAction::CreateBroadcast(_) => {
+                Err(anyhow!("sync_alter_chat({id:?}, {action:?}): Bad request."))
+            }
             ChatAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
         }
+        .log_err(self)
         .ok();
         Ok(())
     }

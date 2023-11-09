@@ -56,6 +56,8 @@ pub(crate) enum ChatAction {
     Accept,
     SetVisibility(ChatVisibility),
     SetMuted(chat::MuteDuration),
+    /// Create broadcast list with the given name.
+    CreateBroadcast(String),
     /// Set chat contacts by their addresses.
     SetContacts(Vec<String>),
 }
