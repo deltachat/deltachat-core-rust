@@ -132,7 +132,9 @@ class Rpc:
                 event = self.get_next_event()
                 account_id = event["contextId"]
                 queue = self.get_queue(account_id)
-                queue.put(event["event"])
+                event = event["event"]
+                logging.debug("account_id=%d got an event %s", account_id, event)
+                queue.put(event)
         except Exception:
             # Log an exception if the event loop dies.
             logging.exception("Exception in the event loop")
