@@ -1723,6 +1723,10 @@ async fn apply_group_changes(
     to_ids: &[ContactId],
     is_partial_download: bool,
 ) -> Result<Vec<String>> {
+    if chat_id.is_special() {
+        // Do not apply group changes to the trash chat.
+        return Ok(Vec::new());
+    }
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     if chat.typ != Chattype::Group {
         return Ok(Vec::new());
