@@ -24,8 +24,9 @@ pub struct ContactObject {
     ///
     /// If this is true
     /// UI should display green checkmark after the contact name
-    /// in contact list items and
-    /// in chat member list items.
+    /// in contact list items,
+    /// in chat member list items
+    /// and in profiles if no chat with the contact exist.
     is_verified: bool,
 
     /// True if the contact profile title should have a green checkmark.

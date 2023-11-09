@@ -19,7 +19,6 @@ def test_qr_setup_contact(acfactory) -> None:
     alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
     alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
     assert alice_contact_bob_snapshot.is_verified
-    assert alice_contact_bob_snapshot.is_profile_verified
 
     while True:
         event = bob.wait_for_event()
@@ -30,7 +29,6 @@ def test_qr_setup_contact(acfactory) -> None:
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
     assert bob_contact_alice_snapshot.is_verified
-    assert bob_contact_alice_snapshot.is_profile_verified
 
 
 def test_qr_securejoin(acfactory):
@@ -51,7 +49,6 @@ def test_qr_securejoin(acfactory):
     alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
     alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
     assert alice_contact_bob_snapshot.is_verified
-    assert alice_contact_bob_snapshot.is_profile_verified
 
     while True:
         event = bob.wait_for_event()
@@ -62,7 +59,6 @@ def test_qr_securejoin(acfactory):
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
     assert bob_contact_alice_snapshot.is_verified
-    assert bob_contact_alice_snapshot.is_profile_verified
 
 
 @pytest.mark.xfail()

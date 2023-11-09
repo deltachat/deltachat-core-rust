@@ -1261,9 +1261,8 @@ impl Contact {
     /// in contact list items and
     /// in chat member list items.
     ///
-    /// Do not use this function when displaying the contact profile view.
-    /// Display green checkmark in the title of the contact profile
-    /// if [Self::is_profile_verified] returns true.
+    /// In contact profile view, us this function only if there is no chat with the contact,
+    /// otherwise use is_chat_protected().
     /// Use [Self::get_verifier_id] to display the verifier contact
     /// in the info section of the contact profile.
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
@@ -1322,6 +1321,11 @@ impl Contact {
     /// This generally should be consistent with the 1:1 chat with the contact
     /// so 1:1 chat with the contact and the contact profile
     /// either both display the green checkmark or both don't display a green checkmark.
+    ///
+    /// UI often knows beforehand if a chat exists and can also call
+    /// `chat.is_protected()` (if there is a chat)
+    /// or `contact.is_verified()` (if there is no chat) directly.
+    /// This is often easier and also skips some database calls.
     pub async fn is_profile_verified(&self, context: &Context) -> Result<bool> {
         let contact_id = self.id;
 
