@@ -399,7 +399,7 @@ impl ChatId {
 
         if sync.into() {
             // NB: For a 1:1 chat this currently triggers `Contact::block()` on other devices.
-            chat.add_sync_item(context, ChatAction::Block).await?;
+            chat.sync(context, ChatAction::Block).await?;
         }
         Ok(())
     }
@@ -417,7 +417,7 @@ impl ChatId {
             // TODO: For a 1:1 chat this currently triggers `Contact::unblock()` on other devices.
             // Maybe we should unblock the contact locally too, this would also resolve discrepancy
             // with `block()` which also blocks the contact.
-            chat.add_sync_item(context, ChatAction::Unblock).await?;
+            chat.sync(context, ChatAction::Unblock).await?;
         }
         Ok(())
     }
@@ -465,7 +465,7 @@ impl ChatId {
         }
 
         if sync.into() {
-            chat.add_sync_item(context, ChatAction::Accept).await?;
+            chat.sync(context, ChatAction::Accept).await?;
         }
         Ok(())
     }
@@ -627,7 +627,7 @@ impl ChatId {
 
         if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
-            chat.add_sync_item(context, ChatAction::SetVisibility(visibility))
+            chat.sync(context, ChatAction::SetVisibility(visibility))
                 .await?;
         }
         Ok(())
@@ -1923,8 +1923,7 @@ impl Chat {
             let contact = Contact::get_by_id(context, contact_id).await?;
             addrs.push(contact.get_addr().to_string());
         }
-        self.add_sync_item(context, ChatAction::SetContacts(addrs))
-            .await
+        self.sync(context, ChatAction::SetContacts(addrs)).await
     }
 
     /// Returns chat id for the purpose of synchronisation across devices.
@@ -1953,16 +1952,21 @@ impl Chat {
         }
     }
 
-    /// Adds a chat action to the list of items to synchronise to other devices.
-    pub(crate) async fn add_sync_item(&self, context: &Context, action: ChatAction) -> Result<()> {
+    /// Synchronises a chat action to other devices.
+    pub(crate) async fn sync(&self, context: &Context, action: ChatAction) -> Result<()> {
         if let Some(id) = self.get_sync_id(context).await? {
-            context
-                .add_sync_item(SyncData::AlterChat { id, action })
-                .await?;
-            context.send_sync_msg().await?;
+            sync(context, id, action).await?;
         }
         Ok(())
     }
+}
+
+async fn sync(context: &Context, id: sync::ChatId, action: ChatAction) -> Result<()> {
+    context
+        .add_sync_item(SyncData::AlterChat { id, action })
+        .await?;
+    context.send_sync_msg().await?;
+    Ok(())
 }
 
 /// Whether the chat is pinned or archived.
@@ -3513,8 +3517,7 @@ pub(crate) async fn set_muted_ex(
     context.emit_event(EventType::ChatModified(chat_id));
     if sync.into() {
         let chat = Chat::load_from_db(context, chat_id).await?;
-        chat.add_sync_item(context, ChatAction::SetMuted(duration))
-            .await?;
+        chat.sync(context, ChatAction::SetMuted(duration)).await?;
     }
     Ok(())
 }
