@@ -24,12 +24,6 @@ from .events import FFIEventLogger, FFIEventTracker
 def pytest_addoption(parser):
     group = parser.getgroup("deltachat testplugin options")
     group.addoption(
-        "--liveconfig",
-        action="store",
-        default=None,
-        help="a file with >=2 lines where each line contains NAME=VALUE config settings for one account",
-    )
-    group.addoption(
         "--chatmail",
         action="store",
         default=None,
@@ -58,8 +52,6 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    cfg = config.getoption("--liveconfig")
-
     cfg = config.getoption("--chatmail")
     if not cfg:
         cfg = os.getenv("CHATMAIL_DOMAIN")
@@ -134,12 +126,10 @@ def pytest_report_header(config, startdir):
     ]
 
     cfg = config.option.liveconfig
-    if cfg:
-        if "?" in cfg:
-            url, token = cfg.split("?", 1)
-            summary.append(f"Liveconfig provider: {url}?<token omitted>")
-        else:
-            summary.append(f"Liveconfig file: {cfg}")
+    if cfg and "?" in cfg:
+        url, token = cfg.split("?", 1)
+        summary.append(f"Liveconfig provider: {url}?<token omitted>")
+
     return summary
 
 
@@ -164,11 +154,7 @@ class TestProcess:
     def get_liveconfig_producer(self):
         """provide live account configs, cached on a per-test-process scope
         so that test functions can re-use already known live configs.
-        Depending on the --liveconfig option this comes from
-        a file with a line specifying each accounts config
-        or a --chatmail domain.
         """
-        liveconfig_opt = self.pytestconfig.getoption("--liveconfig")
         chatmail_opt = self.pytestconfig.getoption("--chatmail")
         if chatmail_opt:
             # Use a chatmail instance.
@@ -186,20 +172,9 @@ class TestProcess:
                     self._configlist.append(config)
                     yield config
             pytest.fail(f"more than {MAX_LIVE_CREATED_ACCOUNTS} live accounts requested.")
-        elif liveconfig_opt:
-            # Read a list of accounts from file.
-            for line in open(liveconfig_opt):
-                if line.strip() and not line.strip().startswith("#"):
-                    d = {}
-                    for part in line.split():
-                        name, value = part.split("=")
-                        d[name] = value
-                    self._configlist.append(d)
-
-            yield from iter(self._configlist)
         else:
             pytest.skip(
-                "specify --liveconfig, CHATMAIL_DOMAIN or --chatmail to provide live accounts",
+                "specify CHATMAIL_DOMAIN or --chatmail to provide live accounts",
             )
 
     def cache_maybe_retrieve_configured_db_files(self, cache_addr, db_target_path):
