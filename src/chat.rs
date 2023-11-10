@@ -2593,10 +2593,12 @@ impl ChatIdBlocked {
             _ => (),
         }
 
-        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
-        let protected = peerstate.map_or(false, |p| {
-            p.is_using_verified_key() && p.prefer_encrypt == EncryptPreference::Mutual
-        });
+        let protected = contact_id == ContactId::SELF || {
+            let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+            peerstate.is_some_and(|p| {
+                p.is_using_verified_key() && p.prefer_encrypt == EncryptPreference::Mutual
+            })
+        };
         let smeared_time = create_smeared_timestamp(context);
 
         let chat_id = context
