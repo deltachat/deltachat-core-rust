@@ -33,8 +33,6 @@ e.g. if multiple peers gossiped the same key for a contact they all are introduc
 
 `prefer_encrypted` is moved to the `contacts` table.
 
-Maybe fingerprint is the primary key, at least there should be an index.
-
 
 ## Using the table to select the keys
 
