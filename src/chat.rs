@@ -42,7 +42,7 @@ use crate::sync::{self, ChatAction, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
-    strip_rtlo_characters, time, IsNoneOrEmpty,
+    smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 
@@ -565,6 +565,28 @@ impl ChatId {
                 Err(e)
             }
         }
+    }
+
+    /// Sets the 1:1 chat with the given address to ProtectionStatus::Protected,
+    /// and posts a `SystemMessage::ChatProtectionEnabled` into it.
+    ///
+    /// If necessary, creates a hidden chat for this.
+    pub(crate) async fn set_protection_for_contact(
+        context: &Context,
+        contact_id: ContactId,
+    ) -> Result<()> {
+        let chat_id = ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Yes)
+            .await
+            .with_context(|| format!("can't create chat for {}", contact_id))?;
+        chat_id
+            .set_protection(
+                context,
+                ProtectionStatus::Protected,
+                smeared_time(context),
+                Some(contact_id),
+            )
+            .await?;
+        Ok(())
     }
 
     /// Archives or unarchives a chat.

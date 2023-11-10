@@ -2405,6 +2405,16 @@ async fn has_verified_encryption(
         return Ok(Verified);
     }
 
+    mark_recipients_as_verified(context, from_id, to_ids, mimeparser).await?;
+    Ok(Verified)
+}
+
+async fn mark_recipients_as_verified(
+    context: &Context,
+    from_id: ContactId,
+    to_ids: Vec<ContactId>,
+    mimeparser: &MimeMessage,
+) -> Result<(), anyhow::Error> {
     let rows = context
         .sql
         .query_map(
@@ -2448,38 +2458,15 @@ async fn has_verified_encryption(
                         peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
                         peerstate.save_to_db(&context.sql).await?;
 
-                        // TODO check if in other places where set_verified() is used we should also
-                        // also set the chat as verified (& create a hidden chat if necessary)
-
-                        // TODO There is may be some code duplication with other code added recently
-                        // and also some function should be extracted here because has_verified_encryption()
-                        // is becoming very long and nested
                         if !is_verified {
-                            let to_id = Contact::add_or_lookup(
+                            let (to_contact_id, _) = Contact::add_or_lookup(
                                 context,
                                 "",
                                 ContactAddress::new(&to_addr)?,
                                 Origin::Hidden,
                             )
-                            .await?
-                            .0;
-                            let chat_id = ChatId::create_for_contact_with_blocked(
-                                context,
-                                to_id,
-                                Blocked::Yes,
-                            )
-                            .await
-                            .with_context(|| {
-                                format!("can't create chat for contact {}", to_addr)
-                            })?;
-                            chat_id
-                                .set_protection(
-                                    context,
-                                    ProtectionStatus::Protected,
-                                    smeared_time(context),
-                                    Some(to_id),
-                                )
-                                .await?;
+                            .await?;
+                            ChatId::set_protection_for_contact(context, to_contact_id).await?;
                         }
                     }
                 } else {
@@ -2491,7 +2478,8 @@ async fn has_verified_encryption(
             }
         }
     }
-    Ok(Verified)
+
+    Ok(())
 }
 
 /// Returns the last message referenced from `References` header if it is in the database.
