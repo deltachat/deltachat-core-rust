@@ -195,7 +195,7 @@ impl<T: Iterator<Item = (i64, u32, String)>> Iterator for UidGrouper<T> {
 
                 while let Some((next_rowid, next_uid, _)) =
                     self.inner.next_if(|(_, next_uid, next_folder)| {
-                        next_folder == &folder && *next_uid == end_uid + 1
+                        next_folder == &folder && (*next_uid == end_uid + 1 || *next_uid == end_uid)
                     })
                 {
                     end_uid = next_uid;
@@ -2840,5 +2840,32 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_uid_grouper() {
+        // Input: sequence of (rowid: i64, uid: u32, target: String)
+        // Output: sequence of (target: String, rowid_set: Vec<i64>, uid_set: String)
+        let grouper = UidGrouper::from([(1, 2, "INBOX".to_string())]);
+        let res: Vec<(String, Vec<i64>, String)> = grouper.into_iter().collect();
+        assert_eq!(res, vec![("INBOX".to_string(), vec![1], "2".to_string())]);
+
+        let grouper = UidGrouper::from([(1, 2, "INBOX".to_string()), (2, 3, "INBOX".to_string())]);
+        let res: Vec<(String, Vec<i64>, String)> = grouper.into_iter().collect();
+        assert_eq!(
+            res,
+            vec![("INBOX".to_string(), vec![1, 2], "2:3".to_string())]
+        );
+
+        let grouper = UidGrouper::from([
+            (1, 2, "INBOX".to_string()),
+            (2, 2, "INBOX".to_string()),
+            (3, 3, "INBOX".to_string()),
+        ]);
+        let res: Vec<(String, Vec<i64>, String)> = grouper.into_iter().collect();
+        assert_eq!(
+            res,
+            vec![("INBOX".to_string(), vec![1, 2, 3], "2:3".to_string())]
+        );
     }
 }
