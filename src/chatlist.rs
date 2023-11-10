@@ -761,4 +761,40 @@ mod tests {
         let summary = chats.get_summary(&t, 0, None).await.unwrap();
         assert_eq!(summary.text, "foo: bar test"); // the linebreak should be removed from summary
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_load_broken() {
+        let t = TestContext::new_bob().await;
+        let chat_id1 = create_group_chat(&t, ProtectionStatus::Unprotected, "a chat")
+            .await
+            .unwrap();
+        create_group_chat(&t, ProtectionStatus::Unprotected, "b chat")
+            .await
+            .unwrap();
+        create_group_chat(&t, ProtectionStatus::Unprotected, "c chat")
+            .await
+            .unwrap();
+
+        // check that the chatlist starts with the most recent message
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+        assert_eq!(chats.len(), 3);
+
+        // obfuscated one chat
+        t.sql
+            .execute("UPDATE chats SET type=10 WHERE id=?", (chat_id1,))
+            .await
+            .unwrap();
+
+        // obfuscated chat can't be loaded
+        assert!(Chat::load_from_db(&t, chat_id1).await.is_err());
+
+        // chatlist loads fine
+        let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+
+        // only corrupted chat fails to create summary
+        assert!(chats.get_summary(&t, 0, None).await.is_ok());
+        assert!(chats.get_summary(&t, 1, None).await.is_ok());
+        assert!(chats.get_summary(&t, 2, None).await.is_err());
+        assert_eq!(chats.get_index_for_id(chat_id1).unwrap(), 2);
+    }
 }
