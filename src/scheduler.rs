@@ -591,55 +591,55 @@ async fn fetch_idle(
     connection.connectivity.set_connected(ctx).await;
 
     ctx.emit_event(EventType::ImapInboxIdle);
-    if let Some(session) = connection.session.take() {
-        if !session.can_idle() {
-            info!(
-                ctx,
-                "IMAP session does not support IDLE, going to fake idle."
-            );
-            return connection
-                .fake_idle(ctx, Some(watch_folder), folder_meaning)
-                .await;
-        }
-
-        if ctx
-            .get_config_bool(Config::DisableIdle)
-            .await
-            .context("Failed to get disable_idle config")
-            .log_err(ctx)
-            .unwrap_or_default()
-        {
-            info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
-            return connection
-                .fake_idle(ctx, Some(watch_folder), folder_meaning)
-                .await;
-        }
-
-        info!(ctx, "IMAP session supports IDLE, using it.");
-        match session
-            .idle(
-                ctx,
-                connection.idle_interrupt_receiver.clone(),
-                &watch_folder,
-            )
-            .await
-            .context("idle")
-        {
-            Ok((session, info)) => {
-                connection.session = Some(session);
-                info
-            }
-            Err(err) => {
-                connection.trigger_reconnect(ctx);
-                warn!(ctx, "{:#}", err);
-                InterruptInfo::new(false)
-            }
-        }
-    } else {
+    let Some(session) = connection.session.take() else {
         warn!(ctx, "No IMAP session, going to fake idle.");
-        connection
+        return connection
             .fake_idle(ctx, Some(watch_folder), folder_meaning)
-            .await
+            .await;
+    };
+
+    if !session.can_idle() {
+        info!(
+            ctx,
+            "IMAP session does not support IDLE, going to fake idle."
+        );
+        return connection
+            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .await;
+    }
+
+    if ctx
+        .get_config_bool(Config::DisableIdle)
+        .await
+        .context("Failed to get disable_idle config")
+        .log_err(ctx)
+        .unwrap_or_default()
+    {
+        info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
+        return connection
+            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .await;
+    }
+
+    info!(ctx, "IMAP session supports IDLE, using it.");
+    match session
+        .idle(
+            ctx,
+            connection.idle_interrupt_receiver.clone(),
+            &watch_folder,
+        )
+        .await
+        .context("idle")
+    {
+        Ok((session, info)) => {
+            connection.session = Some(session);
+            info
+        }
+        Err(err) => {
+            connection.trigger_reconnect(ctx);
+            warn!(ctx, "{:#}", err);
+            InterruptInfo::new(false)
+        }
     }
 }
 
