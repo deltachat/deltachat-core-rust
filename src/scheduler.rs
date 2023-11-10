@@ -553,30 +553,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     // be able to scan all folders before time is up if there are many of them.
     if folder_config == Config::ConfiguredInboxFolder {
         // Only scan on the Inbox thread in order to prevent parallel scans, which might lead to duplicate messages
-        match connection.scan_folders(ctx).await.context("scan_folders") {
-            Err(err) => {
-                // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
-                // but maybe just one folder can't be selected or something
-                warn!(ctx, "{:#}", err);
-            }
-            Ok(true) => {
-                // Fetch the watched folder again in case scanning other folder moved messages
-                // there.
-                //
-                // In most cases this will select the watched folder and return because there are
-                // no new messages. We want to select the watched folder anyway before going IDLE
-                // there, so this does not take additional protocol round-trip.
-                if let Err(err) = connection
-                    .fetch_move_delete(ctx, &watch_folder, folder_meaning)
-                    .await
-                    .context("fetch_move_delete after scan_folders")
-                {
-                    connection.trigger_reconnect(ctx);
-                    warn!(ctx, "{:#}", err);
-                    return;
-                }
-            }
-            Ok(false) => {}
+        if let Err(err) = connection.scan_folders(ctx).await.context("scan_folders") {
+            // Don't reconnect, if there is a problem with the connection we will realize this when IDLEing
+            // but maybe just one folder can't be selected or something
+            warn!(ctx, "{:#}", err);
         }
     }
 

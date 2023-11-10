@@ -10,8 +10,8 @@ use crate::log::LogExt;
 use crate::{context::Context, imap::FolderMeaning};
 
 impl Imap {
-    /// Returns true if folders were scanned, false if scanning was postponed.
-    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<bool> {
+    /// Scans not watched IMAP folders for new messages.
+    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<()> {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
@@ -21,7 +21,7 @@ impl Imap {
                 .await?;
 
             if elapsed_secs < debounce_secs {
-                return Ok(false);
+                return Ok(());
             }
         }
         info!(context, "Starting full folder scan");
@@ -94,7 +94,7 @@ impl Imap {
         }
 
         last_scan.replace(Instant::now());
-        Ok(true)
+        Ok(())
     }
 
     /// Returns the names of all folders on the IMAP server.
