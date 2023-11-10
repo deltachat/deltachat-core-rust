@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.130.0] - 2023-11-10
+
+### API-Changes
+
+- Emit JoinerProgress(1000) event when Bob verifies Alice.
+- JSON-RPC: add `ContactObject.is_profile_verified` property.
+- Hide `ChatId::get_for_contact()` from public API.
+
+### Features / Changes
+
+- Add secondary verified key.
+- Add info messages about implicitly added members.
+- Treat reset state as encryption not preferred.
+- Grow sleep durations on errors in Imap::fake_idle() ([#4424](https://github.com/deltachat/deltachat-core-rust/pull/4424)).
+
+### Fixes
+
+- Mark 1:1 chat as protected when joining a group.
+- Raise lower auto-download limit to 160k.
+- Remove `Reporting-UA` from read receipts.
+- Do not apply group changes to special chats. Avoid adding members to the trash chat.
+- imap: make `UidGrouper` robust against duplicate UIDs.
+- Do not return hidden chat from `dc_get_chat_id_by_contact_id`.
+- Smtp_loop(): Don't grow timeout if interrupted early ([#4833](https://github.com/deltachat/deltachat-core-rust/pull/4833)).
+
+### Refactor
+
+- imap: Do not FETCH right after `scan_folders()`.
+- deltachat-rpc-client: Use `itertools` instead of `Lock` for thread-safe request ID generation.
+
+### Tests
+
+- Remove unused `--liveconfig` option.
+- Test chatlist can load for corrupted chats ([#4979](https://github.com/deltachat/deltachat-core-rust/pull/4979)).
+
+### Miscellaneous Tasks
+
+- Update provider-db ([#4949](https://github.com/deltachat/deltachat-core-rust/pull/4949)).
+
 ## [1.129.1] - 2023-11-06
 
 ### Fixes
@@ -3116,3 +3155,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.128.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.127.2...v1.128.0
 [1.129.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.128.0...v1.129.0
 [1.129.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.0...v1.129.1
+[1.130.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.1...v1.130.0
