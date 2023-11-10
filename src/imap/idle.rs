@@ -23,14 +23,6 @@ impl Session {
     ) -> Result<(Self, InterruptInfo)> {
         use futures::future::FutureExt;
 
-        if context.get_config_bool(Config::DisableIdle).await? {
-            bail!("IMAP IDLE is disabled");
-        }
-
-        if !self.can_idle() {
-            bail!("IMAP server does not have IDLE capability");
-        }
-
         let mut info = Default::default();
 
         self.select_folder(context, Some(folder)).await?;
