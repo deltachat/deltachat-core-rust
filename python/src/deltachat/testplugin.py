@@ -125,10 +125,9 @@ def pytest_report_header(config, startdir):
         ),
     ]
 
-    cfg = config.option.liveconfig
-    if cfg and "?" in cfg:
-        url, token = cfg.split("?", 1)
-        summary.append(f"Liveconfig provider: {url}?<token omitted>")
+    chatmail_opt = config.getoption("--chatmail")
+    if chatmail_opt:
+        summary.append(f"Chatmail account provider: {chatmail_opt}")
 
     return summary
 
@@ -164,7 +163,8 @@ class TestProcess:
                 try:
                     yield self._configlist[index]
                 except IndexError:
-                    username = "ci-" + "".join(random.choice("2345789acdefghjkmnpqrstuvwxyz") for i in range(6))
+                    part = "".join(random.choices("2345789acdefghjkmnpqrstuvwxyz", k=6))
+                    username = f"ci-{part}"
                     password = f"{username}${username}"
                     addr = f"{username}@{domain}"
                     config = {"addr": addr, "mail_pw": password}
