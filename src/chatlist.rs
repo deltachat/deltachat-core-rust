@@ -372,8 +372,7 @@ impl Chatlist {
         let (chat_id, lastmsg_id) = self
             .ids
             .get(index)
-            .context("chatlist index is out of range")
-            .unwrap();
+            .context("chatlist index is out of range")?;
         Chatlist::get_summary2(context, *chat_id, *lastmsg_id, chat).await
     }
 
@@ -388,8 +387,6 @@ impl Chatlist {
         let chat = if let Some(chat) = chat {
             chat
         } else {
-            println!("hi {}", chat_id);
-
             let chat = Chat::load_from_db(context, chat_id).await?;
             chat_loaded = chat;
             &chat_loaded
