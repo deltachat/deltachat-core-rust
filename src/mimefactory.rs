@@ -14,7 +14,7 @@ use crate::chat::Chat;
 use crate::config::Config;
 use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
-use crate::context::{get_version_str, Context};
+use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::html::new_html_mimepart;
@@ -1357,14 +1357,12 @@ impl<'a> MimeFactory<'a> {
         );
 
         // second body part: machine-readable, always REQUIRED by RFC 6522
-        let version = get_version_str();
         let message_text2 = format!(
-            "Reporting-UA: Delta Chat {}\r\n\
-             Original-Recipient: rfc822;{}\r\n\
+            "Original-Recipient: rfc822;{}\r\n\
              Final-Recipient: rfc822;{}\r\n\
              Original-Message-ID: <{}>\r\n\
              Disposition: manual-action/MDN-sent-automatically; displayed\r\n",
-            version, self.from_addr, self.from_addr, self.msg.rfc724_mid
+            self.from_addr, self.from_addr, self.msg.rfc724_mid
         );
 
         let extension_fields = if additional_msg_ids.is_empty() {
