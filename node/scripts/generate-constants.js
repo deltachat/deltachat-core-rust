@@ -1,14 +1,16 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
+import * as url from 'url'
 
 const data = []
-const header = path.resolve(__dirname, '../../deltachat-ffi/deltachat.h')
+const header = path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '../../deltachat-ffi/deltachat.h')
 
 console.log('Generating constants...')
 
 const header_data = fs.readFileSync(header, 'UTF-8')
 const regex = /^#define\s+(\w+)\s+(\w+)/gm
+var match
 while (null != (match = regex.exec(header_data))) {
   const key = match[1]
   const value = parseInt(match[2])
@@ -16,8 +18,6 @@ while (null != (match = regex.exec(header_data))) {
     data.push({ key, value })
   }
 }
-
-delete header_data
 
 const constants = data
   .filter(
@@ -49,17 +49,17 @@ const events = data
 
 // backwards compat
 fs.writeFileSync(
-  path.resolve(__dirname, '../constants.js'),
+  path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '../constants.js'),
   `// Generated!\n\nmodule.exports = {\n${constants}\n}\n`
 )
 // backwards compat
 fs.writeFileSync(
-  path.resolve(__dirname, '../events.js'),
+  path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '../events.js'),
   `/* eslint-disable quotes */\n// Generated!\n\nmodule.exports = {\n${events}\n}\n`
 )
 
 fs.writeFileSync(
-  path.resolve(__dirname, '../lib/constants.ts'),
+  path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '../lib/constants.js'),
   `// Generated!\n\nexport enum C {\n${constants.replace(/:/g, ' =')},\n}\n
 // Generated!\n\nexport const EventId2EventName: { [key: number]: string } = {\n${events},\n}\n`
 )

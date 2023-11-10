@@ -1,4 +1,4 @@
-const spawnSync = require('child_process').spawnSync
+import { spawnSync } from 'child_process'
 
 const verbose = isVerbose()
 
@@ -23,4 +23,4 @@ function isVerbose () {
   return loglevel === 'verbose' || process.env.CI === 'true'
 }
 
-module.exports = { spawn, log, isVerbose, verbose }
+export { spawn, log, isVerbose, verbose }

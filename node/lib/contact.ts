@@ -1,9 +1,10 @@
-import { integerToHexColor } from './util'
+import { integerToHexColor } from './util.js'
 
 /* eslint-disable camelcase */
 
-import binding from './binding'
-const debug = require('debug')('deltachat:node:contact')
+import binding from './binding.js'
+import rawDebug from 'debug'
+const debug = rawDebug('deltachat:node:contact')
 
 interface NativeContact {}
 /**

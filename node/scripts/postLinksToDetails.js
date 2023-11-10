@@ -1,4 +1,5 @@
-const { readFileSync } = require('fs')
+import { readFileSync } from 'fs'
+import { request } from 'https'
 
 const sha = JSON.parse(
   readFileSync(process.env['GITHUB_EVENT_PATH'], 'utf8')
@@ -21,8 +22,6 @@ const STATUS_DATA = {
   target_url: base_url + file_url,
 }
 
-const http = require('https')
-
 const options = {
   method: 'POST',
   headers: {
@@ -32,7 +31,7 @@ const options = {
   },
 }
 
-const req = http.request(GITHUB_API_URL, options, function(res) {
+const req = request(GITHUB_API_URL, options, function (res) {
   var chunks = []
   res.on('data', function(chunk) {
     chunks.push(chunk)

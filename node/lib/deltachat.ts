@@ -1,13 +1,13 @@
 /* eslint-disable camelcase */
 
-import binding from './binding'
-import { EventId2EventName } from './constants'
+import binding from './binding.js'
+import { EventId2EventName } from './constants.js'
 import { EventEmitter } from 'events'
 import { existsSync } from 'fs'
 import rawDebug from 'debug'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { Context } from './context'
+import { Context } from './context.js'
 const debug = rawDebug('deltachat:node:index')
 
 const noop = function () {}

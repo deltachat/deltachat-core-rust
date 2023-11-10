@@ -1,7 +1,8 @@
 /* eslint-disable camelcase */
 
-const binding = require('../binding')
-const debug = require('debug')('deltachat:node:locations')
+import binding from './binding.js'
+import rawDebug from 'debug'
+const debug = rawDebug('deltachat:node:locations')
 
 interface NativeLocations {}
 /**

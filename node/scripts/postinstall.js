@@ -1,5 +1,6 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
+import * as url from 'url'
 
 if (process.platform !== 'win32') {
   console.log('postinstall: not windows, so skipping!')
@@ -7,7 +8,7 @@ if (process.platform !== 'win32') {
 }
 
 const from = path.resolve(
-  __dirname,
+  url.fileURLToPath(new URL('.', import.meta.url)),
   '..',
   '..',
   'target',
@@ -19,7 +20,7 @@ const getDestination = () => {
   const argv = process.argv
   if (argv.length === 3 && argv[2] === '--prebuild') {
     return path.resolve(
-      __dirname,
+      url.fileURLToPath(new URL('.', import.meta.url)),
       '..',
       'prebuilds',
       'win32-x64',
@@ -27,7 +28,7 @@ const getDestination = () => {
     )
   } else {
     return path.resolve(
-      __dirname,
+      url.fileURLToPath(new URL('.', import.meta.url)),
       '..',
       'build',
       'Release',

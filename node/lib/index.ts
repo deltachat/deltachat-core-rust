@@ -1,20 +1,20 @@
-import { AccountManager } from './deltachat'
+import { AccountManager } from './deltachat.js'
 
 export default AccountManager
 
-export { Context } from './context'
-export { Chat } from './chat'
-export { ChatList } from './chatlist'
-export { C } from './constants'
-export { Contact } from './contact'
+export { Context } from './context.js'
+export { Chat } from './chat.js'
+export { ChatList } from './chatlist.js'
+export { C } from './constants.js'
+export { Contact } from './contact.js'
 export { AccountManager as DeltaChat }
-export { Locations } from './locations'
-export { Lot } from './lot'
+export { Locations } from './locations.js'
+export { Lot } from './lot.js'
 export {
   Message,
   MessageState,
   MessageViewType,
   MessageDownloadState,
-} from './message'
+} from './message.js'
 
-export * from './types'
+export * from './types.js'
