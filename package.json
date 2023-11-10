@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "debug": "^4.1.1",
     "napi-macros": "^2.0.0",
@@ -10,7 +11,7 @@
     "@types/node": "^20.8.10",
     "chai": "~4.3.10",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^8.2.1",
+    "mocha": "^10.2.0",
     "node-gyp": "^10.0.0",
     "prebuildify": "^5.0.1",
     "prebuildify-ci": "^1.0.5",
@@ -27,7 +28,7 @@
   ],
   "homepage": "https://github.com/deltachat/deltachat-core-rust/tree/master/node",
   "license": "GPL-3.0-or-later",
-  "main": "node/dist/index.js",
+  "exports": "node/dist/index.js",
   "name": "deltachat-node",
   "repository": {
     "type": "git",
