@@ -606,14 +606,11 @@ pub(crate) async fn observe_securejoin_on_other_device(
                         return Ok(HandshakeMessage::Ignore);
                     }
                 };
-                if !peerstate.is_using_verified_key() {
-                    // The `if` is purely for performance:
-                    // If the verified key was used already, then the 1:1 chat was already protected.
-                    ChatId::set_protection_for_contact(context, contact_id).await?;
-                }
                 peerstate.set_verified(PeerstateKeyType::GossipKey, fingerprint, addr)?;
                 peerstate.prefer_encrypt = EncryptPreference::Mutual;
                 peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+
+                ChatId::set_protection_for_contact(context, contact_id).await?;
             } else if let Some(fingerprint) =
                 mime_message.get_header(HeaderDef::SecureJoinFingerprint)
             {

@@ -131,7 +131,7 @@ async fn test_create_verified_oneonone_chat() -> Result<()> {
         let chat = alice.create_chat(&fiona).await;
         assert!(chat.is_protected());
 
-        let msg = alice.get_last_msg().await;
+        let msg = alice.get_last_msg_in(chat.id).await;
         let expected_text = stock_str::chat_protection_enabled(&alice).await;
         assert_eq!(msg.text, expected_text);
     }

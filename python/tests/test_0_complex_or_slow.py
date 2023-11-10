@@ -649,6 +649,15 @@ def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
     lp.sec("ac2_offl: receiving message")
     ev = ac2_offl._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
     msg_in = ac2_offl.get_message_by_id(ev.data2)
+    assert msg_in.is_system_message()
+    assert msg_in.text == "Messages are guaranteed to be end-to-end encrypted from now on."
+
+    # We need to consume one event that has data2=0
+    ev = ac2_offl._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+    assert ev.data2 == 0
+
+    ev = ac2_offl._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+    msg_in = ac2_offl.get_message_by_id(ev.data2)
     assert not msg_in.is_system_message()
     assert msg_in.text == "hi2"
     assert msg_in.chat == chat2_offl
