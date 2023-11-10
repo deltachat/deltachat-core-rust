@@ -233,17 +233,17 @@ impl SchedulerState {
         connectivity::maybe_network_lost(context, stores).await;
     }
 
-    pub(crate) async fn interrupt_inbox(&self, info: InterruptInfo) {
+    pub(crate) async fn interrupt_inbox(&self) {
         let inner = self.inner.read().await;
         if let InnerSchedulerState::Started(ref scheduler) = *inner {
-            scheduler.interrupt_inbox(info);
+            scheduler.interrupt_inbox();
         }
     }
 
-    pub(crate) async fn interrupt_smtp(&self, info: InterruptInfo) {
+    pub(crate) async fn interrupt_smtp(&self) {
         let inner = self.inner.read().await;
         if let InnerSchedulerState::Started(ref scheduler) = *inner {
-            scheduler.interrupt_smtp(info);
+            scheduler.interrupt_smtp();
         }
     }
 
@@ -463,18 +463,15 @@ async fn inbox_loop(
 /// handling all the errors. In case of an error, it is logged, but not propagated upwards. If
 /// critical operation fails such as fetching new messages fails, connection is reset via
 /// `trigger_reconnect`, so a fresh one can be opened.
-async fn fetch_idle(
-    ctx: &Context,
-    connection: &mut Imap,
-    folder_meaning: FolderMeaning,
-) -> InterruptInfo {
+async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: FolderMeaning) {
     let folder_config = match folder_meaning.to_config() {
         Some(c) => c,
         None => {
             error!(ctx, "Bad folder meaning: {}", folder_meaning);
-            return connection
+            connection
                 .fake_idle(ctx, None, FolderMeaning::Unknown)
                 .await;
+            return;
         }
     };
     let folder = match ctx.get_config(folder_config).await {
@@ -484,9 +481,10 @@ async fn fetch_idle(
                 ctx,
                 "Can not watch {} folder, failed to retrieve config: {:#}", folder_config, err
             );
-            return connection
+            connection
                 .fake_idle(ctx, None, FolderMeaning::Unknown)
                 .await;
+            return;
         }
     };
 
@@ -495,9 +493,10 @@ async fn fetch_idle(
     } else {
         connection.connectivity.set_not_configured(ctx).await;
         info!(ctx, "Can not watch {} folder, not set", folder_config);
-        return connection
+        connection
             .fake_idle(ctx, None, FolderMeaning::Unknown)
             .await;
+        return;
     };
 
     // connect and fake idle if unable to connect
@@ -508,9 +507,10 @@ async fn fetch_idle(
     {
         warn!(ctx, "{:#}", err);
         connection.trigger_reconnect(ctx);
-        return connection
+        connection
             .fake_idle(ctx, Some(watch_folder), folder_meaning)
             .await;
+        return;
     }
 
     if folder_config == Config::ConfiguredInboxFolder {
@@ -534,7 +534,7 @@ async fn fetch_idle(
     {
         connection.trigger_reconnect(ctx);
         warn!(ctx, "{:#}", err);
-        return InterruptInfo::new(false);
+        return;
     }
 
     // Mark expired messages for deletion. Marked messages will be deleted from the server
@@ -573,7 +573,7 @@ async fn fetch_idle(
                 {
                     connection.trigger_reconnect(ctx);
                     warn!(ctx, "{:#}", err);
-                    return InterruptInfo::new(false);
+                    return;
                 }
             }
             Ok(false) => {}
@@ -593,9 +593,10 @@ async fn fetch_idle(
     ctx.emit_event(EventType::ImapInboxIdle);
     let Some(session) = connection.session.take() else {
         warn!(ctx, "No IMAP session, going to fake idle.");
-        return connection
+        connection
             .fake_idle(ctx, Some(watch_folder), folder_meaning)
             .await;
+        return;
     };
 
     if !session.can_idle() {
@@ -603,9 +604,10 @@ async fn fetch_idle(
             ctx,
             "IMAP session does not support IDLE, going to fake idle."
         );
-        return connection
+        connection
             .fake_idle(ctx, Some(watch_folder), folder_meaning)
             .await;
+        return;
     }
 
     if ctx
@@ -616,9 +618,10 @@ async fn fetch_idle(
         .unwrap_or_default()
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
-        return connection
+        connection
             .fake_idle(ctx, Some(watch_folder), folder_meaning)
             .await;
+        return;
     }
 
     info!(ctx, "IMAP session supports IDLE, using it.");
@@ -631,14 +634,12 @@ async fn fetch_idle(
         .await
         .context("idle")
     {
-        Ok((session, info)) => {
+        Ok(session) => {
             connection.session = Some(session);
-            info
         }
         Err(err) => {
             connection.trigger_reconnect(ctx);
             warn!(ctx, "{:#}", err);
-            InterruptInfo::new(false)
         }
     }
 }
@@ -860,24 +861,24 @@ impl Scheduler {
 
     fn maybe_network(&self) {
         for b in self.boxes() {
-            b.conn_state.interrupt(InterruptInfo::new(true));
+            b.conn_state.interrupt();
         }
-        self.interrupt_smtp(InterruptInfo::new(true));
+        self.interrupt_smtp();
     }
 
     fn maybe_network_lost(&self) {
         for b in self.boxes() {
-            b.conn_state.interrupt(InterruptInfo::new(false));
+            b.conn_state.interrupt();
         }
-        self.interrupt_smtp(InterruptInfo::new(false));
+        self.interrupt_smtp();
     }
 
-    fn interrupt_inbox(&self, info: InterruptInfo) {
-        self.inbox.conn_state.interrupt(info);
+    fn interrupt_inbox(&self) {
+        self.inbox.conn_state.interrupt();
     }
 
-    fn interrupt_smtp(&self, info: InterruptInfo) {
-        self.smtp.interrupt(info);
+    fn interrupt_smtp(&self) {
+        self.smtp.interrupt();
     }
 
     fn interrupt_ephemeral_task(&self) {
@@ -927,7 +928,7 @@ struct ConnectionState {
     /// Channel to interrupt the whole connection.
     stop_sender: Sender<()>,
     /// Channel to interrupt idle.
-    idle_interrupt_sender: Sender<InterruptInfo>,
+    idle_interrupt_sender: Sender<()>,
     /// Mutex to pass connectivity info between IMAP/SMTP threads and the API
     connectivity: ConnectivityStore,
 }
@@ -943,9 +944,9 @@ impl ConnectionState {
         Ok(())
     }
 
-    fn interrupt(&self, info: InterruptInfo) {
+    fn interrupt(&self) {
         // Use try_send to avoid blocking on interrupts.
-        self.idle_interrupt_sender.try_send(info).ok();
+        self.idle_interrupt_sender.try_send(()).ok();
     }
 }
 
@@ -977,8 +978,8 @@ impl SmtpConnectionState {
     }
 
     /// Interrupt any form of idle.
-    fn interrupt(&self, info: InterruptInfo) {
-        self.state.interrupt(info);
+    fn interrupt(&self) {
+        self.state.interrupt();
     }
 
     /// Shutdown this connection completely.
@@ -991,7 +992,7 @@ impl SmtpConnectionState {
 struct SmtpConnectionHandlers {
     connection: Smtp,
     stop_receiver: Receiver<()>,
-    idle_interrupt_receiver: Receiver<InterruptInfo>,
+    idle_interrupt_receiver: Receiver<()>,
 }
 
 #[derive(Debug)]
@@ -1022,8 +1023,8 @@ impl ImapConnectionState {
     }
 
     /// Interrupt any form of idle.
-    fn interrupt(&self, info: InterruptInfo) {
-        self.state.interrupt(info);
+    fn interrupt(&self) {
+        self.state.interrupt();
     }
 
     /// Shutdown this connection completely.
@@ -1037,15 +1038,4 @@ impl ImapConnectionState {
 struct ImapConnectionHandlers {
     connection: Imap,
     stop_receiver: Receiver<()>,
-}
-
-#[derive(Default, Debug)]
-pub struct InterruptInfo {
-    pub probe_network: bool,
-}
-
-impl InterruptInfo {
-    pub fn new(probe_network: bool) -> Self {
-        Self { probe_network }
-    }
 }

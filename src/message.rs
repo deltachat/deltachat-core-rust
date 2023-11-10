@@ -24,7 +24,6 @@ use crate::mimeparser::{parse_message_id, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::reaction::get_msg_reactions;
-use crate::scheduler::InterruptInfo;
 use crate::sql;
 use crate::summary::Summary;
 use crate::tools::{
@@ -1527,10 +1526,7 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
     }
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.
-    context
-        .scheduler
-        .interrupt_inbox(InterruptInfo::new(false))
-        .await;
+    context.scheduler.interrupt_inbox().await;
     Ok(())
 }
 
@@ -1648,10 +1644,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
                         )
                         .await
                         .context("failed to insert into smtp_mdns")?;
-                    context
-                        .scheduler
-                        .interrupt_smtp(InterruptInfo::new(false))
-                        .await;
+                    context.scheduler.interrupt_smtp().await;
                 }
             }
             updated_chat_ids.insert(curr_chat_id);

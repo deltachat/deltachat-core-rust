@@ -12,7 +12,6 @@ use crate::context::Context;
 use crate::imap::{Imap, ImapActionResult};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
-use crate::scheduler::InterruptInfo;
 use crate::tools::time;
 use crate::{stock_str, EventType};
 
@@ -93,10 +92,7 @@ impl MsgId {
                     .sql
                     .execute("INSERT INTO download (msg_id) VALUES (?)", (self,))
                     .await?;
-                context
-                    .scheduler
-                    .interrupt_inbox(InterruptInfo::new(false))
-                    .await;
+                context.scheduler.interrupt_inbox().await;
             }
         }
         Ok(())
