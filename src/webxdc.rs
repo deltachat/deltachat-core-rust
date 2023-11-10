@@ -37,7 +37,6 @@ use crate::mimefactory::wrapped_base64_encode;
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
-use crate::scheduler::InterruptInfo;
 use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 
@@ -485,9 +484,7 @@ impl Context {
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 (instance.id, status_update_serial, status_update_serial, descr),
             ).await?;
-            self.scheduler
-                .interrupt_smtp(InterruptInfo::new(false))
-                .await;
+            self.scheduler.interrupt_smtp().await;
         }
         Ok(())
     }

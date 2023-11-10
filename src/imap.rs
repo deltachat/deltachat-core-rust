@@ -35,7 +35,6 @@ use crate::receive_imf::{
     from_field_to_contact_id, get_prefetch_parent_message, receive_imf_inner, ReceivedMsg,
 };
 use crate::scheduler::connectivity::ConnectivityStore;
-use crate::scheduler::InterruptInfo;
 use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
@@ -86,7 +85,7 @@ const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 
 #[derive(Debug)]
 pub struct Imap {
-    pub(crate) idle_interrupt_receiver: Receiver<InterruptInfo>,
+    pub(crate) idle_interrupt_receiver: Receiver<()>,
     config: ImapConfig,
     pub(crate) session: Option<Session>,
     login_failed_once: bool,
@@ -228,7 +227,7 @@ impl Imap {
         socks5_config: Option<Socks5Config>,
         addr: &str,
         provider_strict_tls: bool,
-        idle_interrupt_receiver: Receiver<InterruptInfo>,
+        idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
         if lp.server.is_empty() || lp.user.is_empty() || lp.password.is_empty() {
             bail!("Incomplete IMAP connection parameters");
@@ -261,7 +260,7 @@ impl Imap {
     /// Creates new disconnected IMAP client using configured parameters.
     pub async fn new_configured(
         context: &Context,
-        idle_interrupt_receiver: Receiver<InterruptInfo>,
+        idle_interrupt_receiver: Receiver<()>,
     ) -> Result<Self> {
         if !context.is_configured().await? {
             bail!("IMAP Connect without configured params");
@@ -2290,10 +2289,7 @@ pub(crate) async fn markseen_on_imap_table(context: &Context, message_id: &str) 
             (message_id,),
         )
         .await?;
-    context
-        .scheduler
-        .interrupt_inbox(InterruptInfo::new(false))
-        .await;
+    context.scheduler.interrupt_inbox().await;
 
     Ok(())
 }

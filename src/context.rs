@@ -23,7 +23,7 @@ use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
-use crate::scheduler::{InterruptInfo, SchedulerState};
+use crate::scheduler::SchedulerState;
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
@@ -437,11 +437,7 @@ impl Context {
 
     pub(crate) async fn schedule_resync(&self) -> Result<()> {
         self.resync_request.store(true, Ordering::Relaxed);
-        self.scheduler
-            .interrupt_inbox(InterruptInfo {
-                probe_network: false,
-            })
-            .await;
+        self.scheduler.interrupt_inbox().await;
         Ok(())
     }
 

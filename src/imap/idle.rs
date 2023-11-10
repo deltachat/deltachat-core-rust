@@ -8,9 +8,9 @@ use futures_lite::FutureExt;
 use super::session::Session;
 use super::Imap;
 use crate::config::Config;
+use crate::context::Context;
 use crate::imap::{client::IMAP_TIMEOUT, get_uid_next, FolderMeaning};
 use crate::log::LogExt;
-use crate::{context::Context, scheduler::InterruptInfo};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
 
@@ -18,17 +18,15 @@ impl Session {
     pub async fn idle(
         mut self,
         context: &Context,
-        idle_interrupt_receiver: Receiver<InterruptInfo>,
+        idle_interrupt_receiver: Receiver<()>,
         folder: &str,
-    ) -> Result<(Self, InterruptInfo)> {
+    ) -> Result<Self> {
         use futures::future::FutureExt;
-
-        let mut info = Default::default();
 
         self.select_folder(context, Some(folder)).await?;
 
         if self.server_sent_unsolicited_exists(context)? {
-            return Ok((self, info));
+            return Ok(self);
         }
 
         // Despite checking for unsolicited EXISTS above,
@@ -47,16 +45,16 @@ impl Session {
                     context,
                     "Skipping IDLE on {folder:?} because UIDNEXT {uid_next}>{expected_uid_next} indicates there are new messages."
                 );
-                return Ok((self, info));
+                return Ok(self);
             }
         } else {
             warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT");
             // Go to IDLE anyway if STATUS is broken.
         }
 
-        if let Ok(info) = idle_interrupt_receiver.try_recv() {
-            info!(context, "skip idle, got interrupt {:?}", info);
-            return Ok((self, info));
+        if let Ok(()) = idle_interrupt_receiver.try_recv() {
+            info!(context, "skip idle, got interrupt");
+            return Ok(self);
         }
 
         let mut handle = self.inner.idle();
@@ -73,17 +71,17 @@ impl Session {
 
         enum Event {
             IdleResponse(IdleResponse),
-            Interrupt(InterruptInfo),
+            Interrupt,
         }
 
         info!(context, "{folder}: Idle entering wait-on-remote state");
         let fut = idle_wait.map(|ev| ev.map(Event::IdleResponse)).race(async {
-            let info = idle_interrupt_receiver.recv().await;
+            idle_interrupt_receiver.recv().await.ok();
 
             // cancel imap idle connection properly
             drop(interrupt);
 
-            Ok(Event::Interrupt(info.unwrap_or_default()))
+            Ok(Event::Interrupt)
         });
 
         match fut.await {
@@ -96,9 +94,8 @@ impl Session {
             Ok(Event::IdleResponse(IdleResponse::ManualInterrupt)) => {
                 info!(context, "{folder}: Idle wait was interrupted manually");
             }
-            Ok(Event::Interrupt(i)) => {
-                info!(context, "{folder}: Idle wait was interrupted: {:?}", &i);
-                info = i;
+            Ok(Event::Interrupt) => {
+                info!(context, "{folder}: Idle wait was interrupted");
             }
             Err(err) => {
                 warn!(context, "{folder}: Idle wait errored: {err:?}");
@@ -112,7 +109,7 @@ impl Session {
         session.as_mut().set_read_timeout(Some(IMAP_TIMEOUT));
         self.inner = session;
 
-        Ok((self, info))
+        Ok(self)
     }
 }
 
@@ -122,7 +119,7 @@ impl Imap {
         context: &Context,
         watch_folder: Option<String>,
         folder_meaning: FolderMeaning,
-    ) -> InterruptInfo {
+    ) {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
 
@@ -133,11 +130,8 @@ impl Imap {
             watch_folder
         } else {
             info!(context, "IMAP-fake-IDLE: no folder, waiting for interrupt");
-            return self
-                .idle_interrupt_receiver
-                .recv()
-                .await
-                .unwrap_or_default();
+            self.idle_interrupt_receiver.recv().await.ok();
+            return;
         };
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
@@ -147,10 +141,10 @@ impl Imap {
 
         enum Event {
             Tick,
-            Interrupt(InterruptInfo),
+            Interrupt,
         }
         // loop until we are interrupted or if we fetched something
-        let info = loop {
+        loop {
             use futures::future::FutureExt;
             match interval
                 .tick()
@@ -158,7 +152,7 @@ impl Imap {
                 .race(
                     self.idle_interrupt_receiver
                         .recv()
-                        .map(|probe_network| Event::Interrupt(probe_network.unwrap_or_default())),
+                        .map(|_| Event::Interrupt),
                 )
                 .await
             {
@@ -180,7 +174,7 @@ impl Imap {
                                 .unwrap_or_default()
                         {
                             // we only fake-idled because network was gone during IDLE, probably
-                            break InterruptInfo::new(false);
+                            break;
                         }
                     }
                     info!(context, "fake_idle is connected");
@@ -195,7 +189,7 @@ impl Imap {
                         Ok(res) => {
                             info!(context, "fetch_new_messages returned {:?}", res);
                             if res {
-                                break InterruptInfo::new(false);
+                                break;
                             }
                         }
                         Err(err) => {
@@ -204,13 +198,12 @@ impl Imap {
                         }
                     }
                 }
-                Event::Interrupt(info) => {
-                    // Interrupt
+                Event::Interrupt => {
                     info!(context, "Fake IDLE interrupted");
-                    break info;
+                    break;
                 }
             }
-        };
+        }
 
         info!(
             context,
@@ -221,7 +214,5 @@ impl Imap {
                 .as_millis() as f64
                 / 1000.,
         );
-
-        info
     }
 }

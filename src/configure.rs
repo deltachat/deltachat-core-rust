@@ -31,7 +31,6 @@ use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
 use crate::oauth2::get_oauth2_addr;
 use crate::provider::{Protocol, Socket, UsernamePattern};
-use crate::scheduler::InterruptInfo;
 use crate::smtp::Smtp;
 use crate::socks::Socks5Config;
 use crate::stock_str;
@@ -481,9 +480,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     ctx.set_config_bool(Config::FetchedExistingMsgs, false)
         .await?;
-    ctx.scheduler
-        .interrupt_inbox(InterruptInfo::new(false))
-        .await;
+    ctx.scheduler.interrupt_inbox().await;
 
     progress!(ctx, 940);
     update_device_chats_handle.await??;
