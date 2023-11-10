@@ -711,7 +711,9 @@ impl TestContext {
             })
             .collect();
 
-        let sel_chat = Chat::load_from_db(self, chat_id).await.unwrap();
+        let Ok(sel_chat) = Chat::load_from_db(self, chat_id).await else {
+            return String::from("Can't load chat\n");
+        };
         let members = chat::get_chat_contacts(self, sel_chat.id).await.unwrap();
         let subtitle = if sel_chat.is_device_talk() {
             "device-talk".to_string()
