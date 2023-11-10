@@ -23,6 +23,17 @@ impl Session {
     ) -> Result<Self> {
         use futures::future::FutureExt;
 
+        let expected_uid_next = get_uid_next(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
+        if expected_uid_next == 0 {
+            info!(
+                context,
+                "UIDNEXT is not set, skipping IDLE to update UIDVALIDITY/UIDNEXT and fetch"
+            );
+            return Ok(self);
+        }
+
         self.select_folder(context, Some(folder)).await?;
 
         if self.server_sent_unsolicited_exists(context)? {
@@ -37,9 +48,6 @@ impl Session {
             .await
             .context("STATUS (UIDNEXT) error for {folder:?}")?;
         if let Some(uid_next) = status.uid_next {
-            let expected_uid_next = get_uid_next(context, folder)
-                .await
-                .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
             if uid_next > expected_uid_next {
                 info!(
                     context,

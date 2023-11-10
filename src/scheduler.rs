@@ -526,17 +526,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
         }
     }
 
-    // Fetch the watched folder.
-    if let Err(err) = connection
-        .fetch_move_delete(ctx, &watch_folder, folder_meaning)
-        .await
-        .context("fetch_move_delete")
-    {
-        connection.trigger_reconnect(ctx);
-        warn!(ctx, "{:#}", err);
-        return;
-    }
-
     // Mark expired messages for deletion. Marked messages will be deleted from the server
     // on the next iteration of `fetch_move_delete`. `delete_expired_imap_messages` is not
     // called right before `fetch_move_delete` because it is not well optimized and would
@@ -605,12 +594,9 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             "IMAP session does not support IDLE, going to fake idle."
         );
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, Some(watch_folder.clone()), folder_meaning)
             .await;
-        return;
-    }
-
-    if ctx
+    } else if ctx
         .get_config_bool(Config::DisableIdle)
         .await
         .context("Failed to get disable_idle config")
@@ -619,28 +605,38 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, Some(watch_folder.clone()), folder_meaning)
             .await;
-        return;
+    } else {
+        info!(ctx, "IMAP session supports IDLE, using it.");
+        match session
+            .idle(
+                ctx,
+                connection.idle_interrupt_receiver.clone(),
+                &watch_folder,
+            )
+            .await
+            .context("idle")
+        {
+            Ok(session) => {
+                connection.session = Some(session);
+            }
+            Err(err) => {
+                connection.trigger_reconnect(ctx);
+                warn!(ctx, "{:#}", err);
+            }
+        }
     }
 
-    info!(ctx, "IMAP session supports IDLE, using it.");
-    match session
-        .idle(
-            ctx,
-            connection.idle_interrupt_receiver.clone(),
-            &watch_folder,
-        )
+    // Fetch the watched folder
+    // immediately after IDLE to reduce message delivery latency.
+    if let Err(err) = connection
+        .fetch_move_delete(ctx, &watch_folder, folder_meaning)
         .await
-        .context("idle")
+        .context("fetch_move_delete")
     {
-        Ok(session) => {
-            connection.session = Some(session);
-        }
-        Err(err) => {
-            connection.trigger_reconnect(ctx);
-            warn!(ctx, "{:#}", err);
-        }
+        connection.trigger_reconnect(ctx);
+        warn!(ctx, "{:#}", err);
     }
 }
 
