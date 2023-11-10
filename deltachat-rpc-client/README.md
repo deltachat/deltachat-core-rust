@@ -25,7 +25,7 @@ $ pip install .
 ## Testing
 
 1. Build `deltachat-rpc-server` with `cargo build -p deltachat-rpc-server`.
-2. Run `PATH="../target/debug:$PATH" tox`.
+2. Run `CHATMAIL_DOMAIN=nine.testrun.org PATH="../target/debug:$PATH" tox`.
 
 Additional arguments to `tox` are passed to pytest, e.g. `tox -- -s` does not capture test output.
 
