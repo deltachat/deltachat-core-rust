@@ -305,6 +305,7 @@ mod tests {
     use super::*;
     use crate::chat::{Chat, ProtectionStatus};
     use crate::chatlist::Chatlist;
+    use crate::constants::Chattype;
     use crate::contact::{Contact, Origin};
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
@@ -593,6 +594,10 @@ mod tests {
         let sent_msg = bob.send_text(ba_chat.id, "hi").await;
         let a0b_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
         alices[1].recv_msg(&sent_msg).await;
+        let ab_contact_ids = [
+            alices[0].add_or_lookup_contact(&bob).await.id,
+            alices[1].add_or_lookup_contact(&bob).await.id,
+        ];
 
         async fn sync(alices: &[TestContext]) -> Result<()> {
             let sync_msg = alices.get(0).unwrap().pop_sent_msg().await;
@@ -612,14 +617,13 @@ mod tests {
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
 
         // Unblocking a 1:1 chat doesn't unblock the contact currently.
-        let a0b_contact_id = alices[0].add_or_lookup_contact(&bob).await.id;
-        Contact::unblock(&alices[0], a0b_contact_id).await?;
+        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
 
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::block(&alices[0], a0b_contact_id).await?;
+        Contact::block(&alices[0], ab_contact_ids[0]).await?;
         sync(&alices).await?;
         assert!(alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::unblock(&alices[0], a0b_contact_id).await?;
+        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
         sync(&alices).await?;
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
 
@@ -694,6 +698,40 @@ mod tests {
             };
             assert_eq!(alices[1].get_chat(&bob).await.mute_duration, m);
         }
+
+        let a0_broadcast_id = chat::create_broadcast_list(&alices[0]).await?;
+        let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
+        chat::set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
+        sync(&alices).await?;
+        let a1_broadcast_id = chat::get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
+            .await?
+            .unwrap()
+            .0;
+        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
+        assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
+        // TODO: Implement synchronisation of `chat::set_chat_name()`.
+        // assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
+        assert!(chat::get_chat_contacts(&alices[1], a1_broadcast_id)
+            .await?
+            .is_empty());
+        chat::add_contact_to_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
+        sync(&alices).await?;
+        assert_eq!(
+            chat::get_chat_contacts(&alices[1], a1_broadcast_id).await?,
+            vec![ab_contact_ids[1]]
+        );
+        let sent_msg = alices[1].send_text(a1_broadcast_id, "hi").await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+        assert_eq!(chat.get_type(), Chattype::Mailinglist);
+        // TODO: It doesn't work now for some reason, `msg.chat_id == DC_CHAT_ID_TRASH`.
+        // let msg = alices[0].recv_msg(&sent_msg).await;
+        // assert_eq!(msg.chat_id, a0_broadcast_id);
+        chat::remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
+        sync(&alices).await?;
+        assert!(chat::get_chat_contacts(&alices[1], a1_broadcast_id)
+            .await?
+            .is_empty());
 
         Ok(())
     }
