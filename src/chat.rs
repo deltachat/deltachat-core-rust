@@ -400,7 +400,10 @@ impl ChatId {
 
         if sync.into() {
             // NB: For a 1:1 chat this currently triggers `Contact::block()` on other devices.
-            chat.sync(context, ChatAction::Block).await?;
+            chat.sync(context, ChatAction::Block)
+                .await
+                .log_err(context)
+                .ok();
         }
         Ok(())
     }
@@ -418,7 +421,10 @@ impl ChatId {
             // TODO: For a 1:1 chat this currently triggers `Contact::unblock()` on other devices.
             // Maybe we should unblock the contact locally too, this would also resolve discrepancy
             // with `block()` which also blocks the contact.
-            chat.sync(context, ChatAction::Unblock).await?;
+            chat.sync(context, ChatAction::Unblock)
+                .await
+                .log_err(context)
+                .ok();
         }
         Ok(())
     }
@@ -466,7 +472,10 @@ impl ChatId {
         }
 
         if sync.into() {
-            chat.sync(context, ChatAction::Accept).await?;
+            chat.sync(context, ChatAction::Accept)
+                .await
+                .log_err(context)
+                .ok();
         }
         Ok(())
     }
@@ -629,7 +638,9 @@ impl ChatId {
         if sync.into() {
             let chat = Chat::load_from_db(context, self).await?;
             chat.sync(context, ChatAction::SetVisibility(visibility))
-                .await?;
+                .await
+                .log_err(context)
+                .ok();
         }
         Ok(())
     }
@@ -1720,7 +1731,11 @@ impl Chat {
             // send_sync_msg() is called (usually) a moment later at send_msg_to_smtp()
             // when the group-creation message is actually sent though SMTP -
             // this makes sure, the other devices are aware of grpid that is used in the sync-message.
-            context.sync_qr_code_tokens(Some(self.id)).await?;
+            context
+                .sync_qr_code_tokens(Some(self.id))
+                .await
+                .log_err(context)
+                .ok();
         }
 
         // reset encrypt error state eg. for forwarding
@@ -3394,8 +3409,12 @@ pub(crate) async fn add_contact_to_chat_ex(
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
         chat.param.remove(Param::Unpromoted);
         chat.update_param(context).await?;
-        context.sync_qr_code_tokens(Some(chat_id)).await?;
-        context.send_sync_msg().await?;
+        let _ = context
+            .sync_qr_code_tokens(Some(chat_id))
+            .await
+            .log_err(context)
+            .is_ok()
+            && context.send_sync_msg().await.log_err(context).is_ok();
     }
 
     if context.is_self_addr(contact.get_addr()).await? {
@@ -3441,7 +3460,7 @@ pub(crate) async fn add_contact_to_chat_ex(
     }
     context.emit_event(EventType::ChatModified(chat_id));
     if sync.into() {
-        chat.sync_contacts(context).await?;
+        chat.sync_contacts(context).await.log_err(context).ok();
     }
     Ok(true)
 }
@@ -3549,7 +3568,10 @@ pub(crate) async fn set_muted_ex(
     context.emit_event(EventType::ChatModified(chat_id));
     if sync.into() {
         let chat = Chat::load_from_db(context, chat_id).await?;
-        chat.sync(context, ChatAction::SetMuted(duration)).await?;
+        chat.sync(context, ChatAction::SetMuted(duration))
+            .await
+            .log_err(context)
+            .ok();
     }
     Ok(())
 }
@@ -3619,7 +3641,7 @@ pub async fn remove_contact_from_chat(
             remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
             context.emit_event(EventType::ChatModified(chat_id));
             if sync.into() {
-                chat.sync_contacts(context).await?;
+                chat.sync_contacts(context).await.log_err(context).ok();
             }
         }
     } else {
