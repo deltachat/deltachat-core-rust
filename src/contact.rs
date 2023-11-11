@@ -1480,12 +1480,12 @@ WHERE type=? AND id IN (
 
         if sync.into() {
             let action = match new_blocking {
-                true => sync::ChatAction::Block,
-                false => sync::ChatAction::Unblock,
+                true => chat::SyncAction::Block,
+                false => chat::SyncAction::Unblock,
             };
             context
                 .add_sync_item(SyncData::AlterChat {
-                    id: sync::ChatId::ContactAddr(contact.addr.clone()),
+                    id: chat::SyncId::ContactAddr(contact.addr.clone()),
                     action,
                 })
                 .await?;
