@@ -5,7 +5,7 @@ use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatVisibility};
+use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;
 use crate::constants::Blocked;
 use crate::contact::ContactId;
@@ -42,32 +42,14 @@ pub(crate) struct QrTokenData {
     pub(crate) grpid: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) enum ChatId {
-    ContactAddr(String),
-    Grpid(String),
-    // NOTE: Ad-hoc groups lack an identifier that can be used across devices so
-    // block/mute/etc. actions on them are not synchronized to other devices.
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub(crate) enum ChatAction {
-    Block,
-    Unblock,
-    Accept,
-    SetVisibility(ChatVisibility),
-    SetMuted(chat::MuteDuration),
-    /// Create broadcast list with the given name.
-    CreateBroadcast(String),
-    /// Set chat contacts by their addresses.
-    SetContacts(Vec<String>),
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum SyncData {
     AddQrToken(QrTokenData),
     DeleteQrToken(QrTokenData),
-    AlterChat { id: ChatId, action: ChatAction },
+    AlterChat {
+        id: chat::SyncId,
+        action: chat::SyncAction,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,7 +91,7 @@ impl Context {
     /// Adds most recent qr-code tokens for a given chat to the list of items to be synced.
     /// If device synchronization is disabled,
     /// no tokens exist or the chat is unpromoted, the function does nothing.
-    pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<chat::ChatId>) -> Result<()> {
+    pub(crate) async fn sync_qr_code_tokens(&self, chat_id: Option<ChatId>) -> Result<()> {
         if !self.get_config_bool(Config::SyncMsgs).await? {
             return Ok(());
         }
@@ -160,7 +142,7 @@ impl Context {
     pub async fn send_sync_msg(&self) -> Result<Option<MsgId>> {
         if let Some((json, ids)) = self.build_sync_json().await? {
             let chat_id =
-                chat::ChatId::create_for_contact_with_blocked(self, ContactId::SELF, Blocked::Yes)
+                ChatId::create_for_contact_with_blocked(self, ContactId::SELF, Blocked::Yes)
                     .await?;
             let mut msg = Message {
                 chat_id,
@@ -300,12 +282,10 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     use anyhow::bail;
-    use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::chat::{Chat, ProtectionStatus};
+    use crate::chat::Chat;
     use crate::chatlist::Chatlist;
-    use crate::constants::Chattype;
     use crate::contact::{Contact, Origin};
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
@@ -328,13 +308,13 @@ mod tests {
 
         assert!(t.build_sync_json().await?.is_none());
 
-        // Having one test on `SyncData::AlterChat` is sufficient here as `ChatAction::SetMuted`
-        // introduces enums inside items and `SystemTime`. Let's avoid in-depth testing of the
-        // serialiser here which is an external crate.
+        // Having one test on `SyncData::AlterChat` is sufficient here as
+        // `chat::SyncAction::SetMuted` introduces enums inside items and `SystemTime`. Let's avoid
+        // in-depth testing of the serialiser here which is an external crate.
         t.add_sync_item_with_timestamp(
             SyncData::AlterChat {
-                id: ChatId::ContactAddr("bob@example.net".to_string()),
-                action: ChatAction::SetMuted(chat::MuteDuration::Until(
+                id: chat::SyncId::ContactAddr("bob@example.net".to_string()),
+                action: chat::SyncAction::SetMuted(chat::MuteDuration::Until(
                     SystemTime::UNIX_EPOCH + Duration::from_millis(42999),
                 )),
             },
@@ -447,10 +427,13 @@ mod tests {
         let AlterChat { id, action } = &sync_items.items.get(0).unwrap().data else {
             bail!("bad item");
         };
-        assert_eq!(*id, ChatId::ContactAddr("bob@example.net".to_string()));
+        assert_eq!(
+            *id,
+            chat::SyncId::ContactAddr("bob@example.net".to_string())
+        );
         assert_eq!(
             *action,
-            ChatAction::SetMuted(chat::MuteDuration::Until(
+            chat::SyncAction::SetMuted(chat::MuteDuration::Until(
                 SystemTime::UNIX_EPOCH + Duration::from_millis(42999)
             ))
         );
@@ -555,7 +538,7 @@ mod tests {
         // check that the used self-talk is not visible to the user
         // but that creation will still work (in this case, the chat is empty)
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 0);
-        let chat_id = chat::ChatId::create_for_contact(&alice, ContactId::SELF).await?;
+        let chat_id = ChatId::create_for_contact(&alice, ContactId::SELF).await?;
         let chat = Chat::load_from_db(&alice, chat_id).await?;
         assert!(chat.is_self_talk());
         assert_eq!(Chatlist::try_load(&alice, 0, None, None).await?.len(), 1);
@@ -575,163 +558,6 @@ mod tests {
         let bob = TestContext::new_bob().await;
         bob.recv_msg(&sent_msg).await;
         assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await);
-
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_alter_chat() -> Result<()> {
-        let alices = [
-            TestContext::new_alice().await,
-            TestContext::new_alice().await,
-        ];
-        for a in &alices {
-            a.set_config_bool(Config::SyncMsgs, true).await?;
-        }
-        let bob = TestContext::new_bob().await;
-
-        let ba_chat = bob.create_chat(&alices[0]).await;
-        let sent_msg = bob.send_text(ba_chat.id, "hi").await;
-        let a0b_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
-        alices[1].recv_msg(&sent_msg).await;
-        let ab_contact_ids = [
-            alices[0].add_or_lookup_contact(&bob).await.id,
-            alices[1].add_or_lookup_contact(&bob).await.id,
-        ];
-
-        async fn sync(alices: &[TestContext]) -> Result<()> {
-            let sync_msg = alices.get(0).unwrap().pop_sent_msg().await;
-            alices.get(1).unwrap().recv_msg(&sync_msg).await;
-            Ok(())
-        }
-
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Request);
-        a0b_chat_id.accept(&alices[0]).await?;
-        sync(&alices).await?;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
-        a0b_chat_id.block(&alices[0]).await?;
-        sync(&alices).await?;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Yes);
-        a0b_chat_id.unblock(&alices[0]).await?;
-        sync(&alices).await?;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
-
-        // Unblocking a 1:1 chat doesn't unblock the contact currently.
-        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
-
-        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::block(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices).await?;
-        assert!(alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices).await?;
-        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-
-        // Test accepting and blocking groups. This way we test:
-        // - Group chats synchronisation.
-        // - That blocking a group deletes it on other devices.
-        let fiona = TestContext::new_fiona().await;
-        let fiona_grp_chat_id = fiona
-            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&alices[0]])
-            .await;
-        let sent_msg = fiona.send_text(fiona_grp_chat_id, "hi").await;
-        let a0_grp_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
-        let a1_grp_chat_id = alices[1].recv_msg(&sent_msg).await.chat_id;
-        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
-        assert_eq!(a1_grp_chat.blocked, Blocked::Request);
-        a0_grp_chat_id.accept(&alices[0]).await?;
-        sync(&alices).await?;
-        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
-        assert_eq!(a1_grp_chat.blocked, Blocked::Not);
-        a0_grp_chat_id.block(&alices[0]).await?;
-        sync(&alices).await?;
-        assert!(Chat::load_from_db(&alices[1], a1_grp_chat_id)
-            .await
-            .is_err());
-        assert!(
-            !alices[1]
-                .sql
-                .exists("SELECT COUNT(*) FROM chats WHERE id=?", (a1_grp_chat_id,))
-                .await?
-        );
-
-        // Test syncing of chat visibility on a self-chat. This way we test:
-        // - Self-chat synchronisation.
-        // - That sync messages don't unarchive the self-chat.
-        let a0self_chat_id = alices[0].get_self_chat().await.id;
-        assert_eq!(
-            alices[1].get_self_chat().await.get_visibility(),
-            ChatVisibility::Normal
-        );
-        let mut visibilities =
-            ChatVisibility::iter().chain(std::iter::once(ChatVisibility::Normal));
-        visibilities.next();
-        for v in visibilities {
-            a0self_chat_id.set_visibility(&alices[0], v).await?;
-            sync(&alices).await?;
-            for a in &alices {
-                assert_eq!(a.get_self_chat().await.get_visibility(), v);
-            }
-        }
-
-        use chat::MuteDuration;
-        assert_eq!(
-            alices[1].get_chat(&bob).await.mute_duration,
-            MuteDuration::NotMuted
-        );
-        let mute_durations = [
-            MuteDuration::Forever,
-            MuteDuration::Until(SystemTime::now() + Duration::from_secs(42)),
-            MuteDuration::NotMuted,
-        ];
-        for m in mute_durations {
-            chat::set_muted(&alices[0], a0b_chat_id, m).await?;
-            sync(&alices).await?;
-            let m = match m {
-                MuteDuration::Until(time) => MuteDuration::Until(
-                    SystemTime::UNIX_EPOCH
-                        + Duration::from_secs(
-                            time.duration_since(SystemTime::UNIX_EPOCH)?.as_secs(),
-                        ),
-                ),
-                _ => m,
-            };
-            assert_eq!(alices[1].get_chat(&bob).await.mute_duration, m);
-        }
-
-        let a0_broadcast_id = chat::create_broadcast_list(&alices[0]).await?;
-        let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
-        chat::set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
-        sync(&alices).await?;
-        let a1_broadcast_id = chat::get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
-            .await?
-            .unwrap()
-            .0;
-        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
-        assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
-        // TODO: Implement synchronisation of `chat::set_chat_name()`.
-        // assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
-        assert!(chat::get_chat_contacts(&alices[1], a1_broadcast_id)
-            .await?
-            .is_empty());
-        chat::add_contact_to_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices).await?;
-        assert_eq!(
-            chat::get_chat_contacts(&alices[1], a1_broadcast_id).await?,
-            vec![ab_contact_ids[1]]
-        );
-        let sent_msg = alices[1].send_text(a1_broadcast_id, "hi").await;
-        let msg = bob.recv_msg(&sent_msg).await;
-        let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
-        assert_eq!(chat.get_type(), Chattype::Mailinglist);
-        // TODO: It doesn't work now for some reason, `msg.chat_id == DC_CHAT_ID_TRASH`.
-        // let msg = alices[0].recv_msg(&sent_msg).await;
-        // assert_eq!(msg.chat_id, a0_broadcast_id);
-        chat::remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices).await?;
-        assert!(chat::get_chat_contacts(&alices[1], a1_broadcast_id)
-            .await?
-            .is_empty());
 
         Ok(())
     }
