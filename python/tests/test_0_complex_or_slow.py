@@ -140,6 +140,10 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     assert msg.is_system_message()
     assert "added" in msg.text.lower()
 
+    assert any(
+        m.is_system_message() and m.text == "Messages are guaranteed to be end-to-end encrypted from now on."
+        for m in msg.chat.get_messages()
+    )
     lp.sec("ac1: send message")
     msg_out = chat1.send_text("hello")
     assert msg_out.is_encrypted()
@@ -580,6 +584,7 @@ def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
     assert msg_in.get_sender_contact().addr == ac1.get_config("addr")
     chat2 = msg_in.chat
     assert chat2.is_protected()
+    assert chat2.get_messages()[0].text == "Messages are guaranteed to be end-to-end encrypted from now on."
 
     lp.sec("ac2_offl: sending message")
     msg_out = chat2.send_text("hello")
