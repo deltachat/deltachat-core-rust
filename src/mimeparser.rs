@@ -163,10 +163,10 @@ pub enum SystemMessage {
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged = 10,
 
-    /// Chat protection is enabled.
+    /// "Messages are guaranteed to be end-to-end encrypted from now on."
     ChatProtectionEnabled = 11,
 
-    /// Chat protection is disabled.
+    /// "%1$s sent a message from another device."
     ChatProtectionDisabled = 12,
 
     /// Self-sent-message that contains only json used for multi-device-sync;
