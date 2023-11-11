@@ -712,6 +712,39 @@ async fn test_break_protection_then_verify_again() -> Result<()> {
     Ok(())
 }
 
+/// Regression test for the following bug:
+///
+/// - Scan your chat partner's QR Code
+/// - They change devices
+/// - Scan their QR code again
+///
+/// -> The re-verification fails.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_verify_then_verify_again() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+    enable_verified_oneonone_chats(&[&alice, &bob]).await;
+
+    mark_as_verified(&alice, &bob).await;
+    mark_as_verified(&bob, &alice).await;
+
+    alice.create_chat(&bob).await;
+    assert_verified(&alice, &bob, ProtectionStatus::Protected).await;
+
+    tcm.section("Bob reinstalls DC");
+    drop(bob);
+    let bob_new = tcm.unconfigured().await;
+    enable_verified_oneonone_chats(&[&bob_new]).await;
+    bob_new.configure_addr("bob@example.net").await;
+    e2ee::ensure_secret_key_exists(&bob_new).await?;
+
+    tcm.execute_securejoin(&bob_new, &alice).await;
+    assert_verified(&alice, &bob_new, ProtectionStatus::Protected).await;
+
+    Ok(())
+}
+
 /// Regression test:
 /// - Verify a contact
 /// - The contact stops using DC and sends a message from a classical MUA instead
