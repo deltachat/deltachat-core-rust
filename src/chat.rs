@@ -3672,6 +3672,16 @@ pub(crate) async fn is_group_explicitly_left(context: &Context, grpid: &str) -> 
 
 /// Sets group or mailing list chat name.
 pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -> Result<()> {
+    rename_ex(context, Sync, chat_id, new_name).await
+}
+
+async fn rename_ex(
+    context: &Context,
+    sync: sync::Sync,
+    chat_id: ChatId,
+    new_name: &str,
+) -> Result<()> {
+    let sync_name = new_name;
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
@@ -3723,7 +3733,13 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
     if !success {
         bail!("Failed to set name");
     }
-
+    if sync.into() {
+        let sync_name = sync_name.to_string();
+        chat.sync(context, SyncAction::Rename(sync_name))
+            .await
+            .log_err(context)
+            .ok();
+    }
     Ok(())
 }
 
@@ -4240,6 +4256,7 @@ pub(crate) enum SyncAction {
     SetMuted(MuteDuration),
     /// Create broadcast list with the given name.
     CreateBroadcast(String),
+    Rename(String),
     /// Set chat contacts by their addresses.
     SetContacts(Vec<String>),
 }
@@ -4291,6 +4308,7 @@ impl Context {
             SyncAction::CreateBroadcast(_) => {
                 Err(anyhow!("sync_alter_chat({id:?}, {action:?}): Bad request."))
             }
+            SyncAction::Rename(to) => rename_ex(self, Nosync, chat_id, to).await,
             SyncAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
         }
     }
@@ -6905,6 +6923,7 @@ mod tests {
         }
 
         let a0_broadcast_id = create_broadcast_list(&alices[0]).await?;
+        sync(&alices).await?;
         let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
         set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
         sync(&alices).await?;
@@ -6914,8 +6933,7 @@ mod tests {
             .0;
         let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
         assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
-        // TODO: Implement synchronisation of `set_chat_name()`.
-        // assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
+        assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
         assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
             .await?
             .is_empty());
