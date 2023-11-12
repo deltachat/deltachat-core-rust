@@ -596,9 +596,10 @@ impl<'a> MimeFactory<'a> {
 
         if let Loaded::Message { chat } = &self.loaded {
             if chat.typ == Chattype::Broadcast {
+                let encoded_chat_name = encode_words(&chat.name);
                 headers.protected.push(Header::new(
                     "List-ID".into(),
-                    format!("{} <{}>", chat.name, chat.grpid),
+                    format!("{encoded_chat_name} <{}>", chat.grpid),
                 ));
             }
         }
