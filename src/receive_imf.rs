@@ -930,6 +930,22 @@ async fn add_parts(
                 }
             }
         }
+
+        if chat_id.is_none() {
+            // Check if the message belongs to a broadcast list.
+            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
+                let listid = mailinglist_header_listid(mailinglist_header)?;
+                chat_id = Some(
+                    if let Some((id, ..)) = chat::get_chat_id_by_grpid(context, &listid).await? {
+                        id
+                    } else {
+                        let name =
+                            compute_mailinglist_name(mailinglist_header, &listid, mime_parser);
+                        chat::create_broadcast_list_ex(context, Nosync, listid, name).await?
+                    },
+                );
+            }
+        }
     }
 
     if fetching_existing_messages && mime_parser.decrypting_failed {
@@ -1966,6 +1982,17 @@ async fn apply_group_changes(
 
 static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
 
+fn mailinglist_header_listid(list_id_header: &str) -> Result<String> {
+    Ok(match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap.get(2).context("no match??")?.as_str().trim(),
+        None => list_id_header
+            .trim()
+            .trim_start_matches('<')
+            .trim_end_matches('>'),
+    }
+    .to_string())
+}
+
 /// Create or lookup a mailing list chat.
 ///
 /// `list_id_header` contains the Id that must be used for the mailing list
@@ -1975,21 +2002,13 @@ static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unw
 ///
 /// `mime_parser` is the corresponding message
 /// and is used to figure out the mailing list name from different header fields.
-#[allow(clippy::indexing_slicing)]
 async fn create_or_lookup_mailinglist(
     context: &Context,
     allow_creation: bool,
     list_id_header: &str,
     mime_parser: &MimeMessage,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    let listid = match LIST_ID_REGEX.captures(list_id_header) {
-        Some(cap) => cap[2].trim().to_string(),
-        None => list_id_header
-            .trim()
-            .trim_start_matches('<')
-            .trim_end_matches('>')
-            .to_string(),
-    };
+    let listid = mailinglist_header_listid(list_id_header)?;
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
         return Ok(Some((chat_id, blocked)));

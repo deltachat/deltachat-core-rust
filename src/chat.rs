@@ -3249,7 +3249,7 @@ pub async fn create_broadcast_list(context: &Context) -> Result<ChatId> {
     create_broadcast_list_ex(context, Sync, grpid, chat_name).await
 }
 
-async fn create_broadcast_list_ex(
+pub(crate) async fn create_broadcast_list_ex(
     context: &Context,
     sync: sync::Sync,
     grpid: String,
@@ -6515,6 +6515,47 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_broadcast_multidev() -> Result<()> {
+        let alices = [
+            TestContext::new_alice().await,
+            TestContext::new_alice().await,
+        ];
+        let bob = TestContext::new_bob().await;
+        let a1b_contact_id = alices[1].add_or_lookup_contact(&bob).await.id;
+
+        let a0_broadcast_id = create_broadcast_list(&alices[0]).await?;
+        let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
+        set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
+        let sent_msg = alices[0].send_text(a0_broadcast_id, "hi").await;
+        let msg = alices[1].recv_msg(&sent_msg).await;
+        let a1_broadcast_id = get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
+            .await?
+            .unwrap()
+            .0;
+        assert_eq!(msg.chat_id, a1_broadcast_id);
+        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
+        assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
+        assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
+        assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
+            .await?
+            .is_empty());
+
+        add_contact_to_chat(&alices[1], a1_broadcast_id, a1b_contact_id).await?;
+        set_chat_name(&alices[1], a1_broadcast_id, "Broadcast list 43").await?;
+        let sent_msg = alices[1].send_text(a1_broadcast_id, "hi").await;
+        let msg = alices[0].recv_msg(&sent_msg).await;
+        assert_eq!(msg.chat_id, a0_broadcast_id);
+        let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
+        assert_eq!(a0_broadcast_chat.get_type(), Chattype::Broadcast);
+        assert_eq!(a0_broadcast_chat.get_name(), "Broadcast list 42");
+        assert!(get_chat_contacts(&alices[0], a0_broadcast_id)
+            .await?
+            .is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_create_for_contact_with_blocked() -> Result<()> {
         let t = TestContext::new().await;
         let (contact_id, _) = Contact::add_or_lookup(
@@ -6947,9 +6988,8 @@ mod tests {
         let msg = bob.recv_msg(&sent_msg).await;
         let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
         assert_eq!(chat.get_type(), Chattype::Mailinglist);
-        // TODO: It doesn't work now for some reason, `msg.chat_id == DC_CHAT_ID_TRASH`.
-        // let msg = alices[0].recv_msg(&sent_msg).await;
-        // assert_eq!(msg.chat_id, a0_broadcast_id);
+        let msg = alices[0].recv_msg(&sent_msg).await;
+        assert_eq!(msg.chat_id, a0_broadcast_id);
         remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
         sync(&alices).await?;
         assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
