@@ -567,6 +567,14 @@ impl ChatId {
         contact_id: Option<ContactId>,
         timestamp_sort: i64,
     ) -> Result<()> {
+        if contact_id == Some(ContactId::SELF) {
+            // Do not add protection messages to Saved Messages chat.
+            // This chat never gets protected and unprotected,
+            // we do not want the first message
+            // to be a protection message with an arbitrary timestamp.
+            return Ok(());
+        }
+
         let text = context.stock_protection_msg(protect, contact_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
