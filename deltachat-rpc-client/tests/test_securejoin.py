@@ -244,7 +244,7 @@ def test_verified_group_recovery(acfactory, rpc) -> None:
 
     ac1_chat_messages = snapshot.chat.get_messages()
     ac2_addr = ac2.get_config("addr")
-    assert ac1_chat_messages[-1].get_snapshot().text == f"Changed setup for {ac2_addr}"
+    assert ac1_chat_messages[-2].get_snapshot().text == f"Changed setup for {ac2_addr}"
 
 
 def test_verified_group_member_added_recovery(acfactory) -> None:

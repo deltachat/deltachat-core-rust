@@ -227,8 +227,7 @@ pub(crate) async fn receive_imf_inner(
         .and_then(|value| mailparse::dateparse(value).ok())
         .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
 
-    let updated_verified_key_addr =
-        update_verified_keys(context, &mut mime_parser, from_id).await?;
+    update_verified_keys(context, &mut mime_parser, from_id).await?;
 
     // Add parts
     let received_msg = add_parts(
@@ -280,11 +279,6 @@ pub(crate) async fn receive_imf_inner(
     } else {
         MsgId::new_unset()
     };
-
-    if let Some(addr) = updated_verified_key_addr {
-        let msg = stock_str::contact_setup_changed(context, &addr).await;
-        chat::add_info_msg(context, chat_id, &msg, received_msg.sort_timestamp).await?;
-    }
 
     save_locations(context, &mime_parser, chat_id, from_id, insert_msg_id).await?;
 
@@ -2295,9 +2289,6 @@ enum VerifiedEncryption {
 /// Moves secondary verified key to primary verified key
 /// if the message is signed with a secondary verified key.
 /// Removes secondary verified key if the message is signed with primary key.
-///
-/// Returns address of the peerstate if the primary verified key was updated,
-/// the caller then needs to add "Setup changed" notification somewhere.
 async fn update_verified_keys(
     context: &Context,
     mimeparser: &mut MimeMessage,
@@ -2345,10 +2336,11 @@ async fn update_verified_keys(
         peerstate.verified_key = peerstate.secondary_verified_key.take();
         peerstate.verified_key_fingerprint = peerstate.secondary_verified_key_fingerprint.take();
         peerstate.verifier = peerstate.secondary_verifier.take();
+        peerstate.fingerprint_changed = true;
         peerstate.save_to_db(&context.sql).await?;
 
         // Primary verified key changed.
-        Ok(Some(peerstate.addr.clone()))
+        Ok(None)
     } else {
         Ok(None)
     }
