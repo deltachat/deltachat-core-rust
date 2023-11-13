@@ -2439,10 +2439,13 @@ async fn prepare_msg_common(
 
     // Check if the chat can be sent to.
     if let Some(reason) = chat.why_cant_send(context).await? {
-        if reason == CantSendReason::ProtectionBroken
-            && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
+        if matches!(
+            reason,
+            CantSendReason::ProtectionBroken | CantSendReason::ContactRequest
+        ) && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
         {
-            // Send out the message, the securejoin message is supposed to repair the verification
+            // Send out the message, the securejoin message is supposed to repair the verification.
+            // If the chat is a contact request, let the user accept it later.
         } else {
             bail!("cannot send to {chat_id}: {reason}");
         }
