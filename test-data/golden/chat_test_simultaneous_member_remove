@@ -2,6 +2,6 @@ Group#Chat#10: Group chat [4 member(s)]
 --------------------------------------------------------------------------------
 Msg#10:  (Contact#Contact#10): Hi! I created a group. [FRESH]
 Msg#11: Me (Contact#Contact#Self): You left the group. [INFO] o
-Msg#12:  (Contact#Contact#10): Member claire@example.net added by alice@example.org. [FRESH][INFO]
-Msg#13:  (Contact#Contact#10): Member Me (bob@example.net) added. [FRESH][INFO]
+Msg#12:  (Contact#Contact#10): Member Me (bob@example.net) added. [FRESH][INFO]
+Msg#13:  (Contact#Contact#10): Member claire@example.net added by alice@example.org. [FRESH][INFO]
 --------------------------------------------------------------------------------
