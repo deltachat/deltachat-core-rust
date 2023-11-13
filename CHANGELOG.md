@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.131.0] - 2023-11-13
+
+### Features / Changes
+
+- Sync chat contacts across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
+- Sync creating broadcast lists across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
+- Sync Chat::name across devices ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
+- Multi-device broadcast lists ([#4953](https://github.com/deltachat/deltachat-core-rust/pull/4953)).
+
+### Fixes
+
+- Encode chat name in the `List-ID` header to avoid SMTPUTF8 errors.
+- Ignore errors from generating sync messages.
+- `Context::execute_sync_items`: Ignore all errors ([#4817](https://github.com/deltachat/deltachat-core-rust/pull/4817)).
+- Allow to send unverified securejoin messages to protected chats ([#4982](https://github.com/deltachat/deltachat-core-rust/pull/4982)).
+
 ## [1.130.0] - 2023-11-10
 
 ### API-Changes
@@ -3156,3 +3172,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.129.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.128.0...v1.129.0
 [1.129.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.0...v1.129.1
 [1.130.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.1...v1.130.0
+[1.131.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.130.0...v1.131.0
