@@ -824,6 +824,7 @@ pub(crate) async fn secure_join_group_qr_description(context: &Context, chat: &C
 }
 
 /// Stock string: `%1$s verified.`.
+#[allow(dead_code)]
 pub(crate) async fn contact_verified(context: &Context, contact: &Contact) -> String {
     let addr = &contact.get_name_n_addr();
     translated(context, StockMessage::ContactVerified)

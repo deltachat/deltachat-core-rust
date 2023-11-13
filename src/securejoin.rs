@@ -684,9 +684,6 @@ async fn secure_connection_established(
     contact_id: ContactId,
     chat_id: ChatId,
 ) -> Result<()> {
-    let contact = Contact::get_by_id(context, contact_id).await?;
-    let msg = stock_str::contact_verified(context, &contact).await;
-    chat::add_info_msg(context, chat_id, &msg, time()).await?;
     if context
         .get_config_bool(Config::VerifiedOneOnOneChats)
         .await?
@@ -924,25 +921,10 @@ mod tests {
         // Check Alice got the verified message in her 1:1 chat.
         {
             let chat = alice.create_chat(&bob).await;
-            let msg_ids: Vec<_> = chat::get_chat_msgs(&alice.ctx, chat.get_id())
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(msg_ids.len(), 2);
-
-            let msg0 = Message::load_from_db(&alice.ctx, msg_ids[0]).await.unwrap();
-            assert!(msg0.is_info());
-            assert!(msg0.get_text().contains("bob@example.net verified"));
-
-            let msg1 = Message::load_from_db(&alice.ctx, msg_ids[1]).await.unwrap();
-            assert!(msg1.is_info());
+            let msg = get_chat_msg(&alice, chat.get_id(), 0, 1).await;
+            assert!(msg.is_info());
             let expected_text = chat_protection_enabled(&alice).await;
-            assert_eq!(msg1.get_text(), expected_text);
+            assert_eq!(msg.get_text(), expected_text);
         }
 
         // Check Alice sent the right message to Bob.
@@ -978,24 +960,10 @@ mod tests {
         // Check Bob got the verified message in his 1:1 chat.
         {
             let chat = bob.create_chat(&alice).await;
-            let msg_ids: Vec<_> = chat::get_chat_msgs(&bob.ctx, chat.get_id())
-                .await
-                .unwrap()
-                .into_iter()
-                .filter_map(|item| match item {
-                    chat::ChatItem::Message { msg_id } => Some(msg_id),
-                    _ => None,
-                })
-                .collect();
-
-            let msg0 = Message::load_from_db(&bob.ctx, msg_ids[0]).await.unwrap();
-            assert!(msg0.is_info());
-            assert!(msg0.get_text().contains("alice@example.org verified"));
-
-            let msg1 = Message::load_from_db(&bob.ctx, msg_ids[1]).await.unwrap();
-            assert!(msg1.is_info());
+            let msg = get_chat_msg(&bob, chat.get_id(), 0, 1).await;
+            assert!(msg.is_info());
             let expected_text = chat_protection_enabled(&bob).await;
-            assert_eq!(msg1.get_text(), expected_text);
+            assert_eq!(msg.get_text(), expected_text);
         }
 
         // Check Bob sent the final message
@@ -1294,11 +1262,11 @@ mod tests {
             );
             // There should be 3 messages in the chat:
             // - The ChatProtectionEnabled message
-            // - bob@example.net verified
             // - You added member bob@example.net
-            let msg = get_chat_msg(&alice, alice_chatid, 1, 3).await;
+            let msg = get_chat_msg(&alice, alice_chatid, 0, 2).await;
             assert!(msg.is_info());
-            assert!(msg.get_text().contains("bob@example.net verified"));
+            let expected_text = chat_protection_enabled(&alice).await;
+            assert_eq!(msg.get_text(), expected_text);
         }
 
         // Bob should not yet have Alice verified
@@ -1332,27 +1300,6 @@ mod tests {
                     let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
                     let text = msg.get_text();
                     println!("msg {msg_id} text: {text}");
-                }
-            }
-            let mut msg_iter = chat::get_chat_msgs(&bob.ctx, bob_chatid)
-                .await
-                .unwrap()
-                .into_iter();
-            loop {
-                match msg_iter.next() {
-                    Some(chat::ChatItem::Message { msg_id }) => {
-                        let msg = Message::load_from_db(&bob.ctx, msg_id).await.unwrap();
-                        let text = msg.get_text();
-                        match text.contains("alice@example.org verified") {
-                            true => {
-                                assert!(msg.is_info());
-                                break;
-                            }
-                            false => continue,
-                        }
-                    }
-                    Some(_) => continue,
-                    None => panic!("Verified message not found in Bob's group chat"),
                 }
             }
         }

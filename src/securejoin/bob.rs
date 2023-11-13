@@ -222,9 +222,7 @@ impl BobState {
     /// This creates an info message in the chat being joined.
     async fn notify_peer_verified(&self, context: &Context) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
-        let msg = stock_str::contact_verified(context, &contact).await;
         let chat_id = self.joining_chat_id(context).await?;
-        chat::add_info_msg(context, chat_id, &msg, time()).await?;
 
         if context
             .get_config_bool(Config::VerifiedOneOnOneChats)
