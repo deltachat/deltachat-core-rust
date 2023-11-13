@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.131.1] - 2023-11-13
+
+### Fixes
+
+- Do not skip actual message parts when group change messages are inserted.
+
 ## [1.131.0] - 2023-11-13
 
 ### Features / Changes
@@ -3173,3 +3179,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.129.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.0...v1.129.1
 [1.130.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.1...v1.130.0
 [1.131.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.130.0...v1.131.0
+[1.131.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.0...v1.131.1
