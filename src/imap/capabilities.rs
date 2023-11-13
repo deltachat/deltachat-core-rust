@@ -9,6 +9,10 @@ pub(crate) struct Capabilities {
     /// <https://tools.ietf.org/html/rfc2177>
     pub can_idle: bool,
 
+    /// True if the server has NOTIFY capability as defined in
+    /// <https://tools.ietf.org/html/rfc5465>
+    pub can_notify: bool,
+
     /// True if the server has MOVE capability as defined in
     /// <https://tools.ietf.org/html/rfc6851>
     pub can_move: bool,

@@ -448,6 +448,22 @@ impl Imap {
         self.session = None;
     }
 
+    /// Tries to setup NOTIFY.
+    pub async fn setup_notify(&mut self, context: &Context) -> Result<()> {
+        let session = self
+            .session
+            .as_mut()
+            .context("no IMAP connection established")?;
+        if session.can_notify() && !session.notify_set {
+            let cmd = format!("NOTIFY SET (selected (Messagenew {PREFETCH_FLAGS} messageexpunge))");
+            session.run_command_and_check_ok(cmd).await?;
+            info!(context, "Enabled NOTIFY");
+            session.notify_set = true;
+        }
+
+        Ok(())
+    }
+
     /// FETCH-MOVE-DELETE iteration.
     ///
     /// Prefetches headers and downloads new message from the folder, moves messages away from the
@@ -720,7 +736,9 @@ impl Imap {
                 .await
                 .context("prefetch_existing_msgs")?
         } else {
-            self.prefetch(old_uid_next).await.context("prefetch")?
+            self.prefetch(context, old_uid_next)
+                .await
+                .context("prefetch")?
         };
         let read_cnt = msgs.len();
 
@@ -1329,7 +1347,13 @@ impl Imap {
 
     /// Prefetch all messages greater than or equal to `uid_next`. Returns a list of fetch results
     /// in the order of ascending delivery time to the server (INTERNALDATE).
-    async fn prefetch(&mut self, uid_next: u32) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
+    async fn prefetch(
+        &mut self,
+        context: &Context,
+        uid_next: u32,
+    ) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
+        self.setup_notify(context).await?;
+
         let session = self
             .session
             .as_mut()

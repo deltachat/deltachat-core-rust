@@ -595,6 +595,7 @@ impl Context {
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
         let sync_msgs = self.get_config_int(Config::SyncMsgs).await?;
         let disable_idle = self.get_config_bool(Config::DisableIdle).await?;
+        let disable_notify = self.get_config_bool(Config::DisableNotify).await?;
 
         let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;", ()).await?;
 
@@ -708,6 +709,7 @@ impl Context {
         res.insert("bcc_self", bcc_self.to_string());
         res.insert("sync_msgs", sync_msgs.to_string());
         res.insert("disable_idle", disable_idle.to_string());
+        res.insert("disable_notify", disable_notify.to_string());
         res.insert("private_key_count", prv_key_cnt.to_string());
         res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);

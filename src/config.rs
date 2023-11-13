@@ -296,6 +296,12 @@ pub enum Config {
     #[strum(props(default = "0"))]
     DisableIdle,
 
+    /// Whether to avoid using IMAP NOTIFY even if the server supports it.
+    ///
+    /// This is a developer option for testing prefetch without NOTIFY.
+    #[strum(props(default = "0"))]
+    DisableNotify,
+
     /// Defines the max. size (in bytes) of messages downloaded automatically.
     /// 0 = no limit.
     #[strum(props(default = "0"))]
