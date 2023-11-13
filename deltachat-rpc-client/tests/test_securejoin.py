@@ -60,6 +60,33 @@ def test_qr_securejoin(acfactory):
     assert bob_contact_alice_snapshot.is_verified
 
 
+def test_qr_securejoin_contact_request(acfactory) -> None:
+    """Alice invites Bob to a group when Bob's chat with Alice is in a contact request mode."""
+    alice, bob = acfactory.get_online_accounts(2)
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob.send_text("Hello!")
+
+    snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello!"
+    bob_chat_alice = snapshot.chat
+    assert bob_chat_alice.get_basic_snapshot().is_contact_request
+
+    alice_chat = alice.create_group("Verified group", protect=True)
+    logging.info("Bob joins verified group")
+    qr_code, _svg = alice_chat.get_qr_code()
+    bob.secure_join(qr_code)
+    while True:
+        event = bob.wait_for_event()
+        if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
+            break
+
+    # Chat stays being a contact request.
+    assert bob_chat_alice.get_basic_snapshot().is_contact_request
+
+
 def test_verified_group_recovery(acfactory, rpc) -> None:
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 
