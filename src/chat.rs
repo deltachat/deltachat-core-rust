@@ -993,8 +993,9 @@ impl ChatId {
                    AND y.contact_id > 9
                    AND x.chat_id=?
                    AND y.chat_id<>x.chat_id
+                   AND y.chat_id>?
                  GROUP BY y.chat_id",
-                (self,),
+                (self, DC_CHAT_ID_LAST_SPECIAL),
                 |row| {
                     let chat_id: ChatId = row.get(0)?;
                     let intersection: f64 = row.get(1)?;
