@@ -643,7 +643,7 @@ async fn add_parts(
                         chat_id = None;
                     } else {
                         let s = stock_str::unknown_sender_for_chat(context).await;
-                        mime_parser.replace_msg_by_error(&s);
+                        mime_parser.set_error_for_all_parts(&s);
                     }
                 } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
@@ -1076,8 +1076,7 @@ async fn add_parts(
                 has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
             {
                 warn!(context, "Verification problem: {err:#}.");
-                let s = format!("{err}. See 'Info' for more details");
-                mime_parser.replace_msg_by_error(&s);
+                mime_parser.set_error_for_all_parts(&err.to_string());
             }
         }
     }
@@ -1626,8 +1625,7 @@ async fn create_or_lookup_group(
             has_verified_encryption(context, mime_parser, from_id, to_ids, Chattype::Group).await?
         {
             warn!(context, "Verification problem: {err:#}.");
-            let s = format!("{err}. See 'Info' for more details");
-            mime_parser.replace_msg_by_error(&s);
+            mime_parser.set_error_for_all_parts(&err.to_string());
         }
         ProtectionStatus::Protected
     } else {
@@ -1788,8 +1786,7 @@ async fn apply_group_changes(
             has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
         {
             warn!(context, "Verification problem: {err:#}.");
-            let s = format!("{err}. See 'Info' for more details");
-            mime_parser.replace_msg_by_error(&s);
+            mime_parser.set_error_for_all_parts(&err.to_string());
         }
 
         if !chat.is_protected() {
