@@ -40,14 +40,14 @@ async function run() {
           $head,
           `<a href="#" onclick="selectDeltaAccount(${account.id})">
           ${account.id}: ${account.addr!}
-          </a>&nbsp;`
+          </a>&nbsp;`,
         );
       } else {
         write(
           $head,
           `<a href="#">
           ${account.id}: (unconfigured)
-          </a>&nbsp;`
+          </a>&nbsp;`,
         );
       }
     }
@@ -65,7 +65,7 @@ async function run() {
       selectedAccount,
       0,
       null,
-      null
+      null,
     );
     for (const chatId of chats) {
       const chat = await client.rpc.getFullChatById(selectedAccount, chatId);
@@ -74,11 +74,11 @@ async function run() {
         selectedAccount,
         chatId,
         false,
-        false
+        false,
       );
       const messages = await client.rpc.getMessages(
         selectedAccount,
-        messageIds
+        messageIds,
       );
       for (const [_messageId, message] of Object.entries(messages)) {
         if (message.kind === "message") write($main, `<p>${message.text}</p>`);
@@ -94,9 +94,9 @@ async function run() {
         <p class="message">
           [<strong>${event.kind}</strong> on account ${accountId}]<br>
           <em>f1:</em> ${JSON.stringify(
-            Object.assign({}, event, { kind: undefined })
+            Object.assign({}, event, { kind: undefined }),
           )}
-        </p>`
+        </p>`,
     );
   }
 }
