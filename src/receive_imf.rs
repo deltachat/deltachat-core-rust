@@ -560,6 +560,11 @@ async fn add_parts(
             markseen_on_imap_table(context, rfc724_mid).await.ok();
         }
 
+        if chat_id.is_none() && is_mdn {
+            chat_id = Some(DC_CHAT_ID_TRASH);
+            info!(context, "Message is an MDN (TRASH).",);
+        }
+
         if chat_id.is_none() {
             // try to assign to a chat based on In-Reply-To/References:
 
