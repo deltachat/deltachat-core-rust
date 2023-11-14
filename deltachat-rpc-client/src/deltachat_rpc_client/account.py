@@ -111,6 +111,20 @@ class Account:
         contacts = self._rpc.get_blocked_contacts(self.id)
         return [AttrDict(contact=Contact(self, contact["id"]), **contact) for contact in contacts]
 
+    def get_chat_by_contact(self, contact: Union[int, Contact]) -> Optional[Chat]:
+        """Return 1:1 chat for a contact if it exists."""
+        if isinstance(contact, Contact):
+            assert contact.account == self
+            contact_id = contact.id
+        elif isinstance(contact, int):
+            contact_id = contact
+        else:
+            raise ValueError(f"{contact!r} is not a contact")
+        chat_id = self._rpc.get_chat_id_by_contact_id(self.id, contact_id)
+        if chat_id:
+            return Chat(self, chat_id)
+        return None
+
     def get_contacts(
         self,
         query: Optional[str] = None,
