@@ -463,7 +463,7 @@ async fn add_parts(
     let mut chat_id_blocked = Blocked::Not;
 
     let mut better_msg = None;
-    let mut group_changes_msgs = Vec::new();
+    let mut group_changes_msgs = (Vec::new(), None);
     if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg = Some(stock_str::msg_location_enabled_by(context, from_id).await);
     }
@@ -656,8 +656,7 @@ async fn add_parts(
                 }
             }
 
-            let new_better_msg;
-            (group_changes_msgs, new_better_msg) = apply_group_changes(
+            group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -667,7 +666,6 @@ async fn add_parts(
                 is_partial_download.is_some(),
             )
             .await?;
-            better_msg = better_msg.or(new_better_msg)
         }
 
         if chat_id.is_none() {
@@ -901,8 +899,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            let new_better_msg;
-            (group_changes_msgs, new_better_msg) = apply_group_changes(
+            group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
                 sent_timestamp,
@@ -912,7 +909,6 @@ async fn add_parts(
                 is_partial_download.is_some(),
             )
             .await?;
-            better_msg = better_msg.or(new_better_msg)
         }
 
         if chat_id.is_none() && self_sent {
@@ -1142,7 +1138,13 @@ async fn add_parts(
 
     let mut created_db_entries = Vec::with_capacity(mime_parser.parts.len());
 
-    group_changes_msgs = group_changes_msgs.into_iter().rev().collect();
+    if let Some(msg) = group_changes_msgs.1 {
+        match &better_msg {
+            None => better_msg = Some(msg),
+            Some(_) => group_changes_msgs.0.push(msg),
+        }
+    }
+    let mut group_changes_msgs: Vec<_> = group_changes_msgs.0.into_iter().rev().collect();
     let mut parts = mime_parser.parts.iter_mut().peekable();
     while let Some(part) = parts.peek() {
         if part.is_reaction {
@@ -1309,7 +1311,7 @@ RETURNING id
         debug_assert!(!row_id.is_special());
         created_db_entries.push(row_id);
 
-        if group_changes_msg.is_none() && group_changes_msgs.is_empty() {
+        if group_changes_msg.is_none() {
             parts.next();
         }
     }
