@@ -87,6 +87,71 @@ def test_qr_securejoin_contact_request(acfactory) -> None:
     assert bob_chat_alice.get_basic_snapshot().is_contact_request
 
 
+def test_qr_readreceipt(acfactory) -> None:
+    alice, bob, charlie = acfactory.get_online_accounts(3)
+
+    logging.info("Bob and Charlie setup contact with Alice")
+    qr_code, _svg = alice.get_qr_code()
+
+    bob.secure_join(qr_code)
+    charlie.secure_join(qr_code)
+
+    for joiner in [bob, charlie]:
+        while True:
+            event = joiner.wait_for_event()
+            if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
+                break
+
+    logging.info("Alice creates a verified group")
+    group = alice.create_group("Group", protect=True)
+
+    bob_addr = bob.get_config("addr")
+    charlie_addr = charlie.get_config("addr")
+
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_contact_charlie = alice.create_contact(charlie_addr, "Charlie")
+
+    group.add_contact(alice_contact_bob)
+    group.add_contact(alice_contact_charlie)
+
+    # Promote a group.
+    group.send_message(text="Hello")
+
+    logging.info("Bob and Charlie receive a group")
+
+    bob_msg_id = bob.wait_for_incoming_msg_event().msg_id
+    bob_message = bob.get_message_by_id(bob_msg_id)
+    bob_snapshot = bob_message.get_snapshot()
+    assert bob_snapshot.text == "Hello"
+
+    # Charlie receives the same "Hello" message as Bob.
+    charlie.wait_for_incoming_msg_event()
+
+    logging.info("Bob sends a message to the group")
+
+    bob_out_message = bob_snapshot.chat.send_message(text="Hi from Bob!")
+
+    charlie_msg_id = charlie.wait_for_incoming_msg_event().msg_id
+    charlie_message = charlie.get_message_by_id(charlie_msg_id)
+    charlie_snapshot = charlie_message.get_snapshot()
+    assert charlie_snapshot.text == "Hi from Bob!"
+
+    bob_contact_charlie = bob.create_contact(charlie_addr, "Charlie")
+    assert not bob.get_chat_by_contact(bob_contact_charlie)
+
+    logging.info("Charlie reads Bob's message")
+    charlie_message.mark_seen()
+
+    while True:
+        event = bob.wait_for_event()
+        if event["kind"] == "MsgRead" and event["msg_id"] == bob_out_message.id:
+            break
+
+    # Receiving a read receipt from Charlie
+    # should not unblock hidden chat with Charlie for Bob.
+    assert not bob.get_chat_by_contact(bob_contact_charlie)
+
+
 def test_verified_group_recovery(acfactory, rpc) -> None:
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 
