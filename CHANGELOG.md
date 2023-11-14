@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.131.2] - 2023-11-14
+
+### API-Changes
+
+- deltachat-rpc-client: add `Account.get_chat_by_contact()`.
+
+### Features / Changes
+
+- Do not post "... verified" messages on QR scan success.
+- Never drop better message from `apply_group_changes()`.
+
+### Fixes
+
+- Assign MDNs to the trash chat early to prevent received MDNs from creating or unblocking 1:1 chats.
+- Allow to securejoin groups when 1:1 chat with the inviter is a contact request.
+- Add "setup changed" message for verified key before the message.
+- Ignore special chats when calculating similar chats.
+
 ## [1.131.1] - 2023-11-13
 
 ### Fixes
@@ -3180,3 +3198,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.130.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.129.1...v1.130.0
 [1.131.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.130.0...v1.131.0
 [1.131.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.0...v1.131.1
+[1.131.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.1...v1.131.2
