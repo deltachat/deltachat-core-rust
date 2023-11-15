@@ -35,7 +35,7 @@ impl Session {
         let status = self
             .status(folder, "(UIDNEXT)")
             .await
-            .context("STATUS (UIDNEXT) error for {folder:?}")?;
+            .with_context(|| format!("STATUS (UIDNEXT) error for {folder:?}"))?;
         if let Some(uid_next) = status.uid_next {
             let expected_uid_next = get_uid_next(context, folder)
                 .await

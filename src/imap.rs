@@ -619,11 +619,11 @@ impl Imap {
                 .inner
                 .status(folder, "(UIDNEXT)")
                 .await
-                .context("STATUS (UIDNEXT) error for {folder:?}")?;
+                .with_context(|| format!("STATUS (UIDNEXT) error for {folder:?}"))?;
 
             status
                 .uid_next
-                .context("STATUS {folder} (UIDNEXT) did not return UIDNEXT")?
+                .with_context(|| format!("STATUS {folder} (UIDNEXT) did not return UIDNEXT"))?
         };
         mailbox.uid_next = Some(new_uid_next);
 
