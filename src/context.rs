@@ -413,7 +413,8 @@ impl Context {
                 .is_some()
             {
                 let mut lock = self.ratelimit.write().await;
-                *lock = Ratelimit::new(Duration::new(40, 0), 6.0);
+                // Allow at least 1 message every second + a burst of 3.
+                *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
             }
         }
         self.scheduler.start(self.clone()).await;
