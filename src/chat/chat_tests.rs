@@ -3031,6 +3031,39 @@ async fn test_sync_block_before_first_msg() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_sync_delete_chat() -> Result<()> {
+    let alice0 = &TestContext::new_alice().await;
+    let alice1 = &TestContext::new_alice().await;
+    for a in [alice0, alice1] {
+        a.set_config_bool(Config::SyncMsgs, true).await?;
+    }
+    let bob = TestContext::new_bob().await;
+
+    let ba_chat = bob.create_chat(alice0).await;
+    let sent_msg = bob.send_text(ba_chat.id, "hi").await;
+    let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+    let a1b_chat_id = alice1.recv_msg(&sent_msg).await.chat_id;
+    a0b_chat_id.accept(alice0).await?;
+    sync(alice0, alice1).await;
+    a0b_chat_id.delete(alice0).await?;
+    sync(alice0, alice1).await;
+    alice1.assert_no_chat(a1b_chat_id).await;
+
+    let bob_grp_chat_id = bob
+        .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[alice0])
+        .await;
+    let sent_msg = bob.send_text(bob_grp_chat_id, "hi").await;
+    let a0_grp_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+    let a1_grp_chat_id = alice1.recv_msg(&sent_msg).await.chat_id;
+    a0_grp_chat_id.accept(alice0).await?;
+    sync(alice0, alice1).await;
+    a0_grp_chat_id.delete(alice0).await?;
+    sync(alice0, alice1).await;
+    alice1.assert_no_chat(a1_grp_chat_id).await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_sync_adhoc_grp() -> Result<()> {
     let alice0 = &TestContext::new_alice().await;
     let alice1 = &TestContext::new_alice().await;
@@ -3212,6 +3245,10 @@ async fn test_sync_broadcast() -> Result<()> {
     assert!(get_past_chat_contacts(alice1, a1_broadcast_id)
         .await?
         .is_empty());
+
+    a0_broadcast_id.delete(alice0).await?;
+    sync(alice0, alice1).await;
+    alice1.assert_no_chat(a1_broadcast_id).await;
     Ok(())
 }
 
