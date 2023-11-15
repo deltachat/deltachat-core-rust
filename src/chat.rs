@@ -1935,11 +1935,18 @@ impl Chat {
 
     /// Sends a `SyncAction` synchronising chat contacts to other devices.
     pub(crate) async fn sync_contacts(&self, context: &Context) -> Result<()> {
-        let mut addrs = Vec::new();
-        for contact_id in get_chat_contacts(context, self.id).await? {
-            let contact = Contact::get_by_id(context, contact_id).await?;
-            addrs.push(contact.get_addr().to_string());
-        }
+        let addrs = context
+            .sql
+            .query_map(
+                "SELECT c.addr \
+                FROM contacts c INNER JOIN chats_contacts cc \
+                ON c.id=cc.contact_id \
+                WHERE cc.chat_id=?",
+                (self.id,),
+                |row| row.get::<_, String>(0),
+                |addrs| addrs.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await?;
         self.sync(context, SyncAction::SetContacts(addrs)).await
     }
 
