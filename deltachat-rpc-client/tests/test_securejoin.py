@@ -152,7 +152,8 @@ def test_qr_readreceipt(acfactory) -> None:
     assert not bob.get_chat_by_contact(bob_contact_charlie)
 
 
-def test_verified_group_recovery(acfactory, rpc) -> None:
+def test_verified_group_recovery(acfactory) -> None:
+    """Tests verified group recovery by reverifying a member and sending a message in a group."""
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 
     logging.info("ac1 creates verified group")
@@ -194,60 +195,38 @@ def test_verified_group_recovery(acfactory, rpc) -> None:
     assert len(ac3_chat.get_contacts()) == 3
     ac3_chat.send_text("Hi!")
 
-    msg_id = ac2.wait_for_incoming_msg_event().msg_id
-    message = ac2.get_message_by_id(msg_id)
-    snapshot = message.get_snapshot()
-    logging.info("Received message %s", snapshot.text)
+    snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Hi!"
 
-    # ac1 contact cannot be verified by ac2 because ac3 did not gossip ac1 key in the "Hi!" message.
-    ac1_contact = ac2.get_contact_by_addr(ac1.get_config("addr"))
-    assert not ac1_contact.get_snapshot().is_verified
-
-    ac3_contact_id_ac1 = rpc.lookup_contact_id_by_addr(ac3.id, ac1.get_config("addr"))
-    ac3_chat.remove_contact(ac3_contact_id_ac1)
-    ac3_chat.add_contact(ac3_contact_id_ac1)
-
     msg_id = ac2.wait_for_incoming_msg_event().msg_id
     message = ac2.get_message_by_id(msg_id)
     snapshot = message.get_snapshot()
-    logging.info("ac2 got event message: %s", snapshot.text)
-    assert "removed" in snapshot.text
+    assert snapshot.text == "Hi!"
 
-    event = ac2.wait_for_incoming_msg_event()
-    msg_id = event.msg_id
-    chat_id = event.chat_id
-    message = ac2.get_message_by_id(msg_id)
-    snapshot = message.get_snapshot()
-    logging.info("ac2 got event message: %s", snapshot.text)
-    assert "added" in snapshot.text
-
+    # ac1 contact is verified for ac2 because ac3 gossiped ac1 key in the "Hi!" message.
+    ac1_contact = ac2.get_contact_by_addr(ac1.get_config("addr"))
     assert ac1_contact.get_snapshot().is_verified
 
-    chat = Chat(ac2, chat_id)
-    chat.send_text("Works again!")
+    # ac2 can write messages to the group.
+    snapshot.chat.send_text("Works again!")
 
-    msg_id = ac3.wait_for_incoming_msg_event().msg_id
-    message = ac3.get_message_by_id(msg_id)
-    snapshot = message.get_snapshot()
+    snapshot = ac3.get_message_by_id(ac3.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Works again!"
 
-    ac1.wait_for_incoming_msg_event()  # Hi!
-    ac1.wait_for_incoming_msg_event()  # Member removed
-    ac1.wait_for_incoming_msg_event()  # Member added
     snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Works again!"
-
-    # ac2 is now verified by ac3 for ac1
-    ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
-    assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
 
     ac1_chat_messages = snapshot.chat.get_messages()
     ac2_addr = ac2.get_config("addr")
     assert ac1_chat_messages[-2].get_snapshot().text == f"Changed setup for {ac2_addr}"
 
+    # ac2 is now verified by ac3 for ac1
+    ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
+    assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
+
 
 def test_verified_group_member_added_recovery(acfactory) -> None:
+    """Tests verified group recovery by reverifiying than removing and adding a member back."""
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
 
     logging.info("ac1 creates verified group")
