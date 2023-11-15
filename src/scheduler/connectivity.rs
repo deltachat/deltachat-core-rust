@@ -2,7 +2,7 @@ use core::fmt;
 use std::cmp::min;
 use std::{iter::once, ops::Deref, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use humansize::{format_size, BINARY};
 use tokio::sync::Mutex;
 
@@ -299,6 +299,10 @@ impl Context {
                     .yellow {
                         background-color: #fdc625;
                     }
+                    .not-started-error {
+                        font-size: 2em;
+                        color: red;
+                    }
                 </style>
             </head>
             <body>"#
@@ -318,7 +322,8 @@ impl Context {
                 sched.smtp.state.connectivity.clone(),
             ),
             _ => {
-                return Err(anyhow!("Not started"));
+                ret += "<div class=\"not-started-error\">Error: IO Not Started</div><p>Please report this issue to the app developer.</p>\n</body></html>\n";
+                return Ok(ret);
             }
         };
         drop(lock);
