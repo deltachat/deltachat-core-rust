@@ -4580,15 +4580,18 @@ int dc_msg_has_html (dc_msg_t* msg);
   * if they are larger than the limit set by the dc_set_config()-option `download_limit`.
   *
   * The function returns one of:
-  * - @ref DC_DOWNLOAD_DONE        - The message does not need any further download action
-  *                                  and should be rendered as usual.
-  * - @ref DC_DOWNLOAD_AVAILABLE   - There is additional content to download.
-  *                                  In addition to the usual message rendering,
-  *                                  the UI shall show a download button that calls dc_download_full_msg()
-  * - @ref DC_DOWNLOAD_IN_PROGRESS - Download was started with dc_download_full_msg() and is still in progress.
-  *                                  If the download fails or succeeds,
-  *                                  the event @ref DC_EVENT_MSGS_CHANGED is emitted.
-  * - @ref DC_DOWNLOAD_FAILURE     - Download error, the user may start over calling dc_download_full_msg() again.
+  * - @ref DC_DOWNLOAD_DONE           - The message does not need any further download action
+  *                                     and should be rendered as usual.
+  * - @ref DC_DOWNLOAD_AVAILABLE      - There is additional content to download.
+  *                                     In addition to the usual message rendering,
+  *                                     the UI shall show a download button that calls dc_download_full_msg()
+  * - @ref DC_DOWNLOAD_IN_PROGRESS    - Download was started with dc_download_full_msg() and is still in progress.
+  *                                     If the download fails or succeeds,
+  *                                     the event @ref DC_EVENT_MSGS_CHANGED is emitted.
+  *
+  * - @ref DC_DOWNLOAD_UNDECIPHERABLE - The message does not need any futher download action.
+  *                                     It was fully downloaded, but we failed to decrypt it.
+  * - @ref DC_DOWNLOAD_FAILURE        - Download error, the user may start over calling dc_download_full_msg() again.
   *
   * @memberof dc_msg_t
   * @param msg The message object.
@@ -6433,22 +6436,27 @@ void dc_event_unref(dc_event_t* event);
 /**
  * Download not needed, see dc_msg_get_download_state() for details.
  */
-#define DC_DOWNLOAD_DONE          0
+#define DC_DOWNLOAD_DONE           0
 
 /**
  * Download available, see dc_msg_get_download_state() for details.
  */
-#define DC_DOWNLOAD_AVAILABLE    10
+#define DC_DOWNLOAD_AVAILABLE      10
 
 /**
  * Download failed, see dc_msg_get_download_state() for details.
  */
-#define DC_DOWNLOAD_FAILURE      20
+#define DC_DOWNLOAD_FAILURE        20
+
+/**
+ * Download not needed, see dc_msg_get_download_state() for details.
+ */
+#define DC_DOWNLOAD_UNDECIPHERABLE 30
 
 /**
  * Download in progress, see dc_msg_get_download_state() for details.
  */
-#define DC_DOWNLOAD_IN_PROGRESS  1000
+#define DC_DOWNLOAD_IN_PROGRESS    1000
 
 
 
