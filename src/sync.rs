@@ -53,14 +53,28 @@ pub(crate) enum SyncData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum SyncDataOrUnknown {
+    SyncData(SyncData),
+    Unknown(serde_json::Value),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct SyncItem {
     timestamp: i64,
-    data: SyncData,
+
+    data: SyncDataOrUnknown,
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SyncItems {
     items: Vec<SyncItem>,
+}
+
+impl From<SyncData> for SyncDataOrUnknown {
+    fn from(sync_data: SyncData) -> Self {
+        Self::SyncData(sync_data)
+    }
 }
 
 impl Context {
@@ -79,7 +93,10 @@ impl Context {
             return Ok(());
         }
 
-        let item = SyncItem { timestamp, data };
+        let item = SyncItem {
+            timestamp,
+            data: data.into(),
+        };
         let item = serde_json::to_string(&item)?;
         self.sql
             .execute("INSERT INTO multi_device_sync (item) VALUES(?);", (item,))
@@ -242,9 +259,15 @@ impl Context {
         info!(self, "executing {} sync item(s)", items.items.len());
         for item in &items.items {
             match &item.data {
-                AddQrToken(token) => self.add_qr_token(token).await,
-                DeleteQrToken(token) => self.delete_qr_token(token).await,
-                AlterChat { id, action } => self.sync_alter_chat(id, action).await,
+                SyncDataOrUnknown::SyncData(data) => match data {
+                    AddQrToken(token) => self.add_qr_token(token).await,
+                    DeleteQrToken(token) => self.delete_qr_token(token).await,
+                    AlterChat { id, action } => self.sync_alter_chat(id, action).await,
+                },
+                SyncDataOrUnknown::Unknown(data) => {
+                    warn!(self, "Ignored unknown sync item: {data}.");
+                    Ok(())
+                }
             }
             .log_err(self)
             .ok();
@@ -383,48 +406,32 @@ mod tests {
 
         assert!(t.parse_sync_items(r#"{"badname":[]}"#.to_string()).is_err());
 
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"BadItem":{"invitenumber":"in","auth":"a","grpid":null}}}]}"#
-                    .to_string(),
-            )
-            .is_err());
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":123}}}]}"#.to_string(),
-            )
-            .is_err()); // `123` is invalid for `String`
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":true}}}]}"#.to_string(),
-            )
-            .is_err()); // `true` is invalid for `String`
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":[]}}}]}"#.to_string(),
-            )
-            .is_err()); // `[]` is invalid for `String`
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":{}}}}]}"#.to_string(),
-            )
-            .is_err()); // `{}` is invalid for `String`
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","grpid":null}}}]}"#.to_string(),
-            )
-            .is_err()); // missing field
-
-        assert!(t.parse_sync_items(
-                r#"{"items":[{"timestamp":1631781318,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":"Burn"}}}]}"#.to_string(),
-            )
-            .is_err()); // Unknown enum value
+        for bad_item_example in [
+            r#"{"items":[{"timestamp":1631781316,"data":{"BadItem":{"invitenumber":"in","auth":"a","grpid":null}}}]}"#,
+            r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":123}}}]}"#, // `123` is invalid for `String`
+            r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":true}}}]}"#, // `true` is invalid for `String`
+            r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":[]}}}]}"#, // `[]` is invalid for `String`
+            r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","auth":{}}}}]}"#, // `{}` is invalid for `String`
+            r#"{"items":[{"timestamp":1631781316,"data":{"AddQrToken":{"invitenumber":"in","grpid":null}}}]}"#, // missing field
+            r#"{"items":[{"timestamp":1631781316,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":"Burn"}}}]}"#, // Unknown enum value
+        ] {
+            let sync_items = t.parse_sync_items(bad_item_example.to_string()).unwrap();
+            assert_eq!(sync_items.items.len(), 1);
+            assert!(matches!(sync_items.items[0].timestamp, 1631781316));
+            assert!(matches!(
+                sync_items.items[0].data,
+                SyncDataOrUnknown::Unknown(_)
+            ));
+        }
 
         // Test enums inside items and SystemTime
         let sync_items = t.parse_sync_items(
             r#"{"items":[{"timestamp":1631781318,"data":{"AlterChat":{"id":{"ContactAddr":"bob@example.net"},"action":{"SetMuted":{"Until":{"secs_since_epoch":42,"nanos_since_epoch":999000000}}}}}}]}"#.to_string(),
         )?;
         assert_eq!(sync_items.items.len(), 1);
-        let AlterChat { id, action } = &sync_items.items.get(0).unwrap().data else {
+        let SyncDataOrUnknown::SyncData(AlterChat { id, action }) =
+            &sync_items.items.get(0).unwrap().data
+        else {
             bail!("bad item");
         };
         assert_eq!(
@@ -466,7 +473,9 @@ mod tests {
         )?;
 
         assert_eq!(sync_items.items.len(), 1);
-        if let AddQrToken(token) = &sync_items.items.get(0).unwrap().data {
+        if let SyncDataOrUnknown::SyncData(AddQrToken(token)) =
+            &sync_items.items.get(0).unwrap().data
+        {
             assert_eq!(token.invitenumber, "in");
             assert_eq!(token.auth, "yip");
             assert_eq!(token.grpid, None);
