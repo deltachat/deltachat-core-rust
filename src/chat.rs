@@ -3737,7 +3737,7 @@ async fn rename_ex(
     if !success {
         bail!("Failed to set name");
     }
-    if sync.into() {
+    if sync.into() && chat.name != new_name {
         let sync_name = sync_name.to_string();
         chat.sync(context, SyncAction::Rename(sync_name))
             .await
