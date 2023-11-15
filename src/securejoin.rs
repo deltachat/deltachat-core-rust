@@ -426,6 +426,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
+            contact_id.regossip_keys(context).await?;
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited).await?;
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));

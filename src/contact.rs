@@ -149,6 +149,22 @@ impl ContactId {
             .await?;
         Ok(())
     }
+
+    /// Reset gossip timestamp in all chats with this contact.
+    pub(crate) async fn regossip_keys(&self, context: &Context) -> Result<()> {
+        context
+            .sql
+            .execute(
+                "UPDATE chats
+                 SET gossiped_timestamp=0
+                 WHERE EXISTS (SELECT 1 FROM chats_contacts
+                               WHERE chats_contacts.chat_id=chats.id
+                               AND chats_contacts.contact_id=?)",
+                (self,),
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 impl fmt::Display for ContactId {
