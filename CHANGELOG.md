@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.131.3] - 2023-11-15
+
+### Fixes
+
+- Update async-imap to 0.9.4 which does not ignore EOF on FETCH.
+- Reset gossiped timestamp on securejoin.
+- sync: Ignore unknown sync items to provide forward compatibility and avoid creating empty message bubbles.
+- sync: Skip sync when chat name is set to the current one.
+- Return connectivity HTML with an error when IO is stopped.
+
 ## [1.131.2] - 2023-11-14
 
 ### API-Changes
@@ -3199,3 +3209,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.130.0...v1.131.0
 [1.131.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.0...v1.131.1
 [1.131.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.1...v1.131.2
+[1.131.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.2...v1.131.3
