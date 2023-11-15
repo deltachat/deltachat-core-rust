@@ -743,6 +743,15 @@ impl TestContext {
         Chat::load_from_db(self, chat_id).await.unwrap()
     }
 
+    pub async fn assert_no_chat(&self, id: ChatId) {
+        assert!(Chat::load_from_db(self, id).await.is_err());
+        assert!(!self
+            .sql
+            .exists("SELECT COUNT(*) FROM chats WHERE id=?", (id,))
+            .await
+            .unwrap());
+    }
+
     /// Sends out the text message.
     ///
     /// This is not hooked up to any SMTP-IMAP pipeline, so the other account must call
