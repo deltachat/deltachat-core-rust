@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.131.4] - 2023-11-16
+
+### Documentation
+
+- Document DC_DOWNLOAD_UNDECIPHERABLE.
+
+### Fixes
+
+- Always add "Member added" as system message.
+
 ## [1.131.3] - 2023-11-15
 
 ### Fixes
