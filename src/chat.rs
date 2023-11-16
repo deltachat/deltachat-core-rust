@@ -3692,7 +3692,6 @@ async fn rename_ex(
     chat_id: ChatId,
     new_name: &str,
 ) -> Result<()> {
-    let sync_name = new_name;
     let new_name = improve_single_line_input(new_name);
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success = false;
@@ -3745,7 +3744,7 @@ async fn rename_ex(
         bail!("Failed to set name");
     }
     if sync.into() && chat.name != new_name {
-        let sync_name = sync_name.to_string();
+        let sync_name = new_name.to_string();
         chat.sync(context, SyncAction::Rename(sync_name))
             .await
             .log_err(context)
