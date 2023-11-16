@@ -1143,9 +1143,23 @@ async fn add_parts(
             Some(_) => group_changes_msgs.0.push(msg),
         }
     }
-    let mut group_changes_msgs: Vec<_> = group_changes_msgs.0.into_iter().rev().collect();
-    let mut parts = mime_parser.parts.iter_mut().peekable();
-    while let Some(part) = parts.peek() {
+
+    for group_changes_msg in group_changes_msgs.0 {
+        // Currently all additional group changes messages are "Member added".
+        chat::add_info_msg_with_cmd(
+            context,
+            chat_id,
+            &group_changes_msg,
+            SystemMessage::MemberAddedToGroup,
+            sort_timestamp,
+            None,
+            None,
+            None,
+        )
+        .await?;
+    }
+
+    for part in &mime_parser.parts {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
             set_msg_reaction(
@@ -1178,10 +1192,7 @@ async fn add_parts(
         }
 
         let mut txt_raw = "".to_string();
-        let group_changes_msg = group_changes_msgs.pop();
-        let (msg, typ): (&str, Viewtype) = if let Some(msg) = &group_changes_msg {
-            (msg, Viewtype::Text)
-        } else if let Some(better_msg) = &better_msg {
+        let (msg, typ): (&str, Viewtype) = if let Some(better_msg) = &better_msg {
             (better_msg, Viewtype::Text)
         } else {
             (&part.msg, part.typ)
@@ -1309,10 +1320,6 @@ RETURNING id
 
         debug_assert!(!row_id.is_special());
         created_db_entries.push(row_id);
-
-        if group_changes_msg.is_none() {
-            parts.next();
-        }
     }
 
     // check all parts whether they contain a new logging webxdc

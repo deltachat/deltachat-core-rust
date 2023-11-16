@@ -3,6 +3,6 @@ Group#Chat#10: Group chat [3 member(s)]
 Msg#10:  (Contact#Contact#11): I created a group [FRESH]
 Msg#11:  (Contact#Contact#11): Member Fiona (fiona@example.net) added by alice@example.org. [FRESH][INFO]
 Msg#12: Me (Contact#Contact#Self): You removed member Fiona (fiona@example.net). [INFO] o
-Msg#13:  (Contact#Contact#11): Member Fiona (fiona@example.net) added. [FRESH]
+Msg#13: info (Contact#Contact#Info): Member Fiona (fiona@example.net) added. [NOTICED][INFO]
 Msg#14:  (Contact#Contact#11): Welcome, Fiona! [FRESH]
 --------------------------------------------------------------------------------
