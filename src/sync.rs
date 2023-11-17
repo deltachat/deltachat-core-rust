@@ -20,7 +20,7 @@ use crate::tools::time;
 use crate::{stock_str, token};
 
 /// Whether to send device sync messages. Aimed for usage in the internal API.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Sync {
     Nosync,
     Sync,
@@ -31,6 +31,15 @@ impl From<Sync> for bool {
         match sync {
             Sync::Nosync => false,
             Sync::Sync => true,
+        }
+    }
+}
+
+impl From<bool> for Sync {
+    fn from(sync: bool) -> Sync {
+        match sync {
+            false => Sync::Nosync,
+            true => Sync::Sync,
         }
     }
 }
@@ -49,6 +58,10 @@ pub(crate) enum SyncData {
     AlterChat {
         id: chat::SyncId,
         action: chat::SyncAction,
+    },
+    Config {
+        key: Config,
+        val: String,
     },
 }
 
@@ -263,6 +276,10 @@ impl Context {
                     AddQrToken(token) => self.add_qr_token(token).await,
                     DeleteQrToken(token) => self.delete_qr_token(token).await,
                     AlterChat { id, action } => self.sync_alter_chat(id, action).await,
+                    SyncData::Config { key, val } => match key.is_synced() {
+                        true => self.set_config_ex(Sync::Nosync, *key, Some(val)).await,
+                        false => Ok(()),
+                    },
                 },
                 SyncDataOrUnknown::Unknown(data) => {
                     warn!(self, "Ignored unknown sync item: {data}.");
