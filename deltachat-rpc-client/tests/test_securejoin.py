@@ -29,10 +29,18 @@ def test_qr_securejoin(acfactory):
 
     logging.info("Alice creates a verified group")
     alice_chat = alice.create_group("Verified group", protect=True)
+    assert alice_chat.get_basic_snapshot().is_protected
 
     logging.info("Bob joins verified group")
     qr_code, _svg = alice_chat.get_qr_code()
     bob.secure_join(qr_code)
+
+    # Check that at least some of the handshake messages are deleted.
+    for ac in [alice, bob]:
+        while True:
+            event = ac.wait_for_event()
+            if event["kind"] == "ImapMessageDeleted":
+                break
 
     alice.wait_for_securejoin_inviter_success()
 
@@ -42,6 +50,10 @@ def test_qr_securejoin(acfactory):
     assert alice_contact_bob_snapshot.is_verified
 
     bob.wait_for_securejoin_joiner_success()
+
+    snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Member Me ({}) added by {}.".format(bob.get_config("addr"), alice.get_config("addr"))
+    assert snapshot.chat.get_basic_snapshot().is_protected
 
     # Test that Bob verified Alice's profile.
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
