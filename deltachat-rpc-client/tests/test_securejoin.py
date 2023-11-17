@@ -359,3 +359,31 @@ def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory):
         ev = ac2.wait_for_event()
         if "added by unrelated SecureJoin" in str(ev):
             return
+
+
+def test_qr_new_group_unblocked(acfactory):
+    """Regression test for a bug introduced in core v1.113.0.
+    ac2 scans a verified group QR code created by ac1.
+    This results in creation of a blocked 1:1 chat with ac1 on ac2,
+    but ac1 contact is not blocked on ac2.
+    Then ac1 creates a group, adds ac2 there and promotes it by sending a message.
+    ac2 should receive a message and create a contact request for the group.
+    Due to a bug previously ac2 created a blocked group.
+    """
+
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac1_chat = ac1.create_group("Group for joining", protect=True)
+    qr_code, _svg = ac1_chat.get_qr_code()
+    ac2.secure_join(qr_code)
+
+    ac1.wait_for_securejoin_inviter_success()
+
+    ac1_new_chat = ac1.create_group("Another group")
+    ac1_new_chat.add_contact(ac1.get_contact_by_addr(ac2.get_config("addr")))
+    # Receive "Member added" message.
+    ac2.wait_for_incoming_msg_event()
+
+    ac1_new_chat.send_text("Hello!")
+    ac2_msg = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert ac2_msg.text == "Hello!"
+    assert ac2_msg.chat.get_basic_snapshot().is_contact_request
