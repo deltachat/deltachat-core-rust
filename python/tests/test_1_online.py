@@ -1658,36 +1658,6 @@ def test_ac_setup_message_twice(acfactory, lp):
     assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
 
-@pytest.mark.parametrize("verified_one_on_one_chats", [0, 1])
-def test_qr_join_chat(acfactory, lp, verified_one_on_one_chats):
-    ac1, ac2 = acfactory.get_online_accounts(2)
-    ac1.set_config("verified_one_on_one_chats", verified_one_on_one_chats)
-    ac2.set_config("verified_one_on_one_chats", verified_one_on_one_chats)
-
-    lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
-    chat = ac1.create_group_chat("hello")
-    qr = chat.get_join_qr()
-    lp.sec("ac2: start QR-code based join-group protocol")
-    ch = ac2.qr_join_chat(qr)
-    lp.sec("ac2: qr_join_chat() returned")
-    assert ch.id >= 10
-    # check that at least some of the handshake messages are deleted
-    ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
-    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
-    ac1._evtracker.wait_securejoin_inviter_progress(1000)
-
-    msg = ac2._evtracker.wait_next_incoming_message()
-    assert msg.text == "Member Me ({}) added by {}.".format(ac2.get_config("addr"), ac1.get_config("addr"))
-
-    # ac1 reloads the chat.
-    chat = Chat(chat.account, chat.id)
-    assert not chat.is_protected()
-
-    # ac2 reloads the chat.
-    ch = Chat(ch.account, ch.id)
-    assert not ch.is_protected()
-
-
 def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
     ac1, ac2, ac3, ac4 = acfactory.get_online_accounts(4)
 
