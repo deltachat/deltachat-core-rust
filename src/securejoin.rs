@@ -770,7 +770,7 @@ fn encrypted_and_signed(
 mod tests {
     use super::*;
     use crate::chat;
-    use crate::chat::ProtectionStatus;
+    use crate::chat::{remove_contact_from_chat, ProtectionStatus};
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::contact::ContactAddress;
@@ -1350,6 +1350,34 @@ First thread."#;
         let chat_id = msg.chat_id;
 
         assert!(get_securejoin_qr(&alice, Some(chat_id)).await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_unknown_sender() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        tcm.execute_securejoin(&alice, &bob).await;
+
+        let alice_chat_id = alice
+            .create_group_with_members(ProtectionStatus::Protected, "Group with Bob", &[&bob])
+            .await;
+
+        let sent = alice.send_text(alice_chat_id, "Hi!").await;
+        let bob_chat_id = bob.recv_msg(&sent).await.chat_id;
+
+        let sent = bob.send_text(bob_chat_id, "Hi hi!").await;
+
+        let alice_bob_contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+
+        // The message from Bob is delivered late, Bob is already removed.
+        let msg = alice.recv_msg(&sent).await;
+        assert_eq!(msg.text, "Hi hi!");
+        assert_eq!(msg.error.unwrap(), "Unknown sender for this chat.");
+
         Ok(())
     }
 }
