@@ -298,3 +298,64 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     # ac2 is now verified by ac3 for ac1
     ac1_contact_ac3 = ac1.get_contact_by_addr(ac3.get_config("addr"))
     assert ac1_contact_ac2.get_snapshot().verifier_id == ac1_contact_ac3.id
+
+
+def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory):
+    """Regression test for
+    issue <https://github.com/deltachat/deltachat-core-rust/issues/4894>.
+    """
+    ac1, ac2, ac3, ac4 = acfactory.get_online_accounts(4)
+
+    logging.info("ac3: verify with ac2")
+    qr_code, _svg = ac2.get_qr_code()
+    ac3.secure_join(qr_code)
+    ac2.wait_for_securejoin_inviter_success()
+
+    # in order for ac2 to have pending bobstate with a verified group
+    # we first create a fully joined verified group, and then start
+    # joining a second time but interrupt it, to create pending bob state
+
+    logging.info("ac1: create verified group that ac2 fully joins")
+    ch1 = ac1.create_group("Group", protect=True)
+    qr_code, _svg = ch1.get_qr_code()
+    ac2.secure_join(qr_code)
+    ac1.wait_for_securejoin_inviter_success()
+
+    # ensure ac1 can write and ac2 receives messages in verified chat
+    ch1.send_text("ac1 says hello")
+    while 1:
+        snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+        if snapshot.text == "ac1 says hello":
+            assert snapshot.chat.get_basic_snapshot().is_protected
+            break
+
+    logging.info("ac1: let ac2 join again but shutoff ac1 in the middle of securejoin")
+    qr_code, _svg = ch1.get_qr_code()
+    ac2.secure_join(qr_code)
+    ac1.remove()
+    logging.info("ac2 now has pending bobstate but ac1 is shutoff")
+
+    # we meanwhile expect ac3/ac2 verification started in the beginning to have completed
+    assert ac3.get_contact_by_addr(ac2.get_config("addr")).get_snapshot().is_verified
+    assert ac2.get_contact_by_addr(ac3.get_config("addr")).get_snapshot().is_verified
+
+    logging.info("ac3: create a verified group VG with ac2")
+    vg = ac3.create_group("ac3-created", protect=True)
+    vg.add_contact(ac3.get_contact_by_addr(ac2.get_config("addr")))
+
+    # ensure ac2 receives message in VG
+    vg.send_text("hello")
+    while 1:
+        msg = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+        if msg.text == "hello":
+            assert msg.chat.get_basic_snapshot().is_protected
+            break
+
+    logging.info("ac3: create a join-code for group VG and let ac4 join, check that ac2 got it")
+    qr_code, _svg = vg.get_qr_code()
+    ac4.secure_join(qr_code)
+    ac3.wait_for_securejoin_inviter_success()
+    while 1:
+        ev = ac2.wait_for_event()
+        if "added by unrelated SecureJoin" in str(ev):
+            return
