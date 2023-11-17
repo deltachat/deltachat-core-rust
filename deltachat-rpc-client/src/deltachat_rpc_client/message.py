@@ -42,6 +42,10 @@ class Message:
             return AttrDict(reactions)
         return None
 
+    def get_sender_contact(self) -> Contact:
+        from_id = self.get_snapshot().from_id
+        return self.account.get_contact_by_id(from_id)
+
     def mark_seen(self) -> None:
         """Mark the message as seen."""
         self._rpc.markseen_msgs(self.account.id, [self.id])
