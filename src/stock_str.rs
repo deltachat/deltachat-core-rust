@@ -149,7 +149,7 @@ pub enum StockMessage {
                     however, of course, if they like, you may point them to 👉 https://get.delta.chat"))]
     WelcomeMessage = 71,
 
-    #[strum(props(fallback = "Unknown sender for this chat. See 'info' for more details."))]
+    #[strum(props(fallback = "Unknown sender for this chat."))]
     UnknownSenderForChat = 72,
 
     #[strum(props(fallback = "Message from %1$s"))]
@@ -930,7 +930,7 @@ pub(crate) async fn welcome_message(context: &Context) -> String {
     translated(context, StockMessage::WelcomeMessage).await
 }
 
-/// Stock string: `Unknown sender for this chat. See 'info' for more details.`.
+/// Stock string: `Unknown sender for this chat.`.
 pub(crate) async fn unknown_sender_for_chat(context: &Context) -> String {
     translated(context, StockMessage::UnknownSenderForChat).await
 }
