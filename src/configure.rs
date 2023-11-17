@@ -34,6 +34,7 @@ use crate::provider::{Protocol, Socket, UsernamePattern};
 use crate::smtp::Smtp;
 use crate::socks::Socks5Config;
 use crate::stock_str;
+use crate::sync::Sync::*;
 use crate::tools::{time, EmailAddress};
 use crate::{chat, e2ee, provider};
 
@@ -132,7 +133,9 @@ async fn on_configure_completed(
             for def in config_defaults {
                 if !context.config_exists(def.key).await? {
                     info!(context, "apply config_defaults {}={}", def.key, def.value);
-                    context.set_config(def.key, Some(def.value)).await?;
+                    context
+                        .set_config_ex(Nosync, def.key, Some(def.value))
+                        .await?;
                 } else {
                     info!(
                         context,
