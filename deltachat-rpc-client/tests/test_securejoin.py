@@ -387,3 +387,45 @@ def test_qr_new_group_unblocked(acfactory):
     ac2_msg = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert ac2_msg.text == "Hello!"
     assert ac2_msg.chat.get_basic_snapshot().is_contact_request
+
+
+def test_aeap_flow_verified(acfactory):
+    """Test that a new address is added to a contact when it changes its address."""
+    ac1, ac2, ac1new = acfactory.get_online_accounts(3)
+
+    logging.info("ac1: create verified-group QR, ac2 scans and joins")
+    chat = ac1.create_group("hello", protect=True)
+    assert chat.get_basic_snapshot().is_protected
+    qr_code, _svg = chat.get_qr_code()
+    logging.info("ac2: start QR-code based join-group protocol")
+    ac2.secure_join(qr_code)
+    ac1.wait_for_securejoin_inviter_success()
+
+    logging.info("sending first message")
+    msg_out = chat.send_text("old address").get_snapshot()
+
+    logging.info("receiving first message")
+    ac2.wait_for_incoming_msg_event()  # member added message
+    msg_in_1 = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert msg_in_1.text == msg_out.text
+
+    logging.info("changing email account")
+    ac1.set_config("addr", ac1new.get_config("addr"))
+    ac1.set_config("mail_pw", ac1new.get_config("mail_pw"))
+    ac1.stop_io()
+    ac1.configure()
+    ac1.start_io()
+
+    logging.info("sending second message")
+    msg_out = chat.send_text("changed address").get_snapshot()
+
+    logging.info("receiving second message")
+    msg_in_2 = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id)
+    msg_in_2_snapshot = msg_in_2.get_snapshot()
+    assert msg_in_2_snapshot.text == msg_out.text
+    assert msg_in_2_snapshot.chat.id == msg_in_1.chat.id
+    assert msg_in_2.get_sender_contact().get_snapshot().address == ac1new.get_config("addr")
+    assert len(msg_in_2_snapshot.chat.get_contacts()) == 2
+    assert ac1new.get_config("addr") in [
+        contact.get_snapshot().address for contact in msg_in_2_snapshot.chat.get_contacts()
+    ]
