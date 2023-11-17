@@ -9,7 +9,7 @@ import pytest
 from imap_tools import AND, U
 
 import deltachat as dc
-from deltachat import account_hookimpl, Message, Chat
+from deltachat import account_hookimpl, Message
 from deltachat.tracker import ImexTracker
 
 
