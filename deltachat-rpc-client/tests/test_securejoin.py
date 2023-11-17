@@ -9,20 +9,14 @@ def test_qr_setup_contact(acfactory) -> None:
     qr_code, _svg = alice.get_qr_code()
     bob.secure_join(qr_code)
 
-    while True:
-        event = alice.wait_for_event()
-        if event["kind"] == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    alice.wait_for_securejoin_inviter_success()
 
     # Test that Alice verified Bob's profile.
     alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
     alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
     assert alice_contact_bob_snapshot.is_verified
 
-    while True:
-        event = bob.wait_for_event()
-        if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
-            break
+    bob.wait_for_securejoin_joiner_success()
 
     # Test that Bob verified Alice's profile.
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
@@ -39,20 +33,15 @@ def test_qr_securejoin(acfactory):
     logging.info("Bob joins verified group")
     qr_code, _svg = alice_chat.get_qr_code()
     bob.secure_join(qr_code)
-    while True:
-        event = alice.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+
+    alice.wait_for_securejoin_inviter_success()
 
     # Test that Alice verified Bob's profile.
     alice_contact_bob = alice.get_contact_by_addr(bob.get_config("addr"))
     alice_contact_bob_snapshot = alice_contact_bob.get_snapshot()
     assert alice_contact_bob_snapshot.is_verified
 
-    while True:
-        event = bob.wait_for_event()
-        if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
-            break
+    bob.wait_for_securejoin_joiner_success()
 
     # Test that Bob verified Alice's profile.
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
@@ -97,10 +86,7 @@ def test_qr_readreceipt(acfactory) -> None:
     charlie.secure_join(qr_code)
 
     for joiner in [bob, charlie]:
-        while True:
-            event = joiner.wait_for_event()
-            if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
-                break
+        joiner.wait_for_securejoin_joiner_success()
 
     logging.info("Alice creates a verified group")
     group = alice.create_group("Group", protect=True)
@@ -163,10 +149,7 @@ def test_verified_group_recovery(acfactory) -> None:
     logging.info("ac2 joins verified group")
     qr_code, _svg = chat.get_qr_code()
     ac2.secure_join(qr_code)
-    while True:
-        event = ac1.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac1.wait_for_securejoin_inviter_success()
 
     # ac1 has ac2 directly verified.
     ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
@@ -174,10 +157,7 @@ def test_verified_group_recovery(acfactory) -> None:
 
     logging.info("ac3 joins verified group")
     ac3_chat = ac3.secure_join(qr_code)
-    while True:
-        event = ac1.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac1.wait_for_securejoin_inviter_success()
 
     logging.info("ac2 logs in on a new device")
     ac2 = acfactory.resetup_account(ac2)
@@ -186,10 +166,7 @@ def test_verified_group_recovery(acfactory) -> None:
     qr_code, _svg = ac3.get_qr_code()
     ac2.secure_join(qr_code)
 
-    while True:
-        event = ac3.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac3.wait_for_securejoin_inviter_success()
 
     logging.info("ac3 sends a message to the group")
     assert len(ac3_chat.get_contacts()) == 3
@@ -236,10 +213,7 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     logging.info("ac2 joins verified group")
     qr_code, _svg = chat.get_qr_code()
     ac2.secure_join(qr_code)
-    while True:
-        event = ac1.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac1.wait_for_securejoin_inviter_success()
 
     # ac1 has ac2 directly verified.
     ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
@@ -247,10 +221,7 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
 
     logging.info("ac3 joins verified group")
     ac3_chat = ac3.secure_join(qr_code)
-    while True:
-        event = ac1.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac1.wait_for_securejoin_inviter_success()
 
     logging.info("ac2 logs in on a new device")
     ac2 = acfactory.resetup_account(ac2)
@@ -259,10 +230,7 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     qr_code, _svg = ac3.get_qr_code()
     ac2.secure_join(qr_code)
 
-    while True:
-        event = ac3.wait_for_event()
-        if event.kind == "SecurejoinInviterProgress" and event["progress"] == 1000:
-            break
+    ac3.wait_for_securejoin_inviter_success()
 
     logging.info("ac3 sends a message to the group")
     assert len(ac3_chat.get_contacts()) == 3

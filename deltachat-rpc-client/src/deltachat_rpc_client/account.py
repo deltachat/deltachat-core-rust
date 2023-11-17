@@ -271,6 +271,18 @@ class Account:
             if event.kind == EventType.INCOMING_MSG:
                 return event
 
+    def wait_for_securejoin_inviter_success(self):
+        while True:
+            event = self.wait_for_event()
+            if event["kind"] == "SecurejoinInviterProgress" and event["progress"] == 1000:
+                break
+
+    def wait_for_securejoin_joiner_success(self):
+        while True:
+            event = self.wait_for_event()
+            if event["kind"] == "SecurejoinJoinerProgress" and event["progress"] == 1000:
+                break
+
     def get_fresh_messages_in_arrival_order(self) -> List[Message]:
         """Return fresh messages list sorted in the order of their arrival, with ascending IDs."""
         warn(
