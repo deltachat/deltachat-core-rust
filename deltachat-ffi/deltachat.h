@@ -2561,7 +2561,7 @@ dc_lot_t*       dc_check_qr                  (dc_context_t* context, const char*
  *     the Verified-Group-Invite protocol is offered in the QR code;
  *     works for protected groups as well as for normal groups.
  *     If set to 0, the Setup-Contact protocol is offered in the QR code.
- *     See https://countermitm.readthedocs.io/en/latest/new.html
+ *     See https://securejoin.readthedocs.io/en/latest/new.html
  *     for details about both protocols.
  * @return The text that should go to the QR code,
  *     On errors, an empty QR code is returned, NULL is never returned.
@@ -2597,7 +2597,7 @@ char*           dc_get_securejoin_qr_svg         (dc_context_t* context, uint32_
  *
  * Subsequent calls of dc_join_securejoin() will abort previous, unfinished handshakes.
  *
- * See https://countermitm.readthedocs.io/en/latest/new.html
+ * See https://securejoin.readthedocs.io/en/latest/new.html
  * for details about both protocols.
  *
  * @memberof dc_context_t

@@ -218,7 +218,7 @@ class Account:
         The function returns immediately and the handshake runs in background, sending
         and receiving several messages.
         Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
-        See https://countermitm.readthedocs.io/en/latest/new.html for protocol details.
+        See https://securejoin.readthedocs.io/en/latest/new.html for protocol details.
 
         :param qrdata: The text of the scanned QR code.
         """

@@ -678,7 +678,7 @@ impl CommandApi {
     ///     the Verified-Group-Invite protocol is offered in the QR code;
     ///     works for protected groups as well as for normal groups.
     ///     If not set, the Setup-Contact protocol is offered in the QR code.
-    ///     See https://countermitm.readthedocs.io/en/latest/new.html
+    ///     See https://securejoin.readthedocs.io/en/latest/new.html
     ///     for details about both protocols.
     ///
     /// return format: `[code, svg]`
@@ -707,7 +707,7 @@ impl CommandApi {
     ///
     /// Subsequent calls of `secure_join()` will abort previous, unfinished handshakes.
     ///
-    /// See https://countermitm.readthedocs.io/en/latest/new.html
+    /// See https://securejoin.readthedocs.io/en/latest/new.html
     /// for details about both protocols.
     ///
     /// **qr**: The text of the scanned QR code. Typically, the same string as given
