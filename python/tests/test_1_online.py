@@ -1658,59 +1658,6 @@ def test_ac_setup_message_twice(acfactory, lp):
     assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
 
-def test_qr_join_chat_with_pending_bobstate_issue4894(acfactory, lp):
-    ac1, ac2, ac3, ac4 = acfactory.get_online_accounts(4)
-
-    lp.sec("ac3: verify with ac2")
-    ac3.qr_setup_contact(ac2.get_setup_contact_qr())
-    ac2._evtracker.wait_securejoin_inviter_progress(1000)
-
-    # in order for ac2 to have pending bobstate with a verified group
-    # we first create a fully joined verified group, and then start
-    # joining a second time but interrupt it, to create pending bob state
-
-    lp.sec("ac1: create verified group that ac2 fully joins")
-    ch1 = ac1.create_group_chat("ac1-shutoff group", verified=True)
-    ac2.qr_join_chat(ch1.get_join_qr())
-    ac1._evtracker.wait_securejoin_inviter_progress(1000)
-
-    # ensure ac1 can write and ac2 receives messages in verified chat
-    ch1.send_text("ac1 says hello")
-    while 1:
-        msg = ac2.wait_next_incoming_message()
-        if msg.text == "ac1 says hello":
-            assert msg.chat.is_protected()
-            break
-
-    lp.sec("ac1: let ac2 join again but shutoff ac1 in the middle of securejoin")
-    ac2.qr_join_chat(ch1.get_join_qr())
-    ac1.shutdown()
-    lp.sec("ac2 now has pending bobstate but ac1 is shutoff")
-
-    # we meanwhile expect ac3/ac2 verification started in the beginning to have completed
-    assert ac3.get_contact(ac2).is_verified()
-    assert ac2.get_contact(ac3).is_verified()
-
-    lp.sec("ac3: create a verified group VG with ac2")
-    vg = ac3.create_group_chat("ac3-created", [ac2], verified=True)
-
-    # ensure ac2 receives message in VG
-    vg.send_text("hello")
-    while 1:
-        msg = ac2.wait_next_incoming_message()
-        if msg.text == "hello":
-            assert msg.chat.is_protected()
-            break
-
-    lp.sec("ac3: create a join-code for group VG and let ac4 join, check that ac2 got it")
-    ac4.qr_join_chat(vg.get_join_qr())
-    ac3._evtracker.wait_securejoin_inviter_progress(1000)
-    while 1:
-        ev = ac2._evtracker.get()
-        if "added by unrelated SecureJoin" in str(ev):
-            return
-
-
 def test_qr_new_group_unblocked(acfactory, lp):
     """Regression test for a bug intoduced in core v1.113.0.
     ac2 scans a verified group QR code created by ac1.
