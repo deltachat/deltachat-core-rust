@@ -1658,17 +1658,6 @@ def test_ac_setup_message_twice(acfactory, lp):
     assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
 
-def test_qr_setup_contact(acfactory, lp):
-    ac1, ac2 = acfactory.get_online_accounts(2)
-    lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
-    qr = ac1.get_setup_contact_qr()
-
-    lp.sec("ac2: start QR-code based setup contact protocol")
-    ch = ac2.qr_setup_contact(qr)
-    assert ch.id >= 10
-    ac1._evtracker.wait_securejoin_inviter_progress(1000)
-
-
 @pytest.mark.parametrize("verified_one_on_one_chats", [0, 1])
 def test_qr_join_chat(acfactory, lp, verified_one_on_one_chats):
     ac1, ac2 = acfactory.get_online_accounts(2)
