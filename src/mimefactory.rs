@@ -1,5 +1,6 @@
 //! # MIME message production.
 
+use std::collections::HashSet;
 use std::convert::TryInto;
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -517,6 +518,7 @@ impl<'a> MimeFactory<'a> {
         // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
         let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
         headers.unprotected.push(from_header.clone());
+        headers.protected.push(from_header);
 
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
@@ -704,8 +706,6 @@ impl<'a> MimeFactory<'a> {
             )
         };
         let outer_message = if is_encrypted {
-            headers.protected.push(from_header);
-
             // Store protected headers in the inner message.
             let message = headers
                 .protected
@@ -800,12 +800,18 @@ impl<'a> MimeFactory<'a> {
             // Store protected headers in the outer message.
             let message = headers
                 .protected
-                .into_iter()
-                .fold(message, |message, header| message.header(header));
+                .iter()
+                .fold(message, |message, header| message.header(header.clone()));
 
             if self.should_skip_autocrypt()
                 || !context.get_config_bool(Config::SignUnencrypted).await?
             {
+                let protected: HashSet<Header> = HashSet::from_iter(headers.protected.into_iter());
+                for h in headers.unprotected.split_off(0) {
+                    if !protected.contains(&h) {
+                        headers.unprotected.push(h);
+                    }
+                }
                 message
             } else {
                 let message = message.header(get_content_type_directives_header());
@@ -2216,6 +2222,7 @@ mod tests {
 
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
@@ -2226,12 +2233,14 @@ mod tests {
                 .count(),
             1
         );
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(part.match_indices("From:").count(), 0);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
 
@@ -2258,12 +2267,14 @@ mod tests {
 
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 0);
         assert_eq!(part.match_indices("Autocrypt:").count(), 1);
         assert_eq!(part.match_indices("Chat-User-Avatar:").count(), 0);
 
         let part = payload.next().unwrap();
         assert_eq!(part.match_indices("text/plain").count(), 1);
+        assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Subject:").count(), 1);
         assert_eq!(part.match_indices("Autocrypt:").count(), 0);
         assert_eq!(part.match_indices("multipart/mixed").count(), 0);
@@ -2272,6 +2283,7 @@ mod tests {
         let body = payload.next().unwrap();
         assert_eq!(body.match_indices("this is the text!").count(), 1);
         assert_eq!(body.match_indices("text/plain").count(), 0);
+        assert_eq!(body.match_indices("From:").count(), 0);
         assert_eq!(body.match_indices("Chat-User-Avatar:").count(), 0);
         assert_eq!(body.match_indices("Subject:").count(), 0);
 
