@@ -86,6 +86,11 @@ For example:
 .with_context(|| format!("Unable to trash message {msg_id}"))
 ```
 
+All errors should be handled in one of these ways:
+- With `if let Err() =` (incl. logging them into `warn!()`/`err!()`).
+- With `.log_err().ok()`.
+- Bubbled up with `?`.
+
 ### Logging
 
 For logging, use `info!`, `warn!` and `error!` macros.
