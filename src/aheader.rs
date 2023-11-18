@@ -67,7 +67,7 @@ impl Aheader {
 
 impl fmt::Display for Aheader {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        write!(fmt, "addr={};", self.addr)?;
+        write!(fmt, "addr={};", self.addr.to_lowercase())?;
         if self.prefer_encrypt == EncryptPreference::Mutual {
             write!(fmt, " prefer-encrypt=mutual;")?;
         }
@@ -262,5 +262,16 @@ mod tests {
             )
         )
         .contains("prefer-encrypt"));
+
+        // Always lowercase the address in the header.
+        assert!(format!(
+            "{}",
+            Aheader::new(
+                "TeSt@eXaMpLe.cOm".to_string(),
+                SignedPublicKey::from_base64(RAWKEY).unwrap(),
+                EncryptPreference::Mutual
+            )
+        )
+        .contains("test@example.com"));
     }
 }
