@@ -43,43 +43,43 @@ use crate::{chat, stock_str};
 const SEEN_RECENTLY_SECONDS: i64 = 600;
 
 /// Valid contact address.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ContactAddress<'a>(&'a str);
+#[derive(Debug, Clone)]
+pub(crate) struct ContactAddress(String);
 
-impl Deref for ContactAddress<'_> {
+impl Deref for ContactAddress {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        self.0
+        &self.0
     }
 }
 
-impl AsRef<str> for ContactAddress<'_> {
+impl AsRef<str> for ContactAddress {
     fn as_ref(&self) -> &str {
-        self.0
+        &self.0
     }
 }
 
-impl fmt::Display for ContactAddress<'_> {
+impl fmt::Display for ContactAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl<'a> ContactAddress<'a> {
+impl ContactAddress {
     /// Constructs a new contact address from string,
     /// normalizing and validating it.
-    pub fn new(s: &'a str) -> Result<Self> {
+    pub fn new(s: &str) -> Result<Self> {
         let addr = addr_normalize(s);
         if !may_be_valid_addr(addr) {
             bail!("invalid address {:?}", s);
         }
-        Ok(Self(addr))
+        Ok(Self(addr.to_string()))
     }
 }
 
 /// Allow converting [`ContactAddress`] to an SQLite type.
-impl rusqlite::types::ToSql for ContactAddress<'_> {
+impl rusqlite::types::ToSql for ContactAddress {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput> {
         let val = rusqlite::types::Value::Text(self.0.to_string());
         let out = rusqlite::types::ToSqlOutput::Owned(val);
@@ -500,7 +500,7 @@ impl Contact {
         let addr = ContactAddress::new(&addr)?;
 
         let (contact_id, sth_modified) =
-            Contact::add_or_lookup(context, &name, addr, Origin::ManuallyCreated)
+            Contact::add_or_lookup(context, &name, &addr, Origin::ManuallyCreated)
                 .await
                 .context("add_or_lookup")?;
         let blocked = Contact::is_blocked_load(context, contact_id).await?;
@@ -615,7 +615,7 @@ impl Contact {
     pub(crate) async fn add_or_lookup(
         context: &Context,
         name: &str,
-        addr: ContactAddress<'_>,
+        addr: &ContactAddress,
         mut origin: Origin,
     ) -> Result<(ContactId, Modifier)> {
         let mut sth_modified = Modifier::None;
@@ -623,7 +623,7 @@ impl Contact {
         ensure!(!addr.is_empty(), "Can not add_or_lookup empty address");
         ensure!(origin != Origin::Unknown, "Missing valid origin");
 
-        if context.is_self_addr(&addr).await? {
+        if context.is_self_addr(addr).await? {
             return Ok((ContactId::SELF, sth_modified));
         }
 
@@ -778,7 +778,7 @@ impl Contact {
                             } else {
                                 "".to_string()
                             },
-                            addr,
+                            &addr,
                             origin,
                             if update_authname {
                                 name.to_string()
@@ -823,7 +823,7 @@ impl Contact {
             let name = normalize_name(&name);
             match ContactAddress::new(&addr) {
                 Ok(addr) => {
-                    match Contact::add_or_lookup(context, &name, addr, Origin::AddressBook).await {
+                    match Contact::add_or_lookup(context, &name, &addr, Origin::AddressBook).await {
                         Ok((_, modified)) => {
                             if modified != Modifier::None {
                                 modify_cnt += 1
@@ -1893,7 +1893,7 @@ mod tests {
         let (id, _modified) = Contact::add_or_lookup(
             &context.ctx,
             "bob",
-            ContactAddress::new("user@example.org")?,
+            &ContactAddress::new("user@example.org")?,
             Origin::IncomingReplyTo,
         )
         .await?;
@@ -1921,7 +1921,7 @@ mod tests {
         let (contact_bob_id, modified) = Contact::add_or_lookup(
             &context.ctx,
             "someone",
-            ContactAddress::new("user@example.org")?,
+            &ContactAddress::new("user@example.org")?,
             Origin::ManuallyCreated,
         )
         .await?;
@@ -1986,7 +1986,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "bla foo",
-            ContactAddress::new("one@eins.org").unwrap(),
+            &ContactAddress::new("one@eins.org").unwrap(),
             Origin::IncomingUnknownTo,
         )
         .await
@@ -2005,7 +2005,7 @@ mod tests {
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
             &t,
             "Real one",
-            ContactAddress::new(" one@eins.org  ").unwrap(),
+            &ContactAddress::new(" one@eins.org  ").unwrap(),
             Origin::ManuallyCreated,
         )
         .await
@@ -2021,7 +2021,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "",
-            ContactAddress::new("three@drei.sam").unwrap(),
+            &ContactAddress::new("three@drei.sam").unwrap(),
             Origin::IncomingUnknownTo,
         )
         .await
@@ -2038,7 +2038,7 @@ mod tests {
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
             &t,
             "m. serious",
-            ContactAddress::new("three@drei.sam").unwrap(),
+            &ContactAddress::new("three@drei.sam").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2053,7 +2053,7 @@ mod tests {
         let (contact_id_test, sth_modified) = Contact::add_or_lookup(
             &t,
             "schnucki",
-            ContactAddress::new("three@drei.sam").unwrap(),
+            &ContactAddress::new("three@drei.sam").unwrap(),
             Origin::ManuallyCreated,
         )
         .await
@@ -2069,7 +2069,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "",
-            ContactAddress::new("alice@w.de").unwrap(),
+            &ContactAddress::new("alice@w.de").unwrap(),
             Origin::IncomingUnknownTo,
         )
         .await
@@ -2211,7 +2211,7 @@ mod tests {
         let (contact_id, _) = Contact::add_or_lookup(
             &alice,
             "Bob",
-            ContactAddress::new("bob@example.net")?,
+            &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?;
@@ -2290,7 +2290,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "bob1",
-            ContactAddress::new("bob@example.org").unwrap(),
+            &ContactAddress::new("bob@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2306,7 +2306,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "bob2",
-            ContactAddress::new("bob@example.org").unwrap(),
+            &ContactAddress::new("bob@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2332,7 +2332,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "bob4",
-            ContactAddress::new("bob@example.org").unwrap(),
+            &ContactAddress::new("bob@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2361,7 +2361,7 @@ mod tests {
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
             &t,
             "claire1",
-            ContactAddress::new("claire@example.org").unwrap(),
+            &ContactAddress::new("claire@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2377,7 +2377,7 @@ mod tests {
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
             &t,
             "claire2",
-            ContactAddress::new("claire@example.org").unwrap(),
+            &ContactAddress::new("claire@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2402,7 +2402,7 @@ mod tests {
         let (contact_id, sth_modified) = Contact::add_or_lookup(
             &t,
             "Bob",
-            ContactAddress::new("bob@example.org")?,
+            &ContactAddress::new("bob@example.org")?,
             Origin::IncomingUnknownFrom,
         )
         .await?;
@@ -2414,7 +2414,7 @@ mod tests {
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
             &t,
             "Not Bob",
-            ContactAddress::new("bob@example.org")?,
+            &ContactAddress::new("bob@example.org")?,
             Origin::IncomingUnknownTo,
         )
         .await?;
@@ -2427,7 +2427,7 @@ mod tests {
         let (contact_id_same, sth_modified) = Contact::add_or_lookup(
             &t,
             "Bob",
-            ContactAddress::new("bob@example.org")?,
+            &ContactAddress::new("bob@example.org")?,
             Origin::IncomingUnknownFrom,
         )
         .await?;
@@ -2456,7 +2456,7 @@ mod tests {
         Contact::add_or_lookup(
             &t,
             "dave2",
-            ContactAddress::new("dave@example.org").unwrap(),
+            &ContactAddress::new("dave@example.org").unwrap(),
             Origin::IncomingUnknownFrom,
         )
         .await
@@ -2577,7 +2577,7 @@ mod tests {
         let (contact_bob_id, _modified) = Contact::add_or_lookup(
             &alice,
             "Bob",
-            ContactAddress::new("bob@example.net")?,
+            &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?;
@@ -2740,7 +2740,7 @@ CCCB 5AA9 F6E1 141C 9431
         let (contact_id, _) = Contact::add_or_lookup(
             &alice,
             "Bob",
-            ContactAddress::new("bob@example.net")?,
+            &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?;

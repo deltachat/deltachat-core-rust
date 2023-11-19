@@ -431,7 +431,7 @@ async fn test_escaped_recipients() {
     let carl_contact_id = Contact::add_or_lookup(
         &t,
         "Carl",
-        ContactAddress::new("carl@host.tld").unwrap(),
+        &ContactAddress::new("carl@host.tld").unwrap(),
         Origin::IncomingUnknownFrom,
     )
     .await
@@ -477,7 +477,7 @@ async fn test_cc_to_contact() {
     let carl_contact_id = Contact::add_or_lookup(
         &t,
         "garabage",
-        ContactAddress::new("carl@host.tld").unwrap(),
+        &ContactAddress::new("carl@host.tld").unwrap(),
         Origin::IncomingUnknownFrom,
     )
     .await
@@ -2003,7 +2003,7 @@ async fn test_duplicate_message() -> Result<()> {
     let bob_contact_id = Contact::add_or_lookup(
         &alice,
         "Bob",
-        ContactAddress::new("bob@example.org").unwrap(),
+        &ContactAddress::new("bob@example.org").unwrap(),
         Origin::IncomingUnknownFrom,
     )
     .await?
@@ -2060,7 +2060,7 @@ async fn test_ignore_footer_status_from_mailinglist() -> Result<()> {
     let bob_id = Contact::add_or_lookup(
         &t,
         "",
-        ContactAddress::new("bob@example.net").unwrap(),
+        &ContactAddress::new("bob@example.net").unwrap(),
         Origin::IncomingUnknownCc,
     )
     .await?
@@ -2139,7 +2139,7 @@ async fn test_ignore_old_status_updates() -> Result<()> {
     let bob_id = Contact::add_or_lookup(
         &t,
         "",
-        ContactAddress::new("bob@example.net")?,
+        &ContactAddress::new("bob@example.net")?,
         Origin::AddressBook,
     )
     .await?

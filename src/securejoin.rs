@@ -1058,7 +1058,7 @@ mod tests {
         let (contact_bob_id, _modified) = Contact::add_or_lookup(
             &alice.ctx,
             "Bob",
-            ContactAddress::new("bob@example.net")?,
+            &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?;

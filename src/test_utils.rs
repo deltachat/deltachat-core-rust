@@ -580,7 +580,7 @@ impl TestContext {
         // MailinglistAddress is the lowest allowed origin, we'd prefer to not modify the
         // origin when creating this contact.
         let (contact_id, modified) =
-            Contact::add_or_lookup(self, &name, addr, Origin::MailinglistAddress)
+            Contact::add_or_lookup(self, &name, &addr, Origin::MailinglistAddress)
                 .await
                 .expect("add_or_lookup");
         match modified {

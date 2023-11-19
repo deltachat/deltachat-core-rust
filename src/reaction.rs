@@ -392,7 +392,7 @@ Can we chat at 1pm pacific, today?"
         let bob_id = Contact::add_or_lookup(
             &alice,
             "",
-            ContactAddress::new("bob@example.net")?,
+            &ContactAddress::new("bob@example.net")?,
             Origin::ManuallyCreated,
         )
         .await?

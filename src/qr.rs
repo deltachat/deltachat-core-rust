@@ -365,9 +365,10 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
 
     if let (Some(addr), Some(invitenumber), Some(authcode)) = (&addr, invitenumber, authcode) {
         let addr = ContactAddress::new(addr)?;
-        let (contact_id, _) = Contact::add_or_lookup(context, &name, addr, Origin::UnhandledQrScan)
-            .await
-            .with_context(|| format!("failed to add or lookup contact for address {addr:?}"))?;
+        let (contact_id, _) =
+            Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+                .await
+                .with_context(|| format!("failed to add or lookup contact for address {addr:?}"))?;
 
         if let (Some(grpid), Some(grpname)) = (grpid, grpname) {
             if context
@@ -432,7 +433,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         if let Some(peerstate) = peerstate {
             let peerstate_addr = ContactAddress::new(&peerstate.addr)?;
             let (contact_id, _) =
-                Contact::add_or_lookup(context, &name, peerstate_addr, Origin::UnhandledQrScan)
+                Contact::add_or_lookup(context, &name, &peerstate_addr, Origin::UnhandledQrScan)
                     .await
                     .context("add_or_lookup")?;
             ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Request)
@@ -777,7 +778,7 @@ impl Qr {
     ) -> Result<Self> {
         let addr = ContactAddress::new(addr)?;
         let (contact_id, _) =
-            Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan).await?;
+            Contact::add_or_lookup(context, name, &addr, Origin::UnhandledQrScan).await?;
         Ok(Qr::Addr { contact_id, draft })
     }
 }
