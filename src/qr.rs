@@ -789,7 +789,7 @@ fn normalize_address(addr: &str) -> Result<String> {
     let new_addr = percent_decode_str(addr).decode_utf8()?;
     let new_addr = addr_normalize(&new_addr);
 
-    ensure!(may_be_valid_addr(new_addr), "Bad e-mail address");
+    ensure!(may_be_valid_addr(&new_addr), "Bad e-mail address");
 
     Ok(new_addr.to_string())
 }
