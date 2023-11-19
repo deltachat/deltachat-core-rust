@@ -2623,19 +2623,17 @@ async fn test_incoming_contact_request() -> Result<()> {
     let chat = chat::Chat::load_from_db(&t, msg.chat_id).await?;
     assert!(chat.is_contact_request());
 
-    loop {
-        let event = t
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
-            .await;
-        match event {
-            EventType::IncomingMsg { chat_id, msg_id } => {
-                assert_eq!(msg.chat_id, chat_id);
-                assert_eq!(msg.id, msg_id);
-                return Ok(());
-            }
-            _ => unreachable!(),
+    let event = t
+        .evtracker
+        .get_matching(|evt| matches!(evt, EventType::IncomingMsg { .. }))
+        .await;
+    match event {
+        EventType::IncomingMsg { chat_id, msg_id } => {
+            assert_eq!(msg.chat_id, chat_id);
+            assert_eq!(msg.id, msg_id);
+            Ok(())
         }
+        _ => unreachable!(),
     }
 }
 
