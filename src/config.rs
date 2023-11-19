@@ -513,6 +513,11 @@ impl Context {
                 );
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
+            Config::Addr => {
+                self.sql
+                    .set_raw_config(key.as_ref(), value.map(|s| s.to_lowercase()).as_deref())
+                    .await?;
+            }
             _ => {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
@@ -659,6 +664,21 @@ mod tests {
         assert_eq!(
             Config::from_str("sys.config_keys"),
             Ok(Config::SysConfigKeys)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_set_config_addr() {
+        let t = TestContext::new().await;
+
+        // Test that uppercase address get lowercased.
+        assert!(t
+            .set_config(Config::Addr, Some("Foobar@eXample.oRg"))
+            .await
+            .is_ok());
+        assert_eq!(
+            t.get_config(Config::Addr).await.unwrap().unwrap(),
+            "foobar@example.org"
         );
     }
 
