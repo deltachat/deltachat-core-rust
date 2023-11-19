@@ -3105,7 +3105,8 @@ async fn test_thunderbird_autocrypt() -> Result<()> {
     let t = TestContext::new_bob().await;
 
     let raw = include_bytes!("../../test-data/message/thunderbird_with_autocrypt.eml");
-    receive_imf(&t, raw, false).await?;
+    let received_msg = receive_imf(&t, raw, false).await?.unwrap();
+    assert!(received_msg.from_is_signed);
 
     let peerstate = Peerstate::from_addr(&t, "alice@example.org")
         .await?
@@ -3186,11 +3187,33 @@ async fn test_thunderbird_unsigned() -> Result<()> {
 
     // Alice receives an unsigned message from Bob.
     let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_unsigned.eml");
-    receive_imf(&alice, raw, false).await?;
+    let received_msg = receive_imf(&alice, raw, false).await?.unwrap();
+    assert!(!received_msg.from_is_signed);
 
     let msg = alice.get_last_msg().await;
     assert!(!msg.get_showpadlock());
     assert!(msg.error().is_none());
+
+    Ok(())
+}
+
+/// Bob receives an encrypted unsigned message with only an unencrypted Subject.
+///
+/// Test that the message is displayed without any errors,
+/// but also without a padlock, but with the Subject.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_thunderbird_unsigned_with_unencrypted_subject() -> Result<()> {
+    let bob = TestContext::new_bob().await;
+
+    let raw = include_bytes!(
+        "../../test-data/message/thunderbird_encrypted_unsigned_with_unencrypted_subject.eml"
+    );
+    receive_imf(&bob, raw, false).await?;
+
+    let msg = bob.get_last_msg().await;
+    assert!(!msg.get_showpadlock());
+    assert!(msg.error().is_none());
+    assert_eq!(msg.get_subject(), "Hello!");
 
     Ok(())
 }

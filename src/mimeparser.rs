@@ -259,9 +259,9 @@ impl MimeMessage {
             }
         }
 
-        // remove headers that are allowed _only_ in the encrypted part
-        headers.remove("secure-join-fingerprint");
-        headers.remove("chat-verified");
+        // Remove headers that are allowed _only_ in the encrypted+signed part. It's ok to leave
+        // them in signed-only emails, but has no value currently.
+        Self::remove_secured_headers(&mut headers);
 
         let from = from.context("No from in message")?;
         let private_keyring = vec![load_self_secret_key(context)
@@ -307,10 +307,11 @@ impl MimeMessage {
             content
         });
         if let (Ok(mail), true) = (mail, encrypted) {
-            // Handle any gossip headers if the mail was encrypted.  See section
-            // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
-            // but only if the mail was correctly signed:
             if !signatures.is_empty() {
+                // Handle any gossip headers if the mail was encrypted. See section
+                // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
+                // but only if the mail was correctly signed. Probably it's ok to not require
+                // encryption here, but let's follow the standard.
                 let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
                 gossiped_addr = update_gossip_peerstates(
                     context,
@@ -320,6 +321,9 @@ impl MimeMessage {
                     gossip_headers,
                 )
                 .await?;
+                // Remove unsigned subject from messages displayed with padlock.
+                // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+                headers.remove("subject");
             }
 
             // let known protected headers from the decrypted
@@ -327,24 +331,20 @@ impl MimeMessage {
 
             // Signature was checked for original From, so we
             // do not allow overriding it.
-            let mut signed_from = None;
-
-            // We do not want to allow unencrypted subject in encrypted emails because the
-            // user might falsely think that the subject is safe.
-            // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-            headers.remove("subject");
+            let mut inner_from = None;
 
             MimeMessage::merge_headers(
                 context,
                 &mut headers,
                 &mut recipients,
-                &mut signed_from,
+                &mut inner_from,
                 &mut list_post,
                 &mut chat_disposition_notification_to,
                 &mail.headers,
             );
-            if let Some(signed_from) = signed_from {
-                if addr_cmp(&signed_from.addr, &from.addr) {
+
+            if let (Some(inner_from), true) = (inner_from, !signatures.is_empty()) {
+                if addr_cmp(&inner_from.addr, &from.addr) {
                     from_is_signed = true;
                 } else {
                     // There is a From: header in the encrypted &
@@ -362,6 +362,8 @@ impl MimeMessage {
             }
         }
         if signatures.is_empty() {
+            Self::remove_secured_headers(&mut headers);
+
             // If it is not a read receipt, degrade encryption.
             if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
                 if message_time > peerstate.last_seen_autocrypt
@@ -1377,6 +1379,11 @@ impl MimeMessage {
         self.get_header(HeaderDef::XMicrosoftOriginalMessageId)
             .or_else(|| self.get_header(HeaderDef::MessageId))
             .and_then(|msgid| parse_message_id(msgid).ok())
+    }
+
+    fn remove_secured_headers(headers: &mut HashMap<String, String>) {
+        headers.remove("secure-join-fingerprint");
+        headers.remove("chat-verified");
     }
 
     fn merge_headers(
