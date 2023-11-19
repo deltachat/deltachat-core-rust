@@ -4233,7 +4233,7 @@ async fn set_contacts_by_addrs(context: &Context, id: ChatId, addrs: &[String]) 
     let mut contacts = HashSet::new();
     for addr in addrs {
         let contact_addr = ContactAddress::new(addr)?;
-        let contact = Contact::add_or_lookup(context, "", contact_addr, Origin::Hidden)
+        let contact = Contact::add_or_lookup(context, "", &contact_addr, Origin::Hidden)
             .await?
             .0;
         contacts.insert(contact);
@@ -5591,7 +5591,7 @@ mod tests {
         let (contact_id, _) = Contact::add_or_lookup(
             &t,
             "",
-            ContactAddress::new("foo@bar.org")?,
+            &ContactAddress::new("foo@bar.org")?,
             Origin::IncomingUnknownTo,
         )
         .await?;
@@ -6602,7 +6602,7 @@ mod tests {
         let (contact_id, _) = Contact::add_or_lookup(
             &t,
             "",
-            ContactAddress::new("foo@bar.org")?,
+            &ContactAddress::new("foo@bar.org")?,
             Origin::ManuallyCreated,
         )
         .await?;

@@ -2177,7 +2177,7 @@ async fn apply_mailinglist_changes(
             return Ok(());
         }
     };
-    let (contact_id, _) = Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+    let (contact_id, _) = Contact::add_or_lookup(context, "", &list_post, Origin::Hidden).await?;
     let mut contact = Contact::get_by_id(context, contact_id).await?;
     if contact.param.get(Param::ListId) != Some(listid) {
         contact.param.set(Param::ListId, listid);
@@ -2477,7 +2477,7 @@ async fn mark_recipients_as_verified(
                             let (to_contact_id, _) = Contact::add_or_lookup(
                                 context,
                                 "",
-                                ContactAddress::new(&to_addr)?,
+                                &ContactAddress::new(&to_addr)?,
                                 Origin::Hidden,
                             )
                             .await?;
@@ -2615,7 +2615,7 @@ async fn add_or_lookup_contacts_by_address_list(
 async fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name: Option<&str>,
-    addr: ContactAddress<'_>,
+    addr: ContactAddress,
     origin: Origin,
 ) -> Result<ContactId> {
     if context.is_self_addr(&addr).await? {
@@ -2624,7 +2624,7 @@ async fn add_or_lookup_contact_by_addr(
     let display_name_normalized = display_name.map(normalize_name).unwrap_or_default();
 
     let (contact_id, _modified) =
-        Contact::add_or_lookup(context, &display_name_normalized, addr, origin).await?;
+        Contact::add_or_lookup(context, &display_name_normalized, &addr, origin).await?;
     Ok(contact_id)
 }
 

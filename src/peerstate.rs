@@ -648,7 +648,7 @@ impl Peerstate {
                             let (new_contact_id, _) = Contact::add_or_lookup(
                                 context,
                                 "",
-                                new_addr,
+                                &new_addr,
                                 Origin::IncomingUnknownFrom,
                             )
                             .await?;

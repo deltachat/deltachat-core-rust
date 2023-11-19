@@ -2519,7 +2519,7 @@ async fn add_all_recipients_as_contacts(
         let (_, modified) = Contact::add_or_lookup(
             context,
             &display_name_normalized,
-            recipient_addr,
+            &recipient_addr,
             Origin::OutgoingTo,
         )
         .await?;

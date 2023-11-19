@@ -1919,7 +1919,7 @@ mod tests {
         let contact_id = Contact::add_or_lookup(
             &t,
             "Dave",
-            ContactAddress::new("dave@example.com").unwrap(),
+            &ContactAddress::new("dave@example.com").unwrap(),
             Origin::ManuallyCreated,
         )
         .await
