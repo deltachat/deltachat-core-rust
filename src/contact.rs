@@ -71,7 +71,7 @@ impl ContactAddress {
     /// normalizing and validating it.
     pub fn new(s: &str) -> Result<Self> {
         let addr = addr_normalize(s);
-        if !may_be_valid_addr(addr) {
+        if !may_be_valid_addr(&addr) {
             bail!("invalid address {:?}", s);
         }
         Ok(Self(addr.to_string()))
@@ -565,7 +565,7 @@ impl Contact {
 
         let addr_normalized = addr_normalize(addr);
 
-        if context.is_self_addr(addr_normalized).await? {
+        if context.is_self_addr(&addr_normalized).await? {
             return Ok(Some(ContactId::SELF));
         }
 
@@ -1405,12 +1405,13 @@ pub fn may_be_valid_addr(addr: &str) -> bool {
     res.is_ok()
 }
 
-/// Returns address with whitespace trimmed and `mailto:` prefix removed.
-pub fn addr_normalize(addr: &str) -> &str {
-    let norm = addr.trim();
+/// Returns address lowercased,
+/// with whitespace trimmed and `mailto:` prefix removed.
+pub fn addr_normalize(addr: &str) -> String {
+    let norm = addr.trim().to_lowercase();
 
     if norm.starts_with("mailto:") {
-        norm.get(7..).unwrap_or(norm)
+        norm.get(7..).unwrap_or(&norm).to_string()
     } else {
         norm
     }
@@ -1665,8 +1666,8 @@ fn cat_fingerprint(
 
 /// Compares two email addresses, normalizing them beforehand.
 pub fn addr_cmp(addr1: &str, addr2: &str) -> bool {
-    let norm1 = addr_normalize(addr1).to_lowercase();
-    let norm2 = addr_normalize(addr2).to_lowercase();
+    let norm1 = addr_normalize(addr1);
+    let norm2 = addr_normalize(addr2);
 
     norm1 == norm2
 }
@@ -1864,10 +1865,7 @@ mod tests {
     fn test_normalize_addr() {
         assert_eq!(addr_normalize("mailto:john@doe.com"), "john@doe.com");
         assert_eq!(addr_normalize("  hello@world.com   "), "hello@world.com");
-
-        // normalisation preserves case to allow user-defined spelling.
-        // however, case is ignored on addr_cmp()
-        assert_ne!(addr_normalize("John@Doe.com"), "john@doe.com");
+        assert_eq!(addr_normalize("John@Doe.com"), "john@doe.com");
     }
 
     #[test]
