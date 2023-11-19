@@ -3461,8 +3461,8 @@ pub(crate) async fn add_contact_to_chat_ex(
     if chat.typ == Chattype::Group && chat.is_promoted() {
         msg.viewtype = Viewtype::Text;
 
-        let contact_addr = contact.get_addr();
-        msg.text = stock_str::msg_add_member_local(context, contact_addr, ContactId::SELF).await;
+        let contact_addr = contact.get_addr().to_lowercase();
+        msg.text = stock_str::msg_add_member_local(context, &contact_addr, ContactId::SELF).await;
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
         msg.param.set(Param::Arg, contact_addr);
         msg.param.set_int(Param::Arg2, from_handshake.into());
@@ -3633,7 +3633,7 @@ pub async fn remove_contact_from_chat(
                         .await;
                     }
                     msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
-                    msg.param.set(Param::Arg, contact.get_addr());
+                    msg.param.set(Param::Arg, contact.get_addr().to_lowercase());
                     msg.id = send_msg(context, chat_id, &mut msg).await?;
                 } else {
                     sync = Sync;
