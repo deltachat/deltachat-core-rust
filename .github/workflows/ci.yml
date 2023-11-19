@@ -24,7 +24,7 @@ jobs:
     name: Lint Rust
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.73.0
+      RUSTUP_TOOLCHAIN: 1.74.0
     steps:
       - uses: actions/checkout@v3
       - name: Install rustfmt and clippy
@@ -76,11 +76,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            rust: 1.73.0
+            rust: 1.74.0
           - os: windows-latest
-            rust: 1.73.0
+            rust: 1.74.0
           - os: macos-latest
-            rust: 1.73.0
+            rust: 1.74.0
 
           # Minimum Supported Rust Version = 1.70.0
           - os: ubuntu-latest
