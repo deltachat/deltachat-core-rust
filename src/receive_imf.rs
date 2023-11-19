@@ -63,6 +63,11 @@ pub struct ReceivedMsg {
 
     /// Whether IMAP messages should be immediately deleted.
     pub needs_delete_job: bool,
+
+    /// Whether the From address was repeated in the signed part
+    /// (and we know that the signer intended to send from this address).
+    #[cfg(test)]
+    pub(crate) from_is_signed: bool,
 }
 
 /// Emulates reception of a message from the network.
@@ -161,6 +166,8 @@ pub(crate) async fn receive_imf_inner(
                 sort_timestamp: 0,
                 msg_ids,
                 needs_delete_job: false,
+                #[cfg(test)]
+                from_is_signed: false,
             }));
         }
         Ok(mime_parser) => mime_parser,
@@ -1393,6 +1400,8 @@ RETURNING id
         sort_timestamp,
         msg_ids: created_db_entries,
         needs_delete_job,
+        #[cfg(test)]
+        from_is_signed: mime_parser.from_is_signed,
     })
 }
 

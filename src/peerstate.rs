@@ -705,9 +705,7 @@ pub(crate) async fn maybe_do_aeap_transition(
                 // addresses with an MUA.
                 && mime_parser.has_chat_version()
                 // Check if the message is signed correctly.
-                // If it's not signed correctly, the whole autocrypt header will be mostly
-                // ignored anyway and the message shown as not encrypted, so we don't
-                // have to handle this case.
+                // Although checking `from_is_signed` below is sufficient, let's play it safe.
                 && !mime_parser.signatures.is_empty()
                 // Check if the From: address was also in the signed part of the email.
                 // Without this check, an attacker could replay a message from Alice 
