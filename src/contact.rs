@@ -1317,7 +1317,7 @@ impl Contact {
             return Ok(None);
         };
 
-        if verifier_addr == self.addr {
+        if addr_cmp(&verifier_addr, &self.addr) {
             // Contact is directly verified via QR code.
             return Ok(Some(ContactId::SELF));
         }
