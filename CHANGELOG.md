@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.131.5] - 2023-11-20
+
+### API-Changes
+
+- deltachat-rpc-client: Add `Message.get_sender_contact()`.
+- Turn `ContactAddress` into an owned type.
+
+### Features / Changes
+
+- Lowercase addresses in Autocrypt and Autocrypt-Gossip headers.
+- Lowercase the address in member added/removed messages.
+- Lowercase `addr` when it is set.
+- Do not replace the message with an error in square brackets when the sender is not a member of the protected group.
+
+### Fixes
+
+- `Chat::sync_contacts()`: Fetch contact addresses in a single query.
+- `Chat::rename_ex()`: Sync improved chat name to other devices.
+- Recognize `Chat-Group-Member-Added` of self case-insensitively.
+- Compare verifier addr to peerstate addr case-insensitively.
+
+### Tests
+
+- Port [Secure-Join](https://securejoin.readthedocs.io/) tests to JSON-RPC.
+
+### CI
+
+- Test with Rust 1.74.
+
+
 ## [1.131.4] - 2023-11-16
 
 ### Documentation
@@ -3221,3 +3251,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.1...v1.131.2
 [1.131.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.2...v1.131.3
 [1.131.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.3...v1.131.4
+[1.131.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.4...v1.131.5
