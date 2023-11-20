@@ -1,0 +1,25 @@
+name: Build & Deploy Documentation on py.delta.chat
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - name: Build Python documentation
+        run: scripts/build-python-docs.sh
+      - name: Upload to py.delta.chat
+        uses: up9cloud/action-rsync@v1.3
+        env:
+          USER: delta
+          KEY: ${{ secrets.CODESPEAK_KEY }}
+          HOST: "lists.codespeak.net"
+          SOURCE: "dist/html/"
+          TARGET: "/home/delta/build/master"

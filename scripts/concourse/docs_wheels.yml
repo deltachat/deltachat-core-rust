@@ -102,8 +102,6 @@ jobs:
             - name: deltachat-core-rust-release
               path: .
           outputs:
-            - name: py-docs
-              path: ./python/doc/_build/
             # Binary wheels
             - name: py-wheels
               path: ./python/.docker-tox/wheelhouse/
@@ -114,28 +112,6 @@ jobs:
               - -exc
               - |
                 scripts/run_all.sh
-
-      # Upload python docs to py.delta.chat
-      - task: upload-py-docs
-        config:
-          inputs:
-            - name: py-docs
-          image_resource:
-            type: registry-image
-            source:
-              repository: alpine
-          platform: linux
-          run:
-            path: sh
-            args:
-              - -ec
-              - |
-                apk add --no-cache rsync openssh-client
-                mkdir -p ~/.ssh
-                chmod 700 ~/.ssh
-                echo "(("c.delta.chat".private_key))" > ~/.ssh/id_ed25519
-                chmod 600 ~/.ssh/id_ed25519
-                rsync -e "ssh -o StrictHostKeyChecking=no" -avz --delete py-docs/html/ delta@py.delta.chat:build/master
 
       # Upload x86_64 wheels and source packages
       - task: upload-wheels

@@ -195,7 +195,7 @@ class Client:
 
 
 class Bot(Client):
-    """Simple bot implementation that listent to events of a single account."""
+    """Simple bot implementation that listens to events of a single account."""
 
     def configure(self, email: str, password: str, **kwargs) -> None:
         kwargs.setdefault("bot", "1")

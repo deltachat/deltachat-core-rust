@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Build the Delta Chat Core Rust library, Python wheels and docs 
+# Build the Delta Chat Core Rust library and Python wheels
 
 set -e -x
 
@@ -34,9 +34,3 @@ unset CHATMAIL_DOMAIN
 tox --workdir "$TOXWORKDIR" -e py37,py38,py39,py310,py311,py312,pypy37,pypy38,pypy39,pypy310 --skip-missing-interpreters true
 
 auditwheel repair "$TOXWORKDIR"/wheelhouse/deltachat* -w "$TOXWORKDIR/wheelhouse"
-
-
-echo -----------------------
-echo generating python docs
-echo -----------------------
-tox --workdir "$TOXWORKDIR" -e doc

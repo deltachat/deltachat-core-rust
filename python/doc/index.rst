@@ -1,41 +1,44 @@
-deltachat python bindings
-=========================
+Delta Chat Python bindings, new and old
+=======
 
-The ``deltachat`` Python package provides two layers of bindings for the
-core Rust-library of the https://delta.chat messaging ecosystem:
-
-- :doc:`api` is a high level interface to deltachat-core.
-
-- :doc:`plugins` is a brief introduction into implementing plugin hooks.
-
-- :doc:`lapi` is a lowlevel CFFI-binding to the `Rust Core
-  <https://github.com/deltachat/deltachat-core-rust>`_.
-
-
-
-getting started
----------------
+`Delta Chat <https://delta.chat/>`_ provides two kinds of Python bindings
+to the `Rust Core <https://github.com/deltachat/deltachat-core-rust>`_:
+JSON-RPC bindings and CFFI bindings.
+When starting a new project it is recommended to use JSON-RPC bindings,
+which are used in the Delta Chat Desktop app through generated Typescript-bindings. 
+The Python JSON-RPC bindings are maintained by Delta Chat core developers. 
+Most existing bot projects and many tests in Delta Chat's own core library
+still use the CFFI-bindings, and it is going to be maintained certainly also in 2024. 
+New APIs might however only appear in the JSON-RPC bindings, 
+as the CFFI bindings are increasingly in maintenance-only mode. 
 
 .. toctree::
    :maxdepth: 2
+   :caption: JSON-RPC Bindings
 
-   install
-   examples
+   jsonrpc/intro
+   jsonrpc/install
+   jsonrpc/examples
+   jsonrpc/reference
+   jsonrpc/develop
 
 .. toctree::
-   :hidden:
+   :maxdepth: 2
+   :caption: CFFI Bindings
 
-   links
-   changelog
-   api
-   lapi
-   plugins
+   cffi/intro
+   cffi/install
+   cffi/examples
+   cffi/manylinux
+   cffi/tests
+   cffi/api
+   cffi/lapi
+   cffi/plugins
 
-..
-    Indices and tables
-    ==================
-
-    * :ref:`genindex`
-    * :ref:`modindex`
-    * :ref:`search`
-
+.. _`deltachat`: https://delta.chat
+.. _`deltachat-core repo`: https://github.com/deltachat
+.. _pip: http://pypi.org/project/pip/
+.. _virtualenv: http://pypi.org/project/virtualenv/
+.. _merlinux: http://merlinux.eu
+.. _pypi: http://pypi.org/
+.. _`issue-tracker`: https://github.com/deltachat/deltachat-core-rust

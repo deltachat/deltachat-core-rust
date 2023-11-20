@@ -39,6 +39,8 @@ and an own build machine.
 
 - `android-rpc-server.sh` compiles binaries of `deltachat-rpc-server` using Android NDK.
 
+- `build-python-docs.sh` builds Python documentation into `dist/html/`.
+
 ## Triggering runs on the build machine locally (fast!)
 
 There is experimental support for triggering a remote Python or Rust test run 

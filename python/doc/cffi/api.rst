@@ -1,5 +1,4 @@
-
-high level API reference
+High Level API Reference
 ========================
 
 - :class:`deltachat.Account` (your main entry point, creates the
@@ -8,28 +7,14 @@ high level API reference
 - :class:`deltachat.Chat`
 - :class:`deltachat.Message`
 
-Account
--------
-
 .. autoclass:: deltachat.Account
-    :members:
-
-
-Contact
--------
+   :members:
 
 .. autoclass:: deltachat.Contact
-    :members:
-
-Chat
-----
+   :members:
 
 .. autoclass:: deltachat.Chat
-    :members:
-
-Message
--------
+   :members:
 
 .. autoclass:: deltachat.Message
-    :members:
-
+   :members:
