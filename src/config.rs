@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 
 use crate::blob::BlobObject;
 use crate::constants::DC_VERSION_STR;
