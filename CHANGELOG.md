@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.131.6] - 2023-11-21
+
+### Fixes
+
+- Fail fast if IMAP FETCH cannot be parsed instead of getting stuck in infinite loop.
+
+### Documentation
+
+- Generate deltachat-rpc-client documentation and publish it to <https://py.delta.chat>.
+
 ## [1.131.5] - 2023-11-20
 
 ### API-Changes
@@ -3252,3 +3262,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.2...v1.131.3
 [1.131.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.3...v1.131.4
 [1.131.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.4...v1.131.5
+[1.131.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.5...v1.131.6
