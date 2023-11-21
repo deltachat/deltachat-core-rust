@@ -114,7 +114,7 @@ pub enum Qr {
         /// information to connect to and authenticate a backup provider.
         ///
         /// The format is somewhat opaque, but `sendme` can deserialise this.
-        ticket: iroh::provider::Ticket,
+        ticket: iroh04::provider::Ticket,
     },
 
     /// Ask the user if they want to use the given service for video chats.
@@ -497,12 +497,12 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
 /// Decodes a [`DCBACKUP_SCHEME`] QR code.
 ///
 /// The format of this scheme is `DCBACKUP:<encoded ticket>`.  The encoding is the
-/// [`iroh::provider::Ticket`]'s `Display` impl.
+/// [`iroh04::provider::Ticket`]'s `Display` impl.
 fn decode_backup(qr: &str) -> Result<Qr> {
     let payload = qr
         .strip_prefix(DCBACKUP_SCHEME)
         .ok_or_else(|| anyhow!("invalid DCBACKUP scheme"))?;
-    let ticket: iroh::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
+    let ticket: iroh04::provider::Ticket = payload.parse().context("invalid DCBACKUP payload")?;
     Ok(Qr::Backup { ticket })
 }
 

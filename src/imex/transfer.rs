@@ -32,12 +32,12 @@ use std::task::Poll;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 use async_channel::Receiver;
 use futures_lite::StreamExt;
-use iroh::blobs::Collection;
-use iroh::get::DataStream;
-use iroh::progress::ProgressEmitter;
-use iroh::protocol::AuthToken;
-use iroh::provider::{DataSource, Event, Provider, Ticket};
-use iroh::Hash;
+use iroh04::blobs::Collection;
+use iroh04::get::DataStream;
+use iroh04::progress::ProgressEmitter;
+use iroh04::protocol::AuthToken;
+use iroh04::provider::{DataSource, Event, Provider, Ticket};
+use iroh04::Hash;
 use tokio::fs::{self, File};
 use tokio::io::{self, AsyncWriteExt, BufWriter};
 use tokio::sync::broadcast::error::RecvError;
@@ -176,7 +176,7 @@ impl BackupProvider {
         }
 
         // Start listening.
-        let (db, hash) = iroh::provider::create_collection(files).await?;
+        let (db, hash) = iroh04::provider::create_collection(files).await?;
         context.emit_event(SendProgress::CollectionCreated.into());
         let provider = Provider::builder(db)
             .bind_addr((Ipv4Addr::UNSPECIFIED, 0).into())
@@ -382,7 +382,7 @@ impl From<SendProgress> for EventType {
 /// This is a long running operation which will only when completed.
 ///
 /// Using [`Qr`] as argument is a bit odd as it only accepts one specific variant of it.  It
-/// does avoid having [`iroh::provider::Ticket`] in the primary API however, without
+/// does avoid having [`iroh04::provider::Ticket`] in the primary API however, without
 /// having to revert to untyped bytes.
 pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
     ensure!(
@@ -456,7 +456,7 @@ async fn transfer_from_provider(context: &Context, ticket: &Ticket) -> Result<()
 
     // Perform the transfer.
     let keylog = false; // Do not enable rustls SSLKEYLOGFILE env var functionality
-    let stats = iroh::get::run_ticket(
+    let stats = iroh04::get::run_ticket(
         ticket,
         keylog,
         MAX_CONCURRENT_DIALS,
