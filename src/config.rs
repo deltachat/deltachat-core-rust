@@ -335,6 +335,9 @@ pub enum Config {
     /// until `chat_id.accept()` is called.
     #[strum(props(default = "0"))]
     VerifiedOneOnOneChats,
+
+    /// The iroh document ticket.
+    DocTicket,
 }
 
 impl Context {

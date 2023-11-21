@@ -437,6 +437,19 @@ impl Context {
             return;
         }
         self.scheduler.start(self.clone()).await;
+
+        if let Ok(Some(ticket)) = self.get_config(Config::DocTicket).await {
+            if let Err(err) = self.start_iroh(ticket).await {
+                error!(self, "failed to join iroh doc, {err:#}");
+            }
+        }
+    }
+
+    async fn start_iroh(&self, ticket: String) -> Result<()> {
+        let client = self.iroh_node.client();
+        let _doc = client.docs.import(ticket.parse()?).await?;
+
+        Ok(())
     }
 
     /// Stops the IO scheduler.

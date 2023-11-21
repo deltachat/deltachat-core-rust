@@ -1471,6 +1471,7 @@ dependencies = [
  "pretty_env_logger",
  "proptest",
  "qrcodegen",
+ "quic-rpc 0.6.1",
  "quick-xml",
  "rand 0.8.5",
  "ratelimit",
