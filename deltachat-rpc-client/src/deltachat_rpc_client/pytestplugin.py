@@ -5,6 +5,7 @@ from typing import AsyncGenerator, List, Optional
 import pytest
 
 from . import Account, AttrDict, Bot, Client, DeltaChat, EventType, Message
+from ._utils import futuremethod
 from .rpc import Rpc
 
 
@@ -37,9 +38,10 @@ class ACFactory:
         assert not account.is_configured()
         return account
 
-    def new_configured_account(self) -> Account:
+    @futuremethod
+    def new_configured_account(self):
         account = self.new_preconfigured_account()
-        account.configure()
+        yield account.configure.future()
         assert account.is_configured()
         return account
 
@@ -49,8 +51,9 @@ class ACFactory:
         bot.configure(credentials["email"], credentials["password"])
         return bot
 
-    def get_online_account(self) -> Account:
-        account = self.new_configured_account()
+    @futuremethod
+    def get_online_account(self):
+        account = yield self.new_configured_account.future()
         account.start_io()
         while True:
             event = account.wait_for_event()
@@ -59,7 +62,8 @@ class ACFactory:
         return account
 
     def get_online_accounts(self, num: int) -> List[Account]:
-        return [self.get_online_account() for _ in range(num)]
+        futures = [self.get_online_account.future() for _ in range(num)]
+        return [f() for f in futures]
 
     def resetup_account(self, ac: Account) -> Account:
         """Resetup account from scratch, losing the encryption key."""

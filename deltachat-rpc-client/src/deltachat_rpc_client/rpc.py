@@ -13,6 +13,48 @@ class JsonRpcError(Exception):
     pass
 
 
+class RpcFuture:
+    def __init__(self, rpc: "Rpc", request_id: int, event: Event):
+        self.rpc = rpc
+        self.request_id = request_id
+        self.event = event
+
+    def __call__(self):
+        self.event.wait()
+        response = self.rpc.request_results.pop(self.request_id)
+        if "error" in response:
+            raise JsonRpcError(response["error"])
+        if "result" in response:
+            return response["result"]
+        return None
+
+
+class RpcMethod:
+    def __init__(self, rpc: "Rpc", name: str):
+        self.rpc = rpc
+        self.name = name
+
+    def __call__(self, *args) -> Any:
+        """Synchronously calls JSON-RPC method."""
+        future = self.future(*args)
+        return future()
+
+    def future(self, *args) -> Any:
+        """Asynchronously calls JSON-RPC method."""
+        request_id = next(self.rpc.id_iterator)
+        request = {
+            "jsonrpc": "2.0",
+            "method": self.name,
+            "params": args,
+            "id": request_id,
+        }
+        event = Event()
+        self.rpc.request_events[request_id] = event
+        self.rpc.request_queue.put(request)
+
+        return RpcFuture(self.rpc, request_id, event)
+
+
 class Rpc:
     def __init__(self, accounts_dir: Optional[str] = None, **kwargs):
         """The given arguments will be passed to subprocess.Popen()"""
@@ -145,24 +187,4 @@ class Rpc:
         return queue.get()
 
     def __getattr__(self, attr: str):
-        def method(*args) -> Any:
-            request_id = next(self.id_iterator)
-            request = {
-                "jsonrpc": "2.0",
-                "method": attr,
-                "params": args,
-                "id": request_id,
-            }
-            event = Event()
-            self.request_events[request_id] = event
-            self.request_queue.put(request)
-            event.wait()
-
-            response = self.request_results.pop(request_id)
-            if "error" in response:
-                raise JsonRpcError(response["error"])
-            if "result" in response:
-                return response["result"]
-            return None
-
-        return method
+        return RpcMethod(self, attr)
