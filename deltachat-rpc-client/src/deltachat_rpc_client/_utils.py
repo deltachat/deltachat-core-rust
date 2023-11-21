@@ -168,3 +168,20 @@ def parse_system_add_remove(text: str) -> Optional[Tuple[str, str, str]]:
             return "removed", addr, addr
 
     return None
+
+
+def futuremethod(func):
+    """Decorator for async methods."""
+
+    class FutureMethod:
+        def __init__(self, func):
+            self.func = func
+
+        def __call__(self):
+            f = self.func()
+            return f()
+
+        def future(self):
+            return self.func()
+
+    return FutureMethod(func)

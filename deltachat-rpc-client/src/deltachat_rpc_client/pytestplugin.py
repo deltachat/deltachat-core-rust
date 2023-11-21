@@ -5,6 +5,7 @@ from typing import AsyncGenerator, Callable, List, Optional
 import pytest
 
 from . import Account, AttrDict, Bot, Client, DeltaChat, EventType, Message
+from ._utils import futuremethod
 from .rpc import Rpc
 
 
@@ -37,7 +38,8 @@ class ACFactory:
         assert not account.is_configured()
         return account
 
-    def new_configured_account_future(self) -> Callable[[], Account]:
+    @futuremethod
+    def new_configured_account(self) -> Callable[[], Account]:
         account = self.new_preconfigured_account()
         fut = account.configure_future()
 
@@ -48,18 +50,15 @@ class ACFactory:
 
         return f
 
-    def new_configured_account(self) -> Account:
-        f = self.new_configured_account_future()
-        return f()
-
     def new_configured_bot(self) -> Bot:
         credentials = get_temp_credentials()
         bot = self.get_unconfigured_bot()
         bot.configure(credentials["email"], credentials["password"])
         return bot
 
-    def get_online_account_future(self) -> Callable[[], Account]:
-        account_future = self.new_configured_account_future()
+    @futuremethod
+    def get_online_account(self) -> Callable[[], Account]:
+        account_future = self.new_configured_account.future()
 
         def f():
             account = account_future()
@@ -72,12 +71,8 @@ class ACFactory:
 
         return f
 
-    def get_online_account(self) -> Account:
-        f = self.get_online_account_future()
-        return f()
-
     def get_online_accounts(self, num: int) -> List[Account]:
-        futures = [self.get_online_account_future() for _ in range(num)]
+        futures = [self.get_online_account.future() for _ in range(num)]
         return [f() for f in futures]
 
     def resetup_account(self, ac: Account) -> Account:
