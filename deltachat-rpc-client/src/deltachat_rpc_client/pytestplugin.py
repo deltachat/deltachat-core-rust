@@ -1,6 +1,6 @@
 import os
 import random
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, Callable, List, Optional
 
 import pytest
 
@@ -37,11 +37,20 @@ class ACFactory:
         assert not account.is_configured()
         return account
 
-    def new_configured_account(self) -> Account:
+    def new_configured_account_future(self) -> Callable[[], Account]:
         account = self.new_preconfigured_account()
-        account.configure()
-        assert account.is_configured()
-        return account
+        fut = account.configure_future()
+
+        def f():
+            fut()
+            assert account.is_configured()
+            return account
+
+        return f
+
+    def new_configured_account(self) -> Account:
+        f = self.new_configured_account_future()
+        return f()
 
     def new_configured_bot(self) -> Bot:
         credentials = get_temp_credentials()
@@ -49,17 +58,27 @@ class ACFactory:
         bot.configure(credentials["email"], credentials["password"])
         return bot
 
+    def get_online_account_future(self) -> Callable[[], Account]:
+        account_future = self.new_configured_account_future()
+
+        def f():
+            account = account_future()
+            account.start_io()
+            while True:
+                event = account.wait_for_event()
+                if event.kind == EventType.IMAP_INBOX_IDLE:
+                    break
+            return account
+
+        return f
+
     def get_online_account(self) -> Account:
-        account = self.new_configured_account()
-        account.start_io()
-        while True:
-            event = account.wait_for_event()
-            if event.kind == EventType.IMAP_INBOX_IDLE:
-                break
-        return account
+        f = self.get_online_account_future()
+        return f()
 
     def get_online_accounts(self, num: int) -> List[Account]:
-        return [self.get_online_account() for _ in range(num)]
+        futures = [self.get_online_account_future() for _ in range(num)]
+        return [f() for f in futures]
 
     def resetup_account(self, ac: Account) -> Account:
         """Resetup account from scratch, losing the encryption key."""

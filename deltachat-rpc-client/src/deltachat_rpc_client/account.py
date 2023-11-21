@@ -76,6 +76,9 @@ class Account:
         """Get self avatar."""
         return self.get_config("selfavatar")
 
+    def configure_future(self):
+        return self._rpc.configure.future(self.id)
+
     def configure(self) -> None:
         """Configure an account."""
         self._rpc.configure(self.id)
