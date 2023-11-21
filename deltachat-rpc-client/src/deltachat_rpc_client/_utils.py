@@ -1,8 +1,9 @@
-import argparse
-import re
-import sys
 from threading import Thread
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Tuple, Type, Union
+import argparse
+import functools
+import re
+import sys
 
 if TYPE_CHECKING:
     from .client import Client
@@ -170,18 +171,21 @@ def parse_system_add_remove(text: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def futuremethod(func):
+class futuremethod:
     """Decorator for async methods."""
+    def __init__(self, func):
+        self._func = func
 
-    class FutureMethod:
-        def __init__(self, func):
-            self.func = func
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
 
-        def __call__(self):
-            f = self.func()
-            return f()
+        class C:
+            def __call__(*args):
+                f = self._func(instance, *args)
+                return f()
 
-        def future(self):
-            return self.func()
+            def future(*args):
+                return self._func(instance, *args)
 
-    return FutureMethod(func)
+        return C

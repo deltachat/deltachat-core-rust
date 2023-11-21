@@ -41,7 +41,7 @@ class ACFactory:
     @futuremethod
     def new_configured_account(self) -> Callable[[], Account]:
         account = self.new_preconfigured_account()
-        fut = account.configure_future()
+        fut = account.configure.future()
 
         def f():
             fut()
