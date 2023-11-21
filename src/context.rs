@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
@@ -244,6 +245,8 @@ pub struct InnerContext {
     /// Standard RwLock instead of [`tokio::sync::RwLock`] is used
     /// because the lock is used from synchronous [`Context::emit_event`].
     pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
+
+    pub(crate) iroh_node: iroh::node::Node<iroh::bytes::store::flat::Store>,
 }
 
 /// The state of ongoing process.
@@ -312,7 +315,10 @@ impl Context {
         if !blobdir.exists() {
             tokio::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events, stockstrings)?;
+        let irohdir = dbfile.with_file_name("iroh");
+        let context =
+            Context::with_blobdir(dbfile.into(), blobdir, irohdir, id, events, stockstrings)
+                .await?;
         Ok(context)
     }
 
@@ -349,9 +355,10 @@ impl Context {
         self.sql.check_passphrase(passphrase).await
     }
 
-    pub(crate) fn with_blobdir(
+    pub(crate) async fn with_blobdir(
         dbfile: PathBuf,
         blobdir: PathBuf,
+        irohdir: PathBuf,
         id: u32,
         events: Events,
         stockstrings: StockStrings,
@@ -361,6 +368,31 @@ impl Context {
             "Blobdir does not exist: {}",
             blobdir.display()
         );
+
+        tokio::fs::create_dir_all(&irohdir).await?;
+        let keyfile = irohdir.join("secret-key");
+        let key = if tokio::fs::try_exists(&keyfile).await? {
+            let s = tokio::fs::read_to_string(&keyfile).await?;
+            iroh::net::key::SecretKey::from_str(&s)?
+        } else {
+            let key = iroh::net::key::SecretKey::generate();
+            tokio::fs::write(keyfile, key.to_string()).await?;
+            key
+        };
+        let rt = iroh::bytes::util::runtime::Handle::from_current(1)?;
+        let baostore = iroh::bytes::store::flat::Store::load(
+            irohdir.join("complete"),
+            irohdir.join("partial"),
+            irohdir.join("meta"),
+            &rt,
+        )
+        .await?;
+        let docstore = iroh::sync::store::fs::Store::new(irohdir.join("docs"))?;
+        let iroh_node = iroh::node::Node::builder(baostore, docstore)
+            .secret_key(key)
+            .runtime(&rt)
+            .spawn()
+            .await?;
 
         let new_msgs_notify = Notify::new();
         // Notify once immediately to allow processing old messages
@@ -388,6 +420,7 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
+            iroh_node,
         };
 
         let ctx = Context {
@@ -1242,7 +1275,16 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
+        let irohdir = tmp.path().join("iroh");
+        let res = Context::with_blobdir(
+            dbfile,
+            blobdir,
+            irohdir,
+            1,
+            Events::new(),
+            StockStrings::new(),
+        )
+        .await;
         assert!(res.is_err());
     }
 
@@ -1251,7 +1293,16 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
+        let irohdir = tmp.path().join("iroh");
+        let res = Context::with_blobdir(
+            dbfile,
+            blobdir,
+            irohdir,
+            1,
+            Events::new(),
+            StockStrings::new(),
+        )
+        .await;
         assert!(res.is_err());
     }
 
