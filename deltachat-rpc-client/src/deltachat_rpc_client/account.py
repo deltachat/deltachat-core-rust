@@ -79,7 +79,7 @@ class Account:
     @futuremethod
     def configure(self):
         """Configure an account."""
-        return self._rpc.configure.future(self.id)
+        yield self._rpc.configure.future(self.id)
 
     def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.

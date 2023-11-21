@@ -181,11 +181,22 @@ class futuremethod:
             return self
 
         def wrapper(*args):
-            f = self._func(instance, *args)
-            return f()
+            generator = self._func(instance, *args)
+            res = next(generator)
+            try:
+                generator.send(res())
+            except StopIteration as e:
+                return e.value
 
         def future(*args):
-            return self._func(instance, *args)
+            generator = self._func(instance, *args)
+            res = next(generator)
+            def f():
+                try:
+                    generator.send(res())
+                except StopIteration as e:
+                    return e.value
+            return f
 
         wrapper.future = future
         return wrapper

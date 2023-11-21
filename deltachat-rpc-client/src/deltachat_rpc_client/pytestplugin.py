@@ -39,16 +39,11 @@ class ACFactory:
         return account
 
     @futuremethod
-    def new_configured_account(self) -> Callable[[], Account]:
+    def new_configured_account(self):
         account = self.new_preconfigured_account()
-        fut = account.configure.future()
-
-        def f():
-            fut()
-            assert account.is_configured()
-            return account
-
-        return f
+        yield account.configure.future()
+        assert account.is_configured()
+        return account
 
     def new_configured_bot(self) -> Bot:
         credentials = get_temp_credentials()
@@ -57,19 +52,14 @@ class ACFactory:
         return bot
 
     @futuremethod
-    def get_online_account(self) -> Callable[[], Account]:
-        account_future = self.new_configured_account.future()
-
-        def f():
-            account = account_future()
-            account.start_io()
-            while True:
-                event = account.wait_for_event()
-                if event.kind == EventType.IMAP_INBOX_IDLE:
-                    break
-            return account
-
-        return f
+    def get_online_account(self):
+        account = yield self.new_configured_account.future()
+        account.start_io()
+        while True:
+            event = account.wait_for_event()
+            if event.kind == EventType.IMAP_INBOX_IDLE:
+                break
+        return account
 
     def get_online_accounts(self, num: int) -> List[Account]:
         futures = [self.get_online_account.future() for _ in range(num)]
