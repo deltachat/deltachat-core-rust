@@ -180,12 +180,12 @@ class futuremethod:
         if instance is None:
             return self
 
-        class C:
-            def __call__(*args):
-                f = self._func(instance, *args)
-                return f()
+        def wrapper(*args):
+            f = self._func(instance, *args)
+            return f()
 
-            def future(*args):
-                return self._func(instance, *args)
+        def future(*args):
+            return self._func(instance, *args)
 
-        return C
+        wrapper.future = future
+        return wrapper
