@@ -1451,13 +1451,8 @@ impl Imap {
                             break;
                         };
 
-                    let next_fetch_response = match next_fetch_response {
-                        Ok(next_fetch_response) => next_fetch_response,
-                        Err(err) => {
-                            warn!(context, "Failed to process IMAP FETCH result: {}.", err);
-                            continue;
-                        }
-                    };
+                    let next_fetch_response =
+                        next_fetch_response.context("Failed to process IMAP FETCH result")?;
 
                     if let Some(next_uid) = next_fetch_response.uid {
                         if next_uid == request_uid {
