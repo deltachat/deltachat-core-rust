@@ -38,6 +38,7 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::tools::create_id;
+use crate::tools::get_topic_from_msg_id;
 use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 
@@ -154,7 +155,7 @@ struct StatusUpdates {
 }
 
 /// Update items as sent on the wire and as stored in the database.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct StatusUpdateItem {
     /// The playload of the status update.
     pub payload: Value,
@@ -181,6 +182,12 @@ pub struct StatusUpdateItem {
     /// If there is no ID, message is always considered to be unique.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
+
+    /// Wheter the message should be sent over an ephemeral channel.
+    /// This means it will only be received by the other side if they are currently online
+    /// and part of the gossip group.
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 /// Update items as passed to the UIs.
@@ -305,7 +312,7 @@ impl Context {
 
     /// Takes an update-json as `{payload: PAYLOAD}`
     /// writes it to the database and handles events, info-messages, document name and summary.
-    async fn create_status_update_record(
+    pub(crate) async fn create_status_update_record(
         &self,
         instance: &mut Message,
         status_update_item: StatusUpdateItem,
@@ -396,7 +403,6 @@ impl Context {
         instance_id: &MsgId,
         status_update_item: &StatusUpdateItem,
     ) -> Result<Option<StatusUpdateSerial>> {
-        let _lock = self.sql.write_lock().await;
         let uid = status_update_item.uid.as_deref();
         let Some(rowid) = self
             .sql
@@ -490,7 +496,19 @@ impl Context {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
         );
 
+        if send_now {
+            if let Some(ref gossip) = *self.gossip.lock().await {
+                let topic = get_topic_from_msg_id(&instance.rfc724_mid)?;
+                gossip
+                    .broadcast(topic, serde_json::to_string(&status_update)?.into())
+                    .await?;
+            }
+        }
+
         status_update.uid = Some(create_id());
+        let ephemeral = status_update.ephemeral;
+        println!("ephemeral: {}", ephemeral);
+
         let status_update_serial: StatusUpdateSerial = self
             .create_status_update_record(
                 &mut instance,
@@ -499,11 +517,10 @@ impl Context {
                 send_now,
                 ContactId::SELF,
             )
-            .await
-            .context("Failed to create status update")?
-            .context("Duplicate status update UID was generated")?;
+            .await?
+            .context("Failed to create status update")?;
 
-        if send_now {
+        if send_now && !ephemeral {
             self.sql.insert(
                 "INSERT INTO smtp_status_updates (msg_id, first_serial, last_serial, descr) VALUES(?, ?, ?, ?)
                  ON CONFLICT(msg_id)
@@ -655,6 +672,10 @@ impl Context {
         instance_msg_id: MsgId,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
+        let rfc724_mid = instance_msg_id.get_rfc724_mid(self).await?;
+        self.join_and_subscribe_topic(&rfc724_mid, instance_msg_id)
+            .await?;
+
         let json = self
             .sql
             .query_map(
@@ -873,6 +894,8 @@ impl Message {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use serde_json::json;
 
     use super::*;
@@ -1340,11 +1363,10 @@ mod tests {
 
         // set_draft(None) deletes the message without the need to simulate network
         chat_id.set_draft(&t, None).await?;
-        assert_eq!(
-            t.get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
-                .await?,
-            "[]".to_string()
-        );
+        assert!(t
+            .get_webxdc_status_updates(instance.id, StatusUpdateSerial(0))
+            .await
+            .is_err());
         assert_eq!(
             t.sql
                 .count("SELECT COUNT(*) FROM msgs_status_updates;", ())
@@ -1376,6 +1398,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    ephemeral: false,
                 },
                 1640178619,
                 true,
@@ -1400,6 +1423,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
+                    ephemeral: false,
                 },
                 1640178619,
                 true,
@@ -1433,6 +1457,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: None,
+                    ephemeral: false,
                 },
                 1640178619,
                 true,
@@ -1452,6 +1477,7 @@ mod tests {
                 document: None,
                 summary: None,
                 uid: None,
+                ephemeral: false,
             },
             1640178619,
             true,
@@ -1674,6 +1700,43 @@ mod tests {
 {"payload":{"snipp":"snapp"},"serial":2,"max_serial":2}]"#
         );
 
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_send_ephemeral_webxdc_status_update() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        alice.set_config_bool(Config::BccSelf, true).await?;
+        let bob = TestContext::new_bob().await;
+
+        // Alice sends an webxdc instance and a status update
+        let alice_chat = alice.create_chat(&bob).await;
+        let alice_instance = send_webxdc_instance(&alice, alice_chat.id).await?;
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload" : {"foo":"bar"}}"#,
+                "descr text",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+        // Not setting ephemeral should prepare a message
+        alice.pop_sent_msg().await;
+
+        alice
+            .send_webxdc_status_update(
+                alice_instance.id,
+                r#"{"payload" : {"foo":"bar"}, "ephemeral": true}"#,
+                "descr text",
+            )
+            .await?;
+        alice.flush_status_updates().await?;
+
+        // Setting ephemeral should noot prepare a message
+        assert!(&alice
+            .pop_sent_msg_opt(Duration::from_secs(1))
+            .await
+            .is_none());
         Ok(())
     }
 

@@ -326,6 +326,15 @@ WHERE id=?;
 
         Ok(ret)
     }
+
+    /// Get the rfc724 message id from the database and return it.
+    pub async fn get_rfc724_mid(&self, context: &Context) -> Result<String> {
+        context
+            .sql
+            .query_get_value("SELECT rfc724_mid from msgs WHERE id=?", (self.0,))
+            .await?
+            .context("Can't get rfc724_mid")
+    }
 }
 
 impl std::fmt::Display for MsgId {
@@ -2185,6 +2194,31 @@ mod tests {
         let msg = alice.get_last_msg().await;
         assert!(!msg.get_chat_id().is_special());
         assert_eq!(msg.get_text(), "hello".to_string());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_rfc724_mid() {
+        let alice = TestContext::new_alice().await;
+        receive_imf(
+            &alice,
+            b"From: Bob <bob@example.com>\n\
+                    To: alice@example.org\n\
+                    Chat-Version: 1.0\n\
+                    Message-ID: <123@example.com>\n\
+                    Date: Fri, 29 Jan 2021 21:37:55 +0000\n\
+                    \n\
+                    hello\n",
+            false,
+        )
+        .await
+        .unwrap();
+
+        // check chat-id of this message
+        let msg = alice.get_last_msg().await;
+        assert_eq!(
+            msg.id.get_rfc724_mid(&alice).await.unwrap(),
+            "123@example.com".to_string()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

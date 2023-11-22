@@ -3,7 +3,7 @@ name = "deltachat"
 version = "1.133.1"
 edition = "2021"
 license = "MPL-2.0"
-rust-version = "1.70"
+rust-version = "1.72"
 
 [profile.dev]
 debug = 0
@@ -32,6 +32,7 @@ strip = true
 
 [patch.crates-io]
 imap-proto = { git = "https://github.com/djc/tokio-imap.git", rev = "01ff256a7e42a9f7d2732706f8b71a16ce93427e" }
+"iroh-blake3" = { git = "https://github.com/n0-computer/iroh-blake3.git", branch = "master" }
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
@@ -46,8 +47,11 @@ async-smtp = { version = "0.9", default-features = false, features = ["runtime-t
 async_zip = { version = "0.0.12", default-features = false, features = ["deflate", "fs"] }
 backtrace = "0.3"
 base64 = "0.21"
-brotli = { version = "3.4", default-features=false, features = ["std"] }
-chrono = { version = "0.4", default-features=false, features = ["clock", "std"] }
+brotli = { version = "3.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4", default-features = false, features = [
+  "clock",
+  "std",
+] }
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
 escaper = "0.1"
@@ -58,8 +62,20 @@ futures-lite = "2.0.0"
 hex = "0.4.0"
 hickory-resolver = "0.24"
 humansize = "2"
-image = { version = "0.24.7", default-features=false, features = ["gif", "jpeg", "ico", "png", "pnm", "webp", "bmp"] }
-iroh = { version = "0.4.2", default-features = false }
+image = { version = "0.24.7", default-features = false, features = [
+  "gif",
+  "jpeg",
+  "ico",
+  "png",
+  "pnm",
+  "webp",
+  "bmp",
+] }
+iroh = { git = "https://github.com/deltachat/iroh", branch = "0.4-update-quic", default-features = false }
+iroh-net = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+iroh-base = { git = "https://github.com/n0-computer/iroh", branch = "main" }
+iroh-gossip = { git = "https://github.com/n0-computer/iroh", branch = "main", features = ["net"] }
+quinn = "0.10"
 kamadak-exif = "0.5"
 lettre_email = { git = "https://github.com/deltachat/lettre", branch = "master" }
 libc = "0.2"
@@ -93,7 +109,12 @@ strum_macros = "0.25"
 tagger = "4.3.4"
 textwrap = "0.16.0"
 thiserror = "1"
-tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = [
+  "fs",
+  "rt-multi-thread",
+  "macros",
+  "time",
+] }
 tokio-io-timeout = "1.2.0"
 tokio-stream = { version = "0.1.14", features = ["fs"] }
 tokio-tar = { version = "0.3" } # TODO: integrate tokio into async-tar
@@ -112,7 +133,11 @@ pretty_env_logger = "0.5"
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
 testdir = "0.9.0"
-tokio = { version = "1", features = ["parking_lot", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = [
+  "parking_lot",
+  "rt-multi-thread",
+  "macros",
+] }
 pretty_assertions = "1.3.0"
 
 [workspace]
@@ -160,5 +185,5 @@ internals = []
 vendored = [
   "async-native-tls/vendored",
   "rusqlite/bundled-sqlcipher-vendored-openssl",
-  "reqwest/native-tls-vendored"
+  "reqwest/native-tls-vendored",
 ]

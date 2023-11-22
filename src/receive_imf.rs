@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 
 use anyhow::{Context as _, Result};
+use iroh_net::NodeAddr;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -38,7 +39,10 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
+use crate::tools::{
+    buf_compress, extract_grpid_from_rfc724_mid, get_topic_from_msg_id, smeared_time,
+    strip_rtlo_characters,
+};
 use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -1454,6 +1458,44 @@ RETURNING id
 
         debug_assert!(!row_id.is_special());
         created_db_entries.push(row_id);
+    }
+
+    // Connect to iroh gossip group if it has been advertised.
+    if incoming {
+        if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicGossip) {
+            info!(context, "Create connection with node_addr: {node_addr}.");
+            match serde_json::from_str::<NodeAddr>(node_addr)
+                .context("Failed to parse node address")
+            {
+                Ok(node_addr) => {
+                    context
+                        .endpoint
+                        .lock()
+                        .await
+                        .as_ref()
+                        .context("Failed to get magic endpoint")?
+                        .add_node_addr(node_addr.clone())
+                        .context("Failed to add node address")?;
+
+                    let rfc724_mid = mime_parser
+                        .get_rfc724_mid()
+                        .context("Can't get Message-ID")?;
+
+                    let topic = get_topic_from_msg_id(&rfc724_mid)?;
+
+                    let node_id = node_addr.node_id;
+                    context
+                        .add_peer_for_topic(topic, node_id)
+                        .await
+                        .with_context(|| {
+                            format!("Failed to add peer {node_id} for topic {topic}")
+                        })?;
+                }
+                Err(err) => {
+                    warn!(context, "{err:#}.");
+                }
+            }
+        }
     }
 
     // check all parts whether they contain a new logging webxdc

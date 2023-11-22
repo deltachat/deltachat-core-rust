@@ -10,6 +10,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use iroh_gossip::net::Gossip;
+use iroh_net::MagicEndpoint;
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, RwLock};
 
@@ -244,6 +246,11 @@ pub struct InnerContext {
     /// Standard RwLock instead of [`tokio::sync::RwLock`] is used
     /// because the lock is used from synchronous [`Context::emit_event`].
     pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
+
+    /// [MagicEndpoint] needed for iroh peer channels.
+    pub(crate) endpoint: Mutex<Option<MagicEndpoint>>,
+    /// [Gossip] needed for iroh peer channels.
+    pub(crate) gossip: Mutex<Option<Gossip>>,
 }
 
 /// The state of ongoing process.
@@ -388,6 +395,8 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
+            endpoint: Mutex::new(None),
+            gossip: Mutex::new(None),
         };
 
         let ctx = Context {
@@ -417,11 +426,17 @@ impl Context {
                 *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
             }
         }
+
+        if let Err(e) = self.create_gossip().await {
+            warn!(self, "{e}");
+        }
         self.scheduler.start(self.clone()).await;
     }
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
+        self.endpoint.lock().await.take();
+        self.gossip.lock().await.take();
         self.scheduler.stop(self).await;
     }
 
@@ -431,8 +446,11 @@ impl Context {
         self.scheduler.restart(self).await;
     }
 
-    /// Indicate that the network likely has come back.
+    /// Indicates that the network likely has come back.
     pub async fn maybe_network(&self) {
+        if let Some(ref mut endpoint) = *self.endpoint.lock().await {
+            endpoint.network_change().await;
+        }
         self.scheduler.maybe_network().await;
     }
 
@@ -1319,6 +1337,7 @@ mod tests {
             "socks5_user",
             "socks5_password",
             "key_id",
+            "iroh_secret_key",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();
@@ -1602,6 +1621,17 @@ mod tests {
             .set_config_u32(Config::LastMsgId, sent_msg.sender_msg_id.to_u32())
             .await?;
         assert!(alice.get_next_msgs().await?.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_keypair_saving() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let key = alice.get_or_create_iroh_keypair().await?;
+        let loaded_key = alice.get_or_create_iroh_keypair().await?;
+        assert_eq!(key.to_bytes(), loaded_key.to_bytes());
 
         Ok(())
     }

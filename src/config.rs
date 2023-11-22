@@ -347,6 +347,9 @@ pub enum Config {
     /// Row ID of the key in the `keypairs` table
     /// used for signatures, encryption to self and included in `Autocrypt` header.
     KeyId,
+
+    /// Iroh secret key.
+    IrohSecretKey,
 }
 
 impl Config {

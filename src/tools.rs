@@ -8,13 +8,14 @@ use std::fmt;
 use std::io::{Cursor, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::str::from_utf8;
+use std::str::{from_utf8, FromStr};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
 use futures::{StreamExt, TryStreamExt};
+use iroh_gossip::proto::TopicId;
 use mailparse::dateparse;
 use mailparse::headers::Headers;
 use mailparse::MailHeaderMap;
@@ -741,6 +742,15 @@ const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
 pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
+}
+
+/// Generates a [TopicId] from some rfc724_mid.
+pub(crate) fn get_topic_from_msg_id(rfc724_mid: &str) -> Result<TopicId> {
+    TopicId::from_str(&iroh_base::base32::fmt(
+        rfc724_mid
+            .get(0..32)
+            .context("Can't get 32 bytes from rfc724_mid")?,
+    ))
 }
 
 #[cfg(test)]

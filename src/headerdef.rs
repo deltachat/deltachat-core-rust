@@ -88,6 +88,9 @@ pub enum HeaderDef {
     /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
+    /// Public key to join gossip network.
+    IrohPublicGossip,
+
     #[cfg(test)]
     TestHeader,
 }
