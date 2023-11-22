@@ -180,14 +180,6 @@ class futuremethod:
         if instance is None:
             return self
 
-        def wrapper(*args):
-            generator = self._func(instance, *args)
-            res = next(generator)
-            try:
-                generator.send(res())
-            except StopIteration as e:
-                return e.value
-
         def future(*args):
             generator = self._func(instance, *args)
             res = next(generator)
@@ -197,6 +189,10 @@ class futuremethod:
                 except StopIteration as e:
                     return e.value
             return f
+
+        def wrapper(*args):
+            f = future(*args)
+            return f()
 
         wrapper.future = future
         return wrapper
