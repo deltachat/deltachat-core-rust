@@ -34,6 +34,10 @@ pub struct MessageObject {
     quote: Option<MessageQuote>,
     parent_id: Option<u32>,
 
+    /// Contents of `Message-ID` header.
+    /// Possibly a fake unique string if incoming message did not have a `Message-ID` header.
+    message_id: String,
+
     text: String,
     has_location: bool,
     has_html: bool,
@@ -174,6 +178,8 @@ impl MessageObject {
             Some(reactions.into())
         };
 
+        let message_id = message.rfc724_mid().to_string();
+
         Ok(MessageObject {
             id: msg_id.to_u32(),
             chat_id: message.get_chat_id().to_u32(),
@@ -233,6 +239,8 @@ impl MessageObject {
             download_state,
 
             reactions,
+
+            message_id,
         })
     }
 }
