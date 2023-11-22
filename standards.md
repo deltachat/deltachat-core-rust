@@ -17,7 +17,7 @@ Seen status synchronization      | IMAP CONDSTORE extension ([RFC 7162][])
 Client/server identification     | IMAP ID extension ([RFC 2971][])
 Authorization                    | OAuth2 ([RFC 6749][])
 End-to-end encryption            | [Autocrypt Level 1][], OpenPGP ([RFC 4880][]), Security Multiparts for MIME ([RFC 1847][]) and [“Mixed Up” Encryption repairing](https://tools.ietf.org/id/draft-dkg-openpgp-pgpmime-message-mangling-00.html)
-Detect/prevent active attacks    | [countermitm][] protocols
+Detect/prevent active attacks    | [securejoin][] protocols
 Compare public keys              | [openpgp4fpr][] URI Scheme
 Header encryption                | [Protected Headers for Cryptographic E-mail](https://datatracker.ietf.org/doc/draft-autocrypt-lamps-protected-headers/)
 Configuration assistance         | [Autoconfigure](https://web.archive.org/web/20210402044801/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration) and [Autodiscover][]
@@ -29,7 +29,7 @@ Return receipts                  | Message Disposition Notification (MDN, [RFC 8
 Locations                        | KML ([Open Geospatial Consortium](http://www.opengeospatial.org/standards/kml/), [Google Dev](https://developers.google.com/kml/))
 
 [Autocrypt Level 1]: https://autocrypt.org/level1.html
-[countermitm]: https://countermitm.readthedocs.io/en/latest/
+[securejoin]: https://securejoin.readthedocs.io/en/latest/
 [openpgp4fpr]: https://metacode.biz/openpgp/openpgp4fpr
 [Autodiscover]: https://learn.microsoft.com/en-us/exchange/autodiscover-service-for-exchange-2013
 [XEP-0392]: https://xmpp.org/extensions/xep-0392.html
