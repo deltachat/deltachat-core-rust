@@ -4326,7 +4326,7 @@ mod tests {
     use crate::contact::{Contact, ContactAddress};
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::{TestContext, TestContextManager};
+    use crate::test_utils::{sync, TestContext, TestContextManager};
     use strum::IntoEnumIterator;
     use tokio::fs;
 
@@ -6899,21 +6899,15 @@ mod tests {
             alices[1].add_or_lookup_contact(&bob).await.id,
         ];
 
-        async fn sync(alices: &[TestContext]) -> Result<()> {
-            let sync_msg = alices.get(0).unwrap().pop_sent_msg().await;
-            alices.get(1).unwrap().recv_msg(&sync_msg).await;
-            Ok(())
-        }
-
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Request);
         a0b_chat_id.accept(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
         a0b_chat_id.block(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Yes);
         a0b_chat_id.unblock(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
 
         // Unblocking a 1:1 chat doesn't unblock the contact currently.
@@ -6921,10 +6915,10 @@ mod tests {
 
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
         Contact::block(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert!(alices[1].add_or_lookup_contact(&bob).await.is_blocked());
         Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
 
         // Test accepting and blocking groups. This way we test:
@@ -6940,11 +6934,11 @@ mod tests {
         let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
         assert_eq!(a1_grp_chat.blocked, Blocked::Request);
         a0_grp_chat_id.accept(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
         assert_eq!(a1_grp_chat.blocked, Blocked::Not);
         a0_grp_chat_id.block(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert!(Chat::load_from_db(&alices[1], a1_grp_chat_id)
             .await
             .is_err());
@@ -6968,7 +6962,7 @@ mod tests {
         visibilities.next();
         for v in visibilities {
             a0self_chat_id.set_visibility(&alices[0], v).await?;
-            sync(&alices).await?;
+            sync(&alices[0], &alices[1]).await;
             for a in &alices {
                 assert_eq!(a.get_self_chat().await.get_visibility(), v);
             }
@@ -6985,7 +6979,7 @@ mod tests {
         ];
         for m in mute_durations {
             set_muted(&alices[0], a0b_chat_id, m).await?;
-            sync(&alices).await?;
+            sync(&alices[0], &alices[1]).await;
             let m = match m {
                 MuteDuration::Until(time) => MuteDuration::Until(
                     SystemTime::UNIX_EPOCH
@@ -6999,10 +6993,10 @@ mod tests {
         }
 
         let a0_broadcast_id = create_broadcast_list(&alices[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
         set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         let a1_broadcast_id = get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
             .await?
             .unwrap()
@@ -7014,7 +7008,7 @@ mod tests {
             .await?
             .is_empty());
         add_contact_to_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert_eq!(
             get_chat_contacts(&alices[1], a1_broadcast_id).await?,
             vec![ab_contact_ids[1]]
@@ -7026,7 +7020,7 @@ mod tests {
         let msg = alices[0].recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, a0_broadcast_id);
         remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices).await?;
+        sync(&alices[0], &alices[1]).await;
         assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
             .await?
             .is_empty());
