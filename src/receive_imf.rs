@@ -451,7 +451,10 @@ pub(crate) async fn receive_imf_inner(
 ///
 /// Also returns whether it is blocked or not and its origin.
 ///
-/// * `prevent_rename`: passed through to `add_or_lookup_contacts_by_address_list()`
+/// * `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
+/// mailing lists: In some mailing lists, many users write from the same address but with different
+/// display names. We don't want the display name to change every time the user gets a new email from
+/// a mailing list.
 ///
 /// Returns `None` if From field does not contain a valid contact address.
 pub async fn from_field_to_contact_id(
@@ -2600,11 +2603,6 @@ pub(crate) async fn get_prefetch_parent_message(
 /// Looks up contact IDs from the database given the list of recipients.
 ///
 /// Returns vector of IDs guaranteed to be unique.
-///
-/// * param `prevent_rename`: if true, the display_name of this contact will not be changed. Useful for
-/// mailing lists: In some mailing lists, many users write from the same address but with different
-/// display names. We don't want the display name to change every time the user gets a new email from
-/// a mailing list.
 async fn add_or_lookup_contacts_by_address_list(
     context: &Context,
     address_list: &[SingleInfo],

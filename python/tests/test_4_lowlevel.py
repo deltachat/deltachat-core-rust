@@ -156,6 +156,8 @@ def test_markseen_invalid_message_ids(acfactory):
     chat = contact1.create_chat()
     chat.send_text("one message")
     ac1._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+    # Skip configuration-related warnings, but not errors.
+    ac1._evtracker.ensure_event_not_queued("DC_EVENT_ERROR")
     msg_ids = [9]
     lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))
     ac1._evtracker.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")

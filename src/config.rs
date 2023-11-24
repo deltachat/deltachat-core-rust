@@ -356,7 +356,10 @@ impl Config {
     /// multiple users are sharing an account. Another example is `Self::SyncMsgs` itself which
     /// mustn't be controlled by other devices.
     pub(crate) fn is_synced(&self) -> bool {
-        matches!(self, Self::MdnsEnabled | Self::ShowEmails)
+        matches!(
+            self,
+            Self::Displayname | Self::MdnsEnabled | Self::ShowEmails
+        )
     }
 }
 
@@ -487,8 +490,9 @@ impl Context {
         &self,
         sync: sync::Sync,
         key: Config,
-        value: Option<&str>,
+        mut value: Option<&str>,
     ) -> Result<()> {
+        let better_value;
         match key {
             Config::Selfavatar => {
                 self.sql
@@ -515,10 +519,11 @@ impl Context {
                 ret?
             }
             Config::Displayname => {
-                let value = value.map(improve_single_line_input);
-                self.sql
-                    .set_raw_config(key.as_ref(), value.as_deref())
-                    .await?;
+                if let Some(v) = value {
+                    better_value = improve_single_line_input(v);
+                    value = Some(&better_value);
+                }
+                self.sql.set_raw_config(key.as_ref(), value).await?;
             }
             Config::Socks5Enabled
             | Config::BccSelf
@@ -873,16 +878,6 @@ mod tests {
             mdns_enabled
         );
 
-        // Usual sync scenario.
-        alice0
-            .set_config_bool(Config::MdnsEnabled, !mdns_enabled)
-            .await?;
-        sync(&alice0, &alice1).await?;
-        assert_eq!(
-            alice1.get_config_bool(Config::MdnsEnabled).await?,
-            !mdns_enabled
-        );
-
         // Reset to default. Test that it's not synced because defaults may differ across client
         // versions.
         alice0.set_config(Config::MdnsEnabled, None).await?;
@@ -907,6 +902,16 @@ mod tests {
         alice0.set_config_bool(Config::MdnsEnabled, true).await?;
         sync(&alice0, &alice1).await?;
         assert!(alice1.get_config_bool(Config::MdnsEnabled).await?);
+
+        // Usual sync scenario.
+        alice0
+            .set_config(Config::Displayname, Some("Alice Sync"))
+            .await?;
+        sync(&alice0, &alice1).await?;
+        assert_eq!(
+            alice1.get_config(Config::Displayname).await?,
+            Some("Alice Sync".to_string())
+        );
 
         Ok(())
     }
