@@ -704,7 +704,7 @@ mod tests {
 
     use super::*;
     use crate::constants;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{sync, TestContext};
 
     #[test]
     fn test_to_string() {
@@ -857,12 +857,6 @@ mod tests {
             a.set_config_bool(Config::SyncMsgs, true).await?;
         }
 
-        async fn sync(alice0: &TestContext, alice1: &TestContext) -> Result<()> {
-            let sync_msg = alice0.pop_sent_msg().await;
-            alice1.recv_msg(&sync_msg).await;
-            Ok(())
-        }
-
         let mdns_enabled = alice0.get_config_bool(Config::MdnsEnabled).await?;
         // Alice1 has a different config value.
         alice1
@@ -872,7 +866,7 @@ mod tests {
         alice0
             .set_config_bool(Config::MdnsEnabled, mdns_enabled)
             .await?;
-        sync(&alice0, &alice1).await?;
+        sync(&alice0, &alice1).await;
         assert_eq!(
             alice1.get_config_bool(Config::MdnsEnabled).await?,
             mdns_enabled
@@ -883,14 +877,14 @@ mod tests {
         alice0.set_config(Config::MdnsEnabled, None).await?;
         assert!(alice0.get_config_bool(Config::MdnsEnabled).await?);
         alice0.set_config_bool(Config::MdnsEnabled, false).await?;
-        sync(&alice0, &alice1).await?;
+        sync(&alice0, &alice1).await;
         assert!(!alice1.get_config_bool(Config::MdnsEnabled).await?);
 
         let show_emails = alice0.get_config_bool(Config::ShowEmails).await?;
         alice0
             .set_config_bool(Config::ShowEmails, !show_emails)
             .await?;
-        sync(&alice0, &alice1).await?;
+        sync(&alice0, &alice1).await;
         assert_eq!(
             alice1.get_config_bool(Config::ShowEmails).await?,
             !show_emails
@@ -900,14 +894,14 @@ mod tests {
         alice0.set_config_bool(Config::SyncMsgs, false).await?;
         alice0.set_config_bool(Config::SyncMsgs, true).await?;
         alice0.set_config_bool(Config::MdnsEnabled, true).await?;
-        sync(&alice0, &alice1).await?;
+        sync(&alice0, &alice1).await;
         assert!(alice1.get_config_bool(Config::MdnsEnabled).await?);
 
         // Usual sync scenario.
         alice0
             .set_config(Config::Displayname, Some("Alice Sync"))
             .await?;
-        sync(&alice0, &alice1).await?;
+        sync(&alice0, &alice1).await;
         assert_eq!(
             alice1.get_config(Config::Displayname).await?,
             Some("Alice Sync".to_string())
