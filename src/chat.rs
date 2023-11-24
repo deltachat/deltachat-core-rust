@@ -6880,96 +6880,113 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_sync_alter_chat() -> Result<()> {
-        let alices = [
-            TestContext::new_alice().await,
-            TestContext::new_alice().await,
-        ];
-        for a in &alices {
+    async fn test_sync_blocked() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
             a.set_config_bool(Config::SyncMsgs, true).await?;
         }
         let bob = TestContext::new_bob().await;
 
-        let ba_chat = bob.create_chat(&alices[0]).await;
+        let ba_chat = bob.create_chat(alice0).await;
         let sent_msg = bob.send_text(ba_chat.id, "hi").await;
-        let a0b_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
-        alices[1].recv_msg(&sent_msg).await;
-        let ab_contact_ids = [
-            alices[0].add_or_lookup_contact(&bob).await.id,
-            alices[1].add_or_lookup_contact(&bob).await.id,
-        ];
+        let a0b_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+        alice1.recv_msg(&sent_msg).await;
+        let a0b_contact_id = alice0.add_or_lookup_contact(&bob).await.id;
 
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Request);
-        a0b_chat_id.accept(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
-        a0b_chat_id.block(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Yes);
-        a0b_chat_id.unblock(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
+        assert_eq!(alice1.get_chat(&bob).await.blocked, Blocked::Request);
+        a0b_chat_id.accept(alice0).await?;
+        sync(alice0, alice1).await;
+        assert_eq!(alice1.get_chat(&bob).await.blocked, Blocked::Not);
+        a0b_chat_id.block(alice0).await?;
+        sync(alice0, alice1).await;
+        assert_eq!(alice1.get_chat(&bob).await.blocked, Blocked::Yes);
+        a0b_chat_id.unblock(alice0).await?;
+        sync(alice0, alice1).await;
+        assert_eq!(alice1.get_chat(&bob).await.blocked, Blocked::Not);
 
         // Unblocking a 1:1 chat doesn't unblock the contact currently.
-        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
+        Contact::unblock(alice0, a0b_contact_id).await?;
 
-        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::block(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert!(alices[1].add_or_lookup_contact(&bob).await.is_blocked());
-        Contact::unblock(&alices[0], ab_contact_ids[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert!(!alices[1].add_or_lookup_contact(&bob).await.is_blocked());
+        assert!(!alice1.add_or_lookup_contact(&bob).await.is_blocked());
+        Contact::block(alice0, a0b_contact_id).await?;
+        sync(alice0, alice1).await;
+        assert!(alice1.add_or_lookup_contact(&bob).await.is_blocked());
+        Contact::unblock(alice0, a0b_contact_id).await?;
+        sync(alice0, alice1).await;
+        assert!(!alice1.add_or_lookup_contact(&bob).await.is_blocked());
 
         // Test accepting and blocking groups. This way we test:
         // - Group chats synchronisation.
         // - That blocking a group deletes it on other devices.
         let fiona = TestContext::new_fiona().await;
         let fiona_grp_chat_id = fiona
-            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[&alices[0]])
+            .create_group_with_members(ProtectionStatus::Unprotected, "grp", &[alice0])
             .await;
         let sent_msg = fiona.send_text(fiona_grp_chat_id, "hi").await;
-        let a0_grp_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
-        let a1_grp_chat_id = alices[1].recv_msg(&sent_msg).await.chat_id;
-        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
+        let a0_grp_chat_id = alice0.recv_msg(&sent_msg).await.chat_id;
+        let a1_grp_chat_id = alice1.recv_msg(&sent_msg).await.chat_id;
+        let a1_grp_chat = Chat::load_from_db(alice1, a1_grp_chat_id).await?;
         assert_eq!(a1_grp_chat.blocked, Blocked::Request);
-        a0_grp_chat_id.accept(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        let a1_grp_chat = Chat::load_from_db(&alices[1], a1_grp_chat_id).await?;
+        a0_grp_chat_id.accept(alice0).await?;
+        sync(alice0, alice1).await;
+        let a1_grp_chat = Chat::load_from_db(alice1, a1_grp_chat_id).await?;
         assert_eq!(a1_grp_chat.blocked, Blocked::Not);
-        a0_grp_chat_id.block(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert!(Chat::load_from_db(&alices[1], a1_grp_chat_id)
-            .await
-            .is_err());
+        a0_grp_chat_id.block(alice0).await?;
+        sync(alice0, alice1).await;
+        assert!(Chat::load_from_db(alice1, a1_grp_chat_id).await.is_err());
         assert!(
-            !alices[1]
+            !alice1
                 .sql
                 .exists("SELECT COUNT(*) FROM chats WHERE id=?", (a1_grp_chat_id,))
                 .await?
         );
 
-        // Test syncing of chat visibility on a self-chat. This way we test:
-        // - Self-chat synchronisation.
-        // - That sync messages don't unarchive the self-chat.
-        let a0self_chat_id = alices[0].get_self_chat().await.id;
+        Ok(())
+    }
+
+    /// Tests syncing of chat visibility on a self-chat. This way we test:
+    /// - Self-chat synchronisation.
+    /// - That sync messages don't unarchive the self-chat.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_visibility() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let a0self_chat_id = alice0.get_self_chat().await.id;
+
         assert_eq!(
-            alices[1].get_self_chat().await.get_visibility(),
+            alice1.get_self_chat().await.get_visibility(),
             ChatVisibility::Normal
         );
         let mut visibilities =
             ChatVisibility::iter().chain(std::iter::once(ChatVisibility::Normal));
         visibilities.next();
         for v in visibilities {
-            a0self_chat_id.set_visibility(&alices[0], v).await?;
-            sync(&alices[0], &alices[1]).await;
-            for a in &alices {
+            a0self_chat_id.set_visibility(alice0, v).await?;
+            sync(alice0, alice1).await;
+            for a in [alice0, alice1] {
                 assert_eq!(a.get_self_chat().await.get_visibility(), v);
             }
         }
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_muted() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let bob = TestContext::new_bob().await;
+        let a0b_chat_id = alice0.create_chat(&bob).await.id;
+        alice1.create_chat(&bob).await;
 
         assert_eq!(
-            alices[1].get_chat(&bob).await.mute_duration,
+            alice1.get_chat(&bob).await.mute_duration,
             MuteDuration::NotMuted
         );
         let mute_durations = [
@@ -6978,8 +6995,8 @@ mod tests {
             MuteDuration::NotMuted,
         ];
         for m in mute_durations {
-            set_muted(&alices[0], a0b_chat_id, m).await?;
-            sync(&alices[0], &alices[1]).await;
+            set_muted(alice0, a0b_chat_id, m).await?;
+            sync(alice0, alice1).await;
             let m = match m {
                 MuteDuration::Until(time) => MuteDuration::Until(
                     SystemTime::UNIX_EPOCH
@@ -6989,42 +7006,76 @@ mod tests {
                 ),
                 _ => m,
             };
-            assert_eq!(alices[1].get_chat(&bob).await.mute_duration, m);
+            assert_eq!(alice1.get_chat(&bob).await.mute_duration, m);
         }
+        Ok(())
+    }
 
-        let a0_broadcast_id = create_broadcast_list(&alices[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
-        set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
-        sync(&alices[0], &alices[1]).await;
-        let a1_broadcast_id = get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_broadcast() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let bob = TestContext::new_bob().await;
+        let a0b_contact_id = alice0.add_or_lookup_contact(&bob).await.id;
+
+        let a0_broadcast_id = create_broadcast_list(alice0).await?;
+        sync(alice0, alice1).await;
+        let a0_broadcast_chat = Chat::load_from_db(alice0, a0_broadcast_id).await?;
+        let a1_broadcast_id = get_chat_id_by_grpid(alice1, &a0_broadcast_chat.grpid)
             .await?
             .unwrap()
             .0;
-        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
+        let a1_broadcast_chat = Chat::load_from_db(alice1, a1_broadcast_id).await?;
         assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
-        assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
-        assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
-            .await?
-            .is_empty());
-        add_contact_to_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices[0], &alices[1]).await;
+        assert_eq!(a1_broadcast_chat.get_name(), a0_broadcast_chat.get_name());
+        assert!(get_chat_contacts(alice1, a1_broadcast_id).await?.is_empty());
+        add_contact_to_chat(alice0, a0_broadcast_id, a0b_contact_id).await?;
+        sync(alice0, alice1).await;
+        let a1b_contact_id = Contact::lookup_id_by_addr(
+            alice1,
+            &bob.get_config(Config::Addr).await?.unwrap(),
+            Origin::Hidden,
+        )
+        .await?
+        .unwrap();
         assert_eq!(
-            get_chat_contacts(&alices[1], a1_broadcast_id).await?,
-            vec![ab_contact_ids[1]]
+            get_chat_contacts(alice1, a1_broadcast_id).await?,
+            vec![a1b_contact_id]
         );
-        let sent_msg = alices[1].send_text(a1_broadcast_id, "hi").await;
+        let sent_msg = alice1.send_text(a1_broadcast_id, "hi").await;
         let msg = bob.recv_msg(&sent_msg).await;
         let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
         assert_eq!(chat.get_type(), Chattype::Mailinglist);
-        let msg = alices[0].recv_msg(&sent_msg).await;
+        let msg = alice0.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, a0_broadcast_id);
-        remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
-        sync(&alices[0], &alices[1]).await;
-        assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
-            .await?
-            .is_empty());
+        remove_contact_from_chat(alice0, a0_broadcast_id, a0b_contact_id).await?;
+        sync(alice0, alice1).await;
+        assert!(get_chat_contacts(alice1, a1_broadcast_id).await?.is_empty());
+        Ok(())
+    }
 
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_name() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+        let a0_broadcast_id = create_broadcast_list(alice0).await?;
+        sync(alice0, alice1).await;
+        let a0_broadcast_chat = Chat::load_from_db(alice0, a0_broadcast_id).await?;
+        set_chat_name(alice0, a0_broadcast_id, "Broadcast list 42").await?;
+        sync(alice0, alice1).await;
+        let a1_broadcast_id = get_chat_id_by_grpid(alice1, &a0_broadcast_chat.grpid)
+            .await?
+            .unwrap()
+            .0;
+        let a1_broadcast_chat = Chat::load_from_db(alice1, a1_broadcast_id).await?;
+        assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
+        assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
         Ok(())
     }
 }
