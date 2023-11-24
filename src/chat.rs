@@ -3682,7 +3682,7 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
 
 async fn rename_ex(
     context: &Context,
-    sync: sync::Sync,
+    mut sync: sync::Sync,
     chat_id: ChatId,
     new_name: &str,
 ) -> Result<()> {
@@ -3728,6 +3728,7 @@ async fn rename_ex(
                 }
                 msg.id = send_msg(context, chat_id, &mut msg).await?;
                 context.emit_msgs_changed(chat_id, msg.id);
+                sync = Nosync;
             }
             context.emit_event(EventType::ChatModified(chat_id));
             success = true;
