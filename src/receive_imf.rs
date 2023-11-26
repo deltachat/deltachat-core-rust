@@ -324,7 +324,7 @@ pub(crate) async fn receive_imf_inner(
             &to_ids,
             rfc724_mid_orig,
             from_id,
-            seen || replace_msg_id.is_some(),
+            seen,
             is_partial_download,
             replace_msg_id,
             fetching_existing_messages,
