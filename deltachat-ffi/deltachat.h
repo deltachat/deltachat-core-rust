@@ -6621,7 +6621,7 @@ void dc_event_unref(dc_event_t* event);
 /// - %1$s will be replaced by the name of the verified contact
 #define DC_STR_CONTACT_VERIFIED           35
 
-/// "Cannot verify %1$s."
+/// "Cannot establish guaranteed end-to-end encryption with %1$s."
 ///
 /// Used in status messages.
 /// - %1$s will be replaced by the name of the contact that cannot be verified

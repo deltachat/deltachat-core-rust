@@ -58,7 +58,6 @@ pub(super) async fn start_protocol(context: &Context, invite: QrInvite) -> Resul
         QrInvite::Group { .. } => {
             // For a secure-join we need to create the group and add the contact.  The group will
             // only become usable once the protocol is finished.
-            // TODO: how does this group become usable?
             let group_chat_id = state.joining_chat_id(context).await?;
             if !is_contact_in_chat(context, group_chat_id, invite.contact_id()).await? {
                 chat::add_to_chat_contacts_table(context, group_chat_id, &[invite.contact_id()])
