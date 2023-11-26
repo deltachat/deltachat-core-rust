@@ -26,6 +26,9 @@ opt-level = "z"
 codegen-units = 1
 strip = true
 
+[patch.crates-io]
+imap-proto = { git = "https://github.com/djc/tokio-imap.git", rev = "01ff256a7e42a9f7d2732706f8b71a16ce93427e" }
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 format-flowed = { path = "./format-flowed" }

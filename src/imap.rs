@@ -572,9 +572,6 @@ impl Imap {
     /// When selecting a folder for the first time, sets the uid_next to the current
     /// mailbox.uid_next so that no old emails are fetched.
     ///
-    /// Makes sure that UIDNEXT is known for `selected_mailbox`
-    /// and errors out if UIDNEXT cannot be determined.
-    ///
     /// Returns Result<new_emails> (i.e. whether new emails arrived),
     /// if in doubt, returns new_emails=true so emails are fetched.
     pub(crate) async fn select_with_uidvalidity(
@@ -592,11 +589,18 @@ impl Imap {
             .as_mut()
             .with_context(|| format!("No mailbox selected, folder: {folder}"))?;
 
+        let old_uid_validity = get_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID validity for folder {folder}"))?;
+        let old_uid_next = get_uid_next(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
+
         let new_uid_validity = mailbox
             .uid_validity
             .with_context(|| format!("No UIDVALIDITY for folder {folder}"))?;
         let new_uid_next = if let Some(uid_next) = mailbox.uid_next {
-            uid_next
+            Some(uid_next)
         } else {
             warn!(
                 context,
@@ -621,18 +625,15 @@ impl Imap {
                 .await
                 .with_context(|| format!("STATUS (UIDNEXT) error for {folder:?}"))?;
 
-            status
-                .uid_next
-                .with_context(|| format!("STATUS {folder} (UIDNEXT) did not return UIDNEXT"))?
+            if status.uid_next.is_none() {
+                // This happens with mail.163.com as of 2023-11-26.
+                // It does not return UIDNEXT on SELECT and returns invalid
+                // `* STATUS "INBOX" ()` response on explicit request for UIDNEXT.
+                warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT.");
+            }
+            status.uid_next
         };
-        mailbox.uid_next = Some(new_uid_next);
-
-        let old_uid_validity = get_uidvalidity(context, folder)
-            .await
-            .with_context(|| format!("failed to get old UID validity for folder {folder}"))?;
-        let old_uid_next = get_uid_next(context, folder)
-            .await
-            .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
+        mailbox.uid_next = new_uid_next;
 
         if new_uid_validity == old_uid_validity {
             let new_emails = if newly_selected == NewlySelected::No {
@@ -641,7 +642,7 @@ impl Imap {
                 // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
                 // new messages is only one command, just as a SELECT command)
                 true
-            } else {
+            } else if let Some(new_uid_next) = new_uid_next {
                 if new_uid_next < old_uid_next {
                     warn!(
                         context,
@@ -651,7 +652,11 @@ impl Imap {
                     context.schedule_resync().await?;
                 }
                 new_uid_next != old_uid_next // If UIDNEXT changed, there are new emails
+            } else {
+                // We have no UIDNEXT and if in doubt, return true.
+                true
             };
+
             return Ok(new_emails);
         }
 
@@ -660,6 +665,7 @@ impl Imap {
 
         // ==============  uid_validity has changed or is being set the first time.  ==============
 
+        let new_uid_next = new_uid_next.unwrap_or_default();
         set_uid_next(context, folder, new_uid_next).await?;
         set_uidvalidity(context, folder, new_uid_validity).await?;
 
@@ -876,11 +882,7 @@ impl Imap {
             .as_ref()
             .with_context(|| format!("Expected {folder:?} to be selected"))?
             .uid_next
-            .with_context(|| {
-                format!(
-                    "Expected UIDNEXT to be determined for {folder:?} by select_with_uidvalidity"
-                )
-            })?;
+            .unwrap_or_default();
         let new_uid_next = max(
             max(largest_uid_fetched, largest_uid_skipped.unwrap_or(0)) + 1,
             mailbox_uid_next,

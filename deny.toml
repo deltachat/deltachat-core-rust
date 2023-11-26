@@ -84,4 +84,5 @@ license-files = [
 github = [
        "async-email",
        "deltachat",
+       "djc",
 ]
