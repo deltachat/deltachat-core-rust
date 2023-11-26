@@ -92,7 +92,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "%1$s verified."))]
     ContactVerified = 35,
 
-    #[strum(props(fallback = "Cannot verify %1$s"))]
+    #[strum(props(fallback = "Cannot establish guaranteed end-to-end encryption with %1$s"))]
     ContactNotVerified = 36,
 
     #[strum(props(fallback = "Changed setup for %1$s"))]
@@ -832,7 +832,7 @@ pub(crate) async fn contact_verified(context: &Context, contact: &Contact) -> St
         .replace1(addr)
 }
 
-/// Stock string: `Cannot verify %1$s`.
+/// Stock string: `Cannot establish guaranteed end-to-end encryption with %1$s`.
 pub(crate) async fn contact_not_verified(context: &Context, contact: &Contact) -> String {
     let addr = &contact.get_name_n_addr();
     translated(context, StockMessage::ContactNotVerified)
