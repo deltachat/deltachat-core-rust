@@ -763,6 +763,28 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         .await?;
     }
 
+    if dbversion < 105 {
+        // Create UNIQUE uid column and drop unused update_item_read column.
+        sql.execute_migration(
+            r#"CREATE TABLE new_msgs_status_updates (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+msg_id INTEGER,
+update_item TEXT DEFAULT '',
+uid TEXT UNIQUE
+);
+INSERT OR IGNORE INTO new_msgs_status_updates SELECT
+  id, msg_id, update_item, NULL
+FROM msgs_status_updates;
+DROP TABLE msgs_status_updates;
+ALTER TABLE new_msgs_status_updates RENAME TO msgs_status_updates;
+CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);
+CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
+"#,
+            105,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

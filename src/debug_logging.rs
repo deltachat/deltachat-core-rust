@@ -54,7 +54,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
         match context
             .write_status_update_inner(
                 &msg_id,
-                StatusUpdateItem {
+                &StatusUpdateItem {
                     payload: json!({
                         "event": event,
                         "time": time,
@@ -62,6 +62,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                     info: None,
                     summary: None,
                     document: None,
+                    uid: None,
                 },
             )
             .await
@@ -70,10 +71,15 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                 eprintln!("Can't log event to webxdc status update: {err:#}");
             }
             Ok(serial) => {
-                context.emit_event(EventType::WebxdcStatusUpdate {
-                    msg_id,
-                    status_update_serial: serial,
-                });
+                if let Some(serial) = serial {
+                    context.emit_event(EventType::WebxdcStatusUpdate {
+                        msg_id,
+                        status_update_serial: serial,
+                    });
+                } else {
+                    // This should not happen as the update has no `uid`.
+                    error!(context, "Debug logging update is not created.");
+                };
             }
         }
     }
