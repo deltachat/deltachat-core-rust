@@ -1,5 +1,6 @@
 //! # Chat module.
 
+use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
@@ -289,6 +290,7 @@ impl ChatId {
 
     /// Create a group or mailinglist raw database record with the given parameters.
     /// The function does not add SELF nor checks if the record already exists.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn create_multiuser_record(
         context: &Context,
         chattype: Chattype,
@@ -297,9 +299,10 @@ impl ChatId {
         create_blocked: Blocked,
         create_protected: ProtectionStatus,
         param: Option<String>,
+        timestamp: i64,
     ) -> Result<Self> {
         let grpname = strip_rtlo_characters(grpname);
-        let smeared_time = create_smeared_timestamp(context);
+        let timestamp = cmp::min(timestamp, smeared_time(context));
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -308,7 +311,7 @@ impl ChatId {
                     &grpname,
                     grpid,
                     create_blocked,
-                    smeared_time,
+                    timestamp,
                     create_protected,
                     param.unwrap_or_default(),
                 ),
@@ -318,7 +321,7 @@ impl ChatId {
 
         if create_protected == ProtectionStatus::Protected {
             chat_id
-                .add_protection_msg(context, ProtectionStatus::Protected, None, smeared_time)
+                .add_protection_msg(context, ProtectionStatus::Protected, None, timestamp)
                 .await?;
         }
 

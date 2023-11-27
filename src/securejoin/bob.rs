@@ -16,7 +16,7 @@ use crate::context::Context;
 use crate::events::EventType;
 use crate::mimeparser::MimeMessage;
 use crate::sync::Sync::*;
-use crate::tools::time;
+use crate::tools::{create_smeared_timestamp, time};
 use crate::{chat, stock_str};
 
 /// Starts the securejoin protocol with the QR `invite`.
@@ -192,6 +192,7 @@ impl BobState {
                             Blocked::Not,
                             ProtectionStatus::Unprotected, // protection is added later as needed
                             None,
+                            create_smeared_timestamp(context),
                         )
                         .await?
                     }
