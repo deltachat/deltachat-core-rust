@@ -1,11 +1,11 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
 
-use crate::chat::ProtectionStatus;
+use crate::chat::{self, Chat, ProtectionStatus};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::DC_GCL_FOR_FORWARDING;
-use crate::contact::{Contact, Origin};
+use crate::constants::{Chattype, DC_GCL_FOR_FORWARDING};
+use crate::contact::{Contact, ContactId, Origin};
 use crate::message::{Message, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -771,6 +771,44 @@ async fn test_create_oneonone_chat_with_former_verified_contact() -> Result<()> 
     alice.create_chat(&bob).await;
 
     assert_verified(&alice, &bob, ProtectionStatus::Unprotected).await;
+
+    Ok(())
+}
+
+/// Tests that on the second device of a protected group creator the first message is
+/// `SystemMessage::ChatProtectionEnabled` and the second one is the message populating the group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_create_protected_grp_multidev() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let alice1 = &tcm.alice().await;
+
+    let group_id = alice
+        .create_group_with_members(ProtectionStatus::Protected, "Group", &[])
+        .await;
+    assert_eq!(
+        get_chat_msg(alice, group_id, 0, 1).await.get_info_type(),
+        SystemMessage::ChatProtectionEnabled
+    );
+
+    let sent = alice.send_text(group_id, "Hey").await;
+    // This sleep is necessary to reproduce the bug when the original message is sorted over the
+    // "protection enabled" message so that these messages have different timestamps. The better way
+    // would be to adjust the system time here if we could mock the system clock for the tests.
+    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+    let msg = alice1.recv_msg(&sent).await;
+    let group1 = Chat::load_from_db(alice1, msg.chat_id).await?;
+    assert_eq!(group1.get_type(), Chattype::Group);
+    assert!(group1.is_protected());
+    assert_eq!(
+        chat::get_chat_contacts(alice1, group1.id).await?,
+        vec![ContactId::SELF]
+    );
+    assert_eq!(
+        get_chat_msg(alice1, group1.id, 0, 2).await.get_info_type(),
+        SystemMessage::ChatProtectionEnabled
+    );
+    assert_eq!(get_chat_msg(alice1, group1.id, 1, 2).await.id, msg.id);
 
     Ok(())
 }
