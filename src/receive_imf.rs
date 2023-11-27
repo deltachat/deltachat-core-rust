@@ -654,6 +654,7 @@ async fn add_parts(
                 from_id,
                 to_ids,
                 &verified_encryption,
+                sent_timestamp,
             )
             .await?
             {
@@ -717,6 +718,7 @@ async fn add_parts(
                     allow_creation,
                     mailinglist_header,
                     mime_parser,
+                    sent_timestamp,
                 )
                 .await?
                 {
@@ -885,6 +887,7 @@ async fn add_parts(
                     from_id,
                     to_ids,
                     &verified_encryption,
+                    sent_timestamp,
                 )
                 .await?
                 {
@@ -1478,7 +1481,7 @@ async fn calc_sort_timestamp(
     always_sort_to_bottom: bool,
     incoming: bool,
 ) -> Result<i64> {
-    let mut sort_timestamp = message_timestamp;
+    let mut sort_timestamp = min(message_timestamp, smeared_time(context));
 
     let last_msg_time: Option<i64> = if always_sort_to_bottom {
         // get newest message for this chat
@@ -1515,7 +1518,7 @@ async fn calc_sort_timestamp(
         }
     }
 
-    Ok(min(sort_timestamp, smeared_time(context)))
+    Ok(sort_timestamp)
 }
 
 async fn lookup_chat_by_reply(
@@ -1623,6 +1626,7 @@ async fn create_or_lookup_group(
     from_id: ContactId,
     to_ids: &[ContactId],
     verified_encryption: &VerifiedEncryption,
+    timestamp: i64,
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
@@ -1635,7 +1639,7 @@ async fn create_or_lookup_group(
             member_ids.push(ContactId::SELF);
         }
 
-        let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
+        let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids, timestamp)
             .await
             .context("could not create ad hoc group")?
             .map(|chat_id| (chat_id, create_blocked));
@@ -1717,6 +1721,7 @@ async fn create_or_lookup_group(
             create_blocked,
             create_protected,
             None,
+            timestamp,
         )
         .await
         .with_context(|| format!("Failed to create group '{grpname}' for grpid={grpid}"))?;
@@ -2050,6 +2055,7 @@ async fn create_or_lookup_mailinglist(
     allow_creation: bool,
     list_id_header: &str,
     mime_parser: &MimeMessage,
+    timestamp: i64,
 ) -> Result<Option<(ChatId, Blocked)>> {
     let listid = mailinglist_header_listid(list_id_header)?;
 
@@ -2081,6 +2087,7 @@ async fn create_or_lookup_mailinglist(
             blocked,
             ProtectionStatus::Unprotected,
             param,
+            timestamp,
         )
         .await
         .with_context(|| {
@@ -2265,6 +2272,7 @@ async fn create_adhoc_group(
     mime_parser: &MimeMessage,
     create_blocked: Blocked,
     member_ids: &[ContactId],
+    timestamp: i64,
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         info!(
@@ -2309,6 +2317,7 @@ async fn create_adhoc_group(
         create_blocked,
         ProtectionStatus::Unprotected,
         None,
+        timestamp,
     )
     .await?;
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
