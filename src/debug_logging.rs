@@ -72,10 +72,12 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
             }
             Ok(serial) => {
                 if let Some(serial) = serial {
-                    context.emit_event(EventType::WebxdcStatusUpdate {
-                        msg_id,
-                        status_update_serial: serial,
-                    });
+                    if !matches!(event, EventType::WebxdcStatusUpdate { .. }) {
+                        context.emit_event(EventType::WebxdcStatusUpdate {
+                            msg_id,
+                            status_update_serial: serial,
+                        });
+                    }
                 } else {
                     // This should not happen as the update has no `uid`.
                     error!(context, "Debug logging update is not created.");
