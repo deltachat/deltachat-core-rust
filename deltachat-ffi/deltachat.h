@@ -1111,6 +1111,7 @@ uint32_t dc_send_videochat_invitation (dc_context_t* context, uint32_t chat_id);
  * received overrides all previously received reactions. It is
  * possible to remove all reactions by sending an empty string.
  *
+ * @deprecated 2023-11-27, use jsonrpc method `send_reaction` instead
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id ID of the message you react to.
@@ -1123,6 +1124,7 @@ uint32_t dc_send_reaction (dc_context_t* context, uint32_t msg_id, char *reactio
 /**
  * Get a structure with reactions to the message.
  *
+ * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
  * @memberof dc_context_t
  * @param context The context object.
  * @param msg_id The message ID to get reactions for.
@@ -5283,6 +5285,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 
 /**
  * @class dc_reactions_t
+ * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
  *
  * An object representing all reactions for a single message.
  */
@@ -5290,6 +5293,7 @@ int64_t         dc_lot_get_timestamp     (const dc_lot_t* lot);
 /**
  * Returns array of contacts which reacted to the given message.
  *
+ * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
  * @memberof dc_reactions_t
  * @param reactions The object containing message reactions.
  * @return array of contact IDs. Use dc_array_get_cnt() to get array length and
@@ -5301,6 +5305,7 @@ dc_array_t*     dc_reactions_get_contacts(dc_reactions_t* reactions);
 /**
  * Returns a string containing space-separated reactions of a single contact.
  *
+ * @deprecated 2023-11-27, use jsonrpc method `get_message_reactions` instead
  * @memberof dc_reactions_t
  * @param reactions The object containing message reactions.
  * @param contact_id ID of the contact.
@@ -5316,6 +5321,7 @@ char*           dc_reactions_get_by_contact_id(dc_reactions_t* reactions, uint32
  *
  * Reactions objects are created by dc_get_msg_reactions().
  *
+ * @deprecated 2023-11-27
  * @memberof dc_reactions_t
  * @param reactions The object to free.
  *     If NULL is given, nothing is done.
