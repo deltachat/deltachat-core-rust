@@ -31,7 +31,6 @@ use deltachat::ephemeral::Timer as EphemeralTimer;
 use deltachat::imex::BackupProvider;
 use deltachat::key::preconfigure_keypair;
 use deltachat::message::MsgId;
-use deltachat::net::read_url_blob;
 use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
 use deltachat::reaction::{get_msg_reactions, send_reaction, Reactions};
 use deltachat::stock_str::StockMessage;
@@ -4588,96 +4587,6 @@ pub unsafe extern "C" fn dc_provider_unref(provider: *mut dc_provider_t) {
     }
     // currently, there is nothing to free, the provider info is a static object.
     // this may change once we start localizing string.
-}
-
-// dc_http_response_t
-
-pub type dc_http_response_t = net::HttpResponse;
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_http_response(
-    context: *const dc_context_t,
-    url: *const libc::c_char,
-) -> *mut dc_http_response_t {
-    if context.is_null() || url.is_null() {
-        eprintln!("ignoring careless call to dc_get_http_response()");
-        return ptr::null_mut();
-    }
-
-    let context = &*context;
-    let url = to_string_lossy(url);
-    if let Ok(response) = block_on(read_url_blob(context, &url))
-        .context("read_url_blob")
-        .log_err(context)
-    {
-        Box::into_raw(Box::new(response))
-    } else {
-        ptr::null_mut()
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_http_response_get_mimetype(
-    response: *const dc_http_response_t,
-) -> *mut libc::c_char {
-    if response.is_null() {
-        eprintln!("ignoring careless call to dc_http_response_get_mimetype()");
-        return ptr::null_mut();
-    }
-
-    let response = &*response;
-    response.mimetype.strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_http_response_get_encoding(
-    response: *const dc_http_response_t,
-) -> *mut libc::c_char {
-    if response.is_null() {
-        eprintln!("ignoring careless call to dc_http_response_get_encoding()");
-        return ptr::null_mut();
-    }
-
-    let response = &*response;
-    response.encoding.strdup()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_http_response_get_blob(
-    response: *const dc_http_response_t,
-) -> *mut libc::c_char {
-    if response.is_null() {
-        eprintln!("ignoring careless call to dc_http_response_get_blob()");
-        return ptr::null_mut();
-    }
-
-    let response = &*response;
-    let blob_len = response.blob.len();
-    let ptr = libc::malloc(blob_len);
-    libc::memcpy(ptr, response.blob.as_ptr() as *mut libc::c_void, blob_len);
-    ptr as *mut libc::c_char
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_http_response_get_size(
-    response: *const dc_http_response_t,
-) -> libc::size_t {
-    if response.is_null() {
-        eprintln!("ignoring careless call to dc_http_response_get_size()");
-        return 0;
-    }
-
-    let response = &*response;
-    response.blob.len()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_http_response_unref(response: *mut dc_http_response_t) {
-    if response.is_null() {
-        eprintln!("ignoring careless call to dc_http_response_unref()");
-        return;
-    }
-    drop(Box::from_raw(response));
 }
 
 // -- Accounts
