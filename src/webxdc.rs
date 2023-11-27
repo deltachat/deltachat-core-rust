@@ -1527,7 +1527,7 @@ mod tests {
         t.receive_status_update(
             ContactId::SELF,
             instance.id,
-            r#"{"updates":[{"payload":{"foo":"bar"}}]}"#,
+            r#"{"updates":[{"payload":{"foo":"bar"}, "someTrash": "definitely TrAsH"}]}"#,
         )
         .await?;
         assert_eq!(
