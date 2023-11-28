@@ -3,6 +3,13 @@ unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
     "RUSTSEC-2022-0093",
+
+    # Timing attack on RSA.
+    # Delta Chat does not use RSA for new keys
+    # and this requires precise measurement of the decryption time by the attacker.
+    # There is no fix at the time of writing this (2023-11-28).
+    # <https://rustsec.org/advisories/RUSTSEC-2023-0071>
+    "RUSTSEC-2023-0071",
 ]
 
 [bans]
