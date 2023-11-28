@@ -462,13 +462,8 @@ impl Context {
         update_str: &str,
         descr: &str,
     ) -> Result<()> {
-        let status_update_item: StatusUpdateItem =
-            if let Ok(item) = serde_json::from_str::<StatusUpdateItem>(update_str) {
-                item
-            } else {
-                bail!("create_status_update_record: no valid update item.");
-            };
-
+        let status_update_item: StatusUpdateItem = serde_json::from_str(update_str)
+            .with_context(|| format!("Failed to parse webxdc update item from {update_str:?}"))?;
         self.send_webxdc_status_update_struct(instance_msg_id, status_update_item, descr)
             .await?;
         Ok(())
@@ -515,7 +510,7 @@ impl Context {
                  ON CONFLICT(msg_id)
                  DO UPDATE SET last_serial=excluded.last_serial, descr=excluded.descr",
                 (instance.id, status_update_serial, status_update_serial, descr),
-            ).await?;
+            ).await.context("Failed to insert webxdc update into SMTP queue")?;
             self.scheduler.interrupt_smtp().await;
         }
         Ok(())
