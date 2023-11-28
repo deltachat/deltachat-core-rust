@@ -139,7 +139,7 @@ pub(crate) async fn receive_imf_inner(
 
             let row_id = context
                 .sql
-                .execute(
+                .insert(
                     "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
                     (rfc724_mid, DC_CHAT_ID_TRASH),
                 )
