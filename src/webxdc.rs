@@ -63,11 +63,6 @@ const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 /// it is planned to raise that limit as needed in subsequent versions.
 const WEBXDC_SENDING_LIMIT: u64 = 655360;
 
-/// Be more tolerant for .xdc sizes on receiving -
-/// might be, the senders version uses already a larger limit
-/// and not showing the .xdc on some devices would be even worse ux.
-const WEBXDC_RECEIVING_LIMIT: u64 = 4194304;
-
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize, Default)]
 #[non_exhaustive]
@@ -215,14 +210,6 @@ impl Context {
     /// check if a file is an acceptable webxdc for sending or receiving.
     pub(crate) async fn is_webxdc_file(&self, filename: &str, file: &[u8]) -> Result<bool> {
         if !filename.ends_with(WEBXDC_SUFFIX) {
-            return Ok(false);
-        }
-
-        if file.len() as u64 > WEBXDC_RECEIVING_LIMIT {
-            info!(
-                self,
-                "{} exceeds receiving limit of {} bytes", &filename, WEBXDC_RECEIVING_LIMIT
-            );
             return Ok(false);
         }
 
@@ -898,8 +885,6 @@ mod tests {
     async fn test_webxdc_file_limits() -> Result<()> {
         assert!(WEBXDC_SENDING_LIMIT >= 32768);
         assert!(WEBXDC_SENDING_LIMIT < 16777216);
-        assert!(WEBXDC_RECEIVING_LIMIT >= WEBXDC_SENDING_LIMIT * 2);
-        assert!(WEBXDC_RECEIVING_LIMIT < 16777216);
         Ok(())
     }
 
