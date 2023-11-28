@@ -1,10 +1,26 @@
 # Changelog
 
+## [1.131.8] - 2023-11-27
+
+### Features / Changes
+
+- webxdc: Add unique IDs to status updates sent outside and deduplicate based on IDs.
+
+### Fixes
+
+- Allow IMAP servers not returning UIDNEXT on SELECT and STATUS such as mail.163.com.
+- Use the correct securejoin strings used in the UI, remove old TODO ([#5047](https://github.com/deltachat/deltachat-core-rust/pull/5047)).
+- Do not emit events about webxdc update events logged into debug log webxdc.
+
+### Tests
+
+- Check that `receive_status_update` has forward compatibility and unique webxdc IDs will be ignored by previous Delta Chat versions.
+
 ## [1.131.7] - 2023-11-24
 
 ### Fixes
 
-- Revert "fix: check UIDNEXT with a STATUS command before going IDLE". This fixes mail.163.com which has broken STATUS command.
+- Revert "fix: check UIDNEXT with a STATUS command before going IDLE". This attempts to fix mail.163.com which has broken STATUS command.
 
 ## [1.131.6] - 2023-11-21
 
@@ -3270,3 +3286,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.4...v1.131.5
 [1.131.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.5...v1.131.6
 [1.131.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.6...v1.131.7
+[1.131.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.7...v1.131.8
