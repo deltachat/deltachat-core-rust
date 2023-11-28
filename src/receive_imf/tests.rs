@@ -322,7 +322,7 @@ async fn test_no_from() {
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
     assert!(chats.get_msg_id(0).is_err());
 
-    receive_imf(
+    let received = receive_imf(
         context,
         b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
                  To: bob@example.com\n\
@@ -335,7 +335,12 @@ async fn test_no_from() {
         false,
     )
     .await
+    .unwrap()
     .unwrap();
+
+    // Check that tombstone MsgId is returned.
+    assert_eq!(received.msg_ids.len(), 1);
+    assert!(!received.msg_ids[0].is_special());
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
     // Check that the message is not shown to the user:
