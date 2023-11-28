@@ -238,25 +238,70 @@ pub(crate) async fn receive_imf_inner(
 
     update_verified_keys(context, &mut mime_parser, from_id).await?;
 
-    // Add parts
-    let received_msg = add_parts(
-        context,
-        &mut mime_parser,
-        imf_raw,
-        incoming,
-        &to_ids,
-        rfc724_mid,
-        sent_timestamp,
-        rcvd_timestamp,
-        from_id,
-        seen || replace_partial_download.is_some(),
-        is_partial_download,
-        replace_partial_download,
-        fetching_existing_messages,
-        prevent_rename,
-    )
-    .await
-    .context("add_parts error")?;
+    let received_msg;
+    if let Some(securejoin_step) = mime_parser.get_header(HeaderDef::SecureJoin) {
+        info!(context, "Received securejoin step {securejoin_step}.");
+
+        let res;
+        if incoming {
+            res = handle_securejoin_handshake(context, &mime_parser, from_id)
+                .await
+                .context("error in Secure-Join message handling")?;
+
+            // Peerstate could be updated by handling the Securejoin handshake.
+            let contact = Contact::get_by_id(context, from_id).await?;
+            mime_parser.decryption_info.peerstate =
+                Peerstate::from_addr(context, contact.get_addr()).await?;
+        } else {
+            let to_id = to_ids.get(0).copied().unwrap_or_default();
+            // handshake may mark contacts as verified and must be processed before chats are created
+            res = observe_securejoin_on_other_device(context, &mime_parser, to_id)
+                .await
+                .context("error in Secure-Join watching")?
+        }
+
+        match res {
+            securejoin::HandshakeMessage::Done | securejoin::HandshakeMessage::Ignore => {
+                let msg_id = insert_tombstone(context, rfc724_mid).await?;
+                received_msg = Some(ReceivedMsg {
+                    chat_id: DC_CHAT_ID_TRASH,
+                    state: MessageState::InSeen,
+                    sort_timestamp: sent_timestamp,
+                    msg_ids: vec![msg_id],
+                    needs_delete_job: res == securejoin::HandshakeMessage::Done,
+                });
+            }
+            securejoin::HandshakeMessage::Propagate => {
+                received_msg = None;
+            }
+        }
+    } else {
+        received_msg = None;
+    }
+
+    let received_msg = if let Some(received_msg) = received_msg {
+        received_msg
+    } else {
+        // Add parts
+        add_parts(
+            context,
+            &mut mime_parser,
+            imf_raw,
+            incoming,
+            &to_ids,
+            rfc724_mid,
+            sent_timestamp,
+            rcvd_timestamp,
+            from_id,
+            seen || replace_partial_download.is_some(),
+            is_partial_download,
+            replace_partial_download,
+            fetching_existing_messages,
+            prevent_rename,
+        )
+        .await
+        .context("add_parts error")?
+    };
 
     if !from_id.is_special() {
         contact::update_last_seen(context, from_id, sent_timestamp).await?;
@@ -519,38 +564,6 @@ async fn add_parts(
     if incoming {
         to_id = ContactId::SELF;
 
-        // Whether the message is a part of securejoin handshake that should be marked as seen
-        // automatically.
-        let securejoin_seen;
-
-        // handshake may mark contacts as verified and must be processed before chats are created
-        if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            match handle_securejoin_handshake(context, mime_parser, from_id)
-                .await
-                .context("error in Secure-Join message handling")?
-            {
-                securejoin::HandshakeMessage::Done => {
-                    chat_id = Some(DC_CHAT_ID_TRASH);
-                    needs_delete_job = true;
-                    securejoin_seen = true;
-                }
-                securejoin::HandshakeMessage::Ignore => {
-                    chat_id = Some(DC_CHAT_ID_TRASH);
-                    securejoin_seen = true;
-                }
-                securejoin::HandshakeMessage::Propagate => {
-                    // process messages as "member added" normally
-                    securejoin_seen = false;
-                }
-            }
-            // Peerstate could be updated by handling the Securejoin handshake.
-            let contact = Contact::get_by_id(context, from_id).await?;
-            mime_parser.decryption_info.peerstate =
-                Peerstate::from_addr(context, contact.get_addr()).await?;
-        } else {
-            securejoin_seen = false;
-        }
-
         let test_normal_chat = if from_id == ContactId::UNDEFINED {
             None
         } else {
@@ -804,7 +817,6 @@ async fn add_parts(
             || is_mdn
             || is_reaction
             || is_location_kml
-            || securejoin_seen
             || chat_id_blocked == Blocked::Yes
         {
             MessageState::InSeen
@@ -822,21 +834,7 @@ async fn add_parts(
         let self_sent =
             from_id == ContactId::SELF && to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);
 
-        // handshake may mark contacts as verified and must be processed before chats are created
-        if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
-            match observe_securejoin_on_other_device(context, mime_parser, to_id)
-                .await
-                .context("error in Secure-Join watching")?
-            {
-                securejoin::HandshakeMessage::Done | securejoin::HandshakeMessage::Ignore => {
-                    chat_id = Some(DC_CHAT_ID_TRASH);
-                }
-                securejoin::HandshakeMessage::Propagate => {
-                    // process messages as "member added" normally
-                    chat_id = None;
-                }
-            }
-        } else if mime_parser.sync_items.is_some() && self_sent {
+        if mime_parser.sync_items.is_some() && self_sent {
             chat_id = Some(DC_CHAT_ID_TRASH);
         }
 
