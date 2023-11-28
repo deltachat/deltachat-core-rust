@@ -243,6 +243,7 @@ async fn fingerprint_equals_sender(
 /// next with this incoming setup-contact/secure-join handshake message.
 ///
 /// [`receive_imf`]: crate::receive_imf::receive_imf
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum HandshakeMessage {
     /// The message has been fully handled and should be removed/delete.
     ///
