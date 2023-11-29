@@ -26,17 +26,6 @@ pub enum PeerstateKeyType {
     PublicKey,
 }
 
-/// Verification status of the contact peerstate.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
-#[repr(u8)]
-pub enum PeerstateVerifiedStatus {
-    /// Peerstate is not verified.
-    Unverified = 0,
-    //Verified = 1, // not used
-    /// Peerstate is verified and we assume that the contact has verified our peerstate.
-    BidirectVerified = 2,
-}
-
 /// Peerstate represents the state of an Autocrypt peer.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Peerstate {
