@@ -774,7 +774,6 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::contact::ContactAddress;
-    use crate::contact::VerifiedStatus;
     use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::stock_str::chat_protection_enabled;
@@ -893,17 +892,11 @@ mod tests {
         let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id)
             .await
             .unwrap();
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await.unwrap(),
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), false);
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg(&sent).await;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await.unwrap(),
-            VerifiedStatus::BidirectVerified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), true);
 
         // exactly one one-to-one chat should be visible for both now
         // (check this before calling alice.create_chat() explicitly below)
@@ -946,17 +939,11 @@ mod tests {
         let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id)
             .await
             .unwrap();
-        assert_eq!(
-            contact_bob.is_verified(&bob.ctx).await.unwrap(),
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&bob.ctx).await.unwrap(), false);
 
         // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
         bob.recv_msg(&sent).await;
-        assert_eq!(
-            contact_alice.is_verified(&bob.ctx).await.unwrap(),
-            VerifiedStatus::BidirectVerified
-        );
+        assert_eq!(contact_alice.is_verified(&bob.ctx).await.unwrap(), true);
 
         // Check Bob got the verified message in his 1:1 chat.
         {
@@ -1063,17 +1050,11 @@ mod tests {
         )
         .await?;
         let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await?, false);
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg(&sent).await;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::BidirectVerified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await?, true);
 
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
@@ -1090,17 +1071,11 @@ mod tests {
                 .expect("Error looking up contact")
                 .expect("Contact not found");
         let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&bob.ctx).await?,
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&bob.ctx).await?, false);
 
         // Step 7: Bob receives vc-contact-confirm, sends vc-contact-confirm-received
         bob.recv_msg(&sent).await;
-        assert_eq!(
-            contact_alice.is_verified(&bob.ctx).await?,
-            VerifiedStatus::BidirectVerified
-        );
+        assert_eq!(contact_alice.is_verified(&bob.ctx).await?, true);
 
         let sent = bob.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
@@ -1231,17 +1206,11 @@ mod tests {
                 .await?
                 .expect("Contact not found");
         let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await?, false);
 
         // Step 5+6: Alice receives vg-request-with-auth, sends vg-member-added
         alice.recv_msg(&sent).await;
-        assert_eq!(
-            contact_bob.is_verified(&alice.ctx).await?,
-            VerifiedStatus::BidirectVerified
-        );
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await?, true);
 
         let sent = alice.pop_sent_msg().await;
         let msg = bob.parse_msg(&sent).await;
@@ -1277,19 +1246,13 @@ mod tests {
                 .expect("Error looking up contact")
                 .expect("Contact not found");
         let contact_alice = Contact::get_by_id(&bob.ctx, contact_alice_id).await?;
-        assert_eq!(
-            contact_bob.is_verified(&bob.ctx).await?,
-            VerifiedStatus::Unverified
-        );
+        assert_eq!(contact_bob.is_verified(&bob.ctx).await?, false);
 
         // Step 7: Bob receives vg-member-added, sends vg-member-added-received
         bob.recv_msg(&sent).await;
         {
             // Bob has Alice verified, message shows up in the group chat.
-            assert_eq!(
-                contact_alice.is_verified(&bob.ctx).await?,
-                VerifiedStatus::BidirectVerified
-            );
+            assert_eq!(contact_alice.is_verified(&bob.ctx).await?, true);
             let chat = bob.get_chat(&alice).await;
             assert_eq!(
                 chat.blocked,
