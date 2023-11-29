@@ -21,7 +21,7 @@ use crate::constants::{
     Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
     DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
-use crate::contact::{self, Contact, ContactAddress, ContactId, Origin, VerifiedStatus};
+use crate::contact::{self, Contact, ContactAddress, ContactId, Origin};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
 use crate::download::DownloadState;
@@ -503,7 +503,7 @@ impl ChatId {
                     let contact_ids = get_chat_contacts(context, self).await?;
                     for contact_id in contact_ids {
                         let contact = Contact::get_by_id(context, contact_id).await?;
-                        if contact.is_verified(context).await? != VerifiedStatus::BidirectVerified {
+                        if !contact.is_verified(context).await? {
                             bail!("{} is not verified.", contact.get_display_name());
                         }
                     }
@@ -3444,9 +3444,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         }
     } else {
         // else continue and send status mail
-        if chat.is_protected()
-            && contact.is_verified(context).await? != VerifiedStatus::BidirectVerified
-        {
+        if chat.is_protected() && !contact.is_verified(context).await? {
             error!(
                 context,
                 "Only bidirectional verified contacts can be added to protected chats."

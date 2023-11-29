@@ -1,5 +1,4 @@
 use anyhow::Result;
-use deltachat::contact::VerifiedStatus;
 use deltachat::context::Context;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
@@ -57,7 +56,7 @@ impl ContactObject {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
             None => None,
         };
-        let is_verified = contact.is_verified(context).await? == VerifiedStatus::BidirectVerified;
+        let is_verified = contact.is_verified(context).await?;
         let is_profile_verified = contact.is_profile_verified(context).await?;
 
         let verifier_id = contact

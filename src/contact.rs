@@ -348,24 +348,6 @@ pub(crate) enum Modifier {
     Created,
 }
 
-/// Verification status of the contact.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
-#[repr(u8)]
-pub enum VerifiedStatus {
-    /// Contact is not verified.
-    Unverified = 0,
-    /// SELF has verified the fingerprint of a contact. Currently unused.
-    Verified = 1,
-    /// SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
-    BidirectVerified = 2,
-}
-
-impl Default for VerifiedStatus {
-    fn default() -> Self {
-        Self::Unverified
-    }
-}
-
 impl Contact {
     /// Loads a single contact object from the database.
     ///
@@ -1281,20 +1263,20 @@ impl Contact {
     /// otherwise use is_chat_protected().
     /// Use [Self::get_verifier_id] to display the verifier contact
     /// in the info section of the contact profile.
-    pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
+    pub async fn is_verified(&self, context: &Context) -> Result<bool> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
         if self.id == ContactId::SELF {
-            return Ok(VerifiedStatus::BidirectVerified);
+            return Ok(true);
         }
 
         if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
             if peerstate.is_using_verified_key() {
-                return Ok(VerifiedStatus::BidirectVerified);
+                return Ok(true);
             }
         }
 
-        Ok(VerifiedStatus::Unverified)
+        Ok(false)
     }
 
     /// Returns the `ContactId` that verified the contact.
@@ -1349,7 +1331,7 @@ impl Contact {
             Ok(chat_id.is_protected(context).await? == ProtectionStatus::Protected)
         } else {
             // 1:1 chat does not exist.
-            Ok(self.is_verified(context).await? == VerifiedStatus::BidirectVerified)
+            Ok(self.is_verified(context).await?)
         }
     }
 
