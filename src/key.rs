@@ -16,6 +16,7 @@ use tokio::runtime::Handle;
 use crate::config::Config;
 use crate::constants::KeyGenType;
 use crate::context::Context;
+use crate::log::LogExt;
 use crate::pgp::KeyPair;
 use crate::tools::{time, EmailAddress};
 
@@ -123,6 +124,25 @@ pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecr
             Ok(keypair.secret)
         }
     }
+}
+
+pub(crate) async fn load_self_secret_keyring(context: &Context) -> Result<Vec<SignedSecretKey>> {
+    let keys = context
+        .sql
+        .query_map(
+            r#"SELECT private_key
+               FROM keypairs
+               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
+               ORDER BY is_default DESC"#,
+            (),
+            |row| row.get::<_, Vec<u8>>(0),
+            |keys| keys.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?
+        .into_iter()
+        .filter_map(|bytes| SignedSecretKey::from_slice(&bytes).log_err(context).ok())
+        .collect();
+    Ok(keys)
 }
 
 impl DcKey for SignedPublicKey {
