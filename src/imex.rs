@@ -808,6 +808,7 @@ mod tests {
     use tokio::task;
 
     use super::*;
+    use crate::key;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext};
@@ -918,6 +919,37 @@ mod tests {
         if let Err(err) = imex(&context3.ctx, ImexMode::ImportSelfKeys, &keyfile, None).await {
             panic!("got error on import: {err:#}");
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_import_second_key() -> Result<()> {
+        let alice = &TestContext::new_alice().await;
+        let chat = alice.create_chat(alice).await;
+        let sent = alice.send_text(chat.id, "Encrypted with old key").await;
+        let export_dir = tempfile::tempdir().unwrap();
+
+        let alice = &TestContext::new().await;
+        alice.configure_addr("alice@example.org").await;
+        imex(alice, ImexMode::ExportSelfKeys, export_dir.path(), None).await?;
+
+        let alice = &TestContext::new_alice().await;
+        let old_key = key::load_self_secret_key(alice).await?;
+
+        imex(alice, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
+
+        let new_key = key::load_self_secret_key(alice).await?;
+        assert_ne!(new_key, old_key);
+        assert_eq!(
+            key::load_self_secret_keyring(alice).await?,
+            vec![new_key, old_key]
+        );
+
+        let msg = alice.recv_msg(&sent).await;
+        assert!(msg.get_showpadlock());
+        assert_eq!(msg.chat_id, alice.get_self_chat().await.id);
+        assert_eq!(msg.get_text(), "Encrypted with old key");
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
