@@ -312,7 +312,7 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    fn min_verified(&self) -> bool {
+    fn verified(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.is_protected() {
@@ -627,7 +627,7 @@ impl<'a> MimeFactory<'a> {
             ));
         }
 
-        let min_verified = self.min_verified();
+        let verified = self.verified();
         let grpimage = self.grpimage();
         let force_plaintext = self.should_force_plaintext();
         let skip_autocrypt = self.should_skip_autocrypt();
@@ -723,7 +723,7 @@ impl<'a> MimeFactory<'a> {
                 && self.should_do_gossip(context).await?
             {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
-                    if let Some(header) = peerstate.render_gossip_header(min_verified) {
+                    if let Some(header) = peerstate.render_gossip_header(verified) {
                         message = message.header(Header::new("Autocrypt-Gossip".into(), header));
                         is_gossiped = true;
                     }
@@ -756,7 +756,7 @@ impl<'a> MimeFactory<'a> {
             }
 
             let encrypted = encrypt_helper
-                .encrypt(context, min_verified, message, peerstates)
+                .encrypt(context, verified, message, peerstates)
                 .await?;
 
             outer_message

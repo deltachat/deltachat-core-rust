@@ -362,8 +362,8 @@ impl Peerstate {
     }
 
     /// Returns the contents of the `Autocrypt-Gossip` header for outgoing messages.
-    pub fn render_gossip_header(&self, min_verified: bool) -> Option<String> {
-        if let Some(key) = self.peek_key(min_verified) {
+    pub fn render_gossip_header(&self, verified: bool) -> Option<String> {
+        if let Some(key) = self.peek_key(verified) {
             let header = Aheader::new(
                 self.addr.clone(),
                 key.clone(), // TODO: avoid cloning
@@ -386,8 +386,8 @@ impl Peerstate {
     /// Converts the peerstate into the contact public key.
     ///
     /// Similar to [`Self::peek_key`], but consumes the peerstate and returns owned key.
-    pub fn take_key(mut self, min_verified: bool) -> Option<SignedPublicKey> {
-        if min_verified {
+    pub fn take_key(mut self, verified: bool) -> Option<SignedPublicKey> {
+        if verified {
             self.verified_key.take()
         } else {
             self.public_key.take().or_else(|| self.gossip_key.take())
@@ -396,15 +396,15 @@ impl Peerstate {
 
     /// Returns a reference to the contact public key.
     ///
-    /// `min_verified` determines the minimum required verification status of the key.
+    /// `verified` determines the required verification status of the key.
     /// If verified key is requested, returns the verified key,
     /// otherwise returns the Autocrypt key.
     ///
     /// Returned key is suitable for sending in `Autocrypt-Gossip` header.
     ///
     /// Returns `None` if there is no suitable public key.
-    pub fn peek_key(&self, min_verified: bool) -> Option<&SignedPublicKey> {
-        if min_verified {
+    pub fn peek_key(&self, verified: bool) -> Option<&SignedPublicKey> {
+        if verified {
             self.verified_key.as_ref()
         } else {
             self.public_key.as_ref().or(self.gossip_key.as_ref())
@@ -414,8 +414,8 @@ impl Peerstate {
     /// Returns a reference to the contact's public key fingerprint.
     ///
     /// Similar to [`Self::peek_key`], but returns the fingerprint instead of the key.
-    fn peek_key_fingerprint(&self, min_verified: bool) -> Option<&Fingerprint> {
-        if min_verified {
+    fn peek_key_fingerprint(&self, verified: bool) -> Option<&Fingerprint> {
+        if verified {
             self.verified_key_fingerprint.as_ref()
         } else {
             self.public_key_fingerprint

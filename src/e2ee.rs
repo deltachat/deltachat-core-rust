@@ -94,7 +94,7 @@ impl EncryptHelper {
     pub async fn encrypt(
         self,
         context: &Context,
-        min_verified: bool,
+        verified: bool,
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
@@ -107,7 +107,7 @@ impl EncryptHelper {
             .filter_map(|(state, addr)| state.clone().map(|s| (s, addr)))
         {
             let key = peerstate
-                .take_key(min_verified)
+                .take_key(verified)
                 .with_context(|| format!("proper enc-key for {addr} missing, cannot encrypt"))?;
             keyring.push(key);
             verifier_addresses.push(addr);
@@ -118,7 +118,7 @@ impl EncryptHelper {
 
         // Encrypt to secondary verified keys
         // if we also encrypt to the introducer ("verifier") of the key.
-        if min_verified {
+        if verified {
             for (peerstate, _addr) in peerstates {
                 if let Some(peerstate) = peerstate {
                     if let (Some(key), Some(verifier)) = (
