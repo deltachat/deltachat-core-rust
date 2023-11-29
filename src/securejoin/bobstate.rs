@@ -345,17 +345,6 @@ impl BobState {
             .await?;
         context.emit_event(EventType::ContactsChanged(None));
 
-        self.send_handshake_message(context, BobHandshakeMsg::ContactConfirmReceived)
-            .await
-            .map_err(|_| {
-                warn!(
-                    context,
-                    "Failed to send vc-contact-confirm-received/vg-member-added-received"
-                );
-            })
-            // This is not an error affecting the protocol outcome.
-            .ok();
-
         self.update_next(&context.sql, SecureJoinStep::Completed)
             .await?;
         Ok(Some(BobHandshakeStage::Completed))
@@ -401,9 +390,6 @@ async fn send_handshake_message(
             msg.param.set(Param::Arg2, invite.authcode());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
         }
-        BobHandshakeMsg::ContactConfirmReceived => {
-            msg.param.set_int(Param::GuaranteeE2ee, 1);
-        }
     };
 
     // Sends our own fingerprint in the Secure-Join-Fingerprint header.
@@ -425,8 +411,6 @@ enum BobHandshakeMsg {
     Request,
     /// vc-request-with-auth or vg-request-with-auth
     RequestWithAuth,
-    /// vc-contact-confirm-received or vg-member-added-received
-    ContactConfirmReceived,
 }
 
 impl BobHandshakeMsg {
@@ -453,10 +437,6 @@ impl BobHandshakeMsg {
             Self::RequestWithAuth => match invite {
                 QrInvite::Contact { .. } => "vc-request-with-auth",
                 QrInvite::Group { .. } => "vg-request-with-auth",
-            },
-            Self::ContactConfirmReceived => match invite {
-                QrInvite::Contact { .. } => "vc-contact-confirm-received",
-                QrInvite::Group { .. } => "vg-member-added-received",
             },
         }
     }
