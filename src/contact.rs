@@ -30,7 +30,7 @@ use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::peerstate::Peerstate;
 use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
@@ -1037,11 +1037,9 @@ impl Contact {
             let loginparam = LoginParam::load_configured_params(context).await?;
             let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
-            if let Some(peerstate) = peerstate.filter(|peerstate| {
-                peerstate
-                    .peek_key(PeerstateVerifiedStatus::Unverified)
-                    .is_some()
-            }) {
+            if let Some(peerstate) =
+                peerstate.filter(|peerstate| peerstate.peek_key(false).is_some())
+            {
                 let stock_message = match peerstate.prefer_encrypt {
                     EncryptPreference::Mutual => stock_str::e2e_preferred(context).await,
                     EncryptPreference::NoPreference => stock_str::e2e_available(context).await,
@@ -1056,11 +1054,11 @@ impl Contact {
                     .fingerprint()
                     .to_string();
                 let fingerprint_other_verified = peerstate
-                    .peek_key(PeerstateVerifiedStatus::BidirectVerified)
+                    .peek_key(true)
                     .map(|k| k.fingerprint().to_string())
                     .unwrap_or_default();
                 let fingerprint_other_unverified = peerstate
-                    .peek_key(PeerstateVerifiedStatus::Unverified)
+                    .peek_key(false)
                     .map(|k| k.fingerprint().to_string())
                     .unwrap_or_default();
                 if loginparam.addr < peerstate.addr {

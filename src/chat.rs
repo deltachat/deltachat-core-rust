@@ -34,7 +34,7 @@ use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::peerstate::Peerstate;
 use crate::receive_imf::ReceivedMsg;
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
@@ -1202,11 +1202,7 @@ impl ChatId {
             let peerstate = Peerstate::from_addr(context, addr).await?;
 
             match peerstate
-                .filter(|peerstate| {
-                    peerstate
-                        .peek_key(PeerstateVerifiedStatus::Unverified)
-                        .is_some()
-                })
+                .filter(|peerstate| peerstate.peek_key(false).is_some())
                 .map(|peerstate| peerstate.prefer_encrypt)
             {
                 Some(EncryptPreference::Mutual) => ret_mutual += &format!("{addr}\n"),
