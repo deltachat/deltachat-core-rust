@@ -373,7 +373,7 @@ impl Peerstate {
     }
 
     /// Returns the contents of the `Autocrypt-Gossip` header for outgoing messages.
-    pub fn render_gossip_header(&self, min_verified: PeerstateVerifiedStatus) -> Option<String> {
+    pub fn render_gossip_header(&self, min_verified: bool) -> Option<String> {
         if let Some(key) = self.peek_key(min_verified) {
             let header = Aheader::new(
                 self.addr.clone(),
@@ -397,12 +397,11 @@ impl Peerstate {
     /// Converts the peerstate into the contact public key.
     ///
     /// Similar to [`Self::peek_key`], but consumes the peerstate and returns owned key.
-    pub fn take_key(mut self, min_verified: PeerstateVerifiedStatus) -> Option<SignedPublicKey> {
-        match min_verified {
-            PeerstateVerifiedStatus::BidirectVerified => self.verified_key.take(),
-            PeerstateVerifiedStatus::Unverified => {
-                self.public_key.take().or_else(|| self.gossip_key.take())
-            }
+    pub fn take_key(mut self, min_verified: bool) -> Option<SignedPublicKey> {
+        if min_verified {
+            self.verified_key.take()
+        } else {
+            self.public_key.take().or_else(|| self.gossip_key.take())
         }
     }
 
@@ -415,25 +414,24 @@ impl Peerstate {
     /// Returned key is suitable for sending in `Autocrypt-Gossip` header.
     ///
     /// Returns `None` if there is no suitable public key.
-    pub fn peek_key(&self, min_verified: PeerstateVerifiedStatus) -> Option<&SignedPublicKey> {
-        match min_verified {
-            PeerstateVerifiedStatus::BidirectVerified => self.verified_key.as_ref(),
-            PeerstateVerifiedStatus::Unverified => {
-                self.public_key.as_ref().or(self.gossip_key.as_ref())
-            }
+    pub fn peek_key(&self, min_verified: bool) -> Option<&SignedPublicKey> {
+        if min_verified {
+            self.verified_key.as_ref()
+        } else {
+            self.public_key.as_ref().or(self.gossip_key.as_ref())
         }
     }
 
     /// Returns a reference to the contact's public key fingerprint.
     ///
     /// Similar to [`Self::peek_key`], but returns the fingerprint instead of the key.
-    fn peek_key_fingerprint(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Fingerprint> {
-        match min_verified {
-            PeerstateVerifiedStatus::BidirectVerified => self.verified_key_fingerprint.as_ref(),
-            PeerstateVerifiedStatus::Unverified => self
-                .public_key_fingerprint
+    fn peek_key_fingerprint(&self, min_verified: bool) -> Option<&Fingerprint> {
+        if min_verified {
+            self.verified_key_fingerprint.as_ref()
+        } else {
+            self.public_key_fingerprint
                 .as_ref()
-                .or(self.gossip_key_fingerprint.as_ref()),
+                .or(self.gossip_key_fingerprint.as_ref())
         }
     }
 
@@ -443,10 +441,9 @@ impl Peerstate {
     /// Note that verified groups always use the verified key no matter if the
     /// opportunistic key matches or not.
     pub(crate) fn is_using_verified_key(&self) -> bool {
-        let verified = self.peek_key_fingerprint(PeerstateVerifiedStatus::BidirectVerified);
+        let verified = self.peek_key_fingerprint(true);
 
-        verified.is_some()
-            && verified == self.peek_key_fingerprint(PeerstateVerifiedStatus::Unverified)
+        verified.is_some() && verified == self.peek_key_fingerprint(false)
     }
 
     /// Set this peerstate to verified

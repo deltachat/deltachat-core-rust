@@ -22,7 +22,7 @@ use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::peerstate::Peerstate;
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
 use crate::tools::IsNoneOrEmpty;
@@ -312,7 +312,7 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    fn min_verified(&self) -> PeerstateVerifiedStatus {
+    fn min_verified(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
                 if chat.is_protected() {
@@ -321,15 +321,15 @@ impl<'a> MimeFactory<'a> {
                         // In order to do this, it is necessary that they can be sent
                         // to a key that is not yet verified.
                         // This has to work independently of whether the chat is protected right now.
-                        PeerstateVerifiedStatus::Unverified
+                        false
                     } else {
-                        PeerstateVerifiedStatus::BidirectVerified
+                        true
                     }
                 } else {
-                    PeerstateVerifiedStatus::Unverified
+                    false
                 }
             }
-            Loaded::Mdn { .. } => PeerstateVerifiedStatus::Unverified,
+            Loaded::Mdn { .. } => false,
         }
     }
 

@@ -7,7 +7,7 @@ use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
 use crate::key::{load_self_public_key, load_self_secret_key, SignedPublicKey};
-use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
+use crate::peerstate::Peerstate;
 use crate::pgp;
 
 #[derive(Debug)]
@@ -94,7 +94,7 @@ impl EncryptHelper {
     pub async fn encrypt(
         self,
         context: &Context,
-        min_verified: PeerstateVerifiedStatus,
+        min_verified: bool,
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
@@ -118,7 +118,7 @@ impl EncryptHelper {
 
         // Encrypt to secondary verified keys
         // if we also encrypt to the introducer ("verifier") of the key.
-        if min_verified == PeerstateVerifiedStatus::BidirectVerified {
+        if min_verified {
             for (peerstate, _addr) in peerstates {
                 if let Some(peerstate) = peerstate {
                     if let (Some(key), Some(verifier)) = (
