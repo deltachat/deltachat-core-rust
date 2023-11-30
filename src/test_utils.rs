@@ -1047,7 +1047,8 @@ fn print_logevent(logevent: &LogEvent) {
     }
 }
 
-/// Saves the other account's public key as verified.
+/// Saves the other account's public key as verified
+/// and peerstate as backwards verified.
 pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
     let mut peerstate = Peerstate::from_header(
         &EncryptHelper::new(other).await.unwrap().get_aheader(),
@@ -1063,6 +1064,7 @@ pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
 
     peerstate.verified_key = peerstate.public_key.clone();
     peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+    peerstate.backward_verified_key_id = Some(this.get_config_i64(Config::KeyId).await.unwrap());
 
     peerstate.save_to_db(&this.sql).await.unwrap();
 }

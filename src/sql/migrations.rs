@@ -886,6 +886,20 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         sql.set_db_version_in_cache(version).await?;
     }
 
+    if dbversion < 109 {
+        sql.execute_migration(
+            r#"ALTER TABLE acpeerstates
+               ADD COLUMN backward_verified_key_id -- What we think the contact has as our verified key
+               INTEGER;
+               UPDATE acpeerstates
+               SET backward_verified_key_id=(SELECT value FROM config WHERE keyname='key_id')
+               WHERE verified_key IS NOT NULL
+               "#,
+            109,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

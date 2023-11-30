@@ -86,7 +86,7 @@ pub(super) async fn handle_auth_required(
         return Ok(HandshakeMessage::Ignore);
     };
 
-    match bobstate.handle_message(context, message).await? {
+    match bobstate.handle_auth_required(context, message).await? {
         Some(BobHandshakeStage::Terminated(why)) => {
             bobstate.notify_aborted(context, why).await?;
             Ok(HandshakeMessage::Done)
@@ -107,46 +107,6 @@ pub(super) async fn handle_auth_required(
     }
 }
 
-/// Handles `vc-contact-confirm` and `vg-member-added` handshake messages.
-///
-/// # Bob - the joiner's side
-/// ## Step 7 in the "Setup Contact protocol"
-pub(super) async fn handle_contact_confirm(
-    context: &Context,
-    mut bobstate: BobState,
-    message: &MimeMessage,
-) -> Result<HandshakeMessage> {
-    let retval = if bobstate.is_join_group() {
-        HandshakeMessage::Propagate
-    } else {
-        HandshakeMessage::Ignore
-    };
-    match bobstate.handle_message(context, message).await? {
-        Some(BobHandshakeStage::Terminated(why)) => {
-            bobstate.notify_aborted(context, why).await?;
-            Ok(HandshakeMessage::Done)
-        }
-        Some(BobHandshakeStage::Completed) => {
-            // Note this goes to the 1:1 chat, as when joining a group we implicitly also
-            // verify both contacts (this could be a bug/security issue, see
-            // e.g. https://github.com/deltachat/deltachat-core-rust/issues/1177).
-            bobstate
-                .notify_peer_verified(context, message.timestamp_sent)
-                .await?;
-            bobstate.emit_progress(context, JoinerProgress::Succeeded);
-            Ok(retval)
-        }
-        Some(_) => {
-            warn!(
-                context,
-                "Impossible state returned from handling handshake message"
-            );
-            Ok(retval)
-        }
-        None => Ok(retval),
-    }
-}
-
 /// Private implementations for user interactions about this [`BobState`].
 impl BobState {
     fn is_join_group(&self) -> bool {
@@ -156,7 +116,7 @@ impl BobState {
         }
     }
 
-    fn emit_progress(&self, context: &Context, progress: JoinerProgress) {
+    pub(crate) fn emit_progress(&self, context: &Context, progress: JoinerProgress) {
         let contact_id = self.invite().contact_id();
         context.emit_event(EventType::SecurejoinJoinerProgress {
             contact_id,
@@ -222,7 +182,11 @@ impl BobState {
     /// Notifies the user that the SecureJoin peer is verified.
     ///
     /// This creates an info message in the chat being joined.
-    async fn notify_peer_verified(&self, context: &Context, timestamp: i64) -> Result<()> {
+    pub(crate) async fn notify_peer_verified(
+        &self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
         let chat_id = self.joining_chat_id(context).await?;
         self.alice_chat()
@@ -242,7 +206,7 @@ impl BobState {
 ///
 /// This has an `From<JoinerProgress> for usize` impl yielding numbers between 0 and a 1000
 /// which can be shown as a progress bar.
-enum JoinerProgress {
+pub(crate) enum JoinerProgress {
     /// An error occurred.
     Error,
     /// vg-vc-request-with-auth sent.

@@ -346,6 +346,16 @@ pub(crate) async fn receive_imf_inner(
     let verified_encryption =
         has_verified_encryption(context, &mime_parser, from_id, &to_ids).await?;
 
+    if verified_encryption == VerifiedEncryption::Verified
+        && mime_parser.get_header(HeaderDef::ChatVerified).is_some()
+    {
+        if let Some(peerstate) = &mut mime_parser.decryption_info.peerstate {
+            peerstate.backward_verified_key_id =
+                Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
+            peerstate.save_to_db(&context.sql).await?;
+        }
+    }
+
     let received_msg = if let Some(received_msg) = received_msg {
         received_msg
     } else {
@@ -2527,6 +2537,8 @@ async fn mark_recipients_as_verified(
                     info!(context, "{verifier_addr} has verified {to_addr}.");
                     if let Some(fp) = peerstate.gossip_key_fingerprint.clone() {
                         peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
+                        peerstate.backward_verified_key_id =
+                            Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
                         peerstate.save_to_db(&context.sql).await?;
 
                         let (to_contact_id, _) = Contact::add_or_lookup(
