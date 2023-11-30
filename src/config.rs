@@ -18,7 +18,7 @@ use crate::log::LogExt;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::sync::{self, Sync::*, SyncData};
-use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
+use crate::tools::{get_abs_path, improve_single_line_input};
 
 /// The available configuration keys.
 #[derive(
