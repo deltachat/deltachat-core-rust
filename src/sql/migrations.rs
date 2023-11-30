@@ -785,6 +785,25 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 106 {
+        // Recreate `config` table with UNIQUE constraint on `keyname`.
+        sql.execute_migration(
+            "CREATE TABLE new_config (
+               id INTEGER PRIMARY KEY,
+               keyname TEXT UNIQUE,
+               value TEXT NOT NULL
+             );
+             INSERT OR IGNORE INTO new_config SELECT
+               id, keyname, value
+             FROM config;
+             DROP TABLE config;
+             ALTER TABLE new_config RENAME TO config;
+             CREATE INDEX config_index1 ON config (keyname);",
+            106,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?

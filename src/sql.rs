@@ -572,22 +572,13 @@ impl Sql {
     pub async fn set_raw_config(&self, key: &str, value: Option<&str>) -> Result<()> {
         let mut lock = self.config_cache.write().await;
         if let Some(value) = value {
-            let exists = self
-                .exists("SELECT COUNT(*) FROM config WHERE keyname=?;", (key,))
-                .await?;
-
-            if exists {
-                self.execute("UPDATE config SET value=? WHERE keyname=?;", (value, key))
-                    .await?;
-            } else {
-                self.execute(
-                    "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    (key, value),
-                )
-                .await?;
-            }
+            self.execute(
+                "INSERT OR REPLACE INTO config (keyname, value) VALUES (?, ?)",
+                (key, value),
+            )
+            .await?;
         } else {
-            self.execute("DELETE FROM config WHERE keyname=?;", (key,))
+            self.execute("DELETE FROM config WHERE keyname=?", (key,))
                 .await?;
         }
         lock.insert(key.to_string(), value.map(|s| s.to_string()));
@@ -608,7 +599,7 @@ impl Sql {
 
         let mut lock = self.config_cache.write().await;
         let value = self
-            .query_get_value("SELECT value FROM config WHERE keyname=?;", (key,))
+            .query_get_value("SELECT value FROM config WHERE keyname=?", (key,))
             .await
             .context(format!("failed to fetch raw config: {key}"))?;
         lock.insert(key.to_string(), value.clone());
