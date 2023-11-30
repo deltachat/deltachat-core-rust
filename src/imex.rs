@@ -670,7 +670,7 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
     let keys = context
         .sql
         .query_map(
-            "SELECT id, public_key, private_key, is_default FROM keypairs;",
+            "SELECT id, public_key, private_key, id=(SELECT value FROM config WHERE keyname='key_id') FROM keypairs;",
             (),
             |row| {
                 let id = row.get(0)?;

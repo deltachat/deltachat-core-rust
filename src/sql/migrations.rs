@@ -804,6 +804,36 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 107 {
+        sql.execute_migration(
+            "CREATE TABLE new_keypairs (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               private_key UNIQUE NOT NULL,
+               public_key UNIQUE NOT NULL
+             );
+             INSERT OR IGNORE INTO new_keypairs SELECT id, private_key, public_key FROM keypairs;
+
+             INSERT OR IGNORE
+             INTO config (keyname, value)
+             VALUES
+             ('key_id', (SELECT id FROM new_keypairs
+                         WHERE private_key=
+                           (SELECT private_key FROM keypairs
+                            WHERE addr=(SELECT value FROM config WHERE keyname='configured_addr')
+                            AND is_default=1)));
+
+             -- We do not drop the old `keypairs` table for now,
+             -- but move it to `old_keypairs`. We can remove it later
+             -- in next migrations. This may be needed for recovery
+             -- in case something is wrong with the migration.
+             ALTER TABLE keypairs RENAME TO old_keypairs;
+             ALTER TABLE new_keypairs RENAME TO keypairs;
+             ",
+            107,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
