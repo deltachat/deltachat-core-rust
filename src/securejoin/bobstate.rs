@@ -11,8 +11,9 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 use super::qrinvite::QrInvite;
-use super::{encrypted_and_signed, fingerprint_equals_sender, mark_peer_as_verified};
+use super::{encrypted_and_signed, fingerprint_equals_sender};
 use crate::chat::{self, ChatId};
+use crate::config::Config;
 use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -21,6 +22,7 @@ use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
+use crate::securejoin::Peerstate;
 use crate::sql::Sql;
 
 /// The stage of the [`BobState`] securejoin handshake protocol state machine.
@@ -30,14 +32,9 @@ use crate::sql::Sql;
 #[derive(Clone, Copy, Debug, Display)]
 pub enum BobHandshakeStage {
     /// Step 2 completed: (vc|vg)-request message sent.
-    ///
-    /// Note that this is only ever returned by [`BobState::start_protocol`] and never by
-    /// [`BobState::handle_message`].
     RequestSent,
     /// Step 4 completed: (vc|vg)-request-with-auth message sent.
     RequestWithAuthSent,
-    /// The protocol completed successfully.
-    Completed,
     /// The protocol prematurely terminated with given reason.
     Terminated(&'static str),
 }
@@ -230,13 +227,13 @@ impl BobState {
         Ok(())
     }
 
-    /// Handles the given message for the securejoin handshake for Bob.
+    /// Handles {vc,vg}-auth-required message of the securejoin handshake for Bob.
     ///
     /// If the message was not used for this handshake `None` is returned, otherwise the new
-    /// stage is returned.  Once [`BobHandshakeStage::Completed`] or
-    /// [`BobHandshakeStage::Terminated`] are reached this [`BobState`] should be destroyed,
+    /// stage is returned.  Once [`BobHandshakeStage::Terminated`] is reached this
+    /// [`BobState`] should be destroyed,
     /// further calling it will just result in the messages being unused by this handshake.
-    pub(crate) async fn handle_message(
+    pub(crate) async fn handle_auth_required(
         &mut self,
         context: &Context,
         mime_message: &MimeMessage,
@@ -256,39 +253,7 @@ impl BobState {
             info!(context, "{} message out of sync for BobState", step);
             return Ok(None);
         }
-        match step.as_str() {
-            "vg-auth-required" | "vc-auth-required" => {
-                self.step_auth_required(context, mime_message).await
-            }
-            "vg-member-added" | "vc-contact-confirm" => {
-                self.step_contact_confirm(context, mime_message).await
-            }
-            _ => {
-                warn!(context, "Invalid step for BobState: {}", step);
-                Ok(None)
-            }
-        }
-    }
 
-    /// Returns `true` if the message is expected according to the protocol.
-    fn is_msg_expected(&self, context: &Context, step: &str) -> bool {
-        let variant_matches = match self.invite {
-            QrInvite::Contact { .. } => step.starts_with("vc-"),
-            QrInvite::Group { .. } => step.starts_with("vg-"),
-        };
-        let step_matches = self.next.matches(context, step);
-        variant_matches && step_matches
-    }
-
-    /// Handles a *vc-auth-required* or *vg-auth-required* message.
-    ///
-    /// # Bob - the joiner's side
-    /// ## Step 4 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
-    async fn step_auth_required(
-        &mut self,
-        context: &Context,
-        mime_message: &MimeMessage,
-    ) -> Result<Option<BobHandshakeStage>> {
         info!(
             context,
             "Bob Step 4 - handling {{vc,vg}}-auth-required message."
@@ -311,6 +276,7 @@ impl BobState {
             return Ok(Some(BobHandshakeStage::Terminated("Fingerprint mismatch")));
         }
         info!(context, "Fingerprint verified.",);
+
         self.update_next(&context.sql, SecureJoinStep::ContactConfirm)
             .await?;
         self.send_handshake_message(context, BobHandshakeMsg::RequestWithAuth)
@@ -318,36 +284,39 @@ impl BobState {
         Ok(Some(BobHandshakeStage::RequestWithAuthSent))
     }
 
+    /// Returns `true` if the message is expected according to the protocol.
+    pub(crate) fn is_msg_expected(&self, context: &Context, step: &str) -> bool {
+        let variant_matches = match self.invite {
+            QrInvite::Contact { .. } => step.starts_with("vc-"),
+            QrInvite::Group { .. } => step.starts_with("vg-"),
+        };
+        let step_matches = self.next.matches(context, step);
+        variant_matches && step_matches
+    }
+
     /// Handles a *vc-contact-confirm* or *vg-member-added* message.
     ///
     /// # Bob - the joiner's side
     /// ## Step 7 in the "Setup Contact protocol", section 2.1 of countermitm 0.10.0
-    ///
-    /// This deviates from the protocol by also sending a confirmation message in response
-    /// to the *vc-contact-confirm* message.  This has no specific value to the protocol and
-    /// is only done out of symmetry with *vg-member-added* handling.
-    async fn step_contact_confirm(
-        &mut self,
-        context: &Context,
-        mime_message: &MimeMessage,
-    ) -> Result<Option<BobHandshakeStage>> {
-        info!(
-            context,
-            "Bob Step 7 - handling vc-contact-confirm/vg-member-added message."
-        );
-        mark_peer_as_verified(
-            context,
-            self.invite.fingerprint().clone(),
-            mime_message.from.addr.to_string(),
-        )
-        .await?;
+    pub(crate) async fn step_contact_confirm(&mut self, context: &Context) -> Result<()> {
+        let fingerprint = self.invite.fingerprint();
+        let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await?
+        else {
+            return Ok(());
+        };
+
+        // Mark peer as backward verified.
+        peerstate.backward_verified_key_id =
+            Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
+        peerstate.save_to_db(&context.sql).await?;
+
         Contact::scaleup_origin_by_id(context, self.invite.contact_id(), Origin::SecurejoinJoined)
             .await?;
         context.emit_event(EventType::ContactsChanged(None));
 
         self.update_next(&context.sql, SecureJoinStep::Completed)
             .await?;
-        Ok(Some(BobHandshakeStage::Completed))
+        Ok(())
     }
 
     /// Sends the requested handshake message to Alice.

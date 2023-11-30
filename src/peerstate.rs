@@ -6,6 +6,7 @@ use num_traits::FromPrimitive;
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::chat::{self, Chat};
 use crate::chatlist::Chatlist;
+use crate::config::Config;
 use crate::constants::Chattype;
 use crate::contact::{addr_cmp, Contact, ContactAddress, Origin};
 use crate::context::Context;
@@ -83,6 +84,10 @@ pub struct Peerstate {
     /// The address that introduced secondary verified key.
     pub secondary_verifier: Option<String>,
 
+    /// Row ID of the key in the `keypairs` table
+    /// that we think the peer knows as verified.
+    pub backward_verified_key_id: Option<i64>,
+
     /// True if it was detected
     /// that the fingerprint of the key used in chats with
     /// opportunistic encryption was changed after Peerstate creation.
@@ -108,6 +113,7 @@ impl Peerstate {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         }
     }
@@ -137,6 +143,7 @@ impl Peerstate {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         }
     }
@@ -148,7 +155,8 @@ impl Peerstate {
                      verified_key, verified_key_fingerprint, \
                      verifier, \
                      secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     secondary_verifier, \
+                     backward_verified_key_id \
                      FROM acpeerstates \
                      WHERE addr=? COLLATE NOCASE LIMIT 1;";
         Self::from_stmt(context, query, (addr,)).await
@@ -164,7 +172,8 @@ impl Peerstate {
                      verified_key, verified_key_fingerprint, \
                      verifier, \
                      secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     secondary_verifier, \
+                     backward_verified_key_id \
                      FROM acpeerstates  \
                      WHERE public_key_fingerprint=? \
                      OR gossip_key_fingerprint=? \
@@ -187,7 +196,8 @@ impl Peerstate {
                      verified_key, verified_key_fingerprint, \
                      verifier, \
                      secondary_verified_key, secondary_verified_key_fingerprint, \
-                     secondary_verifier \
+                     secondary_verifier, \
+                     backward_verified_key_id \
                      FROM acpeerstates  \
                      WHERE verified_key_fingerprint=? \
                      OR addr=? COLLATE NOCASE \
@@ -255,6 +265,7 @@ impl Peerstate {
                         let secondary_verifier: Option<String> = row.get("secondary_verifier")?;
                         secondary_verifier.filter(|s| !s.is_empty())
                     },
+                    backward_verified_key_id: row.get("backward_verified_key_id")?,
                     fingerprint_changed: false,
                 };
 
@@ -435,6 +446,17 @@ impl Peerstate {
         verified.is_some() && verified == self.peek_key_fingerprint(false)
     }
 
+    pub(crate) async fn is_backward_verified(&self, context: &Context) -> Result<bool> {
+        let Some(backward_verified_key_id) = self.backward_verified_key_id else {
+            return Ok(false);
+        };
+
+        let self_key_id = context.get_config_i64(Config::KeyId).await?;
+
+        let backward_verified = backward_verified_key_id == self_key_id;
+        Ok(backward_verified)
+    }
+
     /// Set this peerstate to verified
     /// Make sure to call `self.save_to_db` to save these changes
     /// Params:
@@ -510,8 +532,9 @@ impl Peerstate {
                 secondary_verified_key,
                 secondary_verified_key_fingerprint,
                 secondary_verifier,
+                backward_verified_key_id,
                 addr)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT (addr)
                 DO UPDATE SET
                   last_seen = excluded.last_seen,
@@ -527,7 +550,8 @@ impl Peerstate {
                   verifier = excluded.verifier,
                   secondary_verified_key = excluded.secondary_verified_key,
                   secondary_verified_key_fingerprint = excluded.secondary_verified_key_fingerprint,
-                  secondary_verifier = excluded.secondary_verifier",
+                  secondary_verifier = excluded.secondary_verifier,
+                  backward_verified_key_id = excluded.backward_verified_key_id",
             (
                 self.last_seen,
                 self.last_seen_autocrypt,
@@ -545,6 +569,7 @@ impl Peerstate {
                     .as_ref()
                     .map(|fp| fp.hex()),
                 self.secondary_verifier.as_deref().unwrap_or(""),
+                self.backward_verified_key_id,
                 &self.addr,
             ),
         )
@@ -806,6 +831,7 @@ mod tests {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         };
 
@@ -849,6 +875,7 @@ mod tests {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         };
 
@@ -885,6 +912,7 @@ mod tests {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         };
 
@@ -951,6 +979,7 @@ mod tests {
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         };
 

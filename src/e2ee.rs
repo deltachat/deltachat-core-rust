@@ -312,6 +312,7 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             secondary_verified_key: None,
             secondary_verified_key_fingerprint: None,
             secondary_verifier: None,
+            backward_verified_key_id: None,
             fingerprint_changed: false,
         };
         vec![(Some(peerstate), addr)]

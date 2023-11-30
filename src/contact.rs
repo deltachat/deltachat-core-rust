@@ -1268,13 +1268,30 @@ impl Contact {
             return Ok(true);
         }
 
-        if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
-            if peerstate.is_using_verified_key() {
-                return Ok(true);
-            }
+        let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? else {
+            return Ok(false);
+        };
+
+        let forward_verified = peerstate.is_using_verified_key();
+        let backward_verified = peerstate.is_backward_verified(context).await?;
+        Ok(forward_verified && backward_verified)
+    }
+
+    /// Returns true if we have a verified key for the contact
+    /// and it is the same as Autocrypt key.
+    /// This is enough to send messages to the contact in verified chat
+    /// and verify received messages, but not enough to display green checkmark
+    /// or add the contact to verified groups.
+    pub async fn is_forward_verified(&self, context: &Context) -> Result<bool> {
+        if self.id == ContactId::SELF {
+            return Ok(true);
         }
 
-        Ok(false)
+        let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? else {
+            return Ok(false);
+        };
+
+        Ok(peerstate.is_using_verified_key())
     }
 
     /// Returns the `ContactId` that verified the contact.
