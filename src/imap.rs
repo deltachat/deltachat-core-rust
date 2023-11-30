@@ -9,6 +9,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     iter::Peekable,
     mem::take,
+    time::Duration,
 };
 
 use anyhow::{bail, format_err, Context as _, Result};
@@ -16,6 +17,8 @@ use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
 use futures::{StreamExt, TryStreamExt};
 use num_traits::FromPrimitive;
+use ratelimit::Ratelimit;
+use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
@@ -38,7 +41,7 @@ use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
-use crate::tools::create_id;
+use crate::tools::{create_id, duration_to_str};
 
 pub(crate) mod capabilities;
 mod client;
@@ -91,6 +94,7 @@ pub struct Imap {
     login_failed_once: bool,
 
     pub(crate) connectivity: ConnectivityStore,
+    ratelimit: RwLock<Ratelimit>,
 }
 
 #[derive(Debug)]
@@ -252,6 +256,8 @@ impl Imap {
             session: None,
             login_failed_once: false,
             connectivity: Default::default(),
+            // 1 connection per minute + a burst of 2.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(120, 0), 2.0)),
         };
 
         Ok(imap)
@@ -300,10 +306,20 @@ impl Imap {
         }
 
         self.connectivity.set_connecting(context).await;
+        let ratelimit_duration = self.ratelimit.read().await.until_can_send();
+        if !ratelimit_duration.is_zero() {
+            warn!(
+                context,
+                "IMAP got rate limited, waiting for {} until can connect",
+                duration_to_str(ratelimit_duration),
+            );
+            tokio::time::sleep(ratelimit_duration).await;
+        }
 
         let oauth2 = self.config.lp.oauth2;
 
         info!(context, "Connecting to IMAP server");
+        self.ratelimit.write().await.send();
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
