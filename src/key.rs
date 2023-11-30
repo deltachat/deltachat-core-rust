@@ -18,7 +18,7 @@ use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::log::LogExt;
 use crate::pgp::KeyPair;
-use crate::tools::{time, EmailAddress};
+use crate::tools::EmailAddress;
 
 /// Convenience trait for working with keys.
 ///
@@ -82,10 +82,9 @@ pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPubl
     match context
         .sql
         .query_row_optional(
-            r#"SELECT public_key
-               FROM keypairs
-               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
-               AND is_default=1"#,
+            "SELECT public_key
+             FROM keypairs
+             WHERE id=(SELECT value FROM config WHERE keyname='key_id')",
             (),
             |row| {
                 let bytes: Vec<u8> = row.get(0)?;
@@ -106,10 +105,9 @@ pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecr
     match context
         .sql
         .query_row_optional(
-            r#"SELECT private_key
-               FROM keypairs
-               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
-               AND is_default=1"#,
+            "SELECT private_key
+             FROM keypairs
+             WHERE id=(SELECT value FROM config WHERE keyname='key_id')",
             (),
             |row| {
                 let bytes: Vec<u8> = row.get(0)?;
@@ -132,8 +130,7 @@ pub(crate) async fn load_self_secret_keyring(context: &Context) -> Result<Vec<Si
         .query_map(
             r#"SELECT private_key
                FROM keypairs
-               WHERE addr=(SELECT value FROM config WHERE keyname="configured_addr")
-               ORDER BY is_default DESC"#,
+               ORDER BY id=(SELECT value FROM config WHERE keyname='key_id') DESC"#,
             (),
             |row| row.get::<_, Vec<u8>>(0),
             |keys| keys.collect::<Result<Vec<_>, _>>().map_err(Into::into),
@@ -233,13 +230,10 @@ pub(crate) async fn load_keypair(
     let res = context
         .sql
         .query_row_optional(
-            r#"
-        SELECT public_key, private_key
-          FROM keypairs
-         WHERE addr=?1
-           AND is_default=1;
-        "#,
-            (addr,),
+            "SELECT public_key, private_key
+             FROM keypairs
+             WHERE id=(SELECT value FROM config WHERE keyname='key_id')",
+            (),
             |row| {
                 let pub_bytes: Vec<u8> = row.get(0)?;
                 let sec_bytes: Vec<u8> = row.get(1)?;
@@ -288,41 +282,43 @@ pub async fn store_self_keypair(
     keypair: &KeyPair,
     default: KeyPairUse,
 ) -> Result<()> {
-    context
+    let mut config_cache_lock = context.sql.config_cache.write().await;
+    let new_key_id = context
         .sql
         .transaction(|transaction| {
             let public_key = DcKey::to_bytes(&keypair.public);
             let secret_key = DcKey::to_bytes(&keypair.secret);
-            transaction
-                .execute(
-                    "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
-                    (&public_key, &secret_key),
-                )
-                .context("failed to remove old use of key")?;
-            if default == KeyPairUse::Default {
-                transaction
-                    .execute("UPDATE keypairs SET is_default=0;", ())
-                    .context("failed to clear default")?;
-            }
+
             let is_default = match default {
-                KeyPairUse::Default => i32::from(true),
-                KeyPairUse::ReadOnly => i32::from(false),
+                KeyPairUse::Default => true,
+                KeyPairUse::ReadOnly => false,
             };
 
-            let addr = keypair.addr.to_string();
-            let t = time();
-
             transaction
                 .execute(
-                    "INSERT INTO keypairs (addr, is_default, public_key, private_key, created)
-                VALUES (?,?,?,?,?);",
-                    (addr, is_default, &public_key, &secret_key, t),
+                    "INSERT OR REPLACE INTO keypairs (public_key, private_key)
+                     VALUES (?,?)",
+                    (&public_key, &secret_key),
                 )
-                .context("failed to insert keypair")?;
+                .context("Failed to insert keypair")?;
 
-            Ok(())
+            if is_default {
+                let new_key_id = transaction.last_insert_rowid();
+                transaction.execute(
+                    "INSERT OR REPLACE INTO config (keyname, value) VALUES ('key_id', ?)",
+                    (new_key_id,),
+                )?;
+                Ok(Some(new_key_id))
+            } else {
+                Ok(None)
+            }
         })
         .await?;
+
+    if let Some(new_key_id) = new_key_id {
+        // Update config cache if transaction succeeded and changed current default key.
+        config_cache_lock.insert("key_id".to_string(), Some(new_key_id.to_string()));
+    }
 
     Ok(())
 }

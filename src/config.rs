@@ -18,7 +18,7 @@ use crate::log::LogExt;
 use crate::mimefactory::RECOMMENDED_FILE_SIZE;
 use crate::provider::{get_provider_by_id, Provider};
 use crate::sync::{self, Sync::*, SyncData};
-use crate::tools::{get_abs_path, improve_single_line_input, EmailAddress};
+use crate::tools::{get_abs_path, improve_single_line_input};
 
 /// The available configuration keys.
 #[derive(
@@ -343,6 +343,10 @@ pub enum Config {
     /// until `chat_id.accept()` is called.
     #[strum(props(default = "0"))]
     VerifiedOneOnOneChats,
+
+    /// Row ID of the key in the `keypairs` table
+    /// used for signatures, encryption to self and included in `Autocrypt` header.
+    KeyId,
 }
 
 impl Config {
@@ -627,8 +631,6 @@ impl Context {
     ///
     /// This should only be used by test code and during configure.
     pub(crate) async fn set_primary_self_addr(&self, primary_new: &str) -> Result<()> {
-        let old_addr = self.get_config(Config::ConfiguredAddr).await?;
-
         // add old primary address (if exists) to secondary addresses
         let mut secondary_addrs = self.get_all_self_addrs().await?;
         // never store a primary address also as a secondary
@@ -641,17 +643,6 @@ impl Context {
 
         self.set_config(Config::ConfiguredAddr, Some(primary_new))
             .await?;
-
-        if let Some(old_addr) = old_addr {
-            let old_addr = EmailAddress::new(&old_addr)?;
-            let old_keypair = crate::key::load_keypair(self, &old_addr).await?;
-
-            if let Some(mut old_keypair) = old_keypair {
-                old_keypair.addr = EmailAddress::new(primary_new)?;
-                crate::key::store_self_keypair(self, &old_keypair, crate::key::KeyPairUse::Default)
-                    .await?;
-            }
-        }
 
         Ok(())
     }

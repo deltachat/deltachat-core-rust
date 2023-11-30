@@ -1318,6 +1318,7 @@ mod tests {
             "socks5_port",
             "socks5_user",
             "socks5_password",
+            "key_id",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();
