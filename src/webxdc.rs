@@ -409,6 +409,7 @@ impl Context {
         instance_id: &MsgId,
         status_update_item: &StatusUpdateItem,
     ) -> Result<Option<StatusUpdateSerial>> {
+        let _lock = self.sql.write_lock().await;
         let uid = status_update_item.uid.as_deref();
         let Some(rowid) = self
             .sql
