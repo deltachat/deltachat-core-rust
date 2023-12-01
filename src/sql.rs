@@ -1145,6 +1145,26 @@ mod tests {
         tokio::fs::create_dir(&dir).await.unwrap();
     }
 
+    /// Tests that housekeeping keeps new blobs.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_housekeeping_keeps_new_blobs() {
+        use tempfile::tempdir;
+
+        let t = TestContext::new_alice().await;
+
+        let dir = tempdir()?;
+        let filepath = dir.path().join("file.txt");
+        fs::write(&filepath, b"test").await.unwrap();
+        // TODO: rewind all the file dates
+
+        let blob = BlobObject::new_from_path(context, filepath).await?;
+
+        housekeeping(&t).await.unwrap();
+
+        let data = fs::read(blob.to_abs_path()).await.unwrap();
+        assert_eq!(data, b"test");
+    }
+
     /// Regression test.
     ///
     /// Previously the code checking for existence of `config` table
