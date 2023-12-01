@@ -2377,8 +2377,7 @@ async fn update_verified_keys(
 
 /// Checks whether the message is allowed to appear in a protected chat.
 ///
-/// This means that it is encrypted, signed with a verified key,
-/// and if it's a group, all the recipients are verified.
+/// This means that it is encrypted and signed with a verified key.
 ///
 /// Also propagates gossiped keys to verified if needed.
 async fn has_verified_encryption(
