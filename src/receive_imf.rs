@@ -788,6 +788,7 @@ async fn add_parts(
                     false => None,
                 };
                 if let Some(chat) = chat {
+                    debug_assert!(chat.typ == Chattype::Single);
                     let mut new_protection =
                         match has_verified_encryption(context, mime_parser, from_id, to_ids).await?
                         {
