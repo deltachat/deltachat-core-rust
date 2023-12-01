@@ -512,8 +512,9 @@ impl Context {
                 send_now,
                 ContactId::SELF,
             )
-            .await?
-            .context("Failed to create status update")?;
+            .await
+            .context("Failed to create status update")?
+            .context("Duplicate status update UID was generated")?;
 
         if send_now {
             self.sql.insert(
