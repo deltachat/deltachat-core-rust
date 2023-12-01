@@ -276,6 +276,8 @@ pub(crate) async fn receive_imf_inner(
                     sort_timestamp: sent_timestamp,
                     msg_ids: vec![msg_id],
                     needs_delete_job: res == securejoin::HandshakeMessage::Done,
+                    #[cfg(test)]
+                    from_is_signed: mime_parser.from_is_signed,
                 });
             }
             securejoin::HandshakeMessage::Propagate => {
