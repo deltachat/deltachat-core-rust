@@ -288,6 +288,9 @@ pub(crate) async fn receive_imf_inner(
         received_msg = None;
     }
 
+    let verified_encryption =
+        has_verified_encryption(context, &mime_parser, from_id, &to_ids).await?;
+
     let received_msg = if let Some(received_msg) = received_msg {
         received_msg
     } else {
@@ -307,6 +310,7 @@ pub(crate) async fn receive_imf_inner(
             replace_partial_download,
             fetching_existing_messages,
             prevent_rename,
+            verified_encryption,
         )
         .await
         .context("add_parts error")?
@@ -518,6 +522,7 @@ async fn add_parts(
     mut replace_msg_id: Option<MsgId>,
     fetching_existing_messages: bool,
     prevent_rename: bool,
+    verified_encryption: VerifiedEncryption,
 ) -> Result<ReceivedMsg> {
     let mut chat_id = None;
     let mut chat_id_blocked = Blocked::Not;
@@ -648,6 +653,7 @@ async fn add_parts(
                 create_blocked,
                 from_id,
                 to_ids,
+                &verified_encryption,
             )
             .await?
             {
@@ -698,6 +704,7 @@ async fn add_parts(
                 from_id,
                 to_ids,
                 is_partial_download.is_some(),
+                &verified_encryption,
             )
             .await?;
         }
@@ -789,12 +796,10 @@ async fn add_parts(
                 };
                 if let Some(chat) = chat {
                     debug_assert!(chat.typ == Chattype::Single);
-                    let mut new_protection =
-                        match has_verified_encryption(context, mime_parser, from_id, to_ids).await?
-                        {
-                            VerifiedEncryption::Verified => ProtectionStatus::Protected,
-                            VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
-                        };
+                    let mut new_protection = match verified_encryption {
+                        VerifiedEncryption::Verified => ProtectionStatus::Protected,
+                        VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
+                    };
 
                     if chat.protected != ProtectionStatus::Unprotected
                         && new_protection == ProtectionStatus::Unprotected
@@ -879,6 +884,7 @@ async fn add_parts(
                     Blocked::Not,
                     from_id,
                     to_ids,
+                    &verified_encryption,
                 )
                 .await?
                 {
@@ -921,6 +927,7 @@ async fn add_parts(
                 from_id,
                 to_ids,
                 is_partial_download.is_some(),
+                &verified_encryption,
             )
             .await?;
         }
@@ -1086,9 +1093,7 @@ async fn add_parts(
         let chat = Chat::load_from_db(context, chat_id).await?;
 
         if chat.is_protected() {
-            if let VerifiedEncryption::NotVerified(err) =
-                has_verified_encryption(context, mime_parser, from_id, to_ids).await?
-            {
+            if let VerifiedEncryption::NotVerified(err) = verified_encryption {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
                 mime_parser.replace_msg_by_error(&s);
@@ -1600,6 +1605,7 @@ async fn is_probably_private_reply(
 /// than two members, a new ad hoc group is created.
 ///
 /// On success the function returns the found/created (chat_id, chat_blocked) tuple.
+#[allow(clippy::too_many_arguments)]
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1608,6 +1614,7 @@ async fn create_or_lookup_group(
     create_blocked: Blocked,
     from_id: ContactId,
     to_ids: &[ContactId],
+    verified_encryption: &VerifiedEncryption,
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
@@ -1651,9 +1658,7 @@ async fn create_or_lookup_group(
     }
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let VerifiedEncryption::NotVerified(err) =
-            has_verified_encryption(context, mime_parser, from_id, to_ids).await?
-        {
+        if let VerifiedEncryption::NotVerified(err) = verified_encryption {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.replace_msg_by_error(&s);
@@ -1746,6 +1751,7 @@ async fn create_or_lookup_group(
 ///
 /// Optionally returns better message to replace the original system message.
 /// is_partial_download: whether the message is not fully downloaded.
+#[allow(clippy::too_many_arguments)]
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
@@ -1754,6 +1760,7 @@ async fn apply_group_changes(
     from_id: ContactId,
     to_ids: &[ContactId],
     is_partial_download: bool,
+    verified_encryption: &VerifiedEncryption,
 ) -> Result<(Vec<String>, Option<String>)> {
     if chat_id.is_special() {
         // Do not apply group changes to the trash chat.
@@ -1814,9 +1821,7 @@ async fn apply_group_changes(
     };
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let VerifiedEncryption::NotVerified(err) =
-            has_verified_encryption(context, mime_parser, from_id, to_ids).await?
-        {
+        if let VerifiedEncryption::NotVerified(err) = verified_encryption {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.replace_msg_by_error(&s);
