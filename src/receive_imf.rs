@@ -788,18 +788,12 @@ async fn add_parts(
                     false => None,
                 };
                 if let Some(chat) = chat {
-                    let mut new_protection = match has_verified_encryption(
-                        context,
-                        mime_parser,
-                        from_id,
-                        to_ids,
-                        Chattype::Single,
-                    )
-                    .await?
-                    {
-                        VerifiedEncryption::Verified => ProtectionStatus::Protected,
-                        VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
-                    };
+                    let mut new_protection =
+                        match has_verified_encryption(context, mime_parser, from_id, to_ids).await?
+                        {
+                            VerifiedEncryption::Verified => ProtectionStatus::Protected,
+                            VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
+                        };
 
                     if chat.protected != ProtectionStatus::Unprotected
                         && new_protection == ProtectionStatus::Unprotected
@@ -1092,7 +1086,7 @@ async fn add_parts(
 
         if chat.is_protected() {
             if let VerifiedEncryption::NotVerified(err) =
-                has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
+                has_verified_encryption(context, mime_parser, from_id, to_ids).await?
             {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
@@ -1657,7 +1651,7 @@ async fn create_or_lookup_group(
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let VerifiedEncryption::NotVerified(err) =
-            has_verified_encryption(context, mime_parser, from_id, to_ids, Chattype::Group).await?
+            has_verified_encryption(context, mime_parser, from_id, to_ids).await?
         {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
@@ -1820,7 +1814,7 @@ async fn apply_group_changes(
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
         if let VerifiedEncryption::NotVerified(err) =
-            has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
+            has_verified_encryption(context, mime_parser, from_id, to_ids).await?
         {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
@@ -2385,12 +2379,19 @@ async fn has_verified_encryption(
     mimeparser: &MimeMessage,
     from_id: ContactId,
     to_ids: &[ContactId],
-    chat_type: Chattype,
 ) -> Result<VerifiedEncryption> {
     use VerifiedEncryption::*;
 
-    if from_id == ContactId::SELF && chat_type == Chattype::Single {
-        // For outgoing emails in the 1:1 chat, we have an exception that
+    // We do not need to check if we are verified with ourself.
+    let to_ids = to_ids
+        .iter()
+        .copied()
+        .filter(|id| *id != ContactId::SELF)
+        .collect::<Vec<ContactId>>();
+
+    if from_id == ContactId::SELF && to_ids.len() <= 1 {
+        // For outgoing emails in the 1:1 chat and groups with 2 members,
+        // we have an exception that
         // they are allowed to be unencrypted:
         // 1. They can't be an attack (they are outgoing, not incoming)
         // 2. Probably the unencryptedness is just a temporary state, after all
@@ -2428,13 +2429,6 @@ async fn has_verified_encryption(
             ));
         }
     }
-
-    // we do not need to check if we are verified with ourself
-    let to_ids = to_ids
-        .iter()
-        .copied()
-        .filter(|id| *id != ContactId::SELF)
-        .collect::<Vec<ContactId>>();
 
     if to_ids.is_empty() {
         return Ok(Verified);
