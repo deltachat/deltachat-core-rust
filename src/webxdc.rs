@@ -477,14 +477,24 @@ impl Context {
         mut status_update: StatusUpdateItem,
         descr: &str,
     ) -> Result<()> {
-        let mut instance = Message::load_from_db(self, instance_msg_id).await?;
-        if instance.viewtype != Viewtype::Webxdc {
-            bail!("send_webxdc_status_update: is no webxdc message");
+        let mut instance = Message::load_from_db(self, instance_msg_id)
+            .await
+            .with_context(|| {
+                format!("Failed to load message {instance_msg_id} from the database")
+            })?;
+        let viewtype = instance.viewtype;
+        if viewtype != Viewtype::Webxdc {
+            bail!("send_webxdc_status_update: message {instance_msg_id} is not a webxdc message, but a {viewtype} message.");
         }
 
-        let chat = Chat::load_from_db(self, instance.chat_id).await?;
-        if let Some(reason) = chat.why_cant_send(self).await? {
-            bail!("cannot send to {}: {}", chat.id, reason);
+        let chat_id = instance.chat_id;
+        let chat = Chat::load_from_db(self, chat_id)
+            .await
+            .with_context(|| format!("Failed to load chat {chat_id} from the database"))?;
+        if let Some(reason) = chat.why_cant_send(self).await.with_context(|| {
+            format!("Failed to check if webxdc update can be sent to chat {chat_id}")
+        })? {
+            bail!("Cannot send to {chat_id}: {reason}.");
         }
 
         let send_now = !matches!(
