@@ -43,3 +43,15 @@ def test_webxdc(acfactory) -> None:
     assert status_updates == [
         {"payload": "Second update", "serial": 2, "max_serial": 2},
     ]
+
+
+def test_webxdc_insert_lots_of_updates(acfactory) -> None:
+    alice, bob = acfactory.get_online_accounts(2)
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    message = alice_chat_bob.send_message(text="Let's play chess!", file="../test-data/webxdc/chess.xdc")
+
+    for i in range(2000):
+        message.send_webxdc_status_update({"payload": str(i)}, "description")
