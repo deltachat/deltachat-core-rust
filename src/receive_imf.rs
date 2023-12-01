@@ -2431,10 +2431,6 @@ async fn has_verified_encryption(
         }
     }
 
-    if to_ids.is_empty() {
-        return Ok(Verified);
-    }
-
     mark_recipients_as_verified(context, from_id, to_ids, mimeparser).await?;
     Ok(Verified)
 }
@@ -2444,7 +2440,11 @@ async fn mark_recipients_as_verified(
     from_id: ContactId,
     to_ids: Vec<ContactId>,
     mimeparser: &MimeMessage,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
+    if to_ids.is_empty() {
+        return Ok(());
+    }
+
     let rows = context
         .sql
         .query_map(
