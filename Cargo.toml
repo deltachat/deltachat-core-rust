@@ -51,8 +51,8 @@ chrono = { version = "0.4", default-features=false, features = ["clock", "std"] 
 email = { git = "https://github.com/deltachat/rust-email", branch = "master" }
 encoded-words = { git = "https://github.com/async-email/encoded-words", branch = "master" }
 escaper = "0.1"
-fast-socks5 = "0.8"
-fd-lock = "3.0.11"
+fast-socks5 = "0.9"
+fd-lock = "4"
 futures = "0.3"
 futures-lite = "2.0.0"
 hex = "0.4.0"
