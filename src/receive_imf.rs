@@ -1092,7 +1092,15 @@ async fn add_parts(
     if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
 
-        if chat.is_protected() {
+        // For outgoing emails in the 1:1 chat we have an exception that
+        // they are allowed to be unencrypted:
+        // 1. They can't be an attack (they are outgoing, not incoming)
+        // 2. Probably the unencryptedness is just a temporary state, after all
+        //    the user obviously still uses DC
+        //    -> Showing info messages everytime would be a lot of noise
+        // 3. The info messages that are shown to the user ("Your chat partner
+        //    likely reinstalled DC" or similar) would be wrong.
+        if chat.is_protected() && (incoming || chat.typ != Chattype::Single) {
             if let VerifiedEncryption::NotVerified(err) = verified_encryption {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
@@ -2394,19 +2402,6 @@ async fn has_verified_encryption(
         .copied()
         .filter(|id| *id != ContactId::SELF)
         .collect::<Vec<ContactId>>();
-
-    if from_id == ContactId::SELF && to_ids.len() <= 1 {
-        // For outgoing emails in the 1:1 chat and groups with 2 members,
-        // we have an exception that
-        // they are allowed to be unencrypted:
-        // 1. They can't be an attack (they are outgoing, not incoming)
-        // 2. Probably the unencryptedness is just a temporary state, after all
-        //    the user obviously still uses DC
-        //    -> Showing info messages everytime would be a lot of noise
-        // 3. The info messages that are shown to the user ("Your chat partner
-        //    likely reinstalled DC" or similar) would be wrong.
-        return Ok(Verified);
-    }
 
     if !mimeparser.was_encrypted() {
         return Ok(NotVerified("This message is not encrypted".to_string()));
