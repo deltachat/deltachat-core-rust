@@ -1544,27 +1544,10 @@ async fn lookup_chat_by_reply(
     let Some(parent) = parent else {
         return Ok(None);
     };
-
-    let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
-
-    if parent.download_state != DownloadState::Done
-        // TODO (2023-09-12): Added for backward compatibility with versions that did not have
-        // `DownloadState::Undecipherable`. Remove eventually with the comment in
-        // `MimeMessage::from_bytes()`.
-        || parent
-            .error
-            .as_ref()
-            .filter(|e| e.starts_with("Decrypting failed:"))
-            .is_some()
-    {
-        // If the parent msg is not fully downloaded or undecipherable, it may have been
-        // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
+    let Some(parent_chat_id) = ChatId::lookup_by_message(parent) else {
         return Ok(None);
-    }
-
-    if parent_chat.id == DC_CHAT_ID_TRASH {
-        return Ok(None);
-    }
+    };
+    let parent_chat = Chat::load_from_db(context, parent_chat_id).await?;
 
     // If this was a private message just to self, it was probably a private reply.
     // It should not go into the group then, but into the private chat.
@@ -2558,20 +2541,7 @@ async fn get_previous_message(
 ///
 /// Only messages that are not in the trash chat are considered.
 async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Option<Message>> {
-    if mid_list.is_empty() {
-        return Ok(None);
-    }
-
-    for id in parse_message_ids(mid_list).iter().rev() {
-        if let Some(msg_id) = rfc724_mid_exists(context, id).await? {
-            let msg = Message::load_from_db(context, msg_id).await?;
-            if msg.chat_id != DC_CHAT_ID_TRASH {
-                return Ok(Some(msg));
-            }
-        }
-    }
-
-    Ok(None)
+    message::get_latest_by_rfc724_mids(context, &parse_message_ids(mid_list)).await
 }
 
 /// Returns the last message referenced from References: header found in the database.

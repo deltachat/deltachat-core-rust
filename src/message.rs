@@ -1842,6 +1842,24 @@ pub(crate) async fn rfc724_mid_exists_and(
     Ok(res)
 }
 
+/// Given a list of Message-IDs, returns the latest message found in the database.
+///
+/// Only messages that are not in the trash chat are considered.
+pub(crate) async fn get_latest_by_rfc724_mids(
+    context: &Context,
+    mids: &[String],
+) -> Result<Option<Message>> {
+    for id in mids.iter().rev() {
+        if let Some(msg_id) = rfc724_mid_exists(context, id).await? {
+            let msg = Message::load_from_db(context, msg_id).await?;
+            if msg.chat_id != DC_CHAT_ID_TRASH {
+                return Ok(Some(msg));
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// How a message is primarily displayed.
 #[derive(
     Debug,
