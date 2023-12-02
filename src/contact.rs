@@ -2789,4 +2789,23 @@ Hi."#;
 
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_self_is_verified() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+
+        let contact = Contact::get_by_id(&alice, ContactId::SELF).await?;
+        assert_eq!(
+            contact.is_verified(&alice).await?,
+            VerifiedStatus::BidirectVerified
+        );
+        assert!(contact.is_profile_verified(&alice).await?);
+        assert!(contact.get_verifier_id(&alice).await?.is_none());
+
+        let chat_id = ChatId::get_for_contact(&alice, ContactId::SELF).await?;
+        assert!(chat_id.is_protected(&alice).await.unwrap() == ProtectionStatus::Protected);
+
+        Ok(())
+    }
 }

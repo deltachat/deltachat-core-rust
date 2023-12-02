@@ -293,20 +293,23 @@ impl<'a> MimeFactory<'a> {
     fn is_e2ee_guaranteed(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.is_protected() {
-                    return true;
-                }
-
-                !self
+                if self
                     .msg
                     .param
                     .get_bool(Param::ForcePlaintext)
                     .unwrap_or_default()
-                    && self
-                        .msg
-                        .param
-                        .get_bool(Param::GuaranteeE2ee)
-                        .unwrap_or_default()
+                {
+                    return false;
+                }
+
+                if chat.is_protected() {
+                    return true;
+                }
+
+                self.msg
+                    .param
+                    .get_bool(Param::GuaranteeE2ee)
+                    .unwrap_or_default()
             }
             Loaded::Mdn { .. } => false,
         }
@@ -336,17 +339,21 @@ impl<'a> MimeFactory<'a> {
     fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
+                if self
+                    .msg
+                    .param
+                    .get_bool(Param::ForcePlaintext)
+                    .unwrap_or_default()
+                {
+                    return true;
+                }
+
                 if chat.is_protected() {
                     false
-                } else if chat.typ == Chattype::Broadcast {
+                } else {
                     // encryption may disclose recipients;
                     // this is probably a worse issue than not opportunistically (!) encrypting
-                    true
-                } else {
-                    self.msg
-                        .param
-                        .get_bool(Param::ForcePlaintext)
-                        .unwrap_or_default()
+                    chat.typ == Chattype::Broadcast
                 }
             }
             Loaded::Mdn { .. } => true,
