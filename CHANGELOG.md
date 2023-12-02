@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.131.9] - 2023-12-02
+
+### API-Changes
+
+- Remove `dc_get_http_response()`, `dc_http_response_get_mimetype()`, `dc_http_response_get_encoding()`, `dc_http_response_get_blob()`, `dc_http_response_get_size()`, `dc_http_response_unref()` and `dc_http_response_t` from cffi.
+- Deprecate CFFI APIs `dc_send_reaction()`, `dc_get_msg_reactions()`, `dc_reactions_get_contacts()`, `dc_reactions_get_by_contact_id()`, `dc_reactions_unref` and `dc_reactions_t`.
+- Make `Contact.is_verified()` return bool.
+
+### Build system
+
+- Switch from fork of iroh to iroh 0.4.2 pre-release.
+
+### Features / Changes
+
+- Send `Chat-Verified` headers in 1:1 chats.
+- Ratelimit IMAP connections ([#4940](https://github.com/deltachat/deltachat-core-rust/pull/4940)).
+- Remove receiver limit on `.xdc` size.
+- Don't affect MimeMessage with "From" and secured headers from encrypted unsigned messages.
+- Sync `Config::{MdnsEnabled,ShowEmails}` across devices ([#4954](https://github.com/deltachat/deltachat-core-rust/pull/4954)).
+- Sync `Config::Displayname` across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- `Chat::rename_ex`: Don't send sync message if usual message is sent.
+
+### Fixes
+
+- Lock the database when INSERTing a webxdc update, avoid "Database is locked" errors.
+- Use keyring with all private keys when decrypting a message ([#5046](https://github.com/deltachat/deltachat-core-rust/pull/5046)).
+
+### Tests
+
+- Make Result-returning tests produce a line number.
+- Add `test_utils::sync()`.
+- Test inserting lots of webxdc updates.
+- Split `test_sync_alter_chat()` into smaller tests.
+
 ## [1.131.8] - 2023-11-27
 
 ### Features / Changes
@@ -3287,3 +3321,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.5...v1.131.6
 [1.131.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.6...v1.131.7
 [1.131.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.7...v1.131.8
+[1.131.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.8...v1.131.9
