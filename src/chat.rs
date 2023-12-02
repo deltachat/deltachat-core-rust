@@ -389,7 +389,7 @@ impl ChatId {
             }
             Chattype::Group => {
                 info!(context, "Can't block groups yet, deleting the chat.");
-                self.delete(context).await?;
+                self.delete_ex(context, Nosync).await?;
             }
             Chattype::Mailinglist => {
                 if self.set_blocked(context, Blocked::Yes).await? {
@@ -709,6 +709,10 @@ impl ChatId {
 
     /// Deletes a chat.
     pub async fn delete(self, context: &Context) -> Result<()> {
+        self.delete_ex(context, Sync).await
+    }
+
+    pub(crate) async fn delete_ex(self, context: &Context, sync: sync::Sync) -> Result<()> {
         ensure!(
             !self.is_special(),
             "bad chat_id, can not be a special chat: {}",
@@ -716,39 +720,39 @@ impl ChatId {
         );
 
         let chat = Chat::load_from_db(context, self).await?;
-        context
-            .sql
-            .execute(
+        let sync_id = match sync {
+            Nosync => None,
+            Sync => chat.get_sync_id(context).await?,
+        };
+
+        let trans_fn = |t: &mut rusqlite::Transaction| {
+            t.execute(
                 "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
                 (self,),
-            )
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM msgs WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (self,))
-            .await?;
-
-        context
-            .sql
-            .execute("DELETE FROM chats WHERE id=?;", (self,))
-            .await?;
-
+            )?;
+            t.execute("DELETE FROM msgs WHERE chat_id=?;", (self,))?;
+            t.execute("DELETE FROM chats_contacts WHERE chat_id=?;", (self,))?;
+            t.execute("DELETE FROM chats WHERE id=?;", (self,))?;
+            Ok(())
+        };
+        context.sql.transaction(trans_fn).await?;
         context.emit_msgs_changed_without_ids();
 
-        context.set_config(Config::LastHousekeeping, None).await?;
-        context.scheduler.interrupt_inbox().await;
+        if let Some(id) = sync_id {
+            self::sync(context, id, SyncAction::Delete)
+                .await
+                .log_err(context)
+                .ok();
+        }
 
         if chat.is_self_talk() {
             let mut msg = Message::new(Viewtype::Text);
             msg.text = stock_str::self_deleted_msg_body(context).await;
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
+
+        context.set_config(Config::LastHousekeeping, None).await?;
+        context.scheduler.interrupt_inbox().await;
 
         Ok(())
     }
@@ -4263,6 +4267,7 @@ pub(crate) enum SyncAction {
     Rename(String),
     /// Set chat contacts by their addresses.
     SetContacts(Vec<String>),
+    Delete,
 }
 
 impl Context {
@@ -4314,6 +4319,7 @@ impl Context {
             }
             SyncAction::Rename(to) => rename_ex(self, Nosync, chat_id, to).await,
             SyncAction::SetContacts(addrs) => set_contacts_by_addrs(self, chat_id, addrs).await,
+            SyncAction::Delete => chat_id.delete_ex(self, Nosync).await,
         }
     }
 }
@@ -6892,11 +6898,17 @@ mod tests {
 
         let ba_chat = bob.create_chat(&alices[0]).await;
         let sent_msg = bob.send_text(ba_chat.id, "hi").await;
-        let a0b_chat_id = alices[0].recv_msg(&sent_msg).await.chat_id;
-        alices[1].recv_msg(&sent_msg).await;
+        let ab_chat_ids = [
+            alices[0].recv_msg(&sent_msg).await.chat_id,
+            alices[1].recv_msg(&sent_msg).await.chat_id,
+        ];
         let ab_contact_ids = [
             alices[0].add_or_lookup_contact(&bob).await.id,
             alices[1].add_or_lookup_contact(&bob).await.id,
+        ];
+        let a_self_chat_ids = [
+            alices[0].get_self_chat().await.id,
+            alices[1].get_self_chat().await.id,
         ];
 
         async fn sync(alices: &[TestContext]) -> Result<()> {
@@ -6906,13 +6918,13 @@ mod tests {
         }
 
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Request);
-        a0b_chat_id.accept(&alices[0]).await?;
+        ab_chat_ids[0].accept(&alices[0]).await?;
         sync(&alices).await?;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
-        a0b_chat_id.block(&alices[0]).await?;
+        ab_chat_ids[0].block(&alices[0]).await?;
         sync(&alices).await?;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Yes);
-        a0b_chat_id.unblock(&alices[0]).await?;
+        ab_chat_ids[0].unblock(&alices[0]).await?;
         sync(&alices).await?;
         assert_eq!(alices[1].get_chat(&bob).await.blocked, Blocked::Not);
 
@@ -6945,20 +6957,11 @@ mod tests {
         assert_eq!(a1_grp_chat.blocked, Blocked::Not);
         a0_grp_chat_id.block(&alices[0]).await?;
         sync(&alices).await?;
-        assert!(Chat::load_from_db(&alices[1], a1_grp_chat_id)
-            .await
-            .is_err());
-        assert!(
-            !alices[1]
-                .sql
-                .exists("SELECT COUNT(*) FROM chats WHERE id=?", (a1_grp_chat_id,))
-                .await?
-        );
+        alices[1].assert_no_chat(a1_grp_chat_id).await;
 
         // Test syncing of chat visibility on a self-chat. This way we test:
         // - Self-chat synchronisation.
         // - That sync messages don't unarchive the self-chat.
-        let a0self_chat_id = alices[0].get_self_chat().await.id;
         assert_eq!(
             alices[1].get_self_chat().await.get_visibility(),
             ChatVisibility::Normal
@@ -6967,7 +6970,7 @@ mod tests {
             ChatVisibility::iter().chain(std::iter::once(ChatVisibility::Normal));
         visibilities.next();
         for v in visibilities {
-            a0self_chat_id.set_visibility(&alices[0], v).await?;
+            a_self_chat_ids[0].set_visibility(&alices[0], v).await?;
             sync(&alices).await?;
             for a in &alices {
                 assert_eq!(a.get_self_chat().await.get_visibility(), v);
@@ -6984,7 +6987,7 @@ mod tests {
             MuteDuration::NotMuted,
         ];
         for m in mute_durations {
-            set_muted(&alices[0], a0b_chat_id, m).await?;
+            set_muted(&alices[0], ab_chat_ids[0], m).await?;
             sync(&alices).await?;
             let m = match m {
                 MuteDuration::Until(time) => MuteDuration::Until(
@@ -7003,33 +7006,42 @@ mod tests {
         let a0_broadcast_chat = Chat::load_from_db(&alices[0], a0_broadcast_id).await?;
         set_chat_name(&alices[0], a0_broadcast_id, "Broadcast list 42").await?;
         sync(&alices).await?;
-        let a1_broadcast_id = get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
-            .await?
-            .unwrap()
-            .0;
-        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a1_broadcast_id).await?;
+        let a_broadcast_ids = [
+            a0_broadcast_id,
+            get_chat_id_by_grpid(&alices[1], &a0_broadcast_chat.grpid)
+                .await?
+                .unwrap()
+                .0,
+        ];
+        let a1_broadcast_chat = Chat::load_from_db(&alices[1], a_broadcast_ids[1]).await?;
         assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
         assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
-        assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
+        assert!(get_chat_contacts(&alices[1], a_broadcast_ids[1])
             .await?
             .is_empty());
-        add_contact_to_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
+        add_contact_to_chat(&alices[0], a_broadcast_ids[0], ab_contact_ids[0]).await?;
         sync(&alices).await?;
         assert_eq!(
-            get_chat_contacts(&alices[1], a1_broadcast_id).await?,
+            get_chat_contacts(&alices[1], a_broadcast_ids[1]).await?,
             vec![ab_contact_ids[1]]
         );
-        let sent_msg = alices[1].send_text(a1_broadcast_id, "hi").await;
+        let sent_msg = alices[1].send_text(a_broadcast_ids[1], "hi").await;
         let msg = bob.recv_msg(&sent_msg).await;
         let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
         assert_eq!(chat.get_type(), Chattype::Mailinglist);
         let msg = alices[0].recv_msg(&sent_msg).await;
-        assert_eq!(msg.chat_id, a0_broadcast_id);
-        remove_contact_from_chat(&alices[0], a0_broadcast_id, ab_contact_ids[0]).await?;
+        assert_eq!(msg.chat_id, a_broadcast_ids[0]);
+        remove_contact_from_chat(&alices[0], a_broadcast_ids[0], ab_contact_ids[0]).await?;
         sync(&alices).await?;
-        assert!(get_chat_contacts(&alices[1], a1_broadcast_id)
+        assert!(get_chat_contacts(&alices[1], a_broadcast_ids[1])
             .await?
             .is_empty());
+
+        for ids in [ab_chat_ids, a_self_chat_ids, a_broadcast_ids] {
+            ids[0].delete(&alices[0]).await?;
+            sync(&alices).await?;
+            alices[1].assert_no_chat(ids[1]).await;
+        }
 
         Ok(())
     }
