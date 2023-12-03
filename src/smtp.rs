@@ -27,8 +27,8 @@ use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
 
-/// SMTP write and read timeout.
-const SMTP_TIMEOUT: Duration = Duration::from_secs(30);
+/// SMTP connection, write and read timeout.
+const SMTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Default)]
 pub(crate) struct Smtp {

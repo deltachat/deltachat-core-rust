@@ -17,8 +17,8 @@ use crate::net::tls::wrap_tls;
 use crate::socks::Socks5Config;
 use fast_socks5::client::Socks5Stream;
 
-/// IMAP write and read timeout.
-pub(crate) const IMAP_TIMEOUT: Duration = Duration::from_secs(30);
+/// IMAP connection, write and read timeout.
+pub(crate) const IMAP_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub(crate) struct Client {
