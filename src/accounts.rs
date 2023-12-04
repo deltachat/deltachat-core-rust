@@ -8,10 +8,13 @@ use anyhow::{ensure, Context as _, Result};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tokio::time::{sleep, Duration};
 use uuid::Uuid;
+
+#[cfg(not(target_os = "ios"))]
+use tokio::sync::oneshot;
+#[cfg(not(target_os = "ios"))]
+use tokio::time::{sleep, Duration};
 
 use crate::context::Context;
 use crate::events::{Event, EventEmitter, EventType, Events};
@@ -303,6 +306,7 @@ impl Accounts {
 const CONFIG_NAME: &str = "accounts.toml";
 
 /// Lockfile name.
+#[cfg(not(target_os = "ios"))]
 const LOCKFILE_NAME: &str = "accounts.lock";
 
 /// Database file name.
@@ -338,22 +342,16 @@ impl Drop for Config {
 }
 
 impl Config {
-    /// Creates a new Config for `file`, but doesn't open/sync it.
-    async fn new_nosync(file: PathBuf, lock: bool) -> Result<Self> {
-        let dir = file.parent().context("Cannot get config file directory")?;
-        let inner = InnerConfig {
-            accounts: Vec::new(),
-            selected_account: 0,
-            next_id: 1,
-        };
-        if !lock {
-            let cfg = Self {
-                file,
-                inner,
-                lock_task: None,
-            };
-            return Ok(cfg);
-        }
+    #[cfg(target_os = "ios")]
+    async fn create_lock_task(_dir: PathBuf) -> Result<Option<JoinHandle<anyhow::Result<()>>>> {
+        // Do not lock accounts.toml on iOS.
+        // This results in 0xdead10cc crashes on suspend.
+        // iOS itself ensures that multiple instances of Delta Chat are not running.
+        Ok(None)
+    }
+
+    #[cfg(not(target_os = "ios"))]
+    async fn create_lock_task(dir: PathBuf) -> Result<Option<JoinHandle<anyhow::Result<()>>>> {
         let lockfile = dir.join(LOCKFILE_NAME);
         let mut lock = fd_lock::RwLock::new(fs::File::create(lockfile).await?);
         let (locked_tx, locked_rx) = oneshot::channel();
@@ -384,12 +382,32 @@ impl Config {
             rx.await?;
             Ok(())
         });
+        locked_rx.await?;
+        Ok(Some(lock_task))
+    }
+
+    /// Creates a new Config for `file`, but doesn't open/sync it.
+    async fn new_nosync(file: PathBuf, lock: bool) -> Result<Self> {
+        let dir = file.parent().context("Cannot get config file directory")?;
+        let inner = InnerConfig {
+            accounts: Vec::new(),
+            selected_account: 0,
+            next_id: 1,
+        };
+        if !lock {
+            let cfg = Self {
+                file,
+                inner,
+                lock_task: None,
+            };
+            return Ok(cfg);
+        }
+        let lock_task = Self::create_lock_task(dir.to_path_buf()).await?;
         let cfg = Self {
             file,
             inner,
-            lock_task: Some(lock_task),
+            lock_task,
         };
-        locked_rx.await?;
         Ok(cfg)
     }
 
