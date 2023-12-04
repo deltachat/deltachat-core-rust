@@ -429,3 +429,51 @@ def test_aeap_flow_verified(acfactory):
     assert ac1new.get_config("addr") in [
         contact.get_snapshot().address for contact in msg_in_2_snapshot.chat.get_contacts()
     ]
+
+
+def test_gossip_verification(acfactory) -> None:
+    alice, bob, carol = acfactory.get_online_accounts(3)
+
+    # Bob verifies Alice.
+    qr_code, _svg = alice.get_qr_code()
+    bob.secure_join(qr_code)
+    bob.wait_for_securejoin_joiner_success()
+
+    # Bob verifies Carol.
+    qr_code, _svg = carol.get_qr_code()
+    bob.secure_join(qr_code)
+    bob.wait_for_securejoin_joiner_success()
+
+    bob_contact_alice = bob.create_contact(alice.get_config("addr"), "Alice")
+    bob_contact_carol = bob.create_contact(carol.get_config("addr"), "Carol")
+    carol_contact_alice = carol.create_contact(alice.get_config("addr"), "Alice")
+
+    logging.info("Bob creates an Autocrypt group")
+    bob_group_chat = bob.create_group("Autocrypt Group")
+    assert not bob_group_chat.get_basic_snapshot().is_protected
+    bob_group_chat.add_contact(bob_contact_alice)
+    bob_group_chat.add_contact(bob_contact_carol)
+    bob_group_chat.send_message(text="Hello Autocrypt group")
+
+    snapshot = carol.get_message_by_id(carol.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello Autocrypt group"
+    assert snapshot.show_padlock
+
+    # Autocrypt group does not propagate verification.
+    carol_contact_alice_snapshot = carol_contact_alice.get_snapshot()
+    assert not carol_contact_alice_snapshot.is_verified
+
+    logging.info("Bob creates a Securejoin group")
+    bob_group_chat = bob.create_group("Securejoin Group", protect=True)
+    assert bob_group_chat.get_basic_snapshot().is_protected
+    bob_group_chat.add_contact(bob_contact_alice)
+    bob_group_chat.add_contact(bob_contact_carol)
+    bob_group_chat.send_message(text="Hello Securejoin group")
+
+    snapshot = carol.get_message_by_id(carol.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello Securejoin group"
+    assert snapshot.show_padlock
+
+    # Securejoin propagates verification.
+    carol_contact_alice_snapshot = carol_contact_alice.get_snapshot()
+    assert carol_contact_alice_snapshot.is_verified
