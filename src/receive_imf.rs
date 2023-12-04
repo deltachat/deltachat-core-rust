@@ -2454,6 +2454,10 @@ async fn mark_recipients_as_verified(
         return Ok(());
     }
 
+    if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
+        return Ok(());
+    }
+
     let rows = context
         .sql
         .query_map(
