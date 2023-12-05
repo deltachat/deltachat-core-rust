@@ -287,10 +287,7 @@ pub(crate) async fn handle_securejoin_handshake(
         .get_header(HeaderDef::SecureJoin)
         .context("Not a Secure-Join message")?;
 
-    info!(
-        context,
-        ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
-    );
+    info!(context, "Received secure-join message {step:?}.");
 
     let join_vg = step.starts_with("vg-");
 
@@ -316,7 +313,6 @@ pub(crate) async fn handle_securejoin_handshake(
                 warn!(context, "Secure-join denied (bad invitenumber).");
                 return Ok(HandshakeMessage::Ignore);
             }
-            info!(context, "Secure-join requested.",);
 
             inviter_progress(context, contact_id, 300);
 
@@ -554,7 +550,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
     let step = mime_message
         .get_header(HeaderDef::SecureJoin)
         .context("Not a Secure-Join message")?;
-    info!(context, "observing secure-join message \'{}\'", step);
+    info!(context, "Observing secure-join message {step:?}.");
 
     match step.as_str() {
         "vg-request-with-auth"

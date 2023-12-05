@@ -23,32 +23,14 @@ use crate::pgp;
 ///
 /// If the message is wrongly signed, HashSet will be empty.
 pub fn try_decrypt(
-    context: &Context,
     mail: &ParsedMail<'_>,
     private_keyring: &[SignedSecretKey],
     public_keyring_for_validate: &[SignedPublicKey],
 ) -> Result<Option<(Vec<u8>, HashSet<Fingerprint>)>> {
-    let encrypted_data_part = match {
-        let mime = get_autocrypt_mime(mail);
-        if mime.is_some() {
-            info!(context, "Detected Autocrypt-mime message.");
-        }
-        mime
-    }
-    .or_else(|| {
-        let mime = get_mixed_up_mime(mail);
-        if mime.is_some() {
-            info!(context, "Detected mixed-up mime message.");
-        }
-        mime
-    })
-    .or_else(|| {
-        let mime = get_attachment_mime(mail);
-        if mime.is_some() {
-            info!(context, "Detected attached Autocrypt-mime message.");
-        }
-        mime
-    }) {
+    let encrypted_data_part = match get_autocrypt_mime(mail)
+        .or_else(|| get_mixed_up_mime(mail))
+        .or_else(|| get_attachment_mime(mail))
+    {
         None => return Ok(None),
         Some(res) => res,
     };

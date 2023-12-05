@@ -62,21 +62,19 @@ impl EncryptHelper {
         for (peerstate, addr) in peerstates {
             match peerstate {
                 Some(peerstate) => {
-                    info!(
-                        context,
-                        "peerstate for {:?} is {}", addr, peerstate.prefer_encrypt
-                    );
+                    let prefer_encrypt = peerstate.prefer_encrypt;
+                    info!(context, "Peerstate for {addr:?} is {prefer_encrypt}.");
                     match peerstate.prefer_encrypt {
                         EncryptPreference::NoPreference | EncryptPreference::Reset => {}
                         EncryptPreference::Mutual => prefer_encrypt_count += 1,
                     };
                 }
                 None => {
-                    let msg = format!("peerstate for {addr:?} missing, cannot encrypt");
+                    let msg = format!("Peerstate for {addr:?} missing, cannot encrypt");
                     if e2ee_guaranteed {
-                        return Err(format_err!("{}", msg));
+                        return Err(format_err!("{msg}"));
                     } else {
-                        info!(context, "{}", msg);
+                        info!(context, "{msg}.");
                         return Ok(false);
                     }
                 }

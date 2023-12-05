@@ -278,7 +278,7 @@ impl MimeMessage {
 
         let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
         let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
-            try_decrypt(context, &mail, &private_keyring, &public_keyring)
+            try_decrypt(&mail, &private_keyring, &public_keyring)
         }) {
             Ok(Some((raw, signatures))) => {
                 mail_raw = raw;

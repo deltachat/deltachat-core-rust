@@ -988,8 +988,7 @@ impl<'a> MimeFactory<'a> {
                     {
                         info!(
                             context,
-                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
-                            "vg-member-added",
+                            "Sending secure-join message {:?}.", "vg-member-added",
                         );
                         headers.protected.push(Header::new(
                             "Secure-Join".to_string(),
@@ -1071,10 +1070,7 @@ impl<'a> MimeFactory<'a> {
                 let msg = &self.msg;
                 let step = msg.param.get(Param::Arg).unwrap_or_default();
                 if !step.is_empty() {
-                    info!(
-                        context,
-                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>", step,
-                    );
+                    info!(context, "Sending secure-join message {step:?}.");
                     headers
                         .protected
                         .push(Header::new("Secure-Join".into(), step.into()));
