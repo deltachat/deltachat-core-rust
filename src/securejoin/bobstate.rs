@@ -291,7 +291,7 @@ impl BobState {
     ) -> Result<Option<BobHandshakeStage>> {
         info!(
             context,
-            "Bob Step 4 - handling vc-auth-require/vg-auth-required message"
+            "Bob Step 4 - handling {{vc,vg}}-auth-required message."
         );
         if !encrypted_and_signed(context, mime_message, Some(self.invite.fingerprint())) {
             let reason = if mime_message.was_encrypted() {
@@ -333,7 +333,7 @@ impl BobState {
     ) -> Result<Option<BobHandshakeStage>> {
         info!(
             context,
-            "Bob Step 7 - handling vc-contact-confirm/vg-member-added message"
+            "Bob Step 7 - handling vc-contact-confirm/vg-member-added message."
         );
         mark_peer_as_verified(
             context,

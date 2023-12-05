@@ -139,8 +139,6 @@ pub(crate) async fn receive_imf_inner(
     is_partial_download: Option<u32>,
     fetching_existing_messages: bool,
 ) -> Result<Option<ReceivedMsg>> {
-    info!(context, "Receiving message, seen={seen}...");
-
     if std::env::var(crate::DCC_MIME_DEBUG).is_ok() {
         info!(
             context,
@@ -173,7 +171,7 @@ pub(crate) async fn receive_imf_inner(
         Ok(mime_parser) => mime_parser,
     };
 
-    info!(context, "Received message has Message-Id: {rfc724_mid}");
+    info!(context, "Receiving message {rfc724_mid:?}, seen={seen}...");
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
@@ -246,9 +244,7 @@ pub(crate) async fn receive_imf_inner(
     update_verified_keys(context, &mut mime_parser, from_id).await?;
 
     let received_msg;
-    if let Some(securejoin_step) = mime_parser.get_header(HeaderDef::SecureJoin) {
-        info!(context, "Received securejoin step {securejoin_step}.");
-
+    if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
         let res;
         if incoming {
             res = handle_securejoin_handshake(context, &mime_parser, from_id)
@@ -332,7 +328,7 @@ pub(crate) async fn receive_imf_inner(
     {
         info!(
             context,
-            "Received message contains Autocrypt-Gossip for all members, updating timestamp."
+            "Received message contains Autocrypt-Gossip for all members of {chat_id}, updating timestamp."
         );
         if chat_id.get_gossiped_timestamp(context).await? < sent_timestamp {
             chat_id
@@ -2275,11 +2271,6 @@ async fn create_adhoc_group(
     timestamp: i64,
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
-        info!(
-            context,
-            "Not creating ad-hoc group for mailing list message."
-        );
-
         return Ok(None);
     }
 
@@ -2300,7 +2291,6 @@ async fn create_adhoc_group(
     }
 
     if member_ids.len() < 3 {
-        info!(context, "Not creating ad-hoc group: too few contacts.");
         return Ok(None);
     }
 
@@ -2320,6 +2310,11 @@ async fn create_adhoc_group(
         timestamp,
     )
     .await?;
+
+    info!(
+        context,
+        "Created ad-hoc group id={new_chat_id}, name={grpname:?}."
+    );
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));

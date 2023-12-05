@@ -772,7 +772,7 @@ impl Contact {
 
                 sth_modified = Modifier::Created;
                 row_id = u32::try_from(transaction.last_insert_rowid())?;
-                info!(context, "added contact id={} addr={}", row_id, &addr);
+                info!(context, "Added contact id={row_id} addr={addr}.");
             }
             Ok(row_id)
         }).await?;
