@@ -424,11 +424,13 @@ impl Config {
     /// Takes a mutable reference because the saved file is a part of the `Config` state. This
     /// protects from parallel calls resulting to a wrong file contents.
     async fn sync(&mut self) -> Result<()> {
+        #[cfg(not(target_os = "ios"))]
         ensure!(!self
             .lock_task
             .as_ref()
             .context("Config is read-only")?
             .is_finished());
+
         let tmp_path = self.file.with_extension("toml.tmp");
         let mut file = fs::File::create(&tmp_path)
             .await
