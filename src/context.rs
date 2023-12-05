@@ -423,6 +423,9 @@ impl Context {
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
         self.scheduler.stop(self).await;
+        if let Err(err) = self.sql.checkpoint(self).await {
+            error!(self, "Failed to checkpoint the database: {err:#}.");
+        }
     }
 
     /// Restarts the IO scheduler if it was running before

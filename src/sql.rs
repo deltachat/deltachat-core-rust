@@ -131,6 +131,23 @@ impl Sql {
         // drop closes the connection
     }
 
+    /// Flushes the WAL file.
+    pub(crate) async fn checkpoint(&self, context: &Context) -> Result<()> {
+        let busy = self
+            .call_write(move |conn| {
+                let busy = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", (), |row| {
+                    let busy: bool = row.get(0)?;
+                    Ok(busy)
+                })?;
+                Ok(busy)
+            })
+            .await?;
+        if busy {
+            warn!(context, "Failed to checkpoint WAL");
+        }
+        Ok(())
+    }
+
     /// Imports the database from a separate file with the given passphrase.
     pub(crate) async fn import(&self, path: &Path, passphrase: String) -> Result<()> {
         let path_str = path
