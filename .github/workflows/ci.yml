@@ -18,6 +18,10 @@ on:
 
 env:
   RUSTFLAGS: -Dwarnings
+  SCCACHE_WEBDAV_ENDPOINT: ${{ secrets.SCCACHE_WEBDAV_ENDPOINT }}
+  SCCACHE_WEBDAV_USERNAME: ${{ secrets.SCCACHE_WEBDAV_USERNAME }}
+  SCCACHE_WEBDAV_PASSWORD: ${{ secrets.SCCACHE_WEBDAV_PASSWORD }}
+  RUSTC_WRAPPER: sccache
 
 jobs:
   lint_rust:
@@ -27,6 +31,8 @@ jobs:
       RUSTUP_TOOLCHAIN: 1.74.0
     steps:
       - uses: actions/checkout@v3
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Install rustfmt and clippy
         run: rustup toolchain install $RUSTUP_TOOLCHAIN --profile minimal --component rustfmt --component clippy
       - name: Cache rust cargo artifacts
@@ -43,6 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
           arguments: --all-features --workspace
@@ -65,6 +73,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
       - name: Rustdoc
@@ -88,6 +98,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Install Rust ${{ matrix.rust }}
         run: rustup toolchain install --profile minimal ${{ matrix.rust }}
@@ -113,6 +126,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
+
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
 
@@ -134,6 +150,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.3
 
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
