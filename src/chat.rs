@@ -3566,7 +3566,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         if chat.is_protected() && !contact.is_verified(context).await? {
             error!(
                 context,
-                "Only bidirectional verified contacts can be added to protected chats."
+                "Cannot add non-bidirectionally verified contact {contact_id} to protected chat {chat_id}."
             );
             return Ok(false);
         }
