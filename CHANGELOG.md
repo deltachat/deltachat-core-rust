@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.132.0] - 2023-12-06
+
+### Features / Changes
+
+- Increase TCP timeouts from 30 to 60 seconds.
+
+### Fixes
+
+- Don't sort message creating a protected group over a protection message ([#4963](https://github.com/deltachat/deltachat-core-rust/pull/4963)).
+- Do not lock accounts.toml on iOS.
+- Protect groups even if some members are not verified and add `test_securejoin_after_contact_resetup` regression test.
+
 ## [1.131.9] - 2023-12-02
 
 ### API-Changes
