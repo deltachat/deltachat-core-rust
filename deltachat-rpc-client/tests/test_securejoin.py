@@ -544,6 +544,9 @@ def test_securejoin_after_contact_resetup(acfactory) -> None:
     logging.info("ac2 waits for member added message")
     snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.is_info
+    ac2_chat = snapshot.chat
+    assert ac2_chat.get_basic_snapshot().is_protected
+    assert len(ac2_chat.get_contacts()) == 3
 
     # ac1 is still "not verified" for ac2 due to inconsistent state.
     assert not ac2_contact_ac1.get_snapshot().is_verified
