@@ -1,5 +1,6 @@
 import logging
 
+import pytest
 from deltachat_rpc_client import Chat, SpecialContactId
 
 
@@ -477,3 +478,74 @@ def test_gossip_verification(acfactory) -> None:
     # Securejoin propagates verification.
     carol_contact_alice_snapshot = carol_contact_alice.get_snapshot()
     assert carol_contact_alice_snapshot.is_verified
+
+
+@pytest.mark.xfail()
+def test_securejoin_after_contact_resetup(acfactory) -> None:
+    """
+    Regression test for a bug that prevented joining verified group with a QR code
+    if the group is already created and contains
+    a contact with inconsistent (Autocrypt and verified keys exist but don't match) key state.
+    """
+    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+
+    # ac3 creates protected group with ac1.
+    ac3_chat = ac3.create_group("Verified group", protect=True)
+
+    # ac1 joins ac3 group.
+    ac3_qr_code, _svg = ac3_chat.get_qr_code()
+    ac1.secure_join(ac3_qr_code)
+    ac1.wait_for_securejoin_joiner_success()
+
+    # ac1 waits for member added message and creates a QR code.
+    snapshot = ac1.get_message_by_id(ac1.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    ac1_qr_code, _svg = snapshot.chat.get_qr_code()
+
+    # ac2 verifies ac1
+    qr_code, _svg = ac1.get_qr_code()
+    ac2.secure_join(qr_code)
+    ac2.wait_for_securejoin_joiner_success()
+
+    # ac1 is verified for ac2.
+    ac2_contact_ac1 = ac2.create_contact(ac1.get_config("addr"), "")
+    assert ac2_contact_ac1.get_snapshot().is_verified
+
+    # ac1 resetups the account.
+    ac1 = acfactory.resetup_account(ac1)
+
+    # ac1 sends a message to ac2.
+    ac1_contact_ac2 = ac1.create_contact(ac2.get_config("addr"), "")
+    ac1_chat_ac2 = ac1_contact_ac2.create_chat()
+    ac1_chat_ac2.send_text("Hello!")
+
+    # ac2 receives a message.
+    snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello!"
+
+    # ac1 is no longer verified for ac2 as new Autocrypt key is not the same as old verified key.
+    assert not ac2_contact_ac1.get_snapshot().is_verified
+
+    # ac1 goes offline.
+    ac1.remove()
+
+    # Scanning a QR code results in creating an unprotected group with an inviter.
+    # In this case inviter is ac1 which has an inconsistent key state.
+    # Normally inviter becomes verified as a result of Securejoin protocol
+    # and then the group chat becomes verified when "Member added" is received,
+    # but in this case ac1 is offline and this Securejoin process will never finish.
+    logging.info("ac2 scans ac1 QR code, this is not expected to finish")
+    ac2.secure_join(ac1_qr_code)
+
+    logging.info("ac2 scans ac3 QR code")
+    ac2.secure_join(ac3_qr_code)
+
+    logging.info("ac2 waits for joiner success")
+    ac2.wait_for_securejoin_joiner_success()
+
+    # Wait for member added.
+    logging.info("ac2 waits for member added message")
+    snapshot = ac2.get_message_by_id(ac2.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.is_info
+
+    # ac1 is still "not verified" for ac2 due to inconsistent state.
+    assert not ac2_contact_ac1.get_snapshot().is_verified
