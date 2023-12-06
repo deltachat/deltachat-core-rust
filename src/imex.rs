@@ -383,7 +383,10 @@ async fn import_backup_stream_inner<R: tokio::io::AsyncRead + Unpin>(
         res = context.sql.run_migrations(context).await;
     }
     if res.is_ok() {
-        res = delete_and_reset_all_device_msgs(context).await;
+        delete_and_reset_all_device_msgs(context)
+            .await
+            .log_err(context)
+            .ok();
     }
     (res,)
 }
