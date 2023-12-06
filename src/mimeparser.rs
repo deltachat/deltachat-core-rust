@@ -3447,8 +3447,11 @@ On 2020-10-25, Bob wrote:
         .unwrap();
 
         let chats = Chatlist::try_load(&t.ctx, 0, None, None).await.unwrap();
-        let msg_id = chats.get_msg_id(0).unwrap().unwrap();
-        let msg = Message::load_from_db(&t.ctx, msg_id).await.unwrap();
+        let chat_id = chats.get_chat_id(0).unwrap();
+        let msg = Message::load_from_db_last_for_chat(&t.ctx, chat_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(msg.text, "subj with important info – body text");
         assert_eq!(msg.viewtype, Viewtype::Image);

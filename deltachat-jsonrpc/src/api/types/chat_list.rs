@@ -1,12 +1,9 @@
 use anyhow::{Context, Result};
+use deltachat::chat::{get_chat_contacts, ChatVisibility};
 use deltachat::chat::{Chat, ChatId};
-use deltachat::chatlist::get_last_message_for_chat;
+use deltachat::chatlist::Chatlist;
 use deltachat::constants::*;
 use deltachat::contact::{Contact, ContactId};
-use deltachat::{
-    chat::{get_chat_contacts, ChatVisibility},
-    chatlist::Chatlist,
-};
 use num_traits::cast::ToPrimitive;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
@@ -67,10 +64,8 @@ pub(crate) async fn get_chat_list_item_by_id(
         });
     }
 
-    let last_msgid = get_last_message_for_chat(ctx, chat_id).await?;
-
     let chat = Chat::load_from_db(ctx, chat_id).await.context("chat")?;
-    let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
+    let summary = Chatlist::get_summary2(ctx, chat_id, Some(&chat))
         .await
         .context("summary")?;
 
@@ -86,15 +81,12 @@ pub(crate) async fn get_chat_list_item_by_id(
         .await?
         .map(|path| path.to_str().unwrap_or("invalid/path").to_owned());
 
-    let (last_updated, message_type) = match last_msgid {
-        Some(id) => {
-            let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
-            (
-                Some(last_message.get_timestamp() * 1000),
-                Some(last_message.get_viewtype().into()),
-            )
-        }
+    let (last_updated, message_type) = match summary.id {
         None => (None, None),
+        Some(_) => (
+            Some(summary.timestamp * 1000),
+            Some(summary.viewtype.into()),
+        ),
     };
 
     let chat_contacts = get_chat_contacts(ctx, chat_id).await?;
@@ -145,6 +137,6 @@ pub(crate) async fn get_chat_list_item_by_id(
         dm_chat_contact,
         was_seen_recently,
         last_message_type: message_type,
-        last_message_id: last_msgid.map(|id| id.to_u32()),
+        last_message_id: summary.id.map(|id| id.to_u32()),
     })
 }

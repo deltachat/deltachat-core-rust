@@ -480,91 +480,114 @@ impl Message {
         let msg = context
             .sql
             .query_row_optional(
-                concat!(
-                    "SELECT",
-                    "    m.id AS id,",
-                    "    rfc724_mid AS rfc724mid,",
-                    "    m.mime_in_reply_to AS mime_in_reply_to,",
-                    "    m.chat_id AS chat_id,",
-                    "    m.from_id AS from_id,",
-                    "    m.to_id AS to_id,",
-                    "    m.timestamp AS timestamp,",
-                    "    m.timestamp_sent AS timestamp_sent,",
-                    "    m.timestamp_rcvd AS timestamp_rcvd,",
-                    "    m.ephemeral_timer AS ephemeral_timer,",
-                    "    m.ephemeral_timestamp AS ephemeral_timestamp,",
-                    "    m.type AS type,",
-                    "    m.state AS state,",
-                    "    m.download_state AS download_state,",
-                    "    m.error AS error,",
-                    "    m.msgrmsg AS msgrmsg,",
-                    "    m.mime_modified AS mime_modified,",
-                    "    m.txt AS txt,",
-                    "    m.subject AS subject,",
-                    "    m.param AS param,",
-                    "    m.hidden AS hidden,",
-                    "    m.location_id AS location,",
-                    "    c.blocked AS blocked",
-                    " FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id",
-                    " WHERE m.id=?;"
-                ),
+                &Self::select_query_with_filter("WHERE m.id=?"),
                 (id,),
-                |row| {
-                    let text = match row.get_ref("txt")? {
-                        rusqlite::types::ValueRef::Text(buf) => {
-                            match String::from_utf8(buf.to_vec()) {
-                                Ok(t) => t,
-                                Err(_) => {
-                                    warn!(
-                                        context,
-                                        concat!(
-                                            "dc_msg_load_from_db: could not get ",
-                                            "text column as non-lossy utf8 id {}"
-                                        ),
-                                        id
-                                    );
-                                    String::from_utf8_lossy(buf).into_owned()
-                                }
-                            }
-                        }
-                        _ => String::new(),
-                    };
-                    let msg = Message {
-                        id: row.get("id")?,
-                        rfc724_mid: row.get::<_, String>("rfc724mid")?,
-                        in_reply_to: row
-                            .get::<_, Option<String>>("mime_in_reply_to")?
-                            .and_then(|in_reply_to| parse_message_id(&in_reply_to).ok()),
-                        chat_id: row.get("chat_id")?,
-                        from_id: row.get("from_id")?,
-                        to_id: row.get("to_id")?,
-                        timestamp_sort: row.get("timestamp")?,
-                        timestamp_sent: row.get("timestamp_sent")?,
-                        timestamp_rcvd: row.get("timestamp_rcvd")?,
-                        ephemeral_timer: row.get("ephemeral_timer")?,
-                        ephemeral_timestamp: row.get("ephemeral_timestamp")?,
-                        viewtype: row.get("type")?,
-                        state: row.get("state")?,
-                        download_state: row.get("download_state")?,
-                        error: Some(row.get::<_, String>("error")?)
-                            .filter(|error| !error.is_empty()),
-                        is_dc_message: row.get("msgrmsg")?,
-                        mime_modified: row.get("mime_modified")?,
-                        text,
-                        subject: row.get("subject")?,
-                        param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
-                        hidden: row.get("hidden")?,
-                        location_id: row.get("location")?,
-                        chat_blocked: row
-                            .get::<_, Option<Blocked>>("blocked")?
-                            .unwrap_or_default(),
-                    };
-                    Ok(msg)
-                },
+                |row| Self::from_row(context, row),
             )
             .await
             .with_context(|| format!("failed to load message {id} from the database"))?;
 
+        Ok(msg)
+    }
+
+    /// Loads the last user-visible message of the chat with given `id` from the database.
+    pub async fn load_from_db_last_for_chat(
+        context: &Context,
+        chat_id: ChatId,
+    ) -> Result<Option<Message>> {
+        let msg = context
+            .sql
+            .query_row_optional(
+                &Self::select_query_with_filter(concat!(
+                    "WHERE m.chat_id=? ",
+                    "AND (m.hidden=0 OR m.state=?) ",
+                    "ORDER BY m.timestamp DESC, m.id DESC LIMIT 1",
+                )),
+                (chat_id, MessageState::OutDraft),
+                |row| Self::from_row(context, row),
+            )
+            .await
+            .with_context(|| {
+                format!("Failed to load last message for chat {chat_id} from the database")
+            })?;
+
+        Ok(msg)
+    }
+
+    fn select_query_with_filter(filter: &str) -> String {
+        "\
+        SELECT \
+        m.id AS id, \
+        rfc724_mid AS rfc724mid, \
+        m.mime_in_reply_to AS mime_in_reply_to, \
+        m.chat_id AS chat_id, \
+        m.from_id AS from_id, \
+        m.to_id AS to_id, \
+        m.timestamp AS timestamp, \
+        m.timestamp_sent AS timestamp_sent, \
+        m.timestamp_rcvd AS timestamp_rcvd, \
+        m.ephemeral_timer AS ephemeral_timer, \
+        m.ephemeral_timestamp AS ephemeral_timestamp, \
+        m.type AS type, \
+        m.state AS state, \
+        m.download_state AS download_state, \
+        m.error AS error, \
+        m.msgrmsg AS msgrmsg, \
+        m.mime_modified AS mime_modified, \
+        m.txt AS txt, \
+        m.subject AS subject, \
+        m.param AS param, \
+        m.hidden AS hidden, \
+        m.location_id AS location, \
+        c.blocked AS blocked \
+        FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id "
+            .to_string()
+            + filter
+    }
+
+    fn from_row(context: &Context, row: &rusqlite::Row) -> rusqlite::Result<Message> {
+        let text = match row.get_ref("txt")? {
+            rusqlite::types::ValueRef::Text(buf) => match String::from_utf8(buf.to_vec()) {
+                Ok(t) => t,
+                Err(_) => {
+                    warn!(
+                        context,
+                        "Message::from_row: could not get text column as a non-lossy UTF-8",
+                    );
+                    String::from_utf8_lossy(buf).into_owned()
+                }
+            },
+            _ => String::new(),
+        };
+        let msg = Message {
+            id: row.get("id")?,
+            rfc724_mid: row.get::<_, String>("rfc724mid")?,
+            in_reply_to: row
+                .get::<_, Option<String>>("mime_in_reply_to")?
+                .and_then(|in_reply_to| parse_message_id(&in_reply_to).ok()),
+            chat_id: row.get("chat_id")?,
+            from_id: row.get("from_id")?,
+            to_id: row.get("to_id")?,
+            timestamp_sort: row.get("timestamp")?,
+            timestamp_sent: row.get("timestamp_sent")?,
+            timestamp_rcvd: row.get("timestamp_rcvd")?,
+            ephemeral_timer: row.get("ephemeral_timer")?,
+            ephemeral_timestamp: row.get("ephemeral_timestamp")?,
+            viewtype: row.get("type")?,
+            state: row.get("state")?,
+            download_state: row.get("download_state")?,
+            error: Some(row.get::<_, String>("error")?).filter(|error| !error.is_empty()),
+            is_dc_message: row.get("msgrmsg")?,
+            mime_modified: row.get("mime_modified")?,
+            text,
+            subject: row.get("subject")?,
+            param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
+            hidden: row.get("hidden")?,
+            location_id: row.get("location")?,
+            chat_blocked: row
+                .get::<_, Option<Blocked>>("blocked")?
+                .unwrap_or_default(),
+        };
         Ok(msg)
     }
 
