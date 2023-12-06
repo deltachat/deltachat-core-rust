@@ -384,20 +384,17 @@ pub(crate) async fn handle_securejoin_handshake(
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match mime_message.get_header(HeaderDef::SecureJoinAuth) {
-                Some(auth) => auth,
-                None => {
-                    could_not_establish_secure_connection(
-                        context,
-                        contact_id,
-                        info_chat_id(context, contact_id).await?,
-                        "Auth not provided.",
-                    )
-                    .await?;
-                    return Ok(HandshakeMessage::Ignore);
-                }
+            let Some(auth) = mime_message.get_header(HeaderDef::SecureJoinAuth) else {
+                could_not_establish_secure_connection(
+                    context,
+                    contact_id,
+                    info_chat_id(context, contact_id).await?,
+                    "Auth not provided.",
+                )
+                .await?;
+                return Ok(HandshakeMessage::Ignore);
             };
-            if !token::exists(context, token::Namespace::Auth, auth_0).await {
+            if !token::exists(context, token::Namespace::Auth, auth).await {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
