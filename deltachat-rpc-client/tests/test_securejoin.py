@@ -1,6 +1,5 @@
 import logging
 
-import pytest
 from deltachat_rpc_client import Chat, SpecialContactId
 
 
@@ -480,7 +479,6 @@ def test_gossip_verification(acfactory) -> None:
     assert carol_contact_alice_snapshot.is_verified
 
 
-@pytest.mark.xfail()
 def test_securejoin_after_contact_resetup(acfactory) -> None:
     """
     Regression test for a bug that prevented joining verified group with a QR code
