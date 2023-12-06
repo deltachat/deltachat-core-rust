@@ -502,15 +502,7 @@ impl ChatId {
 
         match protect {
             ProtectionStatus::Protected => match chat.typ {
-                Chattype::Single | Chattype::Group | Chattype::Broadcast => {
-                    let contact_ids = get_chat_contacts(context, self).await?;
-                    for contact_id in contact_ids {
-                        let contact = Contact::get_by_id(context, contact_id).await?;
-                        if !contact.is_verified(context).await? {
-                            bail!("{} is not verified.", contact.get_display_name());
-                        }
-                    }
-                }
+                Chattype::Single | Chattype::Group | Chattype::Broadcast => {}
                 Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
             },
             ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {}
