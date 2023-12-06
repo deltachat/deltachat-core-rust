@@ -2280,6 +2280,7 @@ async fn create_adhoc_group(
     Ok(Some(new_chat_id))
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum VerifiedEncryption {
     Verified,
     NotVerified(String), // The string contains the reason why it's not verified
