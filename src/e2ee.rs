@@ -169,11 +169,10 @@ pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat;
     use crate::key::DcKey;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
-    use crate::test_utils::{bob_keypair, TestContext};
+    use crate::test_utils::{bob_keypair, TestContext, TestContextManager};
 
     mod ensure_secret_key_exists {
         use super::*;
@@ -217,37 +216,35 @@ Sent with my Delta Chat Messenger: https://delta.chat";
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_encrypted_no_autocrypt() -> anyhow::Result<()> {
-        let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_bob().await;
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
 
         let chat_alice = alice.create_chat(&bob).await.id;
         let chat_bob = bob.create_chat(&alice).await.id;
 
         // Alice sends unencrypted message to Bob
         let mut msg = Message::new(Viewtype::Text);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        let sent = alice.pop_sent_msg().await;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
 
         // Bob receives unencrypted message from Alice
-        let msg = bob.parse_msg(&sent).await;
-        assert!(!msg.was_encrypted());
+        let msg = bob.recv_msg(&sent).await;
+        assert!(!msg.get_showpadlock());
 
-        // Parsing a message is enough to update peerstate
         let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
         assert_eq!(peerstate_alice.prefer_encrypt, EncryptPreference::Mutual);
 
-        // Bob sends encrypted message to Alice
+        // Bob sends empty encrypted message to Alice
         let mut msg = Message::new(Viewtype::Text);
-        chat::prepare_msg(&bob.ctx, chat_bob, &mut msg).await?;
-        chat::send_msg(&bob.ctx, chat_bob, &mut msg).await?;
-        let sent = bob.pop_sent_msg().await;
+        let sent = bob.send_msg(chat_bob, &mut msg).await;
 
-        // Alice receives encrypted message from Bob
-        let msg = alice.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
+        // Alice receives an empty encrypted message from Bob.
+        // This is also a regression test for previously existing bug
+        // that resulted in no padlock on encrypted empty messages.
+        let msg = alice.recv_msg(&sent).await;
+        assert!(msg.get_showpadlock());
 
         let peerstate_bob = Peerstate::from_addr(&alice.ctx, "bob@example.net")
             .await?
@@ -259,12 +256,10 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         // Alice sends encrypted message without Autocrypt header.
         let mut msg = Message::new(Viewtype::Text);
         msg.param.set_int(Param::SkipAutocrypt, 1);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        let sent = alice.pop_sent_msg().await;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
 
-        let msg = bob.parse_msg(&sent).await;
-        assert!(msg.was_encrypted());
+        let msg = bob.recv_msg(&sent).await;
+        assert!(msg.get_showpadlock());
         let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
@@ -273,12 +268,10 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         // Alice sends plaintext message with Autocrypt header.
         let mut msg = Message::new(Viewtype::Text);
         msg.force_plaintext();
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        let sent = alice.pop_sent_msg().await;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
 
-        let msg = bob.parse_msg(&sent).await;
-        assert!(!msg.was_encrypted());
+        let msg = bob.recv_msg(&sent).await;
+        assert!(!msg.get_showpadlock());
         let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
@@ -288,12 +281,10 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         let mut msg = Message::new(Viewtype::Text);
         msg.force_plaintext();
         msg.param.set_int(Param::SkipAutocrypt, 1);
-        chat::prepare_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        chat::send_msg(&alice.ctx, chat_alice, &mut msg).await?;
-        let sent = alice.pop_sent_msg().await;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
 
-        let msg = bob.parse_msg(&sent).await;
-        assert!(!msg.was_encrypted());
+        let msg = bob.recv_msg(&sent).await;
+        assert!(!msg.get_showpadlock());
         let peerstate_alice = Peerstate::from_addr(&bob.ctx, "alice@example.org")
             .await?
             .expect("no peerstate found in the database");
