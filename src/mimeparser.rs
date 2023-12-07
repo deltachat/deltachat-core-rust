@@ -461,20 +461,6 @@ impl MimeMessage {
             parser.decoded_data = mail_raw;
         }
 
-        crate::peerstate::maybe_do_aeap_transition(context, &mut parser).await?;
-        if let Some(peerstate) = &parser.decryption_info.peerstate {
-            peerstate
-                .handle_fingerprint_change(context, message_time)
-                .await?;
-            // When peerstate is set to Mutual, it's saved immediately to not lose that fact in case
-            // of an error. Otherwise we don't save peerstate until get here to reduce the number of
-            // calls to save_to_db() and not to degrade encryption if a mail wasn't parsed
-            // successfully.
-            if peerstate.prefer_encrypt != EncryptPreference::Mutual {
-                peerstate.save_to_db(&context.sql).await?;
-            }
-        }
-
         Ok(parser)
     }
 

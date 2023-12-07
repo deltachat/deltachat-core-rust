@@ -10,6 +10,7 @@ use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
@@ -171,6 +172,29 @@ pub(crate) async fn receive_imf_inner(
         Ok(mime_parser) => mime_parser,
     };
 
+    let rcvd_timestamp = smeared_time(context);
+
+    // Sender timestamp is allowed to be a bit in the future due to
+    // unsynchronized clocks, but not too much.
+    let sent_timestamp = mime_parser
+        .get_header(HeaderDef::Date)
+        .and_then(|value| mailparse::dateparse(value).ok())
+        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
+
+    crate::peerstate::maybe_do_aeap_transition(context, &mut mime_parser).await?;
+    if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
+        peerstate
+            .handle_fingerprint_change(context, sent_timestamp)
+            .await?;
+        // When peerstate is set to Mutual, it's saved immediately to not lose that fact in case
+        // of an error. Otherwise we don't save peerstate until get here to reduce the number of
+        // calls to save_to_db() and not to degrade encryption if a mail wasn't parsed
+        // successfully.
+        if peerstate.prefer_encrypt != EncryptPreference::Mutual {
+            peerstate.save_to_db(&context.sql).await?;
+        }
+    }
+
     info!(context, "Receiving message {rfc724_mid:?}, seen={seen}...");
 
     // check, if the mail is already in our database.
@@ -231,15 +255,6 @@ pub(crate) async fn receive_imf_inner(
         },
     )
     .await?;
-
-    let rcvd_timestamp = smeared_time(context);
-
-    // Sender timestamp is allowed to be a bit in the future due to
-    // unsynchronized clocks, but not too much.
-    let sent_timestamp = mime_parser
-        .get_header(HeaderDef::Date)
-        .and_then(|value| mailparse::dateparse(value).ok())
-        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
 
     update_verified_keys(context, &mut mime_parser, from_id).await?;
 
