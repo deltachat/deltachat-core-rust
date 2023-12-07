@@ -694,7 +694,7 @@ impl MimeMessage {
                 }
             }
 
-            self.parts.push(part);
+            self.do_add_single_part(part);
         }
 
         if self.headers.contains_key("auto-submitted") {
