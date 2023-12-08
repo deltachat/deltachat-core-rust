@@ -441,7 +441,13 @@ pub(crate) async fn handle_securejoin_handshake(
                 };
                 match chat::get_chat_id_by_grpid(context, field_grpid).await? {
                     Some((group_chat_id, _, _)) => {
-                        secure_connection_established(context, contact_id, group_chat_id).await?;
+                        secure_connection_established(
+                            context,
+                            contact_id,
+                            group_chat_id,
+                            mime_message.timestamp_sent,
+                        )
+                        .await?;
                         chat::add_contact_to_chat_ex(
                             context,
                             Nosync,
@@ -461,6 +467,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     context,
                     contact_id,
                     info_chat_id(context, contact_id).await?,
+                    mime_message.timestamp_sent,
                 )
                 .await?;
                 send_alice_handshake_msg(
@@ -609,7 +616,12 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 peerstate.prefer_encrypt = EncryptPreference::Mutual;
                 peerstate.save_to_db(&context.sql).await.unwrap_or_default();
 
-                ChatId::set_protection_for_contact(context, contact_id).await?;
+                ChatId::set_protection_for_contact(
+                    context,
+                    contact_id,
+                    mime_message.timestamp_sent,
+                )
+                .await?;
             } else if let Some(fingerprint) =
                 mime_message.get_header(HeaderDef::SecureJoinFingerprint)
             {
@@ -675,6 +687,7 @@ async fn secure_connection_established(
     context: &Context,
     contact_id: ContactId,
     chat_id: ChatId,
+    timestamp: i64,
 ) -> Result<()> {
     if context
         .get_config_bool(Config::VerifiedOneOnOneChats)
@@ -687,7 +700,7 @@ async fn secure_connection_established(
             .set_protection(
                 context,
                 ProtectionStatus::Protected,
-                time(),
+                timestamp,
                 Some(contact_id),
             )
             .await?;

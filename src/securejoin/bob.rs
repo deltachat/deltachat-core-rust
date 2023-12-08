@@ -130,7 +130,9 @@ pub(super) async fn handle_contact_confirm(
             // Note this goes to the 1:1 chat, as when joining a group we implicitly also
             // verify both contacts (this could be a bug/security issue, see
             // e.g. https://github.com/deltachat/deltachat-core-rust/issues/1177).
-            bobstate.notify_peer_verified(context).await?;
+            bobstate
+                .notify_peer_verified(context, message.timestamp_sent)
+                .await?;
             bobstate.emit_progress(context, JoinerProgress::Succeeded);
             Ok(retval)
         }
@@ -220,7 +222,7 @@ impl BobState {
     /// Notifies the user that the SecureJoin peer is verified.
     ///
     /// This creates an info message in the chat being joined.
-    async fn notify_peer_verified(&self, context: &Context) -> Result<()> {
+    async fn notify_peer_verified(&self, context: &Context, timestamp: i64) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
         let chat_id = self.joining_chat_id(context).await?;
 
@@ -232,7 +234,7 @@ impl BobState {
                 .set_protection(
                     context,
                     ProtectionStatus::Protected,
-                    time(),
+                    timestamp,
                     Some(contact.id),
                 )
                 .await?;
