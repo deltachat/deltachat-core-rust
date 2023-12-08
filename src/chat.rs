@@ -36,7 +36,7 @@ use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::receive_imf::ReceivedMsg;
+use crate::receive_imf::{calc_sort_timestamp, ReceivedMsg};
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
 use crate::stock_str;
@@ -578,7 +578,7 @@ impl ChatId {
     ///
     /// `timestamp_sort` is used as the timestamp of the added message
     /// and should be the timestamp of the change happening.
-    pub(crate) async fn set_protection(
+    async fn set_protection_for_timestamp_sort(
         self,
         context: &Context,
         protect: ProtectionStatus,
@@ -600,6 +600,22 @@ impl ChatId {
         }
     }
 
+    /// Sets protection and sends or adds a message.
+    ///
+    /// `timestamp_sent` is the "sent" timestamp of a message caused the protection state change.
+    pub(crate) async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        timestamp_sent: i64,
+        contact_id: Option<ContactId>,
+    ) -> Result<()> {
+        let sort_to_bottom = true;
+        let ts = calc_sort_timestamp(context, timestamp_sent, self, sort_to_bottom, false).await?;
+        self.set_protection_for_timestamp_sort(context, protect, ts, contact_id)
+            .await
+    }
+
     /// Sets the 1:1 chat with the given address to ProtectionStatus::Protected,
     /// and posts a `SystemMessage::ChatProtectionEnabled` into it.
     ///
@@ -607,6 +623,7 @@ impl ChatId {
     pub(crate) async fn set_protection_for_contact(
         context: &Context,
         contact_id: ContactId,
+        timestamp: i64,
     ) -> Result<()> {
         let chat_id = ChatId::create_for_contact_with_blocked(context, contact_id, Blocked::Yes)
             .await
@@ -615,7 +632,7 @@ impl ChatId {
             .set_protection(
                 context,
                 ProtectionStatus::Protected,
-                smeared_time(context),
+                timestamp,
                 Some(contact_id),
             )
             .await?;
@@ -3258,7 +3275,7 @@ pub async fn create_group_chat(
 
     if protect == ProtectionStatus::Protected {
         chat_id
-            .set_protection(context, protect, timestamp, None)
+            .set_protection_for_timestamp_sort(context, protect, timestamp, None)
             .await?;
     }
 

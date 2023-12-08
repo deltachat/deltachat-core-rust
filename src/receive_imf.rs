@@ -172,19 +172,10 @@ pub(crate) async fn receive_imf_inner(
         Ok(mime_parser) => mime_parser,
     };
 
-    let rcvd_timestamp = smeared_time(context);
-
-    // Sender timestamp is allowed to be a bit in the future due to
-    // unsynchronized clocks, but not too much.
-    let sent_timestamp = mime_parser
-        .get_header(HeaderDef::Date)
-        .and_then(|value| mailparse::dateparse(value).ok())
-        .map_or(rcvd_timestamp, |value| min(value, rcvd_timestamp + 60));
-
     crate::peerstate::maybe_do_aeap_transition(context, &mut mime_parser).await?;
     if let Some(peerstate) = &mime_parser.decryption_info.peerstate {
         peerstate
-            .handle_fingerprint_change(context, sent_timestamp)
+            .handle_fingerprint_change(context, mime_parser.timestamp_sent)
             .await?;
         // When peerstate is set to Mutual, it's saved immediately to not lose that fact in case
         // of an error. Otherwise we don't save peerstate until get here to reduce the number of
@@ -284,7 +275,7 @@ pub(crate) async fn receive_imf_inner(
                 received_msg = Some(ReceivedMsg {
                     chat_id: DC_CHAT_ID_TRASH,
                     state: MessageState::InSeen,
-                    sort_timestamp: sent_timestamp,
+                    sort_timestamp: mime_parser.timestamp_sent,
                     msg_ids: vec![msg_id],
                     needs_delete_job: res == securejoin::HandshakeMessage::Done,
                     #[cfg(test)]
@@ -313,8 +304,6 @@ pub(crate) async fn receive_imf_inner(
             incoming,
             &to_ids,
             rfc724_mid,
-            sent_timestamp,
-            rcvd_timestamp,
             from_id,
             seen || replace_partial_download.is_some(),
             is_partial_download,
@@ -328,7 +317,7 @@ pub(crate) async fn receive_imf_inner(
     };
 
     if !from_id.is_special() {
-        contact::update_last_seen(context, from_id, sent_timestamp).await?;
+        contact::update_last_seen(context, from_id, mime_parser.timestamp_sent).await?;
     }
 
     // Update gossiped timestamp for the chat if someone else or our other device sent
@@ -345,9 +334,9 @@ pub(crate) async fn receive_imf_inner(
             context,
             "Received message contains Autocrypt-Gossip for all members of {chat_id}, updating timestamp."
         );
-        if chat_id.get_gossiped_timestamp(context).await? < sent_timestamp {
+        if chat_id.get_gossiped_timestamp(context).await? < mime_parser.timestamp_sent {
             chat_id
-                .set_gossiped_timestamp(context, sent_timestamp)
+                .set_gossiped_timestamp(context, mime_parser.timestamp_sent)
                 .await?;
         }
     }
@@ -384,7 +373,11 @@ pub(crate) async fn receive_imf_inner(
     if let Some(avatar_action) = &mime_parser.user_avatar {
         if from_id != ContactId::UNDEFINED
             && context
-                .update_contacts_timestamp(from_id, Param::AvatarTimestamp, sent_timestamp)
+                .update_contacts_timestamp(
+                    from_id,
+                    Param::AvatarTimestamp,
+                    mime_parser.timestamp_sent,
+                )
                 .await?
         {
             if let Err(err) = contact::set_profile_image(
@@ -405,7 +398,11 @@ pub(crate) async fn receive_imf_inner(
         if !mime_parser.is_mailinglist_message()
             && from_id != ContactId::UNDEFINED
             && context
-                .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
+                .update_contacts_timestamp(
+                    from_id,
+                    Param::StatusTimestamp,
+                    mime_parser.timestamp_sent,
+                )
                 .await?
         {
             if let Err(err) = contact::set_status(
@@ -454,7 +451,7 @@ pub(crate) async fn receive_imf_inner(
     context.new_msgs_notify.notify_one();
 
     mime_parser
-        .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
+        .handle_reports(context, from_id, &mime_parser.parts)
         .await;
 
     from_id.mark_bot(context, mime_parser.is_bot).await?;
@@ -525,8 +522,6 @@ async fn add_parts(
     incoming: bool,
     to_ids: &[ContactId],
     rfc724_mid: &str,
-    sent_timestamp: i64,
-    rcvd_timestamp: i64,
     from_id: ContactId,
     seen: bool,
     is_partial_download: Option<u32>,
@@ -665,7 +660,6 @@ async fn add_parts(
                 from_id,
                 to_ids,
                 &verified_encryption,
-                sent_timestamp,
             )
             .await?
             {
@@ -711,7 +705,6 @@ async fn add_parts(
             group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
-                sent_timestamp,
                 group_chat_id,
                 from_id,
                 to_ids,
@@ -729,7 +722,6 @@ async fn add_parts(
                     allow_creation,
                     mailinglist_header,
                     mime_parser,
-                    sent_timestamp,
                 )
                 .await?
                 {
@@ -740,7 +732,7 @@ async fn add_parts(
         }
 
         if let Some(chat_id) = chat_id {
-            apply_mailinglist_changes(context, mime_parser, sent_timestamp, chat_id).await?;
+            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
         }
 
         // if contact renaming is prevented (for mailinglists and bots),
@@ -826,11 +818,13 @@ async fn add_parts(
                         // The message itself will be sorted under the device message since the device
                         // message is `MessageState::InNoticed`, which means that all following
                         // messages are sorted under it.
-                        let sort_timestamp =
-                            calc_sort_timestamp(context, sent_timestamp, chat_id, true, incoming)
-                                .await?;
                         chat_id
-                            .set_protection(context, new_protection, sort_timestamp, Some(from_id))
+                            .set_protection(
+                                context,
+                                new_protection,
+                                mime_parser.timestamp_sent,
+                                Some(from_id),
+                            )
                             .await?;
                     }
                 }
@@ -898,7 +892,6 @@ async fn add_parts(
                     from_id,
                     to_ids,
                     &verified_encryption,
-                    sent_timestamp,
                 )
                 .await?
                 {
@@ -936,7 +929,6 @@ async fn add_parts(
             group_changes_msgs = apply_group_changes(
                 context,
                 mime_parser,
-                sent_timestamp,
                 chat_id,
                 from_id,
                 to_ids,
@@ -1025,8 +1017,14 @@ async fn add_parts(
     };
 
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp =
-        calc_sort_timestamp(context, sent_timestamp, chat_id, false, incoming).await?;
+    let sort_timestamp = calc_sort_timestamp(
+        context,
+        mime_parser.timestamp_sent,
+        chat_id,
+        false,
+        incoming,
+    )
+    .await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -1056,7 +1054,11 @@ async fn add_parts(
                 "Ignoring ephemeral timer change to {ephemeral_timer:?} for chat {chat_id} to avoid rollback.",
             );
         } else if chat_id
-            .update_timestamp(context, Param::EphemeralSettingsTimestamp, sent_timestamp)
+            .update_timestamp(
+                context,
+                Param::EphemeralSettingsTimestamp,
+                mime_parser.timestamp_sent,
+            )
             .await?
         {
             if let Err(err) = chat_id
@@ -1259,7 +1261,7 @@ async fn add_parts(
             match ephemeral_timer {
                 EphemeralTimer::Disabled => 0,
                 EphemeralTimer::Enabled { duration } => {
-                    rcvd_timestamp.saturating_add(duration.into())
+                    mime_parser.timestamp_rcvd.saturating_add(duration.into())
                 }
             }
         };
@@ -1312,8 +1314,8 @@ RETURNING id
                     if trash { ContactId::UNDEFINED } else { from_id },
                     if trash { ContactId::UNDEFINED } else { to_id },
                     sort_timestamp,
-                    sent_timestamp,
-                    rcvd_timestamp,
+                    mime_parser.timestamp_sent,
+                    mime_parser.timestamp_rcvd,
                     typ,
                     state,
                     is_dc_message,
@@ -1485,7 +1487,7 @@ async fn save_locations(
     Ok(())
 }
 
-async fn calc_sort_timestamp(
+pub(crate) async fn calc_sort_timestamp(
     context: &Context,
     message_timestamp: i64,
     chat_id: ChatId,
@@ -1620,7 +1622,6 @@ async fn create_or_lookup_group(
     from_id: ContactId,
     to_ids: &[ContactId],
     verified_encryption: &VerifiedEncryption,
-    timestamp: i64,
 ) -> Result<Option<(ChatId, Blocked)>> {
     let grpid = if let Some(grpid) = try_getting_grpid(mime_parser) {
         grpid
@@ -1633,7 +1634,7 @@ async fn create_or_lookup_group(
             member_ids.push(ContactId::SELF);
         }
 
-        let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids, timestamp)
+        let res = create_adhoc_group(context, mime_parser, create_blocked, &member_ids)
             .await
             .context("could not create ad hoc group")?
             .map(|chat_id| (chat_id, create_blocked));
@@ -1715,7 +1716,7 @@ async fn create_or_lookup_group(
             create_blocked,
             create_protected,
             None,
-            timestamp,
+            mime_parser.timestamp_sent,
         )
         .await
         .with_context(|| format!("Failed to create group '{grpname}' for grpid={grpid}"))?;
@@ -1762,7 +1763,6 @@ async fn create_or_lookup_group(
 async fn apply_group_changes(
     context: &Context,
     mime_parser: &mut MimeMessage,
-    sent_timestamp: i64,
     chat_id: ChatId,
     from_id: ContactId,
     to_ids: &[ContactId],
@@ -1800,7 +1800,11 @@ async fn apply_group_changes(
     let allow_member_list_changes = !is_partial_download
         && is_from_in_chat
         && chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .update_timestamp(
+                context,
+                Param::MemberListTimestamp,
+                mime_parser.timestamp_sent,
+            )
             .await?;
 
     // Whether to rebuild the member list from scratch.
@@ -1839,7 +1843,7 @@ async fn apply_group_changes(
                 .set_protection(
                     context,
                     ProtectionStatus::Protected,
-                    smeared_time(context),
+                    mime_parser.timestamp_sent,
                     Some(from_id),
                 )
                 .await?;
@@ -1893,7 +1897,11 @@ async fn apply_group_changes(
             .filter(|grpname| grpname.len() < 200)
         {
             if chat_id
-                .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                .update_timestamp(
+                    context,
+                    Param::GroupNameTimestamp,
+                    mime_parser.timestamp_sent,
+                )
                 .await?
             {
                 info!(context, "Updating grpname for chat {chat_id}.");
@@ -2000,7 +2008,7 @@ async fn apply_group_changes(
             info!(context, "Group-avatar change for {chat_id}.");
             if chat
                 .param
-                .update_timestamp(Param::AvatarTimestamp, sent_timestamp)?
+                .update_timestamp(Param::AvatarTimestamp, mime_parser.timestamp_sent)?
             {
                 match avatar_action {
                     AvatarAction::Change(profile_image) => {
@@ -2049,7 +2057,6 @@ async fn create_or_lookup_mailinglist(
     allow_creation: bool,
     list_id_header: &str,
     mime_parser: &MimeMessage,
-    timestamp: i64,
 ) -> Result<Option<(ChatId, Blocked)>> {
     let listid = mailinglist_header_listid(list_id_header)?;
 
@@ -2081,7 +2088,7 @@ async fn create_or_lookup_mailinglist(
             blocked,
             ProtectionStatus::Unprotected,
             param,
-            timestamp,
+            mime_parser.timestamp_sent,
         )
         .await
         .with_context(|| {
@@ -2169,7 +2176,6 @@ fn compute_mailinglist_name(
 async fn apply_mailinglist_changes(
     context: &Context,
     mime_parser: &MimeMessage,
-    sent_timestamp: i64,
     chat_id: ChatId,
 ) -> Result<()> {
     let Some(mailinglist_header) = mime_parser.get_mailinglist_header() else {
@@ -2185,7 +2191,11 @@ async fn apply_mailinglist_changes(
     let new_name = compute_mailinglist_name(mailinglist_header, listid, mime_parser);
     if chat.name != new_name
         && chat_id
-            .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+            .update_timestamp(
+                context,
+                Param::GroupNameTimestamp,
+                mime_parser.timestamp_sent,
+            )
             .await?
     {
         info!(context, "Updating listname for chat {chat_id}.");
@@ -2266,7 +2276,6 @@ async fn create_adhoc_group(
     mime_parser: &MimeMessage,
     create_blocked: Blocked,
     member_ids: &[ContactId],
-    timestamp: i64,
 ) -> Result<Option<ChatId>> {
     if mime_parser.is_mailinglist_message() {
         return Ok(None);
@@ -2305,7 +2314,7 @@ async fn create_adhoc_group(
         create_blocked,
         ProtectionStatus::Unprotected,
         None,
-        timestamp,
+        mime_parser.timestamp_sent,
     )
     .await?;
 
@@ -2502,7 +2511,12 @@ async fn mark_recipients_as_verified(
                                 Origin::Hidden,
                             )
                             .await?;
-                            ChatId::set_protection_for_contact(context, to_contact_id).await?;
+                            ChatId::set_protection_for_contact(
+                                context,
+                                to_contact_id,
+                                mimeparser.timestamp_sent,
+                            )
+                            .await?;
                         }
                     }
                 } else {

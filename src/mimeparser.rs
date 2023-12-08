@@ -1,5 +1,6 @@
 //! # MIME message parsing module.
 
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::Path;
@@ -37,8 +38,8 @@ use crate::simplify::{simplify, SimplifiedText};
 use crate::stock_str;
 use crate::sync::SyncItems;
 use crate::tools::{
-    create_smeared_timestamp, get_filemeta, parse_receive_headers, strip_rtlo_characters,
-    truncate_by_lines,
+    create_smeared_timestamp, get_filemeta, parse_receive_headers, smeared_time,
+    strip_rtlo_characters, truncate_by_lines,
 };
 use crate::{location, tools};
 
@@ -118,6 +119,12 @@ pub(crate) struct MimeMessage {
 
     /// Whether the contact sending this should be marked as bot.
     pub(crate) is_bot: bool,
+
+    /// When the message was received, in secs since epoch.
+    pub(crate) timestamp_rcvd: i64,
+    /// Sender timestamp in secs since epoch. Allowed to be in the future due to unsynchronized
+    /// clocks, but not too much.
+    pub(crate) timestamp_sent: i64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -386,6 +393,12 @@ impl MimeMessage {
         // Auto-submitted is also set by holiday-notices so we also check `chat-version`
         let is_bot = headers.contains_key("auto-submitted") && headers.contains_key("chat-version");
 
+        let timestamp_rcvd = smeared_time(context);
+        let timestamp_sent = headers
+            .get(HeaderDef::Date.get_headername())
+            .and_then(|value| mailparse::dateparse(value).ok())
+            .map_or(timestamp_rcvd, |value| min(value, timestamp_rcvd + 60));
+
         let mut parser = MimeMessage {
             parts: Vec::new(),
             headers,
@@ -415,6 +428,8 @@ impl MimeMessage {
             decoded_data: Vec::new(),
             hop_info,
             is_bot,
+            timestamp_rcvd,
+            timestamp_sent,
         };
 
         match partial {
@@ -1630,13 +1645,7 @@ impl MimeMessage {
     /// Handle reports
     /// (MDNs = Message Disposition Notification, the message was read
     /// and NDNs = Non delivery notification, the message could not be delivered)
-    pub async fn handle_reports(
-        &self,
-        context: &Context,
-        from_id: ContactId,
-        sent_timestamp: i64,
-        parts: &[Part],
-    ) {
+    pub async fn handle_reports(&self, context: &Context, from_id: ContactId, parts: &[Part]) {
         for report in &self.mdn_reports {
             for original_message_id in report
                 .original_message_id
@@ -1644,7 +1653,7 @@ impl MimeMessage {
                 .chain(&report.additional_message_ids)
             {
                 if let Err(err) =
-                    handle_mdn(context, from_id, original_message_id, sent_timestamp).await
+                    handle_mdn(context, from_id, original_message_id, self.timestamp_sent).await
                 {
                     warn!(context, "Could not handle MDN: {err:#}.");
                 }
