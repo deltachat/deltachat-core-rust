@@ -1501,8 +1501,8 @@ pub(crate) async fn calc_sort_timestamp(
         context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
-                (chat_id,),
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state!=?",
+                (chat_id, MessageState::OutDraft),
             )
             .await?
     } else if incoming {
@@ -1517,7 +1517,7 @@ pub(crate) async fn calc_sort_timestamp(
         context
             .sql
             .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND hidden=0 AND state>?",
                 (chat_id, MessageState::InFresh),
             )
             .await?
