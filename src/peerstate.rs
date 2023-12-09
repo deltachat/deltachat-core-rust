@@ -696,44 +696,46 @@ pub(crate) async fn maybe_do_aeap_transition(
     mime_parser: &mut crate::mimeparser::MimeMessage,
 ) -> Result<()> {
     let info = &mime_parser.decryption_info;
-    if let Some(peerstate) = &info.peerstate {
-        // If the from addr is different from the peerstate address we know,
-        // we may want to do an AEAP transition.
-        if !addr_cmp(&peerstate.addr, &mime_parser.from.addr)
-                // Check if it's a chat message; we do this to avoid
-                // some accidental transitions if someone writes from multiple
-                // addresses with an MUA.
-                && mime_parser.has_chat_version()
-                // Check if the message is signed correctly.
-                // Although checking `from_is_signed` below is sufficient, let's play it safe.
-                && !mime_parser.signatures.is_empty()
-                // Check if the From: address was also in the signed part of the email.
-                // Without this check, an attacker could replay a message from Alice 
-                // to Bob. Then Bob's device would do an AEAP transition from Alice's
-                // to the attacker's address, allowing for easier phishing.
-                && mime_parser.from_is_signed
-                && info.message_time > peerstate.last_seen
-        {
-            let info = &mut mime_parser.decryption_info;
-            let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
-            // Add info messages to chats with this (verified) contact
-            //
-            peerstate
-                .handle_setup_change(
-                    context,
-                    info.message_time,
-                    PeerstateChange::Aeap(info.from.clone()),
-                )
-                .await?;
+    let Some(peerstate) = &info.peerstate else {
+        return Ok(());
+    };
 
-            peerstate.addr = info.from.clone();
-            let header = info.autocrypt_header.as_ref().context(
-                "Internal error: Tried to do an AEAP transition without an autocrypt header??",
-            )?;
-            peerstate.apply_header(header, info.message_time);
+    // If the from addr is different from the peerstate address we know,
+    // we may want to do an AEAP transition.
+    if !addr_cmp(&peerstate.addr, &mime_parser.from.addr)
+            // Check if it's a chat message; we do this to avoid
+            // some accidental transitions if someone writes from multiple
+            // addresses with an MUA.
+            && mime_parser.has_chat_version()
+            // Check if the message is signed correctly.
+            // Although checking `from_is_signed` below is sufficient, let's play it safe.
+            && !mime_parser.signatures.is_empty()
+            // Check if the From: address was also in the signed part of the email.
+            // Without this check, an attacker could replay a message from Alice
+            // to Bob. Then Bob's device would do an AEAP transition from Alice's
+            // to the attacker's address, allowing for easier phishing.
+            && mime_parser.from_is_signed
+            && info.message_time > peerstate.last_seen
+    {
+        let info = &mut mime_parser.decryption_info;
+        let peerstate = info.peerstate.as_mut().context("no peerstate??")?;
+        // Add info messages to chats with this (verified) contact
+        //
+        peerstate
+            .handle_setup_change(
+                context,
+                info.message_time,
+                PeerstateChange::Aeap(info.from.clone()),
+            )
+            .await?;
 
-            peerstate.save_to_db(&context.sql).await?;
-        }
+        peerstate.addr = info.from.clone();
+        let header = info.autocrypt_header.as_ref().context(
+            "Internal error: Tried to do an AEAP transition without an autocrypt header??",
+        )?;
+        peerstate.apply_header(header, info.message_time);
+
+        peerstate.save_to_db(&context.sql).await?;
     }
 
     Ok(())
