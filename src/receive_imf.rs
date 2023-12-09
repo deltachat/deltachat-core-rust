@@ -1,6 +1,5 @@
 //! Internet Message Format reception pipeline.
 
-use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
@@ -39,9 +38,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{
-    buf_compress, extract_grpid_from_rfc724_mid, smeared_time, strip_rtlo_characters,
-};
+use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
 use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -1017,14 +1014,15 @@ async fn add_parts(
     };
 
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp = calc_sort_timestamp(
-        context,
-        mime_parser.timestamp_sent,
-        chat_id,
-        false,
-        incoming,
-    )
-    .await?;
+    let sort_to_bottom = false;
+    let sort_timestamp = chat_id
+        .calc_sort_timestamp(
+            context,
+            mime_parser.timestamp_sent,
+            sort_to_bottom,
+            incoming,
+        )
+        .await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -1485,53 +1483,6 @@ async fn save_locations(
         context.emit_event(EventType::LocationChanged(Some(from_id)));
     }
     Ok(())
-}
-
-pub(crate) async fn calc_sort_timestamp(
-    context: &Context,
-    message_timestamp: i64,
-    chat_id: ChatId,
-    always_sort_to_bottom: bool,
-    incoming: bool,
-) -> Result<i64> {
-    let mut sort_timestamp = min(message_timestamp, smeared_time(context));
-
-    let last_msg_time: Option<i64> = if always_sort_to_bottom {
-        // get newest message for this chat
-        context
-            .sql
-            .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state!=?",
-                (chat_id, MessageState::OutDraft),
-            )
-            .await?
-    } else if incoming {
-        // get newest non fresh message for this chat.
-
-        // If a user hasn't been online for some time, the Inbox is fetched first and then the
-        // Sentbox. In order for Inbox and Sent messages to be allowed to mingle, outgoing messages
-        // are purely sorted by their sent timestamp. NB: The Inbox must be fetched first otherwise
-        // Inbox messages would be always below old Sentbox messages. We could take in the query
-        // below only incoming messages, but then new incoming messages would mingle with just sent
-        // outgoing ones and apear somewhere in the middle of the chat.
-        context
-            .sql
-            .query_get_value(
-                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND hidden=0 AND state>?",
-                (chat_id, MessageState::InFresh),
-            )
-            .await?
-    } else {
-        None
-    };
-
-    if let Some(last_msg_time) = last_msg_time {
-        if last_msg_time > sort_timestamp {
-            sort_timestamp = last_msg_time;
-        }
-    }
-
-    Ok(sort_timestamp)
 }
 
 async fn lookup_chat_by_reply(
