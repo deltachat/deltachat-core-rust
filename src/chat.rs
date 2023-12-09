@@ -36,7 +36,7 @@ use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
-use crate::receive_imf::{calc_sort_timestamp, ReceivedMsg};
+use crate::receive_imf::ReceivedMsg;
 use crate::smtp::send_msg_to_smtp;
 use crate::sql;
 use crate::stock_str;
@@ -611,7 +611,9 @@ impl ChatId {
         contact_id: Option<ContactId>,
     ) -> Result<()> {
         let sort_to_bottom = true;
-        let ts = calc_sort_timestamp(context, timestamp_sent, self, sort_to_bottom, false).await?;
+        let ts = self
+            .calc_sort_timestamp(context, timestamp_sent, sort_to_bottom, false)
+            .await?;
         self.set_protection_for_timestamp_sort(context, protect, ts, contact_id)
             .await
     }
@@ -1334,6 +1336,64 @@ impl ChatId {
             .await?
             .unwrap_or_default();
         Ok(protection_status)
+    }
+
+    /// Returns the sort timestamp for a new message in the chat.
+    ///
+    /// `message_timestamp` should be either the message "sent" timestamp or a timestamp of the
+    /// corresponding event in case of a system message (usually the current system time).
+    /// `always_sort_to_bottom` makes this ajust the returned timestamp up so that the message goes
+    /// to the chat bottom.
+    /// `incoming` -- whether the message is incoming.
+    pub(crate) async fn calc_sort_timestamp(
+        self,
+        context: &Context,
+        message_timestamp: i64,
+        always_sort_to_bottom: bool,
+        incoming: bool,
+    ) -> Result<i64> {
+        let mut sort_timestamp = cmp::min(message_timestamp, smeared_time(context));
+
+        let last_msg_time: Option<i64> = if always_sort_to_bottom {
+            // get newest message for this chat
+
+            // Let hidden messages also be ordered with protection messages because hidden messages
+            // also can be or not be verified, so let's preserve this information -- even it's not
+            // used currently, it can be useful in the future versions.
+            context
+                .sql
+                .query_get_value(
+                    "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state!=?",
+                    (self, MessageState::OutDraft),
+                )
+                .await?
+        } else if incoming {
+            // get newest non fresh message for this chat.
+
+            // If a user hasn't been online for some time, the Inbox is fetched first and then the
+            // Sentbox. In order for Inbox and Sent messages to be allowed to mingle, outgoing
+            // messages are purely sorted by their sent timestamp. NB: The Inbox must be fetched
+            // first otherwise Inbox messages would be always below old Sentbox messages. We could
+            // take in the query below only incoming messages, but then new incoming messages would
+            // mingle with just sent outgoing ones and apear somewhere in the middle of the chat.
+            context
+                .sql
+                .query_get_value(
+                    "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND hidden=0 AND state>?",
+                    (self, MessageState::InFresh),
+                )
+                .await?
+        } else {
+            None
+        };
+
+        if let Some(last_msg_time) = last_msg_time {
+            if last_msg_time > sort_timestamp {
+                sort_timestamp = last_msg_time;
+            }
+        }
+
+        Ok(sort_timestamp)
     }
 }
 
