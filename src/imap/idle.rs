@@ -12,7 +12,13 @@ use crate::context::Context;
 use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
 use crate::log::LogExt;
 
-const IDLE_TIMEOUT: Duration = Duration::from_secs(23 * 60);
+/// Timeout after which IDLE is finished
+/// if there are no responses from the server.
+///
+/// If `* OK Still here` keepalives are sent more frequently
+/// than this duration, timeout should never be triggered.
+/// For example, Dovecot sends keepalives every 2 minutes by default.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 impl Session {
     pub async fn idle(
