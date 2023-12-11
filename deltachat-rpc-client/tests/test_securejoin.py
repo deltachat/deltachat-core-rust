@@ -4,7 +4,7 @@ import pytest
 from deltachat_rpc_client import Chat, SpecialContactId
 
 
-def test_qr_setup_contact(acfactory) -> None:
+def test_qr_setup_contact(acfactory, tmp_path) -> None:
     alice, bob = acfactory.get_online_accounts(2)
 
     qr_code, _svg = alice.get_qr_code()
@@ -23,6 +23,18 @@ def test_qr_setup_contact(acfactory) -> None:
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
     bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
     assert bob_contact_alice_snapshot.is_verified
+
+    # Test that if Bob changes the key, backwards verification is lost.
+    logging.info("Bob 2 is created")
+    bob2 = acfactory.new_configured_account()
+    bob2.export_self_keys(tmp_path)
+
+    logging.info("Bob imports a key")
+    bob.import_self_keys(tmp_path / "private-key-default.asc")
+
+    assert bob.get_config("key_id") == "2"
+    bob_contact_alice_snapshot = bob_contact_alice.get_snapshot()
+    assert not bob_contact_alice_snapshot.is_verified
 
 
 @pytest.mark.parametrize("protect", [True, False])
