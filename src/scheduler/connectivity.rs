@@ -4,6 +4,7 @@ use std::{iter::once, ops::Deref, sync::Arc};
 
 use anyhow::Result;
 use humansize::{format_size, BINARY};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::events::EventType;
@@ -14,7 +15,9 @@ use crate::{stock_str, tools};
 
 use super::InnerSchedulerState;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, EnumProperty, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum Connectivity {
     NotConnected = 1000,
     Connecting = 2000,
@@ -27,8 +30,10 @@ pub enum Connectivity {
 // the top) take priority. This means that e.g. if any folder has an error - usually
 // because there is no internet connection - the connectivity for the whole
 // account will be `Notconnected`.
-#[derive(Debug, Default, Clone, PartialEq, Eq, EnumProperty, PartialOrd)]
-enum DetailedConnectivity {
+#[derive(
+    Debug, Default, Clone, PartialEq, Eq, EnumProperty, PartialOrd, Serialize, Deserialize,
+)]
+pub enum DetailedConnectivity {
     Error(String),
     #[default]
     Uninitialized,
@@ -57,7 +62,7 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => Some(Connectivity::NotConnected),
             DetailedConnectivity::Connecting => Some(Connectivity::Connecting),
             DetailedConnectivity::Working => Some(Connectivity::Working),
-            DetailedConnectivity::InterruptingIdle => Some(Connectivity::Connected),
+            DetailedConnectivity::InterruptingIdle => Some(Connectivity::Connecting),
             DetailedConnectivity::Connected => Some(Connectivity::Connected),
 
             // Just don't return a connectivity, probably the folder is configured not to be
@@ -131,11 +136,13 @@ impl DetailedConnectivity {
 pub(crate) struct ConnectivityStore(Arc<Mutex<DetailedConnectivity>>);
 
 impl ConnectivityStore {
-    async fn set(&self, context: &Context, v: DetailedConnectivity) {
+    async fn set(&self, context: &Context, detailed_connectivity: DetailedConnectivity) {
         {
-            *self.0.lock().await = v;
+            *self.0.lock().await = detailed_connectivity.clone();
         }
-        context.emit_event(EventType::ConnectivityChanged);
+        context.emit_event(EventType::ConnectivityChanged {
+            connectivity: Some(detailed_connectivity),
+        });
     }
 
     pub(crate) async fn set_err(&self, context: &Context, e: impl ToString) {
@@ -215,7 +222,7 @@ pub(crate) async fn maybe_network_lost(context: &Context, stores: Vec<Connectivi
         }
         drop(connectivity_lock);
     }
-    context.emit_event(EventType::ConnectivityChanged);
+    context.emit_event(EventType::ConnectivityChanged { connectivity: None });
 }
 
 impl fmt::Debug for ConnectivityStore {

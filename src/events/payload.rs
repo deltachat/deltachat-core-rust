@@ -7,6 +7,7 @@ use crate::chat::ChatId;
 use crate::contact::ContactId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
+use crate::scheduler::connectivity::DetailedConnectivity;
 use crate::webxdc::StatusUpdateSerial;
 
 /// Event payload.
@@ -258,7 +259,9 @@ pub enum EventType {
     /// This means that you should refresh the connectivity view
     /// and possibly the connectivtiy HTML; see dc_get_connectivity() and
     /// dc_get_connectivity_html() for details.
-    ConnectivityChanged,
+    ConnectivityChanged {
+        connectivity: Option<DetailedConnectivity>,
+    },
 
     /// The user's avatar changed.
     SelfavatarChanged,

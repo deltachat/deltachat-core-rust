@@ -150,7 +150,7 @@ impl Context {
             modified: time(),
         });
 
-        self.emit_event(EventType::ConnectivityChanged);
+        self.emit_event(EventType::ConnectivityChanged { connectivity: None });
         Ok(())
     }
 }
