@@ -70,8 +70,11 @@ impl SchedulerState {
         context.new_msgs_notify.notify_one();
 
         let ctx = context.clone();
-        match Scheduler::start(context).await {
-            Ok(scheduler) => *inner = InnerSchedulerState::Started(scheduler),
+        match Scheduler::start(&context).await {
+            Ok(scheduler) => {
+                context.emit_event(EventType::ConnectivityChanged);
+                *inner = InnerSchedulerState::Started(scheduler)
+            }
             Err(err) => error!(&ctx, "Failed to start IO: {:#}", err),
         }
     }
@@ -102,6 +105,7 @@ impl SchedulerState {
         // to terminate on receiving the next event and then call stop_io()
         // which will emit the below event(s)
         info!(context, "stopping IO");
+        context.emit_event(EventType::ConnectivityChanged);
 
         // Wake up message processing loop even if there are no messages
         // to allow for clean shutdown.
@@ -772,7 +776,7 @@ async fn smtp_loop(
 
 impl Scheduler {
     /// Start the scheduler.
-    pub async fn start(ctx: Context) -> Result<Self> {
+    pub async fn start(ctx: &Context) -> Result<Self> {
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
 
         let (smtp_start_send, smtp_start_recv) = oneshot::channel();
