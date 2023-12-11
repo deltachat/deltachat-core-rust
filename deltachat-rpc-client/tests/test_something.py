@@ -341,7 +341,7 @@ def test_wait_next_messages(acfactory) -> None:
         assert snapshot.text == "Hello!"
 
 
-def test_import_export(acfactory, tmp_path) -> None:
+def test_import_export_backup(acfactory, tmp_path) -> None:
     alice = acfactory.new_configured_account()
     alice.export_backup(tmp_path)
 
@@ -350,6 +350,31 @@ def test_import_export(acfactory, tmp_path) -> None:
     alice2.import_backup(files[0])
 
     assert alice2.manager.get_system_info()
+
+
+def test_import_export_keys(acfactory, tmp_path) -> None:
+    alice, bob = acfactory.get_online_accounts(2)
+
+    bob_addr = bob.get_config("addr")
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+    alice_chat_bob = alice_contact_bob.create_chat()
+    alice_chat_bob.send_text("Hello Bob!")
+
+    snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello Bob!"
+
+    # Alice resetups account, but keeps the key.
+    alice_keys_path = tmp_path / "alice_keys"
+    alice_keys_path.mkdir()
+    alice.export_self_keys(alice_keys_path)
+    alice = acfactory.resetup_account(alice)
+    alice.import_self_keys(alice_keys_path)
+
+    snapshot.chat.accept()
+    snapshot.chat.send_text("Hello Alice!")
+    snapshot = alice.get_message_by_id(alice.wait_for_incoming_msg_event().msg_id).get_snapshot()
+    assert snapshot.text == "Hello Alice!"
+    assert snapshot.show_padlock
 
 
 def test_openrpc_command_line() -> None:
