@@ -375,7 +375,15 @@ async fn imex_inner(
     path: &Path,
     passphrase: Option<String>,
 ) -> Result<()> {
-    info!(context, "Import/export dir: {}", path.display());
+    info!(
+        context,
+        "{} path: {}",
+        match what {
+            ImexMode::ExportSelfKeys | ImexMode::ExportBackup => "Export",
+            ImexMode::ImportSelfKeys | ImexMode::ImportBackup => "Import",
+        },
+        path.display()
+    );
     ensure!(context.sql.is_open().await, "Database not opened.");
     context.emit_event(EventType::ImexProgress(10));
 
