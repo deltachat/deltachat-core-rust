@@ -786,7 +786,7 @@ impl Scheduler {
         let mut oboxes = Vec::new();
         let mut start_recvs = Vec::new();
 
-        let (conn_state, inbox_handlers) = ImapConnectionState::new(&ctx).await?;
+        let (conn_state, inbox_handlers) = ImapConnectionState::new(ctx).await?;
         let (inbox_start_send, inbox_start_recv) = oneshot::channel();
         let handle = {
             let ctx = ctx.clone();
@@ -807,7 +807,7 @@ impl Scheduler {
             ),
         ] {
             if should_watch? {
-                let (conn_state, handlers) = ImapConnectionState::new(&ctx).await?;
+                let (conn_state, handlers) = ImapConnectionState::new(ctx).await?;
                 let (start_send, start_recv) = oneshot::channel();
                 let ctx = ctx.clone();
                 let handle = task::spawn(simple_imap_loop(ctx, start_send, handlers, meaning));
