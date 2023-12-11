@@ -477,6 +477,39 @@ async fn inbox_loop(
         .await;
 }
 
+/// Convert folder meaning
+/// used internally by [fetch_idle] and [Context::background_fetch]
+pub async fn convert_folder_meaning(
+    ctx: &Context,
+    folder_meaning: FolderMeaning,
+) -> Result<(Config, String)> {
+    let folder_config = match folder_meaning.to_config() {
+        Some(c) => c,
+        None => {
+            bail!("Bad folder meaning: {}", folder_meaning);
+        }
+    };
+
+    let folder = match ctx.get_config(folder_config).await {
+        Ok(folder) => folder,
+        Err(err) => {
+            bail!(
+                "Can not watch {} folder, failed to retrieve config: {:#}",
+                folder_config,
+                err
+            );
+        }
+    };
+
+    let watch_folder = if let Some(watch_folder) = folder {
+        watch_folder
+    } else {
+        bail!("Can not watch {} folder, not set", folder_config);
+    };
+
+    Ok((folder_config, watch_folder))
+}
+
 /// Implement a single iteration of IMAP loop.
 ///
 /// This function performs all IMAP operations on a single folder, selecting it if necessary and
@@ -484,39 +517,16 @@ async fn inbox_loop(
 /// critical operation fails such as fetching new messages fails, connection is reset via
 /// `trigger_reconnect`, so a fresh one can be opened.
 async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: FolderMeaning) {
-    let folder_config = match folder_meaning.to_config() {
-        Some(c) => c,
-        None => {
-            error!(ctx, "Bad folder meaning: {}", folder_meaning);
+    let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
+        Ok(meaning) => meaning,
+        Err(error) => {
+            error!(ctx, "Error converting IMAP Folder name: {:?}", error);
+            connection.connectivity.set_not_configured(ctx).await;
             connection
                 .fake_idle(ctx, None, FolderMeaning::Unknown)
                 .await;
             return;
         }
-    };
-    let folder = match ctx.get_config(folder_config).await {
-        Ok(folder) => folder,
-        Err(err) => {
-            warn!(
-                ctx,
-                "Can not watch {} folder, failed to retrieve config: {:#}", folder_config, err
-            );
-            connection
-                .fake_idle(ctx, None, FolderMeaning::Unknown)
-                .await;
-            return;
-        }
-    };
-
-    let watch_folder = if let Some(watch_folder) = folder {
-        watch_folder
-    } else {
-        connection.connectivity.set_not_configured(ctx).await;
-        info!(ctx, "Can not watch {} folder, not set", folder_config);
-        connection
-            .fake_idle(ctx, None, FolderMeaning::Unknown)
-            .await;
-        return;
     };
 
     // connect and fake idle if unable to connect
