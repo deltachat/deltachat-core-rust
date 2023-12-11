@@ -331,7 +331,7 @@ def test_wait_next_messages(acfactory) -> None:
         next_messages_task = executor.submit(bot.wait_next_messages)
 
         bot_addr = bot.get_config("addr")
-        alice_contact_bot = alice.create_contact(bot_addr, "Bob")
+        alice_contact_bot = alice.create_contact(bot_addr, "Bot")
         alice_chat_bot = alice_contact_bot.create_chat()
         alice_chat_bot.send_text("Hello!")
 
