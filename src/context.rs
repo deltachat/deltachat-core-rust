@@ -19,12 +19,12 @@ use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
-use crate::imap::ServerMetadata;
+use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
-use crate::scheduler::SchedulerState;
+use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
@@ -439,6 +439,35 @@ impl Context {
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
         self.scheduler.maybe_network().await;
+    }
+
+    /// Do a background fetch
+    /// pauses the scheduler and does one imap fetch, then unpauses and returns
+    pub async fn background_fetch(&self) -> Result<()> {
+        if !(self.is_configured().await?) {
+            return Ok(());
+        }
+
+        let _pause_guard = self.scheduler.pause(self.clone()).await?;
+
+        // connection
+        let mut connection = Imap::new_configured(self, channel::bounded(1).1).await?;
+        connection.prepare(self).await?;
+
+        // fetch imap folders
+        for folder_meaning in [FolderMeaning::Inbox, FolderMeaning::Mvbox] {
+            let (_, watch_folder) = convert_folder_meaning(self, folder_meaning).await?;
+            connection
+                .fetch_move_delete(self, &watch_folder, folder_meaning)
+                .await?;
+        }
+
+        // update quota (to send warning if full)
+        if let Err(err) = self.update_recent_quota(&mut connection).await {
+            warn!(self, "Failed to update quota: {:#}.", err);
+        }
+
+        Ok(())
     }
 
     pub(crate) async fn schedule_resync(&self) -> Result<()> {

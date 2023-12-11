@@ -5,6 +5,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, Context as _, Result};
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
@@ -289,6 +290,33 @@ impl Accounts {
         for account in self.accounts.values() {
             account.scheduler.maybe_network_lost(account).await;
         }
+    }
+
+    /// Performs a background fetch for all accounts in parallel.
+    ///
+    /// If you need a timeout, then use [Accounts::background_fetch_with_timeout] instead.
+    pub async fn background_fetch(&self) {
+        async fn background_fetch_and_log_error(account: Context) {
+            if let Err(error) = account.background_fetch().await {
+                warn!(account, "{error:#}");
+            }
+        }
+
+        join_all(
+            self.accounts
+                .values()
+                .cloned()
+                .map(background_fetch_and_log_error),
+        )
+        .await;
+    }
+
+    /// Performs a background fetch for all accounts in parallel with a timeout.
+    ///
+    /// If you want no timeout, then use [Accounts::background_fetch] instead.
+    pub async fn background_fetch_with_timeout(&self, timeout: Duration) -> Result<()> {
+        tokio::time::timeout(timeout, self.background_fetch()).await?;
+        Ok(())
     }
 
     /// Emits a single event.
