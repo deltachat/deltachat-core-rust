@@ -48,7 +48,6 @@ mod dc_array;
 mod lot;
 
 mod string;
-use deltachat::chatlist::Chatlist;
 
 use self::string::*;
 
@@ -2887,34 +2886,6 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
             .unwrap_or_default();
         Box::into_raw(Box::new(summary.into()))
     })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_summary2(
-    context: *mut dc_context_t,
-    chat_id: u32,
-    msg_id: u32,
-) -> *mut dc_lot_t {
-    if context.is_null() {
-        eprintln!("ignoring careless call to dc_chatlist_get_summary2()");
-        return ptr::null_mut();
-    }
-    let ctx = &*context;
-    let msg_id = if msg_id == 0 {
-        None
-    } else {
-        Some(MsgId::new(msg_id))
-    };
-    let summary = block_on(Chatlist::get_summary2(
-        ctx,
-        ChatId::new(chat_id),
-        msg_id,
-        None,
-    ))
-    .context("get_summary2 failed")
-    .log_err(ctx)
-    .unwrap_or_default();
-    Box::into_raw(Box::new(summary.into()))
 }
 
 #[no_mangle]
