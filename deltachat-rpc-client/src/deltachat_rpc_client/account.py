@@ -300,3 +300,13 @@ class Account:
     def import_backup(self, path, passphrase: str = "") -> None:
         """Import backup."""
         self._rpc.import_backup(self.id, str(path), passphrase)
+
+    def export_self_keys(self, path) -> None:
+        """Export keys."""
+        passphrase = ""  # Setting passphrase is currently not supported.
+        self._rpc.export_self_keys(self.id, str(path), passphrase)
+
+    def import_self_keys(self, path) -> None:
+        """Import keys."""
+        passphrase = ""  # Importing passphrase-protected keys is currently not supported.
+        self._rpc.import_self_keys(self.id, str(path), passphrase)
