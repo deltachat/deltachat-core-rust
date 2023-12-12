@@ -4910,7 +4910,7 @@ pub unsafe extern "C" fn dc_accounts_background_fetch_with_timeout(
 
     let accounts = &*accounts;
     block_on(async move {
-        let accounts = accounts.write().await;
+        let accounts = accounts.read().await;
         match accounts
             .background_fetch_with_timeout(Duration::from_secs(timeout_in_seconds))
             .await
