@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.132.1] - 2023-12-12
+
+### Features / Changes
+
+- Add "From:" to protected headers for signed-only messages.
+- Sync user actions for ad-hoc groups across devices ([#5065](https://github.com/deltachat/deltachat-core-rust/pull/5065)).
+
+### Fixes
+
+- Add padlock to empty part if the whole message is empty.
+- Renew IDLE timeout on keepalives and reduce it to 5 minutes.
+- connectivity: Return false from `all_work_done()` immediately after connecting (iOS notification fix).
+
+### API-Changes
+
+- deltachat-jsonrpc-client: add `Account.{import,export}_self_keys`.
+
+### CI
+
+- Update to Rust 1.74.1.
+
 ## [1.132.0] - 2023-12-06
 
 ### Features / Changes
@@ -3334,3 +3355,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.131.7]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.6...v1.131.7
 [1.131.8]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.7...v1.131.8
 [1.131.9]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.8...v1.131.9
+[1.132.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.9...v1.132.0
+[1.132.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.0...v1.132.1
