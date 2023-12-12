@@ -102,5 +102,4 @@ github = [
        "async-email",
        "deltachat",
        "djc",
-       "n0-computer", # iroh
 ]
