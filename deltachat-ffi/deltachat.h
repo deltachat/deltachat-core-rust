@@ -3152,7 +3152,7 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
 
 
 /**
- * Perform a Background fetch for all accounts in parallel with a timeout.
+ * Perform a background fetch for all accounts in parallel with a timeout.
  * Pauses the scheduler, fetches messages from imap and then resumes the scheduler.
  *
  * dc_accounts_background_fetch_with_timeout() was created for the iOS Background fetch.
@@ -3161,7 +3161,7 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  * @param timeout The timeout in seconds
  * @return Return 1 on success and 0 on failure (like timeout)
  *    But note that this only indicates that the fetch of all accounts was done before the timeout.
- *    To know wether it worked you need to look for the events.
+ *    To know whether it worked you need to look for the events.
  */
 int            dc_accounts_background_fetch_with_timeout    (dc_accounts_t* accounts, uint64_t timeout);
 

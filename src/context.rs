@@ -441,7 +441,7 @@ impl Context {
         self.scheduler.maybe_network().await;
     }
 
-    /// Do a background fetch
+    /// Does a background fetch
     /// pauses the scheduler and does one imap fetch, then unpauses and returns
     pub async fn background_fetch(&self) -> Result<()> {
         if !(self.is_configured().await?) {
@@ -468,7 +468,7 @@ impl Context {
 
         // update quota (to send warning if full)
         if let Err(err) = self.update_recent_quota(&mut connection).await {
-            warn!(self, "Failed to update quota: {:#}.", err);
+            warn!(self, "Failed to update quota: {err:#}.");
         }
 
         info!(
