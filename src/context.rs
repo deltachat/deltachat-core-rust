@@ -448,6 +448,10 @@ impl Context {
             return Ok(());
         }
 
+        let address = self.get_primary_self_addr().await?;
+        let time_start = std::time::SystemTime::now();
+        info!(self, "background_fetch started fetching {address}");
+
         let _pause_guard = self.scheduler.pause(self.clone()).await?;
 
         // connection
@@ -466,6 +470,12 @@ impl Context {
         if let Err(err) = self.update_recent_quota(&mut connection).await {
             warn!(self, "Failed to update quota: {:#}.", err);
         }
+
+        info!(
+            self,
+            "background_fetch done for {address} took {:?}",
+            time_start.elapsed().unwrap_or_default()
+        );
 
         Ok(())
     }
