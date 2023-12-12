@@ -4899,6 +4899,34 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_accounts_background_fetch_with_timeout(
+    accounts: *mut dc_accounts_t,
+    timeout_in_seconds: u64,
+) -> libc::c_int {
+    if accounts.is_null() || timeout_in_seconds <= 2 {
+        eprintln!("ignoring careless call to dc_accounts_background_fetch_with_timeout()");
+        return 0;
+    }
+
+    let accounts = &*accounts;
+    block_on(async move {
+        let accounts = accounts.write().await;
+        match accounts
+            .background_fetch_with_timeout(Duration::from_secs(timeout_in_seconds))
+            .await
+        {
+            Ok(()) => 1,
+            Err(err) => {
+                accounts.emit_event(EventType::Error(format!(
+                    "Failed to do background fetch: {err:#}"
+                )));
+                0
+            }
+        }
+    })
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_accounts_get_event_emitter(
     accounts: *mut dc_accounts_t,
 ) -> *mut dc_event_emitter_t {
