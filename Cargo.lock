@@ -2622,7 +2622,8 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 [[package]]
 name = "iroh"
 version = "0.4.2"
-source = "git+https://github.com/n0-computer/iroh?branch=maint-0.4#9881b7886235035a1124e4371f7a4cd59379e51b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85075391dcb8491a4939266334b28601052d418b37d20b33c58ffb5776adc912"
 dependencies = [
  "abao",
  "anyhow",
