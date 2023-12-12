@@ -4899,12 +4899,12 @@ pub unsafe extern "C" fn dc_accounts_maybe_network_lost(accounts: *mut dc_accoun
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_background_fetch_with_timeout(
+pub unsafe extern "C" fn dc_accounts_background_fetch(
     accounts: *mut dc_accounts_t,
     timeout_in_seconds: u64,
 ) -> libc::c_int {
     if accounts.is_null() || timeout_in_seconds <= 2 {
-        eprintln!("ignoring careless call to dc_accounts_background_fetch_with_timeout()");
+        eprintln!("ignoring careless call to dc_accounts_background_fetch()");
         return 0;
     }
 
