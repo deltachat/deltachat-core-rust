@@ -33,9 +33,18 @@ enum DetailedConnectivity {
     #[default]
     Uninitialized,
     Connecting,
-    Working,
-    InterruptingIdle,
+
+    /// Connection is just established, but there may be work to do.
     Connected,
+
+    /// There is actual work to do, e.g. there are messages in SMTP queue
+    /// or we detected a message that should be downloaded.
+    Working,
+
+    InterruptingIdle,
+
+    /// Connection is established and is idle.
+    Idle,
 
     /// The folder was configured not to be watched or configured_*_folder is not set
     NotConfigured,
@@ -54,6 +63,8 @@ impl DetailedConnectivity {
             // Just don't return a connectivity, probably the folder is configured not to be
             // watched or there is e.g. no "Sent" folder, so we are not interested in it
             DetailedConnectivity::NotConfigured => None,
+
+            DetailedConnectivity::Idle => Some(Connectivity::Connected),
         }
     }
 
@@ -65,7 +76,8 @@ impl DetailedConnectivity {
             DetailedConnectivity::Connecting => "<span class=\"yellow dot\"></span>".to_string(),
             DetailedConnectivity::Working
             | DetailedConnectivity::InterruptingIdle
-            | DetailedConnectivity::Connected => "<span class=\"green dot\"></span>".to_string(),
+            | DetailedConnectivity::Connected
+            | DetailedConnectivity::Idle => "<span class=\"green dot\"></span>".to_string(),
         }
     }
 
@@ -75,9 +87,9 @@ impl DetailedConnectivity {
             DetailedConnectivity::Uninitialized => "Not started".to_string(),
             DetailedConnectivity::Connecting => stock_str::connecting(context).await,
             DetailedConnectivity::Working => stock_str::updating(context).await,
-            DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                stock_str::connected(context).await
-            }
+            DetailedConnectivity::InterruptingIdle
+            | DetailedConnectivity::Connected
+            | DetailedConnectivity::Idle => stock_str::connected(context).await,
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
@@ -94,9 +106,9 @@ impl DetailedConnectivity {
             // We don't know any more than that the last message was sent successfully;
             // since sending the last message, connectivity could have changed, which we don't notice
             // until another message is sent
-            DetailedConnectivity::InterruptingIdle | DetailedConnectivity::Connected => {
-                stock_str::last_msg_sent_successfully(context).await
-            }
+            DetailedConnectivity::InterruptingIdle
+            | DetailedConnectivity::Connected
+            | DetailedConnectivity::Idle => stock_str::last_msg_sent_successfully(context).await,
             DetailedConnectivity::NotConfigured => "Not configured".to_string(),
         }
     }
@@ -108,8 +120,9 @@ impl DetailedConnectivity {
             DetailedConnectivity::Connecting => false,
             DetailedConnectivity::Working => false,
             DetailedConnectivity::InterruptingIdle => false,
-            DetailedConnectivity::Connected => true,
+            DetailedConnectivity::Connected => false, // Just connected, there may still be work to do.
             DetailedConnectivity::NotConfigured => true,
+            DetailedConnectivity::Idle => true,
         }
     }
 }
@@ -141,6 +154,9 @@ impl ConnectivityStore {
     pub(crate) async fn set_not_configured(&self, context: &Context) {
         self.set(context, DetailedConnectivity::NotConfigured).await;
     }
+    pub(crate) async fn set_idle(&self, context: &Context) {
+        self.set(context, DetailedConnectivity::Idle).await;
+    }
 
     async fn get_detailed(&self) -> DetailedConnectivity {
         self.0.lock().await.deref().clone()
@@ -164,6 +180,7 @@ pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<Conne
     // return Connected until DC is completely done with fetching folders; this also
     // includes scan_folders() which happens on the inbox thread.
     if *connectivity_lock == DetailedConnectivity::Connected
+        || *connectivity_lock == DetailedConnectivity::Idle
         || *connectivity_lock == DetailedConnectivity::NotConfigured
     {
         *connectivity_lock = DetailedConnectivity::InterruptingIdle;
@@ -172,7 +189,9 @@ pub(crate) async fn idle_interrupted(inbox: ConnectivityStore, oboxes: Vec<Conne
 
     for state in oboxes {
         let mut connectivity_lock = state.0.lock().await;
-        if *connectivity_lock == DetailedConnectivity::Connected {
+        if *connectivity_lock == DetailedConnectivity::Connected
+            || *connectivity_lock == DetailedConnectivity::Idle
+        {
             *connectivity_lock = DetailedConnectivity::InterruptingIdle;
         }
     }

@@ -590,7 +590,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
         .log_err(ctx)
         .ok();
 
-    connection.connectivity.set_connected(ctx).await;
+    connection.connectivity.set_idle(ctx).await;
 
     ctx.emit_event(EventType::ImapInboxIdle);
     let Some(session) = connection.session.take() else {
@@ -727,7 +727,7 @@ async fn smtp_loop(
             // Fake Idle
             info!(ctx, "smtp fake idle - started");
             match &connection.last_send_error {
-                None => connection.connectivity.set_connected(&ctx).await,
+                None => connection.connectivity.set_idle(&ctx).await,
                 Some(err) => connection.connectivity.set_err(&ctx, err).await,
             }
 

@@ -1979,6 +1979,32 @@ def test_connectivity(acfactory, lp):
     ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_NOT_CONNECTED)
 
 
+def test_all_work_done(acfactory, lp):
+    """
+    Tests that calling start_io() immediately followed by maybe_network()
+    and then waiting for all_work_done() reliably fetches the messages
+    delivered while account was offline.
+    In other words, connectivity should not change to a state
+    where all_work_done() returns true until IMAP connection goes idle.
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+
+    ac1.stop_io()
+    ac1._evtracker.wait_for_connectivity(dc.const.DC_CONNECTIVITY_NOT_CONNECTED)
+
+    ac1.direct_imap.select_config_folder("inbox")
+    with ac1.direct_imap.idle() as idle1:
+        ac2.create_chat(ac1).send_text("Hi")
+        idle1.wait_for_new_message()
+
+    ac1.start_io()
+    ac1.maybe_network()
+    ac1._evtracker.wait_for_all_work_done()
+    msgs = ac1.create_chat(ac2).get_messages()
+    assert len(msgs) == 1
+    assert msgs[0].text == "Hi"
+
+
 def test_fetch_deleted_msg(acfactory, lp):
     """This is a regression test: Messages with \\Deleted flag were downloaded again and again,
     hundreds of times, because uid_next was not updated.
