@@ -231,6 +231,16 @@ impl CommandApi {
         Ok(())
     }
 
+    /// Performs a background fetch for all accounts in parallel with a timeout.
+    async fn background_fetch_for_all_accounts(&self, timeout_in_seconds: f64) -> Result<()> {
+        self.accounts
+            .write()
+            .await
+            .background_fetch_with_timeout(std::time::Duration::from_secs_f64(timeout_in_seconds))
+            .await?;
+        Ok(())
+    }
+
     // ---------------------------------------------
     // Methods that work on individual accounts
     // ---------------------------------------------
