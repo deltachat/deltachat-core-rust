@@ -72,8 +72,8 @@ impl SchedulerState {
         let ctx = context.clone();
         match Scheduler::start(&context).await {
             Ok(scheduler) => {
+                *inner = InnerSchedulerState::Started(scheduler);
                 context.emit_event(EventType::ConnectivityChanged);
-                *inner = InnerSchedulerState::Started(scheduler)
             }
             Err(err) => error!(&ctx, "Failed to start IO: {:#}", err),
         }
@@ -105,7 +105,6 @@ impl SchedulerState {
         // to terminate on receiving the next event and then call stop_io()
         // which will emit the below event(s)
         info!(context, "stopping IO");
-        context.emit_event(EventType::ConnectivityChanged);
 
         // Wake up message processing loop even if there are no messages
         // to allow for clean shutdown.
@@ -120,6 +119,7 @@ impl SchedulerState {
             debug_logging.loop_handle.abort();
         }
         let prev_state = std::mem::replace(&mut *inner, new_state);
+        context.emit_event(EventType::ConnectivityChanged);
         match prev_state {
             InnerSchedulerState::Started(scheduler) => scheduler.stop(context).await,
             InnerSchedulerState::Stopped | InnerSchedulerState::Paused { .. } => (),
