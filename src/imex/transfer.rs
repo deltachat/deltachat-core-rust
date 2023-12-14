@@ -52,6 +52,7 @@ use crate::context::Context;
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
+use crate::tools::time;
 use crate::{e2ee, EventType};
 
 use super::{export_database, DBFILE_BACKUP_NAME};
@@ -158,7 +159,7 @@ impl BackupProvider {
         // Generate the token up front: we also use it to encrypt the database.
         let token = AuthToken::generate();
         context.emit_event(SendProgress::Started.into());
-        export_database(context, dbfile, token.to_string())
+        export_database(context, dbfile, token.to_string(), time())
             .await
             .context("Database export failed")?;
         context.emit_event(SendProgress::DatabaseExported.into());

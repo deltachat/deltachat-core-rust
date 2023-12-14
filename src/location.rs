@@ -139,8 +139,9 @@ impl Kml {
                 match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
                     Ok(res) => {
                         self.curr.timestamp = res.timestamp();
-                        if self.curr.timestamp > time() {
-                            self.curr.timestamp = time();
+                        let now = time();
+                        if self.curr.timestamp > now {
+                            self.curr.timestamp = now;
                         }
                     }
                     Err(_err) => {
@@ -333,12 +334,13 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
         return Ok(true);
     }
     let mut continue_streaming = false;
+    let now = time();
 
     let chats = context
         .sql
         .query_map(
             "SELECT id FROM chats WHERE locations_send_until>?;",
-            (time(),),
+            (now,),
             |row| row.get::<_, i32>(0),
             |chats| {
                 chats
@@ -356,7 +358,7 @@ pub async fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64
                     latitude,
                     longitude,
                     accuracy,
-                    time(),
+                    now,
                     chat_id,
                     ContactId::SELF,
                 )).await.context("Failed to store location")?;
