@@ -2,7 +2,7 @@
 
 pub mod send;
 
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::{bail, format_err, Context as _, Error, Result};
 use async_smtp::response::{Category, Code, Detail};
@@ -28,6 +28,7 @@ use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str::unencrypted_email;
+use crate::tools::{self, time_elapsed};
 
 /// SMTP connection, write and read timeout.
 const SMTP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -43,7 +44,7 @@ pub(crate) struct Smtp {
     /// Timestamp of last successful send/receive network interaction
     /// (eg connect or send succeeded). On initialization and disconnect
     /// it is set to None.
-    last_success: Option<SystemTime>,
+    last_success: Option<tools::Time>,
 
     pub(crate) connectivity: ConnectivityStore,
 
@@ -72,11 +73,7 @@ impl Smtp {
     /// have been successfully used the last 60 seconds
     pub fn has_maybe_stale_connection(&self) -> bool {
         if let Some(last_success) = self.last_success {
-            SystemTime::now()
-                .duration_since(last_success)
-                .unwrap_or_default()
-                .as_secs()
-                > 60
+            time_elapsed(&last_success).as_secs() > 60
         } else {
             false
         }
@@ -336,7 +333,7 @@ impl Smtp {
         }
 
         self.transport = Some(transport);
-        self.last_success = Some(SystemTime::now());
+        self.last_success = Some(tools::Time::now());
 
         context.emit_event(EventType::SmtpConnected(format!(
             "SMTP-LOGIN as {} ok",

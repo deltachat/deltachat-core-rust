@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, time::Instant};
+use std::collections::BTreeMap;
 
 use anyhow::{Context as _, Result};
 use futures::TryStreamExt;
@@ -7,6 +7,7 @@ use super::{get_folder_meaning_by_attrs, get_folder_meaning_by_name};
 use crate::config::Config;
 use crate::imap::Imap;
 use crate::log::LogExt;
+use crate::tools::{self, time_elapsed};
 use crate::{context::Context, imap::FolderMeaning};
 
 impl Imap {
@@ -15,7 +16,7 @@ impl Imap {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
-            let elapsed_secs = last_scan.elapsed().as_secs();
+            let elapsed_secs = time_elapsed(&last_scan).as_secs();
             let debounce_secs = context
                 .get_config_u64(Config::ScanAllFoldersDebounceSecs)
                 .await?;
@@ -93,7 +94,7 @@ impl Imap {
                 .await?;
         }
 
-        last_scan.replace(Instant::now());
+        last_scan.replace(tools::Time::now());
         Ok(true)
     }
 

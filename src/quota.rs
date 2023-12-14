@@ -12,7 +12,7 @@ use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
 use crate::imap::Imap;
 use crate::message::{Message, Viewtype};
-use crate::tools::time;
+use crate::tools;
 use crate::{stock_str, EventType};
 
 /// warn about a nearly full mailbox after this usage percentage is reached.
@@ -40,8 +40,8 @@ pub struct QuotaInfo {
     /// set to `Ok()` for valid quota information.
     pub(crate) recent: Result<BTreeMap<String, Vec<QuotaResource>>>,
 
-    /// Timestamp when structure was modified.
-    pub(crate) modified: i64,
+    /// When the structure was modified.
+    pub(crate) modified: tools::Time,
 }
 
 async fn get_unique_quota_roots_and_usage(
@@ -151,7 +151,7 @@ impl Context {
 
         *self.quota.write().await = Some(QuotaInfo {
             recent: quota,
-            modified: time(),
+            modified: tools::Time::now(),
         });
 
         self.emit_event(EventType::ConnectivityChanged);

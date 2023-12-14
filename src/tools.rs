@@ -9,6 +9,13 @@ use std::io::{Cursor, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
+// If a time value doesn't need to be sent to another host, saved to the db or otherwise used across
+// program restarts, a monotonically nondecreasing clock (`Instant`) should be used. But as
+// `Instant` may use `libc::clock_gettime(CLOCK_MONOTONIC)`, e.g. on Android, and does not advance
+// while being in deep sleep mode, we use `SystemTime` instead, but add an alias for it to document
+// why `Instant` isn't used in those places. Also this can help to switch to another clock impl if
+// we find any.
+pub use std::time::SystemTime as Time;
 use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context as _, Result};
@@ -480,6 +487,10 @@ pub(crate) fn time() -> i64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64
+}
+
+pub(crate) fn time_elapsed(time: &Time) -> Duration {
+    time.elapsed().unwrap_or_default()
 }
 
 /// Struct containing all mailto information

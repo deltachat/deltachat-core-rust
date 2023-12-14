@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::{bail, Context as _, Result};
 use async_channel::Receiver;
@@ -11,6 +11,7 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
 use crate::log::LogExt;
+use crate::tools::{self, time_elapsed};
 
 /// Timeout after which IDLE is finished
 /// if there are no responses from the server.
@@ -106,7 +107,7 @@ impl Imap {
         // Idle using polling. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job (and an interrupt).
 
-        let fake_idle_start_time = SystemTime::now();
+        let fake_idle_start_time = tools::Time::now();
 
         // Do not poll, just wait for an interrupt when no folder is passed in.
         let watch_folder = if let Some(watch_folder) = watch_folder {
@@ -196,11 +197,7 @@ impl Imap {
         info!(
             context,
             "IMAP-fake-IDLE done after {:.4}s",
-            SystemTime::now()
-                .duration_since(fake_idle_start_time)
-                .unwrap_or_default()
-                .as_millis() as f64
-                / 1000.,
+            time_elapsed(&fake_idle_start_time).as_millis() as f64 / 1000.,
         );
     }
 }

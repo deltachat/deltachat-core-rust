@@ -6,6 +6,7 @@ use super::Smtp;
 use crate::config::Config;
 use crate::context::Context;
 use crate::events::EventType;
+use crate::tools;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -55,7 +56,7 @@ impl Smtp {
                 format!("Message len={message_len_bytes} was SMTP-sent to {recipients_display}");
             info!(context, "{info_msg}.");
             context.emit_event(EventType::SmtpMessageSent(info_msg));
-            self.last_success = Some(std::time::SystemTime::now());
+            self.last_success = Some(tools::Time::now());
         } else {
             warn!(
                 context,

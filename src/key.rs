@@ -18,7 +18,7 @@ use crate::constants::KeyGenType;
 use crate::context::Context;
 use crate::log::LogExt;
 use crate::pgp::KeyPair;
-use crate::tools::EmailAddress;
+use crate::tools::{self, time_elapsed, EmailAddress};
 
 /// Convenience trait for working with keys.
 ///
@@ -204,7 +204,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
     match load_keypair(context, &addr).await? {
         Some(key_pair) => Ok(key_pair),
         None => {
-            let start = std::time::SystemTime::now();
+            let start = tools::Time::now();
             let keytype = KeyGenType::from_i32(context.get_config_int(Config::KeyGenType).await?)
                 .unwrap_or_default();
             info!(context, "Generating keypair with type {}", keytype);
@@ -216,7 +216,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             info!(
                 context,
                 "Keypair generated in {:.3}s.",
-                start.elapsed().unwrap_or_default().as_secs()
+                time_elapsed(&start).as_secs(),
             );
             Ok(keypair)
         }
