@@ -534,7 +534,7 @@ async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Res
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
 
-    export_database(context, &temp_db_path, passphrase)
+    export_database(context, &temp_db_path, passphrase, now)
         .await
         .context("could not export database")?;
 
@@ -770,19 +770,27 @@ where
 /// overwritten.
 ///
 /// This also verifies that IO is not running during the export.
-async fn export_database(context: &Context, dest: &Path, passphrase: String) -> Result<()> {
+async fn export_database(
+    context: &Context,
+    dest: &Path,
+    passphrase: String,
+    timestamp: i64,
+) -> Result<()> {
     ensure!(
         !context.scheduler.is_running().await,
         "cannot export backup, IO is running"
     );
-    let now = time().try_into().context("32-bit UNIX time overflow")?;
+    let timestamp = timestamp.try_into().context("32-bit UNIX time overflow")?;
 
     // TODO: Maybe introduce camino crate for UTF-8 paths where we need them.
     let dest = dest
         .to_str()
         .with_context(|| format!("path {} is not valid unicode", dest.display()))?;
 
-    context.sql.set_raw_config_int("backup_time", now).await?;
+    context
+        .sql
+        .set_raw_config_int("backup_time", timestamp)
+        .await?;
     sql::housekeeping(context).await.log_err(context).ok();
     context
         .sql

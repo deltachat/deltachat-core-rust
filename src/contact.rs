@@ -1732,6 +1732,12 @@ impl RecentlySeenLoop {
     async fn run(context: Context, interrupt: Receiver<RecentlySeenInterrupt>) {
         type MyHeapElem = (Reverse<i64>, ContactId);
 
+        let now = SystemTime::now();
+        let now_ts = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
         // Priority contains all recently seen sorted by the timestamp
         // when they become not recently seen.
         //
@@ -1742,7 +1748,7 @@ impl RecentlySeenLoop {
             .query_map(
                 "SELECT id, last_seen FROM contacts
                  WHERE last_seen > ?",
-                (time() - SEEN_RECENTLY_SECONDS,),
+                (now_ts - SEEN_RECENTLY_SECONDS,),
                 |row| {
                     let contact_id: ContactId = row.get("id")?;
                     let last_seen: i64 = row.get("last_seen")?;
@@ -1757,8 +1763,6 @@ impl RecentlySeenLoop {
             .unwrap_or_default();
 
         loop {
-            let now = SystemTime::now();
-
             let (until, contact_id) =
                 if let Some((Reverse(timestamp), contact_id)) = unseen_queue.peek() {
                     (
