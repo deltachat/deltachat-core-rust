@@ -2,6 +2,7 @@ use std::cmp;
 use std::iter::{self, once};
 use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use anyhow::{bail, Context as _, Error, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -24,7 +25,7 @@ use crate::log::LogExt;
 use crate::message::MsgId;
 use crate::smtp::{send_smtp_messages, Smtp};
 use crate::sql;
-use crate::tools::{duration_to_str, maybe_add_time_based_warnings, time};
+use crate::tools::{self, duration_to_str, maybe_add_time_based_warnings, time, time_elapsed};
 
 pub(crate) mod connectivity;
 
@@ -398,7 +399,7 @@ async fn inbox_loop(
                     let quota = ctx.quota.read().await;
                     quota
                         .as_ref()
-                        .filter(|quota| quota.modified + 60 > time())
+                        .filter(|quota| time_elapsed(&quota.modified) > Duration::from_secs(60))
                         .is_none()
                 };
 
@@ -785,7 +786,7 @@ async fn smtp_loop(
             // again, we increase the timeout exponentially, in order not to do lots of
             // unnecessary retries.
             if let Some(t) = timeout {
-                let now = tokio::time::Instant::now();
+                let now = tools::Time::now();
                 info!(
                     ctx,
                     "smtp has messages to retry, planning to retry {} seconds later", t,
@@ -796,7 +797,7 @@ async fn smtp_loop(
                 })
                 .await
                 .unwrap_or_default();
-                let slept = (tokio::time::Instant::now() - now).as_secs();
+                let slept = time_elapsed(&now).as_secs();
                 timeout = Some(cmp::max(
                     t,
                     slept.saturating_add(rand::thread_rng().gen_range((slept / 2)..=slept)),

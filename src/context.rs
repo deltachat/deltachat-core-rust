@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::Duration;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -33,7 +33,7 @@ use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
-use crate::tools::{create_id, duration_to_str, time};
+use crate::tools::{self, create_id, duration_to_str, time, time_elapsed};
 
 /// Builder for the [`Context`].
 ///
@@ -233,7 +233,7 @@ pub struct InnerContext {
     /// IMAP METADATA.
     pub(crate) metadata: RwLock<Option<ServerMetadata>>,
 
-    pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
+    pub(crate) last_full_folder_scan: Mutex<Option<tools::Time>>,
 
     /// ID for this `Context` in the current process.
     ///
@@ -241,7 +241,7 @@ pub struct InnerContext {
     /// be identified by this ID.
     pub(crate) id: u32,
 
-    creation_time: SystemTime,
+    creation_time: tools::Time,
 
     /// The text of the last error logged and emitted as an event.
     /// If the ui wants to display an error after a failure,
@@ -262,7 +262,7 @@ enum RunningState {
     Running { cancel_sender: Sender<()> },
 
     /// Cancel signal has been sent, waiting for ongoing process to be freed.
-    ShallStop { request: Instant },
+    ShallStop { request: tools::Time },
 
     /// There is no ongoing process, a new one can be allocated.
     Stopped,
@@ -394,7 +394,7 @@ impl Context {
             new_msgs_notify,
             server_id: RwLock::new(None),
             metadata: RwLock::new(None),
-            creation_time: std::time::SystemTime::now(),
+            creation_time: tools::Time::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
@@ -454,7 +454,7 @@ impl Context {
         }
 
         let address = self.get_primary_self_addr().await?;
-        let time_start = std::time::SystemTime::now();
+        let time_start = tools::Time::now();
         info!(self, "background_fetch started fetching {address}");
 
         let _pause_guard = self.scheduler.pause(self.clone()).await?;
@@ -476,7 +476,10 @@ impl Context {
             let quota = self.quota.read().await;
             quota
                 .as_ref()
-                .filter(|quota| quota.modified + DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT > time())
+                .filter(|quota| {
+                    time_elapsed(&quota.modified)
+                        > Duration::from_secs(DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT)
+                })
                 .is_none()
         };
 
@@ -489,7 +492,7 @@ impl Context {
         info!(
             self,
             "background_fetch done for {address} took {:?}",
-            time_start.elapsed().unwrap_or_default()
+            time_elapsed(&time_start),
         );
 
         Ok(())
@@ -591,7 +594,7 @@ impl Context {
     pub(crate) async fn free_ongoing(&self) {
         let mut s = self.running_state.write().await;
         if let RunningState::ShallStop { request } = *s {
-            info!(self, "Ongoing stopped in {:?}", request.elapsed());
+            info!(self, "Ongoing stopped in {:?}", time_elapsed(&request));
         }
         *s = RunningState::Stopped;
     }
@@ -606,7 +609,7 @@ impl Context {
                 }
                 info!(self, "Signaling the ongoing process to stop ASAP.",);
                 *s = RunningState::ShallStop {
-                    request: Instant::now(),
+                    request: tools::Time::now(),
                 };
             }
             RunningState::ShallStop { .. } | RunningState::Stopped => {
@@ -867,8 +870,8 @@ impl Context {
                 .to_string(),
         );
 
-        let elapsed = self.creation_time.elapsed();
-        res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
+        let elapsed = time_elapsed(&self.creation_time);
+        res.insert("uptime", duration_to_str(elapsed));
 
         Ok(res)
     }
@@ -1214,7 +1217,7 @@ pub fn get_version_str() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use anyhow::Context as _;
     use strum::IntoEnumIterator;
