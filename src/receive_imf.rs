@@ -2454,21 +2454,19 @@ async fn mark_recipients_as_verified(
                         peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
                         peerstate.save_to_db(&context.sql).await?;
 
-                        if !is_verified {
-                            let (to_contact_id, _) = Contact::add_or_lookup(
-                                context,
-                                "",
-                                &ContactAddress::new(&to_addr)?,
-                                Origin::Hidden,
-                            )
-                            .await?;
-                            ChatId::set_protection_for_contact(
-                                context,
-                                to_contact_id,
-                                mimeparser.timestamp_sent,
-                            )
-                            .await?;
-                        }
+                        let (to_contact_id, _) = Contact::add_or_lookup(
+                            context,
+                            "",
+                            &ContactAddress::new(&to_addr)?,
+                            Origin::Hidden,
+                        )
+                        .await?;
+                        ChatId::set_protection_for_contact(
+                            context,
+                            to_contact_id,
+                            mimeparser.timestamp_sent,
+                        )
+                        .await?;
                     }
                 } else {
                     // The contact already has a verified key.

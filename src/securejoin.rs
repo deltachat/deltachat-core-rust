@@ -689,22 +689,17 @@ async fn secure_connection_established(
     chat_id: ChatId,
     timestamp: i64,
 ) -> Result<()> {
-    if context
-        .get_config_bool(Config::VerifiedOneOnOneChats)
+    let private_chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Yes)
         .await?
-    {
-        let private_chat_id = ChatIdBlocked::get_for_contact(context, contact_id, Blocked::Yes)
-            .await?
-            .id;
-        private_chat_id
-            .set_protection(
-                context,
-                ProtectionStatus::Protected,
-                timestamp,
-                Some(contact_id),
-            )
-            .await?;
-    }
+        .id;
+    private_chat_id
+        .set_protection(
+            context,
+            ProtectionStatus::Protected,
+            timestamp,
+            Some(contact_id),
+        )
+        .await?;
     context.emit_event(EventType::ChatModified(chat_id));
     Ok(())
 }

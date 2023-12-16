@@ -9,7 +9,6 @@ use super::bobstate::{BobHandshakeStage, BobState};
 use super::qrinvite::QrInvite;
 use super::HandshakeMessage;
 use crate::chat::{is_contact_in_chat, ChatId, ProtectionStatus};
-use crate::config::Config;
 use crate::constants::{Blocked, Chattype};
 use crate::contact::Contact;
 use crate::context::Context;
@@ -225,21 +224,14 @@ impl BobState {
     async fn notify_peer_verified(&self, context: &Context, timestamp: i64) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
         let chat_id = self.joining_chat_id(context).await?;
-
-        if context
-            .get_config_bool(Config::VerifiedOneOnOneChats)
-            .await?
-        {
-            self.alice_chat()
-                .set_protection(
-                    context,
-                    ProtectionStatus::Protected,
-                    timestamp,
-                    Some(contact.id),
-                )
-                .await?;
-        }
-
+        self.alice_chat()
+            .set_protection(
+                context,
+                ProtectionStatus::Protected,
+                timestamp,
+                Some(contact.id),
+            )
+            .await?;
         context.emit_event(EventType::ChatModified(chat_id));
         Ok(())
     }
