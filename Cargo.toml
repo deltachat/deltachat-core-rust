@@ -32,6 +32,7 @@ strip = true
 
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
+deltachat-time = { path = "./deltachat-time" }
 format-flowed = { path = "./format-flowed" }
 ratelimit = { path = "./deltachat-ratelimit" }
 
@@ -128,6 +129,7 @@ members = [
   "deltachat-rpc-server",
   "deltachat-ratelimit",
   "deltachat-repl",
+  "deltachat-time",
   "format-flowed",
 ]
 

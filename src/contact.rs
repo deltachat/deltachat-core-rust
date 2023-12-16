@@ -6,7 +6,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
@@ -36,7 +36,7 @@ use crate::sql::{self, params_iter};
 use crate::sync::{self, Sync::*};
 use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
-    EmailAddress,
+    EmailAddress, SystemTime,
 };
 use crate::{chat, stock_str};
 

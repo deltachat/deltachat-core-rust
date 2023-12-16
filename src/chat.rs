@@ -6,7 +6,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::{anyhow, bail, ensure, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
@@ -44,7 +44,7 @@ use crate::sync::{self, Sync::*, SyncData};
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
     create_smeared_timestamps, get_abs_path, gm2local_offset, improve_single_line_input,
-    smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty,
+    smeared_time, strip_rtlo_characters, time, IsNoneOrEmpty, SystemTime,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
 
@@ -3656,7 +3656,7 @@ pub enum MuteDuration {
     Forever,
 
     /// Chat is muted for a limited period of time.
-    Until(SystemTime),
+    Until(std::time::SystemTime),
 }
 
 impl rusqlite::types::ToSql for MuteDuration {

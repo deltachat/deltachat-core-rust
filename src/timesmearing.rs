@@ -79,11 +79,11 @@ impl SmearedTimestamp {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
-
     use super::*;
     use crate::test_utils::TestContext;
-    use crate::tools::{create_smeared_timestamp, create_smeared_timestamps, smeared_time, time};
+    use crate::tools::{
+        create_smeared_timestamp, create_smeared_timestamps, smeared_time, time, SystemTime,
+    };
 
     #[test]
     fn test_smeared_timestamp() {
