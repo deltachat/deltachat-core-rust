@@ -1103,6 +1103,7 @@ dependencies = [
  "brotli",
  "chrono",
  "criterion",
+ "deltachat-time",
  "deltachat_derive",
  "email",
  "encoded-words",
@@ -1222,6 +1223,10 @@ dependencies = [
  "tokio-util",
  "yerpc",
 ]
+
+[[package]]
+name = "deltachat-time"
+version = "1.0.0"
 
 [[package]]
 name = "deltachat_derive"

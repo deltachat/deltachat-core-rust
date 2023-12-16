@@ -319,7 +319,7 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     use anyhow::bail;
 
@@ -329,6 +329,7 @@ mod tests {
     use crate::contact::{Contact, Origin};
     use crate::test_utils::TestContext;
     use crate::token::Namespace;
+    use crate::tools::SystemTime;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_config_sync_msgs() -> Result<()> {

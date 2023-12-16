@@ -21,7 +21,7 @@ use crate::message::{Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::{deduplicate_peerstates, Peerstate};
 use crate::stock_str;
-use crate::tools::{delete_file, time};
+use crate::tools::{delete_file, time, SystemTime};
 
 /// Extension to [`rusqlite::ToSql`] trait
 /// which also includes [`Send`] and [`Sync`].
@@ -850,9 +850,9 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
             Ok(mut dir_handle) => {
                 /* avoid deletion of files that are just created to build a message object */
                 let diff = std::time::Duration::from_secs(60 * 60);
-                let keep_files_newer_than = std::time::SystemTime::now()
+                let keep_files_newer_than = SystemTime::now()
                     .checked_sub(diff)
-                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    .unwrap_or(SystemTime::UNIX_EPOCH);
 
                 while let Ok(Some(entry)) = dir_handle.next_entry().await {
                     let name_f = entry.file_name();

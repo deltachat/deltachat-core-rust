@@ -12,6 +12,7 @@ use crate::mimeparser::SystemMessage;
 use crate::receive_imf::receive_imf;
 use crate::stock_str;
 use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
+use crate::tools::SystemTime;
 use crate::{e2ee, message};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -792,10 +793,9 @@ async fn test_create_protected_grp_multidev() -> Result<()> {
     );
 
     let sent = alice.send_text(group_id, "Hey").await;
-    // This sleep is necessary to reproduce the bug when the original message is sorted over the
-    // "protection enabled" message so that these messages have different timestamps. The better way
-    // would be to adjust the system time here if we could mock the system clock for the tests.
-    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+    // This time shift is necessary to reproduce the bug when the original message is sorted over
+    // the "protection enabled" message so that these messages have different timestamps.
+    SystemTime::shift(std::time::Duration::from_secs(3600));
     let msg = alice1.recv_msg(&sent).await;
     let group1 = Chat::load_from_db(alice1, msg.chat_id).await?;
     assert_eq!(group1.get_type(), Chattype::Group);

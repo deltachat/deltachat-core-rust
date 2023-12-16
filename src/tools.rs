@@ -15,12 +15,16 @@ use std::str::from_utf8;
 // while being in deep sleep mode, we use `SystemTime` instead, but add an alias for it to document
 // why `Instant` isn't used in those places. Also this can help to switch to another clock impl if
 // we find any.
+use std::time::Duration;
 pub use std::time::SystemTime as Time;
-use std::time::{Duration, SystemTime};
+#[cfg(not(test))]
+pub use std::time::SystemTime;
 
 use anyhow::{bail, Context as _, Result};
 use base64::Engine as _;
 use chrono::{Local, NaiveDateTime, NaiveTime, TimeZone};
+#[cfg(test)]
+pub use deltachat_time::SystemTimeTools as SystemTime;
 use futures::{StreamExt, TryStreamExt};
 use mailparse::dateparse;
 use mailparse::headers::Headers;

@@ -67,7 +67,7 @@ use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{ensure, Result};
 use async_channel::Receiver;
@@ -85,7 +85,7 @@ use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::sql::{self, params_iter};
 use crate::stock_str;
-use crate::tools::{duration_to_str, time};
+use crate::tools::{duration_to_str, time, SystemTime};
 
 /// Ephemeral timer value.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
