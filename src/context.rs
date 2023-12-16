@@ -526,6 +526,9 @@ impl Context {
         tokio::spawn(async move {
             drop_rx.await.ok();
             let mut s = context.running_state.write().await;
+            if let RunningState::ShallStop { request } = *s {
+                info!(context, "Ongoing stopped in {:?}", request.elapsed());
+            }
             *s = RunningState::Stopped;
         });
 
