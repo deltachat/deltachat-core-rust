@@ -62,8 +62,15 @@ pub enum MediaQuality {
 pub enum KeyGenType {
     #[default]
     Default = 0,
+
+    /// 2048-bit RSA.
     Rsa2048 = 1,
+
+    /// [Ed25519](https://ed25519.cr.yp.to/) signature and X25519 encryption.
     Ed25519 = 2,
+
+    /// 4096-bit RSA.
+    Rsa4096 = 3,
 }
 
 /// Video chat URL type.
@@ -118,7 +125,6 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 /// Chat type.
 #[derive(
     Debug,
-    Default,
     Display,
     Clone,
     Copy,
@@ -134,10 +140,6 @@ pub const DC_CHAT_ID_LAST_SPECIAL: ChatId = ChatId::new(9);
 )]
 #[repr(u32)]
 pub enum Chattype {
-    /// Undefined chat type.
-    #[default]
-    Undefined = 0,
-
     /// 1:1 chat.
     Single = 100,
 
@@ -192,11 +194,15 @@ pub const DC_LP_AUTH_FLAGS: i32 = DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL;
 /// How many existing messages shall be fetched after configuration.
 pub(crate) const DC_FETCH_EXISTING_MSGS_COUNT: i64 = 100;
 
+// max. weight of images to send w/o recoding
+pub const BALANCED_IMAGE_BYTES: usize = 500_000;
+pub const WORSE_IMAGE_BYTES: usize = 130_000;
+
 // max. width/height of an avatar
 pub(crate) const BALANCED_AVATAR_SIZE: u32 = 256;
 pub(crate) const WORSE_AVATAR_SIZE: u32 = 128;
 
-// max. width/height of images
+// max. width/height of images scaled down because of being too huge
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
 pub const WORSE_IMAGE_SIZE: u32 = 640;
 
@@ -212,8 +218,6 @@ mod tests {
     #[test]
     fn test_chattype_values() {
         // values may be written to disk and must not change
-        assert_eq!(Chattype::Undefined, Chattype::default());
-        assert_eq!(Chattype::Undefined, Chattype::from_i32(0).unwrap());
         assert_eq!(Chattype::Single, Chattype::from_i32(100).unwrap());
         assert_eq!(Chattype::Group, Chattype::from_i32(120).unwrap());
         assert_eq!(Chattype::Mailinglist, Chattype::from_i32(140).unwrap());
@@ -227,6 +231,7 @@ mod tests {
         assert_eq!(KeyGenType::Default, KeyGenType::from_i32(0).unwrap());
         assert_eq!(KeyGenType::Rsa2048, KeyGenType::from_i32(1).unwrap());
         assert_eq!(KeyGenType::Ed25519, KeyGenType::from_i32(2).unwrap());
+        assert_eq!(KeyGenType::Rsa4096, KeyGenType::from_i32(3).unwrap());
     }
 
     #[test]

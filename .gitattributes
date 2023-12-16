@@ -2,6 +2,14 @@
 # ensures this even if the user has not set core.autocrlf.
 *  text=auto
 
+# Checkout JavaScript files with LF line endings
+# to prevent `prettier` from reporting errors on Windows.
+*.js eol=lf
+*.jsx eol=lf
+*.ts eol=lf
+*.tsx eol=lf
+*.json eol=lf
+
 # This directory contains email messages verbatim, and changing CRLF to
 # LF will corrupt them.
 test-data/** text=false

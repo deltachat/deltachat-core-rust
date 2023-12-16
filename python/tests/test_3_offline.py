@@ -4,12 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from deltachat import Account, const
+import deltachat as dc
 from deltachat.capi import ffi, lib
 from deltachat.cutil import iter_array
-from deltachat.hookspec import account_hookimpl
-from deltachat.message import Message
 from deltachat.tracker import ImexFailed
+from deltachat import Account, account_hookimpl, Message
 
 
 @pytest.mark.parametrize(
@@ -52,26 +51,25 @@ def test_parse_system_add_remove(msgtext, res):
 
 
 class TestOfflineAccountBasic:
-    def test_wrong_db(self, tmpdir):
-        p = tmpdir.join("hello.db")
-        p.write("123")
-        account = Account(p.strpath)
+    def test_wrong_db(self, tmp_path):
+        p = tmp_path / "hello.db"
+        p.write_text("123")
+        account = Account(str(p))
         assert not account.is_open()
 
-    def test_os_name(self, tmpdir):
-        p = tmpdir.join("hello.db")
+    def test_os_name(self, tmp_path):
+        p = tmp_path / "hello.db"
         # we can't easily test if os_name is used in X-Mailer
         # outgoing messages without a full Online test
         # but we at least check Account accepts the arg
-        ac1 = Account(p.strpath, os_name="solarpunk")
+        ac1 = Account(str(p), os_name="solarpunk")
         ac1.get_info()
 
     def test_preconfigure_keypair(self, acfactory, data):
         ac = acfactory.get_unconfigured_account()
-        alice_public = data.read_path("key/alice-public.asc")
         alice_secret = data.read_path("key/alice-secret.asc")
-        assert alice_public and alice_secret
-        ac._preconfigure_keypair("alice@example.org", alice_public, alice_secret)
+        assert alice_secret
+        ac._preconfigure_keypair("alice@example.org", alice_secret)
 
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
@@ -299,13 +297,13 @@ class TestOfflineChat:
         assert not d["draft"] if chat.get_draft() is None else chat.get_draft()
 
     def test_group_chat_creation_with_translation(self, ac1):
-        ac1.set_stock_translation(const.DC_STR_GROUP_NAME_CHANGED_BY_YOU, "abc %1$s xyz %2$s")
+        ac1.set_stock_translation(dc.const.DC_STR_GROUP_NAME_CHANGED_BY_YOU, "abc %1$s xyz %2$s")
         ac1._evtracker.consume_events()
         with pytest.raises(ValueError):
-            ac1.set_stock_translation(const.DC_STR_FILE, "xyz %1$s")
+            ac1.set_stock_translation(dc.const.DC_STR_FILE, "xyz %1$s")
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
         with pytest.raises(ValueError):
-            ac1.set_stock_translation(const.DC_STR_CONTACT_NOT_VERIFIED, "xyz %2$s")
+            ac1.set_stock_translation(dc.const.DC_STR_CONTACT_NOT_VERIFIED, "xyz %2$s")
         ac1._evtracker.get_matching("DC_EVENT_WARNING")
         with pytest.raises(ValueError):
             ac1.set_stock_translation(500, "xyz %1$s")
@@ -481,6 +479,19 @@ class TestOfflineChat:
         contact2 = ac1.create_contact("display1 <x@example.org>", "real")
         assert contact2.name == "real"
 
+    def test_send_lots_of_offline_msgs(self, acfactory):
+        ac1 = acfactory.get_pseudo_configured_account()
+        ac1.set_config("configured_mail_server", "example.org")
+        ac1.set_config("configured_mail_user", "example.org")
+        ac1.set_config("configured_mail_pw", "example.org")
+        ac1.set_config("configured_send_server", "example.org")
+        ac1.set_config("configured_send_user", "example.org")
+        ac1.set_config("configured_send_pw", "example.org")
+        ac1.start_io()
+        chat = ac1.create_contact("some1@example.org", name="some1").create_chat()
+        for i in range(50):
+            chat.send_text("hello")
+
     def test_create_chat_simple(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
         contact1 = ac1.create_contact("some1@example.org", name="some1")
@@ -496,22 +507,22 @@ class TestOfflineChat:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_import_export_on_unencrypted_acct(self, acfactory, tmpdir):
-        backupdir = tmpdir.mkdir("backup")
+    def test_import_export_on_unencrypted_acct(self, acfactory, tmp_path):
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
-        path = ac1.export_all(backupdir.strpath)
+        path = ac1.export_all(str(backupdir))
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_all(path)
@@ -525,27 +536,27 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_export_on_encrypted_acct(self, acfactory, tmpdir):
+    def test_import_export_on_encrypted_acct(self, acfactory, tmp_path):
         passphrase1 = "passphrase1"
         passphrase2 = "passphrase2"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account(passphrase=passphrase1)
 
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath)
+        path = ac1.export_all(str(backupdir))
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account(closed=True)
@@ -580,27 +591,27 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_export_with_passphrase(self, acfactory, tmpdir):
+    def test_import_export_with_passphrase(self, acfactory, tmp_path):
         passphrase = "test_passphrase"
         wrong_passphrase = "wrong_passprase"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
         ac1 = acfactory.get_pseudo_configured_account()
 
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath, passphrase)
+        path = ac1.export_all(str(backupdir), passphrase)
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account()
@@ -619,7 +630,7 @@ class TestOfflineChat:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmpdir):
+    def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmp_path):
         """
         Test that account passphrase isn't lost if backup failed to be imported.
         See https://github.com/deltachat/deltachat-core-rust/issues/3379
@@ -627,24 +638,24 @@ class TestOfflineChat:
         acct_passphrase = "passphrase1"
         bak_passphrase = "passphrase2"
         wrong_passphrase = "wrong_passprase"
-        backupdir = tmpdir.mkdir("backup")
+        backupdir = tmp_path / "backup"
+        backupdir.mkdir()
 
         ac1 = acfactory.get_pseudo_configured_account()
         chat = ac1.create_contact("some1 <some1@example.org>").create_chat()
         # send a text message
         msg = chat.send_text("msg1")
         # send a binary file
-        bin = tmpdir.join("some.bin")
-        with bin.open("w") as f:
-            f.write("\00123" * 10000)
-        msg = chat.send_file(bin.strpath)
+        bin = tmp_path / "some.bin"
+        bin.write_bytes(b"\00123" * 10000)
+        msg = chat.send_file(str(bin))
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-        assert not backupdir.listdir()
+        assert not list(backupdir.iterdir())
         ac1.stop_io()
 
-        path = ac1.export_all(backupdir.strpath, bak_passphrase)
+        path = ac1.export_all(str(backupdir), bak_passphrase)
         assert os.path.exists(path)
 
         ac2 = acfactory.get_unconfigured_account(closed=True)
@@ -805,7 +816,7 @@ class TestOfflineChat:
 
         lp.sec("check message count of only system messages (without daymarkers)")
         dc_array = ffi.gc(
-            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, const.DC_GCM_INFO_ONLY, 0),
+            lib.dc_get_chat_msgs(ac1._dc_context, chat.id, dc.const.DC_GCM_INFO_ONLY, 0),
             lib.dc_array_unref,
         )
         assert len(list(iter_array(dc_array, lambda x: x))) == 2

@@ -1,4 +1,10 @@
-# Manually triggered action to build deltachat-rpc-server binaries.
+# GitHub Actions workflow
+# to build `deltachat-rpc-server` binaries
+# and upload them to the release.
+#
+# The workflow is automatically triggered on releases.
+# It can also be triggered manually
+# to produce binary artifacts for testing.
 
 name: Build deltachat-rpc-server binaries
 
@@ -20,35 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Build
+      - name: Install ziglang
+        run: pip install wheel ziglang==0.11.0
+
+      - name: Build deltachat-rpc-server binaries
         run: sh scripts/zig-rpc-server.sh
 
-      - name: Upload x86_64 binary
+      - name: Upload dist directory with Linux binaries
         uses: actions/upload-artifact@v3
         with:
-          name: deltachat-rpc-server-x86_64
-          path: target/x86_64-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
-
-      - name: Upload i686 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-i686
-          path: target/i686-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
-
-      - name: Upload aarch64 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-aarch64
-          path: target/aarch64-unknown-linux-musl/release/deltachat-rpc-server
-          if-no-files-found: error
-
-      - name: Upload armv7 binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: deltachat-rpc-server-armv7
-          path: target/armv7-unknown-linux-musleabihf/release/deltachat-rpc-server
+          name: linux
+          path: dist/
           if-no-files-found: error
 
   build_windows:
@@ -84,22 +72,89 @@ jobs:
           path: target/${{ matrix.target}}/release/${{ matrix.path }}
           if-no-files-found: error
 
+  build_macos:
+    name: Build deltachat-rpc-server for macOS
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+          - arch: aarch64
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup rust target
+        run: rustup target add ${{ matrix.arch }}-apple-darwin
+
+      - name: Build
+        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.arch }}-apple-darwin --features vendored
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: deltachat-rpc-server-${{ matrix.arch }}-macos
+          path: target/${{ matrix.arch }}-apple-darwin/release/deltachat-rpc-server
+          if-no-files-found: error
+
   publish:
-    name: Upload binaries to the release
-    needs: ["build_linux", "build_windows"]
+    name: Build wheels and upload binaries to the release
+    needs: ["build_linux", "build_windows", "build_macos"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
     steps:
-      - name: Download built binaries
-        uses: "actions/download-artifact@v3"
+      - uses: actions/checkout@v3
 
-      - name: Compose dist/ directory
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: linux
+          path: dist/
+
+      - name: Download win32 binary
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-win32.exe
+          path: deltachat-rpc-server-win32.exe.d
+
+      - name: Download win64 binary
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-win64.exe
+          path: deltachat-rpc-server-win64.exe.d
+
+      - name: Download macOS binary for x86_64
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-x86_64-macos
+          path: deltachat-rpc-server-x86_64-macos.d
+
+      - name: Download macOS binary for aarch64
+        uses: actions/download-artifact@v3
+        with:
+          name: deltachat-rpc-server-aarch64-macos
+          path: deltachat-rpc-server-aarch64-macos.d
+
+      - name: Flatten dist/ directory
         run: |
-          mkdir dist
-          for x in x86_64 i686 aarch64 armv7 win32.exe win64.exe; do
-            mv "deltachat-rpc-server-$x"/* "dist/deltachat-rpc-server-$x"
-          done
+          mv deltachat-rpc-server-win32.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win32.exe
+          mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
+          mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
+          mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
+
+      # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
+      - name: Install python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install wheel
+        run: pip install wheel
+
+      - name: Build deltachat-rpc-server Python wheels and source package
+        run: scripts/wheel-rpc-server.py
 
       - name: List downloaded artifacts
         run: ls -l dist/

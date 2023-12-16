@@ -4,48 +4,47 @@ use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 pub use deltachat::accounts::Accounts;
-use deltachat::qr::Qr;
-use deltachat::{
-    chat::{
-        self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
-        marknoticed_chat, remove_contact_from_chat, Chat, ChatId, ChatItem, MessageListOptions,
-        ProtectionStatus,
-    },
-    chatlist::Chatlist,
-    config::Config,
-    constants::DC_MSG_ID_DAYMARKER,
-    contact::{may_be_valid_addr, Contact, ContactId, Origin},
-    context::get_info,
-    ephemeral::Timer,
-    imex, location,
-    message::{
-        self, delete_msgs, get_msg_info, markseen_msgs, Message, MessageState, MsgId, Viewtype,
-    },
-    provider::get_provider_info,
-    qr,
-    qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg},
-    reaction::send_reaction,
-    securejoin,
-    stock_str::StockMessage,
-    webxdc::StatusUpdateSerial,
+use deltachat::chat::{
+    self, add_contact_to_chat, forward_msgs, get_chat_media, get_chat_msgs, get_chat_msgs_ex,
+    marknoticed_chat, remove_contact_from_chat, Chat, ChatId, ChatItem, MessageListOptions,
+    ProtectionStatus,
 };
+use deltachat::chatlist::Chatlist;
+use deltachat::config::Config;
+use deltachat::constants::DC_MSG_ID_DAYMARKER;
+use deltachat::contact::{may_be_valid_addr, Contact, ContactId, Origin};
+use deltachat::context::get_info;
+use deltachat::ephemeral::Timer;
+use deltachat::imex;
+use deltachat::location;
+use deltachat::message::get_msg_read_receipts;
+use deltachat::message::{
+    self, delete_msgs, markseen_msgs, Message, MessageState, MsgId, Viewtype,
+};
+use deltachat::provider::get_provider_info;
+use deltachat::qr::{self, Qr};
+use deltachat::qr_code_generator::{generate_backup_qr, get_securejoin_qr_svg};
+use deltachat::reaction::{get_msg_reactions, send_reaction};
+use deltachat::securejoin;
+use deltachat::stock_str::StockMessage;
+use deltachat::webxdc::StatusUpdateSerial;
 use sanitize_filename::is_sanitized;
 use tokio::fs;
 use tokio::sync::{watch, Mutex, RwLock};
 use walkdir::WalkDir;
 use yerpc::rpc;
 
-pub mod events;
 pub mod types;
 
 use num_traits::FromPrimitive;
 use types::account::Account;
 use types::chat::FullChat;
-use types::chat_list::ChatListEntry;
 use types::contact::ContactObject;
-use types::message::MessageData;
-use types::message::MessageObject;
+use types::events::Event;
+use types::http::HttpResponse;
+use types::message::{MessageData, MessageObject, MessageReadReceipt};
 use types::provider_info::ProviderInfo;
+use types::reactions::JSONRPCReactions;
 use types::webxdc::WebxdcMessageInfo;
 
 use self::types::message::MessageLoadResult;
@@ -154,14 +153,24 @@ impl CommandApi {
     //  Misc top level functions
     // ---------------------------------------------
 
-    /// Check if an email address is valid.
+    /// Checks if an email address is valid.
     async fn check_email_validity(&self, email: String) -> bool {
         may_be_valid_addr(&email)
     }
 
-    /// Get general system info.
+    /// Returns general system info.
     async fn get_system_info(&self) -> BTreeMap<&'static str, String> {
         get_info()
+    }
+
+    /// Get the next event.
+    async fn get_next_event(&self) -> Result<Event> {
+        let event_emitter = self.accounts.read().await.get_event_emitter();
+        event_emitter
+            .recv()
+            .await
+            .map(|event| event.into())
+            .context("event channel is closed")
     }
 
     // ---------------------------------------------
@@ -205,18 +214,18 @@ impl CommandApi {
             let context_option = self.accounts.read().await.get_account(id);
             if let Some(ctx) = context_option {
                 accounts.push(Account::from_context(&ctx, id).await?)
-            } else {
-                println!("account with id {id} doesn't exist anymore");
             }
         }
         Ok(accounts)
     }
 
+    /// Starts background tasks for all accounts.
     async fn start_io_for_all_accounts(&self) -> Result<()> {
         self.accounts.read().await.start_io().await;
         Ok(())
     }
 
+    /// Stops background tasks for all accounts.
     async fn stop_io_for_all_accounts(&self) -> Result<()> {
         self.accounts.read().await.stop_io().await;
         Ok(())
@@ -226,14 +235,16 @@ impl CommandApi {
     // Methods that work on individual accounts
     // ---------------------------------------------
 
-    async fn start_io(&self, id: u32) -> Result<()> {
-        let ctx = self.get_context(id).await?;
+    /// Starts background tasks for a single account.
+    async fn start_io(&self, account_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
         ctx.start_io().await;
         Ok(())
     }
 
-    async fn stop_io(&self, id: u32) -> Result<()> {
-        let ctx = self.get_context(id).await?;
+    /// Stops background tasks for a single account.
+    async fn stop_io(&self, account_id: u32) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
         Ok(())
     }
@@ -300,11 +311,13 @@ impl CommandApi {
         ctx.get_info().await
     }
 
+    /// Sets the given configuration key.
     async fn set_config(&self, account_id: u32, key: String, value: Option<String>) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         set_config(&ctx, &key, value.as_deref()).await
     }
 
+    /// Updates a batch of configuration values.
     async fn batch_set_config(
         &self,
         account_id: u32,
@@ -336,6 +349,7 @@ impl CommandApi {
         Ok(qr_object)
     }
 
+    /// Returns configuration value for the given key.
     async fn get_config(&self, account_id: u32, key: String) -> Result<Option<String>> {
         let ctx = self.get_context(account_id).await?;
         get_config(&ctx, &key).await
@@ -539,7 +553,7 @@ impl CommandApi {
         list_flags: Option<u32>,
         query_string: Option<String>,
         query_contact_id: Option<u32>,
-    ) -> Result<Vec<ChatListEntry>> {
+    ) -> Result<Vec<u32>> {
         let ctx = self.get_context(account_id).await?;
         let list = Chatlist::try_load(
             &ctx,
@@ -548,32 +562,43 @@ impl CommandApi {
             query_contact_id.map(ContactId::new),
         )
         .await?;
-        let mut l: Vec<ChatListEntry> = Vec::with_capacity(list.len());
+        let mut l: Vec<u32> = Vec::with_capacity(list.len());
         for i in 0..list.len() {
-            l.push(ChatListEntry(
-                list.get_chat_id(i)?.to_u32(),
-                list.get_msg_id(i)?.unwrap_or_default().to_u32(),
-            ));
+            l.push(list.get_chat_id(i)?.to_u32());
         }
         Ok(l)
+    }
+
+    /// Returns chats similar to the given one.
+    ///
+    /// Experimental API, subject to change without notice.
+    async fn get_similar_chat_ids(&self, account_id: u32, chat_id: u32) -> Result<Vec<u32>> {
+        let ctx = self.get_context(account_id).await?;
+        let chat_id = ChatId::new(chat_id);
+        let list = chat_id
+            .get_similar_chat_ids(&ctx)
+            .await?
+            .into_iter()
+            .map(|(chat_id, _metric)| chat_id.to_u32())
+            .collect();
+        Ok(list)
     }
 
     async fn get_chatlist_items_by_entries(
         &self,
         account_id: u32,
-        entries: Vec<ChatListEntry>,
+        entries: Vec<u32>,
     ) -> Result<HashMap<u32, ChatListItemFetchResult>> {
-        // todo custom json deserializer for ChatListEntry?
         let ctx = self.get_context(account_id).await?;
         let mut result: HashMap<u32, ChatListItemFetchResult> =
             HashMap::with_capacity(entries.len());
-        for entry in entries.iter() {
+        for &entry in entries.iter() {
             result.insert(
-                entry.0,
+                entry,
                 match get_chat_list_item_by_id(&ctx, entry).await {
                     Ok(res) => res,
                     Err(err) => ChatListItemFetchResult::Error {
-                        id: entry.0,
+                        id: entry,
                         error: format!("{err:#}"),
                     },
                 },
@@ -790,24 +815,12 @@ impl CommandApi {
     /// Create a new broadcast list.
     ///
     /// Broadcast lists are similar to groups on the sending device,
-    /// however, recipients get the messages in normal one-to-one chats
-    /// and will not be aware of other members.
+    /// however, recipients get the messages in a read-only chat
+    /// and will see who the other members are.
     ///
-    /// Replies to broadcasts go only to the sender
-    /// and not to all broadcast recipients.
-    /// Moreover, replies will not appear in the broadcast list
-    /// but in the one-to-one chat with the person answering.
-    ///
-    /// The name and the image of the broadcast list is set automatically
-    /// and is visible to the sender only.
-    /// Not asking for these data allows more focused creation
-    /// and we bypass the question who will get which data.
-    /// Also, many users will have at most one broadcast list
-    /// so, a generic name and image is sufficient at the first place.
-    ///
-    /// Later on, however, the name can be changed using dc_set_chat_name().
-    /// The image cannot be changed to have a unique, recognizable icon in the chat lists.
-    /// All in all, this is also what other messengers are doing here.
+    /// For historical reasons, this function does not take a name directly,
+    /// instead you have to set the name using dc_set_chat_name()
+    /// after creating the broadcast list.
     async fn create_broadcast_list(&self, account_id: u32) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         chat::create_broadcast_list(&ctx)
@@ -892,7 +905,7 @@ impl CommandApi {
     ) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(text));
+        msg.set_text(text);
         let message_id =
             deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg)).await?;
         Ok(message_id.to_u32())
@@ -1110,7 +1123,25 @@ impl CommandApi {
     /// max. text returned by dc_msg_get_text() (about 30000 characters).
     async fn get_message_info(&self, account_id: u32, message_id: u32) -> Result<String> {
         let ctx = self.get_context(account_id).await?;
-        get_msg_info(&ctx, MsgId::new(message_id)).await
+        MsgId::new(message_id).get_info(&ctx).await
+    }
+
+    /// Returns contacts that sent read receipts and the time of reading.
+    async fn get_message_read_receipts(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<Vec<MessageReadReceipt>> {
+        let ctx = self.get_context(account_id).await?;
+        let receipts = get_msg_read_receipts(&ctx, MsgId::new(message_id))
+            .await?
+            .iter()
+            .map(|(contact_id, ts)| MessageReadReceipt {
+                contact_id: contact_id.to_u32(),
+                timestamp: *ts,
+            })
+            .collect();
+        Ok(receipts)
     }
 
     /// Asks the core to start downloading a message fully.
@@ -1313,7 +1344,7 @@ impl CommandApi {
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
         let contact_id = ContactId::new(contact_id);
-        let contact = Contact::load_from_db(&ctx, contact_id).await?;
+        let contact = Contact::get_by_id(&ctx, contact_id).await?;
         let addr = contact.get_addr();
         Contact::create(&ctx, &name, addr).await?;
         Ok(())
@@ -1387,6 +1418,10 @@ impl CommandApi {
     ///
     /// one combined call for getting chat::get_next_media for both directions
     /// the manual chat::get_next_media in only one direction is not exposed by the jsonrpc yet
+    ///
+    /// Deprecated 2023-10-03, use `get_chat_media` method
+    /// and navigate the returned array instead.
+    #[allow(deprecated)]
     async fn get_neighboring_chat_media(
         &self,
         account_id: u32,
@@ -1658,6 +1693,15 @@ impl CommandApi {
         Ok(general_purpose::STANDARD_NO_PAD.encode(blob))
     }
 
+    /// Makes an HTTP GET request and returns a response.
+    ///
+    /// `url` is the HTTP or HTTPS URL.
+    async fn get_http_response(&self, account_id: u32, url: String) -> Result<HttpResponse> {
+        let ctx = self.get_context(account_id).await?;
+        let response = deltachat::net::read_url_blob(&ctx, &url).await?.into();
+        Ok(response)
+    }
+
     /// Forward messages to another chat.
     ///
     /// All types of messages can be forwarded,
@@ -1675,6 +1719,20 @@ impl CommandApi {
         forward_msgs(&ctx, &message_ids, ChatId::new(chat_id)).await
     }
 
+    /// Resend messages and make information available for newly added chat members.
+    /// Resending sends out the original message, however, recipients and webxdc-status may differ.
+    /// Clients that already have the original message can still ignore the resent message as
+    /// they have tracked the state by dedicated updates.
+    ///
+    /// Some messages cannot be resent, eg. info-messages, drafts, already pending messages or messages that are not sent by SELF.
+    ///
+    /// message_ids all message IDs that should be resend. All messages must belong to the same chat.
+    async fn resend_messages(&self, account_id: u32, message_ids: Vec<u32>) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        let message_ids: Vec<MsgId> = message_ids.into_iter().map(MsgId::new).collect();
+        chat::resend_msgs(&ctx, &message_ids).await
+    }
+
     async fn send_sticker(
         &self,
         account_id: u32,
@@ -1685,6 +1743,9 @@ impl CommandApi {
 
         let mut msg = Message::new(Viewtype::Sticker);
         msg.set_file(&sticker_path, None);
+
+        // JSON-rpc does not need heuristics to turn [Viewtype::Sticker] into [Viewtype::Image]
+        msg.force_sticker();
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())
@@ -1707,6 +1768,21 @@ impl CommandApi {
         Ok(message_id.to_u32())
     }
 
+    /// Returns reactions to the message.
+    async fn get_message_reactions(
+        &self,
+        account_id: u32,
+        message_id: u32,
+    ) -> Result<Option<JSONRPCReactions>> {
+        let ctx = self.get_context(account_id).await?;
+        let reactions = get_msg_reactions(&ctx, MsgId::new(message_id)).await?;
+        if reactions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(reactions.into()))
+        }
+    }
+
     async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
         let mut message = Message::new(if let Some(viewtype) = data.viewtype {
@@ -1716,9 +1792,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if data.text.is_some() {
-            message.set_text(data.text);
-        }
+        message.set_text(data.text.unwrap_or_default());
         if data.html.is_some() {
             message.set_html(data.html);
         }
@@ -1806,7 +1880,7 @@ impl CommandApi {
             .context("path conversion to string failed")
     }
 
-    /// save a sticker to a collection/folder in the account's sticker folder
+    /// Saves a sticker to a collection/folder in the account's sticker folder.
     async fn misc_save_sticker(
         &self,
         account_id: u32,
@@ -1899,7 +1973,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(text));
+        msg.set_text(text);
 
         let message_id = deltachat::chat::send_msg(&ctx, ChatId::new(chat_id), &mut msg).await?;
         Ok(message_id.to_u32())
@@ -1922,9 +1996,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if text.is_some() {
-            message.set_text(text);
-        }
+        message.set_text(text.unwrap_or_default());
         if let Some(file) = file {
             message.set_file(file, None);
         }
@@ -1968,9 +2040,7 @@ impl CommandApi {
         } else {
             Viewtype::Text
         });
-        if text.is_some() {
-            draft.set_text(text);
-        }
+        draft.set_text(text.unwrap_or_default());
         if let Some(file) = file {
             draft.set_file(file, None);
         }
@@ -1988,6 +2058,23 @@ impl CommandApi {
         }
 
         ChatId::new(chat_id).set_draft(&ctx, Some(&mut draft)).await
+    }
+
+    // send the chat's current set draft
+    async fn misc_send_draft(&self, account_id: u32, chat_id: u32) -> Result<u32> {
+        let ctx = self.get_context(account_id).await?;
+        if let Some(draft) = ChatId::new(chat_id).get_draft(&ctx).await? {
+            let mut draft = draft;
+            let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut draft)
+                .await?
+                .to_u32();
+            Ok(msg_id)
+        } else {
+            Err(anyhow!(
+                "chat with id {} doesn't have draft message",
+                chat_id
+            ))
+        }
     }
 }
 

@@ -49,7 +49,7 @@ use crate::blob::BlobDirContents;
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
 use crate::context::{Context, OngoingGuard};
 use crate::message::{Message, Viewtype};
-use crate::qr::Qr;
+use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
 use crate::{e2ee, EventType};
 
@@ -102,7 +102,7 @@ impl BackupProvider {
         let context_dir = context
             .get_blobdir()
             .parent()
-            .ok_or(anyhow!("Context dir not found"))?;
+            .ok_or_else(|| anyhow!("Context dir not found"))?;
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
@@ -266,7 +266,7 @@ impl BackupProvider {
             Ok(_) => {
                 context.emit_event(SendProgress::Completed.into());
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(backup_transfer_msg_body(context).await);
+                msg.text = backup_transfer_msg_body(context).await;
                 add_device_msg(context, None, Some(&mut msg)).await?;
             }
             Err(err) => {
@@ -384,10 +384,14 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         !context.is_configured().await?,
         "Cannot import backups to accounts in use."
     );
-    let _guard = context.scheduler.pause(context.clone()).await?;
-
     // Acquire global "ongoing" mutex.
     let mut cancel_token = context.alloc_ongoing().await?;
+    let _guard = context.scheduler.pause(context.clone()).await;
+    info!(
+        context,
+        "Running get_backup for {}",
+        qr::format_backup(&qr)?
+    );
     tokio::select! {
         biased;
         res = get_backup_inner(context, qr) => res,
@@ -482,7 +486,7 @@ async fn on_blob(
         let context_dir = context
             .get_blobdir()
             .parent()
-            .ok_or(anyhow!("Context dir not found"))?;
+            .ok_or_else(|| anyhow!("Context dir not found"))?;
         let dbfile = context_dir.join(DBFILE_BACKUP_NAME);
         if fs::metadata(&dbfile).await.is_ok() {
             fs::remove_file(&dbfile).await?;
@@ -596,7 +600,7 @@ mod tests {
         // Write a message in the self chat
         let self_chat = ctx0.get_self_chat().await;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hi there".to_string()));
+        msg.set_text("hi there".to_string());
         send_msg(&ctx0, self_chat.id, &mut msg).await.unwrap();
 
         // Send an attachment in the self chat
@@ -628,14 +632,16 @@ mod tests {
             _ => panic!("wrong chat item"),
         };
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
-        let text = msg.get_text().unwrap();
+        let text = msg.get_text();
         assert_eq!(text, "hi there");
         let msgid = match msgs.get(1).unwrap() {
             ChatItem::Message { msg_id } => msg_id,
             _ => panic!("wrong chat item"),
         };
         let msg = Message::load_from_db(&ctx1, *msgid).await.unwrap();
+
         let path = msg.get_file(&ctx1).unwrap();
+        assert_eq!(path.with_file_name("hello.txt"), path);
         let text = fs::read_to_string(&path).await.unwrap();
         assert_eq!(text, "i am attachment");
 

@@ -1,34 +1,28 @@
 import * as T from "../generated/types.js";
+import { EventType } from "../generated/types.js";
 import * as RPC from "../generated/jsonrpc.js";
 import { RawClient } from "../generated/client.js";
-import { Event } from "../generated/events.js";
 import { WebsocketTransport, BaseTransport, Request } from "yerpc";
 import { TinyEmitter } from "@deltachat/tiny-emitter";
 
-type DCWireEvent<T extends Event> = {
-  event: T;
-  contextId: number;
-};
-// export type Events = Record<
-//   Event["type"] | "ALL",
-//   (event: DeltaChatEvent<Event>) => void
-// >;
-
-type Events = { ALL: (accountId: number, event: Event) => void } & {
-  [Property in Event["type"]]: (
+type Events = { ALL: (accountId: number, event: EventType) => void } & {
+  [Property in EventType["kind"]]: (
     accountId: number,
-    event: Extract<Event, { type: Property }>
+    event: Extract<EventType, { kind: Property }>
   ) => void;
 };
 
-type ContextEvents = { ALL: (event: Event) => void } & {
-  [Property in Event["type"]]: (
-    event: Extract<Event, { type: Property }>
+type ContextEvents = { ALL: (event: EventType) => void } & {
+  [Property in EventType["kind"]]: (
+    event: Extract<EventType, { kind: Property }>
   ) => void;
 };
 
-export type DcEvent = Event;
-export type DcEventType<T extends Event["type"]> = Extract<Event, { type: T }>;
+export type DcEvent = EventType;
+export type DcEventType<T extends EventType["kind"]> = Extract<
+  EventType,
+  { kind: T }
+>;
 
 export class BaseDeltaChat<
   Transport extends BaseTransport<any>
@@ -36,27 +30,34 @@ export class BaseDeltaChat<
   rpc: RawClient;
   account?: T.Account;
   private contextEmitters: { [key: number]: TinyEmitter<ContextEvents> } = {};
-  constructor(public transport: Transport) {
+
+  //@ts-ignore
+  private eventTask: Promise<void>;
+
+  constructor(public transport: Transport, startEventLoop: boolean) {
     super();
     this.rpc = new RawClient(this.transport);
-    this.transport.on("request", (request: Request) => {
-      const method = request.method;
-      if (method === "event") {
-        const event = request.params! as DCWireEvent<Event>;
-        //@ts-ignore
-        this.emit(event.event.type, event.contextId, event.event as any);
-        this.emit("ALL", event.contextId, event.event as any);
+    if (startEventLoop) {
+      this.eventTask = this.eventLoop();
+    }
+  }
 
-        if (this.contextEmitters[event.contextId]) {
-          this.contextEmitters[event.contextId].emit(
-            event.event.type,
-            //@ts-ignore
-            event.event as any
-          );
-          this.contextEmitters[event.contextId].emit("ALL", event.event);
-        }
+  async eventLoop(): Promise<void> {
+    while (true) {
+      const event = await this.rpc.getNextEvent();
+      //@ts-ignore
+      this.emit(event.event.kind, event.contextId, event.event);
+      this.emit("ALL", event.contextId, event.event);
+
+      if (this.contextEmitters[event.contextId]) {
+        this.contextEmitters[event.contextId].emit(
+          event.event.kind,
+          //@ts-ignore
+          event.event as any
+        );
+        this.contextEmitters[event.contextId].emit("ALL", event.event as any);
       }
-    });
+    }
   }
 
   async listAccounts(): Promise<T.Account[]> {
@@ -75,10 +76,12 @@ export class BaseDeltaChat<
 
 export type Opts = {
   url: string;
+  startEventLoop: boolean;
 };
 
 export const DEFAULT_OPTS: Opts = {
   url: "ws://localhost:20808/ws",
+  startEventLoop: true,
 };
 export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
   opts: Opts;
@@ -86,20 +89,24 @@ export class DeltaChat extends BaseDeltaChat<WebsocketTransport> {
     this.transport.close();
   }
   constructor(opts?: Opts | string) {
-    if (typeof opts === "string") opts = { url: opts };
-    if (opts) opts = { ...DEFAULT_OPTS, ...opts };
-    else opts = { ...DEFAULT_OPTS };
+    if (typeof opts === "string") {
+      opts = { ...DEFAULT_OPTS, url: opts };
+    } else if (opts) {
+      opts = { ...DEFAULT_OPTS, ...opts };
+    } else {
+      opts = { ...DEFAULT_OPTS };
+    }
     const transport = new WebsocketTransport(opts.url);
-    super(transport);
+    super(transport, opts.startEventLoop);
     this.opts = opts;
   }
 }
 
 export class StdioDeltaChat extends BaseDeltaChat<StdioTransport> {
   close() {}
-  constructor(input: any, output: any) {
+  constructor(input: any, output: any, startEventLoop: boolean) {
     const transport = new StdioTransport(input, output);
-    super(transport);
+    super(transport, startEventLoop);
   }
 }
 

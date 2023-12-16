@@ -21,12 +21,15 @@ export class AccountManager extends EventEmitter {
   accountDir: string
   jsonRpcStarted = false
 
-  constructor(cwd: string, os = 'deltachat-node') {
+  constructor(cwd: string, writable = true) {
     super()
     debug('DeltaChat constructor')
 
     this.accountDir = cwd
-    this.dcn_accounts = binding.dcn_accounts_new(os, this.accountDir)
+    this.dcn_accounts = binding.dcn_accounts_new(
+      this.accountDir,
+      writable ? 1 : 0
+    )
   }
 
   getAllAccountIds() {

@@ -1,3 +1,6 @@
+# GitHub Actions workflow
+# to automatically approve PRs made by Dependabot.
+
 name: Dependabot auto-approve
 on: pull_request
 

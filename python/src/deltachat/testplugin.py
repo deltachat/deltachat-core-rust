@@ -9,7 +9,7 @@ import threading
 import time
 import weakref
 from queue import Queue
-from typing import Callable, List, Optional, Dict, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import pytest
 import requests
@@ -137,6 +137,9 @@ def pytest_report_header(config, startdir):
 
 @pytest.fixture(scope="session")
 def testprocess(request):
+    """Return live account configuration manager.
+
+    The returned object is a :class:`TestProcess` object."""
     return TestProcess(pytestconfig=request.config)
 
 
@@ -231,6 +234,8 @@ def write_dict_to_dir(dic, target_dir):
 
 @pytest.fixture()
 def data(request):
+    """Test data."""
+
     class Data:
         def __init__(self) -> None:
             # trying to find test data heuristically
@@ -473,10 +478,9 @@ class ACFactory:
         except IndexError:
             pass
         else:
-            fname_pub = self.data.read_path(f"key/{keyname}-public.asc")
             fname_sec = self.data.read_path(f"key/{keyname}-secret.asc")
-            if fname_pub and fname_sec:
-                account._preconfigure_keypair(addr, fname_pub, fname_sec)
+            if fname_sec:
+                account._preconfigure_keypair(addr, fname_sec)
                 return True
             print(f"WARN: could not use preconfigured keys for {addr!r}")
 
@@ -614,6 +618,7 @@ class ACFactory:
 
 @pytest.fixture()
 def acfactory(request, tmpdir, testprocess, data):
+    """Account factory."""
     am = ACFactory(request=request, tmpdir=tmpdir, testprocess=testprocess, data=data)
     yield am
     if hasattr(request.node, "rep_call") and request.node.rep_call.failed:
@@ -676,21 +681,17 @@ class BotProcess:
                     print("+++IGN:", line)
                     ignored.append(line)
 
-    def await_resync(self):
-        self.fnmatch_lines(
-            """
-            *Resync: collected * message IDs in folder INBOX*
-        """,
-        )
-
 
 @pytest.fixture()
 def tmp_db_path(tmpdir):
+    """Return a path inside the temporary directory where the database can be created."""
     return tmpdir.join("test.db").strpath
 
 
 @pytest.fixture()
 def lp():
+    """Log printer fixture."""
+
     class Printer:
         def sec(self, msg: str) -> None:
             print()

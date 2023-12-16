@@ -15,7 +15,7 @@ def as_dc_charpointer(obj):
 
 
 def iter_array(dc_array_t, constructor: Callable[[int], T]) -> Generator[T, None, None]:
-    for i in range(0, lib.dc_array_get_cnt(dc_array_t)):
+    for i in range(lib.dc_array_get_cnt(dc_array_t)):
         yield constructor(lib.dc_array_get_id(dc_array_t, i))
 
 

@@ -18,6 +18,7 @@ use deltachat::imex::*;
 use deltachat::location;
 use deltachat::log::LogExt;
 use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
+use deltachat::mimeparser::SystemMessage;
 use deltachat::peerstate::*;
 use deltachat::qr::*;
 use deltachat::reaction::send_reaction;
@@ -138,11 +139,7 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
         /* import a directory */
         let dir_name = std::path::Path::new(&real_spec);
         let dir = fs::read_dir(dir_name).await;
-        if dir.is_err() {
-            error!(context, "Import: Cannot open directory \"{}\".", &real_spec,);
-            return false;
-        } else {
-            let mut dir = dir.unwrap();
+        if let Ok(mut dir) = dir {
             while let Ok(Some(entry)) = dir.next_entry().await {
                 let name_f = entry.file_name();
                 let name = name_f.to_string_lossy();
@@ -154,6 +151,9 @@ async fn poke_spec(context: &Context, spec: Option<&str>) -> bool {
                     }
                 }
             }
+        } else {
+            error!(context, "Import: Cannot open directory \"{}\".", &real_spec);
+            return false;
         }
     }
     println!("Import: {} items read from \"{}\".", read_cnt, &real_spec);
@@ -187,6 +187,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         DownloadState::Available => " [⬇ Download available]",
         DownloadState::InProgress => " [⬇ Download in progress...]️",
         DownloadState::Failure => " [⬇ Download failed]",
+        DownloadState::Undecipherable => " [⬇ Decryption failed]",
     };
 
     let temp2 = timestamp_to_str(msg.get_timestamp());
@@ -199,7 +200,7 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
-        msgtext.unwrap_or_default(),
+        msgtext,
         if msg.has_html() { "[HAS-HTML]️" } else { "" },
         if msg.get_from_id() == ContactId::SELF {
             ""
@@ -210,7 +211,17 @@ async fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         } else {
             "[FRESH]"
         },
-        if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_info() {
+            if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO 🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionDisabled {
+                "[INFO 🛡️❌]"
+            } else {
+                "[INFO]"
+            }
+        } else {
+            ""
+        },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
                 "[VIDEOCHAT-INVITATION: {}, type={}]",
@@ -395,8 +406,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                  unpin <chat-id>\n\
                  mute <chat-id> [<seconds>]\n\
                  unmute <chat-id>\n\
-                 protect <chat-id>\n\
-                 unprotect <chat-id>\n\
                  delchat <chat-id>\n\
                  accept <chat-id>\n\
                  decline <chat-id>\n\
@@ -805,15 +814,30 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         }
         "chatinfo" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
+            let sel_chat_id = sel_chat.as_ref().unwrap().get_id();
 
-            let contacts =
-                chat::get_chat_contacts(&context, sel_chat.as_ref().unwrap().get_id()).await?;
+            let contacts = chat::get_chat_contacts(&context, sel_chat_id).await?;
             println!("Memberlist:");
 
             log_contactlist(&context, &contacts).await?;
+            println!("{} contacts", contacts.len());
+
+            let similar_chats = sel_chat_id.get_similar_chat_ids(&context).await?;
+            if !similar_chats.is_empty() {
+                println!("Similar chats: ");
+                for (similar_chat_id, metric) in similar_chats {
+                    let similar_chat = Chat::load_from_db(&context, similar_chat_id).await?;
+                    println!(
+                        "{} (#{}) {:.1}",
+                        similar_chat.name,
+                        similar_chat_id,
+                        100.0 * metric
+                    );
+                }
+            }
+
             println!(
-                "{} contacts\nLocation streaming: {}",
-                contacts.len(),
+                "Location streaming: {}",
                 location::is_sending_locations_to_chat(
                     &context,
                     Some(sel_chat.as_ref().unwrap().get_id())
@@ -878,7 +902,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             let latitude = arg1.parse()?;
             let longitude = arg2.parse()?;
 
-            let continue_streaming = location::set(&context, latitude, longitude, 0.).await;
+            let continue_streaming = location::set(&context, latitude, longitude, 0.).await?;
             if continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {
@@ -912,9 +936,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 Viewtype::File
             });
             msg.set_file(arg1, None);
-            if !arg2.is_empty() {
-                msg.set_text(Some(arg2.to_string()));
-            }
+            msg.set_text(arg2.to_string());
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
         "sendhtml" => {
@@ -926,11 +948,11 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             let mut msg = Message::new(Viewtype::Text);
             msg.set_html(Some(html.to_string()));
-            msg.set_text(Some(if arg2.is_empty() {
+            msg.set_text(if arg2.is_empty() {
                 path.file_name().unwrap().to_string_lossy().to_string()
             } else {
                 arg2.to_string()
-            }));
+            });
             chat::send_msg(&context, sel_chat.as_ref().unwrap().get_id(), &mut msg).await?;
         }
         "sendsyncmsg" => match context.send_sync_msg().await? {
@@ -979,7 +1001,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
 
             if !arg1.is_empty() {
                 let mut draft = Message::new(Viewtype::Text);
-                draft.set_text(Some(arg1.to_string()));
+                draft.set_text(arg1.to_string());
                 sel_chat
                     .as_ref()
                     .unwrap()
@@ -1003,7 +1025,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
                 "Please specify text to add as device message."
             );
             let mut msg = Message::new(Viewtype::Text);
-            msg.set_text(Some(arg1.to_string()));
+            msg.set_text(arg1.to_string());
             chat::add_device_msg(&context, None, Some(&mut msg)).await?;
         }
         "listmedia" => {
@@ -1058,20 +1080,6 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
             };
             chat::set_muted(&context, chat_id, duration).await?;
         }
-        "protect" | "unprotect" => {
-            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = ChatId::new(arg1.parse()?);
-            chat_id
-                .set_protection(
-                    &context,
-                    match arg0 {
-                        "protect" => ProtectionStatus::Protected,
-                        "unprotect" => ProtectionStatus::Unprotected,
-                        _ => unreachable!("arg0={:?}", arg0),
-                    },
-                )
-                .await?;
-        }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
             let chat_id = ChatId::new(arg1.parse()?);
@@ -1090,7 +1098,7 @@ pub async fn cmdline(context: Context, line: &str, chat_id: &mut ChatId) -> Resu
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = MsgId::new(arg1.parse()?);
-            let res = message::get_msg_info(&context, id).await?;
+            let res = id.get_info(&context).await?;
             println!("{res}");
         }
         "download" => {

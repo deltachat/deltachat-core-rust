@@ -26,10 +26,10 @@ impl PlainText {
     /// The function handles quotes, links, fixed and floating text paragraphs.
     pub fn to_html(&self) -> String {
         static LINKIFY_MAIL_RE: Lazy<regex::Regex> =
-            Lazy::new(|| regex::Regex::new(r#"\b([\w.\-+]+@[\w.\-]+)\b"#).unwrap());
+            Lazy::new(|| regex::Regex::new(r"\b([\w.\-+]+@[\w.\-]+)\b").unwrap());
 
         static LINKIFY_URL_RE: Lazy<regex::Regex> = Lazy::new(|| {
-            regex::Regex::new(r#"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)"#).unwrap()
+            regex::Regex::new(r"\b((http|https|ftp|ftps):[\w.,:;$/@!?&%\-~=#+]+)").unwrap()
         });
 
         let lines = split_lines(&self.text);
@@ -96,7 +96,12 @@ impl PlainText {
                 line += "<br/>\n";
             }
 
-            ret += &*line;
+            let len_with_indentation = line.len();
+            let line = line.trim_start_matches(' ');
+            for _ in line.len()..len_with_indentation {
+                ret += "&nbsp;";
+            }
+            ret += line;
         }
         ret += "</body></html>\n";
         ret
@@ -107,8 +112,8 @@ impl PlainText {
 mod tests {
     use super::*;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html() {
+    #[test]
+    fn test_plain_to_html() {
         let html = PlainText {
             text: r##"line 1
 line 2
@@ -122,7 +127,7 @@ http://link-at-start-of-line.org
         .to_html();
         assert_eq!(
             html,
-            r##"<!DOCTYPE html>
+            r#"<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="color-scheme" content="light dark" />
@@ -133,12 +138,12 @@ line with <a href="https://link-mid-of-line.org">https://link-mid-of-line.org</a
 <a href="http://link-at-start-of-line.org">http://link-at-start-of-line.org</a><br/>
 <br/>
 </body></html>
-"##
+"#
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_encapsulated() {
+    #[test]
+    fn test_plain_to_html_encapsulated() {
         let html = PlainText {
             text: r#"line with <http://encapsulated.link/?foo=_bar> here!"#.to_string(),
             flowed: false,
@@ -158,8 +163,8 @@ line with &lt;<a href="http://encapsulated.link/?foo=_bar">http://encapsulated.l
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_nolink() {
+    #[test]
+    fn test_plain_to_html_nolink() {
         let html = PlainText {
             text: r#"line with nohttp://no.link here"#.to_string(),
             flowed: false,
@@ -179,8 +184,8 @@ line with nohttp://no.link here<br/>
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_mailto() {
+    #[test]
+    fn test_plain_to_html_mailto() {
         let html = PlainText {
             text: r#"just an address: foo@bar.org another@one.de"#.to_string(),
             flowed: false,
@@ -200,8 +205,8 @@ just an address: <a href="mailto:foo@bar.org">foo@bar.org</a> <a href="mailto:an
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_flowed() {
+    #[test]
+    fn test_plain_to_html_flowed() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
             flowed: true,
@@ -224,8 +229,8 @@ line still line<br/>
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_flowed_delsp() {
+    #[test]
+    fn test_plain_to_html_flowed_delsp() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
             flowed: true,
@@ -248,8 +253,8 @@ linestill line<br/>
         );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_plain_to_html_fixed() {
+    #[test]
+    fn test_plain_to_html_fixed() {
         let html = PlainText {
             text: "line \nstill line\n>quote \n>still quote\n >no quote".to_string(),
             flowed: false,
@@ -267,7 +272,32 @@ line <br/>
 still line<br/>
 <em>&gt;quote </em><br/>
 <em>&gt;still quote</em><br/>
- &gt;no quote<br/>
+&nbsp;&gt;no quote<br/>
+</body></html>
+"#
+        );
+    }
+
+    #[test]
+    fn test_plain_to_html_indentation() {
+        let html = PlainText {
+            text: "def foo():\n    pass\n\ndef bar(x):\n    return x + 5".to_string(),
+            flowed: false,
+            delsp: false,
+        }
+        .to_html();
+        assert_eq!(
+            html,
+            r#"<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="color-scheme" content="light dark" />
+</head><body>
+def foo():<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;pass<br/>
+<br/>
+def bar(x):<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;return x + 5<br/>
 </body></html>
 "#
         );

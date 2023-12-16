@@ -1,8 +1,16 @@
-# Delta Chat Rust
+<p align="center">
+  <img alt="Delta Chat Logo" height="200px" src="https://raw.githubusercontent.com/deltachat/deltachat-pages/master/assets/blog/rust-delta.png">
+</p>
 
-> Deltachat-core written in Rust 
+<p align="center">
+  <a href="https://github.com/yoav-lavi/melody/actions/workflows/rust.yml">
+    <img alt="Rust CI" src="https://github.com/yoav-lavi/melody/actions/workflows/rust.yml/badge.svg">
+  </a>
+</p>
 
-[![Rust CI](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/deltachat/deltachat-core-rust/actions/workflows/ci.yml)
+<p align="center">
+The core library for Delta Chat, written in Rust
+</p>
 
 ## Installing Rust and Cargo
 
@@ -167,8 +175,8 @@ Language bindings are available for:
 
 - **C** \[[📂 source](./deltachat-ffi) | [📚 docs](https://c.delta.chat)\]
 - **Node.js** 
-  - over cffi (legacy): \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
-  - over jsonrpc built with napi.rs: \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
+  - over cffi: \[[📂 source](./node) | [📦 npm](https://www.npmjs.com/package/deltachat-node) | [📚 docs](https://js.delta.chat)\]
+  - over jsonrpc built with napi.rs (experimental): \[[📂 source](https://github.com/deltachat/napi-jsonrpc) | [📦 npm](https://www.npmjs.com/package/@deltachat/napi-jsonrpc)\]
 - **Python** \[[📂 source](./python) | [📦 pypi](https://pypi.org/project/deltachat) | [📚 docs](https://py.delta.chat)\]
 - **Go**
   - over jsonrpc: \[[📂 source](https://github.com/deltachat/deltachat-rpc-client-go/)\]

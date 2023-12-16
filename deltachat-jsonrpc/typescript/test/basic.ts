@@ -12,7 +12,7 @@ describe("basic tests", () => {
 
   before(async () => {
     serverHandle = await startServer();
-    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout);
+    dc = new DeltaChat(serverHandle.stdin, serverHandle.stdout, true);
     // dc.on("ALL", (event) => {
     //console.log("event", event);
     // });

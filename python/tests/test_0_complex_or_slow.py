@@ -1,6 +1,7 @@
 import sys
 
 import pytest
+import deltachat as dc
 
 
 class TestGroupStressTests:
@@ -136,6 +137,7 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     lp.sec("ac2: read member added message")
     msg = ac2._evtracker.wait_next_incoming_message()
     assert msg.is_encrypted()
+    assert msg.is_system_message()
     assert "added" in msg.text.lower()
 
     lp.sec("ac1: send message")
@@ -149,9 +151,8 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
     assert msg.is_encrypted()
 
     lp.sec("ac2: Check that ac2 verified ac1")
-    # If we verified the contact ourselves then verifier addr == contact addr
     ac2_ac1_contact = ac2.get_contacts()[0]
-    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact).id == dc.const.DC_CONTACT_ID_SELF
 
     lp.sec("ac2: send message and let ac1 read it")
     chat2.send_text("world")
@@ -176,14 +177,15 @@ def test_qr_verified_group_and_chatting(acfactory, lp):
 
     lp.sec("ac2: Check that ac1 verified ac3 for ac2")
     ac2_ac1_contact = ac2.get_contacts()[0]
-    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac1_contact).id == dc.const.DC_CONTACT_ID_SELF
     ac2_ac3_contact = ac2.get_contacts()[1]
-    assert ac2.get_self_contact().get_verifier(ac2_ac3_contact) == ac1_addr
+    assert ac2.get_self_contact().get_verifier(ac2_ac3_contact).addr == ac1_addr
 
     lp.sec("ac2: send message and let ac3 read it")
     chat2.send_text("hi")
-    # Skip system message about added member
-    ac3._evtracker.wait_next_incoming_message()
+    # System message about the added member.
+    msg = ac3._evtracker.wait_next_incoming_message()
+    assert msg.is_system_message()
     msg = ac3._evtracker.wait_next_incoming_message()
     assert msg.text == "hi"
     assert msg.is_encrypted()
@@ -494,7 +496,7 @@ def test_multidevice_sync_seen(acfactory, lp):
     assert "Expires: " in ac1_clone_message.get_message_info()
 
 
-def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
+def test_see_new_verified_member_after_going_online(acfactory, tmp_path, lp):
     """The test for the bug #3836:
     - Alice has two devices, the second is offline.
     - Alice creates a verified group and sends a QR invitation to Bob.
@@ -507,9 +509,10 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     for ac in [ac1, ac1_offl]:
         ac.set_config("bcc_self", "1")
     acfactory.bring_accounts_online()
-    dir = tmpdir.mkdir("exportdir")
-    ac1.export_self_keys(dir.strpath)
-    ac1_offl.import_self_keys(dir.strpath)
+    dir = tmp_path / "exportdir"
+    dir.mkdir()
+    ac1.export_self_keys(str(dir))
+    ac1_offl.import_self_keys(str(dir))
     ac1_offl.stop_io()
 
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")
@@ -523,7 +526,8 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     lp.sec("ac2: sending message")
     # Message can be sent only after a receipt of "vg-member-added" message. Just wait for
     # "Member Me (<addr>) added by <addr>." message.
-    ac2._evtracker.wait_next_incoming_message()
+    msg_in = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in.is_system_message()
     msg_out = chat2.send_text("hello")
 
     lp.sec("ac1: receiving message")
@@ -538,10 +542,8 @@ def test_see_new_verified_member_after_going_online(acfactory, tmpdir, lp):
     assert msg_in.text == msg_out.text
     assert msg_in.get_sender_contact().addr == ac2_addr
 
-    ac1.set_config("bcc_self", "0")
 
-
-def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
+def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
     """Another test for the bug #3836:
     - Bob has two devices, the second is offline.
     - Alice creates a verified group and sends a QR invitation to Bob.
@@ -556,9 +558,10 @@ def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
     for ac in [ac2, ac2_offl]:
         ac.set_config("bcc_self", "1")
     acfactory.bring_accounts_online()
-    dir = tmpdir.mkdir("exportdir")
-    ac2.export_self_keys(dir.strpath)
-    ac2_offl.import_self_keys(dir.strpath)
+    dir = tmp_path / "exportdir"
+    dir.mkdir()
+    ac2.export_self_keys(str(dir))
+    ac2_offl.import_self_keys(str(dir))
     ac2_offl.stop_io()
 
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")
@@ -587,4 +590,67 @@ def test_use_new_verified_group_after_going_online(acfactory, tmpdir, lp):
     assert msg_in.get_sender_contact().addr == ac2.get_config("addr")
     assert msg_in.text == msg_out.text
 
-    ac2.set_config("bcc_self", "0")
+
+def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
+    """Test for the issue #4346:
+    - User is added to a verified group.
+    - First device of the user downloads "member added" from the group.
+    - First device removes "member added" from the server.
+    - Some new messages are sent to the group.
+    - Second device comes online, receives these new messages. The result is a verified group with unverified members.
+    - First device re-gossips Autocrypt keys to the group.
+    - Now the seconds device has all members verified.
+    """
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    ac2_offl = acfactory.new_online_configuring_account(cloned_from=ac2)
+    for ac in [ac2, ac2_offl]:
+        ac.set_config("bcc_self", "1")
+    ac2.set_config("delete_server_after", "1")
+    ac2.set_config("gossip_period", "0")  # Re-gossip in every message
+    acfactory.bring_accounts_online()
+    dir = tmp_path / "exportdir"
+    dir.mkdir()
+    ac2.export_self_keys(str(dir))
+    ac2_offl.import_self_keys(str(dir))
+    ac2_offl.stop_io()
+
+    lp.sec("ac1: create verified-group QR, ac2 scans and joins")
+    chat1 = ac1.create_group_chat("hello", verified=True)
+    assert chat1.is_protected()
+    qr = chat1.get_join_qr()
+    lp.sec("ac2: start QR-code based join-group protocol")
+    chat2 = ac2.qr_join_chat(qr)
+    ac1._evtracker.wait_securejoin_inviter_progress(1000)
+    # Wait for "Member Me (<addr>) added by <addr>." message.
+    msg_in = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in.is_system_message()
+
+    lp.sec("ac2: waiting for 'member added' to be deleted on the server")
+    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+
+    lp.sec("ac1: sending 'hi' to the group")
+    ac2.set_config("delete_server_after", "0")
+    chat1.send_text("hi")
+
+    lp.sec("ac2_offl: going online, checking the 'hi' message")
+    ac2_offl.start_io()
+    msg_in = ac2_offl._evtracker.wait_next_incoming_message()
+    assert not msg_in.is_system_message()
+    assert msg_in.text.startswith("[The message was sent with non-verified encryption")
+    ac2_offl_ac1_contact = msg_in.get_sender_contact()
+    assert ac2_offl_ac1_contact.addr == ac1.get_config("addr")
+    assert not ac2_offl_ac1_contact.is_verified()
+    chat2_offl = msg_in.chat
+    assert chat2_offl.is_protected()
+
+    lp.sec("ac2: sending message re-gossiping Autocrypt keys")
+    chat2.send_text("hi2")
+
+    lp.sec("ac2_offl: receiving message")
+    ev = ac2_offl._evtracker.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+    msg_in = ac2_offl.get_message_by_id(ev.data2)
+    assert not msg_in.is_system_message()
+    assert msg_in.text == "hi2"
+    assert msg_in.chat == chat2_offl
+    assert msg_in.get_sender_contact().addr == ac2.get_config("addr")
+    assert ac2_offl_ac1_contact.is_verified()

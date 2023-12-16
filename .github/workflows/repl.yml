@@ -1,4 +1,5 @@
-# Manually triggered action to build a Windows repl.exe which users can
+# Manually triggered GitHub Actions workflow
+# to build a Windows repl.exe which users can
 # download to debug complex bugs.
 
 name: Build Windows REPL .exe

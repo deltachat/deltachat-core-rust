@@ -5,5 +5,5 @@ updates:
     schedule:
       interval: "monthly"
     commit-message:
-      prefix: "cargo"
+      prefix: "chore(cargo)"
     open-pull-requests-limit: 50

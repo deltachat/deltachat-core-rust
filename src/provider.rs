@@ -3,11 +3,12 @@
 mod data;
 
 use anyhow::Result;
-use trust_dns_resolver::{config, AsyncResolver, TokioAsyncResolver};
+use hickory_resolver::{config, AsyncResolver, TokioAsyncResolver};
 
 use crate::config::Config;
 use crate::context::Context;
 use crate::provider::data::{PROVIDER_DATA, PROVIDER_IDS};
+use crate::tools::EmailAddress;
 
 /// Provider status according to manual testing.
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
@@ -123,10 +124,10 @@ pub struct Provider {
     pub overview_page: &'static str,
 
     /// List of provider servers.
-    pub server: Vec<Server>,
+    pub server: &'static [Server],
 
     /// Default configuration values to set when provider is configured.
-    pub config_defaults: Option<Vec<ConfigDefault>>,
+    pub config_defaults: Option<&'static [ConfigDefault]>,
 
     /// Type of OAuth 2 authorization if provider supports it.
     pub oauth2_authorizer: Option<Oauth2Authorizer>,
@@ -149,8 +150,8 @@ pub struct ProviderOptions {
     pub delete_to_trash: bool,
 }
 
-impl Default for ProviderOptions {
-    fn default() -> Self {
+impl ProviderOptions {
+    const fn new() -> Self {
         Self {
             strict_tls: true,
             max_smtp_rcpt_to: None,
@@ -171,8 +172,22 @@ fn get_resolver() -> Result<TokioAsyncResolver> {
     let resolver = AsyncResolver::tokio(
         config::ResolverConfig::default(),
         config::ResolverOpts::default(),
-    )?;
+    );
     Ok(resolver)
+}
+
+/// Returns provider for the given an e-mail address.
+///
+/// Returns an error if provided address is not valid.
+pub async fn get_provider_info_by_addr(
+    context: &Context,
+    addr: &str,
+    skip_mx: bool,
+) -> Result<Option<&'static Provider>> {
+    let addr = EmailAddress::new(addr)?;
+
+    let provider = get_provider_info(context, &addr.domain, skip_mx).await;
+    Ok(provider)
 }
 
 /// Returns provider for the given domain.
@@ -180,16 +195,11 @@ fn get_resolver() -> Result<TokioAsyncResolver> {
 /// This function looks up domain in offline database first. If not
 /// found, it queries MX record for the domain and looks up offline
 /// database for MX domains.
-///
-/// For compatibility, email address can be passed to this function
-/// instead of the domain.
 pub async fn get_provider_info(
     context: &Context,
     domain: &str,
     skip_mx: bool,
 ) -> Option<&'static Provider> {
-    let domain = domain.rsplit('@').next()?;
-
     if let Some(provider) = get_provider_by_domain(domain) {
         return Some(provider);
     }
@@ -223,7 +233,7 @@ pub async fn get_provider_by_mx(context: &Context, domain: &str) -> Option<&'sta
         }
 
         if let Ok(mx_domains) = resolver.mx_lookup(fqdn).await {
-            for (provider_domain, provider) in PROVIDER_DATA.iter() {
+            for (provider_domain, provider) in &*PROVIDER_DATA {
                 if provider.id != "gmail" {
                     // MX lookup is limited to Gmail for security reasons
                     continue;
@@ -314,15 +324,25 @@ mod tests {
         let t = TestContext::new().await;
         assert!(get_provider_info(&t, "", false).await.is_none());
         assert!(get_provider_info(&t, "google.com", false).await.unwrap().id == "gmail");
+        assert!(get_provider_info(&t, "example@google.com", false)
+            .await
+            .is_none());
+    }
 
-        // get_provider_info() accepts email addresses for backwards compatibility
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_provider_info_by_addr() -> Result<()> {
+        let t = TestContext::new().await;
+        assert!(get_provider_info_by_addr(&t, "google.com", false)
+            .await
+            .is_err());
         assert!(
-            get_provider_info(&t, "example@google.com", false)
-                .await
+            get_provider_info_by_addr(&t, "example@google.com", false)
+                .await?
                 .unwrap()
                 .id
                 == "gmail"
         );
+        Ok(())
     }
 
     #[test]

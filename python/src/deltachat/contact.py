@@ -71,13 +71,16 @@ class Contact:
         """Unblock this contact. Messages from this contact will be retrieved (again)."""
         return lib.dc_block_contact(self.account._dc_context, self.id, False)
 
-    def is_verified(self):
+    def is_verified(self) -> bool:
         """Return True if the contact is verified."""
-        return lib.dc_contact_is_verified(self._dc_contact)
+        return lib.dc_contact_is_verified(self._dc_contact) == 2
 
-    def get_verifier(self, contact):
+    def get_verifier(self, contact) -> Optional["Contact"]:
         """Return the address of the contact that verified the contact."""
-        return from_dc_charpointer(lib.dc_contact_get_verifier_addr(contact._dc_contact))
+        verifier_id = lib.dc_contact_get_verifier_id(contact._dc_contact)
+        if verifier_id == 0:
+            return None
+        return Contact(self.account, verifier_id)
 
     def get_profile_image(self) -> Optional[str]:
         """Get contact profile image.

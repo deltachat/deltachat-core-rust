@@ -7,29 +7,29 @@ use anyhow::{ensure, format_err, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatId};
+use crate::blob::BlobObject;
+use crate::chat::{Chat, ChatId};
 use crate::config::Config;
 use crate::constants::{
     Blocked, Chattype, VideochatType, DC_CHAT_ID_TRASH, DC_DESIRED_TEXT_LEN, DC_MSG_ID_LAST_SPECIAL,
 };
-use crate::contact::{Contact, ContactId, Origin};
+use crate::contact::{Contact, ContactId};
 use crate::context::Context;
 use crate::debug_logging::set_debug_logging_xdc;
 use crate::download::DownloadState;
 use crate::ephemeral::{start_ephemeral_timers_msgids, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::imap::markseen_on_imap_table;
-use crate::mimeparser::{parse_message_id, DeliveryReport, SystemMessage};
+use crate::mimeparser::{parse_message_id, SystemMessage};
 use crate::param::{Param, Params};
 use crate::pgp::split_armored_data;
 use crate::reaction::get_msg_reactions;
 use crate::scheduler::InterruptInfo;
 use crate::sql;
-use crate::stock_str;
 use crate::summary::Summary;
 use crate::tools::{
-    buf_compress, buf_decompress, create_smeared_timestamp, get_filebytes, get_filemeta,
-    gm2local_offset, read_file, time, timestamp_to_str, truncate,
+    buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
+    timestamp_to_str, truncate,
 };
 
 /// Message ID, including reserved IDs.
@@ -114,24 +114,16 @@ WHERE id=?;
     }
 
     /// Deletes a message, corresponding MDNs and unsent SMTP messages from the database.
-    pub async fn delete_from_db(self, context: &Context) -> Result<()> {
-        // We don't use transactions yet, so remove MDNs first to make
-        // sure they are not left while the message is deleted.
+    pub(crate) async fn delete_from_db(self, context: &Context) -> Result<()> {
         context
             .sql
-            .execute("DELETE FROM smtp WHERE msg_id=?", (self,))
-            .await?;
-        context
-            .sql
-            .execute("DELETE FROM msgs_mdns WHERE msg_id=?;", (self,))
-            .await?;
-        context
-            .sql
-            .execute("DELETE FROM msgs_status_updates WHERE msg_id=?;", (self,))
-            .await?;
-        context
-            .sql
-            .execute("DELETE FROM msgs WHERE id=?;", (self,))
+            .transaction(move |transaction| {
+                transaction.execute("DELETE FROM smtp WHERE msg_id=?", (self,))?;
+                transaction.execute("DELETE FROM msgs_mdns WHERE msg_id=?", (self,))?;
+                transaction.execute("DELETE FROM msgs_status_updates WHERE msg_id=?", (self,))?;
+                transaction.execute("DELETE FROM msgs WHERE id=?", (self,))?;
+                Ok(())
+            })
             .await?;
         Ok(())
     }
@@ -156,6 +148,171 @@ WHERE id=?;
     /// that it is no longer necessary.
     pub fn to_u32(self) -> u32 {
         self.0
+    }
+
+    /// Returns detailed message information in a multi-line text form.
+    pub async fn get_info(self, context: &Context) -> Result<String> {
+        let msg = Message::load_from_db(context, self).await?;
+        let rawtxt: Option<String> = context
+            .sql
+            .query_get_value("SELECT txt_raw FROM msgs WHERE id=?", (self,))
+            .await?;
+
+        let mut ret = String::new();
+
+        if rawtxt.is_none() {
+            ret += &format!("Cannot load message {self}.");
+            return Ok(ret);
+        }
+        let rawtxt = rawtxt.unwrap_or_default();
+        let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
+
+        let fts = timestamp_to_str(msg.get_timestamp());
+        ret += &format!("Sent: {fts}");
+
+        let name = Contact::get_by_id(context, msg.from_id)
+            .await
+            .map(|contact| contact.get_name_n_addr())
+            .unwrap_or_default();
+
+        ret += &format!(" by {name}");
+        ret += "\n";
+
+        if msg.from_id != ContactId::SELF {
+            let s = timestamp_to_str(if 0 != msg.timestamp_rcvd {
+                msg.timestamp_rcvd
+            } else {
+                msg.timestamp_sort
+            });
+            ret += &format!("Received: {}", &s);
+            ret += "\n";
+        }
+
+        if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
+            ret += &format!("Ephemeral timer: {duration}\n");
+        }
+
+        if msg.ephemeral_timestamp != 0 {
+            ret += &format!("Expires: {}\n", timestamp_to_str(msg.ephemeral_timestamp));
+        }
+
+        if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
+            // device-internal message, no further details needed
+            return Ok(ret);
+        }
+
+        if let Ok(rows) = context
+            .sql
+            .query_map(
+                "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?",
+                (self,),
+                |row| {
+                    let contact_id: ContactId = row.get(0)?;
+                    let ts: i64 = row.get(1)?;
+                    Ok((contact_id, ts))
+                },
+                |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+            )
+            .await
+        {
+            for (contact_id, ts) in rows {
+                let fts = timestamp_to_str(ts);
+                ret += &format!("Read: {fts}");
+
+                let name = Contact::get_by_id(context, contact_id)
+                    .await
+                    .map(|contact| contact.get_name_n_addr())
+                    .unwrap_or_default();
+
+                ret += &format!(" by {name}");
+                ret += "\n";
+            }
+        }
+
+        ret += &format!("State: {}", msg.state);
+
+        if msg.has_location() {
+            ret += ", Location sent";
+        }
+
+        let e2ee_errors = msg.param.get_int(Param::ErroneousE2ee).unwrap_or_default();
+
+        if 0 != e2ee_errors {
+            if 0 != e2ee_errors & 0x2 {
+                ret += ", Encrypted, no valid signature";
+            }
+        } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
+            ret += ", Encrypted";
+        }
+
+        ret += "\n";
+
+        let reactions = get_msg_reactions(context, self).await?;
+        if !reactions.is_empty() {
+            ret += &format!("Reactions: {reactions}\n");
+        }
+
+        if let Some(error) = msg.error.as_ref() {
+            ret += &format!("Error: {error}");
+        }
+
+        if let Some(path) = msg.get_file(context) {
+            let bytes = get_filebytes(context, &path).await?;
+            ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
+        }
+
+        if msg.viewtype != Viewtype::Text {
+            ret += "Type: ";
+            ret += &format!("{}", msg.viewtype);
+            ret += "\n";
+            ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
+        }
+        let w = msg.param.get_int(Param::Width).unwrap_or_default();
+        let h = msg.param.get_int(Param::Height).unwrap_or_default();
+        if w != 0 || h != 0 {
+            ret += &format!("Dimension: {w} x {h}\n",);
+        }
+        let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
+        if duration != 0 {
+            ret += &format!("Duration: {duration} ms\n",);
+        }
+        if !rawtxt.is_empty() {
+            ret += &format!("\n{rawtxt}\n");
+        }
+        if !msg.rfc724_mid.is_empty() {
+            ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
+
+            let server_uids = context
+                .sql
+                .query_map(
+                    "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
+                    (msg.rfc724_mid,),
+                    |row| {
+                        let folder: String = row.get("folder")?;
+                        let uid: u32 = row.get("uid")?;
+                        Ok((folder, uid))
+                    },
+                    |rows| {
+                        rows.collect::<std::result::Result<Vec<_>, _>>()
+                            .map_err(Into::into)
+                    },
+                )
+                .await?;
+
+            for (folder, uid) in server_uids {
+                // Format as RFC 5092 relative IMAP URL.
+                ret += &format!("\n</{folder}/;UID={uid}>");
+            }
+        }
+        let hop_info: Option<String> = context
+            .sql
+            .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (self,))
+            .await?;
+
+        ret += "\n\n";
+        ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
+
+        Ok(ret)
     }
 }
 
@@ -258,7 +415,7 @@ pub struct Message {
     pub(crate) timestamp_rcvd: i64,
     pub(crate) ephemeral_timer: EphemeralTimer,
     pub(crate) ephemeral_timestamp: i64,
-    pub(crate) text: Option<String>,
+    pub(crate) text: String,
 
     /// Message subject.
     ///
@@ -367,7 +524,7 @@ impl Message {
                             .filter(|error| !error.is_empty()),
                         is_dc_message: row.get("msgrmsg")?,
                         mime_modified: row.get("mime_modified")?,
-                        text: Some(text),
+                        text,
                         subject: row.get("subject")?,
                         param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
                         hidden: row.get("hidden")?,
@@ -379,7 +536,8 @@ impl Message {
                     Ok(msg)
                 },
             )
-            .await?;
+            .await
+            .with_context(|| format!("failed to load message {id} from the database"))?;
 
         Ok(msg)
     }
@@ -417,13 +575,21 @@ impl Message {
                 if (self.viewtype == Viewtype::Image || self.viewtype == Viewtype::Gif)
                     && !self.param.exists(Param::Width)
                 {
-                    self.param.set_int(Param::Width, 0);
-                    self.param.set_int(Param::Height, 0);
+                    let buf = read_file(context, &path_and_filename).await?;
 
-                    if let Ok(buf) = read_file(context, path_and_filename).await {
-                        if let Ok((width, height)) = get_filemeta(&buf) {
+                    match get_filemeta(&buf) {
+                        Ok((width, height)) => {
                             self.param.set_int(Param::Width, width as i32);
                             self.param.set_int(Param::Height, height as i32);
+                        }
+                        Err(err) => {
+                            self.param.set_int(Param::Width, 0);
+                            self.param.set_int(Param::Height, 0);
+                            warn!(
+                                context,
+                                "Failed to get width and height for {}: {err:#}.",
+                                path_and_filename.display()
+                            );
                         }
                     }
 
@@ -498,6 +664,12 @@ impl Message {
         self.viewtype
     }
 
+    /// Forces the message to **keep** [Viewtype::Sticker]
+    /// e.g the message will not be converted to a [Viewtype::Image].
+    pub fn force_sticker(&mut self) {
+        self.param.set_int(Param::ForceSticker, 1);
+    }
+
     /// Returns the state of the message.
     pub fn get_state(&self) -> MessageState {
         self.state
@@ -514,8 +686,8 @@ impl Message {
     }
 
     /// Returns the text of the message.
-    pub fn get_text(&self) -> Option<String> {
-        self.text.as_ref().map(|s| s.to_string())
+    pub fn get_text(&self) -> String {
+        self.text.clone()
     }
 
     /// Returns message subject.
@@ -523,11 +695,13 @@ impl Message {
         &self.subject
     }
 
-    /// Returns base file name without the path.
-    /// The base file name includes the extension.
+    /// Returns original filename (as shown in chat).
     ///
     /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
+        if let Some(name) = self.param.get(Param::Filename) {
+            return Some(name.to_string());
+        }
         self.param
             .get(Param::File)
             .and_then(|file| Path::new(file).file_name())
@@ -537,7 +711,9 @@ impl Message {
     /// Returns the size of the file in bytes, if applicable.
     pub async fn get_filebytes(&self, context: &Context) -> Result<Option<u64>> {
         if let Some(path) = self.param.get_path(Param::File, context)? {
-            Ok(Some(get_filebytes(context, &path).await?))
+            Ok(Some(get_filebytes(context, &path).await.with_context(
+                || format!("failed to get {} size in bytes", path.display()),
+            )?))
         } else {
             Ok(None)
         }
@@ -594,7 +770,7 @@ impl Message {
                 Chattype::Group | Chattype::Broadcast | Chattype::Mailinglist => {
                     Some(Contact::get_by_id(context, self.from_id).await?)
                 }
-                Chattype::Single | Chattype::Undefined => None,
+                Chattype::Single => None,
             }
         } else {
             None
@@ -789,7 +965,7 @@ impl Message {
     }
 
     /// Sets or unsets message text.
-    pub fn set_text(&mut self, text: Option<String>) {
+    pub fn set_text(&mut self, text: String) {
         self.text = text;
     }
 
@@ -805,20 +981,34 @@ impl Message {
     /// the file will only be used when the message is prepared
     /// for sending.
     pub fn set_file(&mut self, file: impl ToString, filemime: Option<&str>) {
-        self.param.set(Param::File, file);
-        if let Some(filemime) = filemime {
-            self.param.set(Param::MimeType, filemime);
+        if let Some(name) = Path::new(&file.to_string()).file_name() {
+            if let Some(name) = name.to_str() {
+                self.param.set(Param::Filename, name);
+            }
         }
+        self.param.set(Param::File, file);
+        self.param.set_optional(Param::MimeType, filemime);
+    }
+
+    /// Creates a new blob and sets it as a file associated with a message.
+    pub async fn set_file_from_bytes(
+        &mut self,
+        context: &Context,
+        suggested_name: &str,
+        data: &[u8],
+        filemime: Option<&str>,
+    ) -> Result<()> {
+        let blob = BlobObject::create(context, suggested_name, data).await?;
+        self.param.set(Param::File, blob.as_name());
+        self.param.set_optional(Param::MimeType, filemime);
+        Ok(())
     }
 
     /// Set different sender name for a message.
     /// This overrides the name set by the `set_config()`-option `displayname`.
     pub fn set_override_sender_name(&mut self, name: Option<String>) {
-        if let Some(name) = name {
-            self.param.set(Param::OverrideSenderDisplayname, name);
-        } else {
-            self.param.remove(Param::OverrideSenderDisplayname);
-        }
+        self.param
+            .set_optional(Param::OverrideSenderDisplayname, name);
     }
 
     /// Sets the dimensions of associated image or video file.
@@ -881,7 +1071,7 @@ impl Message {
                 self.param.set(Param::GuaranteeE2ee, "1");
             }
 
-            let text = quote.get_text().unwrap_or_default();
+            let text = quote.get_text();
             self.param.set(
                 Param::Quote,
                 if text.is_empty() {
@@ -1086,61 +1276,15 @@ impl MessageState {
     }
 }
 
-/// Returns detailed message information in a multi-line text form.
-pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
-    let msg = Message::load_from_db(context, msg_id).await?;
-    let rawtxt: Option<String> = context
-        .sql
-        .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    let mut ret = String::new();
-
-    if rawtxt.is_none() {
-        ret += &format!("Cannot load message {msg_id}.");
-        return Ok(ret);
-    }
-    let rawtxt = rawtxt.unwrap_or_default();
-    let rawtxt = truncate(rawtxt.trim(), DC_DESIRED_TEXT_LEN);
-
-    let fts = timestamp_to_str(msg.get_timestamp());
-    ret += &format!("Sent: {fts}");
-
-    let name = Contact::load_from_db(context, msg.from_id)
-        .await
-        .map(|contact| contact.get_name_n_addr())
-        .unwrap_or_default();
-
-    ret += &format!(" by {name}");
-    ret += "\n";
-
-    if msg.from_id != ContactId::SELF {
-        let s = timestamp_to_str(if 0 != msg.timestamp_rcvd {
-            msg.timestamp_rcvd
-        } else {
-            msg.timestamp_sort
-        });
-        ret += &format!("Received: {}", &s);
-        ret += "\n";
-    }
-
-    if let EphemeralTimer::Enabled { duration } = msg.ephemeral_timer {
-        ret += &format!("Ephemeral timer: {duration}\n");
-    }
-
-    if msg.ephemeral_timestamp != 0 {
-        ret += &format!("Expires: {}\n", timestamp_to_str(msg.ephemeral_timestamp));
-    }
-
-    if msg.from_id == ContactId::INFO || msg.to_id == ContactId::INFO {
-        // device-internal message, no further details needed
-        return Ok(ret);
-    }
-
-    if let Ok(rows) = context
+/// Returns contacts that sent read receipts and the time of reading.
+pub async fn get_msg_read_receipts(
+    context: &Context,
+    msg_id: MsgId,
+) -> Result<Vec<(ContactId, i64)>> {
+    context
         .sql
         .query_map(
-            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
+            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?",
             (msg_id,),
             |row| {
                 let contact_id: ContactId = row.get(0)?;
@@ -1150,105 +1294,6 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> Result<String> {
             |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
         .await
-    {
-        for (contact_id, ts) in rows {
-            let fts = timestamp_to_str(ts);
-            ret += &format!("Read: {fts}");
-
-            let name = Contact::load_from_db(context, contact_id)
-                .await
-                .map(|contact| contact.get_name_n_addr())
-                .unwrap_or_default();
-
-            ret += &format!(" by {name}");
-            ret += "\n";
-        }
-    }
-
-    ret += &format!("State: {}", msg.state);
-
-    if msg.has_location() {
-        ret += ", Location sent";
-    }
-
-    let e2ee_errors = msg.param.get_int(Param::ErroneousE2ee).unwrap_or_default();
-
-    if 0 != e2ee_errors {
-        if 0 != e2ee_errors & 0x2 {
-            ret += ", Encrypted, no valid signature";
-        }
-    } else if 0 != msg.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() {
-        ret += ", Encrypted";
-    }
-
-    ret += "\n";
-
-    let reactions = get_msg_reactions(context, msg_id).await?;
-    if !reactions.is_empty() {
-        ret += &format!("Reactions: {reactions}\n");
-    }
-
-    if let Some(error) = msg.error.as_ref() {
-        ret += &format!("Error: {error}");
-    }
-
-    if let Some(path) = msg.get_file(context) {
-        let bytes = get_filebytes(context, &path).await?;
-        ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
-    }
-
-    if msg.viewtype != Viewtype::Text {
-        ret += "Type: ";
-        ret += &format!("{}", msg.viewtype);
-        ret += "\n";
-        ret += &format!("Mimetype: {}\n", &msg.get_filemime().unwrap_or_default());
-    }
-    let w = msg.param.get_int(Param::Width).unwrap_or_default();
-    let h = msg.param.get_int(Param::Height).unwrap_or_default();
-    if w != 0 || h != 0 {
-        ret += &format!("Dimension: {w} x {h}\n",);
-    }
-    let duration = msg.param.get_int(Param::Duration).unwrap_or_default();
-    if duration != 0 {
-        ret += &format!("Duration: {duration} ms\n",);
-    }
-    if !rawtxt.is_empty() {
-        ret += &format!("\n{rawtxt}\n");
-    }
-    if !msg.rfc724_mid.is_empty() {
-        ret += &format!("\nMessage-ID: {}", msg.rfc724_mid);
-
-        let server_uids = context
-            .sql
-            .query_map(
-                "SELECT folder, uid FROM imap WHERE rfc724_mid=?",
-                (msg.rfc724_mid,),
-                |row| {
-                    let folder: String = row.get("folder")?;
-                    let uid: u32 = row.get("uid")?;
-                    Ok((folder, uid))
-                },
-                |rows| {
-                    rows.collect::<std::result::Result<Vec<_>, _>>()
-                        .map_err(Into::into)
-                },
-            )
-            .await?;
-
-        for (folder, uid) in server_uids {
-            // Format as RFC 5092 relative IMAP URL.
-            ret += &format!("\n</{folder}/;UID={uid}>");
-        }
-    }
-    let hop_info: Option<String> = context
-        .sql
-        .query_get_value("SELECT hop_info FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    ret += "\n\n";
-    ret += &hop_info.unwrap_or_else(|| "No Hop Info".to_owned());
-
-    Ok(ret)
 }
 
 pub(crate) fn guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
@@ -1399,8 +1444,11 @@ pub async fn get_mime_headers(context: &Context, msg_id: MsgId) -> Result<Vec<u8
 /// by moving them to the trash chat
 /// and scheduling for deletion on IMAP.
 pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
-    for msg_id in msg_ids.iter() {
-        let msg = Message::load_from_db(context, *msg_id).await?;
+    let mut modified_chat_ids = BTreeSet::new();
+    let mut res = Ok(());
+
+    for &msg_id in msg_ids {
+        let msg = Message::load_from_db(context, msg_id).await?;
         if msg.location_id > 0 {
             delete_poi_location(context, msg.location_id).await?;
         }
@@ -1409,36 +1457,52 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             .await
             .with_context(|| format!("Unable to trash message {msg_id}"))?;
 
+        context.emit_event(EventType::MsgDeleted {
+            chat_id: msg.chat_id,
+            msg_id,
+        });
+
         if msg.viewtype == Viewtype::Webxdc {
-            context.emit_event(EventType::WebxdcInstanceDeleted { msg_id: *msg_id });
+            context.emit_event(EventType::WebxdcInstanceDeleted { msg_id });
         }
 
+        modified_chat_ids.insert(msg.chat_id);
+
         let target = context.get_delete_msgs_target().await?;
-        context
-            .sql
-            .execute(
+        let update_db = |conn: &mut rusqlite::Connection| {
+            conn.execute(
                 "UPDATE imap SET target=? WHERE rfc724_mid=?",
                 (target, msg.rfc724_mid),
-            )
-            .await?;
+            )?;
+            conn.execute("DELETE FROM smtp WHERE msg_id=?", (msg_id,))?;
+            Ok(())
+        };
+        if let Err(e) = context.sql.call_write(update_db).await {
+            error!(context, "delete_msgs: failed to update db: {e:#}.");
+            res = Err(e);
+            continue;
+        }
 
         let logging_xdc_id = context
             .debug_logging
             .read()
-            .await
+            .expect("RwLock is poisoned")
             .as_ref()
             .map(|dl| dl.msg_id);
 
         if let Some(id) = logging_xdc_id {
-            if id == *msg_id {
+            if id == msg_id {
                 set_debug_logging_xdc(context, None).await?;
             }
         }
     }
+    res?;
+
+    for modified_chat_id in modified_chat_ids {
+        context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+    }
 
     if !msg_ids.is_empty() {
-        context.emit_msgs_changed_without_ids();
-
         // Run housekeeping to delete unused blobs.
         context.set_config(Config::LastHousekeeping, None).await?;
     }
@@ -1601,222 +1665,35 @@ pub(crate) async fn update_msg_state(
 
 // Context functions to work with messages
 
-/// Returns true if given message ID exists in the database and is not trashed.
-pub(crate) async fn exists(context: &Context, msg_id: MsgId) -> Result<bool> {
-    if msg_id.is_special() {
-        return Ok(false);
-    }
-
-    let chat_id: Option<ChatId> = context
-        .sql
-        .query_get_value("SELECT chat_id FROM msgs WHERE id=?;", (msg_id,))
-        .await?;
-
-    if let Some(chat_id) = chat_id {
-        Ok(!chat_id.is_trash())
-    } else {
-        Ok(false)
-    }
-}
-
-pub(crate) async fn set_msg_failed(context: &Context, msg_id: MsgId, error: &str) {
-    if let Ok(mut msg) = Message::load_from_db(context, msg_id).await {
-        if msg.state.can_fail() {
-            msg.state = MessageState::OutFailed;
-            warn!(context, "{} failed: {}", msg_id, error);
-        } else {
-            warn!(
-                context,
-                "{} seems to have failed ({}), but state is {}", msg_id, error, msg.state
-            )
-        }
-
-        match context
-            .sql
-            .execute(
-                "UPDATE msgs SET state=?, error=? WHERE id=?;",
-                (msg.state, error, msg_id),
-            )
-            .await
-        {
-            Ok(_) => context.emit_event(EventType::MsgFailed {
-                chat_id: msg.chat_id,
-                msg_id,
-            }),
-            Err(e) => {
-                warn!(context, "{:?}", e);
-            }
-        }
-    }
-}
-
-/// returns Some if an event should be send
-pub async fn handle_mdn(
+pub(crate) async fn set_msg_failed(
     context: &Context,
-    from_id: ContactId,
-    rfc724_mid: &str,
-    timestamp_sent: i64,
-) -> Result<Option<(ChatId, MsgId)>> {
-    if from_id == ContactId::SELF {
+    msg: &mut Message,
+    error: &str,
+) -> Result<()> {
+    if msg.state.can_fail() {
+        msg.state = MessageState::OutFailed;
+        warn!(context, "{} failed: {}", msg.id, error);
+    } else {
         warn!(
             context,
-            "ignoring MDN sent to self, this is a bug on the sender device"
-        );
-
-        // This is not an error on our side,
-        // we successfully ignored an invalid MDN and return `Ok`.
-        return Ok(None);
+            "{} seems to have failed ({}), but state is {}", msg.id, error, msg.state
+        )
     }
+    msg.error = Some(error.to_string());
 
-    let res = context
+    context
         .sql
-        .query_row_optional(
-            concat!(
-                "SELECT",
-                "    m.id AS msg_id,",
-                "    c.id AS chat_id,",
-                "    m.state AS state",
-                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
-                " WHERE rfc724_mid=? AND from_id=1",
-                " ORDER BY m.id;"
-            ),
-            (&rfc724_mid,),
-            |row| {
-                Ok((
-                    row.get::<_, MsgId>("msg_id")?,
-                    row.get::<_, ChatId>("chat_id")?,
-                    row.get::<_, MessageState>("state")?,
-                ))
-            },
+        .execute(
+            "UPDATE msgs SET state=?, error=? WHERE id=?;",
+            (msg.state, error, msg.id),
         )
         .await?;
 
-    let (msg_id, chat_id, msg_state) = if let Some(res) = res {
-        res
-    } else {
-        info!(
-            context,
-            "handle_mdn found no message with Message-ID {:?} sent by us in the database",
-            rfc724_mid
-        );
-        return Ok(None);
-    };
+    context.emit_event(EventType::MsgFailed {
+        chat_id: msg.chat_id,
+        msg_id: msg.id,
+    });
 
-    if !context
-        .sql
-        .exists(
-            "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-            (msg_id, from_id),
-        )
-        .await?
-    {
-        context
-            .sql
-            .execute(
-                "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
-                (msg_id, from_id, timestamp_sent),
-            )
-            .await?;
-    }
-
-    if msg_state == MessageState::OutPreparing
-        || msg_state == MessageState::OutPending
-        || msg_state == MessageState::OutDelivered
-    {
-        update_msg_state(context, msg_id, MessageState::OutMdnRcvd).await?;
-        Ok(Some((chat_id, msg_id)))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Marks a message as failed after an ndn (non-delivery-notification) arrived.
-/// Where appropriate, also adds an info message telling the user which of the recipients of a group message failed.
-pub(crate) async fn handle_ndn(
-    context: &Context,
-    failed: &DeliveryReport,
-    error: Option<String>,
-) -> Result<()> {
-    if failed.rfc724_mid.is_empty() {
-        return Ok(());
-    }
-
-    // The NDN might be for a message-id that had attachments and was sent from a non-Delta Chat client.
-    // In this case we need to mark multiple "msgids" as failed that all refer to the same message-id.
-    let msgs: Vec<_> = context
-        .sql
-        .query_map(
-            concat!(
-                "SELECT",
-                "    m.id AS msg_id,",
-                "    c.id AS chat_id,",
-                "    c.type AS type",
-                " FROM msgs m LEFT JOIN chats c ON m.chat_id=c.id",
-                " WHERE rfc724_mid=? AND from_id=1",
-            ),
-            (&failed.rfc724_mid,),
-            |row| {
-                Ok((
-                    row.get::<_, MsgId>("msg_id")?,
-                    row.get::<_, ChatId>("chat_id")?,
-                    row.get::<_, Chattype>("type")?,
-                ))
-            },
-            |rows| Ok(rows.collect::<Vec<_>>()),
-        )
-        .await?;
-
-    let error = if let Some(error) = error {
-        error
-    } else if let Some(failed_recipient) = &failed.failed_recipient {
-        format!("Delivery to {failed_recipient} failed.").clone()
-    } else {
-        "Delivery to at least one recipient failed.".to_string()
-    };
-
-    let mut first = true;
-    for msg in msgs {
-        let (msg_id, chat_id, chat_type) = msg?;
-        set_msg_failed(context, msg_id, &error).await;
-        if first {
-            // Add only one info msg for all failed messages
-            ndn_maybe_add_info_msg(context, failed, chat_id, chat_type).await?;
-        }
-        first = false;
-    }
-
-    Ok(())
-}
-
-async fn ndn_maybe_add_info_msg(
-    context: &Context,
-    failed: &DeliveryReport,
-    chat_id: ChatId,
-    chat_type: Chattype,
-) -> Result<()> {
-    match chat_type {
-        Chattype::Group | Chattype::Broadcast => {
-            if let Some(failed_recipient) = &failed.failed_recipient {
-                let contact_id =
-                    Contact::lookup_id_by_addr(context, failed_recipient, Origin::Unknown)
-                        .await?
-                        .context("contact ID not found")?;
-                let contact = Contact::load_from_db(context, contact_id).await?;
-                // Tell the user which of the recipients failed if we know that (because in
-                // a group, this might otherwise be unclear)
-                let text = stock_str::failed_sending_to(context, contact.get_display_name()).await;
-                chat::add_info_msg(context, chat_id, &text, create_smeared_timestamp(context))
-                    .await?;
-                context.emit_event(EventType::ChatModified(chat_id));
-            }
-        }
-        Chattype::Mailinglist => {
-            // ndn_maybe_add_info_msg() is about the case when delivery to the group failed.
-            // If we get an NDN for the mailing list, just issue a warning.
-            warn!(context, "ignoring NDN for mailing list.");
-        }
-        Chattype::Single | Chattype::Undefined => {}
-    }
     Ok(())
 }
 
@@ -2042,7 +1919,7 @@ mod tests {
     use num_traits::FromPrimitive;
 
     use super::*;
-    use crate::chat::{marknoticed_chat, ChatItem};
+    use crate::chat::{self, marknoticed_chat, ChatItem};
     use crate::chatlist::Chatlist;
     use crate::receive_imf::receive_imf;
     use crate::test_utils as test;
@@ -2218,7 +2095,7 @@ mod tests {
         let chat = d.create_chat_with_contact("", "dest@example.com").await;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("Quoted message".to_string()));
+        msg.set_text("Quoted message".to_string());
 
         // Prepare message for sending, so it gets a Message-Id.
         assert!(msg.rfc724_mid.is_empty());
@@ -2230,14 +2107,14 @@ mod tests {
         msg2.set_quote(ctx, Some(&msg))
             .await
             .expect("can't set quote");
-        assert!(msg2.quoted_text() == msg.get_text());
+        assert_eq!(msg2.quoted_text().unwrap(), msg.get_text());
 
         let quoted_msg = msg2
             .quoted_message(ctx)
             .await
             .expect("error while retrieving quoted message")
             .expect("quoted message not found");
-        assert!(quoted_msg.get_text() == msg2.quoted_text());
+        assert_eq!(quoted_msg.get_text(), msg2.quoted_text().unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2261,7 +2138,7 @@ mod tests {
         // check chat-id of this message
         let msg = alice.get_last_msg().await;
         assert!(!msg.get_chat_id().is_special());
-        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
+        assert_eq!(msg.get_text(), "hello".to_string());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -2275,10 +2152,10 @@ mod tests {
             .unwrap()
             .first()
             .unwrap();
-        let contact = Contact::load_from_db(&alice, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&alice, contact_id).await.unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("bla blubb".to_string()));
+        msg.set_text("bla blubb".to_string());
         msg.set_override_sender_name(Some("over ride".to_string()));
         assert_eq!(
             msg.get_override_sender_name(),
@@ -2295,10 +2172,10 @@ mod tests {
             .unwrap()
             .first()
             .unwrap();
-        let contact = Contact::load_from_db(&bob, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&bob, contact_id).await.unwrap();
         let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
         assert_eq!(msg.chat_id, chat.id);
-        assert_eq!(msg.text, Some("bla blubb".to_string()));
+        assert_eq!(msg.text, "bla blubb");
         assert_eq!(
             msg.get_override_sender_name(),
             Some("over ride".to_string())
@@ -2318,7 +2195,7 @@ mod tests {
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("this is the text!".to_string()));
+        msg.set_text("this is the text!".to_string());
 
         // alice sends to bob,
         assert_eq!(Chatlist::try_load(&bob, 0, None, None).await?.len(), 0);
@@ -2404,7 +2281,7 @@ mod tests {
 
         // check outgoing messages states on sender side
         let mut alice_msg = Message::new(Viewtype::Text);
-        alice_msg.set_text(Some("hi!".to_string()));
+        alice_msg.set_text("hi!".to_string());
         assert_eq!(alice_msg.get_state(), MessageState::Undefined); // message not yet in db, assert_state() won't work
 
         alice_chat
@@ -2424,7 +2301,7 @@ mod tests {
         update_msg_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await?;
         assert_state(&alice, alice_msg.id, MessageState::OutMdnRcvd).await;
 
-        set_msg_failed(&alice, alice_msg.id, "badly failed").await;
+        set_msg_failed(&alice, &mut alice_msg, "badly failed").await?;
         assert_state(&alice, alice_msg.id, MessageState::OutFailed).await;
 
         // check incoming message states on receiver side
@@ -2460,8 +2337,10 @@ mod tests {
         )
         .await?;
         let msg = alice.get_last_msg().await;
-        assert_eq!(msg.get_text().unwrap(), "hello".to_string());
+        assert_eq!(msg.get_text(), "hello".to_string());
         assert!(msg.is_bot());
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+        assert!(contact.is_bot());
 
         // Alice receives a message from Bob who is not the bot anymore.
         receive_imf(
@@ -2477,8 +2356,10 @@ mod tests {
         )
         .await?;
         let msg = alice.get_last_msg().await;
-        assert_eq!(msg.get_text().unwrap(), "hello again".to_string());
+        assert_eq!(msg.get_text(), "hello again".to_string());
         assert!(!msg.is_bot());
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+        assert!(!contact.is_bot());
 
         Ok(())
     }
@@ -2516,13 +2397,13 @@ mod tests {
 
         let sent = alice.send_text(chat.id, "> First quote").await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some("> First quote"));
+        assert_eq!(received.text, "> First quote");
         assert!(received.quoted_text().is_none());
         assert!(received.quoted_message(&bob).await?.is_none());
 
         let sent = alice.send_text(chat.id, "> Second quote").await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some("> Second quote"));
+        assert_eq!(received.text, "> Second quote");
         assert!(received.quoted_text().is_none());
         assert!(received.quoted_message(&bob).await?.is_none());
 
@@ -2539,24 +2420,43 @@ mod tests {
         let text = "  Foo bar";
         let sent = alice.send_text(chat.id, text).await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(text));
+        assert_eq!(received.text, text);
 
         let text = "Foo                         bar                                                             baz";
         let sent = alice.send_text(chat.id, text).await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(text));
+        assert_eq!(received.text, text);
 
         let text = "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx > A";
         let sent = alice.send_text(chat.id, text).await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(text));
+        assert_eq!(received.text, text);
 
         let python_program = "\
 def hello():
     return 'Hello, world!'";
         let sent = alice.send_text(chat.id, python_program).await;
         let received = bob.recv_msg(&sent).await;
-        assert_eq!(received.text.as_deref(), Some(python_program));
+        assert_eq!(received.text, python_program);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_delete_msgs_offline() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("hi".to_string());
+        assert!(chat::send_msg_sync(&alice, chat.id, &mut msg)
+            .await
+            .is_err());
+        let stmt = "SELECT COUNT(*) FROM smtp WHERE msg_id=?";
+        assert!(alice.sql.exists(stmt, (msg.id,)).await?);
+        delete_msgs(&alice, &[msg.id]).await?;
+        assert!(!alice.sql.exists(stmt, (msg.id,)).await?);
 
         Ok(())
     }

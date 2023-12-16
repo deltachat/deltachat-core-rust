@@ -185,16 +185,14 @@ pub(crate) async fn maybe_add_time_based_warnings(context: &Context) {
 async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestamp: i64) -> bool {
     if now < known_past_timestamp {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(
-            stock_str::bad_time_msg_body(
-                context,
-                &Local.timestamp_opt(now, 0).single().map_or_else(
-                    || "YY-MM-DD hh:mm:ss".to_string(),
-                    |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ),
-            )
-            .await,
-        );
+        msg.text = stock_str::bad_time_msg_body(
+            context,
+            &Local.timestamp_opt(now, 0).single().map_or_else(
+                || "YY-MM-DD hh:mm:ss".to_string(),
+                |ts| ts.format("%Y-%m-%d %H:%M:%S").to_string(),
+            ),
+        )
+        .await;
         if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
             add_device_msg_with_importance(
                 context,
@@ -221,7 +219,7 @@ async fn maybe_warn_on_bad_time(context: &Context, now: i64, known_past_timestam
 async fn maybe_warn_on_outdated(context: &Context, now: i64, approx_compile_time: i64) {
     if now > approx_compile_time + DC_OUTDATED_WARNING_DAYS * 24 * 60 * 60 {
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some(stock_str::update_reminder_msg_body(context).await);
+        msg.text = stock_str::update_reminder_msg_body(context).await;
         if let Some(timestamp) = chrono::NaiveDateTime::from_timestamp_opt(now, 0) {
             add_device_msg(
                 context,
@@ -270,7 +268,7 @@ pub(crate) fn create_id() -> String {
 /// Function generates a Message-ID that can be used for a new outgoing message.
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
-/// - do not add a counter or any private data as this leaks information unncessarily
+/// - do not add a counter or any private data as this leaks information unnecessarily
 pub(crate) fn create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
@@ -325,17 +323,16 @@ pub fn get_filemeta(buf: &[u8]) -> Result<(u32, u32)> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub(crate) fn get_abs_path(context: &Context, path: impl AsRef<Path>) -> PathBuf {
-    let p: &Path = path.as_ref();
-    if let Ok(p) = p.strip_prefix("$BLOBDIR") {
+pub(crate) fn get_abs_path(context: &Context, path: &Path) -> PathBuf {
+    if let Ok(p) = path.strip_prefix("$BLOBDIR") {
         context.get_blobdir().join(p)
     } else {
-        p.into()
+        path.into()
     }
 }
 
 pub(crate) async fn get_filebytes(context: &Context, path: impl AsRef<Path>) -> Result<u64> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     let meta = fs::metadata(&path_abs).await?;
     Ok(meta.len())
 }
@@ -379,7 +376,7 @@ pub(crate) async fn create_folder(
     context: &Context,
     path: impl AsRef<Path>,
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs).await {
             Ok(_) => Ok(()),
@@ -404,7 +401,7 @@ pub(crate) async fn write_file(
     path: impl AsRef<Path>,
     buf: &[u8],
 ) -> Result<(), io::Error> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
     fs::write(&path_abs, buf).await.map_err(|err| {
         warn!(
             context,
@@ -419,7 +416,7 @@ pub(crate) async fn write_file(
 
 /// Reads the file and returns its context as a byte vector.
 pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match fs::read(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -436,7 +433,7 @@ pub async fn read_file(context: &Context, path: impl AsRef<Path>) -> Result<Vec<
 }
 
 pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::File> {
-    let path_abs = get_abs_path(context, &path);
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match fs::File::open(&path_abs).await {
         Ok(bytes) => Ok(bytes),
@@ -452,12 +449,8 @@ pub async fn open_file(context: &Context, path: impl AsRef<Path>) -> Result<fs::
     }
 }
 
-pub fn open_file_std<P: AsRef<std::path::Path>>(
-    context: &Context,
-    path: P,
-) -> Result<std::fs::File> {
-    let p: PathBuf = path.as_ref().into();
-    let path_abs = get_abs_path(context, p);
+pub fn open_file_std(context: &Context, path: impl AsRef<Path>) -> Result<std::fs::File> {
+    let path_abs = get_abs_path(context, path.as_ref());
 
     match std::fs::File::open(path_abs) {
         Ok(bytes) => Ok(bytes),
@@ -541,6 +534,9 @@ impl EmailAddress {
                 }
                 if domain.is_empty() {
                     bail!("missing domain after '@' in {:?}", input);
+                }
+                if domain.ends_with('.') {
+                    bail!("Domain {domain:?} should not contain the dot in the end");
                 }
                 Ok(EmailAddress {
                     local: (*local).to_string(),
@@ -704,7 +700,7 @@ pub(crate) fn buf_decompress(buf: &[u8]) -> Result<Vec<u8>> {
 }
 
 const RTLO_CHARACTERS: [char; 5] = ['\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}'];
-/// This method strips all occurances of the RTLO Unicode character.
+/// This method strips all occurrences of the RTLO Unicode character.
 /// [Why is this needed](https://github.com/deltachat/deltachat-core-rust/issues/3479)?
 pub(crate) fn strip_rtlo_characters(input_str: &str) -> String {
     input_str.replace(|char| RTLO_CHARACTERS.contains(&char), "")
@@ -715,7 +711,7 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use super::*;
-    use crate::{message::get_msg_info, receive_imf::receive_imf, test_utils::TestContext};
+    use crate::{receive_imf::receive_imf, test_utils::TestContext};
 
     #[test]
     fn test_parse_receive_headers() {
@@ -788,7 +784,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         let t = TestContext::new_alice().await;
         receive_imf(&t, raw, false).await.unwrap();
         let msg = t.get_last_msg().await;
-        let msg_info = get_msg_info(&t, msg.id).await.unwrap();
+        let msg_info = msg.id.get_info(&t).await.unwrap();
 
         // Ignore the first rows of the msg_info because they contain a
         // received time that depends on the test time which makes it impossible to
@@ -1003,7 +999,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(EmailAddress::new("dd.tt").is_ok(), false);
         assert!(EmailAddress::new("tt.dd@uu").is_ok());
         assert!(EmailAddress::new("u@d").is_ok());
-        assert!(EmailAddress::new("u@d.").is_ok());
+        assert!(EmailAddress::new("u@d.").is_err());
         assert!(EmailAddress::new("u@d.t").is_ok());
         assert_eq!(
             EmailAddress::new("u@d.tt").unwrap(),

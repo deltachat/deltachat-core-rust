@@ -11,10 +11,11 @@ authors = [
     { name = "holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
     "Programming Language :: Python :: 3",
+    "Topic :: Communications :: Chat",
     "Topic :: Communications :: Email",
     "Topic :: Software Development :: Libraries",
 ]
@@ -33,6 +34,7 @@ dynamic = [
 "Home" = "https://github.com/deltachat/deltachat-core-rust/"
 "Bug Tracker" = "https://github.com/deltachat/deltachat-core-rust/issues"
 "Documentation" = "https://py.delta.chat/"
+"Mastodon" = "https://chaos.social/@delta"
 
 [project.entry-points.pytest11]
 "deltachat.testplugin" = "deltachat.testplugin"

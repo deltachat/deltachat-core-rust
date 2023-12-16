@@ -14,6 +14,7 @@
 //! possible to remove all reactions by sending an empty string as a reaction,
 //! even though RFC 9078 requires at least one emoji to be sent.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -116,10 +117,9 @@ impl Reactions {
     pub fn is_empty(&self) -> bool {
         self.reactions.is_empty()
     }
-}
 
-impl fmt::Display for Reactions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    /// Returns a map from emojis to their frequencies.
+    pub fn emoji_frequencies(&self) -> BTreeMap<String, usize> {
         let mut emoji_frequencies: BTreeMap<String, usize> = BTreeMap::new();
         for reaction in self.reactions.values() {
             for emoji in reaction.emojis() {
@@ -129,6 +129,30 @@ impl fmt::Display for Reactions {
                     .or_insert(1);
             }
         }
+        emoji_frequencies
+    }
+
+    /// Returns a vector of emojis
+    /// sorted in descending order of frequencies.
+    ///
+    /// This function can be used to display the reactions in
+    /// the message bubble in the UIs.
+    pub fn emoji_sorted_by_frequency(&self) -> Vec<(String, usize)> {
+        let mut emoji_frequencies: Vec<(String, usize)> =
+            self.emoji_frequencies().into_iter().collect();
+        emoji_frequencies.sort_by(|(a, a_count), (b, b_count)| {
+            match a_count.cmp(b_count).reverse() {
+                Ordering::Equal => a.cmp(b),
+                other => other,
+            }
+        });
+        emoji_frequencies
+    }
+}
+
+impl fmt::Display for Reactions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let emoji_frequencies = self.emoji_sorted_by_frequency();
         let mut first = true;
         for (emoji, frequency) in emoji_frequencies {
             if !first {
@@ -190,7 +214,7 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
 
     let reaction: Reaction = reaction.into();
     let mut reaction_msg = Message::new(Viewtype::Text);
-    reaction_msg.text = Some(reaction.as_str().to_string());
+    reaction_msg.text = reaction.as_str().to_string();
     reaction_msg.set_reaction();
     reaction_msg.in_reply_to = Some(msg.rfc724_mid);
     reaction_msg.hidden = true;
@@ -287,12 +311,14 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
 mod tests {
     use super::*;
     use crate::chat::get_chat_msgs;
+    use crate::config::Config;
     use crate::constants::DC_CHAT_ID_TRASH;
     use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
     use crate::message::MessageState;
     use crate::receive_imf::{receive_imf, receive_imf_inner};
     use crate::test_utils::TestContext;
+    use crate::test_utils::TestContextManager;
 
     #[test]
     fn test_parse_reaction() {
@@ -405,6 +431,32 @@ Content-Disposition: reaction\n\
         assert_eq!(bob_reaction.emojis(), vec!["👍"]);
         assert_eq!(bob_reaction.as_str(), "👍");
 
+        // Alice receives reaction to her message from Bob with a footer.
+        receive_imf(
+            &alice,
+            "To: alice@example.org\n\
+From: bob@example.net\n\
+Date: Today, 29 February 2021 00:00:10 -800\n\
+Message-ID: 56790@example.net\n\
+In-Reply-To: 12345@example.org\n\
+Subject: Meeting\n\
+Mime-Version: 1.0 (1.0)\n\
+Content-Type: text/plain; charset=utf-8\n\
+Content-Disposition: reaction\n\
+\n\
+😀\n\
+\n\
+--\n\
+_______________________________________________\n\
+Here's my footer -- bob@example.net"
+                .as_bytes(),
+            false,
+        )
+        .await?;
+
+        let reactions = get_msg_reactions(&alice, msg.id).await?;
+        assert_eq!(reactions.to_string(), "😀1");
+
         Ok(())
     }
 
@@ -437,6 +489,16 @@ Content-Disposition: reaction\n\
     async fn test_send_reaction() -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
+
+        // Test that the status does not get mixed up into reactions.
+        alice
+            .set_config(
+                Config::Selfstatus,
+                Some("Buy Delta Chat today and make this banner go away!"),
+            )
+            .await?;
+        bob.set_config(Config::Selfstatus, Some("Sent from my Delta Chat Pro. 👍"))
+            .await?;
 
         let chat_alice = alice.create_chat(&bob).await;
         let alice_msg = alice.send_text(chat_alice.id, "Hi!").await;
@@ -478,6 +540,11 @@ Content-Disposition: reaction\n\
             .unwrap();
         let reactions = get_msg_reactions(&alice, alice_msg.sender_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍2 😀1");
+
+        assert_eq!(
+            reactions.emoji_sorted_by_frequency(),
+            vec![("👍".to_string(), 2), ("😀".to_string(), 1)]
+        );
 
         Ok(())
     }
@@ -548,6 +615,42 @@ Content-Disposition: reaction\n\
         let reactions = get_msg_reactions(&alice, alice_msg_id).await?;
         assert_eq!(reactions.to_string(), "👍1");
 
+        Ok(())
+    }
+
+    /// Regression test for reaction resetting self-status.
+    ///
+    /// Reactions do not contain the status,
+    /// but should not result in self-status being reset on other devices.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_reaction_status_multidevice() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice1 = tcm.alice().await;
+        let alice2 = tcm.alice().await;
+
+        alice1
+            .set_config(Config::Selfstatus, Some("New status"))
+            .await?;
+
+        let alice2_msg = tcm.send_recv(&alice1, &alice2, "Hi!").await;
+        assert_eq!(
+            alice2.get_config(Config::Selfstatus).await?.as_deref(),
+            Some("New status")
+        );
+
+        // Alice reacts to own message from second device,
+        // first device receives rection.
+        {
+            send_reaction(&alice2, alice2_msg.id, "👍").await?;
+            let msg = alice2.pop_sent_msg().await;
+            alice1.recv_msg(&msg).await;
+        }
+
+        // Check that the status is still the same.
+        assert_eq!(
+            alice1.get_config(Config::Selfstatus).await?.as_deref(),
+            Some("New status")
+        );
         Ok(())
     }
 }

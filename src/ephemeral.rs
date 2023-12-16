@@ -63,6 +63,7 @@
 //! ephemeral message timers or global `delete_server_after` setting.
 
 use std::cmp::max;
+use std::collections::BTreeSet;
 use std::convert::{TryFrom, TryInto};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -218,7 +219,7 @@ impl ChatId {
 
         if self.is_promoted(context).await? {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await);
+            msg.text = stock_ephemeral_timer_changed(context, timer, ContactId::SELF).await;
             msg.param.set_cmd(SystemMessage::EphemeralTimerChanged);
             if let Err(err) = send_msg(context, self, &mut msg).await {
                 error!(
@@ -455,8 +456,15 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
             })
             .await?;
 
+        let mut modified_chat_ids = BTreeSet::new();
+
         for (chat_id, msg_id) in msgs_changed {
-            context.emit_msgs_changed(chat_id, msg_id);
+            context.emit_event(EventType::MsgDeleted { chat_id, msg_id });
+            modified_chat_ids.insert(chat_id);
+        }
+
+        for modified_chat_id in modified_chat_ids {
+            context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
         }
 
         for msg_id in webxdc_deleted {
@@ -537,7 +545,7 @@ async fn next_expiration_timestamp(context: &Context) -> Option<i64> {
 
     ephemeral_timestamp
         .into_iter()
-        .chain(delete_device_after_timestamp.into_iter())
+        .chain(delete_device_after_timestamp)
         .min()
 }
 
@@ -978,7 +986,7 @@ mod tests {
         t.send_text(self_chat.id, "Saved message, which we delete manually")
             .await;
         let msg = t.get_last_msg_in(self_chat.id).await;
-        msg.id.delete_from_db(&t).await?;
+        msg.id.trash(&t).await?;
         check_msg_is_deleted(&t, &self_chat, msg.id).await;
 
         self_chat
@@ -995,7 +1003,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Set DeleteDeviceAfter to 1800s. Thend send a saved message which will
+        // Set DeleteDeviceAfter to 1800s. Then send a saved message which will
         // still be deleted after 3600s because DeleteDeviceAfter doesn't apply to saved messages.
         t.set_config(Config::DeleteDeviceAfter, Some("1800"))
             .await?;
@@ -1054,14 +1062,14 @@ mod tests {
         delete_expired_messages(t, not_deleted_at).await?;
 
         let loaded = Message::load_from_db(t, msg_id).await?;
-        assert_eq!(loaded.text.unwrap(), "Message text");
+        assert!(!loaded.text.is_empty());
         assert_eq!(loaded.chat_id, chat.id);
 
         assert!(next_expiration < deleted_at);
         delete_expired_messages(t, deleted_at).await?;
         t.evtracker
             .get_matching(|evt| {
-                if let EventType::MsgsChanged {
+                if let EventType::MsgDeleted {
                     msg_id: event_msg_id,
                     ..
                 } = evt
@@ -1074,7 +1082,6 @@ mod tests {
             .await;
 
         let loaded = Message::load_from_db(t, msg_id).await?;
-        assert_eq!(loaded.text.unwrap(), "");
         assert_eq!(loaded.chat_id, DC_CHAT_ID_TRASH);
 
         // Check that the msg was deleted locally.
@@ -1097,7 +1104,7 @@ mod tests {
         if let Ok(msg) = Message::load_from_db(t, msg_id).await {
             assert_eq!(msg.from_id, ContactId::UNDEFINED);
             assert_eq!(msg.to_id, ContactId::UNDEFINED);
-            assert!(msg.text.is_none_or_empty(), "{:?}", msg.text);
+            assert_eq!(msg.text, "");
             let rawtxt: Option<String> = t
                 .sql
                 .query_get_value("SELECT txt_raw FROM msgs WHERE id=?;", (msg_id,))
@@ -1253,8 +1260,8 @@ mod tests {
         );
         let msg = alice.get_last_msg().await;
 
-        // Message is deleted from the database when its timer expires.
-        msg.id.delete_from_db(&alice).await?;
+        // Message is deleted when its timer expires.
+        msg.id.trash(&alice).await?;
 
         // Message with Message-ID <third@example.com>, referencing <first@example.com> and
         // <second@example.com>, is received.  The message <second@example.come> is not in the
@@ -1289,6 +1296,34 @@ mod tests {
             msg.chat_id.get_ephemeral_timer(&alice).await?,
             Timer::Disabled
         );
+
+        Ok(())
+    }
+
+    // Tests that if we are offline for a time longer than the ephemeral timer duration, the message
+    // is deleted from the chat but is still in the "smtp" table, i.e. will be sent upon a
+    // successful reconnection.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_ephemeral_msg_offline() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let chat = alice
+            .create_chat_with_contact("Bob", "bob@example.org")
+            .await;
+        let duration = 60;
+        chat.id
+            .set_ephemeral_timer(&alice, Timer::Enabled { duration })
+            .await?;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.set_text("hi".to_string());
+        assert!(chat::send_msg_sync(&alice, chat.id, &mut msg)
+            .await
+            .is_err());
+        let stmt = "SELECT COUNT(*) FROM smtp WHERE msg_id=?";
+        assert!(alice.sql.exists(stmt, (msg.id,)).await?);
+        let now = time();
+        check_msg_will_be_deleted(&alice, msg.id, &chat, now, now + i64::from(duration) + 1)
+            .await?;
+        assert!(alice.sql.exists(stmt, (msg.id,)).await?);
 
         Ok(())
     }

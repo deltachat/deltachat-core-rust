@@ -67,12 +67,21 @@ fn remove_nonstandard_footer<'a>(lines: &'a [&str]) -> (&'a [&'a str], bool) {
     (lines, false)
 }
 
+/// Remove footers if any.
+/// This also makes all newlines "\n", but why not.
+pub(crate) fn remove_footers(msg: &str) -> String {
+    let lines = split_lines(msg);
+    let lines = remove_message_footer(&lines).0;
+    let lines = remove_nonstandard_footer(lines).0;
+    lines.join("\n")
+}
+
 pub(crate) fn split_lines(buf: &str) -> Vec<&str> {
     buf.split('\n').collect()
 }
 
 /// Simplified text and some additional information gained from the input.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct SimplifiedText {
     /// The text itself.
     pub text: String,
@@ -89,6 +98,14 @@ pub(crate) struct SimplifiedText {
 
     /// Footer, if any.
     pub footer: Option<String>,
+}
+
+pub(crate) fn simplify_quote(quote: &str) -> (String, bool) {
+    let quote_lines = split_lines(quote);
+    let (quote_lines, quote_footer_lines) = remove_message_footer(&quote_lines);
+    let is_cut = quote_footer_lines.is_some();
+
+    (render_message(quote_lines, false), is_cut)
 }
 
 /// Simplify message text for chat display.
@@ -125,11 +142,9 @@ pub(crate) fn simplify(mut input: String, is_chat_message: bool) -> SimplifiedTe
 
     if !is_chat_message {
         top_quote = top_quote.map(|quote| {
-            let quote_lines = split_lines(&quote);
-            let (quote_lines, quote_footer_lines) = remove_message_footer(&quote_lines);
-            is_cut = is_cut || quote_footer_lines.is_some();
-
-            render_message(quote_lines, false)
+            let (quote, quote_cut) = simplify_quote(&quote);
+            is_cut |= quote_cut;
+            quote
         });
     }
 
@@ -235,12 +250,11 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
     let mut ret = String::new();
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks = 0;
-    let mut empty_body = true;
     for line in lines {
         if is_empty_line(line) {
             pending_linebreaks += 1
         } else {
-            if !empty_body {
+            if !ret.is_empty() {
                 if pending_linebreaks > 2 {
                     pending_linebreaks = 2
                 }
@@ -251,11 +265,10 @@ fn render_message(lines: &[&str], is_cut_at_end: bool) -> String {
             }
             // the incoming message might contain invalid UTF8
             ret += line;
-            empty_body = false;
             pending_linebreaks = 1
         }
     }
-    if is_cut_at_end && !empty_body {
+    if is_cut_at_end && !ret.is_empty() {
         ret += " [...]";
     }
     // redo escaping done by escape_message_footer_marks()

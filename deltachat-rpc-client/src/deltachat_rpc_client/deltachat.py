@@ -16,34 +16,34 @@ class DeltaChat:
     def __init__(self, rpc: "Rpc") -> None:
         self.rpc = rpc
 
-    async def add_account(self) -> Account:
+    def add_account(self) -> Account:
         """Create a new account database."""
-        account_id = await self.rpc.add_account()
+        account_id = self.rpc.add_account()
         return Account(self, account_id)
 
-    async def get_all_accounts(self) -> List[Account]:
+    def get_all_accounts(self) -> List[Account]:
         """Return a list of all available accounts."""
-        account_ids = await self.rpc.get_all_account_ids()
+        account_ids = self.rpc.get_all_account_ids()
         return [Account(self, account_id) for account_id in account_ids]
 
-    async def start_io(self) -> None:
+    def start_io(self) -> None:
         """Start the I/O of all accounts."""
-        await self.rpc.start_io_for_all_accounts()
+        self.rpc.start_io_for_all_accounts()
 
-    async def stop_io(self) -> None:
+    def stop_io(self) -> None:
         """Stop the I/O of all accounts."""
-        await self.rpc.stop_io_for_all_accounts()
+        self.rpc.stop_io_for_all_accounts()
 
-    async def maybe_network(self) -> None:
+    def maybe_network(self) -> None:
         """Indicate that the network likely has come back or just that the network
         conditions might have changed.
         """
-        await self.rpc.maybe_network()
+        self.rpc.maybe_network()
 
-    async def get_system_info(self) -> AttrDict:
+    def get_system_info(self) -> AttrDict:
         """Get information about the Delta Chat core in this system."""
-        return AttrDict(await self.rpc.get_system_info())
+        return AttrDict(self.rpc.get_system_info())
 
-    async def set_translations(self, translations: Dict[str, str]) -> None:
+    def set_translations(self, translations: Dict[str, str]) -> None:
         """Set stock translation strings."""
-        await self.rpc.set_stock_strings(translations)
+        self.rpc.set_stock_strings(translations)

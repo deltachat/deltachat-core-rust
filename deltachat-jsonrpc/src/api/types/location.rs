@@ -2,7 +2,7 @@ use deltachat::location::Location;
 use serde::Serialize;
 use typescript_type_def::TypeDef;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Location", rename_all = "camelCase")]
 pub struct JsonrpcLocation {
     pub location_id: u32,

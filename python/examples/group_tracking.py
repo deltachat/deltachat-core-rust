@@ -32,25 +32,13 @@ class GroupTrackingPlugin:
 
     @account_hookimpl
     def ac_member_added(self, chat, contact, actor, message):
-        print(
-            "ac_member_added {} to chat {} from {}".format(
-                contact.addr,
-                chat.id,
-                actor or message.get_sender_contact().addr,
-            ),
-        )
+        print(f"ac_member_added {contact.addr} to chat {chat.id} from {actor or message.get_sender_contact().addr}")
         for member in chat.get_contacts():
             print(f"chat member: {member.addr}")
 
     @account_hookimpl
     def ac_member_removed(self, chat, contact, actor, message):
-        print(
-            "ac_member_removed {} from chat {} by {}".format(
-                contact.addr,
-                chat.id,
-                actor or message.get_sender_contact().addr,
-            ),
-        )
+        print(f"ac_member_removed {contact.addr} from chat {chat.id} by {actor or message.get_sender_contact().addr}")
 
 
 def main(argv=None):

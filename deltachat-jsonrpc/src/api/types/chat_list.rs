@@ -1,25 +1,21 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use deltachat::chat::{Chat, ChatId};
+use deltachat::chatlist::get_last_message_for_chat;
 use deltachat::constants::*;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::{
     chat::{get_chat_contacts, ChatVisibility},
     chatlist::Chatlist,
 };
-use deltachat::{
-    chat::{Chat, ChatId},
-    message::MsgId,
-};
 use num_traits::cast::ToPrimitive;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
+use super::message::MessageViewtype;
 
-#[derive(Deserialize, Serialize, TypeDef)]
-pub struct ChatListEntry(pub u32, pub u32);
-
-#[derive(Serialize, TypeDef)]
-#[serde(tag = "type")]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(tag = "kind")]
 pub enum ChatListItemFetchResult {
     #[serde(rename_all = "camelCase")]
     ChatListItem {
@@ -31,6 +27,8 @@ pub enum ChatListItemFetchResult {
         summary_text1: String,
         summary_text2: String,
         summary_status: u32,
+        /// showing preview if last chat message is image
+        summary_preview_image: Option<String>,
         is_protected: bool,
         is_group: bool,
         fresh_message_counter: usize,
@@ -47,6 +45,8 @@ pub enum ChatListItemFetchResult {
         /// contact id if this is a dm chat (for view profile entry in context menu)
         dm_chat_contact: Option<u32>,
         was_seen_recently: bool,
+        last_message_type: Option<MessageViewtype>,
+        last_message_id: Option<u32>,
     },
     #[serde(rename_all = "camelCase")]
     ArchiveLink { fresh_message_counter: usize },
@@ -56,14 +56,9 @@ pub enum ChatListItemFetchResult {
 
 pub(crate) async fn get_chat_list_item_by_id(
     ctx: &deltachat::context::Context,
-    entry: &ChatListEntry,
+    entry: u32,
 ) -> Result<ChatListItemFetchResult> {
-    let chat_id = ChatId::new(entry.0);
-    let last_msgid = match entry.1 {
-        0 => None,
-        _ => Some(MsgId::new(entry.1)),
-    };
-
+    let chat_id = ChatId::new(entry);
     let fresh_message_counter = chat_id.get_fresh_msg_cnt(ctx).await?;
 
     if chat_id.is_archived_link() {
@@ -72,11 +67,17 @@ pub(crate) async fn get_chat_list_item_by_id(
         });
     }
 
-    let chat = Chat::load_from_db(ctx, chat_id).await?;
-    let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat)).await?;
+    let last_msgid = get_last_message_for_chat(ctx, chat_id).await?;
+
+    let chat = Chat::load_from_db(ctx, chat_id).await.context("chat")?;
+    let summary = Chatlist::get_summary2(ctx, chat_id, last_msgid, Some(&chat))
+        .await
+        .context("summary")?;
 
     let summary_text1 = summary.prefix.map_or_else(String::new, |s| s.to_string());
     let summary_text2 = summary.text.to_owned();
+
+    let summary_preview_image = summary.thumbnail_path;
 
     let visibility = chat.get_visibility();
 
@@ -85,12 +86,15 @@ pub(crate) async fn get_chat_list_item_by_id(
         .await?
         .map(|path| path.to_str().unwrap_or("invalid/path").to_owned());
 
-    let last_updated = match last_msgid {
+    let (last_updated, message_type) = match last_msgid {
         Some(id) => {
             let last_message = deltachat::message::Message::load_from_db(ctx, id).await?;
-            Some(last_message.get_timestamp() * 1000)
+            (
+                Some(last_message.get_timestamp() * 1000),
+                Some(last_message.get_viewtype().into()),
+            )
         }
-        None => None,
+        None => (None, None),
     };
 
     let chat_contacts = get_chat_contacts(ctx, chat_id).await?;
@@ -100,8 +104,9 @@ pub(crate) async fn get_chat_list_item_by_id(
     let (dm_chat_contact, was_seen_recently) = if chat.get_type() == Chattype::Single {
         let contact = chat_contacts.get(0);
         let was_seen_recently = match contact {
-            Some(contact) => Contact::load_from_db(ctx, *contact)
-                .await?
+            Some(contact) => Contact::get_by_id(ctx, *contact)
+                .await
+                .context("contact")?
                 .was_seen_recently(),
             None => false,
         };
@@ -124,6 +129,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         summary_text1,
         summary_text2,
         summary_status: summary.state.to_u32().expect("impossible"), // idea and a function to transform the constant to strings? or return string enum
+        summary_preview_image,
         is_protected: chat.is_protected(),
         is_group: chat.get_type() == Chattype::Group,
         fresh_message_counter,
@@ -138,5 +144,7 @@ pub(crate) async fn get_chat_list_item_by_id(
         is_broadcast: chat.get_type() == Chattype::Broadcast,
         dm_chat_contact,
         was_seen_recently,
+        last_message_type: message_type,
+        last_message_id: last_msgid.map(|id| id.to_u32()),
     })
 }

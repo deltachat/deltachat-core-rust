@@ -516,7 +516,8 @@ DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 msg_id INTEGER,
 update_item TEXT DEFAULT '',
-update_item_read INTEGER DEFAULT 0);
+update_item_read INTEGER DEFAULT 0 -- XXX unused
+);
 CREATE INDEX msgs_status_updates_index1 ON msgs_status_updates (msg_id);"#,
             84,
         )
@@ -708,6 +709,43 @@ CREATE INDEX smtp_messageid ON imap(rfc724_mid);
         sql.execute_migration(
             "ALTER TABLE msgs ADD COLUMN mime_compressed INTEGER NOT NULL DEFAULT 0",
             100,
+        )
+        .await?;
+    }
+    if dbversion < 101 {
+        // Recreate `smtp` table with autoincrement.
+        // rfc724_mid index is not recreated, because it is not used.
+        sql.execute_migration(
+            "DROP TABLE smtp;
+             CREATE TABLE smtp (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             rfc724_mid TEXT NOT NULL,          -- Message-ID
+             mime TEXT NOT NULL,                -- SMTP payload
+             msg_id INTEGER NOT NULL,           -- ID of the message in `msgs` table
+             recipients TEXT NOT NULL,          -- List of recipients separated by space
+             retries INTEGER NOT NULL DEFAULT 0 -- Number of failed attempts to send the message
+            );
+            ",
+            101,
+        )
+        .await?;
+    }
+
+    if dbversion < 102 {
+        sql.execute_migration(
+            "CREATE TABLE download (
+            msg_id INTEGER NOT NULL -- id of the message stub in msgs table
+            )",
+            102,
+        )
+        .await?;
+    }
+
+    // Add is_bot column to contacts table with default false.
+    if dbversion < 103 {
+        sql.execute_migration(
+            "ALTER TABLE contacts ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0",
+            103,
         )
         .await?;
     }

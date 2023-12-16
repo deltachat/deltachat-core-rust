@@ -1,8 +1,16 @@
-//! Email accounts autoconfiguration process module.
+//! # Email accounts autoconfiguration process.
+//!
+//! The module provides automatic lookup of configuration
+//! for email providers based on the built-in [provider database],
+//! [Mozilla Thunderbird Autoconfiguration protocol]
+//! and [Outlook's Autodiscover].
+//!
+//! [provider database]: crate::provider
+//! [Mozilla Thunderbird Autoconfiguration protocol]: auto_mozilla
+//! [Outlook's Autodiscover]: auto_outlook
 
 mod auto_mozilla;
 mod auto_outlook;
-mod read_url;
 mod server_params;
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -18,7 +26,6 @@ use crate::config::Config;
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::Imap;
-use crate::job;
 use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
@@ -120,8 +127,8 @@ async fn on_configure_completed(
     old_addr: Option<String>,
 ) -> Result<()> {
     if let Some(provider) = param.provider {
-        if let Some(config_defaults) = &provider.config_defaults {
-            for def in config_defaults.iter() {
+        if let Some(config_defaults) = provider.config_defaults {
+            for def in config_defaults {
                 if !context.config_exists(def.key).await? {
                     info!(context, "apply config_defaults {}={}", def.key, def.value);
                     context.set_config(def.key, Some(def.value)).await?;
@@ -136,7 +143,7 @@ async fn on_configure_completed(
 
         if !provider.after_login_hint.is_empty() {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(provider.after_login_hint.to_string());
+            msg.text = provider.after_login_hint.to_string();
             if chat::add_device_msg(context, Some("core-provider-info"), Some(&mut msg))
                 .await
                 .is_err()
@@ -151,7 +158,7 @@ async fn on_configure_completed(
             if !addr_cmp(&new_addr, &old_addr) {
                 let mut msg = Message::new(Viewtype::Text);
                 msg.text =
-                    Some(stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await);
+                    stock_str::aeap_explanation_and_link(context, &old_addr, &new_addr).await;
                 chat::add_device_msg(context, None, Some(&mut msg))
                     .await
                     .context("Cannot add AEAP explanation")
@@ -308,7 +315,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     }
 
     // respect certificate setting from function parameters
-    for mut server in &mut servers {
+    for server in &mut servers {
         let certificate_checks = match server.protocol {
             Protocol::Imap => param.imap.certificate_checks,
             Protocol::Smtp => param.smtp.certificate_checks,
@@ -452,9 +459,12 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     progress!(ctx, 910);
 
-    if ctx.get_config(Config::ConfiguredAddr).await?.as_deref() != Some(&param.addr) {
-        // Switched account, all server UIDs we know are invalid
-        job::schedule_resync(ctx).await?;
+    if let Some(configured_addr) = ctx.get_config(Config::ConfiguredAddr).await? {
+        if configured_addr != param.addr {
+            // Switched account, all server UIDs we know are invalid
+            info!(ctx, "Scheduling resync because the address has changed.");
+            ctx.schedule_resync().await?;
+        }
     }
 
     // the trailing underscore is correct
@@ -643,7 +653,7 @@ async fn try_smtp_one_param(
         })
     } else {
         info!(context, "success: {}", inf);
-        smtp.disconnect().await;
+        smtp.disconnect();
         Ok(())
     }
 }

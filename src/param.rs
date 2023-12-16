@@ -21,6 +21,9 @@ pub enum Param {
     /// For messages and jobs
     File = b'f',
 
+    /// For messages: original filename (as shown in chat)
+    Filename = b'v',
+
     /// For messages: This name should be shown instead of contact.get_display_name()
     /// (used if this is a mailinglist
     /// or explicitly set using set_override_sender_name(), eg. by bots)
@@ -184,6 +187,9 @@ pub enum Param {
 
     /// For Webxdc Message Instances: timestamp of summary update.
     WebxdcSummaryTimestamp = b'Q',
+
+    /// For messages: Whether [crate::message::Viewtype::Sticker] should be forced.
+    ForceSticker = b'X',
 }
 
 /// An object for handling key=value parameter lists.
@@ -276,6 +282,16 @@ impl Params {
     pub fn remove(&mut self, key: Param) -> &mut Self {
         self.inner.remove(&key);
         self
+    }
+
+    /// Sets the given key from an optional value.
+    /// Removes the key if the value is `None`.
+    pub fn set_optional(&mut self, key: Param, value: Option<impl ToString>) -> &mut Self {
+        if let Some(value) = value {
+            self.set(key, value)
+        } else {
+            self.remove(key)
+        }
     }
 
     /// Check if there are any values in this.
@@ -528,7 +544,7 @@ mod tests {
 
         fs::write(fname, b"boo").await.unwrap();
         let blob = p.get_blob(Param::File, &t, true).await.unwrap().unwrap();
-        assert_eq!(blob, BlobObject::from_name(&t, "foo".to_string()).unwrap());
+        assert!(blob.as_file_name().starts_with("foo"));
 
         // Blob in blobdir, expect blob.
         let bar_path = t.get_blobdir().join("bar");

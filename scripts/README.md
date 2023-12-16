@@ -10,6 +10,8 @@ and an own build machine.
 
 - `deny.sh` runs `cargo deny` for all Rust code in the project.
 
+- `codespell.sh` spellchecks the source code using `codespell` tool.
+
 - `../.github/workflows` contains jobs run by GitHub Actions.
 
 - `remote_tests_python.sh` rsyncs to a build machine and runs
@@ -17,6 +19,10 @@ and an own build machine.
 
 - `remote_tests_rust.sh` rsyncs to the build machine and runs
   `run-rust-test.sh` remotely on the build machine. 
+
+- `make-python-testenv.sh` creates local python test development environment.
+  Reusing the same environment is faster than running `run-python-test.sh` which always
+  recreates environment from scratch and runs additional lints.
 
 - `run-doxygen.sh` generates C-docs which are then uploaded to https://c.delta.chat/
 

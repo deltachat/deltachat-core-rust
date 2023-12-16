@@ -36,7 +36,7 @@ export class Context extends EventEmitter {
     }
   }
 
-  /** Opens a stanalone context (without an account manager)
+  /** Opens a standalone context (without an account manager)
    * automatically starts the event handler */
   static open(cwd: string): Context {
     const dbFile = join(cwd, 'db.sqlite')
@@ -696,23 +696,6 @@ export class Context extends EventEmitter {
     debug(`setChatName ${chatId} ${name}`)
     return Boolean(
       binding.dcn_set_chat_name(this.dcn_context, Number(chatId), name)
-    )
-  }
-
-  /**
-   *
-   * @param chatId
-   * @param protect
-   * @returns success boolean
-   */
-  setChatProtection(chatId: number, protect: boolean) {
-    debug(`setChatProtection ${chatId} ${protect}`)
-    return Boolean(
-      binding.dcn_set_chat_protection(
-        this.dcn_context,
-        Number(chatId),
-        protect ? 1 : 0
-      )
     )
   }
 

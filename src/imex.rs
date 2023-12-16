@@ -19,7 +19,9 @@ use crate::contact::ContactId;
 use crate::context::Context;
 use crate::e2ee;
 use crate::events::EventType;
-use crate::key::{self, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey};
+use crate::key::{
+    self, load_self_secret_key, DcKey, DcSecretKey, SignedPublicKey, SignedSecretKey,
+};
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
@@ -58,8 +60,7 @@ pub enum ImexMode {
     /// Export a backup to the directory given as `path` with the given `passphrase`.
     /// The backup contains all contacts, chats, images and other data and device independent settings.
     /// The backup does not contain device dependent settings as ringtones or LED notification settings.
-    /// The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
-    /// the format is `delta-chat-<day>-<number>.tar`
+    /// The name of the backup is `delta-chat-backup-<day>-<number>-<addr>.tar`.
     ExportBackup = 11,
 
     /// `path` is the file (not: directory) to import. The file is normally
@@ -127,7 +128,7 @@ pub async fn has_backup(_context: &Context, dir_name: &Path) -> Result<String> {
             && (newest_backup_name.is_empty() || name > newest_backup_name)
         {
             // We just use string comparison to determine which backup is newer.
-            // This works fine because the filenames have the form ...delta-chat-backup-2020-07-24-00.tar
+            // This works fine because the filenames have the form `delta-chat-backup-2023-10-18-00-foo@example.com.tar`
             newest_backup_path = Some(path);
             newest_backup_name = name;
         }
@@ -185,7 +186,7 @@ pub async fn render_setup_file(context: &Context, passphrase: &str) -> Result<St
     } else {
         bail!("Passphrase must be at least 2 chars long.");
     };
-    let private_key = SignedSecretKey::load_self(context).await?;
+    let private_key = load_self_secret_key(context).await?;
     let ac_headers = match context.get_config_bool(Config::E2eeEnabled).await? {
         false => None,
         true => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
@@ -252,12 +253,10 @@ async fn maybe_add_bcc_self_device_msg(context: &Context) -> Result<()> {
     if !context.sql.get_raw_config_bool("bcc_self").await? {
         let mut msg = Message::new(Viewtype::Text);
         // TODO: define this as a stockstring once the wording is settled.
-        msg.text = Some(
-            "It seems you are using multiple devices with Delta Chat. Great!\n\n\
+        msg.text = "It seems you are using multiple devices with Delta Chat. Great!\n\n\
              If you also want to synchronize outgoing messages across all devices, \
              go to \"Settings → Advanced\" and enable \"Send Copy to Self\"."
-                .to_string(),
-        );
+            .to_string();
         chat::add_device_msg(context, Some("bcc-self-hint"), Some(&mut msg)).await?;
     }
     Ok(())
@@ -485,7 +484,11 @@ async fn import_backup(
 /// Returns Ok((temp_db_path, temp_path, dest_path)) on success. Unencrypted database can be
 /// written to temp_db_path. The backup can then be written to temp_path. If the backup succeeded,
 /// it can be renamed to dest_path. This guarantees that the backup is complete.
-fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, PathBuf, PathBuf)> {
+fn get_next_backup_path(
+    folder: &Path,
+    addr: &str,
+    backup_time: i64,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let folder = PathBuf::from(folder);
     let stem = chrono::NaiveDateTime::from_timestamp_opt(backup_time, 0)
         .context("can't get next backup path")?
@@ -496,13 +499,13 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
     // 64 backup files per day should be enough for everyone
     for i in 0..64 {
         let mut tempdbfile = folder.clone();
-        tempdbfile.push(format!("{stem}-{i:02}.db"));
+        tempdbfile.push(format!("{stem}-{i:02}-{addr}.db"));
 
         let mut tempfile = folder.clone();
-        tempfile.push(format!("{stem}-{i:02}.tar.part"));
+        tempfile.push(format!("{stem}-{i:02}-{addr}.tar.part"));
 
         let mut destfile = folder.clone();
-        destfile.push(format!("{stem}-{i:02}.tar"));
+        destfile.push(format!("{stem}-{i:02}-{addr}.tar"));
 
         if !tempdbfile.exists() && !tempfile.exists() && !destfile.exists() {
             return Ok((tempdbfile, tempfile, destfile));
@@ -517,7 +520,8 @@ fn get_next_backup_path(folder: &Path, backup_time: i64) -> Result<(PathBuf, Pat
 async fn export_backup(context: &Context, dir: &Path, passphrase: String) -> Result<()> {
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     let now = time();
-    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, now)?;
+    let self_addr = context.get_primary_self_addr().await?;
+    let (temp_db_path, temp_path, dest_path) = get_next_backup_path(dir, &self_addr, now)?;
     let _d1 = DeleteOnDrop(temp_db_path.clone());
     let _d2 = DeleteOnDrop(temp_path.clone());
 
@@ -587,63 +591,74 @@ async fn export_backup_inner(
     Ok(())
 }
 
-/*******************************************************************************
- * Classic key import
- ******************************************************************************/
-async fn import_self_keys(context: &Context, dir: &Path) -> Result<()> {
-    /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
-    plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
-    Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
+/// Imports secret key from a file.
+async fn import_secret_key(context: &Context, path: &Path, set_default: bool) -> Result<()> {
+    let buf = read_file(context, &path).await?;
+    let armored = std::string::String::from_utf8_lossy(&buf);
+    set_self_key(context, &armored, set_default, false).await?;
+    Ok(())
+}
 
-    Maybe we should make the "default" key handlong also a little bit smarter
-    (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut set_default: bool;
+/// Imports secret keys from the provided file or directory.
+///
+/// If provided path is a file, ASCII-armored secret key is read from the file
+/// and set as the default key.
+///
+/// If provided path is a directory, all files with .asc extension
+/// containing secret keys are imported and the last successfully
+/// imported which does not contain "legacy" in its filename
+/// is set as the default.
+async fn import_self_keys(context: &Context, path: &Path) -> Result<()> {
+    let attr = tokio::fs::metadata(path).await?;
+
+    if attr.is_file() {
+        info!(
+            context,
+            "Importing secret key from {} as the default key.",
+            path.display()
+        );
+        let set_default = true;
+        import_secret_key(context, path, set_default).await?;
+        return Ok(());
+    }
+
     let mut imported_cnt = 0;
 
-    let dir_name = dir.to_string_lossy();
-    let mut dir_handle = tokio::fs::read_dir(&dir).await?;
+    let mut dir_handle = tokio::fs::read_dir(&path).await?;
     while let Ok(Some(entry)) = dir_handle.next_entry().await {
         let entry_fn = entry.file_name();
         let name_f = entry_fn.to_string_lossy();
-        let path_plus_name = dir.join(&entry_fn);
-        match get_filesuffix_lc(&name_f) {
-            Some(suffix) => {
-                if suffix != "asc" {
-                    continue;
-                }
-                set_default = if name_f.contains("legacy") {
-                    info!(context, "found legacy key '{}'", path_plus_name.display());
-                    false
-                } else {
-                    true
-                }
-            }
-            None => {
+        let path_plus_name = path.join(&entry_fn);
+        if let Some(suffix) = get_filesuffix_lc(&name_f) {
+            if suffix != "asc" {
                 continue;
             }
-        }
+        } else {
+            continue;
+        };
+        let set_default = !name_f.contains("legacy");
         info!(
             context,
-            "considering key file: {}",
+            "Considering key file: {}.",
             path_plus_name.display()
         );
 
-        match read_file(context, &path_plus_name).await {
-            Ok(buf) => {
-                let armored = std::string::String::from_utf8_lossy(&buf);
-                if let Err(err) = set_self_key(context, &armored, set_default, false).await {
-                    info!(context, "set_self_key: {}", err);
-                    continue;
-                }
-            }
-            Err(_) => continue,
+        if let Err(err) = import_secret_key(context, &path_plus_name, set_default).await {
+            warn!(
+                context,
+                "Failed to import secret key from {}: {:#}.",
+                path_plus_name.display(),
+                err
+            );
+            continue;
         }
+
         imported_cnt += 1;
     }
     ensure!(
         imported_cnt > 0,
-        "No private keys found in \"{}\".",
-        dir_name
+        "No private keys found in {}.",
+        path.display()
     );
     Ok(())
 }
@@ -674,7 +689,8 @@ async fn export_self_keys(context: &Context, dir: &Path) -> Result<()> {
         .await?;
 
     for (id, public_key, private_key, is_default) in keys {
-        let id = Some(id).filter(|_| is_default != 0);
+        let id = Some(id).filter(|_| is_default == 0);
+
         if let Ok(key) = public_key {
             if let Err(err) = export_key_to_asc_file(context, dir, id, &key).await {
                 error!(context, "Failed to export public key: {:#}.", err);
@@ -770,6 +786,11 @@ async fn export_database(context: &Context, dest: &Path, passphrase: String) -> 
             let res = conn
                 .query_row("SELECT sqlcipher_export('backup')", [], |_row| Ok(()))
                 .context("failed to export to attached backup database");
+            conn.execute(
+                "UPDATE backup.config SET value='0' WHERE keyname='verified_one_on_one_chats';",
+                [],
+            )
+            .ok(); // If verified_one_on_one_chats was not set, this errors, which we ignore
             conn.execute("DETACH DATABASE backup", [])
                 .context("failed to detach backup database")?;
             res?;
@@ -865,69 +886,108 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_key() {
+        let export_dir = tempfile::tempdir().unwrap();
+
         let context = TestContext::new_alice().await;
-        let blobdir = context.ctx.get_blobdir();
-        if let Err(err) = imex(&context.ctx, ImexMode::ExportSelfKeys, blobdir, None).await {
+        if let Err(err) = imex(
+            &context.ctx,
+            ImexMode::ExportSelfKeys,
+            export_dir.path(),
+            None,
+        )
+        .await
+        {
             panic!("got error on export: {err:#}");
         }
 
         let context2 = TestContext::new_alice().await;
-        if let Err(err) = imex(&context2.ctx, ImexMode::ImportSelfKeys, blobdir, None).await {
+        if let Err(err) = imex(
+            &context2.ctx,
+            ImexMode::ImportSelfKeys,
+            export_dir.path(),
+            None,
+        )
+        .await
+        {
+            panic!("got error on import: {err:#}");
+        }
+
+        let keyfile = export_dir.path().join("private-key-default.asc");
+        let context3 = TestContext::new_alice().await;
+        if let Err(err) = imex(&context3.ctx, ImexMode::ImportSelfKeys, &keyfile, None).await {
             panic!("got error on import: {err:#}");
         }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_export_and_import_backup() -> Result<()> {
-        let backup_dir = tempfile::tempdir().unwrap();
+        for set_verified_oneonone_chats in [true, false] {
+            let backup_dir = tempfile::tempdir().unwrap();
 
-        let context1 = TestContext::new_alice().await;
-        assert!(context1.is_configured().await?);
+            let context1 = TestContext::new_alice().await;
+            assert!(context1.is_configured().await?);
+            if set_verified_oneonone_chats {
+                context1
+                    .set_config_bool(Config::VerifiedOneOnOneChats, true)
+                    .await?;
+            }
 
-        let context2 = TestContext::new().await;
-        assert!(!context2.is_configured().await?);
-        assert!(has_backup(&context2, backup_dir.path()).await.is_err());
+            let context2 = TestContext::new().await;
+            assert!(!context2.is_configured().await?);
+            assert!(has_backup(&context2, backup_dir.path()).await.is_err());
 
-        // export from context1
-        assert!(
-            imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None)
-                .await
-                .is_ok()
-        );
-        let _event = context1
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
-            .await;
+            // export from context1
+            assert!(
+                imex(&context1, ImexMode::ExportBackup, backup_dir.path(), None)
+                    .await
+                    .is_ok()
+            );
+            let _event = context1
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+                .await;
 
-        // import to context2
-        let backup = has_backup(&context2, backup_dir.path()).await?;
+            // import to context2
+            let backup = has_backup(&context2, backup_dir.path()).await?;
 
-        // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
-        assert!(imex(
-            &context2,
-            ImexMode::ImportBackup,
-            backup.as_ref(),
-            Some("foobar".to_string())
-        )
-        .await
-        .is_err());
+            // Import of unencrypted backup with incorrect "foobar" backup passphrase fails.
+            assert!(imex(
+                &context2,
+                ImexMode::ImportBackup,
+                backup.as_ref(),
+                Some("foobar".to_string())
+            )
+            .await
+            .is_err());
 
-        assert!(
-            imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
-                .await
-                .is_ok()
-        );
-        let _event = context2
-            .evtracker
-            .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
-            .await;
+            assert!(
+                imex(&context2, ImexMode::ImportBackup, backup.as_ref(), None)
+                    .await
+                    .is_ok()
+            );
+            let _event = context2
+                .evtracker
+                .get_matching(|evt| matches!(evt, EventType::ImexProgress(1000)))
+                .await;
 
-        assert!(context2.is_configured().await?);
-        assert_eq!(
-            context2.get_config(Config::Addr).await?,
-            Some("alice@example.org".to_string())
-        );
-
+            assert!(context2.is_configured().await?);
+            assert_eq!(
+                context2.get_config(Config::Addr).await?,
+                Some("alice@example.org".to_string())
+            );
+            assert_eq!(
+                context2
+                    .get_config_bool(Config::VerifiedOneOnOneChats)
+                    .await?,
+                false
+            );
+            assert_eq!(
+                context1
+                    .get_config_bool(Config::VerifiedOneOnOneChats)
+                    .await?,
+                set_verified_oneonone_chats
+            );
+        }
         Ok(())
     }
 
@@ -1029,10 +1089,7 @@ mod tests {
         // not synchronized yet.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
         alice.recv_msg(&sent).await;
-        assert_ne!(
-            alice.get_last_msg().await.get_text(),
-            Some("Test".to_string())
-        );
+        assert_ne!(alice.get_last_msg().await.get_text(), "Test");
 
         // Transfer the key.
         continue_key_transfer(&alice2, msg.id, &setup_code).await?;
@@ -1040,10 +1097,7 @@ mod tests {
         // Alice sends a message to self from the new device.
         let sent = alice2.send_text(msg.chat_id, "Test").await;
         alice.recv_msg(&sent).await;
-        assert_eq!(
-            alice.get_last_msg().await.get_text(),
-            Some("Test".to_string())
-        );
+        assert_eq!(alice.get_last_msg().await.get_text(), "Test");
 
         Ok(())
     }

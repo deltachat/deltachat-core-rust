@@ -12,6 +12,7 @@ use tokio::task;
 
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
+use crate::context::Context;
 use crate::events::EventType;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::Message;
@@ -22,9 +23,9 @@ use crate::net::session::SessionBufStream;
 use crate::net::tls::wrap_tls;
 use crate::oauth2::get_oauth2_access_token;
 use crate::provider::Socket;
+use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
-use crate::{context::Context, scheduler::connectivity::ConnectivityStore};
 
 /// SMTP write and read timeout.
 const SMTP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -55,7 +56,7 @@ impl Smtp {
     }
 
     /// Disconnect the SMTP transport and drop it entirely.
-    pub async fn disconnect(&mut self) {
+    pub fn disconnect(&mut self) {
         if let Some(mut transport) = self.transport.take() {
             // Closing connection with a QUIT command may take some time, especially if it's a
             // stale connection and an attempt to send the command times out. Send a command in a
@@ -88,7 +89,7 @@ impl Smtp {
     pub async fn connect_configured(&mut self, context: &Context) -> Result<()> {
         if self.has_maybe_stale_connection() {
             info!(context, "Closing stale connection");
-            self.disconnect().await;
+            self.disconnect();
         }
 
         if self.is_connected() {
@@ -465,13 +466,13 @@ pub(crate) async fn smtp_send(
 
             // this clears last_success info
             info!(context, "Failed to send message over SMTP, disconnecting");
-            smtp.disconnect().await;
+            smtp.disconnect();
 
             res
         }
         Err(crate::smtp::send::Error::Envelope(err)) => {
             // Local error, job is invalid, do not retry.
-            smtp.disconnect().await;
+            smtp.disconnect();
             warn!(context, "SMTP job is invalid: {}", err);
             SendResult::Failure(err)
         }
@@ -483,7 +484,7 @@ pub(crate) async fn smtp_send(
         }
         Err(crate::smtp::send::Error::Other(err)) => {
             // Local error, job is invalid, do not retry.
-            smtp.disconnect().await;
+            smtp.disconnect();
             warn!(context, "unable to load job: {}", err);
             SendResult::Failure(err)
         }
@@ -492,7 +493,20 @@ pub(crate) async fn smtp_send(
 
     if let SendResult::Failure(err) = &status {
         // We couldn't send the message, so mark it as failed
-        message::set_msg_failed(context, msg_id, &err.to_string()).await;
+        match Message::load_from_db(context, msg_id).await {
+            Ok(mut msg) => {
+                if let Err(err) = message::set_msg_failed(context, &mut msg, &err.to_string()).await
+                {
+                    error!(context, "Failed to mark {msg_id} as failed: {err:#}.");
+                }
+            }
+            Err(err) => {
+                error!(
+                    context,
+                    "Failed to load {msg_id} to mark it as failed: {err:#}."
+                );
+            }
+        }
     }
     status
 }
@@ -539,17 +553,18 @@ pub(crate) async fn send_msg_to_smtp(
         )
         .await?;
     if retries > 6 {
-        message::set_msg_failed(context, msg_id, "Number of retries exceeded the limit.").await;
+        let mut msg = Message::load_from_db(context, msg_id).await?;
+        message::set_msg_failed(context, &mut msg, "Number of retries exceeded the limit.").await?;
         context
             .sql
             .execute("DELETE FROM smtp WHERE id=?", (rowid,))
             .await
             .context("failed to remove message with exceeded retry limit from smtp table")?;
-        bail!("Number of retries exceeded the limit");
+        return Ok(());
     }
     info!(
         context,
-        "Try number {} to send message {} over SMTP", retries, msg_id
+        "Try number {retries} to send message {msg_id} (entry {rowid}) over SMTP"
     );
 
     let recipients_list = recipients
@@ -564,19 +579,6 @@ pub(crate) async fn send_msg_to_smtp(
             },
         )
         .collect::<Vec<_>>();
-
-    // If there is a msg-id and it does not exist in the db, cancel sending. this happens if
-    // delete_msgs() was called before the generated mime was sent out.
-    if !message::exists(context, msg_id)
-        .await
-        .with_context(|| format!("failed to check message {msg_id} existence"))?
-    {
-        info!(
-            context,
-            "Sending of message {} was cancelled by the user.", msg_id
-        );
-        return Ok(());
-    }
 
     let status = smtp_send(context, &recipients_list, body.as_str(), smtp, msg_id).await;
 
@@ -646,6 +648,8 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
             },
         )
         .await?;
+
+    info!(context, "Selected rows from SMTP queue: {rowids:?}.");
     for rowid in rowids {
         send_msg_to_smtp(context, connection, rowid)
             .await
@@ -670,13 +674,15 @@ pub(crate) async fn send_smtp_messages(context: &Context, connection: &mut Smtp)
 /// On failure returns an error without removing any `smtp_mdns` entries, the caller is responsible
 /// for removing the corresponding entry to prevent endless loop in case the entry is invalid, e.g.
 /// points to non-existent message or contact.
+///
+/// Returns true on success, false on temporary error.
 async fn send_mdn_msg_id(
     context: &Context,
     msg_id: MsgId,
     contact_id: ContactId,
     smtp: &mut Smtp,
-) -> Result<()> {
-    let contact = Contact::load_from_db(context, contact_id).await?;
+) -> Result<bool> {
+    let contact = Contact::get_by_id(context, contact_id).await?;
     if contact.is_blocked() {
         return Err(format_err!("Contact is blocked"));
     }
@@ -727,14 +733,14 @@ async fn send_mdn_msg_id(
                     .execute(&q, rusqlite::params_from_iter(additional_msg_ids))
                     .await?;
             }
-            Ok(())
+            Ok(true)
         }
         SendResult::Retry => {
             info!(
                 context,
                 "Temporary SMTP failure while sending an MDN for {}", msg_id
             );
-            Ok(())
+            Ok(false)
         }
         SendResult::Failure(err) => Err(err),
     }
@@ -781,15 +787,20 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .await
         .context("failed to update MDN retries count")?;
 
-    if let Err(err) = send_mdn_msg_id(context, msg_id, contact_id, smtp).await {
+    let res = send_mdn_msg_id(context, msg_id, contact_id, smtp).await;
+    if let Err(ref err) = res {
         // If there is an error, for example there is no message corresponding to the msg_id in the
         // database, do not try to send this MDN again.
+        warn!(
+            context,
+            "Error sending MDN for {msg_id}, removing it: {err:#}."
+        );
         context
             .sql
             .execute("DELETE FROM smtp_mdns WHERE msg_id = ?", (msg_id,))
             .await?;
-        Err(err)
-    } else {
-        Ok(true)
     }
+    // If there's a temporary error, pretend there are no more MDNs to send. It's unlikely that
+    // other MDNs could be sent successfully in case of connectivity problems.
+    res
 }

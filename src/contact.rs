@@ -5,7 +5,7 @@ use std::collections::BinaryHeap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, ensure, Context as _, Result};
@@ -25,7 +25,7 @@ use crate::config::Config;
 use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
 use crate::context::Context;
 use crate::events::EventType;
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey};
 use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
@@ -109,7 +109,7 @@ impl ContactId {
 
     /// ID of the contact for device messages.
     pub const DEVICE: ContactId = ContactId::new(5);
-    const LAST_SPECIAL: ContactId = ContactId::new(9);
+    pub(crate) const LAST_SPECIAL: ContactId = ContactId::new(9);
 
     /// Address to go with [`ContactId::DEVICE`].
     ///
@@ -138,6 +138,15 @@ impl ContactId {
     /// need to use this directly.
     pub const fn to_u32(&self) -> u32 {
         self.0
+    }
+
+    /// Mark contact as bot.
+    pub(crate) async fn mark_bot(&self, context: &Context, is_bot: bool) -> Result<()> {
+        context
+            .sql
+            .execute("UPDATE contacts SET is_bot=? WHERE id=?;", (is_bot, self.0))
+            .await?;
+        Ok(())
     }
 }
 
@@ -223,6 +232,9 @@ pub struct Contact {
 
     /// Last seen message signature for this contact, to be displayed in the profile.
     status: String,
+
+    /// If the contact is a bot.
+    is_bot: bool,
 }
 
 /// Possible origins of a contact.
@@ -338,13 +350,35 @@ impl Default for VerifiedStatus {
 }
 
 impl Contact {
-    /// Loads a contact snapshot from the database.
-    pub async fn load_from_db(context: &Context, contact_id: ContactId) -> Result<Self> {
-        let mut contact = context
+    /// Loads a single contact object from the database.
+    ///
+    /// Returns an error if the contact does not exist.
+    ///
+    /// For contact ContactId::SELF (1), the function returns sth.
+    /// like "Me" in the selected language and the email address
+    /// defined by set_config().
+    ///
+    /// For contact ContactId::DEVICE, the function overrides
+    /// the contact name and status with localized address.
+    pub async fn get_by_id(context: &Context, contact_id: ContactId) -> Result<Self> {
+        let contact = Self::get_by_id_optional(context, contact_id)
+            .await?
+            .with_context(|| format!("contact {contact_id} not found"))?;
+        Ok(contact)
+    }
+
+    /// Loads a single contact object from the database.
+    ///
+    /// Similar to [`Contact::get_by_id()`] but returns `None` if the contact does not exist.
+    pub async fn get_by_id_optional(
+        context: &Context,
+        contact_id: ContactId,
+    ) -> Result<Option<Self>> {
+        if let Some(mut contact) = context
             .sql
-            .query_row(
+            .query_row_optional(
                 "SELECT c.name, c.addr, c.origin, c.blocked, c.last_seen,
-                c.authname, c.param, c.status
+                c.authname, c.param, c.status, c.is_bot
                FROM contacts c
               WHERE c.id=?;",
                 (contact_id,),
@@ -357,6 +391,7 @@ impl Contact {
                     let authname: String = row.get(5)?;
                     let param: String = row.get(6)?;
                     let status: Option<String> = row.get(7)?;
+                    let is_bot: bool = row.get(8)?;
                     let contact = Self {
                         id: contact_id,
                         name,
@@ -367,27 +402,32 @@ impl Contact {
                         origin,
                         param: param.parse().unwrap_or_default(),
                         status: status.unwrap_or_default(),
+                        is_bot,
                     };
                     Ok(contact)
                 },
             )
-            .await?;
-        if contact_id == ContactId::SELF {
-            contact.name = stock_str::self_msg(context).await;
-            contact.addr = context
-                .get_config(Config::ConfiguredAddr)
-                .await?
-                .unwrap_or_default();
-            contact.status = context
-                .get_config(Config::Selfstatus)
-                .await?
-                .unwrap_or_default();
-        } else if contact_id == ContactId::DEVICE {
-            contact.name = stock_str::device_messages(context).await;
-            contact.addr = ContactId::DEVICE_ADDR.to_string();
-            contact.status = stock_str::device_messages_hint(context).await;
+            .await?
+        {
+            if contact_id == ContactId::SELF {
+                contact.name = stock_str::self_msg(context).await;
+                contact.addr = context
+                    .get_config(Config::ConfiguredAddr)
+                    .await?
+                    .unwrap_or_default();
+                contact.status = context
+                    .get_config(Config::Selfstatus)
+                    .await?
+                    .unwrap_or_default();
+            } else if contact_id == ContactId::DEVICE {
+                contact.name = stock_str::device_messages(context).await;
+                contact.addr = ContactId::DEVICE_ADDR.to_string();
+                contact.status = stock_str::device_messages_hint(context).await;
+            }
+            Ok(Some(contact))
+        } else {
+            Ok(None)
         }
-        Ok(contact)
     }
 
     /// Returns `true` if this contact is blocked.
@@ -407,7 +447,13 @@ impl Contact {
 
     /// Check if a contact is blocked.
     pub async fn is_blocked_load(context: &Context, id: ContactId) -> Result<bool> {
-        let blocked = Self::load_from_db(context, id).await?.blocked;
+        let blocked = context
+            .sql
+            .query_row("SELECT blocked FROM contacts WHERE id=?", (id,), |row| {
+                let blocked: bool = row.get(0)?;
+                Ok(blocked)
+            })
+            .await?;
         Ok(blocked)
     }
 
@@ -464,6 +510,11 @@ impl Contact {
             )
             .await?;
         Ok(())
+    }
+
+    /// Returns whether contact is a bot.
+    pub fn is_bot(&self) -> bool {
+        self.is_bot
     }
 
     /// Check if an e-mail address belongs to a known and unblocked contact.
@@ -780,7 +831,11 @@ impl Contact {
         let mut ret = Vec::new();
         let flag_verified_only = (listflags & DC_GCL_VERIFIED_ONLY) != 0;
         let flag_add_self = (listflags & DC_GCL_ADD_SELF) != 0;
-
+        let minimal_origin = if context.get_config_bool(Config::Bot).await? {
+            Origin::Unknown
+        } else {
+            Origin::IncomingReplyTo
+        };
         if flag_verified_only || query.is_some() {
             let s3str_like_cmd = format!("%{}%", query.unwrap_or(""));
             context
@@ -800,7 +855,7 @@ impl Contact {
                     ),
                     rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
                         ContactId::LAST_SPECIAL,
-                        Origin::IncomingReplyTo,
+                        minimal_origin,
                         s3str_like_cmd,
                         s3str_like_cmd,
                         if flag_verified_only { 0i32 } else { 1i32 }
@@ -850,10 +905,10 @@ impl Contact {
                  ORDER BY last_seen DESC, id DESC;",
                         sql::repeat_vars(self_addrs.len())
                     ),
-                    rusqlite::params_from_iter(params_iter(&self_addrs).chain(params_slice![
-                        ContactId::LAST_SPECIAL,
-                        Origin::IncomingReplyTo
-                    ])),
+                    rusqlite::params_from_iter(
+                        params_iter(&self_addrs)
+                            .chain(params_slice![ContactId::LAST_SPECIAL, minimal_origin]),
+                    ),
                     |row| row.get::<_, ContactId>(0),
                     |ids| {
                         for id in ids {
@@ -959,7 +1014,7 @@ impl Contact {
         );
 
         let mut ret = String::new();
-        if let Ok(contact) = Contact::load_from_db(context, contact_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
             let loginparam = LoginParam::load_configured_params(context).await?;
             let peerstate = Peerstate::from_addr(context, &contact.addr).await?;
 
@@ -977,7 +1032,7 @@ impl Contact {
                 let finger_prints = stock_str::finger_prints(context).await;
                 ret += &format!("{stock_message}.\n{finger_prints}:");
 
-                let fingerprint_self = SignedPublicKey::load_self(context)
+                let fingerprint_self = load_self_public_key(context)
                     .await?
                     .fingerprint()
                     .to_string();
@@ -1046,17 +1101,6 @@ impl Contact {
         Ok(())
     }
 
-    /// Get a single contact object.  For a list, see eg. get_contacts().
-    ///
-    /// For contact ContactId::SELF (1), the function returns sth.
-    /// like "Me" in the selected language and the email address
-    /// defined by set_config().
-    pub async fn get_by_id(context: &Context, contact_id: ContactId) -> Result<Contact> {
-        let contact = Contact::load_from_db(context, contact_id).await?;
-
-        Ok(contact)
-    }
-
     /// Updates `param` column in the database.
     pub async fn update_param(&self, context: &Context) -> Result<()> {
         context
@@ -1120,10 +1164,28 @@ impl Contact {
         &self.addr
     }
 
+    /// Get a summary of authorized name and address.
+    ///
+    /// The returned string is either "Name (email@domain.com)" or just
+    /// "email@domain.com" if the name is unset.
+    ///
+    /// This string is suitable for sending over email
+    /// as it does not leak the locally set name.
+    pub fn get_authname_n_addr(&self) -> String {
+        if !self.authname.is_empty() {
+            format!("{} ({})", self.authname, self.addr)
+        } else {
+            (&self.addr).into()
+        }
+    }
+
     /// Get a summary of name and address.
     ///
     /// The returned string is either "Name (email@domain.com)" or just
     /// "email@domain.com" if the name is unset.
+    ///
+    /// The result should only be used locally and never sent over the network
+    /// as it leaks the local contact name.
     ///
     /// The summary is typically used when asking the user something about the contact.
     /// The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
@@ -1147,7 +1209,7 @@ impl Contact {
             }
         } else if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(image_rel))));
             }
         }
         Ok(None)
@@ -1172,31 +1234,15 @@ impl Contact {
     /// and if the key has not changed since this verification.
     ///
     /// The UI may draw a checkbox or something like that beside verified contacts.
-    ///
     pub async fn is_verified(&self, context: &Context) -> Result<VerifiedStatus> {
-        self.is_verified_ex(context, None).await
-    }
-
-    /// Same as `Contact::is_verified` but allows speeding up things
-    /// by adding the peerstate belonging to the contact.
-    /// If you do not have the peerstate available, it is loaded automatically.
-    pub async fn is_verified_ex(
-        &self,
-        context: &Context,
-        peerstate: Option<&Peerstate>,
-    ) -> Result<VerifiedStatus> {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
         if self.id == ContactId::SELF {
             return Ok(VerifiedStatus::BidirectVerified);
         }
 
-        if let Some(peerstate) = peerstate {
-            if peerstate.verified_key.is_some() {
-                return Ok(VerifiedStatus::BidirectVerified);
-            }
-        } else if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
-            if peerstate.verified_key.is_some() {
+        if let Some(peerstate) = Peerstate::from_addr(context, &self.addr).await? {
+            if peerstate.is_using_verified_key() {
                 return Ok(VerifiedStatus::BidirectVerified);
             }
         }
@@ -1213,11 +1259,22 @@ impl Contact {
 
     /// Returns the ContactId that verified the contact.
     pub async fn get_verifier_id(&self, context: &Context) -> Result<Option<ContactId>> {
-        let verifier_addr = self.get_verifier_addr(context).await?;
-        if let Some(addr) = verifier_addr {
-            Ok(Contact::lookup_id_by_addr(context, &addr, Origin::AddressBook).await?)
-        } else {
-            Ok(None)
+        let Some(verifier_addr) = self.get_verifier_addr(context).await? else {
+            return Ok(None);
+        };
+
+        if verifier_addr == self.addr {
+            // Contact is directly verified via QR code.
+            return Ok(Some(ContactId::SELF));
+        }
+
+        match Contact::lookup_id_by_addr(context, &verifier_addr, Origin::Unknown).await? {
+            Some(contact_id) => Ok(Some(contact_id)),
+            None => {
+                let addr = &self.addr;
+                warn!(context, "Could not lookup contact with address {verifier_addr} which introduced {addr}.");
+                Ok(None)
+            }
         }
     }
 
@@ -1317,7 +1374,7 @@ async fn set_block_contact(
         contact_id
     );
 
-    let contact = Contact::load_from_db(context, contact_id).await?;
+    let contact = Contact::get_by_id(context, contact_id).await?;
 
     if contact.blocked != new_blocking {
         context
@@ -1379,7 +1436,7 @@ pub(crate) async fn set_profile_image(
     profile_image: &AvatarAction,
     was_encrypted: bool,
 ) -> Result<()> {
-    let mut contact = Contact::load_from_db(context, contact_id).await?;
+    let mut contact = Contact::get_by_id(context, contact_id).await?;
     let changed = match profile_image {
         AvatarAction::Change(profile_image) => {
             if contact_id == ContactId::SELF {
@@ -1434,7 +1491,7 @@ pub(crate) async fn set_status(
                 .await?;
         }
     } else {
-        let mut contact = Contact::load_from_db(context, contact_id).await?;
+        let mut contact = Contact::get_by_id(context, contact_id).await?;
 
         if contact.status != status {
             contact.status = status;
@@ -1693,7 +1750,7 @@ mod tests {
         assert_eq!(may_be_valid_addr("dd.tt"), false);
         assert_eq!(may_be_valid_addr("tt.dd@uu"), true);
         assert_eq!(may_be_valid_addr("u@d"), true);
-        assert_eq!(may_be_valid_addr("u@d."), true);
+        assert_eq!(may_be_valid_addr("u@d."), false);
         assert_eq!(may_be_valid_addr("u@d.t"), true);
         assert_eq!(may_be_valid_addr("u@d.tt"), true);
         assert_eq!(may_be_valid_addr("u@.tt"), true);
@@ -1702,6 +1759,7 @@ mod tests {
         assert_eq!(may_be_valid_addr("sk <@d.tt>"), false);
         assert_eq!(may_be_valid_addr("as@sd.de>"), false);
         assert_eq!(may_be_valid_addr("ask dkl@dd.tt"), false);
+        assert_eq!(may_be_valid_addr("user@domain.tld."), false);
     }
 
     #[test]
@@ -1752,7 +1810,7 @@ mod tests {
         .await?;
         assert_ne!(id, ContactId::UNDEFINED);
 
-        let contact = Contact::load_from_db(&context.ctx, id).await.unwrap();
+        let contact = Contact::get_by_id(&context.ctx, id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_authname(), "bob");
         assert_eq!(contact.get_display_name(), "bob");
@@ -1780,7 +1838,7 @@ mod tests {
         .await?;
         assert_eq!(contact_bob_id, id);
         assert_eq!(modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&context.ctx, id).await.unwrap();
+        let contact = Contact::get_by_id(&context.ctx, id).await.unwrap();
         assert_eq!(contact.get_name(), "someone");
         assert_eq!(contact.get_authname(), "bob");
         assert_eq!(contact.get_display_name(), "someone");
@@ -1846,7 +1904,7 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_id(), contact_id);
         assert_eq!(contact.get_name(), "Name one");
         assert_eq!(contact.get_authname(), "bla foo");
@@ -1865,7 +1923,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Real one");
         assert_eq!(contact.get_addr(), "one@eins.org");
         assert!(!contact.is_blocked());
@@ -1881,7 +1939,7 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "three@drei.sam");
         assert_eq!(contact.get_addr(), "three@drei.sam");
@@ -1898,7 +1956,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name_n_addr(), "m. serious (three@drei.sam)");
         assert!(!contact.is_blocked());
 
@@ -1913,7 +1971,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_test);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "m. serious");
         assert_eq!(contact.get_name_n_addr(), "schnucki (three@drei.sam)");
         assert!(!contact.is_blocked());
@@ -1929,14 +1987,14 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::None);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Wonderland, Alice");
         assert_eq!(contact.get_display_name(), "Wonderland, Alice");
         assert_eq!(contact.get_addr(), "alice@w.de");
         assert_eq!(contact.get_name_n_addr(), "Wonderland, Alice (alice@w.de)");
 
         // check SELF
-        let contact = Contact::load_from_db(&t, ContactId::SELF).await.unwrap();
+        let contact = Contact::get_by_id(&t, ContactId::SELF).await.unwrap();
         assert_eq!(contact.get_name(), stock_str::self_msg(&t).await);
         assert_eq!(contact.get_addr(), ""); // we're not configured
         assert!(!contact.is_blocked());
@@ -1967,7 +2025,7 @@ mod tests {
         assert_eq!(chatlist.len(), 1);
         let contacts = get_chat_contacts(&t, chat_id).await?;
         let contact_id = contacts.first().unwrap();
-        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "f@example.org");
@@ -1993,7 +2051,7 @@ mod tests {
         assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Flobbyfoo");
         let chatlist = Chatlist::try_load(&t, 0, Some("flobbyfoo"), None).await?;
         assert_eq!(chatlist.len(), 1);
-        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "Flobbyfoo");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "Flobbyfoo");
@@ -2023,7 +2081,7 @@ mod tests {
         assert_eq!(chatlist.len(), 0);
         let chatlist = Chatlist::try_load(&t, 0, Some("Foo Flobby"), None).await?;
         assert_eq!(chatlist.len(), 1);
-        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "Foo Flobby");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "Foo Flobby");
@@ -2041,7 +2099,7 @@ mod tests {
         assert_eq!(Chat::load_from_db(&t, chat_id).await?.name, "Falk");
         let chatlist = Chatlist::try_load(&t, 0, Some("Falk"), None).await?;
         assert_eq!(chatlist.len(), 1);
-        let contact = Contact::load_from_db(&t, *contact_id).await?;
+        let contact = Contact::get_by_id(&t, *contact_id).await?;
         assert_eq!(contact.get_authname(), "Foo Flobby");
         assert_eq!(contact.get_name(), "Falk");
         assert_eq!(contact.get_display_name(), "Falk");
@@ -2080,7 +2138,7 @@ mod tests {
 
         // If a contact has ongoing chats, contact is only hidden on deletion
         Contact::delete(&alice, contact_id).await?;
-        let contact = Contact::load_from_db(&alice, contact_id).await?;
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
         assert_eq!(contact.origin, Origin::Hidden);
         assert_eq!(
             Contact::get_all(&alice, 0, Some("bob@example.net"))
@@ -2094,7 +2152,7 @@ mod tests {
 
         // Can delete contact physically now
         Contact::delete(&alice, contact_id).await?;
-        assert!(Contact::load_from_db(&alice, contact_id).await.is_err());
+        assert!(Contact::get_by_id(&alice, contact_id).await.is_err());
         assert_eq!(
             Contact::get_all(&alice, 0, Some("bob@example.net"))
                 .await?
@@ -2113,7 +2171,7 @@ mod tests {
         let contact_id1 = Contact::create(&t, "Foo", "foo@bar.de").await?;
         assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 1);
         Contact::delete(&t, contact_id1).await?;
-        assert!(Contact::load_from_db(&t, contact_id1).await.is_err());
+        assert!(Contact::get_by_id(&t, contact_id1).await.is_err());
         assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 0);
         let contact_id2 = Contact::create(&t, "Foo", "foo@bar.de").await?;
         assert_ne!(contact_id2, contact_id1);
@@ -2122,12 +2180,12 @@ mod tests {
         // test recreation after hiding
         t.create_chat_with_contact("Foo", "foo@bar.de").await;
         Contact::delete(&t, contact_id2).await?;
-        let contact = Contact::load_from_db(&t, contact_id2).await?;
+        let contact = Contact::get_by_id(&t, contact_id2).await?;
         assert_eq!(contact.origin, Origin::Hidden);
         assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 0);
 
         let contact_id3 = Contact::create(&t, "Foo", "foo@bar.de").await?;
-        let contact = Contact::load_from_db(&t, contact_id3).await?;
+        let contact = Contact::get_by_id(&t, contact_id3).await?;
         assert_eq!(contact.origin, Origin::ManuallyCreated);
         assert_eq!(contact_id3, contact_id2);
         assert_eq!(Contact::get_all(&t, 0, Some("foo@bar.de")).await?.len(), 1);
@@ -2150,7 +2208,7 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Created);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob1");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "bob1");
@@ -2166,7 +2224,7 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "bob2");
@@ -2176,7 +2234,7 @@ mod tests {
             .await
             .unwrap();
         assert!(!contact_id.is_special());
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob2");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
@@ -2192,7 +2250,7 @@ mod tests {
         .unwrap();
         assert!(!contact_id.is_special());
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "bob4");
         assert_eq!(contact.get_name(), "bob3");
         assert_eq!(contact.get_display_name(), "bob3");
@@ -2205,7 +2263,7 @@ mod tests {
         // manually create "claire@example.org" without a given name
         let contact_id = Contact::create(&t, "", "claire@example.org").await.unwrap();
         assert!(!contact_id.is_special());
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "claire@example.org");
@@ -2221,7 +2279,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire1");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "claire1");
@@ -2237,7 +2295,7 @@ mod tests {
         .unwrap();
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "claire2");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "claire2");
@@ -2260,7 +2318,7 @@ mod tests {
         )
         .await?;
         assert_eq!(sth_modified, Modifier::Created);
-        let contact = Contact::load_from_db(&t, contact_id).await?;
+        let contact = Contact::get_by_id(&t, contact_id).await?;
         assert_eq!(contact.get_display_name(), "Bob");
 
         // Incoming message from someone else with "Not Bob" <bob@example.org> in the "To:" field.
@@ -2273,7 +2331,7 @@ mod tests {
         .await?;
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified);
-        let contact = Contact::load_from_db(&t, contact_id).await?;
+        let contact = Contact::get_by_id(&t, contact_id).await?;
         assert_eq!(contact.get_display_name(), "Not Bob");
 
         // Incoming message from Bob, changing the name back.
@@ -2286,7 +2344,7 @@ mod tests {
         .await?;
         assert_eq!(contact_id, contact_id_same);
         assert_eq!(sth_modified, Modifier::Modified); // This was None until the bugfix
-        let contact = Contact::load_from_db(&t, contact_id).await?;
+        let contact = Contact::get_by_id(&t, contact_id).await?;
         assert_eq!(contact.get_display_name(), "Bob");
 
         Ok(())
@@ -2300,7 +2358,7 @@ mod tests {
         let contact_id = Contact::create(&t, "dave1", "dave@example.org")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
@@ -2314,14 +2372,14 @@ mod tests {
         )
         .await
         .unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "dave1");
         assert_eq!(contact.get_display_name(), "dave1");
 
         // manually clear the name
         Contact::create(&t, "", "dave@example.org").await.unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_authname(), "dave2");
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_display_name(), "dave2");
@@ -2339,21 +2397,21 @@ mod tests {
         let t = TestContext::new().await;
 
         let contact_id = Contact::create(&t, "", "<dave@example.org>").await.unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
         let contact_id = Contact::create(&t, "", "Mueller, Dave <dave@example.org>")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "Mueller, Dave");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
         let contact_id = Contact::create(&t, "name1", "name2 <dave@example.org>")
             .await
             .unwrap();
-        let contact = Contact::load_from_db(&t, contact_id).await.unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
         assert_eq!(contact.get_name(), "name1");
         assert_eq!(contact.get_addr(), "dave@example.org");
 
@@ -2597,7 +2655,7 @@ CCCB 5AA9 F6E1 141C 9431
             Origin::ManuallyCreated,
         )
         .await?;
-        let contact = Contact::load_from_db(&alice, contact_id).await?;
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
         assert_eq!(contact.last_seen(), 0);
 
         let mime = br#"Subject: Hello
@@ -2614,7 +2672,7 @@ Hi."#;
 
         let timestamp = msg.get_timestamp();
         assert!(timestamp > 0);
-        let contact = Contact::load_from_db(&alice, contact_id).await?;
+        let contact = Contact::get_by_id(&alice, contact_id).await?;
         assert_eq!(contact.last_seen(), timestamp);
 
         Ok(())

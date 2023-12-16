@@ -12,10 +12,15 @@ where `secret.yml` contains the following secrets:
 ```
 c.delta.chat:
   private_key: |
-    -----BEGIN RSA PRIVATE KEY-----
+    -----BEGIN OPENSSH PRIVATE KEY-----
     ...
-    -----END RSA PRIVATE KEY-----
+    -----END OPENSSH PRIVATE KEY-----
 devpi:
   login: dc
   password: ...
+```
+
+Secrets can be read from the password manager:
+```
+fly -t b1 set-pipeline -c docs_wheels.yml -p docs_wheels -l <(pass show delta/b1.delta.chat/secret.yml)
 ```

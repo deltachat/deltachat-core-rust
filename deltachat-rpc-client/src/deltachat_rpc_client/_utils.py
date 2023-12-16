@@ -1,7 +1,7 @@
 import argparse
-import asyncio
 import re
 import sys
+from threading import Thread
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Tuple, Type, Union
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ class AttrDict(dict):
         super().__setattr__(attr, val)
 
 
-async def run_client_cli(
+def run_client_cli(
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
     **kwargs,
@@ -54,10 +54,10 @@ async def run_client_cli(
     """
     from .client import Client
 
-    await _run_cli(Client, hooks, argv, **kwargs)
+    _run_cli(Client, hooks, argv, **kwargs)
 
 
-async def run_bot_cli(
+def run_bot_cli(
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
     **kwargs,
@@ -68,10 +68,10 @@ async def run_bot_cli(
     """
     from .client import Bot
 
-    await _run_cli(Bot, hooks, argv, **kwargs)
+    _run_cli(Bot, hooks, argv, **kwargs)
 
 
-async def _run_cli(
+def _run_cli(
     client_type: Type["Client"],
     hooks: Optional[Iterable[Tuple[Callable, Union[type, "EventFilter"]]]] = None,
     argv: Optional[list] = None,
@@ -93,20 +93,20 @@ async def _run_cli(
     parser.add_argument("--password", action="store", help="password")
     args = parser.parse_args(argv[1:])
 
-    async with Rpc(accounts_dir=args.accounts_dir, **kwargs) as rpc:
+    with Rpc(accounts_dir=args.accounts_dir, **kwargs) as rpc:
         deltachat = DeltaChat(rpc)
-        core_version = (await deltachat.get_system_info()).deltachat_core_version
-        accounts = await deltachat.get_all_accounts()
-        account = accounts[0] if accounts else await deltachat.add_account()
+        core_version = (deltachat.get_system_info()).deltachat_core_version
+        accounts = deltachat.get_all_accounts()
+        account = accounts[0] if accounts else deltachat.add_account()
 
         client = client_type(account, hooks)
         client.logger.debug("Running deltachat core %s", core_version)
-        if not await client.is_configured():
+        if not client.is_configured():
             assert args.email, "Account is not configured and email must be provided"
             assert args.password, "Account is not configured and password must be provided"
-            # Save a reference to avoid garbage collection of the task.
-            _configure_task = asyncio.create_task(client.configure(email=args.email, password=args.password))
-        await client.run_forever()
+            configure_thread = Thread(run=client.configure, kwargs={"email": args.email, "password": args.password})
+            configure_thread.start()
+        client.run_forever()
 
 
 def extract_addr(text: str) -> str:

@@ -4,17 +4,15 @@ use anyhow::Result;
 use base64::Engine as _;
 use qrcodegen::{QrCode, QrCodeEcc};
 
-use crate::{
-    blob::BlobObject,
-    chat::{Chat, ChatId},
-    color::color_int_to_hex_string,
-    config::Config,
-    contact::{Contact, ContactId},
-    context::Context,
-    qr::{self, Qr},
-    securejoin,
-    stock_str::{self, backup_transfer_qr},
-};
+use crate::blob::BlobObject;
+use crate::chat::{Chat, ChatId};
+use crate::color::color_int_to_hex_string;
+use crate::config::Config;
+use crate::contact::{Contact, ContactId};
+use crate::context::Context;
+use crate::qr::{self, Qr};
+use crate::securejoin;
+use crate::stock_str::{self, backup_transfer_qr};
 
 /// Returns SVG of the QR code to join the group or verify contact.
 ///
@@ -121,6 +119,7 @@ fn inner_generate_secure_join_qr_code(
     w.elem("svg", |d| {
         d.attr("xmlns", "http://www.w3.org/2000/svg")?;
         d.attr("viewBox", format_args!("0 0 {width} {height}"))?;
+        d.attr("xmlns:xlink", "http://www.w3.org/1999/xlink")?; // required for enabling xlink:href on browsers
         Ok(())
     })?
     .build(|w| {
@@ -240,7 +239,7 @@ fn inner_generate_secure_join_qr_code(
                 d.attr("preserveAspectRatio", "none")?;
                 d.attr("clip-path", "url(#avatar-cut)")?;
                 d.attr(
-                    "href", /*might need xlink:href instead if it doesn't work on older devices?*/
+                    "xlink:href", /* xlink:href is needed otherwise it won't even display in inkscape not to mention qt's QSvgHandler */
                     format!(
                         "data:image/jpeg;base64,{}",
                         base64::engine::general_purpose::STANDARD.encode(img)

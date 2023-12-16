@@ -25,6 +25,7 @@ typedef struct _dc_event     dc_event_t;
 typedef struct _dc_event_emitter dc_event_emitter_t;
 typedef struct _dc_jsonrpc_instance dc_jsonrpc_instance_t;
 typedef struct _dc_backup_provider dc_backup_provider_t;
+typedef struct _dc_http_response dc_http_response_t;
 
 // Alias for backwards compatibility, use dc_event_emitter_t instead.
 typedef struct _dc_event_emitter dc_accounts_event_emitter_t;
@@ -301,6 +302,19 @@ int             dc_context_open              (dc_context_t *context, const char*
 
 
 /**
+ * Changes the passphrase on the open database.
+ * Existing database must already be encrypted and the passphrase cannot be NULL or empty.
+ * It is impossible to encrypt unencrypted database with this method and vice versa.
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @param passphrase The new passphrase.
+ * @return 1 on success, 0 on error.
+ */
+int             dc_context_change_passphrase (dc_context_t* context, const char* passphrase);
+
+
+/**
  * Returns 1 if database is open.
  *
  * @memberof dc_context_t
@@ -370,7 +384,12 @@ char*           dc_get_blobdir               (const dc_context_t* context);
 /**
  * Configure the context. The configuration is handled by key=value pairs as:
  *
- * - `addr`         = address to display (always needed)
+ * - `addr`         = Email address to use for configuration.
+ *                    If dc_configure() fails this is not the email address actually in use.
+ *                    Use `configured_addr` to find out the email address actually in use.
+ * - `configured_addr` = Email address actually in use.
+ *                    Unless for testing, do not set this value using dc_set_config().
+ *                    Instead, set `addr` and call dc_configure().
  * - `mail_server`  = IMAP-server, guessed if left out
  * - `mail_user`    = IMAP-username, guessed if left out
  * - `mail_pw`      = IMAP-password (always needed)
@@ -419,17 +438,19 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    0=watch all folders normally (default)
  *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
- *                    show direct replies to chats only (default),
+ *                    show direct replies to chats only,
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=
  *                    also show all mails of confirmed contacts,
  *                    DC_SHOW_EMAILS_ALL (2)=
- *                    also show mails of unconfirmed contacts.
+ *                    also show mails of unconfirmed contacts (default).
  * - `key_gen_type` = DC_KEY_GEN_DEFAULT (0)=
  *                    generate recommended key type (default),
  *                    DC_KEY_GEN_RSA2048 (1)=
  *                    generate RSA 2048 keypair
  *                    DC_KEY_GEN_ED25519 (2)=
- *                    generate Ed25519 keypair
+ *                    generate Curve25519 keypair
+ *                    DC_KEY_GEN_RSA4096 (3)=
+ *                    generate RSA 4096 keypair
  * - `save_mime_headers` = 1=save mime headers
  *                    and make dc_get_mime_headers() work for subsequent calls,
  *                    0=do not save mime headers (default)
@@ -460,8 +481,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    If no type is prefixed, the videochat is handled completely in a browser.
  * - `bot`          = Set to "1" if this is a bot.
  *                    Prevents adding the "Device messages" and "Saved messages" chats,
- *                    adds Auto-Submitted header to outgoing messages
- *                    and accepts contact requests automatically (calling dc_accept_chat() is not needed for bots).
+ *                    adds Auto-Submitted header to outgoing messages,
+ *                    accepts contact requests automatically (calling dc_accept_chat() is not needed for bots)
+ *                    and does not cut large incoming text messages.
  * - `last_msg_id` = database ID of the last message processed by the bot.
  *                   This ID and IDs below it are guaranteed not to be returned
  *                   by dc_get_next_msgs() and dc_wait_next_msgs().
@@ -475,6 +497,9 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  * - `fetch_existing_msgs` = 1=fetch most recent existing messages on configure (default),
  *                    0=do not fetch existing messages on configure.
  *                    In both cases, existing recipients are added to the contact database.
+ * - `disable_idle` = 1=disable IMAP IDLE even if the server supports it,
+ *                    0=use IMAP IDLE if the server supports it.
+ *                    This is a developer option used for testing polling used as an IDLE fallback.
  * - `download_limit` = Messages up to this number of bytes are downloaded automatically.
  *                    For larger messages, only the header is downloaded and a placeholder is shown.
  *                    These messages can be downloaded fully using dc_download_full_msg() later.
@@ -483,6 +508,16 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    to not mess up with non-delivery-reports or read-receipts.
  *                    0=no limit (default).
  *                    Changes affect future messages only.
+ * - `gossip_period` = How often to gossip Autocrypt keys in chats with multiple recipients, in
+ *                    seconds. 2 days by default.
+ *                    This is not supposed to be changed by UIs and only used for testing.
+ * - `verified_one_on_one_chats` = Feature flag for verified 1:1 chats; the UI should set it
+ *                    to 1 if it supports verified 1:1 chats.
+ *                    Regardless of this setting, `dc_chat_is_protected()` returns true while the key is verified,
+ *                    and when the key changes, an info message is posted into the chat.
+ *                    0=Nothing else happens when the key changes.
+ *                    1=After the key changed, `dc_chat_can_send()` returns false and `dc_chat_is_protection_broken()` returns true
+ *                    until `dc_accept_chat()` is called.
  * - `ui.*`         = All keys prefixed by `ui.` can be used by the user-interfaces for system-specific purposes.
  *                    The prefix should be followed by the system and maybe subsystem,
  *                    e.g. `ui.desktop.foo`, `ui.desktop.linux.bar`, `ui.android.foo`, `ui.dc40.bar`, `ui.bot.simplebot.baz`.
@@ -807,7 +842,7 @@ void            dc_maybe_network             (dc_context_t* context);
  * @param context The context as created by dc_context_new().
  * @param addr The e-mail address of the user. This must match the
  *    configured_addr setting of the context as well as the UID of the key.
- * @param public_data ASCII armored public key.
+ * @param public_data Ignored, actual public key is extracted from secret_data.
  * @param secret_data ASCII armored secret key.
  * @return 1 on success, 0 on failure.
  */
@@ -861,7 +896,8 @@ int             dc_preconfigure_keypair        (dc_context_t* context, const cha
  *     - if the flag DC_GCL_ADD_ALLDONE_HINT is set, DC_CHAT_ID_ALLDONE_HINT
  *       is added as needed.
  * @param query_str An optional query for filtering the list. Only chats matching this query
- *     are returned. Give NULL for no filtering.
+ *     are returned. Give NULL for no filtering. When `is:unread` is contained in the query,
+ *     the chatlist is filtered such that only chats with unread messages show up.
  * @param query_id An optional contact ID for filtering the list. Only chats including this contact ID
  *     are returned. Give 0 for no filtering.
  * @return A chatlist as an dc_chatlist_t object.
@@ -1101,7 +1137,7 @@ dc_reactions_t* dc_get_msg_reactions (dc_context_t *context, int msg_id);
  *
  * In JS land, that would be mapped to something as:
  * ```
- * success = window.webxdc.sendUpdate('{"action":"move","src":"A3","dest":"B4"}', 'move A3 B4');
+ * success = window.webxdc.sendUpdate('{payload: {"action":"move","src":"A3","dest":"B4"}}', 'move A3 B4');
  * ```
  * `context` and `msg_id` are not needed in JS as those are unique within a webxdc instance.
  * See dc_get_webxdc_status_updates() for the receiving counterpart.
@@ -1319,6 +1355,20 @@ int             dc_get_msg_cnt               (dc_context_t* context, uint32_t ch
 int             dc_get_fresh_msg_cnt         (dc_context_t* context, uint32_t chat_id);
 
 
+/**
+ * Returns a list of similar chats.
+ *
+ * @warning This is an experimental API which may change or be removed in the future.
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned from dc_context_new().
+ * @param chat_id The ID of the chat for which to find similar chats.
+ * @return The list of similar chats.
+ *     On errors, NULL is returned.
+ *     Must be freed using dc_chatlist_unref() when no longer used.
+ */
+dc_chatlist_t*     dc_get_similar_chatlist   (dc_context_t* context, uint32_t chat_id);
+
 
 /**
  * Estimate the number of messages that will be deleted
@@ -1450,6 +1500,7 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
  * Typically used to implement the "next" and "previous" buttons
  * in a gallery or in a media player.
  *
+ * @deprecated Deprecated 2023-10-03, use dc_get_chat_media() and navigate the returned array instead.
  * @memberof dc_context_t
  * @param context The context object as returned from dc_context_new().
  * @param msg_id The ID of the current message from which the next or previous message should be searched.
@@ -1466,24 +1517,6 @@ dc_array_t*     dc_get_chat_media            (dc_context_t* context, uint32_t ch
  *     If there is not next/previous message, the function returns 0.
  */
 uint32_t        dc_get_next_media            (dc_context_t* context, uint32_t msg_id, int dir, int msg_type, int msg_type2, int msg_type3);
-
-
-/**
- * Enable or disable protection against active attacks.
- * To enable protection, it is needed that all members are verified;
- * if this condition is met, end-to-end-encryption is always enabled
- * and only the verified keys are used.
- *
- * Sends out #DC_EVENT_CHAT_MODIFIED on changes
- * and #DC_EVENT_MSGS_CHANGED if a status message was sent.
- *
- * @memberof dc_context_t
- * @param context The context object as returned from dc_context_new().
- * @param chat_id The ID of the chat to change the protection for.
- * @param protect 1=protect chat, 0=unprotect chat
- * @return 1=success, 0=error, e.g. some members may be unverified
- */
-int             dc_set_chat_protection       (dc_context_t* context, uint32_t chat_id, int protect);
 
 
 /**
@@ -1679,24 +1712,12 @@ uint32_t        dc_create_group_chat         (dc_context_t* context, int protect
  * Create a new broadcast list.
  *
  * Broadcast lists are similar to groups on the sending device,
- * however, recipients get the messages in normal one-to-one chats
- * and will not be aware of other members.
+ * however, recipients get the messages in a read-only chat
+ * and will see who the other members are.
  *
- * Replies to broadcasts go only to the sender
- * and not to all broadcast recipients.
- * Moreover, replies will not appear in the broadcast list
- * but in the one-to-one chat with the person answering.
- *
- * The name and the image of the broadcast list is set automatically
- * and is visible to the sender only.
- * Not asking for these data allows more focused creation
- * and we bypass the question who will get which data.
- * Also, many users will have at most one broadcast list
- * so, a generic name and image is sufficient at the first place.
- *
- * Later on, however, the name can be changed using dc_set_chat_name().
- * The image cannot be changed to have a unique, recognizable icon in the chat lists.
- * All in all, this is also what other messengers are doing here.
+ * For historical reasons, this function does not take a name directly,
+ * instead you have to set the name using dc_set_chat_name()
+ * after creating the broadcast list.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -2239,8 +2260,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  *   the backup is not encrypted.
  *   The backup contains all contacts, chats, images and other data and device independent settings.
  *   The backup does not contain device dependent settings as ringtones or LED notification settings.
- *   The name of the backup is typically `delta-chat-<day>.tar`, if more than one backup is create on a day,
- *   the format is `delta-chat-<day>-<number>.tar`
+ *   The name of the backup is `delta-chat-backup-<day>-<number>-<addr>.tar`.
  *
  * - **DC_IMEX_IMPORT_BACKUP** (12) - `param1` is the file (not: directory) to import. `param2` is the passphrase.
  *   The file is normally created by DC_IMEX_EXPORT_BACKUP and detected by dc_imex_has_backup(). Importing a backup
@@ -2253,6 +2273,7 @@ dc_contact_t*   dc_get_contact               (dc_context_t* context, uint32_t co
  *
  * - **DC_IMEX_IMPORT_SELF_KEYS** (2) - Import private keys found in the directory given as `param1`.
  *   The last imported key is made the default keys unless its name contains the string `legacy`. Public keys are not imported.
+ *   If `param1` is a filename, import the private key from the file and make it the default.
  *
  * While dc_imex() returns immediately, the started job may take a while,
  * you can stop it using dc_stop_ongoing_process(). During execution of the job,
@@ -2924,12 +2945,15 @@ int dc_receive_backup (dc_context_t* context, const char* qr);
  * @param dir The directory to create the context-databases in.
  *     If the directory does not exist,
  *     dc_accounts_new() will try to create it.
+ * @param writable Whether the returned account manager is writable, i.e. calling these functions on
+ *     it is possible: dc_accounts_add_account(), dc_accounts_add_closed_account(),
+ *     dc_accounts_migrate_account(), dc_accounts_remove_account(), dc_accounts_select_account().
  * @return An account manager object.
  *     The object must be passed to the other account manager functions
  *     and must be freed using dc_accounts_unref() after usage.
  *     On errors, NULL is returned.
  */
-dc_accounts_t* dc_accounts_new                  (const char* os_name, const char* dir);
+dc_accounts_t* dc_accounts_new                  (const char* dir, int writable);
 
 
 /**
@@ -3710,13 +3734,32 @@ int             dc_chat_can_send              (const dc_chat_t* chat);
  * Check if a chat is protected.
  * Protected chats contain only verified members and encryption is always enabled.
  * Protected chats are created using dc_create_group_chat() by setting the 'protect' parameter to 1.
- * The status can be changed using dc_set_chat_protection().
  *
  * @memberof dc_chat_t
  * @param chat The chat object.
  * @return 1=chat protected, 0=chat is not protected.
  */
 int             dc_chat_is_protected         (const dc_chat_t* chat);
+
+
+/**
+ * Checks if the chat was protected, and then an incoming message broke this protection.
+ *
+ * This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
+ * otherwise it will return false for all chats.
+ *
+ * 1:1 chats are automatically set as protected when a contact is verified.
+ * When a message comes in that is not encrypted / signed correctly,
+ * the chat is automatically set as unprotected again.
+ * dc_chat_is_protection_broken() will return true until dc_accept_chat() is called.
+ *
+ * The UI should let the user confirm that this is OK with a message like
+ * `Bob sent a message from another device. Tap to learn more` and then call dc_accept_chat().
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat protection broken, 0=otherwise.
+ */
+int             dc_chat_is_protection_broken (const dc_chat_t* chat);
 
 
 /**
@@ -3923,7 +3966,7 @@ int64_t          dc_msg_get_received_timestamp (const dc_msg_t* msg);
  * Get the message time used for sorting.
  * This function returns the timestamp that is used for sorting the message
  * into lists as returned e.g. by dc_get_chat_msgs().
- * This may be the reveived time, the sending time or another time.
+ * This may be the received time, the sending time or another time.
  *
  * To get the receiving time, use dc_msg_get_received_timestamp().
  * To get the sending time, use dc_msg_get_timestamp().
@@ -3976,16 +4019,17 @@ char*           dc_msg_get_text               (const dc_msg_t* msg);
  */
 char*           dc_msg_get_subject            (const dc_msg_t* msg);
 
+
 /**
- * Find out full path, file name and extension of the file associated with a
- * message.
+ * Find out full path of the file associated with a message.
  *
  * Typically files are associated with images, videos, audios, documents.
  * Plain text messages do not have a file.
+ * File name may be mangled. To obtain the original attachment filename use dc_msg_get_filename().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return The full path, the file name, and the extension of the file associated with the message.
+ * @return The full path (with file name and extension) of the file associated with the message.
  *     If there is no file associated with the message, an empty string is returned.
  *     NULL is never returned and the returned value must be released using dc_str_unref().
  */
@@ -3993,14 +4037,13 @@ char*           dc_msg_get_file               (const dc_msg_t* msg);
 
 
 /**
- * Get a base file name without the path. The base file name includes the extension; the path
- * is not returned. To get the full path, use dc_msg_get_file().
+ * Get an original attachment filename, with extension but without the path. To get the full path,
+ * use dc_msg_get_file().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
- * @return The base file name plus the extension without part. If there is no file
- *     associated with the message, an empty string is returned. The returned
- *     value must be released using dc_str_unref().
+ * @return The attachment filename. If there is no file associated with the message, an empty string
+ *     is returned. The returned value must be released using dc_str_unref().
  */
 char*           dc_msg_get_filename           (const dc_msg_t* msg);
 
@@ -4313,7 +4356,7 @@ int             dc_msg_is_forwarded           (const dc_msg_t* msg);
  * Check if the message is an informational message, created by the
  * device or by another users. Such messages are not "typed" by the user but
  * created due to other actions,
- * e.g. dc_set_chat_name(), dc_set_chat_profile_image(), dc_set_chat_protection()
+ * e.g. dc_set_chat_name(), dc_set_chat_profile_image(),
  * or dc_add_contact_to_chat().
  *
  * These messages are typically shown in the center of the chat view,
@@ -5007,7 +5050,12 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
 /**
  * Return the address that verified a contact
  *
- * The UI may use this in addition to a checkmark showing the verification status
+ * The UI may use this in addition to a checkmark showing the verification status.
+ * In case of verification chains,
+ * the last contact in the chain is shown.
+ * This is because of privacy reasons, but also as it would not help the user
+ * to see a unknown name here - where one can mostly always ask the shown name
+ * as it is directly known.
  *
  * @memberof dc_contact_t
  * @param contact The contact object.
@@ -5015,6 +5063,7 @@ int             dc_contact_is_verified       (dc_contact_t* contact);
  *    A string containing the verifiers address. If it is the same address as the contact itself,
  *    we verified the contact ourself. If it is an empty string, we don't have verifier 
  *    information or the contact is not verified.
+ * @deprecated 2023-09-28, use dc_contact_get_verifier_id instead
  */
 char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
 
@@ -5027,7 +5076,7 @@ char*           dc_contact_get_verifier_addr       (dc_contact_t* contact);
  * @memberof dc_contact_t
  * @param contact The contact object.
  * @return 
- *    The `ContactId` of the verifiers address. If it is the same address as the contact itself,
+ *    The contact ID of the verifier. If it is DC_CONTACT_ID_SELF,
  *    we verified the contact ourself. If it is 0, we don't have verifier information or 
  *    the contact is not verified.
  */
@@ -5125,6 +5174,72 @@ int             dc_provider_get_status                (const dc_provider_t* prov
  * @param provider The dc_provider_t struct.
  */
 void            dc_provider_unref                     (dc_provider_t* provider);
+
+
+/**
+ * Return an HTTP(S) GET response.
+ * This function can be used to download remote content for HTML emails.
+ *
+ * @memberof dc_context_t
+ * @param context The context object to take proxy settings from.
+ * @param url HTTP or HTTPS URL.
+ * @return The response must be released using dc_http_response_unref() after usage.
+ *     NULL is returned on errors.
+ */
+dc_http_response_t*     dc_get_http_response      (const dc_context_t* context, const char* url);
+
+
+/**
+ * @class dc_http_response_t
+ *
+ * An object containing an HTTP(S) GET response.
+ * Created by dc_get_http_response().
+ */
+
+
+/**
+ * Returns HTTP response MIME type as a string, e.g. "text/plain" or "text/html".
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The string which must be released using dc_str_unref() after usage. May be NULL.
+ */
+char*                   dc_http_response_get_mimetype (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response encoding, e.g. "utf-8".
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The string which must be released using dc_str_unref() after usage. May be NULL.
+ */
+char*                   dc_http_response_get_encoding (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response contents.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The blob which must be released using dc_str_unref() after usage. NULL is never returned.
+ */
+uint8_t*                dc_http_response_get_blob     (const dc_http_response_t* response);
+
+/**
+ * Returns HTTP response content size.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ * @return The blob size.
+ */
+size_t                  dc_http_response_get_size     (const dc_http_response_t* response);
+
+/**
+ * Free an HTTP response object.
+ *
+ * @memberof dc_http_response_t
+ * @param response HTTP response as returned by dc_get_http_response().
+ */
+void                    dc_http_response_unref        (const dc_http_response_t* response);
 
 
 /**
@@ -5604,7 +5719,6 @@ void            dc_reactions_unref       (dc_reactions_t* reactions);
  */
 
 
-
 /**
  * @class dc_jsonrpc_instance_t
  *
@@ -5652,6 +5766,17 @@ void dc_jsonrpc_request(dc_jsonrpc_instance_t* jsonrpc_instance, const char* req
  *     in this case, free the jsonrpc instance using dc_jsonrpc_unref().
  */
 char* dc_jsonrpc_next_response(dc_jsonrpc_instance_t* jsonrpc_instance);
+
+/**
+ * Make a JSON-RPC call and return a response.
+ *
+ * @memberof dc_jsonrpc_instance_t
+ * @param jsonrpc_instance jsonrpc instance as returned from dc_jsonrpc_init().
+ * @param input JSON-RPC request.
+ * @return JSON-RPC response as string, must be freed using dc_str_unref() after usage.
+ *     If there is no response, NULL is returned.
+ */
+char* dc_jsonrpc_blocking_call(dc_jsonrpc_instance_t* jsonrpc_instance, const char *input);
 
 /**
  * @class dc_event_emitter_t
@@ -6001,6 +6126,15 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+ * A single message is deleted.
+ *
+ * @param data1 (int) chat_id
+ * @param data2 (int) msg_id
+ */
+#define DC_EVENT_MSG_DELETED              2016
+
+
+/**
  * Chat changed. The name or the image of a chat group was changed or members were added or removed.
  * Or the verify state of a chat has changed.
  * See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()
@@ -6178,6 +6312,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_KEY_GEN_DEFAULT 0
 #define DC_KEY_GEN_RSA2048 1
 #define DC_KEY_GEN_ED25519 2
+#define DC_KEY_GEN_RSA4096 3
 
 
 /**
@@ -6661,15 +6796,6 @@ void dc_event_unref(dc_event_t* event);
 /// Used in error strings.
 #define DC_STR_ERROR_NO_NETWORK           87
 
-/// "Chat protection enabled."
-///
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_ENABLED_PROTECTION and DC_STR_MSG_PROTECTION_ENABLED_BY.
-#define DC_STR_PROTECTION_ENABLED         88
-
-/// @deprecated Deprecated, replaced by DC_STR_MSG_YOU_DISABLED_PROTECTION and DC_STR_MSG_PROTECTION_DISABLED_BY.
-#define DC_STR_PROTECTION_DISABLED        89
-
 /// "Reply"
 ///
 /// Used in summaries.
@@ -7114,26 +7240,6 @@ void dc_event_unref(dc_event_t* event);
 /// `%2$s` will be replaced by name and address of the contact.
 #define DC_STR_EPHEMERAL_TIMER_WEEKS_BY_OTHER 157
 
-/// "You enabled chat protection."
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_YOU 158
-
-/// "Chat protection enabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-///
-/// Used in status messages.
-#define DC_STR_PROTECTION_ENABLED_BY_OTHER 159
-
-/// "You disabled chat protection."
-#define DC_STR_PROTECTION_DISABLED_BY_YOU 160
-
-/// "Chat protection disabled by %1$s."
-///
-/// `%1$s` will be replaced by name and address of the contact.
-#define DC_STR_PROTECTION_DISABLED_BY_OTHER 161
-
 /// "Scan to set up second device for %1$s"
 ///
 /// `%1$s` will be replaced by name and address of the account.
@@ -7143,6 +7249,16 @@ void dc_event_unref(dc_event_t* event);
 ///
 /// Used as a device message after a successful backup transfer.
 #define DC_STR_BACKUP_TRANSFER_MSG_BODY 163
+
+/// "Messages are guaranteed to be end-to-end encrypted from now on."
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_ENABLED 170
+
+/// "%1$s sent a message from another device."
+///
+/// Used in info messages.
+#define DC_STR_CHAT_PROTECTION_DISABLED 171
 
 /**
  * @}

@@ -3,8 +3,10 @@
 //! This private module is only compiled for test runs.
 #![allow(clippy::indexing_slicing)]
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::ops::{Deref, DerefMut};
 use std::panic;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -12,11 +14,12 @@ use ansi_term::Color;
 use async_channel::{self as channel, Receiver, Sender};
 use chat::ChatItem;
 use once_cell::sync::Lazy;
+use pretty_assertions::assert_eq;
 use rand::Rng;
 use tempfile::{tempdir, TempDir};
 use tokio::runtime::Handle;
 use tokio::sync::RwLock;
-use tokio::task;
+use tokio::{fs, task};
 
 use crate::chat::{
     self, add_to_chat_contacts_table, create_group_chat, Chat, ChatId, MessageListOptions,
@@ -24,15 +27,19 @@ use crate::chat::{
 };
 use crate::chatlist::Chatlist;
 use crate::config::Config;
-use crate::constants::Chattype;
+use crate::constants::{Blocked, Chattype};
 use crate::constants::{DC_GCL_NO_SPECIALS, DC_MSG_ID_DAYMARKER};
 use crate::contact::{Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
+use crate::e2ee::EncryptHelper;
 use crate::events::{Event, EventType, Events};
-use crate::key::{self, DcKey, KeyPair, KeyPairUse};
+use crate::key::{self, DcKey, KeyPairUse};
 use crate::message::{update_msg_state, Message, MessageState, MsgId, Viewtype};
-use crate::mimeparser::MimeMessage;
+use crate::mimeparser::{MimeMessage, SystemMessage};
+use crate::peerstate::Peerstate;
+use crate::pgp::KeyPair;
 use crate::receive_imf::receive_imf;
+use crate::securejoin::{get_securejoin_qr, join_securejoin};
 use crate::stock_str::StockStrings;
 use crate::tools::EmailAddress;
 
@@ -105,10 +112,28 @@ impl TestContextManager {
     /// - Let one TestContext send a message
     /// - Let the other TestContext receive it and accept the chat
     /// - Assert that the message arrived
-    pub async fn send_recv_accept(&self, from: &TestContext, to: &TestContext, msg: &str) {
-        let received_msg = self.try_send_recv(from, to, msg).await;
-        assert_eq!(received_msg.text.as_ref().unwrap(), msg);
+    pub async fn send_recv_accept(
+        &self,
+        from: &TestContext,
+        to: &TestContext,
+        msg: &str,
+    ) -> Message {
+        let received_msg = self.send_recv(from, to, msg).await;
+        assert_eq!(
+            received_msg.chat_blocked, Blocked::Request,
+            "`send_recv_accept()` is meant to be used for chat requests. Use `send_recv()` if the chat is already accepted."
+        );
         received_msg.chat_id.accept(to).await.unwrap();
+        received_msg
+    }
+
+    /// - Let one TestContext send a message
+    /// - Let the other TestContext receive it
+    /// - Assert that the message arrived
+    pub async fn send_recv(&self, from: &TestContext, to: &TestContext, msg: &str) -> Message {
+        let received_msg = self.try_send_recv(from, to, msg).await;
+        assert_eq!(received_msg.text, msg);
+        received_msg
     }
 
     /// - Let one TestContext send a message
@@ -140,6 +165,27 @@ impl TestContextManager {
             test_context.get_primary_self_addr().await.unwrap(),
             new_addr
         );
+    }
+
+    pub async fn execute_securejoin(&self, scanner: &TestContext, scanned: &TestContext) {
+        self.section(&format!(
+            "{} scans {}'s QR code",
+            scanner.name(),
+            scanned.name()
+        ));
+
+        let qr = get_securejoin_qr(&scanned.ctx, None).await.unwrap();
+        join_securejoin(&scanner.ctx, &qr).await.unwrap();
+
+        loop {
+            if let Some(sent) = scanner.pop_sent_msg_opt(Duration::ZERO).await {
+                scanned.recv_msg(&sent).await;
+            } else if let Some(sent) = scanned.pop_sent_msg_opt(Duration::ZERO).await {
+                scanner.recv_msg(&sent).await;
+            } else {
+                break;
+            }
+        }
     }
 }
 
@@ -277,7 +323,7 @@ impl TestContext {
         println!("\n========== Chats of {}: ==========", self.name());
         if let Ok(chats) = Chatlist::try_load(self, 0, None, None).await {
             for (chat, _) in chats.iter() {
-                self.print_chat(*chat).await;
+                print!("{}", self.display_chat(*chat).await);
             }
         }
         println!();
@@ -542,22 +588,24 @@ impl TestContext {
             Modifier::Modified => warn!(&self.ctx, "Contact {} modified by TestContext", &addr),
             Modifier::Created => warn!(&self.ctx, "Contact {} created by TestContext", &addr),
         }
-        Contact::load_from_db(&self.ctx, contact_id).await.unwrap()
+        Contact::get_by_id(&self.ctx, contact_id).await.unwrap()
     }
 
-    /// Returns 1:1 [`Chat`] with another account, if it exists.
+    /// Returns 1:1 [`Chat`] with another account. Panics if it doesn't exist.
     ///
     /// This first creates a contact using the configured details on the other account, then
-    /// creates a 1:1 chat with this contact.
-    pub async fn get_chat(&self, other: &TestContext) -> Option<Chat> {
+    /// gets the 1:1 chat with this contact.
+    pub async fn get_chat(&self, other: &TestContext) -> Chat {
         let contact = self.add_or_lookup_contact(other).await;
-        match ChatId::lookup_by_contact(&self.ctx, contact.id)
+        let chat_id = ChatId::lookup_by_contact(&self.ctx, contact.id)
             .await
             .unwrap()
-        {
-            Some(id) => Some(Chat::load_from_db(&self.ctx, id).await.unwrap()),
-            None => None,
-        }
+            .expect(
+                "There is no chat with this contact. \
+                Hint: Use create_chat() instead of get_chat() if this is expected.",
+            );
+
+        Chat::load_from_db(&self.ctx, chat_id).await.unwrap()
     }
 
     /// Creates or returns an existing 1:1 [`Chat`] with another account.
@@ -597,7 +645,7 @@ impl TestContext {
     /// the message.
     pub async fn send_text(&self, chat_id: ChatId, txt: &str) -> SentMessage<'_> {
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some(txt.to_string()));
+        msg.text = txt.to_string();
         self.send_msg(chat_id, &mut msg).await
     }
 
@@ -616,14 +664,35 @@ impl TestContext {
         res
     }
 
+    pub async fn golden_test_chat(&self, chat_id: ChatId, filename: &str) {
+        let filename = Path::new("test-data/golden/").join(filename);
+
+        let actual = self.display_chat(chat_id).await;
+
+        // We're using `unwrap_or_default()` here so that if the file doesn't exist,
+        // it can be created using `write` below.
+        let expected = fs::read(&filename).await.unwrap_or_default();
+        let expected = String::from_utf8(expected).unwrap().replace("\r\n", "\n");
+        if (std::env::var("UPDATE_GOLDEN_TESTS") == Ok("1".to_string())) && actual != expected {
+            fs::write(&filename, &actual)
+                .await
+                .unwrap_or_else(|e| panic!("Error writing {filename:?}: {e}"));
+        } else {
+            assert_eq!(
+                actual, expected,
+                "To update the expected value, run `UPDATE_GOLDEN_TESTS=1 cargo test`"
+            );
+        }
+    }
+
     /// Prints out the entire chat to stdout.
     ///
     /// You can use this to debug your test by printing the entire chat conversation.
     // This code is mainly the same as `log_msglist` in `cmdline.rs`, so one day, we could
     // merge them to a public function in the `deltachat` crate.
-    #[allow(dead_code)]
-    #[allow(clippy::indexing_slicing)]
-    pub async fn print_chat(&self, chat_id: ChatId) {
+    async fn display_chat(&self, chat_id: ChatId) -> String {
+        let mut res = String::new();
+
         let msglist = chat::get_chat_msgs_ex(
             self,
             chat_id,
@@ -654,7 +723,8 @@ impl TestContext {
         } else {
             format!("{} member(s)", members.len())
         };
-        println!(
+        writeln!(
+            res,
             "{}#{}: {} [{}]{}{}{} {}",
             sel_chat.typ,
             sel_chat.get_id(),
@@ -678,32 +748,38 @@ impl TestContext {
             } else {
                 ""
             },
-        );
+        )
+        .unwrap();
 
         let mut lines_out = 0;
         for msg_id in msglist {
             if msg_id == MsgId::new(DC_MSG_ID_DAYMARKER) {
-                println!(
+                writeln!(res,
                 "--------------------------------------------------------------------------------"
-            );
+            )
+                .unwrap();
 
                 lines_out += 1
             } else if !msg_id.is_special() {
                 if lines_out == 0 {
-                    println!(
+                    writeln!(res,
                     "--------------------------------------------------------------------------------",
-                );
+                ).unwrap();
                     lines_out += 1
                 }
                 let msg = Message::load_from_db(self, msg_id).await.unwrap();
-                log_msg(self, "", &msg).await;
+                write_msg(self, "", &msg, &mut res).await;
             }
         }
         if lines_out > 0 {
-            println!(
+            writeln!(
+                res,
                 "--------------------------------------------------------------------------------"
-            );
+            )
+            .unwrap();
         }
+
+        res
     }
 
     pub async fn create_group_with_members(
@@ -838,7 +914,7 @@ pub fn alice_keypair() -> KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/alice-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,
@@ -856,7 +932,7 @@ pub fn bob_keypair() -> KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/bob-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,
@@ -866,7 +942,7 @@ pub fn bob_keypair() -> KeyPair {
 /// Load a pre-generated keypair for fiona@example.net from disk.
 ///
 /// Like [alice_keypair] but a different key and identity.
-pub fn fiona_keypair() -> key::KeyPair {
+pub fn fiona_keypair() -> KeyPair {
     let addr = EmailAddress::new("fiona@example.net").unwrap();
     let public = key::SignedPublicKey::from_asc(include_str!("../test-data/key/fiona-public.asc"))
         .unwrap()
@@ -874,7 +950,7 @@ pub fn fiona_keypair() -> key::KeyPair {
     let secret = key::SignedSecretKey::from_asc(include_str!("../test-data/key/fiona-secret.asc"))
         .unwrap()
         .0;
-    key::KeyPair {
+    KeyPair {
         addr,
         public,
         secret,
@@ -966,6 +1042,26 @@ fn print_logevent(logevent: &LogEvent) {
     }
 }
 
+/// Saves the other account's public key as verified.
+pub(crate) async fn mark_as_verified(this: &TestContext, other: &TestContext) {
+    let mut peerstate = Peerstate::from_header(
+        &EncryptHelper::new(other).await.unwrap().get_aheader(),
+        // We have to give 0 as the time, not the current time:
+        // The time is going to be saved in peerstate.last_seen.
+        // The code in `peerstate.rs` then compares `if message_time > self.last_seen`,
+        // and many similar checks in peerstate.rs, and doesn't allow changes otherwise.
+        // Giving the current time would mean that message_time == peerstate.last_seen,
+        // so changes would not be allowed.
+        // This might lead to flaky tests.
+        0,
+    );
+
+    peerstate.verified_key = peerstate.public_key.clone();
+    peerstate.verified_key_fingerprint = peerstate.public_key_fingerprint.clone();
+
+    peerstate.save_to_db(&this.sql).await.unwrap();
+}
+
 /// Pretty-print an event to stdout
 ///
 /// Done during tests this is captured by `cargo test` and associated with the test itself.
@@ -1033,7 +1129,7 @@ fn print_event(event: &Event) {
 /// Logs an individual message to stdout.
 ///
 /// This includes a bunch of the message meta-data as well.
-async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
+async fn write_msg(context: &Context, prefix: &str, msg: &Message, buf: &mut String) {
     let contact = match Contact::get_by_id(context, msg.get_from_id()).await {
         Ok(contact) => contact,
         Err(e) => {
@@ -1053,7 +1149,8 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
         _ => "",
     };
     let msgtext = msg.get_text();
-    println!(
+    writeln!(
+        buf,
         "{}{}{}{}: {} (Contact#{}): {} {}{}{}{}{}",
         prefix,
         msg.get_id(),
@@ -1061,7 +1158,7 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
         if msg.has_location() { "📍" } else { "" },
         &contact_name,
         contact_id,
-        msgtext.unwrap_or_default(),
+        msgtext,
         if msg.get_from_id() == ContactId::SELF {
             ""
         } else if msg.get_state() == MessageState::InSeen {
@@ -1071,7 +1168,17 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
         } else {
             "[FRESH]"
         },
-        if msg.is_info() { "[INFO]" } else { "" },
+        if msg.is_info() {
+            if msg.get_info_type() == SystemMessage::ChatProtectionEnabled {
+                "[INFO 🛡️]"
+            } else if msg.get_info_type() == SystemMessage::ChatProtectionDisabled {
+                "[INFO 🛡️❌]"
+            } else {
+                "[INFO]"
+            }
+        } else {
+            ""
+        },
         if msg.get_viewtype() == Viewtype::VideochatInvitation {
             format!(
                 "[VIDEOCHAT-INVITATION: {}, type={}]",
@@ -1087,7 +1194,8 @@ async fn log_msg(context: &Context, prefix: &str, msg: &Message) {
             ""
         },
         statestr,
-    );
+    )
+    .unwrap();
 }
 
 #[cfg(test)]

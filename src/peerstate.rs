@@ -21,7 +21,7 @@ use crate::stock_str;
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]
 pub enum PeerstateKeyType {
-    /// Pubilc key sent in the `Autocrypt-Gossip` header.
+    /// Public key sent in the `Autocrypt-Gossip` header.
     GossipKey,
 
     /// Public key sent in the `Autocrypt` header.
@@ -392,6 +392,31 @@ impl Peerstate {
         }
     }
 
+    /// Returns a reference to the contact's public key fingerprint.
+    ///
+    /// Similar to [`Self::peek_key`], but returns the fingerprint instead of the key.
+    fn peek_key_fingerprint(&self, min_verified: PeerstateVerifiedStatus) -> Option<&Fingerprint> {
+        match min_verified {
+            PeerstateVerifiedStatus::BidirectVerified => self.verified_key_fingerprint.as_ref(),
+            PeerstateVerifiedStatus::Unverified => self
+                .public_key_fingerprint
+                .as_ref()
+                .or(self.gossip_key_fingerprint.as_ref()),
+        }
+    }
+
+    /// Returns true if the key used for opportunistic encryption in the 1:1 chat
+    /// is the same as the verified key.
+    ///
+    /// Note that verified groups always use the verified key no matter if the
+    /// opportunistic key matches or not.
+    pub(crate) fn is_using_verified_key(&self) -> bool {
+        let verified = self.peek_key_fingerprint(PeerstateVerifiedStatus::BidirectVerified);
+
+        verified.is_some()
+            && verified == self.peek_key_fingerprint(PeerstateVerifiedStatus::Unverified)
+    }
+
     /// Set this peerstate to verified
     /// Make sure to call `self.save_to_db` to save these changes
     /// Params:
@@ -535,7 +560,7 @@ impl Peerstate {
                 stock_str::contact_setup_changed(context, &self.addr).await
             }
             PeerstateChange::Aeap(new_addr) => {
-                let old_contact = Contact::load_from_db(context, contact_id).await?;
+                let old_contact = Contact::get_by_id(context, contact_id).await?;
                 stock_str::aeap_addr_changed(
                     context,
                     old_contact.get_display_name(),

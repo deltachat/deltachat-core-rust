@@ -6,7 +6,6 @@ use yerpc::axum::handle_ws_rpc;
 use yerpc::{RpcClient, RpcSession};
 
 mod api;
-use api::events::event_to_json_rpc_notification;
 use api::{Accounts, CommandApi};
 
 const DEFAULT_PORT: u16 = 20808;
@@ -20,7 +19,8 @@ async fn main() -> Result<(), std::io::Error> {
         .map(|port| port.parse::<u16>().expect("DC_PORT must be a number"))
         .unwrap_or(DEFAULT_PORT);
     log::info!("Starting with accounts directory `{path}`.");
-    let accounts = Accounts::new(PathBuf::from(&path)).await.unwrap();
+    let writable = true;
+    let accounts = Accounts::new(PathBuf::from(&path), writable).await.unwrap();
     let state = CommandApi::new(accounts);
 
     let app = Router::new()
@@ -44,12 +44,5 @@ async fn main() -> Result<(), std::io::Error> {
 async fn handler(ws: WebSocketUpgrade, Extension(api): Extension<CommandApi>) -> Response {
     let (client, out_receiver) = RpcClient::new();
     let session = RpcSession::new(client.clone(), api.clone());
-    tokio::spawn(async move {
-        let events = api.accounts.read().await.get_event_emitter();
-        while let Some(event) = events.recv().await {
-            let event = event_to_json_rpc_notification(event);
-            client.send_notification("event", Some(event)).await.ok();
-        }
-    });
     handle_ws_rpc(ws, out_receiver, session).await
 }

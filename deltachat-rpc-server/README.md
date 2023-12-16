@@ -32,3 +32,6 @@ languages other than Rust, for example:
 
 1. Python: https://github.com/deltachat/deltachat-core-rust/tree/master/deltachat-rpc-client/
 2. Go: https://github.com/deltachat/deltachat-rpc-client-go/
+
+Run `deltachat-rpc-server --version` to check the version of the server.
+Run `deltachat-rpc-server --openrpc` to get [OpenRPC](https://open-rpc.org/) specification of the provided JSON-RPC API.

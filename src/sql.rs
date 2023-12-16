@@ -245,7 +245,7 @@ impl Sql {
             // So, for people who have delete_server enabled, disable it and add a hint to the devicechat:
             if context.get_config_delete_server_after().await?.is_some() {
                 let mut msg = Message::new(Viewtype::Text);
-                msg.text = Some(stock_str::delete_server_turned_off(context).await);
+                msg.set_text(stock_str::delete_server_turned_off(context).await);
                 add_device_msg(context, None, Some(&mut msg)).await?;
                 context
                     .set_config(Config::DeleteServerAfter, Some("0"))
@@ -302,6 +302,25 @@ impl Sql {
 
             Ok(())
         }
+    }
+
+    /// Changes the passphrase of encrypted database.
+    ///
+    /// The database must already be encrypted and the passphrase cannot be empty.
+    /// It is impossible to turn encrypted database into unencrypted
+    /// and vice versa this way, use import/export for this.
+    pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
+        let mut lock = self.pool.write().await;
+
+        let pool = lock.take().context("SQL connection pool is not open")?;
+        let conn = pool.get().await?;
+        conn.pragma_update(None, "rekey", passphrase.clone())
+            .context("failed to set PRAGMA rekey")?;
+        drop(pool);
+
+        *lock = Some(Self::new_pool(&self.dbfile, passphrase.to_string())?);
+
+        Ok(())
     }
 
     /// Locks the write transactions mutex in order to make sure that there never are
@@ -667,6 +686,7 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
          PRAGMA secure_delete=on;
          PRAGMA busy_timeout = 0; -- fail immediately
          PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
+         PRAGMA soft_heap_limit = 8388608; -- 8 MiB limit, same as set in Android SQLiteDatabase.
          PRAGMA foreign_keys=on;
          ",
     )?;
@@ -722,8 +742,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         warn!(context, "Failed to deduplicate peerstates: {:#}.", err)
     }
 
-    context.schedule_quota_update().await?;
-
     // Try to clear the freelist to free some space on the disk. This
     // only works if auto_vacuum is enabled.
     match context
@@ -752,6 +770,17 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
         )
         .await
         .context("failed to remove old MDNs")
+        .log_err(context)
+        .ok();
+
+    context
+        .sql
+        .execute(
+            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN (SELECT id FROM msgs)",
+            (),
+        )
+        .await
+        .context("failed to remove old webxdc status updates")
         .log_err(context)
         .ok();
 
@@ -1102,13 +1131,13 @@ mod tests {
 
         let chat = t.create_chat_with_contact("bob", "bob@example.com").await;
         let mut new_draft = Message::new(Viewtype::Text);
-        new_draft.set_text(Some("This is my draft".to_string()));
+        new_draft.set_text("This is my draft".to_string());
         chat.id.set_draft(&t, Some(&mut new_draft)).await.unwrap();
 
         housekeeping(&t).await.unwrap();
 
         let loaded_draft = chat.id.get_draft(&t).await.unwrap();
-        assert_eq!(loaded_draft.unwrap().text.unwrap(), "This is my draft");
+        assert_eq!(loaded_draft.unwrap().text, "This is my draft");
     }
 
     /// Tests that `housekeeping` deletes the blobs backup dir which is created normally by
@@ -1235,6 +1264,66 @@ mod tests {
         sql.open(&t, "foo".to_string())
             .await
             .context("failed to open the database second time")?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sql_change_passphrase() -> Result<()> {
+        use tempfile::tempdir;
+
+        // The context is used only for logging.
+        let t = TestContext::new().await;
+
+        // Create a separate empty database for testing.
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("testdb.sqlite");
+        let sql = Sql::new(dbfile.clone());
+
+        sql.open(&t, "foo".to_string())
+            .await
+            .context("failed to open the database first time")?;
+        sql.close().await;
+
+        // Change the passphrase from "foo" to "bar".
+        let sql = Sql::new(dbfile.clone());
+        sql.open(&t, "foo".to_string())
+            .await
+            .context("failed to open the database second time")?;
+        sql.change_passphrase("bar".to_string())
+            .await
+            .context("failed to change passphrase")?;
+
+        // Test that at least two connections are still working.
+        // This ensures that not only the connection which changed the password is working,
+        // but other connections as well.
+        {
+            let lock = sql.pool.read().await;
+            let pool = lock.as_ref().unwrap();
+            let conn1 = pool.get().await?;
+            let conn2 = pool.get().await?;
+            conn1
+                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                .unwrap();
+            conn2
+                .query_row("SELECT count(*) FROM sqlite_master", [], |_row| Ok(()))
+                .unwrap();
+        }
+
+        sql.close().await;
+
+        let sql = Sql::new(dbfile);
+
+        // Test that old passphrase is not working.
+        assert!(sql.open(&t, "foo".to_string()).await.is_err());
+
+        // Open the database with the new passphrase.
+        sql.check_passphrase("bar".to_string()).await?;
+        sql.open(&t, "bar".to_string())
+            .await
+            .context("failed to open the database third time")?;
+        sql.close().await;
+
         Ok(())
     }
 }

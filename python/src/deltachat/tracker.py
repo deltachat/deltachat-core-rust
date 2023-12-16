@@ -1,6 +1,6 @@
 from queue import Queue
 from threading import Event
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 from .hookspec import Global, account_hookimpl
 

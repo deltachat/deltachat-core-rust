@@ -357,7 +357,6 @@ mod tests {
     use super::*;
     use crate::aheader::EncryptPreference;
     use crate::e2ee;
-    use crate::message;
     use crate::mimeparser;
     use crate::peerstate::Peerstate;
     use crate::securejoin::get_securejoin_qr;
@@ -705,7 +704,7 @@ Authentication-Results: dkim=";
         let received = tcm
             .try_send_recv(&alice, &bob2, "My credit card number is 1234")
             .await;
-        assert!(!received.text.as_ref().unwrap().contains("1234"));
+        assert!(!received.text.contains("1234"));
         assert!(received.error.is_some());
 
         tcm.section("Turns out bob2 wasn't an attacker at all, Bob just has a new phone and DKIM just stopped working.");
@@ -786,7 +785,7 @@ Authentication-Results: dkim=";
             .insert_str(0, "List-Post: <mailto:deltachat-community.example.net>\n");
         let rcvd = alice.recv_msg(&sent).await;
         assert!(!rcvd.get_showpadlock());
-        assert_eq!(&rcvd.text.unwrap(), "hellooo in the mailinglist again");
+        assert_eq!(&rcvd.text, "hellooo in the mailinglist again");
 
         Ok(())
     }
@@ -825,7 +824,9 @@ Authentication-Results: dkim=";
         // Disallowing keychanges is disabled for now:
         // assert!(rcvd.error.unwrap().contains("DKIM failed"));
         // The message info should contain a warning:
-        assert!(message::get_msg_info(&bob, rcvd.id)
+        assert!(rcvd
+            .id
+            .get_info(&bob)
             .await
             .unwrap()
             .contains("KEYCHANGES NOT ALLOWED"));

@@ -26,7 +26,6 @@ use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifie
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::job;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{self, Message, MessageState, MessengerMessage, MsgId, Viewtype};
 use crate::mimeparser;
@@ -82,7 +81,6 @@ const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              MESSAGE-ID \
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
                              )])";
-const JUST_UID: &str = "(UID)";
 const BODY_FULL: &str = "(FLAGS BODY.PEEK[])";
 const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 
@@ -391,6 +389,7 @@ impl Imap {
                     "IMAP-LOGIN as {}",
                     self.config.lp.user
                 )));
+                self.connectivity.set_connected(context).await;
                 info!(context, "Successfully logged into IMAP server");
                 Ok(())
             }
@@ -412,7 +411,7 @@ impl Imap {
                     drop(lock);
 
                     let mut msg = Message::new(Viewtype::Text);
-                    msg.text = Some(message.clone());
+                    msg.text = message.clone();
                     if let Err(e) =
                         chat::add_device_msg_with_importance(context, None, Some(&mut msg), true)
                             .await
@@ -611,11 +610,10 @@ impl Imap {
                 if uid_next < old_uid_next {
                     warn!(
                         context,
-                        "The server illegally decreased the uid_next of folder {} from {} to {} without changing validity ({}), resyncing UIDs...", 
-                        folder, old_uid_next, uid_next, new_uid_validity,
+                        "The server illegally decreased the uid_next of folder {folder:?} from {old_uid_next} to {uid_next} without changing validity ({new_uid_validity}), resyncing UIDs...",
                     );
                     set_uid_next(context, folder, uid_next).await?;
-                    job::schedule_resync(context).await?;
+                    context.schedule_resync().await?;
                 }
                 uid_next != old_uid_next // If uid_next changed, there are new emails
             } else {
@@ -627,18 +625,6 @@ impl Imap {
         // UIDVALIDITY is modified, reset highest seen MODSEQ.
         set_modseq(context, folder, 0).await?;
 
-        if mailbox.exists == 0 {
-            info!(context, "Folder \"{}\" is empty.", folder);
-
-            // set uid_next=1 for empty folders.
-            // If we do not do this here, we'll miss the first message
-            // as we will get in here again and fetch from uid_next then.
-            // Also, the "fall back to fetching" below would need a non-zero mailbox.exists to work.
-            set_uid_next(context, folder, 1).await?;
-            set_uidvalidity(context, folder, new_uid_validity).await?;
-            return Ok(false);
-        }
-
         // ==============  uid_validity has changed or is being set the first time.  ==============
 
         let new_uid_next = match mailbox.uid_next {
@@ -646,25 +632,35 @@ impl Imap {
             None => {
                 warn!(
                     context,
-                    "IMAP folder has no uid_next, fall back to fetching"
+                    "SELECT response for IMAP folder {folder:?} has no UIDNEXT, fall back to STATUS command."
                 );
-                // note that we use fetch by sequence number
-                // and thus we only need to get exactly the
-                // last-index message.
-                let set = format!("{}", mailbox.exists);
-                let mut list = session
-                    .inner
-                    .fetch(set, JUST_UID)
-                    .await
-                    .context("Error fetching UID")?;
 
-                let mut new_last_seen_uid = None;
-                while let Some(fetch) = list.try_next().await? {
-                    if fetch.message == mailbox.exists && fetch.uid.is_some() {
-                        new_last_seen_uid = fetch.uid;
-                    }
+                // RFC 3501 says STATUS command SHOULD NOT be used
+                // on the currently selected mailbox because the same
+                // information can be obtained by other means,
+                // such as reading SELECT response.
+                //
+                // However, it also says that UIDNEXT is REQUIRED
+                // in the SELECT response and if we are here,
+                // it is actually not returned.
+                //
+                // In particular, Winmail Pro Mail Server 5.1.0616
+                // never returns UIDNEXT in SELECT response,
+                // but responds to "SELECT INBOX (UIDNEXT)" command.
+                let status = session
+                    .inner
+                    .status(folder, "(UIDNEXT)")
+                    .await
+                    .context("STATUS (UIDNEXT) error for {folder:?}")?;
+
+                if let Some(uid_next) = status.uid_next {
+                    uid_next
+                } else {
+                    warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT");
+
+                    // Set UIDNEXT to 1 as a last resort fallback.
+                    1
                 }
-                new_last_seen_uid.context("select: failed to fetch")? + 1
             }
         };
 
@@ -681,11 +677,11 @@ impl Imap {
             .await?;
 
         if old_uid_validity != 0 || old_uid_next != 0 {
-            job::schedule_resync(context).await?;
+            context.schedule_resync().await?;
         }
         info!(
             context,
-            "uid/validity change folder {}: new {}/{} previous {}/{}",
+            "uid/validity change folder {}: new {}/{} previous {}/{}.",
             folder,
             new_uid_next,
             new_uid_validity,
@@ -706,17 +702,17 @@ impl Imap {
         fetch_existing_msgs: bool,
     ) -> Result<bool> {
         if should_ignore_folder(context, folder, folder_meaning).await? {
-            info!(context, "Not fetching from {}", folder);
+            info!(context, "Not fetching from {folder:?}.");
             return Ok(false);
         }
 
         let new_emails = self
             .select_with_uidvalidity(context, folder)
             .await
-            .with_context(|| format!("failed to select folder {folder}"))?;
+            .with_context(|| format!("Failed to select folder {folder:?}"))?;
 
         if !new_emails && !fetch_existing_msgs {
-            info!(context, "No new emails in folder {}", folder);
+            info!(context, "No new emails in folder {folder:?}.");
             return Ok(false);
         }
 
@@ -742,14 +738,56 @@ impl Imap {
             let headers = match get_fetch_headers(fetch_response) {
                 Ok(headers) => headers,
                 Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    warn!(context, "Failed to parse FETCH headers: {err:#}.");
                     continue;
                 }
             };
 
-            // Get the Message-ID or generate a fake one to identify the message in the database.
-            let message_id = prefetch_get_or_create_message_id(&headers);
-            let target = target_folder(context, folder, folder_meaning, &headers).await?;
+            let message_id = prefetch_get_message_id(&headers);
+
+            // Determine the target folder where the message should be moved to.
+            //
+            // If we have seen the message on the IMAP server before, do not move it.
+            // This is required to avoid infinite MOVE loop on IMAP servers
+            // that alias `DeltaChat` folder to other names.
+            // For example, some Dovecot servers alias `DeltaChat` folder to `INBOX.DeltaChat`.
+            // In this case Delta Chat configured with `DeltaChat` as the destination folder
+            // would detect messages in the `INBOX.DeltaChat` folder
+            // and try to move them to the `DeltaChat` folder.
+            // Such move to the same folder results in the messages
+            // getting a new UID, so the messages will be detected as new
+            // in the `INBOX.DeltaChat` folder again.
+            let target = if let Some(message_id) = &message_id {
+                if context
+                    .sql
+                    .exists(
+                        "SELECT COUNT (*) FROM imap WHERE rfc724_mid=?",
+                        (message_id,),
+                    )
+                    .await?
+                {
+                    info!(
+                        context,
+                        "Not moving the message {} that we have seen before.", &message_id
+                    );
+                    folder.to_string()
+                } else {
+                    target_folder(context, folder, folder_meaning, &headers).await?
+                }
+            } else {
+                // Do not move the messages without Message-ID.
+                // We cannot reliably determine if we have seen them before,
+                // so it is safer not to move them.
+                warn!(
+                    context,
+                    "Not moving the message that does not have a Message-ID."
+                );
+                folder.to_string()
+            };
+
+            // Generate a fake Message-ID to identify the message in the database
+            // if the message has no real Message-ID.
+            let message_id = message_id.unwrap_or_else(create_message_id);
 
             context
                 .sql
@@ -891,7 +929,7 @@ impl Imap {
                 if let Some(folder) = context.get_config(config).await? {
                     info!(
                         context,
-                        "Fetching existing messages from folder \"{}\"", folder
+                        "Fetching existing messages from folder {folder:?}."
                     );
                     self.fetch_new_messages(context, &folder, meaning, true)
                         .await
@@ -1324,8 +1362,8 @@ impl Imap {
         // Fetch last DC_FETCH_EXISTING_MSGS_COUNT (100) messages.
         // Sequence numbers are sequential. If there are 1000 messages in the inbox,
         // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
-        let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT);
-        let set = format!("{first}:*");
+        let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT + 1);
+        let set = format!("{first}:{exists}");
         let mut list = session
             .fetch(&set, PREFETCH_FLAGS)
             .await
@@ -2060,16 +2098,15 @@ fn get_fetch_headers(prefetch_msg: &Fetch) -> Result<Vec<mailparse::MailHeader>>
     }
 }
 
-fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
+pub(crate) fn prefetch_get_message_id(headers: &[mailparse::MailHeader]) -> Option<String> {
     headers
         .get_header_value(HeaderDef::XMicrosoftOriginalMessageId)
         .or_else(|| headers.get_header_value(HeaderDef::MessageId))
         .and_then(|msgid| mimeparser::parse_message_id(&msgid).ok())
 }
 
-pub(crate) fn prefetch_get_or_create_message_id(headers: &[mailparse::MailHeader]) -> String {
-    prefetch_get_message_id(headers)
-        .unwrap_or_else(|| format!("{}{}", GENERATED_PREFIX, create_id()))
+pub(crate) fn create_message_id() -> String {
+    format!("{}{}", GENERATED_PREFIX, create_id())
 }
 
 /// Returns chat by prefetched headers.

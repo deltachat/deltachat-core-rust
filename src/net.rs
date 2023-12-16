@@ -1,4 +1,4 @@
-///! # Common network utilities.
+//! # Common network utilities.
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::str::FromStr;
@@ -12,8 +12,11 @@ use tokio_io_timeout::TimeoutStream;
 use crate::context::Context;
 use crate::tools::time;
 
+pub(crate) mod http;
 pub(crate) mod session;
 pub(crate) mod tls;
+
+pub use http::{read_url, read_url_blob, Response as HttpResponse};
 
 async fn connect_tcp_inner(addr: SocketAddr, timeout_val: Duration) -> Result<TcpStream> {
     let tcp_stream = timeout(timeout_val, TcpStream::connect(addr))

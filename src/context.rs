@@ -6,28 +6,26 @@ use std::future::Future;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
-use async_channel::Sender;
 use ratelimit::Ratelimit;
 use tokio::sync::{oneshot, Mutex, Notify, RwLock};
-use tokio::task;
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
 use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
-use crate::debug_logging::DebugEventLogData;
+use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
-use crate::key::{DcKey, SignedPublicKey};
+use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
 use crate::quota::QuotaInfo;
-use crate::scheduler::SchedulerState;
+use crate::scheduler::{InterruptInfo, SchedulerState};
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
@@ -42,7 +40,7 @@ use crate::tools::{duration_to_str, time};
 ///
 /// # Examples
 ///
-/// Creating a new unecrypted database:
+/// Creating a new unencrypted database:
 ///
 /// ```
 /// # let rt = tokio::runtime::Runtime::new().unwrap();
@@ -215,9 +213,6 @@ pub struct InnerContext {
     /// Set to `None` if quota was never tried to load.
     pub(crate) quota: RwLock<Option<QuotaInfo>>,
 
-    /// Set to true if quota update is requested.
-    pub(crate) quota_update_request: AtomicBool,
-
     /// IMAP UID resync request.
     pub(crate) resync_request: AtomicBool,
 
@@ -247,18 +242,10 @@ pub struct InnerContext {
     pub(crate) last_error: std::sync::RwLock<String>,
 
     /// If debug logging is enabled, this contains all necessary information
-    pub(crate) debug_logging: RwLock<Option<DebugLogging>>,
-}
-
-#[derive(Debug)]
-pub(crate) struct DebugLogging {
-    /// The message containing the logging xdc
-    pub(crate) msg_id: MsgId,
-    /// Handle to the background task responsible for sending
-    pub(crate) loop_handle: task::JoinHandle<()>,
-    /// Channel that log events should be sent to.
-    /// A background loop will receive and handle them.
-    pub(crate) sender: Sender<DebugEventLogData>,
+    ///
+    /// Standard RwLock instead of [`tokio::sync::RwLock`] is used
+    /// because the lock is used from synchronous [`Context::emit_event`].
+    pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
 }
 
 /// The state of ongoing process.
@@ -268,7 +255,7 @@ enum RunningState {
     Running { cancel_sender: oneshot::Sender<()> },
 
     /// Cancel signal has been sent, waiting for ongoing process to be freed.
-    ShallStop,
+    ShallStop { request: Instant },
 
     /// There is no ongoing process, a new one can be allocated.
     Stopped,
@@ -344,6 +331,12 @@ impl Context {
         }
     }
 
+    /// Changes encrypted database passphrase.
+    pub async fn change_passphrase(&self, passphrase: String) -> Result<()> {
+        self.sql.change_passphrase(passphrase).await?;
+        Ok(())
+    }
+
     /// Returns true if database is open.
     pub async fn is_open(&self) -> bool {
         self.sql.is_open().await
@@ -388,16 +381,15 @@ impl Context {
             translated_stockstrings: stockstrings,
             events,
             scheduler: SchedulerState::new(),
-            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow to send 6 messages immediately, no more than once every 10 seconds.
+            ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow at least 1 message every 10 seconds + a burst of 6.
             quota: RwLock::new(None),
-            quota_update_request: AtomicBool::new(false),
             resync_request: AtomicBool::new(false),
             new_msgs_notify,
             server_id: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
-            debug_logging: RwLock::new(None),
+            debug_logging: std::sync::RwLock::new(None),
         };
 
         let ctx = Context {
@@ -432,6 +424,16 @@ impl Context {
         self.scheduler.maybe_network().await;
     }
 
+    pub(crate) async fn schedule_resync(&self) -> Result<()> {
+        self.resync_request.store(true, Ordering::Relaxed);
+        self.scheduler
+            .interrupt_inbox(InterruptInfo {
+                probe_network: false,
+            })
+            .await;
+        Ok(())
+    }
+
     /// Returns a reference to the underlying SQL instance.
     ///
     /// Warning: this is only here for testing, not part of the public API.
@@ -452,39 +454,16 @@ impl Context {
 
     /// Emits a single event.
     pub fn emit_event(&self, event: EventType) {
-        if self
-            .debug_logging
-            .try_read()
-            .ok()
-            .map(|inner| inner.is_some())
-            == Some(true)
         {
-            self.send_log_event(event.clone()).ok();
-        };
+            let lock = self.debug_logging.read().expect("RwLock is poisoned");
+            if let Some(debug_logging) = &*lock {
+                debug_logging.log_event(event.clone());
+            }
+        }
         self.events.emit(Event {
             id: self.id,
             typ: event,
         });
-    }
-
-    pub(crate) fn send_log_event(&self, event: EventType) -> anyhow::Result<()> {
-        if let Ok(lock) = self.debug_logging.try_read() {
-            if let Some(DebugLogging {
-                msg_id: xdc_id,
-                sender,
-                ..
-            }) = &*lock
-            {
-                let event_data = DebugEventLogData {
-                    time: time(),
-                    msg_id: *xdc_id,
-                    event,
-                };
-
-                sender.try_send(event_data).ok();
-            }
-        }
-        Ok(())
     }
 
     /// Emits a generic MsgsChanged event (without chat or message id)
@@ -561,14 +540,19 @@ impl Context {
         let mut s = self.running_state.write().await;
 
         // Take out the state so we can call the oneshot sender (which takes ownership).
-        let current_state = std::mem::replace(&mut *s, RunningState::ShallStop);
+        let current_state = std::mem::replace(
+            &mut *s,
+            RunningState::ShallStop {
+                request: Instant::now(),
+            },
+        );
 
         match current_state {
             RunningState::Running { cancel_sender } => match cancel_sender.send(()) {
                 Ok(()) => info!(self, "Signaling the ongoing process to stop ASAP."),
                 Err(()) => warn!(self, "could not cancel ongoing"),
             },
-            RunningState::ShallStop | RunningState::Stopped => {
+            RunningState::ShallStop { .. } | RunningState::Stopped => {
                 // Put back the current state
                 *s = current_state;
                 info!(self, "No ongoing process to stop.",);
@@ -580,7 +564,7 @@ impl Context {
     pub(crate) async fn shall_stop_ongoing(&self) -> bool {
         match &*self.running_state.read().await {
             RunningState::Running { .. } => false,
-            RunningState::ShallStop | RunningState::Stopped => true,
+            RunningState::ShallStop { .. } | RunningState::Stopped => true,
         }
     }
 
@@ -615,6 +599,7 @@ impl Context {
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await?;
         let bcc_self = self.get_config_int(Config::BccSelf).await?;
         let send_sync_msgs = self.get_config_int(Config::SendSyncMsgs).await?;
+        let disable_idle = self.get_config_bool(Config::DisableIdle).await?;
 
         let prv_key_cnt = self.sql.count("SELECT COUNT(*) FROM keypairs;", ()).await?;
 
@@ -622,7 +607,7 @@ impl Context {
             .sql
             .count("SELECT COUNT(*) FROM acpeerstates;", ())
             .await?;
-        let fingerprint_str = match SignedPublicKey::load_self(self).await {
+        let fingerprint_str = match load_self_public_key(self).await {
             Ok(key) => key.fingerprint().hex(),
             Err(err) => format!("<key failure: {err}>"),
         };
@@ -727,6 +712,7 @@ impl Context {
         );
         res.insert("bcc_self", bcc_self.to_string());
         res.insert("send_sync_msgs", send_sync_msgs.to_string());
+        res.insert("disable_idle", disable_idle.to_string());
         res.insert("private_key_count", prv_key_cnt.to_string());
         res.insert("public_key_count", pub_key_cnt.to_string());
         res.insert("fingerprint", fingerprint_str);
@@ -788,7 +774,6 @@ impl Context {
                 .await?
                 .to_string(),
         );
-
         res.insert(
             "debug_logging",
             self.get_config_int(Config::DebugLogging).await?.to_string(),
@@ -796,6 +781,16 @@ impl Context {
         res.insert(
             "last_msg_id",
             self.get_config_int(Config::LastMsgId).await?.to_string(),
+        );
+        res.insert(
+            "gossip_period",
+            self.get_config_int(Config::GossipPeriod).await?.to_string(),
+        );
+        res.insert(
+            "verified_one_on_one_chats",
+            self.get_config_bool(Config::VerifiedOneOnOneChats)
+                .await?
+                .to_string(),
         );
 
         let elapsed = self.creation_time.elapsed();
@@ -850,7 +845,22 @@ impl Context {
     pub async fn get_next_msgs(&self) -> Result<Vec<MsgId>> {
         let last_msg_id = match self.get_config(Config::LastMsgId).await? {
             Some(s) => MsgId::new(s.parse()?),
-            None => MsgId::new_unset(),
+            None => {
+                // If `last_msg_id` is not set yet,
+                // subtract 1 from the last id,
+                // so a single message is returned and can
+                // be marked as seen.
+                self.sql
+                    .query_row(
+                        "SELECT IFNULL((SELECT MAX(id) - 1 FROM msgs), 0)",
+                        (),
+                        |row| {
+                            let msg_id: MsgId = row.get(0)?;
+                            Ok(msg_id)
+                        },
+                    )
+                    .await?
+            }
         };
 
         let list = self
@@ -1132,7 +1142,7 @@ mod tests {
 
     async fn receive_msg(t: &TestContext, chat: &Chat) {
         let members = get_chat_contacts(t, chat.id).await.unwrap();
-        let contact = Contact::load_from_db(t, *members.first().unwrap())
+        let contact = Contact::get_by_id(t, *members.first().unwrap())
             .await
             .unwrap();
         let msg = format!(
@@ -1394,11 +1404,11 @@ mod tests {
 
         // Add messages to chat with Bob.
         let mut msg1 = Message::new(Viewtype::Text);
-        msg1.set_text(Some("foobar".to_string()));
+        msg1.set_text("foobar".to_string());
         send_msg(&alice, chat.id, &mut msg1).await?;
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.set_text(Some("barbaz".to_string()));
+        msg2.set_text("barbaz".to_string());
         send_msg(&alice, chat.id, &mut msg2).await?;
 
         // Global search with a part of text finds the message.
@@ -1494,7 +1504,7 @@ mod tests {
 
         // Add 999 messages
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("foobar".to_string()));
+        msg.set_text("foobar".to_string());
         for _ in 0..999 {
             send_msg(&alice, chat.id, &mut msg).await?;
         }
@@ -1539,6 +1549,35 @@ mod tests {
         assert_eq!(context.check_passphrase("bar".to_string()).await?, false);
         assert_eq!(context.open("false".to_string()).await?, false);
         assert_eq!(context.open("foo".to_string()).await?, true);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_context_change_passphrase() -> Result<()> {
+        let dir = tempdir()?;
+        let dbfile = dir.path().join("db.sqlite");
+
+        let id = 1;
+        let context = Context::new_closed(&dbfile, id, Events::new(), StockStrings::new())
+            .await
+            .context("failed to create context")?;
+        assert_eq!(context.open("foo".to_string()).await?, true);
+        assert_eq!(context.is_open().await, true);
+
+        context
+            .set_config(Config::Addr, Some("alice@example.org"))
+            .await?;
+
+        context
+            .change_passphrase("bar".to_string())
+            .await
+            .context("Failed to change passphrase")?;
+
+        assert_eq!(
+            context.get_config(Config::Addr).await?.unwrap(),
+            "alice@example.org"
+        );
 
         Ok(())
     }

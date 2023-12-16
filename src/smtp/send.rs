@@ -64,9 +64,11 @@ impl Smtp {
             if let Some(ref mut transport) = self.transport {
                 transport.send(mail).await.map_err(Error::SmtpSend)?;
 
-                context.emit_event(EventType::SmtpMessageSent(format!(
-                    "Message len={message_len_bytes} was smtp-sent to {recipients_display}"
-                )));
+                let info_msg = format!(
+                    "Message len={message_len_bytes} was SMTP-sent to {recipients_display}"
+                );
+                info!(context, "{info_msg}.");
+                context.emit_event(EventType::SmtpMessageSent(info_msg));
                 self.last_success = Some(std::time::SystemTime::now());
             } else {
                 warn!(

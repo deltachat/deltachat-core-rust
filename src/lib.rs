@@ -8,7 +8,6 @@
     missing_debug_implementations,
     missing_docs,
     clippy::all,
-    clippy::indexing_slicing,
     clippy::wildcard_imports,
     clippy::needless_borrow,
     clippy::cast_lossless,
@@ -17,6 +16,7 @@
     clippy::explicit_into_iter_loop,
     clippy::cloned_instead_of_copied
 )]
+#![cfg_attr(not(test), warn(clippy::indexing_slicing))]
 #![allow(
     clippy::match_bool,
     clippy::mixed_read_write_in_expression,
@@ -63,15 +63,9 @@ mod decrypt;
 pub mod download;
 mod e2ee;
 pub mod ephemeral;
-mod http;
 mod imap;
 pub mod imex;
-pub mod release;
-mod scheduler;
-#[macro_use]
-mod job;
 pub mod key;
-mod keyring;
 pub mod location;
 mod login_param;
 pub mod message;
@@ -80,11 +74,13 @@ pub mod mimeparser;
 pub mod oauth2;
 mod param;
 pub mod peerstate;
-pub mod pgp;
+mod pgp;
 pub mod provider;
 pub mod qr;
 pub mod qr_code_generator;
 pub mod quota;
+pub mod release;
+mod scheduler;
 pub mod securejoin;
 mod simplify;
 mod smtp;
@@ -100,7 +96,7 @@ mod dehtml;
 mod authres;
 mod color;
 pub mod html;
-mod net;
+pub mod net;
 pub mod plaintext;
 pub mod summary;
 

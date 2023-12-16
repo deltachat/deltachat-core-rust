@@ -108,7 +108,7 @@ The most obvious alternative would be to create a new contact with the new addre
 #### Upsides:
 - With this approach, it's easier to switch to a model where the info about the transition is encoded in the PGP key. Since the key is gossiped, the information about the transition will spread virally.
 - (Also, less important: Slightly faster transition: If you send a message to e.g. "Delta Chat Dev", all members of the "sub-group" "delta android" will know of your transition.)
-- It's easier to implement (if too many problems turn up, we can still switch to another approach and didn't wast that much development time.)
+- It's easier to implement (if too many problems turn up, we can still switch to another approach and didn't waste that much development time.)
 
 [full messages](https://github.com/deltachat/deltachat-core-rust/pull/2896#discussion_r852002161)
   

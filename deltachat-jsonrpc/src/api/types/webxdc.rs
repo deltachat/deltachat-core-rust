@@ -8,7 +8,7 @@ use typescript_type_def::TypeDef;
 
 use super::maybe_empty_string_to_option;
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "WebxdcMessageInfo", rename_all = "camelCase")]
 pub struct WebxdcMessageInfo {
     /// The name of the app.

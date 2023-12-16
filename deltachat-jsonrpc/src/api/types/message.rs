@@ -1,7 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Context as _, Result};
 use deltachat::chat::Chat;
 use deltachat::chat::ChatItem;
-use deltachat::constants::Chattype;
+use deltachat::chat::ChatVisibility;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
 use deltachat::download;
@@ -10,8 +10,7 @@ use deltachat::message::MsgId;
 use deltachat::message::Viewtype;
 use deltachat::reaction::get_msg_reactions;
 use num_traits::cast::ToPrimitive;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use typescript_type_def::TypeDef;
 
 use super::color_int_to_hex_string;
@@ -19,14 +18,14 @@ use super::contact::ContactObject;
 use super::reactions::JSONRPCReactions;
 use super::webxdc::WebxdcMessageInfo;
 
-#[derive(Serialize, TypeDef)]
-#[serde(rename_all = "camelCase", tag = "variant")]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", tag = "kind")]
 pub enum MessageLoadResult {
     Message(MessageObject),
     LoadingError { error: String },
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Message", rename_all = "camelCase")]
 pub struct MessageObject {
     id: u32,
@@ -35,7 +34,7 @@ pub struct MessageObject {
     quote: Option<MessageQuote>,
     parent_id: Option<u32>,
 
-    text: Option<String>,
+    text: String,
     has_location: bool,
     has_html: bool,
     view_type: MessageViewtype,
@@ -86,7 +85,7 @@ pub struct MessageObject {
     reactions: Option<JSONRPCReactions>,
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(tag = "kind")]
 enum MessageQuote {
     JustText {
@@ -114,8 +113,12 @@ impl MessageObject {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
 
-        let sender_contact = Contact::load_from_db(context, message.get_from_id()).await?;
-        let sender = ContactObject::try_from_dc_contact(context, sender_contact).await?;
+        let sender_contact = Contact::get_by_id(context, message.get_from_id())
+            .await
+            .context("failed to load sender contact")?;
+        let sender = ContactObject::try_from_dc_contact(context, sender_contact)
+            .await
+            .context("failed to load sender contact object")?;
         let file_bytes = message.get_filebytes(context).await?.unwrap_or_default();
         let override_sender_name = message.get_override_sender_name();
 
@@ -132,7 +135,9 @@ impl MessageObject {
         let quote = if let Some(quoted_text) = message.quoted_text() {
             match message.quoted_message(context).await? {
                 Some(quote) => {
-                    let quote_author = Contact::load_from_db(context, quote.get_from_id()).await?;
+                    let quote_author = Contact::get_by_id(context, quote.get_from_id())
+                        .await
+                        .context("failed to load quote author contact")?;
                     Some(MessageQuote::WithMessage {
                         text: quoted_text,
                         message_id: quote.get_id().to_u32(),
@@ -160,7 +165,9 @@ impl MessageObject {
             None
         };
 
-        let reactions = get_msg_reactions(context, msg_id).await?;
+        let reactions = get_msg_reactions(context, msg_id)
+            .await
+            .context("failed to load message reactions")?;
         let reactions = if reactions.is_empty() {
             None
         } else {
@@ -180,7 +187,7 @@ impl MessageObject {
             state: message
                 .get_state()
                 .to_u32()
-                .ok_or_else(|| anyhow!("state conversion to number failed"))?,
+                .context("state conversion to number failed")?,
             error: message.error(),
 
             timestamp: message.get_timestamp(),
@@ -203,7 +210,7 @@ impl MessageObject {
             videochat_type: match message.get_videochat_type() {
                 Some(vct) => Some(
                     vct.to_u32()
-                        .ok_or_else(|| anyhow!("state conversion to number failed"))?,
+                        .context("videochat type conversion to number failed")?,
                 ),
                 None => None,
             },
@@ -230,7 +237,7 @@ impl MessageObject {
     }
 }
 
-#[derive(Serialize, Deserialize, TypeDef)]
+#[derive(Serialize, Deserialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename = "Viewtype")]
 pub enum MessageViewtype {
     Unknown,
@@ -306,11 +313,12 @@ impl From<MessageViewtype> for Viewtype {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 pub enum DownloadState {
     Done,
     Available,
     Failure,
+    Undecipherable,
     InProgress,
 }
 
@@ -320,12 +328,13 @@ impl From<download::DownloadState> for DownloadState {
             download::DownloadState::Done => DownloadState::Done,
             download::DownloadState::Available => DownloadState::Available,
             download::DownloadState::Failure => DownloadState::Failure,
+            download::DownloadState::Undecipherable => DownloadState::Undecipherable,
             download::DownloadState::InProgress => DownloadState::InProgress,
         }
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 pub enum SystemMessageType {
     Unknown,
     GroupNameChanged,
@@ -380,7 +389,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageNotificationInfo {
     id: u32,
@@ -438,14 +447,22 @@ impl MessageNotificationInfo {
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageSearchResult {
     id: u32,
     author_profile_image: Option<String>,
+    /// if sender name if overridden it will show it as ~alias
     author_name: String,
     author_color: String,
-    chat_name: Option<String>,
+    author_id: u32,
+    chat_profile_image: Option<String>,
+    chat_color: String,
+    chat_name: String,
+    chat_type: u32,
+    is_chat_protected: bool,
+    is_chat_contact_request: bool,
+    is_chat_archived: bool,
     message: String,
     timestamp: i64,
 }
@@ -454,30 +471,44 @@ impl MessageSearchResult {
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
         let chat = Chat::load_from_db(context, message.get_chat_id()).await?;
-        let sender = Contact::load_from_db(context, message.get_from_id()).await?;
+        let sender = Contact::get_by_id(context, message.get_from_id()).await?;
 
         let profile_image = match sender.get_profile_image(context).await? {
             Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
             None => None,
         };
+        let chat_profile_image = match chat.get_profile_image(context).await? {
+            Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
+            None => None,
+        };
+
+        let author_name = if let Some(name) = message.get_override_sender_name() {
+            format!("~{name}")
+        } else {
+            sender.get_display_name().to_owned()
+        };
+        let chat_color = color_int_to_hex_string(chat.get_color(context).await?);
 
         Ok(Self {
             id: msg_id.to_u32(),
             author_profile_image: profile_image,
-            author_name: sender.get_display_name().to_owned(),
+            author_name,
             author_color: color_int_to_hex_string(sender.get_color()),
-            chat_name: if chat.get_type() == Chattype::Single {
-                Some(chat.get_name().to_owned())
-            } else {
-                None
-            },
-            message: message.get_text().unwrap_or_default(),
+            author_id: sender.id.to_u32(),
+            chat_name: chat.get_name().to_owned(),
+            chat_color,
+            chat_type: chat.get_type().to_u32().context("unknown chat type id")?,
+            chat_profile_image,
+            is_chat_protected: chat.is_protected(),
+            is_chat_contact_request: chat.is_contact_request(),
+            is_chat_archived: chat.get_visibility() == ChatVisibility::Archived,
+            message: message.get_text(),
             timestamp: message.get_timestamp(),
         })
     }
 }
 
-#[derive(Serialize, TypeDef)]
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "MessageListItem", tag = "kind")]
 pub enum JSONRPCMessageListItem {
     Message {
@@ -503,7 +534,7 @@ impl From<ChatItem> for JSONRPCMessageListItem {
     }
 }
 
-#[derive(Deserialize, TypeDef)]
+#[derive(Deserialize, Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageData {
     pub text: Option<String>,
@@ -513,4 +544,11 @@ pub struct MessageData {
     pub location: Option<(f64, f64)>,
     pub override_sender_name: Option<String>,
     pub quoted_message_id: Option<u32>,
+}
+
+#[derive(Serialize, TypeDef, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageReadReceipt {
+    pub contact_id: u32,
+    pub timestamp: i64,
 }

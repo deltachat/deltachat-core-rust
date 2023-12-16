@@ -6,8 +6,7 @@ use num_traits::FromPrimitive;
 use crate::aheader::{Aheader, EncryptPreference};
 use crate::config::Config;
 use crate::context::Context;
-use crate::key::{DcKey, SignedPublicKey, SignedSecretKey};
-use crate::keyring::Keyring;
+use crate::key::{load_self_public_key, load_self_secret_key, SignedPublicKey};
 use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::pgp;
 
@@ -24,7 +23,7 @@ impl EncryptHelper {
             EncryptPreference::from_i32(context.get_config_int(Config::E2eeEnabled).await?)
                 .unwrap_or_default();
         let addr = context.get_primary_self_addr().await?;
-        let public_key = SignedPublicKey::load_self(context).await?;
+        let public_key = load_self_public_key(context).await?;
 
         Ok(EncryptHelper {
             prefer_encrypt,
@@ -104,7 +103,7 @@ impl EncryptHelper {
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate>, &str)>,
     ) -> Result<String> {
-        let mut keyring: Keyring<SignedPublicKey> = Keyring::new();
+        let mut keyring: Vec<SignedPublicKey> = Vec::new();
 
         for (peerstate, addr) in peerstates
             .into_iter()
@@ -113,10 +112,10 @@ impl EncryptHelper {
             let key = peerstate
                 .take_key(min_verified)
                 .with_context(|| format!("proper enc-key for {addr} missing, cannot encrypt"))?;
-            keyring.add(key);
+            keyring.push(key);
         }
-        keyring.add(self.public_key.clone());
-        let sign_key = SignedSecretKey::load_self(context).await?;
+        keyring.push(self.public_key.clone());
+        let sign_key = load_self_secret_key(context).await?;
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
@@ -132,7 +131,7 @@ impl EncryptHelper {
         context: &Context,
         mail: lettre_email::PartBuilder,
     ) -> Result<(lettre_email::MimeMessage, String)> {
-        let sign_key = SignedSecretKey::load_self(context).await?;
+        let sign_key = load_self_secret_key(context).await?;
         let mime_message = mail.build();
         let signature = pgp::pk_calc_signature(mime_message.as_string().as_bytes(), &sign_key)?;
         Ok((mime_message, signature))
@@ -145,20 +144,17 @@ impl EncryptHelper {
 /// sent but in a few locations there are no such guarantees,
 /// e.g. when exporting keys, and calling this function ensures a
 /// private key will be present.
-///
-/// If this succeeds you are also guaranteed that the
-/// [Config::ConfiguredAddr] is configured, this address is returned.
 // TODO, remove this once deltachat::key::Key no longer exists.
-pub async fn ensure_secret_key_exists(context: &Context) -> Result<String> {
-    let self_addr = context.get_primary_self_addr().await?;
-    SignedPublicKey::load_self(context).await?;
-    Ok(self_addr)
+pub async fn ensure_secret_key_exists(context: &Context) -> Result<()> {
+    load_self_public_key(context).await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::chat;
+    use crate::key::DcKey;
     use crate::message::{Message, Viewtype};
     use crate::param::Param;
     use crate::test_utils::{bob_keypair, TestContext};
@@ -169,10 +165,7 @@ mod tests {
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn test_prexisting() {
             let t = TestContext::new_alice().await;
-            assert_eq!(
-                ensure_secret_key_exists(&t).await.unwrap(),
-                "alice@example.org"
-            );
+            assert!(ensure_secret_key_exists(&t).await.is_ok());
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

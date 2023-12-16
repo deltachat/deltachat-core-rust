@@ -20,14 +20,20 @@ use tokio::runtime::Handle;
 
 use crate::constants::KeyGenType;
 use crate::key::{DcKey, Fingerprint};
-use crate::keyring::Keyring;
 use crate::tools::EmailAddress;
 
 #[allow(missing_docs)]
-pub const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
+#[cfg(test)]
+pub(crate) const HEADER_AUTOCRYPT: &str = "autocrypt-prefer-encrypt";
 
 #[allow(missing_docs)]
 pub const HEADER_SETUPCODE: &str = "passphrase-begin";
+
+/// Preferred symmetric encryption algorithm.
+const SYMMETRIC_KEY_ALGORITHM: SymmetricKeyAlgorithm = SymmetricKeyAlgorithm::AES128;
+
+/// Preferred cryptographic hash.
+const HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::SHA2_256;
 
 /// A wrapper for rPGP public key types
 #[derive(Debug)]
@@ -135,6 +141,7 @@ pub struct KeyPair {
 pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
     let (secret_key_type, public_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
+        KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
     };
 
@@ -229,7 +236,7 @@ fn select_pk_for_encryption(key: &SignedPublicKey) -> Option<SignedPublicKeyOrSu
 /// and signs it using `private_key_for_signing`.
 pub async fn pk_encrypt(
     plain: &[u8],
-    public_keys_for_encryption: Keyring<SignedPublicKey>,
+    public_keys_for_encryption: Vec<SignedPublicKey>,
     private_key_for_signing: Option<SignedSecretKey>,
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
@@ -237,7 +244,6 @@ pub async fn pk_encrypt(
     Handle::current()
         .spawn_blocking(move || {
             let pkeys: Vec<SignedPublicKeyOrSubkey> = public_keys_for_encryption
-                .keys()
                 .iter()
                 .filter_map(select_pk_for_encryption)
                 .collect();
@@ -248,11 +254,13 @@ pub async fn pk_encrypt(
             // TODO: measure time
             let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
                 lit_msg
-                    .sign(skey, || "".into(), Default::default())
+                    .sign(skey, || "".into(), HASH_ALGORITHM)
                     .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-                    .and_then(|msg| msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs))
+                    .and_then(|msg| {
+                        msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
+                    })
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, Default::default(), &pkeys_refs)
+                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
             };
 
             let msg = encrypted_msg?;
@@ -271,7 +279,7 @@ pub fn pk_calc_signature(
     let msg = Message::new_literal_bytes("", plain).sign(
         private_key_for_signing,
         || "".into(),
-        Default::default(),
+        HASH_ALGORITHM,
     )?;
     let signature = msg.into_signature().to_armored_string(None)?;
     Ok(signature)
@@ -288,15 +296,15 @@ pub fn pk_calc_signature(
 #[allow(clippy::implicit_hasher)]
 pub fn pk_decrypt(
     ctext: Vec<u8>,
-    private_keys_for_decryption: &Keyring<SignedSecretKey>,
-    public_keys_for_validation: &Keyring<SignedPublicKey>,
+    private_keys_for_decryption: &[SignedSecretKey],
+    public_keys_for_validation: &[SignedPublicKey],
 ) -> Result<(Vec<u8>, HashSet<Fingerprint>)> {
     let mut ret_signature_fingerprints: HashSet<Fingerprint> = Default::default();
 
     let cursor = Cursor::new(ctext);
     let (msg, _) = Message::from_armor_single(cursor)?;
 
-    let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.keys().iter().collect();
+    let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption.iter().collect();
 
     let (decryptor, _) = msg.decrypt(|| "".into(), &skeys[..])?;
     let msgs = decryptor.collect::<pgp::errors::Result<Vec<_>>>()?;
@@ -311,20 +319,13 @@ pub fn pk_decrypt(
             None => bail!("The decrypted message is empty"),
         };
 
-        if !public_keys_for_validation.is_empty() {
-            let pkeys = public_keys_for_validation.keys();
-
-            let mut fingerprints: Vec<Fingerprint> = Vec::new();
-            if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
-                for pkey in pkeys {
-                    if signed_msg.verify(&pkey.primary_key).is_ok() {
-                        let fp = DcKey::fingerprint(pkey);
-                        fingerprints.push(fp);
-                    }
+        if let signed_msg @ pgp::composed::Message::Signed { .. } = msg {
+            for pkey in public_keys_for_validation {
+                if signed_msg.verify(&pkey.primary_key).is_ok() {
+                    let fp = DcKey::fingerprint(pkey);
+                    ret_signature_fingerprints.insert(fp);
                 }
             }
-
-            ret_signature_fingerprints.extend(fingerprints);
         }
         Ok((content, ret_signature_fingerprints))
     } else {
@@ -336,12 +337,11 @@ pub fn pk_decrypt(
 pub fn pk_validate(
     content: &[u8],
     signature: &[u8],
-    public_keys_for_validation: &Keyring<SignedPublicKey>,
+    public_keys_for_validation: &[SignedPublicKey],
 ) -> Result<HashSet<Fingerprint>> {
     let mut ret: HashSet<Fingerprint> = Default::default();
 
     let standalone_signature = StandaloneSignature::from_armor_single(Cursor::new(signature))?.0;
-    let pkeys = public_keys_for_validation.keys();
 
     // Remove trailing CRLF before the delimiter.
     // According to RFC 3156 it is considered to be part of the MIME delimiter for the purpose of
@@ -350,7 +350,7 @@ pub fn pk_validate(
         .get(..content.len().saturating_sub(2))
         .context("index is out of range")?;
 
-    for pkey in pkeys {
+    for pkey in public_keys_for_validation {
         if standalone_signature.verify(pkey, content).is_ok() {
             let fp = DcKey::fingerprint(pkey);
             ret.insert(fp);
@@ -368,7 +368,7 @@ pub async fn symm_encrypt(passphrase: &str, plain: &[u8]) -> Result<String> {
         let mut rng = thread_rng();
         let s2k = StringToKey::new_default(&mut rng);
         let msg =
-            lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase)?;
+            lit_msg.encrypt_with_password(&mut rng, s2k, SYMMETRIC_KEY_ALGORITHM, || passphrase)?;
 
         let encoded_msg = msg.to_armored_string(None)?;
 
@@ -485,9 +485,7 @@ mod tests {
     async fn ctext_signed() -> &'static String {
         CTEXT_SIGNED
             .get_or_init(|| async {
-                let mut keyring = Keyring::new();
-                keyring.add(KEYS.alice_public.clone());
-                keyring.add(KEYS.bob_public.clone());
+                let keyring = vec![KEYS.alice_public.clone(), KEYS.bob_public.clone()];
 
                 pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))
                     .await
@@ -500,9 +498,7 @@ mod tests {
     async fn ctext_unsigned() -> &'static String {
         CTEXT_UNSIGNED
             .get_or_init(|| async {
-                let mut keyring = Keyring::new();
-                keyring.add(KEYS.alice_public.clone());
-                keyring.add(KEYS.bob_public.clone());
+                let keyring = vec![KEYS.alice_public.clone(), KEYS.bob_public.clone()];
                 pk_encrypt(CLEARTEXT, keyring, None).await.unwrap()
             })
             .await
@@ -527,10 +523,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_singed() {
         // Check decrypting as Alice
-        let mut decrypt_keyring: Keyring<SignedSecretKey> = Keyring::new();
-        decrypt_keyring.add(KEYS.alice_secret.clone());
-        let mut sig_check_keyring: Keyring<SignedPublicKey> = Keyring::new();
-        sig_check_keyring.add(KEYS.alice_public.clone());
+        let decrypt_keyring = vec![KEYS.alice_secret.clone()];
+        let sig_check_keyring = vec![KEYS.alice_public.clone()];
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
@@ -541,10 +535,8 @@ mod tests {
         assert_eq!(valid_signatures.len(), 1);
 
         // Check decrypting as Bob
-        let mut decrypt_keyring = Keyring::new();
-        decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::new();
-        sig_check_keyring.add(KEYS.alice_public.clone());
+        let decrypt_keyring = vec![KEYS.bob_secret.clone()];
+        let sig_check_keyring = vec![KEYS.alice_public.clone()];
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
@@ -557,15 +549,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_no_sig_check() {
-        let mut keyring = Keyring::new();
-        keyring.add(KEYS.alice_secret.clone());
-        let empty_keyring = Keyring::new();
-        let (plain, valid_signatures) = pk_decrypt(
-            ctext_signed().await.as_bytes().to_vec(),
-            &keyring,
-            &empty_keyring,
-        )
-        .unwrap();
+        let keyring = vec![KEYS.alice_secret.clone()];
+        let (plain, valid_signatures) =
+            pk_decrypt(ctext_signed().await.as_bytes().to_vec(), &keyring, &[]).unwrap();
         assert_eq!(plain, CLEARTEXT);
         assert_eq!(valid_signatures.len(), 0);
     }
@@ -573,10 +559,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_signed_no_key() {
         // The validation does not have the public key of the signer.
-        let mut decrypt_keyring = Keyring::new();
-        decrypt_keyring.add(KEYS.bob_secret.clone());
-        let mut sig_check_keyring = Keyring::new();
-        sig_check_keyring.add(KEYS.bob_public.clone());
+        let decrypt_keyring = vec![KEYS.bob_secret.clone()];
+        let sig_check_keyring = vec![KEYS.bob_public.clone()];
         let (plain, valid_signatures) = pk_decrypt(
             ctext_signed().await.as_bytes().to_vec(),
             &decrypt_keyring,
@@ -589,13 +573,11 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_decrypt_unsigned() {
-        let mut decrypt_keyring = Keyring::new();
-        decrypt_keyring.add(KEYS.bob_secret.clone());
-        let sig_check_keyring = Keyring::new();
+        let decrypt_keyring = vec![KEYS.bob_secret.clone()];
         let (plain, valid_signatures) = pk_decrypt(
             ctext_unsigned().await.as_bytes().to_vec(),
             &decrypt_keyring,
-            &sig_check_keyring,
+            &[],
         )
         .unwrap();
         assert_eq!(plain, CLEARTEXT);

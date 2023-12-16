@@ -1,3 +1,7 @@
+# GitHub Actions workflow
+# to build `deltachat_fii` crate documentation
+# and upload it to <https://cffi.delta.chat/>
+
 name: Build & Deploy Documentation on cffi.delta.chat
 
 on:

@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aheader::EncryptPreference;
 use crate::blob::BlobObject;
+use crate::chatlist::Chatlist;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
@@ -22,9 +23,11 @@ use crate::constants::{
 use crate::contact::{Contact, ContactId, Origin, VerifiedStatus};
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc;
+use crate::download::DownloadState;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::events::EventType;
 use crate::html::new_html_mimepart;
+use crate::location;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::mimefactory::MimeFactory;
 use crate::mimeparser::SystemMessage;
@@ -33,6 +36,7 @@ use crate::peerstate::{Peerstate, PeerstateVerifiedStatus};
 use crate::receive_imf::ReceivedMsg;
 use crate::scheduler::InterruptInfo;
 use crate::smtp::send_msg_to_smtp;
+use crate::sql;
 use crate::stock_str;
 use crate::tools::{
     buf_compress, create_id, create_outgoing_rfc724_mid, create_smeared_timestamp,
@@ -40,7 +44,6 @@ use crate::tools::{
     strip_rtlo_characters, time, IsNoneOrEmpty,
 };
 use crate::webxdc::WEBXDC_SUFFIX;
-use crate::{location, sql};
 
 /// An chat item, such as a message or a marker.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -86,6 +89,14 @@ pub enum ProtectionStatus {
     ///
     /// All members of the chat must be verified.
     Protected = 1,
+
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    /// The user has to confirm that this is OK.
+    ///
+    /// We only do this in 1:1 chats; in group chats, the chat just
+    /// stays protected.
+    ProtectionBroken = 3, // `2` was never used as a value.
 }
 
 /// The reason why messages cannot be sent to the chat.
@@ -102,6 +113,10 @@ pub(crate) enum CantSendReason {
     /// The chat is a contact request, it needs to be accepted before sending a message.
     ContactRequest,
 
+    /// The chat was protected, but now a new message came in
+    /// which was not encrypted / signed correctly.
+    ProtectionBroken,
+
     /// Mailing list without known List-Post header.
     ReadOnlyMailingList,
 
@@ -117,6 +132,10 @@ impl fmt::Display for CantSendReason {
             Self::ContactRequest => write!(
                 f,
                 "contact request chat should be accepted before sending messages"
+            ),
+            Self::ProtectionBroken => write!(
+                f,
+                "accept that the encryption isn't verified anymore before sending messages"
             ),
             Self::ReadOnlyMailingList => {
                 write!(f, "mailing list does not have a know post address")
@@ -270,6 +289,7 @@ impl ChatId {
         param: Option<String>,
     ) -> Result<Self> {
         let grpname = strip_rtlo_characters(grpname);
+        let smeared_time = create_smeared_timestamp(context);
         let row_id =
             context.sql.insert(
                 "INSERT INTO chats (type, name, grpid, blocked, created_timestamp, protected, param) VALUES(?, ?, ?, ?, ?, ?, ?);",
@@ -278,13 +298,20 @@ impl ChatId {
                     &grpname,
                     grpid,
                     create_blocked,
-                    create_smeared_timestamp(context),
+                    smeared_time,
                     create_protected,
                     param.unwrap_or_default(),
                 ),
             ).await?;
 
         let chat_id = ChatId::new(u32::try_from(row_id)?);
+
+        if create_protected == ProtectionStatus::Protected {
+            chat_id
+                .add_protection_msg(context, ProtectionStatus::Protected, None, smeared_time)
+                .await?;
+        }
+
         info!(
             context,
             "Created group/mailinglist '{}' grpid={} as {}, blocked={}.",
@@ -332,7 +359,7 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Undefined | Chattype::Broadcast => {
+            Chattype::Broadcast => {
                 bail!("Can't block chat of type {:?}", chat.typ)
             }
             Chattype::Single => {
@@ -373,7 +400,16 @@ impl ChatId {
         let chat = Chat::load_from_db(context, self).await?;
 
         match chat.typ {
-            Chattype::Undefined => bail!("Can't accept chat of undefined chattype"),
+            Chattype::Single
+                if chat.blocked == Blocked::Not
+                    && chat.protected == ProtectionStatus::ProtectionBroken =>
+            {
+                // The protection was broken, then the user clicked 'Accept'/'OK',
+                // so, now we want to set the status to Unprotected again:
+                chat.id
+                    .inner_set_protection(context, ProtectionStatus::Unprotected)
+                    .await?;
+            }
             Chattype::Single | Chattype::Group | Chattype::Broadcast => {
                 // User has "created a chat" with all these contacts.
                 //
@@ -400,20 +436,19 @@ impl ChatId {
 
     /// Sets protection without sending a message.
     ///
-    /// Used when a message arrives indicating that someone else has
-    /// changed the protection value for a chat.
+    /// Returns whether the protection status was actually modified.
     pub(crate) async fn inner_set_protection(
         self,
         context: &Context,
         protect: ProtectionStatus,
-    ) -> Result<()> {
-        ensure!(!self.is_special(), "Invalid chat-id.");
+    ) -> Result<bool> {
+        ensure!(!self.is_special(), "Invalid chat-id {self}.");
 
         let chat = Chat::load_from_db(context, self).await?;
 
         if protect == chat.protected {
             info!(context, "Protection status unchanged for {}.", self);
-            return Ok(());
+            return Ok(false);
         }
 
         match protect {
@@ -428,9 +463,8 @@ impl ChatId {
                     }
                 }
                 Chattype::Mailinglist => bail!("Cannot protect mailing lists"),
-                Chattype::Undefined => bail!("Undefined group type"),
             },
-            ProtectionStatus::Unprotected => {}
+            ProtectionStatus::Unprotected | ProtectionStatus::ProtectionBroken => {}
         };
 
         context
@@ -443,68 +477,58 @@ impl ChatId {
         // make sure, the receivers will get all keys
         self.reset_gossiped_timestamp(context).await?;
 
-        Ok(())
+        Ok(true)
     }
 
-    /// Send protected status message to the chat.
+    /// Adds an info message to the chat, telling the user that the protection status changed.
     ///
-    /// This sends the message with the protected status change to the chat,
-    /// notifying the user on this device as well as the other users in the chat.
+    /// Params:
     ///
-    /// If `promote` is false this means, the message must not be sent out
-    /// and only a local info message should be added to the chat.
-    /// This is used when protection is enabled implicitly or when a chat is not yet promoted.
+    /// * `contact_id`: In a 1:1 chat, pass the chat partner's contact id.
+    /// * `timestamp_sort` is used as the timestamp of the added message
+    ///   and should be the timestamp of the change happening.
     pub(crate) async fn add_protection_msg(
         self,
         context: &Context,
         protect: ProtectionStatus,
-        promote: bool,
-        from_id: ContactId,
+        contact_id: Option<ContactId>,
+        timestamp_sort: i64,
     ) -> Result<()> {
-        let msg_text = context.stock_protection_msg(protect, from_id).await;
+        let text = context.stock_protection_msg(protect, contact_id).await;
         let cmd = match protect {
             ProtectionStatus::Protected => SystemMessage::ChatProtectionEnabled,
             ProtectionStatus::Unprotected => SystemMessage::ChatProtectionDisabled,
+            ProtectionStatus::ProtectionBroken => SystemMessage::ChatProtectionDisabled,
         };
-
-        if promote {
-            let mut msg = Message {
-                viewtype: Viewtype::Text,
-                text: Some(msg_text),
-                ..Default::default()
-            };
-            msg.param.set_cmd(cmd);
-            send_msg(context, self, &mut msg).await?;
-        } else {
-            add_info_msg_with_cmd(
-                context,
-                self,
-                &msg_text,
-                cmd,
-                create_smeared_timestamp(context),
-                None,
-                None,
-                None,
-            )
-            .await?;
-        }
+        add_info_msg_with_cmd(context, self, &text, cmd, timestamp_sort, None, None, None).await?;
 
         Ok(())
     }
 
     /// Sets protection and sends or adds a message.
-    pub async fn set_protection(self, context: &Context, protect: ProtectionStatus) -> Result<()> {
-        ensure!(!self.is_special(), "set protection: invalid chat-id.");
-
-        let chat = Chat::load_from_db(context, self).await?;
-
-        if let Err(e) = self.inner_set_protection(context, protect).await {
-            error!(context, "Cannot set protection: {e:#}."); // make error user-visible
-            return Err(e);
+    ///
+    /// `timestamp_sort` is used as the timestamp of the added message
+    /// and should be the timestamp of the change happening.
+    pub(crate) async fn set_protection(
+        self,
+        context: &Context,
+        protect: ProtectionStatus,
+        timestamp_sort: i64,
+        contact_id: Option<ContactId>,
+    ) -> Result<()> {
+        match self.inner_set_protection(context, protect).await {
+            Ok(protection_status_modified) => {
+                if protection_status_modified {
+                    self.add_protection_msg(context, protect, contact_id, timestamp_sort)
+                        .await?;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                error!(context, "Cannot set protection: {e:#}."); // make error user-visible
+                Err(e)
+            }
         }
-
-        self.add_protection_msg(context, protect, chat.is_promoted(), ContactId::SELF)
-            .await
     }
 
     /// Archives or unarchives a chat.
@@ -642,7 +666,7 @@ impl ChatId {
 
         if chat.is_self_talk() {
             let mut msg = Message::new(Viewtype::Text);
-            msg.text = Some(stock_str::self_deleted_msg_body(context).await);
+            msg.text = stock_str::self_deleted_msg_body(context).await;
             add_device_msg(context, None, Some(&mut msg)).await?;
         }
 
@@ -724,7 +748,7 @@ impl ChatId {
         match msg.viewtype {
             Viewtype::Unknown => bail!("Can not set draft of unknown type."),
             Viewtype::Text => {
-                if msg.text.is_none_or_empty() && msg.in_reply_to.is_none_or_empty() {
+                if msg.text.is_empty() && msg.in_reply_to.is_none_or_empty() {
                     bail!("No text and no quote in draft");
                 }
             }
@@ -739,14 +763,6 @@ impl ChatId {
                     msg.viewtype = Viewtype::Webxdc;
                 }
             }
-        }
-
-        let chat = Chat::load_from_db(context, self).await?;
-        if let Some(cant_send_reason) = chat.why_cant_send(context).await? {
-            bail!(
-                "Can't set a draft because chat is not writeable: {}",
-                cant_send_reason
-            );
         }
 
         // set back draft information to allow identifying the draft later on -
@@ -770,7 +786,7 @@ impl ChatId {
                             (
                                 time(),
                                 msg.viewtype,
-                                msg.text.as_deref().unwrap_or(""),
+                                &msg.text,
                                 msg.param.to_string(),
                                 msg.in_reply_to.as_deref().unwrap_or_default(),
                                 msg.id,
@@ -804,7 +820,7 @@ impl ChatId {
                     time(),
                     msg.viewtype,
                     MessageState::OutDraft,
-                    msg.text.as_deref().unwrap_or(""),
+                    &msg.text,
                     msg.param.to_string(),
                     1,
                     msg.in_reply_to.as_deref().unwrap_or_default(),
@@ -871,6 +887,134 @@ impl ChatId {
         Ok(count)
     }
 
+    /// Returns timestamp of the latest message in the chat.
+    pub(crate) async fn get_timestamp(self, context: &Context) -> Result<Option<i64>> {
+        let timestamp = context
+            .sql
+            .query_get_value("SELECT MAX(timestamp) FROM msgs WHERE chat_id=?", (self,))
+            .await?;
+        Ok(timestamp)
+    }
+
+    /// Returns a list of active similar chat IDs sorted by similarity metric.
+    ///
+    /// Jaccard similarity coefficient is used to estimate similarity of chat member sets.
+    ///
+    /// Chat is considered active if something was posted there within the last 42 days.
+    pub async fn get_similar_chat_ids(self, context: &Context) -> Result<Vec<(ChatId, f64)>> {
+        // Count number of common members in this and other chats.
+        let intersection: Vec<(ChatId, f64)> = context
+            .sql
+            .query_map(
+                "SELECT y.chat_id, SUM(x.contact_id = y.contact_id)
+                 FROM chats_contacts as x
+                 JOIN chats_contacts as y
+                 WHERE x.contact_id > 9
+                   AND y.contact_id > 9
+                   AND x.chat_id=?
+                   AND y.chat_id<>x.chat_id
+                 GROUP BY y.chat_id",
+                (self,),
+                |row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let intersection: f64 = row.get(1)?;
+                    Ok((chat_id, intersection))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+            .context("failed to calculate member set intersections")?;
+
+        let chat_size: HashMap<ChatId, f64> = context
+            .sql
+            .query_map(
+                "SELECT chat_id, count(*) AS n
+                 FROM chats_contacts
+                 WHERE contact_id > ? AND chat_id > ?
+                 GROUP BY chat_id",
+                (ContactId::LAST_SPECIAL, DC_CHAT_ID_LAST_SPECIAL),
+                |row| {
+                    let chat_id: ChatId = row.get(0)?;
+                    let size: f64 = row.get(1)?;
+                    Ok((chat_id, size))
+                },
+                |rows| {
+                    rows.collect::<std::result::Result<HashMap<ChatId, f64>, _>>()
+                        .map_err(Into::into)
+                },
+            )
+            .await
+            .context("failed to count chat member sizes")?;
+
+        let our_chat_size = chat_size.get(&self).copied().unwrap_or_default();
+        let mut chats_with_metrics = Vec::new();
+        for (chat_id, intersection_size) in intersection {
+            if intersection_size > 0.0 {
+                let other_chat_size = chat_size.get(&chat_id).copied().unwrap_or_default();
+                let union_size = our_chat_size + other_chat_size - intersection_size;
+                let metric = intersection_size / union_size;
+                chats_with_metrics.push((chat_id, metric))
+            }
+        }
+        chats_with_metrics.sort_unstable_by(|(chat_id1, metric1), (chat_id2, metric2)| {
+            metric2
+                .partial_cmp(metric1)
+                .unwrap_or(chat_id2.cmp(chat_id1))
+        });
+
+        // Select up to five similar active chats.
+        let mut res = Vec::new();
+        let now = time();
+        for (chat_id, metric) in chats_with_metrics {
+            if let Some(chat_timestamp) = chat_id.get_timestamp(context).await? {
+                if now > chat_timestamp + 42 * 24 * 3600 {
+                    // Chat was inactive for 42 days, skip.
+                    continue;
+                }
+            }
+
+            if metric < 0.1 {
+                // Chat is unrelated.
+                break;
+            }
+
+            let chat = Chat::load_from_db(context, chat_id).await?;
+            if chat.typ != Chattype::Group {
+                continue;
+            }
+
+            match chat.visibility {
+                ChatVisibility::Normal | ChatVisibility::Pinned => {}
+                ChatVisibility::Archived => continue,
+            }
+
+            res.push((chat_id, metric));
+            if res.len() >= 5 {
+                break;
+            }
+        }
+
+        Ok(res)
+    }
+
+    /// Returns similar chats as a [`Chatlist`].
+    ///
+    /// [`Chatlist`]: crate::chatlist::Chatlist
+    pub async fn get_similar_chatlist(self, context: &Context) -> Result<Chatlist> {
+        let chat_ids: Vec<ChatId> = self
+            .get_similar_chat_ids(context)
+            .await
+            .context("failed to get similar chat IDs")?
+            .into_iter()
+            .map(|(chat_id, _metric)| chat_id)
+            .collect();
+        let chatlist = Chatlist::from_chat_ids(context, &chat_ids).await?;
+        Ok(chatlist)
+    }
+
     pub(crate) async fn get_param(self, context: &Context) -> Result<Params> {
         let res: Option<String> = context
             .sql
@@ -910,11 +1054,14 @@ impl ChatId {
         T: Send + 'static,
     {
         let sql = &context.sql;
+        // Do not reply to not fully downloaded messages. Such a message could be a group chat
+        // message that we assigned to 1:1 chat.
         let query = format!(
             "SELECT {fields} \
-             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?, ?, ?) AND NOT hidden \
+             FROM msgs WHERE chat_id=? AND state NOT IN (?, ?) AND NOT hidden AND download_state={} \
              ORDER BY timestamp DESC, id DESC \
-             LIMIT 1;"
+             LIMIT 1;",
+             DownloadState::Done as u32,
         );
         let row = sql
             .query_row_optional(
@@ -923,8 +1070,11 @@ impl ChatId {
                     self,
                     MessageState::OutPreparing,
                     MessageState::OutDraft,
-                    MessageState::OutPending,
-                    MessageState::OutFailed,
+                    // We don't filter `OutPending` and `OutFailed` messages because the new message
+                    // for which `parent_query()` is done may assume that it will be received in a
+                    // context affected by those messages, e.g. they could add new members to a
+                    // group and the new message will contain them in "To:". Anyway recipients must
+                    // be prepared to orphaned references.
                 ),
                 f,
             )
@@ -936,34 +1086,17 @@ impl ChatId {
         self,
         context: &Context,
     ) -> Result<Option<(String, String, String)>> {
-        if let Some((rfc724_mid, mime_in_reply_to, mime_references, error)) = self
-            .parent_query(
-                context,
-                "rfc724_mid, mime_in_reply_to, mime_references, error",
-                |row: &rusqlite::Row| {
-                    let rfc724_mid: String = row.get(0)?;
-                    let mime_in_reply_to: String = row.get(1)?;
-                    let mime_references: String = row.get(2)?;
-                    let error: String = row.get(3)?;
-                    Ok((rfc724_mid, mime_in_reply_to, mime_references, error))
-                },
-            )
-            .await?
-        {
-            if !error.is_empty() {
-                // Do not reply to error messages.
-                //
-                // An error message could be a group chat message that we failed to decrypt and
-                // assigned to 1:1 chat. A reply to it will show up as a reply to group message
-                // on the other side. To avoid such situations, it is better not to reply to
-                // error messages at all.
-                Ok(None)
-            } else {
-                Ok(Some((rfc724_mid, mime_in_reply_to, mime_references)))
-            }
-        } else {
-            Ok(None)
-        }
+        self.parent_query(
+            context,
+            "rfc724_mid, mime_in_reply_to, mime_references",
+            |row: &rusqlite::Row| {
+                let rfc724_mid: String = row.get(0)?;
+                let mime_in_reply_to: String = row.get(1)?;
+                let mime_references: String = row.get(2)?;
+                Ok((rfc724_mid, mime_in_reply_to, mime_references))
+            },
+        )
+        .await
     }
 
     /// Returns multi-line text summary of encryption preferences of all chat contacts.
@@ -983,7 +1116,7 @@ impl ChatId {
             .iter()
             .filter(|&contact_id| !contact_id.is_special())
         {
-            let contact = Contact::load_from_db(context, *contact_id).await?;
+            let contact = Contact::get_by_id(context, *contact_id).await?;
             let addr = contact.get_addr();
             let peerstate = Peerstate::from_addr(context, addr).await?;
 
@@ -1141,7 +1274,7 @@ pub struct Chat {
     pub grpid: String,
 
     /// Whether the chat is blocked, unblocked or a contact request.
-    pub(crate) blocked: Blocked,
+    pub blocked: Blocked,
 
     /// Additional chat parameters stored in the database.
     pub param: Params,
@@ -1153,7 +1286,7 @@ pub struct Chat {
     pub mute_duration: MuteDuration,
 
     /// If the chat is protected (verified).
-    protected: ProtectionStatus,
+    pub(crate) protected: ProtectionStatus,
 }
 
 impl Chat {
@@ -1241,13 +1374,16 @@ impl Chat {
     pub(crate) async fn why_cant_send(&self, context: &Context) -> Result<Option<CantSendReason>> {
         use CantSendReason::*;
 
+        // NB: Don't forget to update Chatlist::try_load() when changing this function!
         let reason = if self.id.is_special() {
             Some(SpecialChat)
         } else if self.is_device_talk() {
             Some(DeviceChat)
         } else if self.is_contact_request() {
             Some(ContactRequest)
-        } else if self.is_mailing_list() && self.param.get(Param::ListPost).is_none_or_empty() {
+        } else if self.is_protection_broken() {
+            Some(ProtectionBroken)
+        } else if self.is_mailing_list() && self.get_mailinglist_addr().is_none_or_empty() {
             Some(ReadOnlyMailingList)
         } else if !self.is_self_in_chat(context).await? {
             Some(NotAMember)
@@ -1271,7 +1407,6 @@ impl Chat {
         match self.typ {
             Chattype::Single | Chattype::Broadcast | Chattype::Mailinglist => Ok(true),
             Chattype::Group => is_contact_in_chat(context, self.id, ContactId::SELF).await,
-            Chattype::Undefined => Ok(false),
         }
     }
 
@@ -1310,11 +1445,11 @@ impl Chat {
     pub async fn get_profile_image(&self, context: &Context) -> Result<Option<PathBuf>> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         } else if self.id.is_archived_link() {
             if let Ok(image_rel) = get_archive_icon(context).await {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id).await?;
@@ -1325,7 +1460,7 @@ impl Chat {
             }
         } else if self.typ == Chattype::Broadcast {
             if let Ok(image_rel) = get_broadcast_icon(context).await {
-                return Ok(Some(get_abs_path(context, image_rel)));
+                return Ok(Some(get_abs_path(context, Path::new(&image_rel))));
             }
         }
         Ok(None)
@@ -1358,7 +1493,7 @@ impl Chat {
     /// deltachat, and the data returned is still subject to change.
     pub async fn get_info(&self, context: &Context) -> Result<ChatInfo> {
         let draft = match self.id.get_draft(context).await? {
-            Some(message) => message.text.unwrap_or_default(),
+            Some(message) => message.text,
             _ => String::new(),
         };
         Ok(ChatInfo {
@@ -1400,6 +1535,7 @@ impl Chat {
     }
 
     /// Returns true if the chat is promoted.
+    /// This means a message has been sent to it and it _not_ only exists on the users device.
     pub fn is_promoted(&self) -> bool {
         !self.is_unpromoted()
     }
@@ -1407,6 +1543,27 @@ impl Chat {
     /// Returns true if chat protection is enabled.
     pub fn is_protected(&self) -> bool {
         self.protected == ProtectionStatus::Protected
+    }
+
+    /// Returns true if the chat was protected, and then an incoming message broke this protection.
+    ///
+    /// This function is only useful if the UI enabled the `verified_one_on_one_chats` feature flag,
+    /// otherwise it will return false for all chats.
+    ///
+    /// 1:1 chats are automatically set as protected when a contact is verified.
+    /// When a message comes in that is not encrypted / signed correctly,
+    /// the chat is automatically set as unprotected again.
+    /// `is_protection_broken()` will return true until `chat_id.accept()` is called.
+    ///
+    /// The UI should let the user confirm that this is OK with a message like
+    /// `Bob sent a message from another device. Tap to learn more`
+    /// and then call `chat_id.accept()`.
+    pub fn is_protection_broken(&self) -> bool {
+        match self.protected {
+            ProtectionStatus::Protected => false,
+            ProtectionStatus::Unprotected => false,
+            ProtectionStatus::ProtectionBroken => true,
+        }
     }
 
     /// Returns true if location streaming is enabled in the chat.
@@ -1438,15 +1595,6 @@ impl Chat {
         let mut new_references = "".into();
         let mut to_id = 0;
         let mut location_id = 0;
-
-        if let Some(reason) = self.why_cant_send(context).await? {
-            if self.typ == Chattype::Group && reason == CantSendReason::NotAMember {
-                context.emit_event(EventType::ErrorSelfNotInGroup(
-                    "Cannot send message; self not in group.".into(),
-                ));
-            }
-            bail!("Cannot send message to {}: {}", self.id, reason);
-        }
 
         let from = context.get_primary_self_addr().await?;
         let new_rfc724_mid = {
@@ -1583,6 +1731,11 @@ impl Chat {
             None
         };
 
+        msg.chat_id = self.id;
+        msg.from_id = ContactId::SELF;
+        msg.rfc724_mid = new_rfc724_mid;
+        msg.timestamp_sort = timestamp;
+
         // add message to the database
         if let Some(update_msg_id) = update_msg_id {
             context
@@ -1596,14 +1749,14 @@ impl Chat {
                          ephemeral_timestamp=?
                      WHERE id=?;",
                     params_slice![
-                        new_rfc724_mid,
-                        self.id,
-                        ContactId::SELF,
+                        msg.rfc724_mid,
+                        msg.chat_id,
+                        msg.from_id,
                         to_id,
-                        timestamp,
+                        msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
-                        msg.text.as_ref().cloned().unwrap_or_default(),
+                        msg.text,
                         &msg.subject,
                         msg.param.to_string(),
                         msg.hidden,
@@ -1645,14 +1798,14 @@ impl Chat {
                         ephemeral_timestamp)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,?);",
                     params_slice![
-                        new_rfc724_mid,
-                        self.id,
-                        ContactId::SELF,
+                        msg.rfc724_mid,
+                        msg.chat_id,
+                        msg.from_id,
                         to_id,
-                        timestamp,
+                        msg.timestamp_sort,
                         msg.viewtype,
                         msg.state,
-                        msg.text.as_ref().cloned().unwrap_or_default(),
+                        msg.text,
                         &msg.subject,
                         msg.param.to_string(),
                         msg.hidden,
@@ -1808,7 +1961,7 @@ pub(crate) async fn update_device_icon(context: &Context) -> Result<()> {
         chat.param.set(Param::ProfileImage, &icon);
         chat.update_param(context).await?;
 
-        let mut contact = Contact::load_from_db(context, ContactId::DEVICE).await?;
+        let mut contact = Contact::get_by_id(context, ContactId::DEVICE).await?;
         contact.param.set(Param::ProfileImage, icon);
         contact.update_param(context).await?;
     }
@@ -1932,7 +2085,7 @@ impl ChatIdBlocked {
 
     /// Returns the chat for the 1:1 chat with this contact.
     ///
-    /// I the chat does not yet exist a new one is created, using the provided [`Blocked`]
+    /// If the chat does not yet exist a new one is created, using the provided [`Blocked`]
     /// state.
     pub async fn get_for_contact(
         context: &Context,
@@ -1950,7 +2103,7 @@ impl ChatIdBlocked {
             return Ok(res);
         }
 
-        let contact = Contact::load_from_db(context, contact_id).await?;
+        let contact = Contact::get_by_id(context, contact_id).await?;
         let chat_name = contact.get_display_name().to_string();
         let mut params = Params::new();
         match contact_id {
@@ -1963,19 +2116,30 @@ impl ChatIdBlocked {
             _ => (),
         }
 
+        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+        let protected = peerstate.map_or(false, |p| {
+            p.is_using_verified_key() && p.prefer_encrypt == EncryptPreference::Mutual
+        });
+        let smeared_time = create_smeared_timestamp(context);
+
         let chat_id = context
             .sql
             .transaction(move |transaction| {
                 transaction.execute(
                     "INSERT INTO chats
-                     (type, name, param, blocked, created_timestamp)
-                     VALUES(?, ?, ?, ?, ?)",
+                     (type, name, param, blocked, created_timestamp, protected)
+                     VALUES(?, ?, ?, ?, ?, ?)",
                     (
                         Chattype::Single,
                         chat_name,
                         params.to_string(),
                         create_blocked as u8,
-                        create_smeared_timestamp(context),
+                        smeared_time,
+                        if protected {
+                            ProtectionStatus::Protected
+                        } else {
+                            ProtectionStatus::Unprotected
+                        },
                     ),
                 )?;
                 let chat_id = ChatId::new(
@@ -1995,6 +2159,17 @@ impl ChatIdBlocked {
                 Ok(chat_id)
             })
             .await?;
+
+        if protected {
+            chat_id
+                .add_protection_msg(
+                    context,
+                    ProtectionStatus::Protected,
+                    Some(contact_id),
+                    smeared_time,
+                )
+                .await?;
+        }
 
         match contact_id {
             ContactId::SELF => update_saved_messages_icon(context).await?,
@@ -2026,21 +2201,32 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
     if msg.viewtype == Viewtype::Text || msg.viewtype == Viewtype::VideochatInvitation {
         // the caller should check if the message text is empty
     } else if msg.viewtype.has_file() {
-        let blob = msg
+        let mut blob = msg
             .param
             .get_blob(Param::File, context, !msg.is_increation())
             .await?
             .with_context(|| format!("attachment missing for message of type #{}", msg.viewtype))?;
 
-        if msg.viewtype == Viewtype::Image {
-            if let Err(err) = blob.recode_to_image_size(context).await {
-                warn!(
-                    context,
-                    "Cannot recode image, using original data: {err:#}."
-                );
+        let mut maybe_sticker = msg.viewtype == Viewtype::Sticker;
+        if msg.viewtype == Viewtype::Image
+            || maybe_sticker && !msg.param.exists(Param::ForceSticker)
+        {
+            blob.recode_to_image_size(context, &mut maybe_sticker)
+                .await?;
+
+            if !maybe_sticker {
+                msg.viewtype = Viewtype::Image;
             }
         }
         msg.param.set(Param::File, blob.as_name());
+        if let (Some(filename), Some(blob_ext)) = (msg.param.get(Param::Filename), blob.suffix()) {
+            let stem = match filename.rsplit_once('.') {
+                Some((stem, _)) => stem,
+                None => filename,
+            };
+            msg.param
+                .set(Param::Filename, stem.to_string() + "." + blob_ext);
+        }
 
         if msg.viewtype == Viewtype::File || msg.viewtype == Viewtype::Image {
             // Correct the type, take care not to correct already very special
@@ -2076,6 +2262,8 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
             }
         }
 
+        msg.try_calc_and_set_dimensions(context).await?;
+
         info!(
             context,
             "Attaching \"{}\" for message type #{}.",
@@ -2099,7 +2287,13 @@ async fn prepare_msg_common(
 
     // Check if the chat can be sent to.
     if let Some(reason) = chat.why_cant_send(context).await? {
-        bail!("cannot send to {}: {}", chat_id, reason);
+        if reason == CantSendReason::ProtectionBroken
+            && msg.param.get_cmd() == SystemMessage::SecurejoinMessage
+        {
+            // Send out the message, the securejoin message is supposed to repair the verification
+        } else {
+            bail!("cannot send to {chat_id}: {reason}");
+        }
     }
 
     // check current MessageState for drafts (to keep msg_id) ...
@@ -2201,11 +2395,9 @@ pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message
 }
 
 async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    // protect all system messages againts RTLO attacks
+    // protect all system messages against RTLO attacks
     if msg.is_system_message() {
-        if let Some(text) = &msg.text {
-            msg.text = Some(strip_rtlo_characters(text.as_ref()));
-        }
+        msg.text = strip_rtlo_characters(&msg.text);
     }
 
     if prepare_send_msg(context, chat_id, msg).await?.is_some() {
@@ -2245,7 +2437,7 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    let row_id = create_send_msg_job(context, msg.id).await?;
+    let row_id = create_send_msg_job(context, msg).await?;
     Ok(row_id)
 }
 
@@ -2255,13 +2447,10 @@ async fn prepare_send_msg(
 /// group with only self and no BCC-to-self configured.
 ///
 /// The caller has to interrupt SMTP loop or otherwise process a new row.
-async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<i64>> {
-    let mut msg = Message::load_from_db(context, msg_id).await?;
-    msg.try_calc_and_set_dimensions(context)
-        .await
-        .context("failed to calculate media dimensions")?;
-
-    /* create message */
+pub(crate) async fn create_send_msg_job(
+    context: &Context,
+    msg: &mut Message,
+) -> Result<Option<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
 
     let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
@@ -2272,7 +2461,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         }
     };
 
-    let mimefactory = MimeFactory::from_msg(context, &msg, attach_selfavatar).await?;
+    let mimefactory = MimeFactory::from_msg(context, msg, attach_selfavatar).await?;
 
     let mut recipients = mimefactory.recipients();
 
@@ -2294,16 +2483,17 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         // may happen eg. for groups with only SELF and bcc_self disabled
         info!(
             context,
-            "Message {msg_id} has no recipient, skipping smtp-send."
+            "Message {} has no recipient, skipping smtp-send.", msg.id
         );
-        msg_id.set_delivered(context).await?;
+        msg.id.set_delivered(context).await?;
+        msg.state = MessageState::OutDelivered;
         return Ok(None);
     }
 
     let rendered_msg = match mimefactory.render(context).await {
         Ok(res) => Ok(res),
         Err(err) => {
-            message::set_msg_failed(context, msg_id, &err.to_string()).await;
+            message::set_msg_failed(context, msg, &err.to_string()).await?;
             Err(err)
         }
     }?;
@@ -2312,13 +2502,13 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         /* unrecoverable */
         message::set_msg_failed(
             context,
-            msg_id,
+            msg,
             "End-to-end-encryption unavailable unexpectedly.",
         )
-        .await;
+        .await?;
         bail!(
             "e2e encryption unavailable {} - {:?}",
-            msg_id,
+            msg.id,
             needs_encryption
         );
     }
@@ -2327,14 +2517,13 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
         msg.chat_id.set_gossiped_timestamp(context, time()).await?;
     }
 
-    if 0 != rendered_msg.last_added_location_id {
+    if let Some(last_added_location_id) = rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, time()).await {
             error!(context, "Failed to set kml sent_timestamp: {err:#}.");
         }
         if !msg.hidden {
             if let Err(err) =
-                location::set_msg_location_id(context, msg.id, rendered_msg.last_added_location_id)
-                    .await
+                location::set_msg_location_id(context, msg.id, last_added_location_id).await
             {
                 error!(context, "Failed to set msg_location_id: {err:#}.");
             }
@@ -2374,7 +2563,7 @@ async fn create_send_msg_job(context: &Context, msg_id: MsgId) -> Result<Option<
                 &rendered_msg.rfc724_mid,
                 recipients,
                 &rendered_msg.message,
-                msg_id,
+                msg.id,
             ),
         )
         .await?;
@@ -2396,7 +2585,7 @@ pub async fn send_text_msg(
     );
 
     let mut msg = Message::new(Viewtype::Text);
-    msg.text = Some(text_to_send);
+    msg.text = text_to_send;
     send_msg(context, chat_id, &mut msg).await
 }
 
@@ -2422,10 +2611,9 @@ pub async fn send_videochat_invitation(context: &Context, chat_id: ChatId) -> Re
 
     let mut msg = Message::new(Viewtype::VideochatInvitation);
     msg.param.set(Param::WebrtcRoom, &instance);
-    msg.text = Some(
+    msg.text =
         stock_str::videochat_invite_msg_body(context, &Message::parse_webrtc_instance(&instance).1)
-            .await,
-    );
+            .await;
     send_msg(context, chat_id, &mut msg).await
 }
 
@@ -2568,14 +2756,7 @@ pub(crate) async fn marknoticed_chat_if_older_than(
     chat_id: ChatId,
     timestamp: i64,
 ) -> Result<()> {
-    if let Some(chat_timestamp) = context
-        .sql
-        .query_get_value(
-            "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
-            (chat_id,),
-        )
-        .await?
-    {
+    if let Some(chat_timestamp) = chat_id.get_timestamp(context).await? {
         if timestamp > chat_timestamp {
             marknoticed_chat(context, chat_id).await?;
         }
@@ -2774,6 +2955,9 @@ pub enum Direction {
 }
 
 /// Searches next/previous message based on the given message and list of types.
+///
+/// Deprecated since 2023-10-03.
+#[deprecated(note = "use `get_chat_media` instead")]
 pub async fn get_next_media(
     context: &Context,
     curr_msg_id: MsgId,
@@ -2852,18 +3036,14 @@ pub async fn create_group_chat(
 
     let grpid = create_id();
 
+    let timestamp = create_smeared_timestamp(context);
     let row_id = context
         .sql
         .insert(
             "INSERT INTO chats
         (type, name, grpid, param, created_timestamp)
         VALUES(?, ?, ?, \'U=1\', ?);",
-            (
-                Chattype::Group,
-                chat_name,
-                grpid,
-                create_smeared_timestamp(context),
-            ),
+            (Chattype::Group, chat_name, grpid, timestamp),
         )
         .await?;
 
@@ -2875,9 +3055,9 @@ pub async fn create_group_chat(
     context.emit_msgs_changed_without_ids();
 
     if protect == ProtectionStatus::Protected {
-        // this part is to stay compatible to verified groups,
-        // in some future, we will drop the "protect"-flag from create_group_chat()
-        chat_id.inner_set_protection(context, protect).await?;
+        chat_id
+            .set_protection(context, protect, timestamp, None)
+            .await?;
     }
 
     Ok(chat_id)
@@ -2969,6 +3149,7 @@ pub(crate) async fn remove_from_chat_contacts_table(
 }
 
 /// Adds a contact to the chat.
+/// If the group is promoted, also sends out a system message to all group members
 pub async fn add_contact_to_chat(
     context: &Context,
     chat_id: ChatId,
@@ -2990,7 +3171,7 @@ pub(crate) async fn add_contact_to_chat_ex(
 
     chat_id.reset_gossiped_timestamp(context).await?;
 
-    /*this also makes sure, not contacts are added to special or normal chats*/
+    // this also makes sure, no contacts are added to special or normal chats
     let mut chat = Chat::load_from_db(context, chat_id).await?;
     ensure!(
         chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast,
@@ -3012,7 +3193,7 @@ pub(crate) async fn add_contact_to_chat_ex(
         context.emit_event(EventType::ErrorSelfNotInGroup(
             "Cannot add contact to group; self not in group.".into(),
         ));
-        bail!("can not add contact because our account is not part of it");
+        bail!("can not add contact because the account is not part of the group/broadcast");
     }
 
     if from_handshake && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
@@ -3055,10 +3236,10 @@ pub(crate) async fn add_contact_to_chat_ex(
     if chat.typ == Chattype::Group && chat.is_promoted() {
         msg.viewtype = Viewtype::Text;
 
-        msg.text =
-            Some(stock_str::msg_add_member(context, contact.get_addr(), ContactId::SELF).await);
+        let contact_addr = contact.get_addr();
+        msg.text = stock_str::msg_add_member_local(context, contact_addr, ContactId::SELF).await;
         msg.param.set_cmd(SystemMessage::MemberAddedToGroup);
-        msg.param.set(Param::Arg, contact.get_addr());
+        msg.param.set(Param::Arg, contact_addr);
         msg.param.set_int(Param::Arg2, from_handshake.into());
         msg.id = send_msg(context, chat_id, &mut msg).await?;
     }
@@ -3178,59 +3359,53 @@ pub async fn remove_contact_from_chat(
     );
 
     let mut msg = Message::default();
-    let mut success = false;
 
-    /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
-    /* this allows to delete pending references to deleted contacts. Of course, this should _not_ happen. */
-    if let Ok(chat) = Chat::load_from_db(context, chat_id).await {
-        if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
-            if !chat.is_self_in_chat(context).await? {
-                context.emit_event(EventType::ErrorSelfNotInGroup(
-                    "Cannot remove contact from chat; self not in group.".into(),
-                ));
-            } else {
-                if let Ok(contact) = Contact::get_by_id(context, contact_id).await {
-                    if chat.typ == Chattype::Group && chat.is_promoted() {
-                        msg.viewtype = Viewtype::Text;
-                        if contact.id == ContactId::SELF {
-                            set_group_explicitly_left(context, &chat.grpid).await?;
-                            msg.text =
-                                Some(stock_str::msg_group_left(context, ContactId::SELF).await);
-                        } else {
-                            msg.text = Some(
-                                stock_str::msg_del_member(
-                                    context,
-                                    contact.get_addr(),
-                                    ContactId::SELF,
-                                )
-                                .await,
-                            );
-                        }
-                        msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
-                        msg.param.set(Param::Arg, contact.get_addr());
-                        msg.id = send_msg(context, chat_id, &mut msg).await?;
+    let chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ == Chattype::Group || chat.typ == Chattype::Broadcast {
+        if !chat.is_self_in_chat(context).await? {
+            let err_msg = format!(
+                "Cannot remove contact {contact_id} from chat {chat_id}: self not in group."
+            );
+            context.emit_event(EventType::ErrorSelfNotInGroup(err_msg.clone()));
+            bail!("{}", err_msg);
+        } else {
+            // We do not return an error if the contact does not exist in the database.
+            // This allows to delete dangling references to deleted contacts
+            // in case of the database becoming inconsistent due to a bug.
+            if let Some(contact) = Contact::get_by_id_optional(context, contact_id).await? {
+                if chat.typ == Chattype::Group && chat.is_promoted() {
+                    msg.viewtype = Viewtype::Text;
+                    if contact.id == ContactId::SELF {
+                        set_group_explicitly_left(context, &chat.grpid).await?;
+                        msg.text = stock_str::msg_group_left_local(context, ContactId::SELF).await;
+                    } else {
+                        msg.text = stock_str::msg_del_member_local(
+                            context,
+                            contact.get_addr(),
+                            ContactId::SELF,
+                        )
+                        .await;
                     }
+                    msg.param.set_cmd(SystemMessage::MemberRemovedFromGroup);
+                    msg.param.set(Param::Arg, contact.get_addr());
+                    msg.id = send_msg(context, chat_id, &mut msg).await?;
                 }
-                // we remove the member from the chat after constructing the
-                // to-be-send message. If between send_msg() and here the
-                // process dies the user will have to re-do the action.  It's
-                // better than the other way round: you removed
-                // someone from DB but no peer or device gets to know about it and
-                // group membership is thus different on different devices.
-                // Note also that sending a message needs all recipients
-                // in order to correctly determine encryption so if we
-                // removed it first, it would complicate the
-                // check/encryption logic.
-                success = remove_from_chat_contacts_table(context, chat_id, contact_id)
-                    .await
-                    .is_ok();
-                context.emit_event(EventType::ChatModified(chat_id));
             }
+            // we remove the member from the chat after constructing the
+            // to-be-send message. If between send_msg() and here the
+            // process dies the user will have to re-do the action.  It's
+            // better than the other way round: you removed
+            // someone from DB but no peer or device gets to know about it and
+            // group membership is thus different on different devices.
+            // Note also that sending a message needs all recipients
+            // in order to correctly determine encryption so if we
+            // removed it first, it would complicate the
+            // check/encryption logic.
+            remove_from_chat_contacts_table(context, chat_id, contact_id).await?;
+            context.emit_event(EventType::ChatModified(chat_id));
         }
-    }
-
-    if !success {
-        bail!("Failed to remove contact");
+    } else {
+        bail!("Cannot remove members from non-group chats.");
     }
 
     Ok(())
@@ -3291,9 +3466,8 @@ pub async fn set_chat_name(context: &Context, chat_id: ChatId, new_name: &str) -
                 && improve_single_line_input(&chat.name) != new_name
             {
                 msg.viewtype = Viewtype::Text;
-                msg.text = Some(
-                    stock_str::msg_grp_name(context, &chat.name, &new_name, ContactId::SELF).await,
-                );
+                msg.text =
+                    stock_str::msg_grp_name(context, &chat.name, &new_name, ContactId::SELF).await;
                 msg.param.set_cmd(SystemMessage::GroupNameChanged);
                 if !chat.name.is_empty() {
                     msg.param.set(Param::Arg, &chat.name);
@@ -3342,13 +3516,13 @@ pub async fn set_chat_profile_image(
     if new_image.is_empty() {
         chat.param.remove(Param::ProfileImage);
         msg.param.remove(Param::Arg);
-        msg.text = Some(stock_str::msg_grp_img_deleted(context, ContactId::SELF).await);
+        msg.text = stock_str::msg_grp_img_deleted(context, ContactId::SELF).await;
     } else {
         let mut image_blob = BlobObject::new_from_path(context, Path::new(new_image)).await?;
         image_blob.recode_to_avatar_size(context).await?;
         chat.param.set(Param::ProfileImage, image_blob.as_name());
         msg.param.set(Param::Arg, image_blob.as_name());
-        msg.text = Some(stock_str::msg_grp_img_changed(context, ContactId::SELF).await);
+        msg.text = stock_str::msg_grp_img_changed(context, ContactId::SELF).await;
     }
     chat.update_param(context).await?;
     if chat.is_promoted() && !chat.is_mailing_list() {
@@ -3371,89 +3545,88 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
     chat_id
         .unarchive_if_not_muted(context, MessageState::Undefined)
         .await?;
-    if let Ok(mut chat) = Chat::load_from_db(context, chat_id).await {
-        if let Some(reason) = chat.why_cant_send(context).await? {
-            bail!("cannot send to {}: {}", chat_id, reason);
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if let Some(reason) = chat.why_cant_send(context).await? {
+        bail!("cannot send to {}: {}", chat_id, reason);
+    }
+    curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
+    let ids = context
+        .sql
+        .query_map(
+            &format!(
+                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                sql::repeat_vars(msg_ids.len())
+            ),
+            rusqlite::params_from_iter(msg_ids),
+            |row| row.get::<_, MsgId>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?;
+
+    for id in ids {
+        let src_msg_id: MsgId = id;
+        let mut msg = Message::load_from_db(context, src_msg_id).await?;
+        if msg.state == MessageState::OutDraft {
+            bail!("cannot forward drafts.");
         }
-        curr_timestamp = create_smeared_timestamps(context, msg_ids.len());
-        let ids = context
-            .sql
-            .query_map(
-                &format!(
-                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    sql::repeat_vars(msg_ids.len())
-                ),
-                rusqlite::params_from_iter(msg_ids),
-                |row| row.get::<_, MsgId>(0),
-                |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
-            )
-            .await?;
 
-        for id in ids {
-            let src_msg_id: MsgId = id;
-            let mut msg = Message::load_from_db(context, src_msg_id).await?;
-            if msg.state == MessageState::OutDraft {
-                bail!("cannot forward drafts.");
-            }
+        let original_param = msg.param.clone();
 
-            let original_param = msg.param.clone();
+        // we tested a sort of broadcast
+        // by not marking own forwarded messages as such,
+        // however, this turned out to be to confusing and unclear.
 
-            // we tested a sort of broadcast
-            // by not marking own forwarded messages as such,
-            // however, this turned out to be to confusing and unclear.
+        if msg.get_viewtype() != Viewtype::Sticker {
+            msg.param
+                .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
+        }
 
-            if msg.get_viewtype() != Viewtype::Sticker {
-                msg.param
-                    .set_int(Param::Forwarded, src_msg_id.to_u32() as i32);
-            }
+        msg.param.remove(Param::GuaranteeE2ee);
+        msg.param.remove(Param::ForcePlaintext);
+        msg.param.remove(Param::Cmd);
+        msg.param.remove(Param::OverrideSenderDisplayname);
+        msg.param.remove(Param::WebxdcDocument);
+        msg.param.remove(Param::WebxdcDocumentTimestamp);
+        msg.param.remove(Param::WebxdcSummary);
+        msg.param.remove(Param::WebxdcSummaryTimestamp);
+        msg.in_reply_to = None;
 
-            msg.param.remove(Param::GuaranteeE2ee);
-            msg.param.remove(Param::ForcePlaintext);
-            msg.param.remove(Param::Cmd);
-            msg.param.remove(Param::OverrideSenderDisplayname);
-            msg.param.remove(Param::WebxdcSummary);
-            msg.param.remove(Param::WebxdcSummaryTimestamp);
-            msg.in_reply_to = None;
+        // do not leak data as group names; a default subject is generated by mimefactory
+        msg.subject = "".to_string();
 
-            // do not leak data as group names; a default subject is generated by mimefactory
-            msg.subject = "".to_string();
+        let new_msg_id: MsgId;
+        if msg.state == MessageState::OutPreparing {
+            new_msg_id = chat
+                .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
+                .await?;
+            curr_timestamp += 1;
+            msg.param = original_param;
+            msg.id = src_msg_id;
 
-            let new_msg_id: MsgId;
-            if msg.state == MessageState::OutPreparing {
-                new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
-                    .await?;
-                curr_timestamp += 1;
-                let save_param = msg.param.clone();
-                msg.param = original_param;
-                msg.id = src_msg_id;
-
-                if let Some(old_fwd) = msg.param.get(Param::PrepForwards) {
-                    let new_fwd = format!("{} {}", old_fwd, new_msg_id.to_u32());
-                    msg.param.set(Param::PrepForwards, new_fwd);
-                } else {
-                    msg.param
-                        .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
-                }
-
-                msg.update_param(context).await?;
-                msg.param = save_param;
+            if let Some(old_fwd) = msg.param.get(Param::PrepForwards) {
+                let new_fwd = format!("{} {}", old_fwd, new_msg_id.to_u32());
+                msg.param.set(Param::PrepForwards, new_fwd);
             } else {
-                msg.state = MessageState::OutPending;
-                new_msg_id = chat
-                    .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
-                    .await?;
-                curr_timestamp += 1;
-                if create_send_msg_job(context, new_msg_id).await?.is_some() {
-                    context
-                        .scheduler
-                        .interrupt_smtp(InterruptInfo::new(false))
-                        .await;
-                }
+                msg.param
+                    .set(Param::PrepForwards, new_msg_id.to_u32().to_string());
             }
-            created_chats.push(chat_id);
-            created_msgs.push(new_msg_id);
+
+            msg.update_param(context).await?;
+        } else {
+            msg.state = MessageState::OutPending;
+            new_msg_id = chat
+                .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
+                .await?;
+            curr_timestamp += 1;
+            if create_send_msg_job(context, &mut msg).await?.is_some() {
+                context
+                    .scheduler
+                    .interrupt_smtp(InterruptInfo::new(false))
+                    .await;
+            }
         }
+        created_chats.push(chat_id);
+        created_msgs.push(new_msg_id);
     }
     for (chat_id, msg_id) in created_chats.iter().zip(created_msgs.iter()) {
         context.emit_msgs_changed(*chat_id, *msg_id);
@@ -3485,29 +3658,31 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         msgs.push(msg)
     }
 
-    if let Some(chat_id) = chat_id {
-        let chat = Chat::load_from_db(context, chat_id).await?;
-        for mut msg in msgs {
-            if msg.get_showpadlock() && !chat.is_protected() {
-                msg.param.remove(Param::GuaranteeE2ee);
-                msg.update_param(context).await?;
+    let Some(chat_id) = chat_id else {
+        return Ok(());
+    };
+
+    let chat = Chat::load_from_db(context, chat_id).await?;
+    for mut msg in msgs {
+        if msg.get_showpadlock() && !chat.is_protected() {
+            msg.param.remove(Param::GuaranteeE2ee);
+            msg.update_param(context).await?;
+        }
+        match msg.get_state() {
+            MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
+                message::update_msg_state(context, msg.id, MessageState::OutPending).await?
             }
-            match msg.get_state() {
-                MessageState::OutFailed | MessageState::OutDelivered | MessageState::OutMdnRcvd => {
-                    message::update_msg_state(context, msg.id, MessageState::OutPending).await?
-                }
-                _ => bail!("unexpected message state"),
-            }
-            context.emit_event(EventType::MsgsChanged {
-                chat_id: msg.chat_id,
-                msg_id: msg.id,
-            });
-            if create_send_msg_job(context, msg.id).await?.is_some() {
-                context
-                    .scheduler
-                    .interrupt_smtp(InterruptInfo::new(false))
-                    .await;
-            }
+            _ => bail!("unexpected message state"),
+        }
+        context.emit_event(EventType::MsgsChanged {
+            chat_id: msg.chat_id,
+            msg_id: msg.id,
+        });
+        if create_send_msg_job(context, &mut msg).await?.is_some() {
+            context
+                .scheduler
+                .interrupt_smtp(InterruptInfo::new(false))
+                .await;
         }
     }
     Ok(())
@@ -3577,7 +3752,6 @@ pub async fn add_device_msg_with_importance(
         chat_id = ChatId::get_for_contact(context, ContactId::DEVICE).await?;
 
         let rfc724_mid = create_outgoing_rfc724_mid(None, "@device");
-        msg.try_calc_and_set_dimensions(context).await.ok();
         prepare_msg_blob(context, msg).await?;
 
         let timestamp_sent = create_smeared_timestamp(context);
@@ -3623,7 +3797,7 @@ pub async fn add_device_msg_with_importance(
                     timestamp_sent, // timestamp_sent equals timestamp_rcvd
                     msg.viewtype,
                     state,
-                    msg.text.as_ref().cloned().unwrap_or_default(),
+                    &msg.text,
                     msg.param.to_string(),
                     rfc724_mid,
                 ),
@@ -3797,7 +3971,7 @@ mod tests {
     use crate::contact::{Contact, ContactAddress};
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{TestContext, TestContextManager};
     use tokio::fs;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3860,7 +4034,7 @@ mod tests {
         let t = TestContext::new().await;
         let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hello".to_string()));
+        msg.set_text("hello".to_string());
 
         chat_id.set_draft(&t, Some(&mut msg)).await.unwrap();
         let draft = chat_id.get_draft(&t).await.unwrap().unwrap();
@@ -3875,12 +4049,12 @@ mod tests {
         let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "abc").await?;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hi!".to_string()));
+        msg.set_text("hi!".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert!(chat_id.get_draft(&t).await?.is_some());
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("another".to_string()));
+        msg.set_text("another".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert!(chat_id.get_draft(&t).await?.is_some());
 
@@ -3895,7 +4069,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hello".to_string()));
+        msg.set_text("hello".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         assert_eq!(msg.id, chat_id.get_draft(&t).await?.unwrap().id);
 
@@ -3909,7 +4083,7 @@ mod tests {
         let t = TestContext::new_alice().await;
         let chat_id = &t.get_self_chat().await.id;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hello".to_string()));
+        msg.set_text("hello".to_string());
         assert_eq!(msg.id, MsgId::new_unset());
         assert!(chat_id.get_draft_msg_id(&t).await?.is_none());
 
@@ -3922,7 +4096,7 @@ mod tests {
         );
         assert_eq!(id_after_1st_set, chat_id.get_draft(&t).await?.unwrap().id);
 
-        msg.set_text(Some("hello2".to_string()));
+        msg.set_text("hello2".to_string());
         chat_id.set_draft(&t, Some(&mut msg)).await?;
         let id_after_2nd_set = msg.id;
 
@@ -3934,7 +4108,7 @@ mod tests {
         let test = chat_id.get_draft(&t).await?.unwrap();
         assert_eq!(id_after_2nd_set, test.id);
         assert_eq!(id_after_2nd_set, msg.id);
-        assert_eq!(test.text, Some("hello2".to_string()));
+        assert_eq!(test.text, "hello2".to_string());
         assert_eq!(test.state, MessageState::OutDraft);
 
         let id_after_prepare = prepare_msg(&t, *chat_id, &mut msg).await?;
@@ -3962,11 +4136,11 @@ mod tests {
 
         // save a draft
         let mut draft = Message::new(Viewtype::Text);
-        draft.set_text(Some("draft text".to_string()));
+        draft.set_text("draft text".to_string());
         chat_id.set_draft(&t, Some(&mut draft)).await?;
 
         let test = Message::load_from_db(&t, draft.id).await?;
-        assert_eq!(test.text, Some("draft text".to_string()));
+        assert_eq!(test.text, "draft text".to_string());
         assert!(test.quoted_text().is_none());
         assert!(test.quoted_message(&t).await?.is_none());
 
@@ -3975,17 +4149,17 @@ mod tests {
         chat_id.set_draft(&t, Some(&mut draft)).await?;
 
         let test = Message::load_from_db(&t, draft.id).await?;
-        assert_eq!(test.text, Some("draft text".to_string()));
+        assert_eq!(test.text, "draft text".to_string());
         assert_eq!(test.quoted_text(), Some("quote1".to_string()));
         assert_eq!(test.quoted_message(&t).await?.unwrap().id, quote1.id);
 
         // change quote on same message object
-        draft.set_text(Some("another draft text".to_string()));
+        draft.set_text("another draft text".to_string());
         draft.set_quote(&t, Some(&quote2)).await?;
         chat_id.set_draft(&t, Some(&mut draft)).await?;
 
         let test = Message::load_from_db(&t, draft.id).await?;
-        assert_eq!(test.text, Some("another draft text".to_string()));
+        assert_eq!(test.text, "another draft text".to_string());
         assert_eq!(test.quoted_text(), Some("quote2".to_string()));
         assert_eq!(test.quoted_message(&t).await?.unwrap().id, quote2.id);
 
@@ -3994,7 +4168,7 @@ mod tests {
         chat_id.set_draft(&t, Some(&mut draft)).await?;
 
         let test = Message::load_from_db(&t, draft.id).await?;
-        assert_eq!(test.text, Some("another draft text".to_string()));
+        assert_eq!(test.text, "another draft text".to_string());
         assert!(test.quoted_text().is_none());
         assert!(test.quoted_message(&t).await?.is_none());
 
@@ -4012,6 +4186,144 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(added, false);
+    }
+
+    /// Test adding and removing members in a group chat.
+    ///
+    /// Make sure messages sent outside contain authname
+    /// and displayed messages contain locally set name.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_member_add_remove() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        // Disable encryption so we can inspect raw message contents.
+        alice.set_config(Config::E2eeEnabled, Some("0")).await?;
+        bob.set_config(Config::E2eeEnabled, Some("0")).await?;
+
+        // Create contact for Bob on the Alice side with name "robert".
+        let alice_bob_contact_id = Contact::create(&alice, "robert", "bob@example.net").await?;
+
+        // Set Bob authname to "Bob" and send it to Alice.
+        bob.set_config(Config::Displayname, Some("Bob")).await?;
+        tcm.send_recv(&bob, &alice, "Hello!").await;
+
+        // Check that Alice has Bob's name set to "robert" and authname set to "Bob".
+        {
+            let alice_bob_contact = Contact::get_by_id(&alice, alice_bob_contact_id).await?;
+            assert_eq!(alice_bob_contact.get_name(), "robert");
+
+            // This is the name that will be sent outside.
+            assert_eq!(alice_bob_contact.get_authname(), "Bob");
+
+            assert_eq!(alice_bob_contact.get_display_name(), "robert");
+        }
+
+        // Create and promote a group.
+        let alice_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        let alice_fiona_contact_id = Contact::create(&alice, "Fiona", "fiona@example.net").await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_fiona_contact_id).await?;
+        let sent = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        assert!(sent.payload.contains("Hi! I created a group."));
+
+        // Alice adds Bob to the chat.
+        add_contact_to_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent
+            .payload
+            .contains("I added member Bob (bob@example.net)."));
+        // Locally set name "robert" should not leak.
+        assert!(!sent.payload.contains("robert"));
+        assert_eq!(
+            sent.load_from_db().await.get_text(),
+            "You added member robert (bob@example.net)."
+        );
+
+        // Alice removes Bob from the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent
+            .payload
+            .contains("I removed member Bob (bob@example.net)."));
+        assert!(!sent.payload.contains("robert"));
+        assert_eq!(
+            sent.load_from_db().await.get_text(),
+            "You removed member robert (bob@example.net)."
+        );
+
+        // Alice leaves the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, ContactId::SELF).await?;
+        let sent = alice.pop_sent_msg().await;
+        assert!(sent.payload.contains("I left the group."));
+        assert_eq!(sent.load_from_db().await.get_text(), "You left the group.");
+
+        Ok(())
+    }
+
+    /// Test simultaneous removal of user from the chat and leaving the group.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_simultaneous_member_remove() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        alice.set_config(Config::E2eeEnabled, Some("0")).await?;
+        bob.set_config(Config::E2eeEnabled, Some("0")).await?;
+
+        let alice_bob_contact_id = Contact::create(&alice, "Bob", "bob@example.net").await?;
+        let alice_fiona_contact_id = Contact::create(&alice, "Fiona", "fiona@example.net").await?;
+        let alice_claire_contact_id =
+            Contact::create(&alice, "Claire", "claire@example.net").await?;
+
+        // Create and promote a group.
+        let alice_chat_id =
+            create_group_chat(&alice, ProtectionStatus::Unprotected, "Group chat").await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        add_contact_to_chat(&alice, alice_chat_id, alice_fiona_contact_id).await?;
+        let alice_sent_msg = alice
+            .send_text(alice_chat_id, "Hi! I created a group.")
+            .await;
+        let bob_received_msg = bob.recv_msg(&alice_sent_msg).await;
+
+        let bob_chat_id = bob_received_msg.get_chat_id();
+        bob_chat_id.accept(&bob).await?;
+
+        // Alice adds Claire to the chat.
+        add_contact_to_chat(&alice, alice_chat_id, alice_claire_contact_id).await?;
+        let alice_sent_add_msg = alice.pop_sent_msg().await;
+
+        // Alice removes Bob from the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let alice_sent_remove_msg = alice.pop_sent_msg().await;
+
+        // Bob leaves the chat.
+        remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+
+        // Bob receives a msg about Alice adding Claire to the group.
+        let bob_received_add_msg = bob.recv_msg(&alice_sent_add_msg).await;
+
+        // Test that add message is rewritten.
+        assert_eq!(
+            bob_received_add_msg.get_text(),
+            "Member claire@example.net added by alice@example.org."
+        );
+
+        // Bob receives a msg about Alice removing him from the group.
+        let bob_received_remove_msg = bob.recv_msg(&alice_sent_remove_msg).await;
+
+        // Test that remove message is rewritten.
+        assert_eq!(
+            bob_received_remove_msg.get_text(),
+            "Member Me (bob@example.net) removed by alice@example.org."
+        );
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -4210,6 +4522,7 @@ mod tests {
         Ok(())
     }
 
+    /// Test that adding or removing contacts in 1:1 chat is not allowed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_add_remove_contact_for_single() {
         let ctx = TestContext::new_alice().await;
@@ -4257,7 +4570,7 @@ mod tests {
         t2.recv_msg(&sent_msg).await;
         let chat = &t2.get_self_chat().await;
         let msg = t2.get_last_msg_in(chat.id).await;
-        assert_eq!(msg.text, Some("foo self".to_string()));
+        assert_eq!(msg.text, "foo self".to_string());
         assert_eq!(msg.from_id, ContactId::SELF);
         assert_eq!(msg.to_id, ContactId::SELF);
         assert!(msg.get_showpadlock());
@@ -4271,12 +4584,12 @@ mod tests {
 
         // add two device-messages
         let mut msg1 = Message::new(Viewtype::Text);
-        msg1.text = Some("first message".to_string());
+        msg1.set_text("first message".to_string());
         let msg1_id = add_device_msg(&t, None, Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.text = Some("second message".to_string());
+        msg2.set_text("second message".to_string());
         let msg2_id = add_device_msg(&t, None, Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert_ne!(msg1_id.as_ref().unwrap(), msg2_id.as_ref().unwrap());
@@ -4285,7 +4598,7 @@ mod tests {
         let msg1 = message::Message::load_from_db(&t, msg1_id.unwrap()).await;
         assert!(msg1.is_ok());
         let msg1 = msg1.unwrap();
-        assert_eq!(msg1.text.as_ref().unwrap(), "first message");
+        assert_eq!(msg1.text, "first message");
         assert_eq!(msg1.from_id, ContactId::DEVICE);
         assert_eq!(msg1.to_id, ContactId::SELF);
         assert!(!msg1.is_info());
@@ -4294,7 +4607,7 @@ mod tests {
         let msg2 = message::Message::load_from_db(&t, msg2_id.unwrap()).await;
         assert!(msg2.is_ok());
         let msg2 = msg2.unwrap();
-        assert_eq!(msg2.text.as_ref().unwrap(), "second message");
+        assert_eq!(msg2.text, "second message");
 
         // check device chat
         assert_eq!(msg2.chat_id.get_msg_cnt(&t).await.unwrap(), 2);
@@ -4306,13 +4619,13 @@ mod tests {
 
         // add two device-messages with the same label (second attempt is not added)
         let mut msg1 = Message::new(Viewtype::Text);
-        msg1.text = Some("first message".to_string());
+        msg1.text = "first message".to_string();
         let msg1_id = add_device_msg(&t, Some("any-label"), Some(&mut msg1)).await;
         assert!(msg1_id.is_ok());
         assert!(!msg1_id.as_ref().unwrap().is_unset());
 
         let mut msg2 = Message::new(Viewtype::Text);
-        msg2.text = Some("second message".to_string());
+        msg2.text = "second message".to_string();
         let msg2_id = add_device_msg(&t, Some("any-label"), Some(&mut msg2)).await;
         assert!(msg2_id.is_ok());
         assert!(msg2_id.as_ref().unwrap().is_unset());
@@ -4320,7 +4633,7 @@ mod tests {
         // check added message
         let msg1 = message::Message::load_from_db(&t, *msg1_id.as_ref().unwrap()).await?;
         assert_eq!(msg1_id.as_ref().unwrap(), &msg1.id);
-        assert_eq!(msg1.text.as_ref().unwrap(), "first message");
+        assert_eq!(msg1.text, "first message");
         assert_eq!(msg1.from_id, ContactId::DEVICE);
         assert_eq!(msg1.to_id, ContactId::SELF);
         assert!(!msg1.is_info());
@@ -4360,7 +4673,7 @@ mod tests {
         assert!(res.is_ok());
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("message text".to_string());
+        msg.set_text("message text".to_string());
 
         let msg_id = add_device_msg(&t, Some("some-label"), Some(&mut msg)).await;
         assert!(msg_id.is_ok());
@@ -4378,7 +4691,7 @@ mod tests {
         assert!(was_device_msg_ever_added(&t, "some-label").await.unwrap());
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("message text".to_string());
+        msg.set_text("message text".to_string());
         add_device_msg(&t, Some("another-label"), Some(&mut msg))
             .await
             .ok();
@@ -4396,7 +4709,7 @@ mod tests {
         let t = TestContext::new().await;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("message text".to_string());
+        msg.set_text("message text".to_string());
         add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .ok();
@@ -4420,7 +4733,7 @@ mod tests {
             .unwrap();
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("message text".to_string());
+        msg.set_text("message text".to_string());
         assert!(send_msg(&t, device_chat_id, &mut msg).await.is_err());
         assert!(prepare_msg(&t, device_chat_id, &mut msg).await.is_err());
 
@@ -4432,7 +4745,7 @@ mod tests {
     async fn test_delete_and_reset_all_device_msgs() {
         let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("message text".to_string());
+        msg.set_text("message text".to_string());
         let msg_id1 = add_device_msg(&t, Some("some-label"), Some(&mut msg))
             .await
             .unwrap();
@@ -4465,7 +4778,7 @@ mod tests {
         // create two chats
         let t = TestContext::new().await;
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("foo".to_string());
+        msg.set_text("foo".to_string());
         let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
         let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await
@@ -4746,7 +5059,7 @@ mod tests {
 
         // create 3 chats, wait 1 second in between to get a reliable order (we order by time)
         let mut msg = Message::new(Viewtype::Text);
-        msg.text = Some("foo".to_string());
+        msg.set_text("foo".to_string());
         let msg_id = add_device_msg(&t, None, Some(&mut msg)).await.unwrap();
         let chat_id1 = message::Message::load_from_db(&t, msg_id)
             .await
@@ -4824,7 +5137,7 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("hi!".into()));
+        msg.set_text("hi!".into());
         let sent_msg = bob.send_msg(bob_chat_id, &mut msg).await;
         let msg = alice.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, alice_chat_id);
@@ -4962,7 +5275,7 @@ mod tests {
         let msg = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_chat_id(), chat_id);
         assert_eq!(msg.get_viewtype(), Viewtype::Text);
-        assert_eq!(msg.get_text().unwrap(), "foo info");
+        assert_eq!(msg.get_text(), "foo info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::Unknown);
         assert!(msg.parent(&t).await?.is_none());
@@ -4989,7 +5302,7 @@ mod tests {
         let msg = Message::load_from_db(&t, msg_id).await?;
         assert_eq!(msg.get_chat_id(), chat_id);
         assert_eq!(msg.get_viewtype(), Viewtype::Text);
-        assert_eq!(msg.get_text().unwrap(), "foo bar info");
+        assert_eq!(msg.get_text(), "foo bar info");
         assert!(msg.is_info());
         assert_eq!(msg.get_info_type(), SystemMessage::EphemeralTimerChanged);
         assert!(msg.parent(&t).await?.is_none());
@@ -4997,72 +5310,6 @@ mod tests {
 
         let msg2 = t.get_last_msg_in(chat_id).await;
         assert_eq!(msg.get_id(), msg2.get_id());
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_set_protection() -> Result<()> {
-        let t = TestContext::new_alice().await;
-        t.set_config_bool(Config::BccSelf, false).await?;
-        let chat_id = create_group_chat(&t, ProtectionStatus::Unprotected, "foo").await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        // enable protection on unpromoted chat, the info-message is added via add_info_msg()
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 1);
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // disable protection again, still unpromoted
-        chat_id
-            .set_protection(&t, ProtectionStatus::Unprotected)
-            .await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionDisabled);
-        assert_eq!(msg.get_state(), MessageState::InNoticed);
-
-        // send a message, this switches to promoted state
-        send_text_msg(&t, chat_id, "hi!".to_string()).await?;
-
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(!chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msgs = get_chat_msgs(&t, chat_id).await?;
-        assert_eq!(msgs.len(), 3);
-
-        // enable protection on promoted chat, the info-message is sent via send_msg() this time
-        chat_id
-            .set_protection(&t, ProtectionStatus::Protected)
-            .await?;
-        let chat = Chat::load_from_db(&t, chat_id).await?;
-        assert!(chat.is_protected());
-        assert!(!chat.is_unpromoted());
-
-        let msg = t.get_last_msg_in(chat_id).await;
-        assert!(msg.is_info());
-        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
-        assert_eq!(msg.get_state(), MessageState::OutDelivered); // as bcc-self is disabled and there is nobody else in the chat
-
         Ok(())
     }
 
@@ -5147,9 +5394,11 @@ mod tests {
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        assert_eq!(msg.match_indices("Gr.").count(), 2);
+        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 1);
+        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
         let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
-        assert_eq!(msg.match_indices("Gr.").count(), 1);
+        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 0);
+        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
         receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
@@ -5174,7 +5423,7 @@ mod tests {
         receive_imf(&alice, msg.as_bytes(), false).await.unwrap();
         let msg = alice.get_last_msg().await;
         assert_eq!(msg.chat_id, alice_chat_id);
-        assert_eq!(msg.text, Some("ho!".to_string()));
+        assert_eq!(msg.text, "ho!".to_string());
         assert_eq!(get_chat_msgs(&alice, alice_chat_id).await?.len(), 2);
         Ok(())
     }
@@ -5369,7 +5618,13 @@ mod tests {
         Ok(())
     }
 
-    async fn test_sticker(filename: &str, bytes: &[u8], w: i32, h: i32) -> Result<()> {
+    async fn test_sticker(
+        filename: &str,
+        bytes: &[u8],
+        res_viewtype: Viewtype,
+        w: i32,
+        h: i32,
+    ) -> Result<()> {
         let alice = TestContext::new_alice().await;
         let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
@@ -5383,12 +5638,19 @@ mod tests {
 
         let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
         let mime = sent_msg.payload();
-        assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+        if res_viewtype == Viewtype::Sticker {
+            assert_eq!(mime.match_indices("Chat-Content: sticker").count(), 1);
+        }
 
         let msg = bob.recv_msg(&sent_msg).await;
         assert_eq!(msg.chat_id, bob_chat.id);
-        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
-        assert_eq!(msg.get_filename(), Some(filename.to_string()));
+        assert_eq!(msg.get_viewtype(), res_viewtype);
+        let msg_filename = msg.get_filename().unwrap();
+        match res_viewtype {
+            Viewtype::Sticker => assert_eq!(msg_filename, filename),
+            Viewtype::Image => assert!(msg_filename.starts_with("image_")),
+            _ => panic!("Not implemented"),
+        }
         assert_eq!(msg.get_width(), w);
         assert_eq!(msg.get_height(), h);
         assert!(msg.get_filebytes(&bob).await?.unwrap() > 250);
@@ -5400,9 +5662,10 @@ mod tests {
     async fn test_sticker_png() -> Result<()> {
         test_sticker(
             "sticker.png",
-            include_bytes!("../test-data/image/avatar64x64.png"),
-            64,
-            64,
+            include_bytes!("../test-data/image/logo.png"),
+            Viewtype::Sticker,
+            135,
+            135,
         )
         .await
     }
@@ -5412,6 +5675,7 @@ mod tests {
         test_sticker(
             "sticker.jpg",
             include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+            Viewtype::Image,
             1000,
             1000,
         )
@@ -5419,12 +5683,58 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sticker_jpeg_force() {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let alice_chat = alice.create_chat(&bob).await;
+
+        let file = alice.get_blobdir().join("sticker.jpg");
+        tokio::fs::write(
+            &file,
+            include_bytes!("../test-data/image/avatar1000x1000.jpg"),
+        )
+        .await
+        .unwrap();
+
+        // Images without force_sticker should be turned into [Viewtype::Image]
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Image);
+
+        // Images with `force_sticker = true` should keep [Viewtype::Sticker]
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        msg.force_sticker();
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+
+        // Images with `force_sticker = true` should keep [Viewtype::Sticker]
+        // even on drafted messages
+        let mut msg = Message::new(Viewtype::Sticker);
+        msg.set_file(file.to_str().unwrap(), None);
+        msg.force_sticker();
+        alice_chat
+            .id
+            .set_draft(&alice, Some(&mut msg))
+            .await
+            .unwrap();
+        let mut msg = alice_chat.id.get_draft(&alice).await.unwrap().unwrap();
+        let sent_msg = alice.send_msg(alice_chat.id, &mut msg).await;
+        let msg = bob.recv_msg(&sent_msg).await;
+        assert_eq!(msg.get_viewtype(), Viewtype::Sticker);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_sticker_gif() -> Result<()> {
         test_sticker(
             "sticker.gif",
-            include_bytes!("../test-data/image/image100x50.gif"),
-            100,
-            50,
+            include_bytes!("../test-data/image/logo.gif"),
+            Viewtype::Sticker,
+            135,
+            135,
         )
         .await
     }
@@ -5438,8 +5748,8 @@ mod tests {
         let bob_chat = bob.create_chat(&alice).await;
 
         // create sticker
-        let file_name = "sticker.jpg";
-        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        let file_name = "sticker.png";
+        let bytes = include_bytes!("../test-data/image/logo.png");
         let file = alice.get_blobdir().join(file_name);
         tokio::fs::write(&file, bytes).await?;
         let mut msg = Message::new(Viewtype::Sticker);
@@ -5468,7 +5778,7 @@ mod tests {
         let bob_chat = bob.create_chat(&alice).await;
 
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("Hi Bob".to_owned()));
+        msg.set_text("Hi Bob".to_owned());
         let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
         let msg = bob.recv_msg(&sent_msg).await;
 
@@ -5476,7 +5786,7 @@ mod tests {
 
         let forwarded_msg = bob.pop_sent_msg().await;
         let msg = alice.recv_msg(&forwarded_msg).await;
-        assert!(msg.get_text().unwrap() == "Hi Bob");
+        assert_eq!(msg.get_text(), "Hi Bob");
         assert!(msg.is_forwarded());
         Ok(())
     }
@@ -5491,7 +5801,7 @@ mod tests {
         add_contact_to_chat(&t, chat_id1, bob_id).await?;
         let msg1 = t.get_last_msg_in(chat_id1).await;
         assert!(msg1.is_info());
-        assert!(msg1.get_text().unwrap().contains("bob@example.net"));
+        assert!(msg1.get_text().contains("bob@example.net"));
 
         let chat_id2 = ChatId::create_for_contact(&t, bob_id).await?;
         assert_eq!(get_chat_msgs(&t, chat_id2).await?.len(), 0);
@@ -5501,7 +5811,7 @@ mod tests {
         assert_eq!(msg2.get_info_type(), SystemMessage::Unknown);
         assert_ne!(msg2.from_id, ContactId::INFO);
         assert_ne!(msg2.to_id, ContactId::INFO);
-        assert_eq!(msg2.get_text().unwrap(), msg1.get_text().unwrap());
+        assert_eq!(msg2.get_text(), msg1.get_text());
         assert!(msg2.is_forwarded());
 
         Ok(())
@@ -5520,7 +5830,7 @@ mod tests {
 
         // Bob quotes received message and sends a reply to Alice.
         let mut reply = Message::new(Viewtype::Text);
-        reply.set_text(Some("Reply".to_owned()));
+        reply.set_text("Reply".to_owned());
         reply.set_quote(&bob, Some(&received_msg)).await?;
         let sent_reply = bob.send_msg(bob_chat.id, &mut reply).await;
         let received_reply = alice.recv_msg(&sent_reply).await;
@@ -5571,13 +5881,13 @@ mod tests {
         // Alice sends a message to Bob.
         let sent_msg = alice.send_text(alice_chat.id, "Hi Bob").await;
         let received_msg = bob.recv_msg(&sent_msg).await;
-        assert_eq!(received_msg.get_text(), Some("Hi Bob".to_string()));
+        assert_eq!(received_msg.get_text(), "Hi Bob");
         assert_eq!(received_msg.chat_id, bob_chat.id);
 
         // Alice sends another message to Bob, this has first message as a parent.
         let sent_msg = alice.send_text(alice_chat.id, "Hello Bob").await;
         let received_msg = bob.recv_msg(&sent_msg).await;
-        assert_eq!(received_msg.get_text(), Some("Hello Bob".to_string()));
+        assert_eq!(received_msg.get_text(), "Hello Bob");
         assert_eq!(received_msg.chat_id, bob_chat.id);
 
         // Bob forwards message to a group chat with Alice.
@@ -5604,7 +5914,7 @@ mod tests {
             create_group_chat(&alice, ProtectionStatus::Unprotected, "secretgrpname").await?;
         add_contact_to_chat(&alice, group_id, bob_id).await?;
         let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(Some("bla foo".to_owned()));
+        msg.set_text("bla foo".to_owned());
         let sent_msg = alice.send_msg(group_id, &mut msg).await;
         assert!(sent_msg.payload().contains("secretgrpname"));
         assert!(sent_msg.payload().contains("secretname"));
@@ -5661,7 +5971,7 @@ mod tests {
         // Bob receives all messages
         let bob = TestContext::new_bob().await;
         let msg = bob.recv_msg(&sent1).await;
-        assert_eq!(msg.get_text().unwrap(), "alice->bob");
+        assert_eq!(msg.get_text(), "alice->bob");
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
         assert_eq!(get_chat_msgs(&bob, msg.chat_id).await?.len(), 1);
         bob.recv_msg(&sent2).await;
@@ -5678,7 +5988,7 @@ mod tests {
         claire.configure_addr("claire@example.org").await;
         claire.recv_msg(&sent2).await;
         let msg = claire.recv_msg(&sent3).await;
-        assert_eq!(msg.get_text().unwrap(), "alice->bob");
+        assert_eq!(msg.get_text(), "alice->bob");
         assert_eq!(get_chat_contacts(&claire, msg.chat_id).await?.len(), 3);
         assert_eq!(get_chat_msgs(&claire, msg.chat_id).await?.len(), 2);
         let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
@@ -5816,22 +6126,40 @@ mod tests {
             get_chat_contacts(&alice, chat_bob.id).await?.pop().unwrap(),
         )
         .await?;
-        let chat = Chat::load_from_db(&alice, broadcast_id).await?;
-        assert_eq!(chat.typ, Chattype::Broadcast);
-        assert_eq!(chat.name, stock_str::broadcast_list(&alice).await);
-        assert!(!chat.is_self_talk());
+        set_chat_name(&alice, broadcast_id, "Broadcast list").await?;
+        {
+            let chat = Chat::load_from_db(&alice, broadcast_id).await?;
+            assert_eq!(chat.typ, Chattype::Broadcast);
+            assert_eq!(chat.name, "Broadcast list");
+            assert!(!chat.is_self_talk());
 
-        send_text_msg(&alice, broadcast_id, "ola!".to_string()).await?;
-        let msg = alice.get_last_msg().await;
-        assert_eq!(msg.chat_id, chat.id);
+            send_text_msg(&alice, broadcast_id, "ola!".to_string()).await?;
+            let msg = alice.get_last_msg().await;
+            assert_eq!(msg.chat_id, chat.id);
+        }
 
-        let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
-        assert_eq!(msg.get_text(), Some("ola!".to_string()));
-        assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
-        let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
-        assert_eq!(chat.typ, Chattype::Single);
-        assert_eq!(chat.id, chat_bob.id);
-        assert!(!chat.is_self_talk());
+        {
+            let msg = bob.recv_msg(&alice.pop_sent_msg().await).await;
+            assert_eq!(msg.get_text(), "ola!");
+            assert_eq!(msg.subject, "Broadcast list");
+            assert!(!msg.get_showpadlock()); // avoid leaking recipients in encryption data
+            let chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+            assert_eq!(chat.typ, Chattype::Mailinglist);
+            assert_ne!(chat.id, chat_bob.id);
+            assert_eq!(chat.name, "Broadcast list");
+            assert!(!chat.is_self_talk());
+        }
+
+        {
+            // Alice changes the name:
+            set_chat_name(&alice, broadcast_id, "My great broadcast").await?;
+            let sent = alice.send_text(broadcast_id, "I changed the title!").await;
+
+            let msg = bob.recv_msg(&sent).await;
+            assert_eq!(msg.subject, "Re: My great broadcast");
+            let bob_chat = Chat::load_from_db(&bob, msg.chat_id).await?;
+            assert_eq!(bob_chat.name, "My great broadcast");
+        }
 
         Ok(())
     }
@@ -5976,7 +6304,7 @@ mod tests {
             chat_id1,
             Viewtype::Sticker,
             "b.png",
-            include_bytes!("../test-data/image/avatar64x64.png"),
+            include_bytes!("../test-data/image/logo.png"),
         )
         .await?;
         let second_image_msg_id = send_media(

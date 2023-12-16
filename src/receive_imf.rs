@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 
-use anyhow::{bail, ensure, Context as _, Result};
+use anyhow::{Context as _, Result};
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -14,7 +14,7 @@ use crate::chat::{self, Chat, ChatId, ChatIdBlocked, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{Blocked, Chattype, ShowEmails, DC_CHAT_ID_TRASH};
 use crate::contact::{
-    may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin, VerifiedStatus,
+    may_be_valid_addr, normalize_name, Contact, ContactAddress, ContactId, Origin,
 };
 use crate::context::Context;
 use crate::debug_logging::maybe_set_logging_xdc_inner;
@@ -28,13 +28,12 @@ use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, Message, MessageState, MessengerMessage, MsgId, Viewtype,
 };
-use crate::mimeparser::{
-    parse_message_ids, AvatarAction, MailinglistType, MimeMessage, SystemMessage,
-};
+use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
 use crate::peerstate::{Peerstate, PeerstateKeyType, PeerstateVerifiedStatus};
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
+use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{
@@ -74,7 +73,26 @@ pub async fn receive_imf(
     seen: bool,
 ) -> Result<Option<ReceivedMsg>> {
     let mail = parse_mail(imf_raw).context("can't parse mail")?;
-    let rfc724_mid = imap::prefetch_get_or_create_message_id(&mail.headers);
+    let rfc724_mid =
+        imap::prefetch_get_message_id(&mail.headers).unwrap_or_else(imap::create_message_id);
+    if let Some(download_limit) = context.download_limit().await? {
+        let download_limit: usize = download_limit.try_into()?;
+        if imf_raw.len() > download_limit {
+            let head = std::str::from_utf8(imf_raw)?
+                .split("\r\n\r\n")
+                .next()
+                .context("No empty line in the message")?;
+            return receive_imf_inner(
+                context,
+                &rfc724_mid,
+                head.as_bytes(),
+                seen,
+                Some(imf_raw.len().try_into()?),
+                false,
+            )
+            .await;
+        }
+    }
     receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
 }
 
@@ -112,20 +130,19 @@ pub(crate) async fn receive_imf_inner(
     {
         Err(err) => {
             warn!(context, "receive_imf: can't parse MIME: {err:#}.");
-            let msg_ids;
-            if !rfc724_mid.starts_with(GENERATED_PREFIX) {
-                let row_id = context
-                    .sql
-                    .execute(
-                        "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
-                        (rfc724_mid, DC_CHAT_ID_TRASH),
-                    )
-                    .await?;
-                msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
-            } else {
-                return Ok(None);
+            if rfc724_mid.starts_with(GENERATED_PREFIX) {
                 // We don't have an rfc724_mid, there's no point in adding a trash entry
+                return Ok(None);
             }
+
+            let row_id = context
+                .sql
+                .execute(
+                    "INSERT INTO msgs(rfc724_mid, chat_id) VALUES (?,?)",
+                    (rfc724_mid, DC_CHAT_ID_TRASH),
+                )
+                .await?;
+            let msg_ids = vec![MsgId::new(u32::try_from(row_id)?)];
 
             return Ok(Some(ReceivedMsg {
                 chat_id: DC_CHAT_ID_TRASH,
@@ -138,17 +155,11 @@ pub(crate) async fn receive_imf_inner(
         Ok(mime_parser) => mime_parser,
     };
 
-    // we can not add even an empty record if we have no info whatsoever
-    if !mime_parser.has_headers() {
-        warn!(context, "receive_imf: no headers found.");
-        return Ok(None);
-    }
-
     info!(context, "Received message has Message-Id: {rfc724_mid}");
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
-    let replace_partial_download =
+    let (replace_partial_download, replace_chat_id) =
         if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
@@ -157,14 +168,14 @@ pub(crate) async fn receive_imf_inner(
                     context,
                     "Message already partly in DB, replacing by full message."
                 );
-                Some(old_msg_id)
+                (Some(old_msg_id), Some(msg.chat_id))
             } else {
                 // the message was probably moved around.
                 info!(context, "Message already in DB, doing nothing.");
                 return Ok(None);
             }
         } else {
-            None
+            (None, None)
         };
 
     let prevent_rename =
@@ -309,28 +320,25 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    // Always update the status, even if there is no footer, to allow removing the status.
-    //
-    // Ignore MDNs though, as they never contain the signature even if user has set it.
     // Ignore footers from mailinglists as they are often created or modified by the mailinglist software.
-    if mime_parser.mdn_reports.is_empty()
-        && !mime_parser.is_mailinglist_message()
-        && is_partial_download.is_none()
-        && from_id != ContactId::UNDEFINED
-        && context
-            .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
-            .await?
-    {
-        if let Err(err) = contact::set_status(
-            context,
-            from_id,
-            mime_parser.footer.clone().unwrap_or_default(),
-            mime_parser.was_encrypted(),
-            mime_parser.has_chat_version(),
-        )
-        .await
+    if let Some(footer) = &mime_parser.footer {
+        if !mime_parser.is_mailinglist_message()
+            && from_id != ContactId::UNDEFINED
+            && context
+                .update_contacts_timestamp(from_id, Param::StatusTimestamp, sent_timestamp)
+                .await?
         {
-            warn!(context, "Cannot update contact status: {err:#}.");
+            if let Err(err) = contact::set_status(
+                context,
+                from_id,
+                footer.to_string(),
+                mime_parser.was_encrypted(),
+                mime_parser.has_chat_version(),
+            )
+            .await
+            {
+                warn!(context, "Cannot update contact status: {err:#}.");
+            }
         }
     }
 
@@ -355,8 +363,8 @@ pub(crate) async fn receive_imf_inner(
         }
     }
 
-    if replace_partial_download.is_some() {
-        context.emit_msgs_changed(chat_id, MsgId::new(0));
+    if let Some(replace_chat_id) = replace_chat_id {
+        context.emit_msgs_changed(replace_chat_id, MsgId::new(0));
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
@@ -368,6 +376,8 @@ pub(crate) async fn receive_imf_inner(
     mime_parser
         .handle_reports(context, from_id, sent_timestamp, &mime_parser.parts)
         .await;
+
+    from_id.mark_bot(context, mime_parser.is_bot).await?;
 
     Ok(Some(received_msg))
 }
@@ -413,7 +423,7 @@ pub async fn from_field_to_contact_id(
     } else {
         let mut from_id_blocked = false;
         let mut incoming_origin = Origin::Unknown;
-        if let Ok(contact) = Contact::load_from_db(context, from_id).await {
+        if let Ok(contact) = Contact::get_by_id(context, from_id).await {
             from_id_blocked = contact.blocked;
             incoming_origin = contact.origin;
         }
@@ -524,6 +534,10 @@ async fn add_parts(
                     securejoin_seen = true;
                 }
             }
+            // Peerstate could be updated by handling the Securejoin handshake.
+            let contact = Contact::get_by_id(context, from_id).await?;
+            mime_parser.decryption_info.peerstate =
+                Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
             securejoin_seen = false;
         }
@@ -554,13 +568,30 @@ async fn add_parts(
         // signals whether the current user is a bot
         let is_bot = context.get_config_bool(Config::Bot).await?;
 
-        let create_blocked = match test_normal_chat {
-            Some(ChatIdBlocked {
-                id: _,
-                blocked: Blocked::Request,
-            }) if is_bot => Blocked::Not,
-            Some(ChatIdBlocked { id: _, blocked }) => blocked,
-            None => Blocked::Request,
+        let create_blocked_default = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let create_blocked = if let Some(ChatIdBlocked { id: _, blocked }) = test_normal_chat {
+            match blocked {
+                Blocked::Request => create_blocked_default,
+                Blocked::Not => Blocked::Not,
+                Blocked::Yes => {
+                    if Contact::is_blocked_load(context, from_id).await? {
+                        // User has blocked the contact.
+                        // Block the group contact created as well.
+                        Blocked::Yes
+                    } else {
+                        // 1:1 chat is blocked, but the contact is not.
+                        // This happens when 1:1 chat is hidden
+                        // during scanning of a group invitation code.
+                        Blocked::Request
+                    }
+                }
+            }
+        } else {
+            create_blocked_default
         };
 
         if chat_id.is_none() {
@@ -569,6 +600,7 @@ async fn add_parts(
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                 context,
                 mime_parser,
+                is_partial_download.is_some(),
                 if test_normal_chat.is_none() {
                     allow_creation
                 } else {
@@ -596,12 +628,17 @@ async fn add_parts(
 
         // In lookup_chat_by_reply() and create_or_lookup_group(), it can happen that the message is put into a chat
         // but the From-address is not a member of this chat.
-        if let Some(chat_id) = chat_id {
-            if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
-                let chat = Chat::load_from_db(context, chat_id).await?;
+        if let Some(group_chat_id) = chat_id {
+            if !chat::is_contact_in_chat(context, group_chat_id, from_id).await? {
+                let chat = Chat::load_from_db(context, group_chat_id).await?;
                 if chat.is_protected() {
-                    let s = stock_str::unknown_sender_for_chat(context).await;
-                    mime_parser.repl_msg_by_error(&s);
+                    if chat.typ == Chattype::Single {
+                        // Just assign the message to the 1:1 chat with the actual sender instead.
+                        chat_id = None;
+                    } else {
+                        let s = stock_str::unknown_sender_for_chat(context).await;
+                        mime_parser.repl_msg_by_error(&s);
+                    }
                 } else {
                     // In non-protected chats, just mark the sender as overridden. Therefore, the UI will prepend `~`
                     // to the sender's name, indicating to the user that he/she is not part of the group.
@@ -617,7 +654,7 @@ async fn add_parts(
                 context,
                 mime_parser,
                 sent_timestamp,
-                chat_id,
+                group_chat_id,
                 from_id,
                 to_ids,
             )
@@ -626,45 +663,23 @@ async fn add_parts(
 
         if chat_id.is_none() {
             // check if the message belongs to a mailing list
-            match mime_parser.get_mailinglist_type() {
-                MailinglistType::ListIdBased => {
-                    if let Some(list_id) = mime_parser.get_header(HeaderDef::ListId) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                list_id,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
+            if let Some(mailinglist_header) = mime_parser.get_mailinglist_header() {
+                if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_mailinglist(
+                    context,
+                    allow_creation,
+                    mailinglist_header,
+                    mime_parser,
+                )
+                .await?
+                {
+                    chat_id = Some(new_chat_id);
+                    chat_id_blocked = new_chat_id_blocked;
                 }
-                MailinglistType::SenderBased => {
-                    if let Some(sender) = mime_parser.get_header(HeaderDef::Sender) {
-                        if let Some((new_chat_id, new_chat_id_blocked)) =
-                            create_or_lookup_mailinglist(
-                                context,
-                                allow_creation,
-                                sender,
-                                mime_parser,
-                            )
-                            .await?
-                        {
-                            chat_id = Some(new_chat_id);
-                            chat_id_blocked = new_chat_id_blocked;
-                        }
-                    }
-                }
-                MailinglistType::None => {}
             }
         }
 
         if let Some(chat_id) = chat_id {
-            apply_mailinglist_changes(context, mime_parser, chat_id).await?;
+            apply_mailinglist_changes(context, mime_parser, sent_timestamp, chat_id).await?;
         }
 
         // if contact renaming is prevented (for mailinglists and bots),
@@ -682,7 +697,7 @@ async fn add_parts(
             let create_blocked = if from_id == ContactId::SELF {
                 Blocked::Not
             } else {
-                let contact = Contact::load_from_db(context, from_id).await?;
+                let contact = Contact::get_by_id(context, from_id).await?;
                 match contact.is_blocked() {
                     true => Blocked::Yes,
                     false if is_bot => Blocked::Not,
@@ -718,6 +733,51 @@ async fn add_parts(
                             context,
                             "Message is a reply to a known message, mark sender as known.",
                         );
+                    }
+                }
+
+                // Check if the message was sent with verified encryption and set the protection of
+                // the 1:1 chat accordingly.
+                let chat = match is_partial_download.is_none()
+                    && mime_parser.get_header(HeaderDef::SecureJoin).is_none()
+                    && !is_mdn
+                {
+                    true => Some(Chat::load_from_db(context, chat_id).await?)
+                        .filter(|chat| chat.typ == Chattype::Single),
+                    false => None,
+                };
+                if let Some(chat) = chat {
+                    let mut new_protection = match has_verified_encryption(
+                        context,
+                        mime_parser,
+                        from_id,
+                        to_ids,
+                        Chattype::Single,
+                    )
+                    .await?
+                    {
+                        VerifiedEncryption::Verified => ProtectionStatus::Protected,
+                        VerifiedEncryption::NotVerified(_) => ProtectionStatus::Unprotected,
+                    };
+
+                    if chat.protected != ProtectionStatus::Unprotected
+                        && new_protection == ProtectionStatus::Unprotected
+                        // `chat.protected` must be maintained regardless of the `Config::VerifiedOneOnOneChats`.
+                        // That's why the config is checked here, and not above.
+                        && context.get_config_bool(Config::VerifiedOneOnOneChats).await?
+                    {
+                        new_protection = ProtectionStatus::ProtectionBroken;
+                    }
+                    if chat.protected != new_protection {
+                        // The message itself will be sorted under the device message since the device
+                        // message is `MessageState::InNoticed`, which means that all following
+                        // messages are sorted under it.
+                        let sort_timestamp =
+                            calc_sort_timestamp(context, sent_timestamp, chat_id, true, incoming)
+                                .await?;
+                        chat_id
+                            .set_protection(context, new_protection, sort_timestamp, Some(from_id))
+                            .await?;
                     }
                 }
             }
@@ -795,6 +855,7 @@ async fn add_parts(
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
                     context,
                     mime_parser,
+                    is_partial_download.is_some(),
                     allow_creation,
                     Blocked::Not,
                     from_id,
@@ -807,7 +868,7 @@ async fn add_parts(
                 }
             }
             if chat_id.is_none() && allow_creation {
-                let to_contact = Contact::load_from_db(context, to_id).await?;
+                let to_contact = Contact::get_by_id(context, to_id).await?;
                 if let Some(list_id) = to_contact.param.get(Param::ListId) {
                     if let Some((id, _, blocked)) =
                         chat::get_chat_id_by_grpid(context, list_id).await?
@@ -907,7 +968,8 @@ async fn add_parts(
     };
 
     let in_fresh = state == MessageState::InFresh;
-    let sort_timestamp = calc_sort_timestamp(context, sent_timestamp, chat_id, in_fresh).await?;
+    let sort_timestamp =
+        calc_sort_timestamp(context, sent_timestamp, chat_id, false, incoming).await?;
 
     // Apply ephemeral timer changes to the chat.
     //
@@ -986,42 +1048,14 @@ async fn add_parts(
     // if a chat is protected and the message is fully downloaded, check additional properties
     if !chat_id.is_special() && is_partial_download.is_none() {
         let chat = Chat::load_from_db(context, chat_id).await?;
-        let new_status = match mime_parser.is_system_message {
-            SystemMessage::ChatProtectionEnabled => Some(ProtectionStatus::Protected),
-            SystemMessage::ChatProtectionDisabled => Some(ProtectionStatus::Unprotected),
-            _ => None,
-        };
 
-        if chat.is_protected() || new_status.is_some() {
-            if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await
+        if chat.is_protected() {
+            if let VerifiedEncryption::NotVerified(err) =
+                has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
             {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
                 mime_parser.repl_msg_by_error(&s);
-            } else {
-                // change chat protection only when verification check passes
-                if let Some(new_status) = new_status {
-                    if chat_id
-                        .update_timestamp(
-                            context,
-                            Param::ProtectionSettingsTimestamp,
-                            sent_timestamp,
-                        )
-                        .await?
-                    {
-                        if let Err(e) = chat_id.inner_set_protection(context, new_status).await {
-                            chat::add_info_msg(
-                                context,
-                                chat_id,
-                                &format!("Cannot set protection: {e}"),
-                                sort_timestamp,
-                            )
-                            .await?;
-                            // do not return an error as this would result in retrying the message
-                        }
-                    }
-                    better_msg = Some(context.stock_protection_msg(new_status, from_id).await);
-                }
             }
         }
     }
@@ -1070,7 +1104,7 @@ async fn add_parts(
     let mut save_mime_modified = mime_parser.is_mime_modified;
 
     let mime_headers = if save_mime_headers || save_mime_modified {
-        let headers = if mime_parser.was_encrypted() && !mime_parser.decoded_data.is_empty() {
+        let headers = if !mime_parser.decoded_data.is_empty() {
             mime_parser.decoded_data.clone()
         } else {
             imf_raw.to_vec()
@@ -1084,12 +1118,13 @@ async fn add_parts(
 
     for part in &mut mime_parser.parts {
         if part.is_reaction {
+            let reaction_str = simplify::remove_footers(part.msg.as_str());
             set_msg_reaction(
                 context,
                 &mime_in_reply_to,
                 orig_chat_id.unwrap_or_default(),
                 from_id,
-                Reaction::from(part.msg.as_str()),
+                Reaction::from(reaction_str.as_str()),
             )
             .await?;
         }
@@ -1120,7 +1155,8 @@ async fn add_parts(
             (&part.msg, part.typ)
         };
 
-        let part_is_empty = part.msg.is_empty() && part.param.get(Param::Quote).is_none();
+        let part_is_empty =
+            typ == Viewtype::Text && msg.is_empty() && part.param.get(Param::Quote).is_none();
         let mime_modified = save_mime_modified && !part_is_empty;
         if mime_modified {
             // Avoid setting mime_modified for more than one part.
@@ -1145,7 +1181,8 @@ async fn add_parts(
 
         // If you change which information is skipped if the message is trashed,
         // also change `MsgId::trash()` and `delete_expired_messages()`
-        let trash = chat_id.is_trash() || (is_location_kml && msg.is_empty());
+        let trash =
+            chat_id.is_trash() || (is_location_kml && msg.is_empty() && typ == Viewtype::Text);
 
         let row_id = context
             .sql
@@ -1174,15 +1211,16 @@ INSERT INTO msgs
   )
 ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
-    from_id=excluded.from_id, to_id=excluded.to_id, timestamp=excluded.timestamp, timestamp_sent=excluded.timestamp_sent,
-    timestamp_rcvd=excluded.timestamp_rcvd, type=excluded.type, state=excluded.state, msgrmsg=excluded.msgrmsg,
+    from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
+    type=excluded.type, msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
     bytes=excluded.bytes, mime_headers=excluded.mime_headers,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,
     mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
     ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
+RETURNING id
 "#)?;
-                stmt.execute(params![
+                let row_id: MsgId = stmt.query_row(params![
                     replace_msg_id,
                     rfc724_mid,
                     if trash { DC_CHAT_ID_TRASH } else { chat_id },
@@ -1217,12 +1255,18 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
                     ephemeral_timestamp,
                     if is_partial_download.is_some() {
                         DownloadState::Available
+                    } else if mime_parser.decrypting_failed {
+                        DownloadState::Undecipherable
                     } else {
                         DownloadState::Done
                     },
                     mime_parser.hop_info
-                ])?;
-                let row_id = conn.last_insert_rowid();
+                ],
+                |row| {
+                    let msg_id: MsgId = row.get(0)?;
+                    Ok(msg_id)
+                }
+                )?;
                 Ok(row_id)
             })
             .await?;
@@ -1231,7 +1275,8 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
         // afterwards insert additional parts.
         replace_msg_id = None;
 
-        created_db_entries.push(MsgId::new(u32::try_from(row_id)?));
+        debug_assert!(!row_id.is_special());
+        created_db_entries.push(row_id);
     }
 
     // check all parts whether they contain a new logging webxdc
@@ -1250,7 +1295,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
 
     if let Some(replace_msg_id) = replace_msg_id {
         // "Replace" placeholder with a message that has no parts.
-        replace_msg_id.delete_from_db(context).await?;
+        replace_msg_id.trash(context).await?;
     }
 
     chat_id.unarchive_if_not_muted(context, state).await?;
@@ -1357,25 +1402,43 @@ async fn calc_sort_timestamp(
     context: &Context,
     message_timestamp: i64,
     chat_id: ChatId,
-    is_fresh_msg: bool,
+    always_sort_to_bottom: bool,
+    incoming: bool,
 ) -> Result<i64> {
     let mut sort_timestamp = message_timestamp;
 
-    // get newest non fresh message for this chat
-    // update sort_timestamp if less than that
-    if is_fresh_msg {
-        let last_msg_time: Option<i64> = context
+    let last_msg_time: Option<i64> = if always_sort_to_bottom {
+        // get newest message for this chat
+        context
+            .sql
+            .query_get_value(
+                "SELECT MAX(timestamp) FROM msgs WHERE chat_id=?",
+                (chat_id,),
+            )
+            .await?
+    } else if incoming {
+        // get newest non fresh message for this chat.
+
+        // If a user hasn't been online for some time, the Inbox is fetched first and then the
+        // Sentbox. In order for Inbox and Sent messages to be allowed to mingle, outgoing messages
+        // are purely sorted by their sent timestamp. NB: The Inbox must be fetched first otherwise
+        // Inbox messages would be always below old Sentbox messages. We could take in the query
+        // below only incoming messages, but then new incoming messages would mingle with just sent
+        // outgoing ones and apear somewhere in the middle of the chat.
+        context
             .sql
             .query_get_value(
                 "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? AND state>?",
                 (chat_id, MessageState::InFresh),
             )
-            .await?;
+            .await?
+    } else {
+        None
+    };
 
-        if let Some(last_msg_time) = last_msg_time {
-            if last_msg_time > sort_timestamp {
-                sort_timestamp = last_msg_time;
-            }
+    if let Some(last_msg_time) = last_msg_time {
+        if last_msg_time > sort_timestamp {
+            sort_timestamp = last_msg_time;
         }
     }
 
@@ -1391,49 +1454,53 @@ async fn lookup_chat_by_reply(
 ) -> Result<Option<(ChatId, Blocked)>> {
     // Try to assign message to the same chat as the parent message.
 
-    if let Some(parent) = parent {
-        let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
+    let Some(parent) = parent else {
+        return Ok(None);
+    };
 
-        if parent.error.is_some() {
-            // If the parent msg is undecipherable, then it may have been assigned to the wrong chat
-            // (undecipherable group msgs often get assigned to the 1:1 chat with the sender).
-            // We don't have any way of finding out whether a msg is undecipherable, so we check for
-            // error.is_some() instead.
-            return Ok(None);
-        }
+    let parent_chat = Chat::load_from_db(context, parent.chat_id).await?;
 
-        if parent_chat.id == DC_CHAT_ID_TRASH {
-            return Ok(None);
-        }
-
-        // If this was a private message just to self, it was probably a private reply.
-        // It should not go into the group then, but into the private chat.
-        if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
-            return Ok(None);
-        }
-
-        // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
-        // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
-        // newly created ad-hoc group.
-        if parent_chat.typ == Chattype::Single
-            && !mime_parser.has_chat_version()
-            && to_ids.len() > 1
-        {
-            let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
-            chat_contacts.push(ContactId::SELF);
-            if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
-                return Ok(None);
-            }
-        }
-
-        info!(
-            context,
-            "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
-        );
-        return Ok(Some((parent_chat.id, parent_chat.blocked)));
+    if parent.download_state != DownloadState::Done
+        // TODO (2023-09-12): Added for backward compatibility with versions that did not have
+        // `DownloadState::Undecipherable`. Remove eventually with the comment in
+        // `MimeMessage::from_bytes()`.
+        || parent
+            .error
+            .as_ref()
+            .filter(|e| e.starts_with("Decrypting failed:"))
+            .is_some()
+    {
+        // If the parent msg is not fully downloaded or undecipherable, it may have been
+        // assigned to the wrong chat (they often get assigned to the 1:1 chat with the sender).
+        return Ok(None);
     }
 
-    Ok(None)
+    if parent_chat.id == DC_CHAT_ID_TRASH {
+        return Ok(None);
+    }
+
+    // If this was a private message just to self, it was probably a private reply.
+    // It should not go into the group then, but into the private chat.
+    if is_probably_private_reply(context, to_ids, from_id, mime_parser, parent_chat.id).await? {
+        return Ok(None);
+    }
+
+    // If the parent chat is a 1:1 chat, and the sender is a classical MUA and added
+    // a new person to TO/CC, then the message should not go to the 1:1 chat, but to a
+    // newly created ad-hoc group.
+    if parent_chat.typ == Chattype::Single && !mime_parser.has_chat_version() && to_ids.len() > 1 {
+        let mut chat_contacts = chat::get_chat_contacts(context, parent_chat.id).await?;
+        chat_contacts.push(ContactId::SELF);
+        if to_ids.iter().any(|id| !chat_contacts.contains(id)) {
+            return Ok(None);
+        }
+    }
+
+    info!(
+        context,
+        "Assigning message to {} as it's a reply to {}.", parent_chat.id, parent.rfc724_mid
+    );
+    Ok(Some((parent_chat.id, parent_chat.blocked)))
 }
 
 /// If this method returns true, the message shall be assigned to the 1:1 chat with the sender.
@@ -1476,6 +1543,7 @@ async fn is_probably_private_reply(
 async fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut MimeMessage,
+    is_partial_download: bool,
     allow_creation: bool,
     create_blocked: Blocked,
     from_id: ContactId,
@@ -1523,7 +1591,9 @@ async fn create_or_lookup_group(
     }
 
     let create_protected = if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+        if let VerifiedEncryption::NotVerified(err) =
+            has_verified_encryption(context, mime_parser, from_id, to_ids, Chattype::Group).await?
+        {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
@@ -1606,7 +1676,7 @@ async fn create_or_lookup_group(
 
     if let Some(chat_id) = chat_id {
         Ok(Some((chat_id, chat_id_blocked)))
-    } else if mime_parser.decrypting_failed {
+    } else if is_partial_download || mime_parser.decrypting_failed {
         // It is possible that the message was sent to a valid,
         // yet unknown group, which was rejected because
         // Chat-Group-Name, which is in the encrypted part, was
@@ -1638,90 +1708,54 @@ async fn apply_group_changes(
         return Ok(None);
     }
 
-    let mut recreate_member_list = false;
     let mut send_event_chat_modified = false;
-
+    let (mut removed_id, mut added_id) = (None, None);
     let mut better_msg = None;
-    let removed_id;
-    if let Some(removed_addr) = mime_parser
-        .get_header(HeaderDef::ChatGroupMemberRemoved)
-        .cloned()
-    {
-        removed_id = Contact::lookup_id_by_addr(context, &removed_addr, Origin::Unknown).await?;
-        recreate_member_list = true;
-        match removed_id {
-            Some(contact_id) => {
-                better_msg = if contact_id == from_id {
-                    Some(stock_str::msg_group_left(context, from_id).await)
-                } else {
-                    Some(stock_str::msg_del_member(context, &removed_addr, from_id).await)
-                };
-            }
-            None => warn!(context, "Removed {removed_addr:?} has no contact_id."),
-        }
-    } else {
-        removed_id = None;
-        if let Some(added_member) = mime_parser
-            .get_header(HeaderDef::ChatGroupMemberAdded)
-            .cloned()
-        {
-            better_msg = Some(stock_str::msg_add_member(context, &added_member, from_id).await);
-            recreate_member_list = true;
-        } else if let Some(old_name) = mime_parser
-            .get_header(HeaderDef::ChatGroupNameChanged)
-            // See create_or_lookup_group() for explanation
-            .map(|s| s.trim())
-        {
-            if let Some(grpname) = mime_parser
-                .get_header(HeaderDef::ChatGroupName)
-                // See create_or_lookup_group() for explanation
-                .map(|grpname| grpname.trim())
-                .filter(|grpname| grpname.len() < 200)
-            {
-                if chat_id
-                    .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
-                    .await?
-                {
-                    info!(context, "Updating grpname for chat {chat_id}.");
-                    context
-                        .sql
-                        .execute(
-                            "UPDATE chats SET name=? WHERE id=?;",
-                            (strip_rtlo_characters(grpname), chat_id),
-                        )
-                        .await?;
-                    send_event_chat_modified = true;
-                }
 
-                better_msg =
-                    Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
-            }
-        } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
-            if value == "group-avatar-changed" {
-                if let Some(avatar_action) = &mime_parser.group_avatar {
-                    // this is just an explicit message containing the group-avatar,
-                    // apart from that, the group-avatar is send along with various other messages
-                    better_msg = match avatar_action {
-                        AvatarAction::Delete => {
-                            Some(stock_str::msg_grp_img_deleted(context, from_id).await)
-                        }
-                        AvatarAction::Change(_) => {
-                            Some(stock_str::msg_grp_img_changed(context, from_id).await)
-                        }
-                    };
-                }
-            }
-        }
-    }
+    // True if a Delta Chat client has explicitly added our current primary address.
+    let self_added =
+        if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
+            context.get_primary_self_addr().await? == *added_addr
+        } else {
+            false
+        };
 
-    if !mime_parser.has_chat_version() {
-        // If a classical MUA user adds someone to TO/CC, then the DC user shall
-        // see this addition and have the new recipient in the member list.
-        recreate_member_list = true;
-    }
+    let mut chat_contacts = HashSet::from_iter(chat::get_chat_contacts(context, chat_id).await?);
+    let is_from_in_chat =
+        !chat_contacts.contains(&ContactId::SELF) || chat_contacts.contains(&from_id);
+
+    // Reject group membership changes from non-members and old changes.
+    let allow_member_list_changes = is_from_in_chat
+        && chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
+            .await?;
+
+    // Whether to rebuild the member list from scratch.
+    let recreate_member_list = {
+        // Always recreate membership list if SELF has been added. The older versions of DC
+        // don't always set "In-Reply-To" to the latest message they sent, but to the latest
+        // delivered message (so it's a race), so we have this heuristic here.
+        self_added
+            || match mime_parser.get_header(HeaderDef::InReplyTo) {
+                // If we don't know the referenced message, we missed some messages.
+                // Maybe they added/removed members, so we need to recreate our member list.
+                Some(reply_to) => rfc724_mid_exists(context, reply_to).await?.is_none(),
+                None => false,
+            }
+    } && {
+        if !allow_member_list_changes {
+            info!(
+                context,
+                "Ignoring a try to recreate member list of {chat_id} by {from_id}.",
+            );
+        }
+        allow_member_list_changes
+    };
 
     if mime_parser.get_header(HeaderDef::ChatVerified).is_some() {
-        if let Err(err) = check_verified_properties(context, mime_parser, from_id, to_ids).await {
+        if let VerifiedEncryption::NotVerified(err) =
+            has_verified_encryption(context, mime_parser, from_id, to_ids, chat.typ).await?
+        {
             warn!(context, "Verification problem: {err:#}.");
             let s = format!("{err}. See 'Info' for more details");
             mime_parser.repl_msg_by_error(&s);
@@ -1731,60 +1765,159 @@ async fn apply_group_changes(
             chat_id
                 .inner_set_protection(context, ProtectionStatus::Protected)
                 .await?;
-            recreate_member_list = true;
         }
     }
 
-    // add members to group/check members
-    if recreate_member_list {
-        if chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
-            && !chat::is_contact_in_chat(context, chat_id, from_id).await?
+    if let Some(removed_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberRemoved) {
+        removed_id = Contact::lookup_id_by_addr(context, removed_addr, Origin::Unknown).await?;
+
+        better_msg = if removed_id == Some(from_id) {
+            Some(stock_str::msg_group_left_local(context, from_id).await)
+        } else {
+            Some(stock_str::msg_del_member_local(context, removed_addr, from_id).await)
+        };
+
+        if removed_id.is_some() {
+            if !allow_member_list_changes {
+                info!(
+                    context,
+                    "Ignoring removal of {removed_addr:?} from {chat_id}."
+                );
+            }
+        } else {
+            warn!(context, "Removed {removed_addr:?} has no contact id.")
+        }
+    } else if let Some(added_addr) = mime_parser.get_header(HeaderDef::ChatGroupMemberAdded) {
+        better_msg = Some(stock_str::msg_add_member_local(context, added_addr, from_id).await);
+
+        if allow_member_list_changes {
+            if !recreate_member_list {
+                if let Some(contact_id) =
+                    Contact::lookup_id_by_addr(context, added_addr, Origin::Unknown).await?
+                {
+                    added_id = Some(contact_id);
+                } else {
+                    warn!(context, "Added {added_addr:?} has no contact id.")
+                }
+            }
+        } else {
+            info!(context, "Ignoring addition of {added_addr:?} to {chat_id}.");
+        }
+    } else if let Some(old_name) = mime_parser
+        .get_header(HeaderDef::ChatGroupNameChanged)
+        // See create_or_lookup_group() for explanation
+        .map(|s| s.trim())
+    {
+        if let Some(grpname) = mime_parser
+            .get_header(HeaderDef::ChatGroupName)
+            // See create_or_lookup_group() for explanation
+            .map(|grpname| grpname.trim())
+            .filter(|grpname| grpname.len() < 200)
         {
-            warn!(
-                context,
-                "Contact {from_id} attempts to modify group chat {chat_id} member list without being a member."
-            );
-        } else if chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, sent_timestamp)
-            .await?
-        {
-            let mut members_to_add = vec![];
-            if removed_id.is_some()
-                || !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await?
+            if chat_id
+                .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+                .await?
             {
-                // Members could have been removed while we were
-                // absent. We can't use existing member list and need to
-                // start from scratch.
+                info!(context, "Updating grpname for chat {chat_id}.");
                 context
                     .sql
-                    .execute("DELETE FROM chats_contacts WHERE chat_id=?;", (chat_id,))
+                    .execute(
+                        "UPDATE chats SET name=? WHERE id=?;",
+                        (strip_rtlo_characters(grpname), chat_id),
+                    )
                     .await?;
-
-                members_to_add.push(ContactId::SELF);
+                send_event_chat_modified = true;
             }
 
-            if !from_id.is_special() {
-                members_to_add.push(from_id);
+            better_msg = Some(stock_str::msg_grp_name(context, old_name, grpname, from_id).await);
+        }
+    } else if let Some(value) = mime_parser.get_header(HeaderDef::ChatContent) {
+        if value == "group-avatar-changed" {
+            if let Some(avatar_action) = &mime_parser.group_avatar {
+                // this is just an explicit message containing the group-avatar,
+                // apart from that, the group-avatar is send along with various other messages
+                better_msg = match avatar_action {
+                    AvatarAction::Delete => {
+                        Some(stock_str::msg_grp_img_deleted(context, from_id).await)
+                    }
+                    AvatarAction::Change(_) => {
+                        Some(stock_str::msg_grp_img_changed(context, from_id).await)
+                    }
+                };
             }
-            members_to_add.extend(to_ids);
-            if let Some(removed_id) = removed_id {
-                members_to_add.retain(|id| *id != removed_id);
-            }
-            members_to_add.dedup();
+        }
+    }
 
-            info!(context, "Adding {members_to_add:?} to chat id={chat_id}.");
-            chat::add_to_chat_contacts_table(context, chat_id, &members_to_add).await?;
+    if allow_member_list_changes {
+        let mut new_members = HashSet::from_iter(to_ids.iter().copied());
+        new_members.insert(ContactId::SELF);
+        if !from_id.is_special() {
+            new_members.insert(from_id);
+        }
+
+        if !recreate_member_list {
+            let diff: HashSet<ContactId> =
+                chat_contacts.difference(&new_members).copied().collect();
+            // Only delete old contacts if the sender is not a classical MUA user:
+            // Classical MUA users usually don't intend to remove users from an email
+            // thread, so if they removed a recipient then it was probably by accident.
+            if mime_parser.has_chat_version() {
+                // This is what provides group membership consistency: we remove group members
+                // locally if we see a discrepancy with the "To" list in the received message as it
+                // is better for privacy than adding absent members locally. But it shouldn't be a
+                // big problem if somebody missed a member addition, because they will likely
+                // recreate the member list from the next received message. The problem occurs only
+                // if that "somebody" managed to reply earlier. Really, it's a problem for big
+                // groups with high message rate, but let it be for now.
+                if !diff.is_empty() {
+                    warn!(context, "Implicit removal of {diff:?} from chat {chat_id}.");
+                }
+                new_members = chat_contacts.difference(&diff).copied().collect();
+            } else {
+                new_members.extend(diff);
+            }
+        }
+        if let Some(removed_id) = removed_id {
+            new_members.remove(&removed_id);
+        }
+        if let Some(added_id) = added_id {
+            new_members.insert(added_id);
+        }
+        if recreate_member_list {
+            info!(
+                context,
+                "Recreating chat {chat_id} member list with {new_members:?}.",
+            );
+        }
+
+        if new_members != chat_contacts {
+            let new_members_ref = &new_members;
+            context
+                .sql
+                .transaction(move |transaction| {
+                    transaction
+                        .execute("DELETE FROM chats_contacts WHERE chat_id=?", (chat_id,))?;
+                    for contact_id in new_members_ref {
+                        transaction.execute(
+                            "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
+                            (chat_id, contact_id),
+                        )?;
+                    }
+                    Ok(())
+                })
+                .await?;
+            chat_contacts = new_members;
             send_event_chat_modified = true;
         }
     }
 
     if let Some(avatar_action) = &mime_parser.group_avatar {
-        if !chat::is_contact_in_chat(context, chat_id, ContactId::SELF).await? {
+        if !chat_contacts.contains(&ContactId::SELF) {
             warn!(
                 context,
                 "Received group avatar update for group chat {chat_id} we are not a member of."
             );
-        } else if !chat::is_contact_in_chat(context, chat_id, from_id).await? {
+        } else if !chat_contacts.contains(&from_id) {
             warn!(
                 context,
                 "Contact {from_id} attempts to modify group chat {chat_id} avatar without being a member.",
@@ -1815,6 +1948,8 @@ async fn apply_group_changes(
     Ok(better_msg)
 }
 
+static LIST_ID_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
+
 /// Create or lookup a mailing list chat.
 ///
 /// `list_id_header` contains the Id that must be used for the mailing list
@@ -1831,22 +1966,70 @@ async fn create_or_lookup_mailinglist(
     list_id_header: &str,
     mime_parser: &MimeMessage,
 ) -> Result<Option<(ChatId, Blocked)>> {
-    static LIST_ID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(.+)<(.+)>$").unwrap());
-    let (mut name, listid) = match LIST_ID.captures(list_id_header) {
-        Some(cap) => (cap[1].trim().to_string(), cap[2].trim().to_string()),
-        None => (
-            "".to_string(),
-            list_id_header
-                .trim()
-                .trim_start_matches('<')
-                .trim_end_matches('>')
-                .to_string(),
-        ),
+    let listid = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[2].trim().to_string(),
+        None => list_id_header
+            .trim()
+            .trim_start_matches('<')
+            .trim_end_matches('>')
+            .to_string(),
     };
 
     if let Some((chat_id, _, blocked)) = chat::get_chat_id_by_grpid(context, &listid).await? {
         return Ok(Some((chat_id, blocked)));
     }
+
+    let name = compute_mailinglist_name(list_id_header, &listid, mime_parser);
+
+    if allow_creation {
+        // list does not exist but should be created
+        let param = mime_parser.list_post.as_ref().map(|list_post| {
+            let mut p = Params::new();
+            p.set(Param::ListPost, list_post);
+            p.to_string()
+        });
+
+        let is_bot = context.get_config_bool(Config::Bot).await?;
+        let blocked = if is_bot {
+            Blocked::Not
+        } else {
+            Blocked::Request
+        };
+        let chat_id = ChatId::create_multiuser_record(
+            context,
+            Chattype::Mailinglist,
+            &listid,
+            &name,
+            blocked,
+            ProtectionStatus::Unprotected,
+            param,
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "failed to create mailinglist '{}' for grpid={}",
+                &name, &listid
+            )
+        })?;
+
+        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
+        Ok(Some((chat_id, blocked)))
+    } else {
+        info!(context, "Creating list forbidden by caller.");
+        Ok(None)
+    }
+}
+
+#[allow(clippy::indexing_slicing)]
+fn compute_mailinglist_name(
+    list_id_header: &str,
+    listid: &str,
+    mime_parser: &MimeMessage,
+) -> String {
+    let mut name = match LIST_ID_REGEX.captures(list_id_header) {
+        Some(cap) => cap[1].trim().to_string(),
+        None => "".to_string(),
+    };
 
     // for mailchimp lists, the name in `ListId` is just a long number.
     // a usable name for these lists is in the `From` header
@@ -1891,50 +2074,14 @@ async fn create_or_lookup_mailinglist(
         // 51231231231231231231231232869f58.xing.com -> xing.com
         static PREFIX_32_CHARS_HEX: Lazy<Regex> =
             Lazy::new(|| Regex::new(r"([0-9a-fA-F]{32})\.(.{6,})").unwrap());
-        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(&listid) {
+        if let Some(cap) = PREFIX_32_CHARS_HEX.captures(listid) {
             name = cap[2].to_string();
         } else {
-            name = listid.clone();
+            name = listid.to_string();
         }
     }
 
-    if allow_creation {
-        // list does not exist but should be created
-        let param = mime_parser.list_post.as_ref().map(|list_post| {
-            let mut p = Params::new();
-            p.set(Param::ListPost, list_post);
-            p.to_string()
-        });
-
-        let is_bot = context.get_config_bool(Config::Bot).await?;
-        let blocked = if is_bot {
-            Blocked::Not
-        } else {
-            Blocked::Request
-        };
-        let chat_id = ChatId::create_multiuser_record(
-            context,
-            Chattype::Mailinglist,
-            &listid,
-            &name,
-            blocked,
-            ProtectionStatus::Unprotected,
-            param,
-        )
-        .await
-        .with_context(|| {
-            format!(
-                "failed to create mailinglist '{}' for grpid={}",
-                &name, &listid
-            )
-        })?;
-
-        chat::add_to_chat_contacts_table(context, chat_id, &[ContactId::SELF]).await?;
-        Ok(Some((chat_id, blocked)))
-    } else {
-        info!(context, "Creating list forbidden by caller.");
-        Ok(None)
-    }
+    strip_rtlo_characters(&name)
 }
 
 /// Set ListId param on the contact and ListPost param the chat.
@@ -1943,41 +2090,61 @@ async fn create_or_lookup_mailinglist(
 async fn apply_mailinglist_changes(
     context: &Context,
     mime_parser: &MimeMessage,
+    sent_timestamp: i64,
     chat_id: ChatId,
 ) -> Result<()> {
-    if let Some(list_post) = &mime_parser.list_post {
-        let mut chat = Chat::load_from_db(context, chat_id).await?;
-        if chat.typ != Chattype::Mailinglist {
+    let Some(mailinglist_header) = mime_parser.get_mailinglist_header() else {
+        return Ok(());
+    };
+
+    let mut chat = Chat::load_from_db(context, chat_id).await?;
+    if chat.typ != Chattype::Mailinglist {
+        return Ok(());
+    }
+    let listid = &chat.grpid;
+
+    let new_name = compute_mailinglist_name(mailinglist_header, listid, mime_parser);
+    if chat.name != new_name
+        && chat_id
+            .update_timestamp(context, Param::GroupNameTimestamp, sent_timestamp)
+            .await?
+    {
+        info!(context, "Updating listname for chat {chat_id}.");
+        context
+            .sql
+            .execute("UPDATE chats SET name=? WHERE id=?;", (new_name, chat_id))
+            .await?;
+        context.emit_event(EventType::ChatModified(chat_id));
+    }
+
+    let Some(list_post) = &mime_parser.list_post else {
+        return Ok(());
+    };
+
+    let list_post = match ContactAddress::new(list_post) {
+        Ok(list_post) => list_post,
+        Err(err) => {
+            warn!(context, "Invalid List-Post: {:#}.", err);
             return Ok(());
         }
-        let listid = &chat.grpid;
+    };
+    let (contact_id, _) = Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
+    let mut contact = Contact::get_by_id(context, contact_id).await?;
+    if contact.param.get(Param::ListId) != Some(listid) {
+        contact.param.set(Param::ListId, listid);
+        contact.update_param(context).await?;
+    }
 
-        let list_post = match ContactAddress::new(list_post) {
-            Ok(list_post) => list_post,
-            Err(err) => {
-                warn!(context, "Invalid List-Post: {:#}.", err);
-                return Ok(());
-            }
-        };
-        let (contact_id, _) =
-            Contact::add_or_lookup(context, "", list_post, Origin::Hidden).await?;
-        let mut contact = Contact::load_from_db(context, contact_id).await?;
-        if contact.param.get(Param::ListId) != Some(listid) {
-            contact.param.set(Param::ListId, listid);
-            contact.update_param(context).await?;
-        }
-
-        if let Some(old_list_post) = chat.param.get(Param::ListPost) {
-            if list_post.as_ref() != old_list_post {
-                // Apparently the mailing list is using a different List-Post header in each message.
-                // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
-                chat.param.remove(Param::ListPost);
-                chat.update_param(context).await?;
-            }
-        } else {
-            chat.param.set(Param::ListPost, list_post);
+    if let Some(old_list_post) = chat.param.get(Param::ListPost) {
+        if list_post.as_ref() != old_list_post {
+            // Apparently the mailing list is using a different List-Post header in each message.
+            // Make the mailing list read-only because we wouldn't know which message the user wants to reply to.
+            chat.param.remove(Param::ListPost);
             chat.update_param(context).await?;
         }
+    } else {
+        chat.param.set(Param::ListPost, list_post);
+        chat.update_param(context).await?;
     }
 
     Ok(())
@@ -2073,49 +2240,55 @@ async fn create_adhoc_group(
     Ok(Some(new_chat_id))
 }
 
-async fn check_verified_properties(
+enum VerifiedEncryption {
+    Verified,
+    NotVerified(String), // The string contains the reason why it's not verified
+}
+
+/// Checks whether the message is allowed to appear in a protected chat.
+///
+/// This means that it is encrypted, signed with a verified key,
+/// and if it's a group, all the recipients are verified.
+async fn has_verified_encryption(
     context: &Context,
     mimeparser: &MimeMessage,
     from_id: ContactId,
     to_ids: &[ContactId],
-) -> Result<()> {
-    let contact = Contact::load_from_db(context, from_id).await?;
+    chat_type: Chattype,
+) -> Result<VerifiedEncryption> {
+    use VerifiedEncryption::*;
 
-    ensure!(mimeparser.was_encrypted(), "This message is not encrypted.");
-
-    if mimeparser.get_header(HeaderDef::ChatVerified).is_none() {
-        // we do not fail here currently, this would exclude (a) non-deltas
-        // and (b) deltas with different protection views across multiple devices.
-        // for group creation or protection enabled/disabled, however, Chat-Verified is respected.
-        warn!(
-            context,
-            "{} did not mark message as protected.",
-            contact.get_addr()
-        );
+    if from_id == ContactId::SELF && chat_type == Chattype::Single {
+        // For outgoing emails in the 1:1 chat, we have an exception that
+        // they are allowed to be unencrypted:
+        // 1. They can't be an attack (they are outgoing, not incoming)
+        // 2. Probably the unencryptedness is just a temporary state, after all
+        //    the user obviously still uses DC
+        //    -> Showing info messages everytime would be a lot of noise
+        // 3. The info messages that are shown to the user ("Your chat partner
+        //    likely reinstalled DC" or similar) would be wrong.
+        return Ok(Verified);
     }
+
+    if !mimeparser.was_encrypted() {
+        return Ok(NotVerified("This message is not encrypted".to_string()));
+    };
 
     // ensure, the contact is verified
     // and the message is signed with a verified key of the sender.
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != ContactId::SELF {
-        let peerstate = Peerstate::from_addr(context, contact.get_addr()).await?;
+        let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
+            return Ok(NotVerified(
+                "No peerstate, the contact isn't verified".to_string(),
+            ));
+        };
 
-        if peerstate.is_none()
-            || contact.is_verified_ex(context, peerstate.as_ref()).await?
-                != VerifiedStatus::BidirectVerified
-        {
-            bail!(
-                "Sender of this message is not verified: {}",
-                contact.get_addr()
-            );
-        }
-
-        if let Some(peerstate) = peerstate {
-            ensure!(
-                peerstate.has_verified_key(&mimeparser.signatures),
-                "The message was sent with non-verified encryption."
-            );
+        if !peerstate.has_verified_key(&mimeparser.signatures) {
+            return Ok(NotVerified(
+                "The message was sent with non-verified encryption".to_string(),
+            ));
         }
     }
 
@@ -2127,7 +2300,7 @@ async fn check_verified_properties(
         .collect::<Vec<ContactId>>();
 
     if to_ids.is_empty() {
-        return Ok(());
+        return Ok(Verified);
     }
 
     let rows = context
@@ -2151,17 +2324,19 @@ async fn check_verified_properties(
         )
         .await?;
 
+    let contact = Contact::get_by_id(context, from_id).await?;
+
     for (to_addr, mut is_verified) in rows {
         info!(
             context,
-            "check_verified_properties: {:?} self={:?}.",
+            "has_verified_encryption: {:?} self={:?}.",
             to_addr,
             context.is_self_addr(&to_addr).await
         );
         let peerstate = Peerstate::from_addr(context, &to_addr).await?;
 
         // mark gossiped keys (if any) as verified
-        if mimeparser.gossiped_addr.contains(&to_addr) {
+        if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = peerstate {
                 // if we're here, we know the gossip key is verified:
                 // - use the gossip-key as verified-key if there is no verified-key
@@ -2188,13 +2363,13 @@ async fn check_verified_properties(
             }
         }
         if !is_verified {
-            bail!(
+            return Ok(NotVerified(format!(
                 "{} is not a member of this protected chat",
-                to_addr.to_string()
-            );
+                to_addr
+            )));
         }
     }
-    Ok(())
+    Ok(Verified)
 }
 
 /// Returns the last message referenced from `References` header if it is in the database.
@@ -2293,7 +2468,7 @@ async fn add_or_lookup_contacts_by_address_list(
     origin: Origin,
 ) -> Result<Vec<ContactId>> {
     let mut contact_ids = HashSet::new();
-    for info in address_list.iter() {
+    for info in address_list {
         let addr = &info.addr;
         if !may_be_valid_addr(addr) {
             continue;

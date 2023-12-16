@@ -9,11 +9,11 @@ from contextlib import contextmanager
 from queue import Empty, Queue
 
 from . import const
+from .account import Account
 from .capi import ffi, lib
 from .cutil import from_optional_dc_charpointer
 from .hookspec import account_hookimpl
 from .message import map_system_message
-from .account import Account
 
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
