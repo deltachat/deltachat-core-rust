@@ -770,10 +770,20 @@ mod tests {
     use crate::stock_str::chat_protection_enabled;
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
-    use crate::tools::EmailAddress;
+    use crate::tools::{EmailAddress, SystemTime};
+    use std::time::Duration;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_setup_contact() {
+        test_setup_contact_ex(false).await
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_setup_contact_protection_timestamp() {
+        test_setup_contact_ex(true).await
+    }
+
+    async fn test_setup_contact_ex(check_protection_timestamp: bool) {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
@@ -862,6 +872,10 @@ mod tests {
         // Check Bob sent the right message.
         let sent = bob.pop_sent_msg().await;
         let msg = alice.parse_msg(&sent).await;
+        let vc_request_with_auth_ts_sent = msg
+            .get_header(HeaderDef::Date)
+            .and_then(|value| mailparse::dateparse(value).ok())
+            .unwrap();
         assert!(msg.was_encrypted());
         assert_eq!(
             msg.get_header(HeaderDef::SecureJoin).unwrap(),
@@ -884,6 +898,10 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), false);
+
+        if check_protection_timestamp {
+            SystemTime::shift(Duration::from_secs(3600));
+        }
 
         // Step 5+6: Alice receives vc-request-with-auth, sends vc-contact-confirm
         alice.recv_msg(&sent).await;
@@ -910,6 +928,9 @@ mod tests {
             assert!(msg.is_info());
             let expected_text = chat_protection_enabled(&alice).await;
             assert_eq!(msg.get_text(), expected_text);
+            if check_protection_timestamp {
+                assert_eq!(msg.timestamp_sort, vc_request_with_auth_ts_sent);
+            }
         }
 
         // Check Alice sent the right message to Bob.
