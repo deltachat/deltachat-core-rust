@@ -481,7 +481,10 @@ async fn handle_cmd(
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let _ = pretty_env_logger::try_init();
+    pretty_env_logger::formatted_timed_builder()
+        .parse_default_env()
+        .filter_module("deltachat_repl", log::LevelFilter::Info)
+        .init();
 
     let args = std::env::args().collect();
     start(args).await?;
