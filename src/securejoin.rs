@@ -174,7 +174,6 @@ async fn send_alice_handshake_msg(
     context: &Context,
     contact_id: ContactId,
     step: &str,
-    fingerprint: Option<Fingerprint>,
 ) -> Result<()> {
     let mut msg = Message {
         viewtype: Viewtype::Text,
@@ -184,9 +183,6 @@ async fn send_alice_handshake_msg(
     };
     msg.param.set_cmd(SystemMessage::SecurejoinMessage);
     msg.param.set(Param::Arg, step);
-    if let Some(fp) = fingerprint {
-        msg.param.set(Param::Arg3, fp.hex());
-    }
     msg.param.set_int(Param::GuaranteeE2ee, 1);
     chat::send_msg(
         context,
@@ -334,7 +330,6 @@ pub(crate) async fn handle_securejoin_handshake(
                 context,
                 contact_id,
                 &format!("{}-auth-required", &step[..2]),
-                None,
             )
             .await
             .context("failed sending auth-required handshake message")?;
@@ -480,14 +475,9 @@ pub(crate) async fn handle_securejoin_handshake(
                     mime_message.timestamp_sent,
                 )
                 .await?;
-                send_alice_handshake_msg(
-                    context,
-                    contact_id,
-                    "vc-contact-confirm",
-                    Some(fingerprint),
-                )
-                .await
-                .context("failed sending vc-contact-confirm message")?;
+                send_alice_handshake_msg(context, contact_id, "vc-contact-confirm")
+                    .await
+                    .context("failed sending vc-contact-confirm message")?;
 
                 inviter_progress(context, contact_id, 1000);
             }
