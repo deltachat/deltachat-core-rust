@@ -82,26 +82,27 @@ pub(super) async fn handle_auth_required(
     context: &Context,
     message: &MimeMessage,
 ) -> Result<HandshakeMessage> {
-    match BobState::from_db(&context.sql).await? {
-        Some(mut bobstate) => match bobstate.handle_message(context, message).await? {
-            Some(BobHandshakeStage::Terminated(why)) => {
-                bobstate.notify_aborted(context, why).await?;
-                Ok(HandshakeMessage::Done)
+    let Some(mut bobstate) = BobState::from_db(&context.sql).await? else {
+        return Ok(HandshakeMessage::Ignore);
+    };
+
+    match bobstate.handle_message(context, message).await? {
+        Some(BobHandshakeStage::Terminated(why)) => {
+            bobstate.notify_aborted(context, why).await?;
+            Ok(HandshakeMessage::Done)
+        }
+        Some(_stage) => {
+            if bobstate.is_join_group() {
+                // The message reads "Alice replied, waiting to be added to the group…",
+                // so only show it on secure-join and not on setup-contact.
+                let contact_id = bobstate.invite().contact_id();
+                let msg = stock_str::secure_join_replies(context, contact_id).await;
+                let chat_id = bobstate.joining_chat_id(context).await?;
+                chat::add_info_msg(context, chat_id, &msg, time()).await?;
             }
-            Some(_stage) => {
-                if bobstate.is_join_group() {
-                    // The message reads "Alice replied, waiting to be added to the group…",
-                    // so only show it on secure-join and not on setup-contact.
-                    let contact_id = bobstate.invite().contact_id();
-                    let msg = stock_str::secure_join_replies(context, contact_id).await;
-                    let chat_id = bobstate.joining_chat_id(context).await?;
-                    chat::add_info_msg(context, chat_id, &msg, time()).await?;
-                }
-                bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
-                Ok(HandshakeMessage::Done)
-            }
-            None => Ok(HandshakeMessage::Ignore),
-        },
+            bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
+            Ok(HandshakeMessage::Done)
+        }
         None => Ok(HandshakeMessage::Ignore),
     }
 }
