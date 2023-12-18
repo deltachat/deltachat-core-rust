@@ -358,12 +358,12 @@ async fn send_handshake_message(
             // Sends the Secure-Join-Auth header in mimefactory.rs.
             msg.param.set(Param::Arg2, invite.authcode());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
+
+            // Sends our own fingerprint in the Secure-Join-Fingerprint header.
+            let bob_fp = load_self_public_key(context).await?.fingerprint();
+            msg.param.set(Param::Arg3, bob_fp.hex());
         }
     };
-
-    // Sends our own fingerprint in the Secure-Join-Fingerprint header.
-    let bob_fp = load_self_public_key(context).await?.fingerprint();
-    msg.param.set(Param::Arg3, bob_fp.hex());
 
     // Sends the grpid in the Secure-Join-Group header.
     if let QrInvite::Group { ref grpid, .. } = invite {
