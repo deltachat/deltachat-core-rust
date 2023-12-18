@@ -614,7 +614,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
                 };
                 peerstate.set_verified(PeerstateKeyType::GossipKey, fingerprint, addr)?;
                 peerstate.prefer_encrypt = EncryptPreference::Mutual;
-                peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+                peerstate.save_to_db(&context.sql).await?;
 
                 ChatId::set_protection_for_contact(
                     context,
@@ -738,7 +738,7 @@ async fn mark_peer_as_verified(
     };
     peerstate.set_verified(PeerstateKeyType::PublicKey, fingerprint, verifier)?;
     peerstate.prefer_encrypt = EncryptPreference::Mutual;
-    peerstate.save_to_db(&context.sql).await.unwrap_or_default();
+    peerstate.save_to_db(&context.sql).await?;
     Ok(true)
 }
 
