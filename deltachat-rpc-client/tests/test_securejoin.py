@@ -1,5 +1,6 @@
 import logging
 
+import pytest
 from deltachat_rpc_client import Chat, SpecialContactId
 
 
@@ -24,12 +25,13 @@ def test_qr_setup_contact(acfactory) -> None:
     assert bob_contact_alice_snapshot.is_verified
 
 
-def test_qr_securejoin(acfactory):
+@pytest.mark.parametrize("protect", [True, False])
+def test_qr_securejoin(acfactory, protect):
     alice, bob = acfactory.get_online_accounts(2)
 
     logging.info("Alice creates a verified group")
-    alice_chat = alice.create_group("Verified group", protect=True)
-    assert alice_chat.get_basic_snapshot().is_protected
+    alice_chat = alice.create_group("Verified group", protect=protect)
+    assert alice_chat.get_basic_snapshot().is_protected == protect
 
     logging.info("Bob joins verified group")
     qr_code, _svg = alice_chat.get_qr_code()
@@ -53,7 +55,7 @@ def test_qr_securejoin(acfactory):
 
     snapshot = bob.get_message_by_id(bob.wait_for_incoming_msg_event().msg_id).get_snapshot()
     assert snapshot.text == "Member Me ({}) added by {}.".format(bob.get_config("addr"), alice.get_config("addr"))
-    assert snapshot.chat.get_basic_snapshot().is_protected
+    assert snapshot.chat.get_basic_snapshot().is_protected == protect
 
     # Test that Bob verified Alice's profile.
     bob_contact_alice = bob.get_contact_by_addr(alice.get_config("addr"))
