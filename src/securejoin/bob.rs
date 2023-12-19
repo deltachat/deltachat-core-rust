@@ -100,6 +100,9 @@ pub(super) async fn handle_auth_required(
                 let chat_id = bobstate.joining_chat_id(context).await?;
                 chat::add_info_msg(context, chat_id, &msg, time()).await?;
             }
+            bobstate
+                .notify_peer_verified(context, message.timestamp_sent)
+                .await?;
             bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
             Ok(HandshakeMessage::Done)
         }

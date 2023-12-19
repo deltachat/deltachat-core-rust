@@ -495,9 +495,6 @@ pub(crate) async fn handle_securejoin_handshake(
                 }
 
                 bobstate.step_contact_confirm(context).await?;
-                bobstate
-                    .notify_peer_verified(context, mime_message.timestamp_sent)
-                    .await?;
                 bobstate.emit_progress(context, JoinerProgress::Succeeded);
             }
             Ok(HandshakeMessage::Ignore)
@@ -527,9 +524,6 @@ pub(crate) async fn handle_securejoin_handshake(
                 }
 
                 bobstate.step_contact_confirm(context).await?;
-                bobstate
-                    .notify_peer_verified(context, mime_message.timestamp_sent)
-                    .await?;
                 bobstate.emit_progress(context, JoinerProgress::Succeeded);
             }
             Ok(HandshakeMessage::Propagate)
