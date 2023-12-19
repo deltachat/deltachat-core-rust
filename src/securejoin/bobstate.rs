@@ -24,6 +24,7 @@ use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
 use crate::securejoin::Peerstate;
 use crate::sql::Sql;
+use crate::tools::time;
 
 /// The stage of the [`BobState`] securejoin handshake protocol state machine.
 ///
@@ -89,22 +90,26 @@ impl BobState {
         invite: QrInvite,
         chat_id: ChatId,
     ) -> Result<(Self, BobHandshakeStage, Vec<Self>)> {
-        let (stage, next) =
-            if verify_sender_by_fingerprint(context, invite.fingerprint(), invite.contact_id())
-                .await?
-            {
-                // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
-                info!(context, "Taking securejoin protocol shortcut");
-                send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth)
-                    .await?;
-                (
-                    BobHandshakeStage::RequestWithAuthSent,
-                    SecureJoinStep::ContactConfirm,
-                )
-            } else {
-                send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::Request).await?;
-                (BobHandshakeStage::RequestSent, SecureJoinStep::AuthRequired)
-            };
+        let peer_verified =
+            verify_sender_by_fingerprint(context, invite.fingerprint(), invite.contact_id())
+                .await?;
+
+        let (stage, next);
+        if peer_verified {
+            // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
+            info!(context, "Taking securejoin protocol shortcut");
+            send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::RequestWithAuth)
+                .await?;
+
+            stage = BobHandshakeStage::RequestWithAuthSent;
+            next = SecureJoinStep::ContactConfirm;
+        } else {
+            send_handshake_message(context, &invite, chat_id, BobHandshakeMsg::Request).await?;
+
+            stage = BobHandshakeStage::RequestSent;
+            next = SecureJoinStep::AuthRequired;
+        };
+
         let (id, aborted_states) =
             Self::insert_new_db_entry(context, next, invite.clone(), chat_id).await?;
         let state = Self {
@@ -113,6 +118,12 @@ impl BobState {
             next,
             chat_id,
         };
+
+        if peer_verified {
+            // Mark 1:1 chat as verified already.
+            state.notify_peer_verified(context, time()).await?;
+        }
+
         Ok((state, stage, aborted_states))
     }
 
