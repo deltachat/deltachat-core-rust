@@ -1310,4 +1310,70 @@ First thread."#;
 
         Ok(())
     }
+
+    /// Tests that Bob gets Alice as verified
+    /// if `vc-contact-confirm` is lost but Alice then sends
+    /// a message to Bob in a verified 1:1 chat with a `Chat-Verified` header.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_lost_contact_confirm() {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        alice
+            .set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+        bob.set_config(Config::VerifiedOneOnOneChats, Some("1"))
+            .await
+            .unwrap();
+
+        let qr = get_securejoin_qr(&alice.ctx, None).await.unwrap();
+        join_securejoin(&bob.ctx, &qr).await.unwrap();
+
+        // vc-request
+        let sent = bob.pop_sent_msg().await;
+        alice.recv_msg(&sent).await;
+
+        // vc-auth-required
+        let sent = alice.pop_sent_msg().await;
+        bob.recv_msg(&sent).await;
+
+        // vc-request-with-auth
+        let sent = bob.pop_sent_msg().await;
+        alice.recv_msg(&sent).await;
+
+        // Alice has Bob verified now.
+        let contact_bob_id =
+            Contact::lookup_id_by_addr(&alice.ctx, "bob@example.net", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
+        let contact_bob = Contact::get_by_id(&alice.ctx, contact_bob_id)
+            .await
+            .unwrap();
+        assert_eq!(contact_bob.is_verified(&alice.ctx).await.unwrap(), true);
+
+        // Alice sends vc-contact-confirm, but it gets lost.
+        let _sent_vc_contact_confirm = alice.pop_sent_msg().await;
+
+        // Bob should not yet have Alice verified
+        let contact_alice_id =
+            Contact::lookup_id_by_addr(&bob, "alice@example.org", Origin::Unknown)
+                .await
+                .expect("Error looking up contact")
+                .expect("Contact not found");
+        let contact_alice = Contact::get_by_id(&bob, contact_alice_id).await.unwrap();
+        assert_eq!(contact_alice.is_verified(&bob).await.unwrap(), false);
+
+        // Alice sends a text message to Bob.
+        let received_hello = tcm.send_recv(&alice, &bob, "Hello!").await;
+        let chat_id = received_hello.chat_id;
+        let chat = Chat::load_from_db(&bob, chat_id).await.unwrap();
+        assert_eq!(chat.is_protected(), true);
+
+        // Received text message in a verified 1:1 chat results in backward verification
+        // and Bob now marks alice as verified.
+        let contact_alice = Contact::get_by_id(&bob, contact_alice_id).await.unwrap();
+        assert_eq!(contact_alice.is_verified(&bob).await.unwrap(), true);
+    }
 }
