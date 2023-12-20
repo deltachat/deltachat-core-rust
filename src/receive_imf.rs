@@ -128,7 +128,8 @@ async fn insert_tombstone(context: &Context, rfc724_mid: &str) -> Result<MsgId> 
 /// returns `Ok(None)`.
 ///
 /// If `is_partial_download` is set, it contains the full message size in bytes.
-/// Do not confuse that with `replace_partial_download` that will be set when the full message is loaded later.
+/// Do not confuse that with `replace_msg_id` that will be set when the full message is loaded
+/// later.
 pub(crate) async fn receive_imf_inner(
     context: &Context,
     rfc724_mid: &str,
@@ -187,7 +188,7 @@ pub(crate) async fn receive_imf_inner(
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
-    let (replace_partial_download, replace_chat_id) =
+    let (replace_msg_id, replace_chat_id) =
         if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
             let msg = Message::load_from_db(context, old_msg_id).await?;
             if msg.download_state() != DownloadState::Done && is_partial_download.is_none() {
@@ -302,9 +303,9 @@ pub(crate) async fn receive_imf_inner(
             &to_ids,
             rfc724_mid,
             from_id,
-            seen || replace_partial_download.is_some(),
+            seen || replace_msg_id.is_some(),
             is_partial_download,
-            replace_partial_download,
+            replace_msg_id,
             fetching_existing_messages,
             prevent_rename,
             verified_encryption,
