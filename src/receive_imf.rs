@@ -458,14 +458,18 @@ pub(crate) async fn receive_imf_inner(
         };
         if target.is_some() || rfc724_mid_orig != rfc724_mid {
             let target_subst = match &target {
-                Some(target) => format!("target='{target}',"),
-                None => "".to_string(),
+                Some(_) => "target=?1,",
+                None => "",
             };
             context
                 .sql
                 .execute(
-                    &format!("UPDATE imap SET {target_subst} rfc724_mid=?1 WHERE rfc724_mid=?2"),
-                    (rfc724_mid_orig, rfc724_mid),
+                    &format!("UPDATE imap SET {target_subst} rfc724_mid=?2 WHERE rfc724_mid=?3"),
+                    (
+                        target.as_deref().unwrap_or_default(),
+                        rfc724_mid_orig,
+                        rfc724_mid,
+                    ),
                 )
                 .await?;
         }
