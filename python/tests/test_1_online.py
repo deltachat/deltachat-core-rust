@@ -498,6 +498,30 @@ def test_forward_messages(acfactory, lp):
     assert not chat3.get_messages()
 
 
+def test_forward_encrypted_to_unencrypted(acfactory, lp):
+    ac1, ac2, ac3 = acfactory.get_online_accounts(3)
+    chat = acfactory.get_accepted_chat(ac1, ac2)
+
+    lp.sec("ac1: send unencrypted message to ac2")
+    txt = "This is still unencrypted"
+    chat.send_text(txt)
+    msg = ac2.wait_next_incoming_message()
+    assert msg.text == txt
+    assert not msg.is_encrypted()
+
+    lp.sec("ac2: send encrypted message to ac1")
+    txt = "This should be encrypted now"
+    msg.chat.send_text(txt)
+    msg2 = ac1.wait_next_incoming_message()
+    assert msg2.is_encrypted()
+
+    lp.sec("ac1: forward message to ac3 unencrypted ")
+    unencrypted_chat = ac1.create_chat(ac3)
+    msg3 = unencrypted_chat.send_msg(msg)
+    assert not msg3.is_encrypted()
+    assert msg2.is_encrypted()
+
+
 def test_forward_own_message(acfactory, lp):
     ac1, ac2 = acfactory.get_online_accounts(2)
     chat = acfactory.get_accepted_chat(ac1, ac2)
