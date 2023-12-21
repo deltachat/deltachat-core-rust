@@ -191,6 +191,15 @@ pub(crate) async fn receive_imf_inner(
         context,
         "Receiving message {rfc724_mid_orig:?}, seen={seen}...",
     );
+    let incoming = !context.is_self_addr(&mime_parser.from.addr).await?;
+
+    // For the case if we missed a successful SMTP response.
+    if !incoming {
+        context
+            .sql
+            .execute("DELETE FROM smtp WHERE rfc724_mid=?", (rfc724_mid_orig,))
+            .await?;
+    }
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
@@ -250,8 +259,6 @@ pub(crate) async fn receive_imf_inner(
                 return Ok(None);
             }
         };
-
-    let incoming = from_id != ContactId::SELF;
 
     let to_ids = add_or_lookup_contacts_by_address_list(
         context,
