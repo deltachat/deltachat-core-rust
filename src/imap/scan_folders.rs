@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, time::Instant};
 
 use anyhow::{Context as _, Result};
-use futures::stream::StreamExt;
+use futures::TryStreamExt;
 
 use super::{get_folder_meaning_by_attrs, get_folder_meaning_by_name};
 use crate::config::Config;
@@ -27,7 +27,7 @@ impl Imap {
         info!(context, "Starting full folder scan");
 
         self.prepare(context).await?;
-        let folders = self.list_folders(context).await?;
+        let folders = self.list_folders().await?;
         let watched_folders = get_watched_folders(context).await?;
 
         let mut folder_configs = BTreeMap::new();
@@ -98,21 +98,15 @@ impl Imap {
     }
 
     /// Returns the names of all folders on the IMAP server.
-    pub async fn list_folders(
-        self: &mut Imap,
-        context: &Context,
-    ) -> Result<Vec<async_imap::types::Name>> {
+    pub async fn list_folders(self: &mut Imap) -> Result<Vec<async_imap::types::Name>> {
         let session = self.session.as_mut();
         let session = session.context("No IMAP connection")?;
         let list = session
             .list(Some(""), Some("*"))
             .await?
-            .filter_map(|f| async {
-                f.context("list_folders() can't get folder")
-                    .log_err(context)
-                    .ok()
-            });
-        Ok(list.collect().await)
+            .try_collect()
+            .await?;
+        Ok(list)
     }
 }
 

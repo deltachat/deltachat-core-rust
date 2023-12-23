@@ -994,7 +994,7 @@ impl Imap {
         self.prepare(context).await?;
 
         let all_folders = self
-            .list_folders(context)
+            .list_folders()
             .await
             .context("listing folders for resync")?;
         for folder in all_folders {
