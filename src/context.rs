@@ -15,14 +15,16 @@ use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
-use crate::constants::{DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_VERSION_STR};
+use crate::constants::{
+    DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
+};
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
-use crate::message::{self, MessageState, MsgId};
+use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
@@ -857,6 +859,48 @@ impl Context {
         res.insert("uptime", duration_to_str(elapsed.unwrap_or_default()));
 
         Ok(res)
+    }
+
+    async fn get_self_report(&self) -> Result<String> {
+        let mut res = String::new();
+        res += &format!("core_version {}\n", get_version_str());
+
+        let num_msgs: u32 = self
+            .sql
+            .query_get_value(
+                "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id!=?",
+                (DC_CHAT_ID_TRASH,),
+            )
+            .await?
+            .unwrap_or_default();
+        res += &format!("num_msgs {}\n", num_msgs);
+
+        let num_chats: u32 = self
+            .sql
+            .query_get_value("SELECT COUNT(*) FROM chats WHERE id>9 AND blocked!=1", ())
+            .await?
+            .unwrap_or_default();
+        res += &format!("num_chats {}\n", num_chats);
+
+        let db_size = tokio::fs::metadata(&self.sql.dbfile).await?.len();
+        res += &format!("db_size_bytes {}\n", db_size);
+
+        Ok(res)
+    }
+
+    /// TODO doc comment
+    pub async fn draft_self_report(&self) -> Result<ChatId> {
+        const SELF_REPORTING_BOT: &str = "self_reporting@testrun.org";
+
+        let contact = Contact::create(self, "Statistics bot", SELF_REPORTING_BOT).await?;
+        let chat_id = ChatId::create_for_contact(self, contact).await?;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = self.get_self_report().await?;
+
+        chat_id.set_draft(self, Some(&mut msg)).await?;
+
+        Ok(chat_id)
     }
 
     /// Get a list of fresh, unmuted messages in unblocked chats.
