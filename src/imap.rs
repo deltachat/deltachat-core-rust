@@ -1911,13 +1911,14 @@ impl Session {
         use async_imap::imap_proto::ResponseCode;
         use UnsolicitedResponse::*;
 
+        let folder = self.selected_folder.as_deref().unwrap_or_default();
         let mut unsolicited_exists = false;
         while let Ok(response) = self.unsolicited_responses.try_recv() {
             match response {
                 Exists(_) => {
                     info!(
                         context,
-                        "Need to fetch again, got unsolicited EXISTS {:?}", response
+                        "Need to refetch {folder:?}, got unsolicited EXISTS {response:?}"
                     );
                     unsolicited_exists = true;
                 }
@@ -1936,7 +1937,7 @@ impl Session {
                     ) => {}
 
                 _ => {
-                    info!(context, "got unsolicited response {:?}", response)
+                    info!(context, "{folder:?}: got unsolicited response {response:?}")
                 }
             }
         }
