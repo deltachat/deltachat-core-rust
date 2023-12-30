@@ -1,11 +1,13 @@
 //! Migrations module.
 
 use anyhow::{Context as _, Result};
+use rusqlite::OptionalExtension;
 
 use crate::config::Config;
-use crate::constants::ShowEmails;
+use crate::constants::{self, ShowEmails};
 use crate::context::Context;
 use crate::imap;
+use crate::message::MsgId;
 use crate::provider::get_provider_by_domain;
 use crate::sql::Sql;
 use crate::tools::EmailAddress;
@@ -834,6 +836,56 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 108 {
+        let version = 108;
+        let chunk_size = context
+            .get_configured_provider()
+            .await?
+            .and_then(|provider| provider.opt.max_smtp_rcpt_to)
+            .map_or(constants::DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
+        sql.transaction(move |trans| {
+            Sql::set_db_version_trans(trans, version)?;
+            let id_max =
+                trans.query_row("SELECT IFNULL((SELECT MAX(id) FROM smtp), 0)", (), |row| {
+                    let id_max: i64 = row.get(0)?;
+                    Ok(id_max)
+                })?;
+            while let Some((id, rfc724_mid, mime, msg_id, recipients, retries)) = trans
+                .query_row(
+                    "SELECT id, rfc724_mid, mime, msg_id, recipients, retries FROM smtp \
+                    WHERE id<=? LIMIT 1",
+                    (id_max,),
+                    |row| {
+                        let id: i64 = row.get(0)?;
+                        let rfc724_mid: String = row.get(1)?;
+                        let mime: String = row.get(2)?;
+                        let msg_id: MsgId = row.get(3)?;
+                        let recipients: String = row.get(4)?;
+                        let retries: i64 = row.get(5)?;
+                        Ok((id, rfc724_mid, mime, msg_id, recipients, retries))
+                    },
+                )
+                .optional()?
+            {
+                trans.execute("DELETE FROM smtp WHERE id=?", (id,))?;
+                let recipients = recipients.split(' ').collect::<Vec<_>>();
+                for recipients in recipients.chunks(chunk_size) {
+                    let recipients = recipients.join(" ");
+                    trans.execute(
+                        "INSERT INTO smtp (rfc724_mid, mime, msg_id, recipients, retries) \
+                        VALUES (?, ?, ?, ?, ?)",
+                        (&rfc724_mid, &mime, msg_id, recipients, retries),
+                    )?;
+                }
+            }
+            Ok(())
+        })
+        .await
+        .with_context(|| format!("migration failed for version {version}"))?;
+
+        sql.set_db_version_in_cache(version).await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
@@ -873,6 +925,12 @@ impl Sql {
         Ok(())
     }
 
+    async fn set_db_version_in_cache(&self, version: i32) -> Result<()> {
+        let mut lock = self.config_cache.write().await;
+        lock.insert(VERSION_CFG.to_string(), Some(format!("{version}")));
+        Ok(())
+    }
+
     async fn execute_migration(&self, query: &str, version: i32) -> Result<()> {
         self.transaction(move |transaction| {
             Self::set_db_version_trans(transaction, version)?;
@@ -883,10 +941,6 @@ impl Sql {
         .await
         .with_context(|| format!("execute_migration failed for version {version}"))?;
 
-        let mut lock = self.config_cache.write().await;
-        lock.insert(VERSION_CFG.to_string(), Some(format!("{version}")));
-        drop(lock);
-
-        Ok(())
+        self.set_db_version_in_cache(version).await
     }
 }

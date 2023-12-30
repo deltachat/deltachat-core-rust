@@ -9,11 +9,6 @@ use crate::events::EventType;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-// if more recipients are needed in SMTP's `RCPT TO:` header, recipient-list is split to chunks.
-// this does not affect MIME'e `To:` header.
-// can be overwritten by the setting `max_smtp_rcpt_to` in provider-db.
-pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Envelope error: {}", _0)]
@@ -43,40 +38,30 @@ impl Smtp {
         }
 
         let message_len_bytes = message.len();
+        let recipients_display = recipients
+            .iter()
+            .map(|x| x.as_ref())
+            .collect::<Vec<&str>>()
+            .join(",");
 
-        let chunk_size = context
-            .get_configured_provider()
-            .await?
-            .and_then(|provider| provider.opt.max_smtp_rcpt_to)
-            .map_or(DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
+        let envelope =
+            Envelope::new(self.from.clone(), recipients.to_vec()).map_err(Error::Envelope)?;
+        let mail = SendableEmail::new(envelope, message);
 
-        for recipients_chunk in recipients.chunks(chunk_size) {
-            let recipients_display = recipients_chunk
-                .iter()
-                .map(|x| x.as_ref())
-                .collect::<Vec<&str>>()
-                .join(",");
+        if let Some(ref mut transport) = self.transport {
+            transport.send(mail).await.map_err(Error::SmtpSend)?;
 
-            let envelope = Envelope::new(self.from.clone(), recipients_chunk.to_vec())
-                .map_err(Error::Envelope)?;
-            let mail = SendableEmail::new(envelope, message);
-
-            if let Some(ref mut transport) = self.transport {
-                transport.send(mail).await.map_err(Error::SmtpSend)?;
-
-                let info_msg = format!(
-                    "Message len={message_len_bytes} was SMTP-sent to {recipients_display}"
-                );
-                info!(context, "{info_msg}.");
-                context.emit_event(EventType::SmtpMessageSent(info_msg));
-                self.last_success = Some(std::time::SystemTime::now());
-            } else {
-                warn!(
-                    context,
-                    "uh? SMTP has no transport, failed to send to {}", recipients_display
-                );
-                return Err(Error::NoTransport);
-            }
+            let info_msg =
+                format!("Message len={message_len_bytes} was SMTP-sent to {recipients_display}");
+            info!(context, "{info_msg}.");
+            context.emit_event(EventType::SmtpMessageSent(info_msg));
+            self.last_success = Some(std::time::SystemTime::now());
+        } else {
+            warn!(
+                context,
+                "uh? SMTP has no transport, failed to send to {}", recipients_display
+            );
+            return Err(Error::NoTransport);
         }
         Ok(())
     }

@@ -1665,7 +1665,10 @@ pub(crate) async fn update_msg_state(
 ) -> Result<()> {
     context
         .sql
-        .execute("UPDATE msgs SET state=? WHERE id=?;", (state, msg_id))
+        .execute(
+            "UPDATE msgs SET state=?1 WHERE id=?2 AND (?1!=?3 OR state<?3)",
+            (state, msg_id, MessageState::OutDelivered),
+        )
         .await?;
     Ok(())
 }

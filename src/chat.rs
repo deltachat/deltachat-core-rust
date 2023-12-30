@@ -19,8 +19,8 @@ use crate::chatlist::Chatlist;
 use crate::color::str_to_color;
 use crate::config::Config;
 use crate::constants::{
-    Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK, DC_CHAT_ID_LAST_SPECIAL,
-    DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
+    self, Blocked, Chattype, DC_CHAT_ID_ALLDONE_HINT, DC_CHAT_ID_ARCHIVED_LINK,
+    DC_CHAT_ID_LAST_SPECIAL, DC_CHAT_ID_TRASH, DC_RESEND_USER_AVATAR_DAYS,
 };
 use crate::contact::{self, Contact, ContactAddress, ContactId, Origin};
 use crate::context::Context;
@@ -2662,17 +2662,20 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
 
 /// Tries to send a message synchronously.
 ///
-/// Creates a new message in `smtp` table, then drectly opens an SMTP connection and sends the
-/// message. If this fails, the message remains in the database to be sent later.
+/// Creates jobs in the `smtp` table, then drectly opens an SMTP connection and sends the
+/// message. If this fails, the jobs remain in the database for later sending.
 pub async fn send_msg_sync(context: &Context, chat_id: ChatId, msg: &mut Message) -> Result<MsgId> {
-    if let Some(rowid) = prepare_send_msg(context, chat_id, msg).await? {
-        let mut smtp = crate::smtp::Smtp::new();
+    let rowids = prepare_send_msg(context, chat_id, msg).await?;
+    if rowids.is_empty() {
+        return Ok(msg.id);
+    }
+    let mut smtp = crate::smtp::Smtp::new();
+    for rowid in rowids {
         send_msg_to_smtp(context, &mut smtp, rowid)
             .await
             .context("failed to send message, queued for later sending")?;
-
-        context.emit_msgs_changed(msg.chat_id, msg.id);
     }
+    context.emit_msgs_changed(msg.chat_id, msg.id);
     Ok(msg.id)
 }
 
@@ -2682,7 +2685,7 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
         msg.text = strip_rtlo_characters(&msg.text);
     }
 
-    if prepare_send_msg(context, chat_id, msg).await?.is_some() {
+    if !prepare_send_msg(context, chat_id, msg).await?.is_empty() {
         context.emit_msgs_changed(msg.chat_id, msg.id);
 
         if msg.param.exists(Param::SetLatitude) {
@@ -2695,12 +2698,12 @@ async fn send_msg_inner(context: &Context, chat_id: ChatId, msg: &mut Message) -
     Ok(msg.id)
 }
 
-/// Returns rowid from `smtp` table.
+/// Returns row ids of the `smtp` table.
 async fn prepare_send_msg(
     context: &Context,
     chat_id: ChatId,
     msg: &mut Message,
-) -> Result<Option<i64>> {
+) -> Result<Vec<i64>> {
     // prepare_msg() leaves the message state to OutPreparing, we
     // only have to change the state to OutPending in this case.
     // Otherwise we still have to prepare the message, which will set
@@ -2716,20 +2719,16 @@ async fn prepare_send_msg(
         );
         message::update_msg_state(context, msg.id, MessageState::OutPending).await?;
     }
-    let row_id = create_send_msg_job(context, msg).await?;
-    Ok(row_id)
+    create_send_msg_jobs(context, msg).await
 }
 
-/// Constructs a job for sending a message and inserts into `smtp` table.
+/// Constructs jobs for sending a message and inserts them into the `smtp` table.
 ///
-/// Returns rowid if job was created or `None` if SMTP job is not needed, e.g. when sending to a
+/// Returns row ids if jobs were created or an empty `Vec` otherwise, e.g. when sending to a
 /// group with only self and no BCC-to-self configured.
 ///
-/// The caller has to interrupt SMTP loop or otherwise process a new row.
-pub(crate) async fn create_send_msg_job(
-    context: &Context,
-    msg: &mut Message,
-) -> Result<Option<i64>> {
+/// The caller has to interrupt SMTP loop or otherwise process new rows.
+pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -> Result<Vec<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
 
     let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
@@ -2748,7 +2747,7 @@ pub(crate) async fn create_send_msg_job(
     let lowercase_from = from.to_lowercase();
 
     // Send BCC to self if it is enabled and we are not going to
-    // delete it immediately.
+    // delete it immediately. `from` must be the last addr, see `receive_imf_inner()` why.
     if context.get_config_bool(Config::BccSelf).await?
         && context.get_config_delete_server_after().await? != Some(0)
         && !recipients
@@ -2766,7 +2765,7 @@ pub(crate) async fn create_send_msg_job(
         );
         msg.id.set_delivered(context).await?;
         msg.state = MessageState::OutDelivered;
-        return Ok(None);
+        return Ok(Vec::new());
     }
 
     let rendered_msg = match mimefactory.render(context).await {
@@ -2826,27 +2825,32 @@ pub(crate) async fn create_send_msg_job(
         msg.update_param(context).await?;
     }
 
-    ensure!(!recipients.is_empty(), "no recipients for smtp job set");
-
-    let recipients = recipients.join(" ");
-
     msg.subject = rendered_msg.subject.clone();
     msg.update_subject(context).await?;
-
-    let row_id = context
-        .sql
-        .insert(
-            "INSERT INTO smtp (rfc724_mid, recipients, mime, msg_id)
-             VALUES           (?1,         ?2,         ?3,   ?4)",
-            (
-                &rendered_msg.rfc724_mid,
-                recipients,
-                &rendered_msg.message,
-                msg.id,
-            ),
-        )
-        .await?;
-    Ok(Some(row_id))
+    let chunk_size = context
+        .get_configured_provider()
+        .await?
+        .and_then(|provider| provider.opt.max_smtp_rcpt_to)
+        .map_or(constants::DEFAULT_MAX_SMTP_RCPT_TO, usize::from);
+    let trans_fn = |t: &mut rusqlite::Transaction| {
+        let mut row_ids = Vec::<i64>::new();
+        for recipients_chunk in recipients.chunks(chunk_size) {
+            let recipients_chunk = recipients_chunk.join(" ");
+            let row_id = t.execute(
+                "INSERT INTO smtp (rfc724_mid, recipients, mime, msg_id) \
+                VALUES            (?1,         ?2,         ?3,   ?4)",
+                (
+                    &rendered_msg.rfc724_mid,
+                    recipients_chunk,
+                    &rendered_msg.message,
+                    msg.id,
+                ),
+            )?;
+            row_ids.push(row_id.try_into()?);
+        }
+        Ok(row_ids)
+    };
+    context.sql.transaction(trans_fn).await
 }
 
 /// Sends a text message to the given chat.
@@ -4002,7 +4006,7 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
                 .prepare_msg_raw(context, &mut msg, None, curr_timestamp)
                 .await?;
             curr_timestamp += 1;
-            if create_send_msg_job(context, &mut msg).await?.is_some() {
+            if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
                 context.scheduler.interrupt_smtp().await;
             }
         }
@@ -4059,7 +4063,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             chat_id: msg.chat_id,
             msg_id: msg.id,
         });
-        if create_send_msg_job(context, &mut msg).await?.is_some() {
+        if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
             context.scheduler.interrupt_smtp().await;
         }
     }
