@@ -193,12 +193,36 @@ pub(crate) async fn receive_imf_inner(
     );
     let incoming = !context.is_self_addr(&mime_parser.from.addr).await?;
 
-    // For the case if we missed a successful SMTP response.
-    if !incoming {
+    // For the case if we missed a successful SMTP response. Be optimistic that the message is
+    // delivered also.
+    let delivered = !incoming && {
+        let self_addr = context.get_primary_self_addr().await?;
         context
             .sql
-            .execute("DELETE FROM smtp WHERE rfc724_mid=?", (rfc724_mid_orig,))
+            .execute(
+                "DELETE FROM smtp \
+                WHERE rfc724_mid=?1 AND (recipients LIKE ?2 OR recipients LIKE ('% ' || ?2))",
+                (rfc724_mid_orig, &self_addr),
+            )
             .await?;
+        !context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM smtp WHERE rfc724_mid=?",
+                (rfc724_mid_orig,),
+            )
+            .await?
+    };
+
+    async fn on_msg_in_db(
+        context: &Context,
+        msg_id: MsgId,
+        delivered: bool,
+    ) -> Result<Option<ReceivedMsg>> {
+        if delivered {
+            msg_id.set_delivered(context).await?;
+        }
+        Ok(None)
     }
 
     // check, if the mail is already in our database.
@@ -210,7 +234,7 @@ pub(crate) async fn receive_imf_inner(
                 context,
                 "Got a partial download and message is already in DB."
             );
-            return Ok(None);
+            return on_msg_in_db(context, old_msg_id, delivered).await;
         }
         let msg = Message::load_from_db(context, old_msg_id).await?;
         replace_msg_id = Some(old_msg_id);
@@ -232,9 +256,12 @@ pub(crate) async fn receive_imf_inner(
         };
         replace_chat_id = None;
     }
-    if replace_msg_id.is_some() && replace_chat_id.is_none() {
+
+    if replace_chat_id.is_some() {
+        // Need to update chat id in the db.
+    } else if let Some(msg_id) = replace_msg_id {
         info!(context, "Message is already downloaded.");
-        return Ok(None);
+        return on_msg_in_db(context, msg_id, delivered).await;
     };
 
     let prevent_rename =
