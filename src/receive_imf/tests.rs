@@ -2,11 +2,11 @@ use tokio::fs;
 
 use super::*;
 use crate::aheader::EncryptPreference;
+use crate::chat::{self, get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chat::{
     add_contact_to_chat, add_to_chat_contacts_table, create_group_chat, get_chat_contacts,
     is_contact_in_chat, remove_contact_from_chat, send_text_msg,
 };
-use crate::chat::{get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
@@ -628,7 +628,7 @@ async fn test_parse_ndn(
     rfc724_mid_outgoing: &str,
     raw_ndn: &[u8],
     error_msg: Option<&str>,
-) {
+) -> (TestContext, MsgId) {
     let t = TestContext::new().await;
     t.configure_addr(self_addr).await;
 
@@ -675,6 +675,37 @@ async fn test_parse_ndn(
     );
 
     assert_eq!(msg.error(), error_msg.map(|error| error.to_string()));
+    (t, msg_id)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_resend_after_ndn() -> Result<()> {
+    let (t, msg_id) = test_parse_ndn(
+            "alice@testrun.org",
+            "hcksocnsofoejx@five.chat",
+            "Mr.A7pTA5IgrUA.q4bP41vAJOp@testrun.org",
+            include_bytes!("../../test-data/message/testrun_ndn.eml"),
+            Some("Undelivered Mail Returned to Sender – This is the mail system at host hq5.merlinux.eu.\n\nI\'m sorry to have to inform you that your message could not\nbe delivered to one or more recipients. It\'s attached below.\n\nFor further assistance, please send mail to postmaster.\n\nIf you do so, please include this problem report. You can\ndelete your own text from the attached returned message.\n\n                   The mail system\n\n<hcksocnsofoejx@five.chat>: host mail.five.chat[195.62.125.103] said: 550 5.1.1\n    <hcksocnsofoejx@five.chat>: Recipient address rejected: User unknown in\n    virtual mailbox table (in reply to RCPT TO command)"),
+        )
+        .await;
+    chat::resend_msgs(&t, &[msg_id]).await?;
+    // Alice receives a BCC-self copy of their message.
+    receive_imf(
+        &t,
+        "To: hcksocnsofoejx@five.chat\n\
+        From: alice@testrun.org\n\
+        Date: Today, 2 January 2024 00:00:00 -300\n\
+        Message-ID: Mr.A7pTA5IgrUA.q4bP41vAJOp@testrun.org\n\
+        \n\
+        hi"
+        .as_bytes(),
+        false,
+    )
+    .await?;
+    let msg = t.get_last_msg().await;
+    assert_eq!(msg.state, MessageState::OutDelivered);
+    assert_eq!(msg.error(), None);
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
