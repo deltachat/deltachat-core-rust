@@ -287,4 +287,11 @@ pub enum EventType {
         /// ID of the deleted message.
         msg_id: MsgId,
     },
+
+    /// Tells that the Background fetch was completed (or timed out).
+    /// This event acts as a marker, when you reach this event you can be sure
+    /// that all events emitted during the background fetch were processed.
+    ///
+    /// This event is only emitted by the account manager
+    BackgroundFetchCompletedForAllAccounts,
 }
