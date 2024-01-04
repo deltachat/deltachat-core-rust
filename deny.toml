@@ -53,7 +53,6 @@ skip = [
      { name = "sec1", version = "0.3.0" },
      { name = "sha2", version = "<0.10" },
      { name = "signature", version = "1.6.4" },
-     { name = "socket2", version = "0.4.9" },
      { name = "spin", version = "<0.9.6" },
      { name = "spki", version = "0.6.0" },
      { name = "syn", version = "1.0.109" },
