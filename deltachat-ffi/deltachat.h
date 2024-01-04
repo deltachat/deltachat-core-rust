@@ -6269,6 +6269,16 @@ void dc_event_unref(dc_event_t* event);
 
 #define DC_EVENT_WEBXDC_INSTANCE_DELETED          2121
 
+/**
+ * Tells that the Background fetch was completed (or timed out).
+ *
+ * This event acts as a marker, when you reach this event you can be sure
+ * that all events emitted during the background fetch were processed.
+ * 
+ * This event is only emitted by the account manager
+ */
+
+#define DC_EVENT_BACKGROUND_FETCH_COMPLETED_FOR_ALL_ACCOUNTS  2200
 
 /**
  * @}
