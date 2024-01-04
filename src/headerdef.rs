@@ -38,6 +38,9 @@ pub enum HeaderDef {
     /// Mailing list ID defined in [RFC 2919](https://tools.ietf.org/html/rfc2919).
     ListId,
     ListPost,
+
+    /// List-Help header defined in [RFC 2369](https://datatracker.ietf.org/doc/html/rfc2369).
+    ListHelp,
     References,
 
     /// In-Reply-To header containing Message-ID of the parent message.

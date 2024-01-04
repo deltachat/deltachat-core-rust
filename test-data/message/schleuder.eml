@@ -1,0 +1,66 @@
+Return-Path: <mailing-list-bounce@example.org>
+Delivered-To: alice@testrun.org
+Date: Tue, 02 Jan 2024 05:00:00 +0000
+From: mailing-list@example.org
+Sender: mailing-list-bounce@example.org
+To: alice@testrun.org
+Message-ID: <87wmss8juz.fsf@example.org>
+In-Reply-To: 
+References: 
+Subject: [REPOST] Some subject
+Mime-Version: 1.0
+Content-Type: multipart/signed;
+ boundary="--==_mimepart_65938a80866e8_663a2abed9b585c064398";
+ micalg=pgp-sha1;
+ protocol="application/pgp-signature"
+Content-Transfer-Encoding: 7bit
+List-Id: <mailing-list.example.org>
+List-Owner: <mailto:mailing-list-owner@example.org> (Use list's public
+ key)
+List-Help: <https://schleuder.org/>
+List-Post: <mailto:mailing-list@example.org>
+
+This is an OpenPGP/MIME signed message (RFC 4880 and 3156)
+----==_mimepart_65938a80866e8_663a2abed9b585c064398
+Content-Type: multipart/mixed;
+ boundary="--==_mimepart_65938a8086476_663a2abed9b585c0642c7";
+ charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+
+----==_mimepart_65938a8086476_663a2abed9b585c0642c7
+Content-Type: text/plain;
+ charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+From: bob@example.org
+To: mailing-list@example.org
+Cc: 
+Date: Tue, 02 Jan 2024 05:00:00 +0000
+Sig: Unsigned
+Enc: Unencrypted
+
+----==_mimepart_65938a8086476_663a2abed9b585c0642c7
+Content-Type: text/plain;
+ charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+hello,
+bye
+
+----==_mimepart_65938a8086476_663a2abed9b585c0642c7--
+
+----==_mimepart_65938a80866e8_663a2abed9b585c064398
+Content-Type: application/pgp-signature;
+ name=signature.asc
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+ filename=signature.asc
+Content-Description: OpenPGP digital signature
+
+-----BEGIN PGP SIGNATURE-----
+
+REDACTED
+-----END PGP SIGNATURE-----
+
+----==_mimepart_65938a80866e8_663a2abed9b585c064398--

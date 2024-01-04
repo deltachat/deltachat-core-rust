@@ -1365,6 +1365,15 @@ impl MimeMessage {
         self.get_mailinglist_header().is_some()
     }
 
+    /// Detects Schleuder mailing list by List-Help header.
+    pub(crate) fn is_schleuder_message(&self) -> bool {
+        if let Some(list_help) = self.get_header(HeaderDef::ListHelp) {
+            list_help == "<https://schleuder.org/>"
+        } else {
+            false
+        }
+    }
+
     pub fn replace_msg_by_error(&mut self, error_msg: &str) {
         self.is_system_message = SystemMessage::Unknown;
         if let Some(part) = self.parts.first_mut() {
@@ -1593,8 +1602,12 @@ impl MimeMessage {
     /// eg. when the user-edited-content is html.
     /// As these footers would appear as repeated, separate text-bubbles,
     /// we remove them.
+    ///
+    /// We make an exception for Schleuder mailing lists
+    /// because they typically create messages with two text parts,
+    /// one for headers and one for the actual contents.
     fn maybe_remove_inline_mailinglist_footer(&mut self) {
-        if self.is_mailinglist_message() {
+        if self.is_mailinglist_message() && !self.is_schleuder_message() {
             let text_part_cnt = self
                 .parts
                 .iter()
@@ -3783,6 +3796,26 @@ Content-Disposition: reaction\n\
         receive_imf(&context, &raw[..], false).await?;
         let msg = context.get_last_msg().await;
         assert_eq!(msg.get_viewtype(), Viewtype::Image);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_schleuder() -> Result<()> {
+        let context = TestContext::new_alice().await;
+        let raw = include_bytes!("../test-data/message/schleuder.eml");
+
+        let msg = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(msg.parts.len(), 2);
+
+        // Header part.
+        assert_eq!(msg.parts[0].typ, Viewtype::Text);
+
+        // Actual contents part.
+        assert_eq!(msg.parts[1].typ, Viewtype::Text);
+        assert_eq!(msg.parts[1].msg, "hello,\nbye");
 
         Ok(())
     }
