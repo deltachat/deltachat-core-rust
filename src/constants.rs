@@ -214,6 +214,9 @@ pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 4;
 // `max_smtp_rcpt_to` in the provider db.
 pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
 
+/// How far the last quota check needs to be in the past to be checked by the background function (in seconds).
+pub(crate) const DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT: i64 = 12 * 60 * 60; // 12 hours
+
 #[cfg(test)]
 mod tests {
     use num_traits::FromPrimitive;

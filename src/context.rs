@@ -15,7 +15,7 @@ use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::chat::{get_chat_cnt, ChatId};
 use crate::config::Config;
-use crate::constants::DC_VERSION_STR;
+use crate::constants::{DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_VERSION_STR};
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
@@ -466,9 +466,19 @@ impl Context {
                 .await?;
         }
 
-        // update quota (to send warning if full)
-        if let Err(err) = self.update_recent_quota(&mut connection).await {
-            warn!(self, "Failed to update quota: {err:#}.");
+        // update quota (to send warning if full) - but only check it once in a while
+        let quota_needs_update = {
+            let quota = self.quota.read().await;
+            quota
+                .as_ref()
+                .filter(|quota| quota.modified + DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT > time())
+                .is_none()
+        };
+
+        if quota_needs_update {
+            if let Err(err) = self.update_recent_quota(&mut connection).await {
+                warn!(self, "Failed to update quota: {err:#}.");
+            }
         }
 
         info!(
