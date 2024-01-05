@@ -396,3 +396,46 @@ def test_provider_info(rpc) -> None:
     rpc.set_config(account_id, "socks5_enabled", "1")
     provider_info = rpc.get_provider_info(account_id, "github.com")
     assert provider_info is None
+
+
+def test_mdn_doesnt_break_autocrypt(acfactory) -> None:
+    alice, bob = acfactory.get_online_accounts(2)
+
+    bob_addr = bob.get_config("addr")
+
+    alice_contact_bob = alice.create_contact(bob_addr, "Bob")
+
+    # Bob creates chat manually so chat with Alice is accepted.
+    alice_chat_bob = alice_contact_bob.create_chat()
+
+    # Alice sends a message to Bob.
+    alice_chat_bob.send_text("Hello Bob!")
+    event = bob.wait_for_incoming_msg_event()
+    msg_id = event.msg_id
+    message = bob.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+
+    # Bob sends a message to Alice.
+    bob_chat_alice = snapshot.chat
+    bob_chat_alice.accept()
+    bob_chat_alice.send_text("Hello Alice!")
+    event = alice.wait_for_incoming_msg_event()
+    msg_id = event.msg_id
+    message = alice.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    assert snapshot.show_padlock
+
+    # Alice reads Bob's message.
+    message.mark_seen()
+    while True:
+        event = bob.wait_for_event()
+        if event.kind == EventType.MSG_READ:
+            break
+
+    # Bob sends a message to Alice, it should also be encrypted.
+    bob_chat_alice.send_text("Hi Alice!")
+    event = alice.wait_for_incoming_msg_event()
+    msg_id = event.msg_id
+    message = alice.get_message_by_id(msg_id)
+    snapshot = message.get_snapshot()
+    assert snapshot.show_padlock
