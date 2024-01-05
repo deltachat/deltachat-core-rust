@@ -239,7 +239,7 @@ describe('Basic offline Tests', function () {
       'delete_device_after',
       'delete_server_after',
       'deltachat_core_version',
-      'display_name',
+      'displayname',
       'download_limit',
       'e2ee_enabled',
       'entered_account_settings',

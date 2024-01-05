@@ -715,7 +715,7 @@ impl Context {
         );
         res.insert("journal_mode", journal_mode);
         res.insert("blobdir", self.get_blobdir().display().to_string());
-        res.insert("display_name", displayname.unwrap_or_else(|| unset.into()));
+        res.insert("displayname", displayname.unwrap_or_else(|| unset.into()));
         res.insert(
             "selfavatar",
             self.get_config(Config::Selfavatar)
