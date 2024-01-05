@@ -8,7 +8,7 @@
   "devDependencies": {
     "@types/debug": "^4.1.7",
     "@types/node": "^20.8.10",
-    "chai": "^4.2.0",
+    "chai": "~4.3.10",
     "chai-as-promised": "^7.1.1",
     "esm": "^3.2.25",
     "mocha": "^8.2.1",
