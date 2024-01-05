@@ -140,12 +140,9 @@ def test_chat(acfactory) -> None:
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            chat_id = event.chat_id
-            msg_id = event.msg_id
-            break
+    event = bob.wait_for_incoming_msg_event()
+    chat_id = event.chat_id
+    msg_id = event.msg_id
     message = bob.get_message_by_id(msg_id)
     snapshot = message.get_snapshot()
     assert snapshot.chat_id == chat_id
@@ -224,12 +221,9 @@ def test_message(acfactory) -> None:
     alice_chat_bob = alice_contact_bob.create_chat()
     alice_chat_bob.send_text("Hello!")
 
-    while True:
-        event = bob.wait_for_event()
-        if event.kind == EventType.INCOMING_MSG:
-            chat_id = event.chat_id
-            msg_id = event.msg_id
-            break
+    event = bob.wait_for_incoming_msg_event()
+    chat_id = event.chat_id
+    msg_id = event.msg_id
 
     message = bob.get_message_by_id(msg_id)
     snapshot = message.get_snapshot()
