@@ -768,6 +768,30 @@ impl<'a> MimeFactory<'a> {
                         .build(),
                 )
                 .header(("Subject".to_string(), "...".to_string()))
+        } else if matches!(self.loaded, Loaded::Mdn { .. }) {
+            // Never add outer multipart/mixed wrapper to MDN
+            // as multipart/report Content-Type is used to recognize MDNs
+            // by Delta Chat receiver and Chatmail servers
+            // allowing them to be unencrypted and not contain Autocrypt header
+            // without resetting Autocrypt encryption or triggering Chatmail filter
+            // that normally only allows encrypted mails.
+
+            // Hidden headers are dropped.
+
+            // Store protected headers in the outer message.
+            let message = headers
+                .protected
+                .iter()
+                .fold(message, |message, header| message.header(header.clone()));
+
+            let protected: HashSet<Header> = HashSet::from_iter(headers.protected.into_iter());
+            for h in headers.unprotected.split_off(0) {
+                if !protected.contains(&h) {
+                    headers.unprotected.push(h);
+                }
+            }
+
+            message
         } else {
             // Store hidden headers in the inner unencrypted message.
             let message = headers
