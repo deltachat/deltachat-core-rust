@@ -5,9 +5,11 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{ensure, Context as _, Result};
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
+use tokio::fs;
 
 use crate::blob::BlobObject;
 use crate::constants::{self, DC_VERSION_STR};
@@ -361,8 +363,8 @@ impl Config {
     ///
     /// This must be checked on both sides so that if there are different client versions, the
     /// synchronisation of a particular option is either done or not done in both directions.
-    /// Moreover, receivers of a config value need to check if a key can be synced because some
-    /// settings (e.g. Avatar path) could otherwise lead to exfiltration of files from a receiver's
+    /// Moreover, receivers of a config value need to check if a key can be synced because if it is
+    /// a file path, it could otherwise lead to exfiltration of files from a receiver's
     /// device if we assume an attacker to have control of a device in a multi-device setting or if
     /// multiple users are sharing an account. Another example is `Self::SyncMsgs` itself which
     /// mustn't be controlled by other devices.
@@ -373,7 +375,7 @@ impl Config {
         }
         matches!(
             self,
-            Self::Displayname | Self::MdnsEnabled | Self::ShowEmails
+            Self::Displayname | Self::MdnsEnabled | Self::ShowEmails | Self::Selfavatar,
         )
     }
 
@@ -503,6 +505,23 @@ impl Context {
         }
     }
 
+    /// Executes [`SyncData::Config`] item sent by other device.
+    pub(crate) async fn sync_config(&self, key: &Config, value: &str) -> Result<()> {
+        let config_value;
+        let value = match key {
+            Config::Selfavatar if value.is_empty() => None,
+            Config::Selfavatar => {
+                config_value = BlobObject::store_from_base64(self, value, "avatar").await?;
+                Some(config_value.as_str())
+            }
+            _ => Some(value),
+        };
+        match key.is_synced() {
+            true => self.set_config_ex(Nosync, *key, value).await,
+            false => Ok(()),
+        }
+    }
+
     fn check_config(key: Config, value: Option<&str>) -> Result<()> {
         match key {
             Config::Socks5Enabled
@@ -565,15 +584,24 @@ impl Context {
                     .execute("UPDATE contacts SET selfavatar_sent=0;", ())
                     .await?;
                 match value {
-                    Some(value) => {
-                        let mut blob = BlobObject::new_from_path(self, value.as_ref()).await?;
+                    Some(path) => {
+                        let mut blob = BlobObject::new_from_path(self, path.as_ref()).await?;
                         blob.recode_to_avatar_size(self).await?;
                         self.sql
                             .set_raw_config(key.as_ref(), Some(blob.as_name()))
                             .await?;
+                        if sync {
+                            let buf = fs::read(blob.to_abs_path()).await?;
+                            better_value = base64::engine::general_purpose::STANDARD.encode(buf);
+                            value = Some(&better_value);
+                        }
                     }
                     None => {
                         self.sql.set_raw_config(key.as_ref(), None).await?;
+                        if sync {
+                            better_value = String::new();
+                            value = Some(&better_value);
+                        }
                     }
                 }
                 self.emit_event(EventType::SelfavatarChanged);
@@ -949,6 +977,23 @@ mod tests {
             alice1.get_config(Config::Displayname).await?,
             Some("Alice Sync".to_string())
         );
+
+        assert!(alice0.get_config(Config::Selfavatar).await?.is_none());
+        let file = alice0.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await?;
+        alice0
+            .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+        sync(&alice0, &alice1).await;
+        assert!(alice1
+            .get_config(Config::Selfavatar)
+            .await?
+            .filter(|path| path.ends_with(".png"))
+            .is_some());
+        alice0.set_config(Config::Selfavatar, None).await?;
+        sync(&alice0, &alice1).await;
+        assert!(alice1.get_config(Config::Selfavatar).await?.is_none());
 
         Ok(())
     }
