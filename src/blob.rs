@@ -8,6 +8,7 @@ use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
+use base64::Engine as _;
 use futures::StreamExt;
 use image::{DynamicImage, GenericImageView, ImageFormat, ImageOutputFormat};
 use num_traits::FromPrimitive;
@@ -310,6 +311,30 @@ impl<'a> BlobObject<'a> {
             return false;
         }
         true
+    }
+
+    /// Returns path to the stored Base64-decoded blob.
+    ///
+    /// If `data` represents an image of known format, this adds the corresponding extension to
+    /// `suggested_file_stem`.
+    pub(crate) async fn store_from_base64(
+        context: &Context,
+        data: &str,
+        suggested_file_stem: &str,
+    ) -> Result<String> {
+        let buf = base64::engine::general_purpose::STANDARD.decode(data)?;
+        let ext = if let Ok(format) = image::guess_format(&buf) {
+            if let Some(ext) = format.extensions_str().first() {
+                format!(".{ext}")
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+        let blob =
+            BlobObject::create(context, &format!("{suggested_file_stem}{ext}"), &buf).await?;
+        Ok(blob.as_name().to_string())
     }
 
     pub async fn recode_to_avatar_size(&mut self, context: &Context) -> Result<()> {

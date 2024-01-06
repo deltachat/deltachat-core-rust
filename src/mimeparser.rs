@@ -8,7 +8,6 @@ use std::pin::Pin;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
-use base64::Engine as _;
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
 use lettre_email::mime::{self, Mime};
@@ -722,37 +721,20 @@ impl MimeMessage {
     ) -> Option<AvatarAction> {
         if header_value == "0" {
             Some(AvatarAction::Delete)
-        } else if let Some(avatar) = header_value
+        } else if let Some(base64) = header_value
             .split_ascii_whitespace()
             .collect::<String>()
             .strip_prefix("base64:")
-            .map(|x| base64::engine::general_purpose::STANDARD.decode(x))
         {
-            // Avatar sent directly in the header as base64.
-            if let Ok(decoded_data) = avatar {
-                let extension = if let Ok(format) = image::guess_format(&decoded_data) {
-                    if let Some(ext) = format.extensions_str().first() {
-                        format!(".{ext}")
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    String::new()
-                };
-                match BlobObject::create(context, &format!("avatar{extension}"), &decoded_data)
-                    .await
-                {
-                    Ok(blob) => Some(AvatarAction::Change(blob.as_name().to_string())),
-                    Err(err) => {
-                        warn!(
-                            context,
-                            "Could not save decoded avatar to blob file: {:#}", err
-                        );
-                        None
-                    }
+            match BlobObject::store_from_base64(context, base64, "avatar").await {
+                Ok(path) => Some(AvatarAction::Change(path)),
+                Err(err) => {
+                    warn!(
+                        context,
+                        "Could not decode and save avatar to blob file: {:#}", err,
+                    );
+                    None
                 }
-            } else {
-                None
             }
         } else {
             // Avatar sent in attachment, as previous versions of Delta Chat did.

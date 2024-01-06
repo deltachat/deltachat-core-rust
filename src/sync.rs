@@ -276,10 +276,7 @@ impl Context {
                     AddQrToken(token) => self.add_qr_token(token).await,
                     DeleteQrToken(token) => self.delete_qr_token(token).await,
                     AlterChat { id, action } => self.sync_alter_chat(id, action).await,
-                    SyncData::Config { key, val } => match key.is_synced() {
-                        true => self.set_config_ex(Sync::Nosync, *key, Some(val)).await,
-                        false => Ok(()),
-                    },
+                    SyncData::Config { key, val } => self.sync_config(key, val).await,
                 },
                 SyncDataOrUnknown::Unknown(data) => {
                     warn!(self, "Ignored unknown sync item: {data}.");
