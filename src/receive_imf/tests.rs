@@ -689,6 +689,9 @@ async fn test_resend_after_ndn() -> Result<()> {
         )
         .await;
     chat::resend_msgs(&t, &[msg_id]).await?;
+    let msg = Message::load_from_db(&t, msg_id).await?;
+    assert_eq!(msg.state, MessageState::OutPending);
+    assert_eq!(msg.error(), None);
     // Alice receives a BCC-self copy of their message.
     receive_imf(
         &t,
