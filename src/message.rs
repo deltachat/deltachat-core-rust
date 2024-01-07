@@ -1663,7 +1663,8 @@ pub(crate) async fn update_msg_state(
     msg_id: MsgId,
     state: MessageState,
 ) -> Result<()> {
-    let error_subst = match state >= MessageState::OutDelivered {
+    ensure!(state != MessageState::OutFailed, "use set_msg_failed()!");
+    let error_subst = match state >= MessageState::OutPending {
         true => ", error=''",
         false => "",
     };
