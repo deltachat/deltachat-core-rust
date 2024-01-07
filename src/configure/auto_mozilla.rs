@@ -1,6 +1,7 @@
 //! # Thunderbird's Autoconfiguration implementation
 //!
-//! Documentation: <https://web.archive.org/web/20210624004729/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration>
+//! RFC draft: <https://www.ietf.org/archive/id/draft-bucksch-autoconfig-00.html>
+//! Archived original documentation: <https://web.archive.org/web/20210624004729/https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration>
 use std::io::BufRead;
 use std::str::FromStr;
 
