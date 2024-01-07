@@ -375,7 +375,11 @@ impl Config {
         }
         matches!(
             self,
-            Self::Displayname | Self::MdnsEnabled | Self::ShowEmails | Self::Selfavatar,
+            Self::Displayname
+                | Self::MdnsEnabled
+                | Self::ShowEmails
+                | Self::Selfavatar
+                | Self::Selfstatus,
         )
     }
 
@@ -969,14 +973,19 @@ mod tests {
         assert!(alice1.get_config_bool(Config::MdnsEnabled).await?);
 
         // Usual sync scenario.
-        alice0
-            .set_config(Config::Displayname, Some("Alice Sync"))
-            .await?;
-        sync(&alice0, &alice1).await;
-        assert_eq!(
-            alice1.get_config(Config::Displayname).await?,
-            Some("Alice Sync".to_string())
-        );
+        async fn test_config_str(
+            alice0: &TestContext,
+            alice1: &TestContext,
+            key: Config,
+            val: &str,
+        ) -> Result<()> {
+            alice0.set_config(key, Some(val)).await?;
+            sync(alice0, alice1).await;
+            assert_eq!(alice1.get_config(key).await?, Some(val.to_string()));
+            Ok(())
+        }
+        test_config_str(&alice0, &alice1, Config::Displayname, "Alice Sync").await?;
+        test_config_str(&alice0, &alice1, Config::Selfstatus, "My status").await?;
 
         assert!(alice0.get_config(Config::Selfavatar).await?.is_none());
         let file = alice0.dir.path().join("avatar.png");
