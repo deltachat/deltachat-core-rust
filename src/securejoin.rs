@@ -203,7 +203,7 @@ async fn info_chat_id(context: &Context, contact_id: ContactId) -> Result<ChatId
 
 /// Checks fingerprint and marks the contact as forward verified
 /// if fingerprint matches.
-async fn fingerprint_equals_sender(
+async fn verify_sender_by_fingerprint(
     context: &Context,
     fingerprint: &Fingerprint,
     contact_id: ContactId,
@@ -374,7 +374,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             }
-            if !fingerprint_equals_sender(context, &fingerprint, contact_id).await? {
+            if !verify_sender_by_fingerprint(context, &fingerprint, contact_id).await? {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
