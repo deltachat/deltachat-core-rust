@@ -11,7 +11,7 @@ use anyhow::Result;
 use rusqlite::Connection;
 
 use super::qrinvite::QrInvite;
-use super::{encrypted_and_signed, fingerprint_equals_sender};
+use super::{encrypted_and_signed, verify_sender_by_fingerprint};
 use crate::chat::{self, ChatId};
 use crate::config::Config;
 use crate::contact::{Contact, Origin};
@@ -90,7 +90,8 @@ impl BobState {
         chat_id: ChatId,
     ) -> Result<(Self, BobHandshakeStage, Vec<Self>)> {
         let (stage, next) =
-            if fingerprint_equals_sender(context, invite.fingerprint(), invite.contact_id()).await?
+            if verify_sender_by_fingerprint(context, invite.fingerprint(), invite.contact_id())
+                .await?
             {
                 // The scanned fingerprint matches Alice's key, we can proceed to step 4b.
                 info!(context, "Taking securejoin protocol shortcut");
@@ -268,8 +269,12 @@ impl BobState {
                 .await?;
             return Ok(Some(BobHandshakeStage::Terminated(reason)));
         }
-        if !fingerprint_equals_sender(context, self.invite.fingerprint(), self.invite.contact_id())
-            .await?
+        if !verify_sender_by_fingerprint(
+            context,
+            self.invite.fingerprint(),
+            self.invite.contact_id(),
+        )
+        .await?
         {
             self.update_next(&context.sql, SecureJoinStep::Terminated)
                 .await?;
