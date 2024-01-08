@@ -546,8 +546,12 @@ impl Config {
             }
             if self.inner.selected_account == id {
                 // reset selected account
-                self.inner.selected_account =
-                    self.inner.accounts.get(0).map(|e| e.id).unwrap_or_default();
+                self.inner.selected_account = self
+                    .inner
+                    .accounts
+                    .first()
+                    .map(|e| e.id)
+                    .unwrap_or_default();
             }
         }
 

@@ -85,7 +85,7 @@ impl FullChat {
         let can_send = chat.can_send(context).await?;
 
         let was_seen_recently = if chat.get_type() == Chattype::Single {
-            match contact_ids.get(0) {
+            match contact_ids.first() {
                 Some(contact) => Contact::get_by_id(context, *contact)
                     .await
                     .context("failed to load contact for was_seen_recently")?

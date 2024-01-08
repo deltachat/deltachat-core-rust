@@ -954,7 +954,7 @@ Content-Disposition: attachment; filename="location.kml"
         assert!(msg.chat_id == bob_chat_id);
         assert_eq!(msg.msg_ids.len(), 1);
 
-        let bob_msg = Message::load_from_db(&bob, *msg.msg_ids.get(0).unwrap()).await?;
+        let bob_msg = Message::load_from_db(&bob, *msg.msg_ids.first().unwrap()).await?;
         assert_eq!(bob_msg.chat_id, bob_chat_id);
         assert_eq!(bob_msg.viewtype, Viewtype::Image);
 

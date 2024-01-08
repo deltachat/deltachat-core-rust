@@ -1370,7 +1370,7 @@ mod tests {
         assert_eq!(res.len(), 2);
 
         // Message added later is returned first.
-        assert_eq!(res.get(0), Some(&msg2.id));
+        assert_eq!(res.first(), Some(&msg2.id));
         assert_eq!(res.get(1), Some(&msg1.id));
 
         // Global search with longer text does not find any message.
@@ -1587,7 +1587,7 @@ mod tests {
 
         let bob_next_msg_ids = bob.get_next_msgs().await?;
         assert_eq!(bob_next_msg_ids.len(), 1);
-        assert_eq!(bob_next_msg_ids.get(0), Some(&received_msg.id));
+        assert_eq!(bob_next_msg_ids.first(), Some(&received_msg.id));
 
         bob.set_config_u32(Config::LastMsgId, received_msg.id.to_u32())
             .await?;
@@ -1596,7 +1596,7 @@ mod tests {
         // Next messages include self-sent messages.
         let alice_next_msg_ids = alice.get_next_msgs().await?;
         assert_eq!(alice_next_msg_ids.len(), 1);
-        assert_eq!(alice_next_msg_ids.get(0), Some(&sent_msg.sender_msg_id));
+        assert_eq!(alice_next_msg_ids.first(), Some(&sent_msg.sender_msg_id));
 
         alice
             .set_config_u32(Config::LastMsgId, sent_msg.sender_msg_id.to_u32())

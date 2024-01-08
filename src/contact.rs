@@ -1885,12 +1885,12 @@ mod tests {
         // Search by name.
         let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).await?;
         assert_eq!(contacts.len(), 1);
-        assert_eq!(contacts.get(0), Some(&id));
+        assert_eq!(contacts.first(), Some(&id));
 
         // Search by address.
         let contacts = Contact::get_all(&context.ctx, 0, Some("user")).await?;
         assert_eq!(contacts.len(), 1);
-        assert_eq!(contacts.get(0), Some(&id));
+        assert_eq!(contacts.first(), Some(&id));
 
         let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).await?;
         assert_eq!(contacts.len(), 0);
@@ -1917,7 +1917,7 @@ mod tests {
         // Search by display name (same as manually set name).
         let contacts = Contact::get_all(&context.ctx, 0, Some("someone")).await?;
         assert_eq!(contacts.len(), 1);
-        assert_eq!(contacts.get(0), Some(&id));
+        assert_eq!(contacts.first(), Some(&id));
 
         Ok(())
     }

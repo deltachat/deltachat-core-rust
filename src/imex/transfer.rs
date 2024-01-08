@@ -638,7 +638,7 @@ mod tests {
         let self_chat = ctx1.get_self_chat().await;
         let msgs = get_chat_msgs(&ctx1, self_chat.id).await.unwrap();
         assert_eq!(msgs.len(), 2);
-        let msgid = match msgs.get(0).unwrap() {
+        let msgid = match msgs.first().unwrap() {
             ChatItem::Message { msg_id } => msg_id,
             _ => panic!("wrong chat item"),
         };

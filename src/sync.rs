@@ -447,7 +447,7 @@ mod tests {
         )?;
         assert_eq!(sync_items.items.len(), 1);
         let SyncDataOrUnknown::SyncData(AlterChat { id, action }) =
-            &sync_items.items.get(0).unwrap().data
+            &sync_items.items.first().unwrap().data
         else {
             bail!("bad item");
         };
@@ -491,7 +491,7 @@ mod tests {
 
         assert_eq!(sync_items.items.len(), 1);
         if let SyncDataOrUnknown::SyncData(AddQrToken(token)) =
-            &sync_items.items.get(0).unwrap().data
+            &sync_items.items.first().unwrap().data
         {
             assert_eq!(token.invitenumber, "in");
             assert_eq!(token.auth, "yip");

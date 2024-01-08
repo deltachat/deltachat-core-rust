@@ -425,7 +425,7 @@ Content-Disposition: reaction\n\
         let contacts = reactions.contacts();
         assert_eq!(contacts.len(), 1);
 
-        assert_eq!(contacts.get(0), Some(&bob_id));
+        assert_eq!(contacts.first(), Some(&bob_id));
         let bob_reaction = reactions.get(bob_id);
         assert_eq!(bob_reaction.is_empty(), false);
         assert_eq!(bob_reaction.emojis(), vec!["👍"]);
@@ -526,7 +526,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(reactions.to_string(), "👍1");
         let contacts = reactions.contacts();
         assert_eq!(contacts.len(), 1);
-        let bob_id = contacts.get(0).unwrap();
+        let bob_id = contacts.first().unwrap();
         let bob_reaction = reactions.get(*bob_id);
         assert_eq!(bob_reaction.is_empty(), false);
         assert_eq!(bob_reaction.emojis(), vec!["👍"]);
@@ -578,13 +578,13 @@ Here's my footer -- bob@example.net"
         )
         .await?
         .unwrap();
-        let alice_msg_id = *alice_received_message.msg_ids.get(0).unwrap();
+        let alice_msg_id = *alice_received_message.msg_ids.first().unwrap();
 
         // Bob downloads own message on the other device.
         let bob_received_message = receive_imf(&bob, msg_full.as_bytes(), false)
             .await?
             .unwrap();
-        let bob_msg_id = *bob_received_message.msg_ids.get(0).unwrap();
+        let bob_msg_id = *bob_received_message.msg_ids.first().unwrap();
 
         // Bob reacts to own message.
         send_reaction(&bob, bob_msg_id, "👍").await.unwrap();

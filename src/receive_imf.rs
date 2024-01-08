@@ -315,7 +315,7 @@ pub(crate) async fn receive_imf_inner(
             mime_parser.decryption_info.peerstate =
                 Peerstate::from_addr(context, contact.get_addr()).await?;
         } else {
-            let to_id = to_ids.get(0).copied().unwrap_or_default();
+            let to_id = to_ids.first().copied().unwrap_or_default();
             // handshake may mark contacts as verified and must be processed before chats are created
             res = observe_securejoin_on_other_device(context, &mime_parser, to_id)
                 .await
@@ -919,7 +919,7 @@ async fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        to_id = to_ids.get(0).copied().unwrap_or_default();
+        to_id = to_ids.first().copied().unwrap_or_default();
 
         let self_sent =
             from_id == ContactId::SELF && to_ids.len() == 1 && to_ids.contains(&ContactId::SELF);

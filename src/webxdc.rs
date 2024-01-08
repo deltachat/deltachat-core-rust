@@ -1241,7 +1241,7 @@ mod tests {
         )
         .await?
         .unwrap();
-        assert_eq!(*received_msg.msg_ids.get(0).unwrap(), bob_instance.id);
+        assert_eq!(*received_msg.msg_ids.first().unwrap(), bob_instance.id);
         let bob_instance = bob.get_last_msg().await;
         assert_eq!(bob_instance.viewtype, Viewtype::Webxdc);
         assert_eq!(bob_instance.download_state, DownloadState::Done);
