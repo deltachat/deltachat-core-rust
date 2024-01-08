@@ -18,7 +18,6 @@ use crate::contact::{Contact, Origin};
 use crate::context::Context;
 use crate::events::EventType;
 use crate::headerdef::HeaderDef;
-use crate::key::{load_self_public_key, DcKey};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
@@ -374,10 +373,6 @@ async fn send_handshake_message(
             // Sends the Secure-Join-Auth header in mimefactory.rs.
             msg.param.set(Param::Arg2, invite.authcode());
             msg.param.set_int(Param::GuaranteeE2ee, 1);
-
-            // Sends our own fingerprint in the Secure-Join-Fingerprint header.
-            let bob_fp = load_self_public_key(context).await?.fingerprint();
-            msg.param.set(Param::Arg3, bob_fp.hex());
         }
     };
 

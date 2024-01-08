@@ -84,9 +84,6 @@ pub enum Param {
     /// For Messages
     Arg2 = b'F',
 
-    /// `Secure-Join-Fingerprint` header for `{vc,vg}-request-with-auth` messages.
-    Arg3 = b'G',
-
     /// For Messages
     Arg4 = b'H',
 

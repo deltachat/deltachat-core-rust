@@ -1085,13 +1085,6 @@ impl<'a> MimeFactory<'a> {
                         ));
                     }
 
-                    let fingerprint = msg.param.get(Param::Arg3).unwrap_or_default();
-                    if !fingerprint.is_empty() {
-                        headers.protected.push(Header::new(
-                            "Secure-Join-Fingerprint".into(),
-                            fingerprint.into(),
-                        ));
-                    }
                     if let Some(id) = msg.param.get(Param::Arg4) {
                         headers
                             .protected
