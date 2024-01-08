@@ -22,7 +22,7 @@ use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
-use crate::key::{load_self_public_key, DcKey as _};
+use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::quota::QuotaInfo;
@@ -884,6 +884,10 @@ impl Context {
 
         let db_size = tokio::fs::metadata(&self.sql.dbfile).await?.len();
         res += &format!("db_size_bytes {}\n", db_size);
+
+        let secret_key = &load_self_secret_key(self).await?.primary_key;
+        let key_created = secret_key.created_at().timestamp();
+        res += &format!("key_created {}", key_created);
 
         Ok(res)
     }
