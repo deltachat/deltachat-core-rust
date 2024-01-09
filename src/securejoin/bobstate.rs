@@ -121,7 +121,7 @@ impl BobState {
 
         if peer_verified {
             // Mark 1:1 chat as verified already.
-            state.notify_peer_verified(context, time()).await?;
+            state.set_peer_verified(context, time()).await?;
         }
 
         Ok((state, stage, aborted_states))
