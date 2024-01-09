@@ -191,7 +191,6 @@ impl BobState {
         timestamp: i64,
     ) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
-        let chat_id = self.joining_chat_id(context).await?;
         self.alice_chat()
             .set_protection(
                 context,
@@ -200,7 +199,6 @@ impl BobState {
                 Some(contact.id),
             )
             .await?;
-        context.emit_event(EventType::ChatModified(chat_id));
         Ok(())
     }
 }
