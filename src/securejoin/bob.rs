@@ -101,7 +101,7 @@ pub(super) async fn handle_auth_required(
                 chat::add_info_msg(context, chat_id, &msg, time()).await?;
             }
             bobstate
-                .notify_peer_verified(context, message.timestamp_sent)
+                .set_peer_verified(context, message.timestamp_sent)
                 .await?;
             bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
             Ok(HandshakeMessage::Done)
@@ -182,14 +182,8 @@ impl BobState {
         Ok(())
     }
 
-    /// Notifies the user that the SecureJoin peer is verified.
-    ///
-    /// This creates an info message in the chat being joined.
-    pub(crate) async fn notify_peer_verified(
-        &self,
-        context: &Context,
-        timestamp: i64,
-    ) -> Result<()> {
+    /// Turns 1:1 chat with SecureJoin peer into protected chat.
+    pub(crate) async fn set_peer_verified(&self, context: &Context, timestamp: i64) -> Result<()> {
         let contact = Contact::get_by_id(context, self.invite().contact_id()).await?;
         self.alice_chat()
             .set_protection(
