@@ -350,6 +350,14 @@ pub(crate) async fn receive_imf_inner(
         && mime_parser.get_header(HeaderDef::ChatVerified).is_some()
     {
         if let Some(peerstate) = &mut mime_parser.decryption_info.peerstate {
+            // NOTE: it might be better to remember ID of the key
+            // that we used to decrypt the message, but
+            // it is unlikely that default key ever changes
+            // as it only happens when user imports a new default key.
+            //
+            // Backward verification is not security-critical,
+            // it is only needed to avoid adding user who does not
+            // have our key as verified to protected chats.
             peerstate.backward_verified_key_id =
                 Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
             peerstate.save_to_db(&context.sql).await?;
