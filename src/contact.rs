@@ -477,6 +477,15 @@ impl Contact {
     ///
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub async fn create(context: &Context, name: &str, addr: &str) -> Result<ContactId> {
+        Self::create_ex(context, Sync, name, addr).await
+    }
+
+    pub(crate) async fn create_ex(
+        context: &Context,
+        sync: sync::Sync,
+        name: &str,
+        addr: &str,
+    ) -> Result<ContactId> {
         let name = improve_single_line_input(name);
 
         let (name, addr) = sanitize_name_and_addr(&name, addr);
@@ -497,6 +506,16 @@ impl Contact {
             set_blocked(context, Nosync, contact_id, false).await?;
         }
 
+        if sync.into() {
+            chat::sync(
+                context,
+                chat::SyncId::ContactAddr(addr.to_string()),
+                chat::SyncAction::Rename(name.to_string()),
+            )
+            .await
+            .log_err(context)
+            .ok();
+        }
         Ok(contact_id)
     }
 
@@ -2805,6 +2824,35 @@ Hi."#;
 
         let contact = Contact::get_by_id(&alice, contact_id).await?;
         assert!(contact.get_verifier_id(&alice).await?.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_sync_create() -> Result<()> {
+        let alice0 = &TestContext::new_alice().await;
+        let alice1 = &TestContext::new_alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+
+        Contact::create(alice0, "Bob", "bob@example.net").await?;
+        test_utils::sync(alice0, alice1).await;
+        let a1b_contact_id =
+            Contact::lookup_id_by_addr(alice1, "bob@example.net", Origin::ManuallyCreated)
+                .await?
+                .unwrap();
+        let a1b_contact = Contact::get_by_id(alice1, a1b_contact_id).await?;
+        assert_eq!(a1b_contact.name, "Bob");
+
+        Contact::create(alice0, "Bob Renamed", "bob@example.net").await?;
+        test_utils::sync(alice0, alice1).await;
+        let id = Contact::lookup_id_by_addr(alice1, "bob@example.net", Origin::ManuallyCreated)
+            .await?
+            .unwrap();
+        assert_eq!(id, a1b_contact_id);
+        let a1b_contact = Contact::get_by_id(alice1, a1b_contact_id).await?;
+        assert_eq!(a1b_contact.name, "Bob Renamed");
 
         Ok(())
     }

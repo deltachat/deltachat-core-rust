@@ -4398,6 +4398,10 @@ impl Context {
     pub(crate) async fn sync_alter_chat(&self, id: &SyncId, action: &SyncAction) -> Result<()> {
         let chat_id = match id {
             SyncId::ContactAddr(addr) => {
+                if let SyncAction::Rename(to) = action {
+                    Contact::create_ex(self, Nosync, to, addr).await?;
+                    return Ok(());
+                }
                 let contact_id = Contact::lookup_id_by_addr_ex(self, addr, Origin::Unknown, None)
                     .await?
                     .with_context(|| format!("No contact for addr '{addr}'"))?;
