@@ -26,13 +26,14 @@ use crate::constants::{Blocked, Chattype, DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY}
 use crate::context::Context;
 use crate::events::EventType;
 use crate::key::{load_self_public_key, DcKey};
+use crate::log::LogExt;
 use crate::login_param::LoginParam;
 use crate::message::MessageState;
 use crate::mimeparser::AvatarAction;
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::sql::{self, params_iter};
-use crate::sync::{self, Sync::*, SyncData};
+use crate::sync::{self, Sync::*};
 use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress,
@@ -1497,13 +1498,14 @@ WHERE type=? AND id IN (
                 true => chat::SyncAction::Block,
                 false => chat::SyncAction::Unblock,
             };
-            context
-                .add_sync_item(SyncData::AlterChat {
-                    id: chat::SyncId::ContactAddr(contact.addr.clone()),
-                    action,
-                })
-                .await?;
-            context.send_sync_msg().await?;
+            chat::sync(
+                context,
+                chat::SyncId::ContactAddr(contact.addr.clone()),
+                action,
+            )
+            .await
+            .log_err(context)
+            .ok();
         }
     }
 

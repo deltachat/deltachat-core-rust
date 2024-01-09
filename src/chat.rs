@@ -2104,7 +2104,7 @@ impl Chat {
     }
 }
 
-async fn sync(context: &Context, id: SyncId, action: SyncAction) -> Result<()> {
+pub(crate) async fn sync(context: &Context, id: SyncId, action: SyncAction) -> Result<()> {
     context
         .add_sync_item(SyncData::AlterChat { id, action })
         .await?;
