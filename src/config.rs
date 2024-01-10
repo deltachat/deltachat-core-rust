@@ -564,6 +564,7 @@ impl Context {
         if sync != Sync {
             return Ok(());
         }
+        self.emit_event(EventType::ConfigSynced { key });
         let Some(val) = value else {
             return Ok(());
         };
@@ -866,10 +867,43 @@ mod tests {
         // Reset to default. Test that it's not synced because defaults may differ across client
         // versions.
         alice0.set_config(Config::MdnsEnabled, None).await?;
-        assert!(alice0.get_config_bool(Config::MdnsEnabled).await?);
+        assert_eq!(alice0.get_config_bool(Config::MdnsEnabled).await?, true);
+        alice0
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::MdnsEnabled
+                    }
+                )
+            })
+            .await;
         alice0.set_config_bool(Config::MdnsEnabled, false).await?;
+        alice0
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::MdnsEnabled
+                    }
+                )
+            })
+            .await;
         sync(&alice0, &alice1).await;
-        assert!(!alice1.get_config_bool(Config::MdnsEnabled).await?);
+        assert_eq!(alice1.get_config_bool(Config::MdnsEnabled).await?, false);
+        alice1
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::MdnsEnabled
+                    }
+                )
+            })
+            .await;
 
         let show_emails = alice0.get_config_bool(Config::ShowEmails).await?;
         alice0
