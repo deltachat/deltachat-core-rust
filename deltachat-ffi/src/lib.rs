@@ -556,6 +556,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::SecurejoinJoinerProgress { .. } => 2061,
         EventType::ConnectivityChanged => 2100,
         EventType::SelfavatarChanged => 2110,
+        EventType::ConfigSynced { .. } => 2111,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
     }
@@ -583,6 +584,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::Error(_)
         | EventType::ConnectivityChanged
         | EventType::SelfavatarChanged
+        | EventType::ConfigSynced { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_) => 0,
         EventType::MsgsChanged { chat_id, .. }
@@ -643,7 +645,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::ConnectivityChanged
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::IncomingMsgBunch { .. }
-        | EventType::SelfavatarChanged => 0,
+        | EventType::SelfavatarChanged
+        | EventType::ConfigSynced { .. } => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
         | EventType::ReactionsChanged { msg_id, .. }
@@ -722,6 +725,10 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             .to_c_string()
             .unwrap_or_default()
             .into_raw(),
+        EventType::ConfigSynced { key } => {
+            let data2 = key.to_string().to_c_string().unwrap_or_default();
+            data2.into_raw()
+        }
     }
 }
 

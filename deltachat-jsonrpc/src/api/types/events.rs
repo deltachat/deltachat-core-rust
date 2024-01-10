@@ -288,7 +288,16 @@ pub enum EventType {
     /// getConnectivityHtml() for details.
     ConnectivityChanged,
 
+    /// Deprecated by `ConfigSynced`.
     SelfavatarChanged,
+
+    /// A multi-device synced config value changed. Maybe the app needs to refresh smth. For
+    /// uniformity this is emitted on the source device too. The value isn't here, otherwise it
+    /// would be logged which might not be good for privacy.
+    ConfigSynced {
+        /// Configuration key.
+        key: String,
+    },
 
     #[serde(rename_all = "camelCase")]
     WebxdcStatusUpdate {
@@ -396,6 +405,9 @@ impl From<CoreEventType> for EventType {
             },
             CoreEventType::ConnectivityChanged => ConnectivityChanged,
             CoreEventType::SelfavatarChanged => SelfavatarChanged,
+            CoreEventType::ConfigSynced { key } => ConfigSynced {
+                key: key.to_string(),
+            },
             CoreEventType::WebxdcStatusUpdate {
                 msg_id,
                 status_update_serial,

@@ -6207,6 +6207,18 @@ void dc_event_unref(dc_event_t* event);
 
 
 /**
+ * A multi-device synced config value changed. Maybe the app needs to refresh smth. For uniformity
+ * this is emitted on the source device too. The value isn't reported, otherwise it would be logged
+ * which might not be good for privacy. You can get the new value with
+ * `dc_get_config(context, data2)`.
+ *
+ * @param data1 0
+ * @param data2 (char*) Configuration key.
+ */
+#define DC_EVENT_CONFIG_SYNCED                    2111
+
+
+/**
  * webxdc status update received.
  * To get the received status update, use dc_get_webxdc_status_updates() with
  * `serial` set to the last known update

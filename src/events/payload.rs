@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::chat::ChatId;
+use crate::config::Config;
 use crate::contact::ContactId;
 use crate::ephemeral::Timer as EphemeralTimer;
 use crate::message::MsgId;
@@ -261,7 +262,16 @@ pub enum EventType {
     ConnectivityChanged,
 
     /// The user's avatar changed.
+    /// Deprecated by `ConfigSynced`.
     SelfavatarChanged,
+
+    /// A multi-device synced config value changed. Maybe the app needs to refresh smth. For
+    /// uniformity this is emitted on the source device too. The value isn't here, otherwise it
+    /// would be logged which might not be good for privacy.
+    ConfigSynced {
+        /// Configuration key.
+        key: Config,
+    },
 
     /// Webxdc status update received.
     WebxdcStatusUpdate {
