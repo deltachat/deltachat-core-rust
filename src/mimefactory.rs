@@ -1849,14 +1849,14 @@ mod tests {
         // When not encrypted, the MDN should not be encrypted either
         assert!(!rendered_msg.is_encrypted);
 
-        alice.set_config_bool(Config::VerifiedOneOnOneChats, true)
+        alice
+            .set_config_bool(Config::VerifiedOneOnOneChats, true)
             .await
             .unwrap();
 
         bob.set_config_bool(Config::VerifiedOneOnOneChats, true)
             .await
             .unwrap();
-        
 
         mark_as_verified(&alice, &bob).await;
         mark_as_verified(&bob, &alice).await;
