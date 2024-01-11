@@ -1571,6 +1571,7 @@ mod tests {
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, mark_as_verified, TestContext, TestContextManager};
+
     #[test]
     fn test_render_email_address() {
         let display_name = "ä space";
@@ -1831,27 +1832,42 @@ mod tests {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
-
-        async fn enable_verified_oneonone_chats(test_contexts: &[&TestContext]) {
-            for t in test_contexts {
-                t.set_config_bool(Config::VerifiedOneOnOneChats, true)
-                    .await
-                    .unwrap()
-            }
-        }
-
-        enable_verified_oneonone_chats(&[&alice, &bob]).await;
         bob.set_config_bool(Config::MdnsEnabled, true).await?;
 
-        mark_as_verified(&alice, &bob).await;
-        mark_as_verified(&bob, &alice).await;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.force_plaintext();
+        msg.param.set_int(Param::SkipAutocrypt, 1);
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
 
-        let rcvd = tcm.send_recv_accept(&alice, &bob, "Heyho").await;
+        let rcvd = bob.recv_msg(&sent).await;
         message::markseen_msgs(&bob, vec![rcvd.id]).await?;
 
         let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
         let rendered_msg = mimefactory.render(&bob).await?;
 
+        // When not encrypted, the MDN should not be encrypted either
+        assert!(!rendered_msg.is_encrypted);
+
+        alice.set_config_bool(Config::VerifiedOneOnOneChats, true)
+            .await
+            .unwrap();
+
+        bob.set_config_bool(Config::VerifiedOneOnOneChats, true)
+            .await
+            .unwrap();
+        
+
+        mark_as_verified(&alice, &bob).await;
+        mark_as_verified(&bob, &alice).await;
+
+        let rcvd = tcm.send_recv(&alice, &bob, "Heyho").await;
+        message::markseen_msgs(&bob, vec![rcvd.id]).await?;
+
+        let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
+        let rendered_msg = mimefactory.render(&bob).await?;
+
+        // When encrypted, the MDN should be encrypted as well
         assert!(rendered_msg.is_encrypted);
 
         Ok(())
