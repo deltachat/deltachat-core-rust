@@ -37,7 +37,7 @@ use crate::tools::{
     duration_to_str, get_abs_path, improve_single_line_input, strip_rtlo_characters, time,
     EmailAddress, SystemTime,
 };
-use crate::{chat, stock_str};
+use crate::{chat, stock_str, ui_events};
 
 /// Time during which a contact is considered as seen recently.
 const SEEN_RECENTLY_SECONDS: i64 = 600;
@@ -657,7 +657,6 @@ impl Contact {
         );
 
         let mut update_addr = false;
-        let mut updated_name = false;
 
         let row_id = context.sql.transaction(|transaction| {
             let row = transaction.query_row(
@@ -761,7 +760,7 @@ impl Contact {
                             if count > 0 {
                                 // Chat name updated
                                 context.emit_event(EventType::ChatModified(chat_id));
-                                updated_name = true;
+                                ui_events::emit_chatlist_items_changed_for_contact(context, contact_id);
                             }
                         }
                     }
@@ -799,16 +798,6 @@ impl Contact {
         }).await?;
 
         let contact_id = ContactId::new(row_id);
-
-        if updated_name {
-            // update the chats the contact that changed their name is part of
-            // (treefit): could make sense to only update chats where the last message is from the contact, but the db query for that is more expensive
-            for chat_id in Contact::get_chats_with_contact(context, &contact_id).await? {
-                context.emit_event(EventType::UIChatListItemChanged {
-                    chat_id: Some(chat_id),
-                });
-            }
-        }
 
         Ok((contact_id, sth_modified))
     }
@@ -1560,7 +1549,7 @@ WHERE type=? AND id IN (
         }
     }
 
-    context.emit_event(EventType::UIChatListChanged);
+    ui_events::emit_chatlist_changed(context);
     Ok(())
 }
 
@@ -1611,7 +1600,7 @@ pub(crate) async fn set_profile_image(
     if changed {
         contact.update_param(context).await?;
         context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-        // TODO update DM chat
+        ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(context, contact_id);
     }
     Ok(())
 }
@@ -1824,7 +1813,10 @@ impl RecentlySeenLoop {
                         // Timeout, notify about contact.
                         if let Some(contact_id) = contact_id {
                             context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                            // TODO update DM chat
+                            ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(
+                                &context,
+                                *contact_id,
+                            );
                             unseen_queue.pop();
                         }
                     }
@@ -1857,7 +1849,10 @@ impl RecentlySeenLoop {
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {
                     context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                    // TODO update DM chat
+                    ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(
+                        &context,
+                        *contact_id,
+                    );
                 }
                 unseen_queue.pop();
             }
