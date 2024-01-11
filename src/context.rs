@@ -1,5 +1,6 @@
 //! Context module.
 
+use std::borrow::BorrowMut;
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::ops::Deref;
@@ -28,7 +29,7 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{duration_to_str, time};
-use crate::ui_events;
+use crate::ui_events::{self, UIEvents};
 
 /// Builder for the [`Context`].
 ///
@@ -204,6 +205,7 @@ pub struct InnerContext {
     pub(crate) wrong_pw_warning_mutex: Mutex<()>,
     pub(crate) translated_stockstrings: StockStrings,
     pub(crate) events: Events,
+    pub(crate) ui_events: Mutex<UIEvents>,
 
     pub(crate) scheduler: SchedulerState,
     pub(crate) ratelimit: RwLock<Ratelimit>,
@@ -368,6 +370,8 @@ impl Context {
         // without starting I/O.
         new_msgs_notify.notify_one();
 
+        let (ui_events, ui_events_receiver) = UIEvents::new();
+
         let inner = InnerContext {
             id,
             blobdir,
@@ -379,6 +383,7 @@ impl Context {
             wrong_pw_warning_mutex: Mutex::new(()),
             translated_stockstrings: stockstrings,
             events,
+            ui_events: Mutex::new(ui_events),
             scheduler: SchedulerState::new(),
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(60, 0), 6.0)), // Allow at least 1 message every 10 seconds + a burst of 6.
             quota: RwLock::new(None),
@@ -394,6 +399,8 @@ impl Context {
         let ctx = Context {
             inner: Arc::new(inner),
         };
+
+        ctx.inner.ui_events.blocking_lock().start(&ctx, ui_events_receiver);
 
         Ok(ctx)
     }

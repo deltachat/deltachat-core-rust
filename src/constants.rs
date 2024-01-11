@@ -5,6 +5,7 @@
 use deltachat_derive::{FromSql, ToSql};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use tokio::time::Duration;
 
 use crate::chat::ChatId;
 
@@ -213,6 +214,11 @@ pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 4;
 // chunks. This does not affect MIME's `To:` header. Can be overwritten by setting
 // `max_smtp_rcpt_to` in the provider db.
 pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
+
+
+/// How often UI events should be sent out / How much they should be debounced.
+/// Defines the tick rate/delay of the debounce loop for UI events in milliseconds.
+pub(crate) const UI_EVENTS_TICK_RATE: Duration = Duration::from_millis(50); // 50ms which means 20 fps
 
 #[cfg(test)]
 mod tests {
