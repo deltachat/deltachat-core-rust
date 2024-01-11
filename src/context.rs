@@ -28,6 +28,7 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{duration_to_str, time};
+use crate::ui_events;
 
 /// Builder for the [`Context`].
 ///
@@ -485,19 +486,15 @@ impl Context {
     /// Emits a MsgsChanged event with specified chat and message ids
     pub fn emit_msgs_changed(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::MsgsChanged { chat_id, msg_id });
-        self.emit_event(EventType::UIChatListChanged);
-        self.emit_event(EventType::UIChatListItemChanged {
-            chat_id: Some(chat_id),
-        });
+        ui_events::emit_chatlist_changed(self);
+        ui_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Emits an IncomingMsg event with specified chat and message ids
     pub fn emit_incoming_msg(&self, chat_id: ChatId, msg_id: MsgId) {
         self.emit_event(EventType::IncomingMsg { chat_id, msg_id });
-        self.emit_event(EventType::UIChatListChanged);
-        self.emit_event(EventType::UIChatListItemChanged {
-            chat_id: Some(chat_id),
-        });
+        ui_events::emit_chatlist_changed(self);
+        ui_events::emit_chatlist_item_changed(self, chat_id);
     }
 
     /// Returns a receiver for emitted events.

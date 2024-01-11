@@ -42,6 +42,7 @@ use crate::socks::Socks5Config;
 use crate::sql;
 use crate::stock_str;
 use crate::tools::{create_id, duration_to_str};
+use crate::ui_events;
 
 pub(crate) mod capabilities;
 mod client;
@@ -1319,9 +1320,7 @@ impl Imap {
             .with_context(|| format!("failed to set MODSEQ for folder {folder}"))?;
         for updated_chat_id in updated_chat_ids {
             context.emit_event(EventType::MsgsNoticed(updated_chat_id));
-            context.emit_event(EventType::UIChatListItemChanged {
-                chat_id: Some(updated_chat_id),
-            });
+            ui_events::emit_chatlist_item_changed(context, updated_chat_id);
         }
 
         Ok(())

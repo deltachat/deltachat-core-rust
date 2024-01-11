@@ -23,7 +23,6 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
-use crate::location;
 use crate::log::LogExt;
 use crate::message::{
     self, rfc724_mid_exists, rfc724_mid_exists_and, Message, MessageState, MessengerMessage, MsgId,
@@ -40,6 +39,7 @@ use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
 use crate::{contact, imap};
+use crate::{location, ui_events};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -1778,10 +1778,8 @@ async fn create_or_lookup_group(
         chat::add_to_chat_contacts_table(context, new_chat_id, &members).await?;
 
         context.emit_event(EventType::ChatModified(new_chat_id));
-        context.emit_event(EventType::UIChatListChanged);
-        context.emit_event(EventType::UIChatListItemChanged {
-            chat_id: Some(new_chat_id),
-        });
+        ui_events::emit_chatlist_changed(context);
+        ui_events::emit_chatlist_item_changed(context, new_chat_id);
     }
 
     if let Some(chat_id) = chat_id {
@@ -2073,9 +2071,7 @@ async fn apply_group_changes(
 
     if send_event_chat_modified {
         context.emit_event(EventType::ChatModified(chat_id));
-        context.emit_event(EventType::UIChatListItemChanged {
-            chat_id: Some(chat_id),
-        });
+        ui_events::emit_chatlist_item_changed(context, chat_id);
     }
     Ok((group_changes_msgs, better_msg))
 }
@@ -2375,10 +2371,8 @@ async fn create_adhoc_group(
     chat::add_to_chat_contacts_table(context, new_chat_id, member_ids).await?;
 
     context.emit_event(EventType::ChatModified(new_chat_id));
-    context.emit_event(EventType::UIChatListChanged);
-    context.emit_event(EventType::UIChatListItemChanged {
-        chat_id: Some(new_chat_id),
-    });
+    ui_events::emit_chatlist_changed(context);
+    ui_events::emit_chatlist_item_changed(context, new_chat_id);
 
     Ok(Some(new_chat_id))
 }

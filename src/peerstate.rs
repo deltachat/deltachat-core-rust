@@ -15,7 +15,7 @@ use crate::key::{DcKey, Fingerprint, SignedPublicKey};
 use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
-use crate::stock_str;
+use crate::{stock_str, ui_events};
 
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]
@@ -695,13 +695,9 @@ impl Peerstate {
             .await?;
         }
 
-        context.emit_event(EventType::UIChatListChanged);
+        ui_events::emit_chatlist_changed(context);
         // update the chats the contact is part of
-        for chat_id in Contact::get_chats_with_contact(context, &contact_id).await? {
-            context.emit_event(EventType::UIChatListItemChanged {
-                chat_id: Some(chat_id),
-            });
-        }
+        ui_events::emit_chatlist_items_changed_for_contact(context, contact_id);
         Ok(())
     }
 
