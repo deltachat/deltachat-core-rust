@@ -424,6 +424,11 @@ pub enum StockMessage {
         fallback = "⚠️ Your email provider %1$s requires end-to-end encryption which is not setup yet."
     ))]
     InvalidUnencryptedMail = 174,
+
+    #[strum(props(
+        fallback = "⚠️ It seems you are using Delta Chat on multiple devices that cannot decrypt each other's outgoing messages. To fix this, on the older device use \"Settings / Add Second Device\" and follow the instructions."
+    ))]
+    CantDecryptOutgoingMsgs = 175,
 }
 
 impl StockMessage {
@@ -748,6 +753,11 @@ pub(crate) async fn encr_none(context: &Context) -> String {
 /// Stock string: `This message was encrypted for another setup.`.
 pub(crate) async fn cant_decrypt_msg_body(context: &Context) -> String {
     translated(context, StockMessage::CantDecryptMsgBody).await
+}
+
+/// Stock string:`Got outgoing message(s) encrypted for another setup...`.
+pub(crate) async fn cant_decrypt_outgoing_msgs(context: &Context) -> String {
+    translated(context, StockMessage::CantDecryptOutgoingMsgs).await
 }
 
 /// Stock string: `Fingerprints`.

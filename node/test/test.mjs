@@ -250,6 +250,7 @@ describe('Basic offline Tests', function () {
       'journal_mode',
       'key_gen_type',
       'last_housekeeping',
+      'last_cant_decrypt_outgoing_msgs',
       'level',
       'mdns_enabled',
       'media_quality',
