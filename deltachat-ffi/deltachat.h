@@ -3157,6 +3157,10 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  *
  * dc_accounts_background_fetch() was created for the iOS Background fetch.
  *
+ * The `DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE` event is emitted at the end,
+ * process all events until you get this one and you can safely return to the background
+ * without forgeting to create notifications caused by timing race conditions.
+ *
  * @memberof dc_accounts_t
  * @param timeout The timeout in seconds
  * @return Return 1 on success and 0 on failure (like timeout)
@@ -6278,7 +6282,7 @@ void dc_event_unref(dc_event_t* event);
  * This event is only emitted by the account manager
  */
 
-#define DC_EVENT_BACKGROUND_FETCH_COMPLETED_FOR_ALL_ACCOUNTS  2200
+#define DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE  2200
 
 /**
  * @}
