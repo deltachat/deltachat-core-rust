@@ -618,7 +618,7 @@ async fn send_mdns(context: &Context, connection: &mut Smtp) -> Result<()> {
 
         let more_mdns = send_mdn(context, connection).await?;
         if !more_mdns {
-            // No more MDNs to send.
+            // No more MDNs to send or one of them failed.
             return Ok(());
         }
     }
@@ -752,7 +752,7 @@ async fn send_mdn_msg_id(
     }
 }
 
-/// Tries to send a single MDN. Returns false if there are no MDNs to send.
+/// Tries to send a single MDN. Returns true if more MDNs should be sent.
 async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
     let mdns_enabled = context.get_config_bool(Config::MdnsEnabled).await?;
     if !mdns_enabled {
