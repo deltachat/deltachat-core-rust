@@ -351,7 +351,7 @@ impl<'a> MimeFactory<'a> {
                         .unwrap_or_default()
                 }
             }
-            Loaded::Mdn { .. } => true,
+            Loaded::Mdn { .. } => false,
         }
     }
 
@@ -1571,6 +1571,7 @@ mod tests {
     use crate::mimeparser::MimeMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
+
     #[test]
     fn test_render_email_address() {
         let display_name = "ä space";
@@ -1824,6 +1825,37 @@ mod tests {
         let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
         // The subject string should not be "Re: message opened"
         assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_mdn_create_encrypted() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        bob.set_config_bool(Config::MdnsEnabled, true).await?;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.param.set_int(Param::SkipAutocrypt, 1);
+        let chat_alice = alice.create_chat(&bob).await.id;
+        let sent = alice.send_msg(chat_alice, &mut msg).await;
+
+        let rcvd = bob.recv_msg(&sent).await;
+        message::markseen_msgs(&bob, vec![rcvd.id]).await?;
+        let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
+        let rendered_msg = mimefactory.render(&bob).await?;
+
+        assert!(!rendered_msg.is_encrypted);
+
+        let rcvd = tcm.send_recv(&alice, &bob, "Heyho").await;
+        message::markseen_msgs(&bob, vec![rcvd.id]).await?;
+
+        let mimefactory = MimeFactory::from_mdn(&bob, &rcvd, vec![]).await?;
+        let rendered_msg = mimefactory.render(&bob).await?;
+
+        // When encrypted, the MDN should be encrypted as well
+        assert!(rendered_msg.is_encrypted);
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
