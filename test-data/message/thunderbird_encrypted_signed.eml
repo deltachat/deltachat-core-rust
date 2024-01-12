@@ -9,8 +9,6 @@ User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101
 Content-Language: en-US
 To: bob@example.net
 From: Alice <alice@example.org>
-X-Mozilla-Draft-Info: internal/draft; vcard=0; receipt=0; DSN=0; uuencode=0;
- attachmentreminder=0; deliveryformat=0
 X-Identity-Key: id3
 Fcc: imap://alice%40example.org@in.example.org/Sent
 Subject: ...

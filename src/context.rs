@@ -816,6 +816,12 @@ impl Context {
                 .to_string(),
         );
         res.insert(
+            "last_cant_decrypt_outgoing_msgs",
+            self.get_config_int(Config::LastCantDecryptOutgoingMsgs)
+                .await?
+                .to_string(),
+        );
+        res.insert(
             "scan_all_folders_debounce_secs",
             self.get_config_int(Config::ScanAllFoldersDebounceSecs)
                 .await?

@@ -28,9 +28,22 @@ async fn test_grpid_simple() {
     let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
         .await
         .unwrap();
+    assert_eq!(mimeparser.incoming, true);
     assert_eq!(extract_grpid(&mimeparser, HeaderDef::InReplyTo), None);
     let grpid = Some("HcxyMARjyJy");
     assert_eq!(extract_grpid(&mimeparser, HeaderDef::References), grpid);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_outgoing() -> Result<()> {
+    let context = TestContext::new_alice().await;
+    let raw = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+                From: alice@example.org\n\
+                \n\
+                hello";
+    let mimeparser = MimeMessage::from_bytes(&context.ctx, &raw[..], None).await?;
+    assert_eq!(mimeparser.incoming, false);
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -3215,6 +3228,42 @@ async fn test_blocked_contact_creates_group() -> Result<()> {
     // In order not to lose context, Bob's message should also be shown in the group
     let msgs = chat::get_chat_msgs(&alice, rcvd.chat_id).await?;
     assert_eq!(msgs.len(), 2);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_outgoing_undecryptable() -> Result<()> {
+    let alice = &TestContext::new().await;
+    alice.configure_addr("alice@example.org").await;
+
+    let raw = include_bytes!("../../test-data/message/thunderbird_with_autocrypt.eml");
+    receive_imf(alice, raw, false).await?;
+
+    let bob_contact_id = Contact::lookup_id_by_addr(alice, "bob@example.net", Origin::OutgoingTo)
+        .await?
+        .unwrap();
+    assert!(ChatId::lookup_by_contact(alice, bob_contact_id)
+        .await?
+        .is_none());
+
+    let dev_chat_id = ChatId::lookup_by_contact(alice, ContactId::DEVICE)
+        .await?
+        .unwrap();
+    let dev_msg = alice.get_last_msg_in(dev_chat_id).await;
+    assert!(dev_msg.error().is_none());
+    assert!(dev_msg
+        .text
+        .contains(&stock_str::cant_decrypt_outgoing_msgs(alice).await));
+
+    let raw = include_bytes!("../../test-data/message/thunderbird_encrypted_signed.eml");
+    receive_imf(alice, raw, false).await?;
+
+    assert!(ChatId::lookup_by_contact(alice, bob_contact_id)
+        .await?
+        .is_none());
+    // The device message mustn't be added too frequently.
+    assert_eq!(alice.get_last_msg_in(dev_chat_id).await.id, dev_msg.id);
 
     Ok(())
 }

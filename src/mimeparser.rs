@@ -69,6 +69,8 @@ pub(crate) struct MimeMessage {
     /// Whether the From address was repeated in the signed part
     /// (and we know that the signer intended to send from this address)
     pub from_is_signed: bool,
+    /// Whether the message is incoming or outgoing (self-sent).
+    pub incoming: bool,
     /// The List-Post address is only set for mailing lists. Users can send
     /// messages to this address to post them to the list.
     pub list_post: Option<String>,
@@ -396,6 +398,7 @@ impl MimeMessage {
             }
         }
 
+        let incoming = !context.is_self_addr(&from.addr).await?;
         let mut parser = MimeMessage {
             parts: Vec::new(),
             headers,
@@ -403,6 +406,7 @@ impl MimeMessage {
             list_post,
             from,
             from_is_signed,
+            incoming,
             chat_disposition_notification_to,
             decryption_info,
             decrypting_failed: mail.is_err(),

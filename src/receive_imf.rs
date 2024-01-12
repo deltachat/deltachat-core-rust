@@ -38,7 +38,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
+use crate::tools::{self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
 use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -220,7 +220,6 @@ pub(crate) async fn receive_imf_inner(
         context,
         "Receiving message {rfc724_mid_orig:?}, seen={seen}...",
     );
-    let incoming = !context.is_self_addr(&mime_parser.from.addr).await?;
 
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
@@ -278,7 +277,7 @@ pub(crate) async fn receive_imf_inner(
         // Need to update chat id in the db.
     } else if let Some(msg_id) = replace_msg_id {
         info!(context, "Message is already downloaded.");
-        if incoming {
+        if mime_parser.incoming {
             return Ok(None);
         }
         // For the case if we missed a successful SMTP response. Be optimistic that the message is
@@ -331,7 +330,7 @@ pub(crate) async fn receive_imf_inner(
     let to_ids = add_or_lookup_contacts_by_address_list(
         context,
         &mime_parser.recipients,
-        if !incoming {
+        if !mime_parser.incoming {
             Origin::OutgoingTo
         } else if incoming_origin.is_known() {
             Origin::IncomingTo
@@ -346,7 +345,7 @@ pub(crate) async fn receive_imf_inner(
     let received_msg;
     if mime_parser.get_header(HeaderDef::SecureJoin).is_some() {
         let res;
-        if incoming {
+        if mime_parser.incoming {
             res = handle_securejoin_handshake(context, &mime_parser, from_id)
                 .await
                 .context("error in Secure-Join message handling")?;
@@ -413,7 +412,6 @@ pub(crate) async fn receive_imf_inner(
             context,
             &mut mime_parser,
             imf_raw,
-            incoming,
             &to_ids,
             rfc724_mid_orig,
             from_id,
@@ -571,7 +569,7 @@ pub(crate) async fn receive_imf_inner(
     } else if !chat_id.is_trash() {
         let fresh = received_msg.state == MessageState::InFresh;
         for msg_id in &received_msg.msg_ids {
-            chat_id.emit_msg_event(context, *msg_id, incoming && fresh);
+            chat_id.emit_msg_event(context, *msg_id, mime_parser.incoming && fresh);
         }
     }
     context.new_msgs_notify.notify_one();
@@ -647,7 +645,6 @@ async fn add_parts(
     context: &Context,
     mime_parser: &mut MimeMessage,
     imf_raw: &[u8],
-    incoming: bool,
     to_ids: &[ContactId],
     rfc724_mid: &str,
     from_id: ContactId,
@@ -715,8 +712,9 @@ async fn add_parts(
     // (of course, the user can add other chats manually later)
     let to_id: ContactId;
     let state: MessageState;
+    let mut hidden = false;
     let mut needs_delete_job = false;
-    if incoming {
+    if mime_parser.incoming {
         to_id = ContactId::SELF;
 
         let test_normal_chat = if from_id == ContactId::UNDEFINED {
@@ -1013,6 +1011,34 @@ async fn add_parts(
             }
         }
 
+        if mime_parser.decrypting_failed && !fetching_existing_messages {
+            if chat_id.is_none() {
+                chat_id = Some(DC_CHAT_ID_TRASH);
+            } else {
+                hidden = true;
+            }
+            let last_time = context
+                .get_config_i64(Config::LastCantDecryptOutgoingMsgs)
+                .await?;
+            let now = tools::time();
+            let update_config = if last_time.saturating_add(24 * 60 * 60) <= now {
+                let mut msg = Message::new(Viewtype::Text);
+                msg.text = stock_str::cant_decrypt_outgoing_msgs(context).await;
+                chat::add_device_msg(context, None, Some(&mut msg))
+                    .await
+                    .log_err(context)
+                    .ok();
+                true
+            } else {
+                last_time > now
+            };
+            if update_config {
+                context
+                    .set_config(Config::LastCantDecryptOutgoingMsgs, Some(&now.to_string()))
+                    .await?;
+            }
+        }
+
         if !to_ids.is_empty() {
             if chat_id.is_none() {
                 if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
@@ -1155,7 +1181,7 @@ async fn add_parts(
             context,
             mime_parser.timestamp_sent,
             sort_to_bottom,
-            incoming,
+            mime_parser.incoming,
         )
         .await?;
 
@@ -1249,7 +1275,7 @@ async fn add_parts(
         //    -> Showing info messages everytime would be a lot of noise
         // 3. The info messages that are shown to the user ("Your chat partner
         //    likely reinstalled DC" or similar) would be wrong.
-        if chat.is_protected() && (incoming || chat.typ != Chattype::Single) {
+        if chat.is_protected() && (mime_parser.incoming || chat.typ != Chattype::Single) {
             if let VerifiedEncryption::NotVerified(err) = verified_encryption {
                 warn!(context, "Verification problem: {err:#}.");
                 let s = format!("{err}. See 'Info' for more details");
@@ -1415,7 +1441,7 @@ INSERT INTO msgs
     rfc724_mid, chat_id,
     from_id, to_id, timestamp, timestamp_sent, 
     timestamp_rcvd, type, state, msgrmsg, 
-    txt, subject, txt_raw, param, 
+    txt, subject, txt_raw, param, hidden,
     bytes, mime_headers, mime_compressed, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
     ephemeral_timestamp, download_state, hop_info
@@ -1424,7 +1450,7 @@ INSERT INTO msgs
     ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?,
-    ?, ?, ?, ?,
+    ?, ?, ?, ?, ?,
     ?, ?, ?, ?, 1,
     ?, ?, ?, ?,
     ?, ?, ?, ?
@@ -1434,7 +1460,7 @@ SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
     type=excluded.type, msgrmsg=excluded.msgrmsg,
     txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
-    bytes=excluded.bytes, mime_headers=excluded.mime_headers,
+    hidden=excluded.hidden,bytes=excluded.bytes, mime_headers=excluded.mime_headers,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,
     mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
     ephemeral_timestamp=excluded.ephemeral_timestamp, download_state=excluded.download_state, hop_info=excluded.hop_info
@@ -1461,6 +1487,7 @@ RETURNING id
                     } else {
                         param.to_string()
                     },
+                    hidden,
                     part.bytes as isize,
                     if (save_mime_headers || mime_modified) && !trash {
                         mime_headers.clone()
@@ -1526,7 +1553,7 @@ RETURNING id
     );
 
     // new outgoing message from another device marks the chat as noticed.
-    if !incoming && !chat_id.is_special() {
+    if !mime_parser.incoming && !chat_id.is_special() {
         chat::marknoticed_chat_if_older_than(context, chat_id, sort_timestamp).await?;
     }
 
@@ -1549,7 +1576,7 @@ RETURNING id
         }
     }
 
-    if !incoming && is_mdn && is_dc_message == MessengerMessage::Yes {
+    if !mime_parser.incoming && is_mdn && is_dc_message == MessengerMessage::Yes {
         // Normally outgoing MDNs sent by us never appear in mailboxes, but Gmail saves all
         // outgoing messages, including MDNs, to the Sent folder. If we detect such saved MDN,
         // delete it.
