@@ -70,8 +70,11 @@ impl SchedulerState {
         context.new_msgs_notify.notify_one();
 
         let ctx = context.clone();
-        match Scheduler::start(context).await {
-            Ok(scheduler) => *inner = InnerSchedulerState::Started(scheduler),
+        match Scheduler::start(&context).await {
+            Ok(scheduler) => {
+                *inner = InnerSchedulerState::Started(scheduler);
+                context.emit_event(EventType::ConnectivityChanged);
+            }
             Err(err) => error!(&ctx, "Failed to start IO: {:#}", err),
         }
     }
@@ -116,6 +119,7 @@ impl SchedulerState {
             debug_logging.loop_handle.abort();
         }
         let prev_state = std::mem::replace(&mut *inner, new_state);
+        context.emit_event(EventType::ConnectivityChanged);
         match prev_state {
             InnerSchedulerState::Started(scheduler) => scheduler.stop(context).await,
             InnerSchedulerState::Stopped | InnerSchedulerState::Paused { .. } => (),
@@ -772,7 +776,7 @@ async fn smtp_loop(
 
 impl Scheduler {
     /// Start the scheduler.
-    pub async fn start(ctx: Context) -> Result<Self> {
+    pub async fn start(ctx: &Context) -> Result<Self> {
         let (smtp, smtp_handlers) = SmtpConnectionState::new();
 
         let (smtp_start_send, smtp_start_recv) = oneshot::channel();
@@ -782,7 +786,7 @@ impl Scheduler {
         let mut oboxes = Vec::new();
         let mut start_recvs = Vec::new();
 
-        let (conn_state, inbox_handlers) = ImapConnectionState::new(&ctx).await?;
+        let (conn_state, inbox_handlers) = ImapConnectionState::new(ctx).await?;
         let (inbox_start_send, inbox_start_recv) = oneshot::channel();
         let handle = {
             let ctx = ctx.clone();
@@ -803,7 +807,7 @@ impl Scheduler {
             ),
         ] {
             if should_watch? {
-                let (conn_state, handlers) = ImapConnectionState::new(&ctx).await?;
+                let (conn_state, handlers) = ImapConnectionState::new(ctx).await?;
                 let (start_send, start_recv) = oneshot::channel();
                 let ctx = ctx.clone();
                 let handle = task::spawn(simple_imap_loop(ctx, start_send, handlers, meaning));
