@@ -33,7 +33,6 @@ skip = [
      { name = "ed25519-dalek", version = "1.0.1" },
      { name = "ed25519", version = "1.5.3" },
      { name = "event-listener", version = "2.5.3" },
-     { name = "fd-lock", version = "3.0.13" },
      { name = "getrandom", version = "<0.2" },
      { name = "h2", version = "0.3.22" },
      { name = "http-body", version = "0.4.5" },
