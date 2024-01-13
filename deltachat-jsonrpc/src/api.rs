@@ -233,7 +233,7 @@ impl CommandApi {
 
     /// Performs a background fetch for all accounts in parallel with a timeout.
     ///
-    /// The `BackgroundFetchCompletedForAllAccounts` event is emitted at the end,
+    /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
     /// without forgeting to create notifications caused by timing race conditions.
     async fn background_fetch_for_all_accounts(&self, timeout_in_seconds: f64) -> Result<()> {

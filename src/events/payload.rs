@@ -293,5 +293,5 @@ pub enum EventType {
     /// that all events emitted during the background fetch were processed.
     ///
     /// This event is only emitted by the account manager
-    BackgroundFetchCompletedForAllAccounts,
+    AccountsBackgroundFetchDone,
 }

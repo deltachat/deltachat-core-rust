@@ -559,7 +559,7 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::ConfigSynced { .. } => 2111,
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
-        EventType::BackgroundFetchCompletedForAllAccounts => 2200,
+        EventType::AccountsBackgroundFetchDone => 2200,
     }
 }
 
@@ -588,7 +588,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::ConfigSynced { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_)
-        | EventType::BackgroundFetchCompletedForAllAccounts => 0,
+        | EventType::AccountsBackgroundFetchDone => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -648,7 +648,7 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::IncomingMsgBunch { .. }
         | EventType::SelfavatarChanged
-        | EventType::BackgroundFetchCompletedForAllAccounts
+        | EventType::AccountsBackgroundFetchDone
         | EventType::ConfigSynced { .. } => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -711,7 +711,7 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::SelfavatarChanged
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
-        | EventType::BackgroundFetchCompletedForAllAccounts
+        | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {

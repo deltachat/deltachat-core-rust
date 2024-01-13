@@ -251,7 +251,7 @@ pub enum EventType {
     /// that all events emitted during the background fetch were processed.
     ///
     /// This event is only emitted by the account manager
-    BackgroundFetchCompletedForAllAccounts,
+    AccountsBackgroundFetchDone,
 }
 
 impl From<CoreEventType> for EventType {
@@ -360,9 +360,7 @@ impl From<CoreEventType> for EventType {
             CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),
             },
-            CoreEventType::BackgroundFetchCompletedForAllAccounts => {
-                BackgroundFetchCompletedForAllAccounts
-            }
+            CoreEventType::AccountsBackgroundFetchDone => AccountsBackgroundFetchDone,
         }
     }
 }
