@@ -296,7 +296,7 @@ impl Accounts {
     ///
     /// If you need a timeout, then use [Accounts::background_fetch_with_timeout] instead.
     ///
-    /// The `BackgroundFetchCompletedForAllAccounts` event is emitted at the end,
+    /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
     /// without forgeting to create notifications caused by timing race conditions.
     pub async fn background_fetch(&self) {
@@ -314,19 +314,19 @@ impl Accounts {
         )
         .await;
 
-        self.emit_event(EventType::BackgroundFetchCompletedForAllAccounts);
+        self.emit_event(EventType::AccountsBackgroundFetchDone);
     }
 
     /// Performs a background fetch for all accounts in parallel with a timeout.
     ///
     /// If you want no timeout, then use [Accounts::background_fetch] instead.
     ///
-    /// The `BackgroundFetchCompletedForAllAccounts` event is emitted at the end,
+    /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
     /// without forgeting to create notifications caused by timing race conditions.
     pub async fn background_fetch_with_timeout(&self, timeout: std::time::Duration) -> Result<()> {
         let result = tokio::time::timeout(timeout, self.background_fetch()).await;
-        self.emit_event(EventType::BackgroundFetchCompletedForAllAccounts);
+        self.emit_event(EventType::AccountsBackgroundFetchDone);
         result.map_err(|err| err.into())
     }
 
