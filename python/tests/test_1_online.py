@@ -381,7 +381,7 @@ def test_webxdc_download_on_demand(acfactory, data, lp):
     assert msgs_changed_event.data1 == msg2.chat.id
     assert msgs_changed_event.data2 == 0
 
-@pytest.mark.xfail(reason="Test server has no sentbox folder")
+
 def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac1: start with mvbox thread")
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)

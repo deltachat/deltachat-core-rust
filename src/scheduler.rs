@@ -520,7 +520,10 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
         Ok(meaning) => meaning,
         Err(error) => {
-            error!(ctx, "Error converting IMAP Folder name: {:?}", error);
+            // Warning instead of error because the folder may not be configured.
+            // For example, this happens if the server does not have Sent folder
+            // but watching Sent folder is enabled.
+            warn!(ctx, "Error converting IMAP Folder name: {:?}", error);
             connection.connectivity.set_not_configured(ctx).await;
             connection
                 .fake_idle(ctx, None, FolderMeaning::Unknown)
