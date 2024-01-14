@@ -137,20 +137,11 @@ impl ServerParams {
     }
 
     fn expand_strict_tls(self) -> Vec<ServerParams> {
-        if self.strict_tls.is_none() {
-            vec![
-                Self {
-                    strict_tls: Some(true), // Strict.
-                    ..self.clone()
-                },
-                Self {
-                    strict_tls: None, // Automatic.
-                    ..self
-                },
-            ]
-        } else {
-            vec![self]
-        }
+        vec![Self {
+            // Strict if not set by the user or provider database.
+            strict_tls: Some(self.strict_tls.unwrap_or(true)),
+            ..self
+        }]
     }
 }
 
@@ -162,31 +153,10 @@ pub(crate) fn expand_param_vector(
     domain: &str,
 ) -> Vec<ServerParams> {
     v.into_iter()
-        .map(|params| {
-            if params.socket == Socket::Plain {
-                ServerParams {
-                    // Avoid expanding plaintext configuration into configuration with and without
-                    // `strict_tls` if `strict_tls` is set to `None` as `strict_tls` is not used for
-                    // plaintext connections. Always setting it to "enabled", just in case.
-                    strict_tls: Some(true),
-                    ..params
-                }
-            } else {
-                params
-            }
-        })
         // The order of expansion is important.
         //
         // Ports are expanded the last, so they are changed the first.  Username is only changed if
         // default value (address with domain) didn't work for all available hosts and ports.
-        //
-        // Strict TLS must be expanded first, so we try all configurations with strict TLS first
-        // and only then try again without strict TLS. Otherwise we may lock to wrong hostname
-        // without strict TLS when another hostname with strict TLS is available.  For example, if
-        // both smtp.example.net and mail.example.net are running an SMTP server, but both use a
-        // certificate that is only valid for mail.example.net, we want to skip smtp.example.net
-        // and use mail.example.net with strict TLS instead of using smtp.example.net without
-        // strict TLS.
         .flat_map(|params| params.expand_strict_tls().into_iter())
         .flat_map(|params| params.expand_usernames(addr).into_iter())
         .flat_map(|params| params.expand_hostnames(domain).into_iter())
@@ -257,22 +227,6 @@ mod tests {
                     username: "foobar".to_string(),
                     strict_tls: Some(true)
                 },
-                ServerParams {
-                    protocol: Protocol::Smtp,
-                    hostname: "example.net".to_string(),
-                    port: 123,
-                    socket: Socket::Ssl,
-                    username: "foobar".to_string(),
-                    strict_tls: None,
-                },
-                ServerParams {
-                    protocol: Protocol::Smtp,
-                    hostname: "example.net".to_string(),
-                    port: 123,
-                    socket: Socket::Starttls,
-                    username: "foobar".to_string(),
-                    strict_tls: None
-                }
             ],
         );
 
@@ -284,7 +238,7 @@ mod tests {
                 port: 123,
                 socket: Socket::Plain,
                 username: "foobar".to_string(),
-                strict_tls: None,
+                strict_tls: Some(true),
             }],
             "foobar@example.net",
             "example.net",

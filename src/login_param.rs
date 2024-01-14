@@ -14,8 +14,22 @@ use crate::socks::Socks5Config;
 #[repr(u32)]
 #[strum(serialize_all = "snake_case")]
 pub enum CertificateChecks {
-    /// Same as AcceptInvalidCertificates unless overridden by
-    /// `strict_tls` setting in provider database.
+    /// Same as AcceptInvalidCertificates if stored in the database
+    /// as `configured_{imap,smtp}_certificate_checks`.
+    ///
+    /// Previous Delta Chat versions stored this in `configured_*`
+    /// if Automatic configuration
+    /// was selected, configuration with strict TLS checks failed
+    /// and configuration without strict TLS checks succeeded.
+    ///
+    /// Currently Delta Chat stores only
+    /// `Strict` or `AcceptInvalidCertificates` variants
+    /// in `configured_*` settings.
+    ///
+    /// `Automatic` in `{imap,smtp}_certificate_checks`
+    /// means that provider database setting should be taken.
+    /// If there is no provider database setting for certificate checks,
+    /// `Automatic` is the same as `Strict`.
     Automatic = 0,
 
     Strict = 1,
