@@ -9,7 +9,7 @@
       <tab type="hierarchy" visible="no" title="" intro=""/>
       <tab type="classmembers" visible="no" title="" intro=""/>
     </tab>
-    <tab type="modules" visible="yes" title="Constants" intro="Here is a list of constants:"/>
+    <tab type="topics" visible="yes" title="Constants" intro="Here is a list of constants:"/>
     <tab type="pages" visible="yes" title="" intro=""/>
     <tab type="namespaces" visible="yes" title="">
       <tab type="namespacelist" visible="yes" title="" intro=""/>
