@@ -102,7 +102,7 @@ def main():
                 found = True
         if not found:
             raise SystemExit(
-                f"{changelog_name} contains no entry for version: {newversion}"
+                f"CHANGELOG.md contains no entry for version: {newversion}"
             )
 
     for toml_filename in toml_list:
