@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
+use email::Mailbox;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
@@ -479,48 +480,6 @@ impl<'a> MimeFactory<'a> {
             Loaded::Mdn { .. } => false,
         };
 
-        let mut to = Vec::new();
-        if undisclosed_recipients {
-            to.push(Address::new_group(
-                "hidden-recipients".to_string(),
-                Vec::new(),
-            ));
-        } else {
-            let email_to_remove =
-                if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
-                    self.msg.param.get(Param::Arg)
-                } else {
-                    None
-                };
-
-            for (name, addr) in &self.recipients {
-                if let Some(email_to_remove) = email_to_remove {
-                    if email_to_remove == addr {
-                        continue;
-                    }
-                }
-
-                if name.is_empty() {
-                    to.push(Address::new_mailbox(addr.clone()));
-                } else {
-                    to.push(Address::new_mailbox_with_name(
-                        name.to_string(),
-                        addr.clone(),
-                    ));
-                }
-            }
-
-            if to.is_empty() {
-                to.push(from.clone());
-            }
-        }
-
-        // Start with Internet Message Format headers in the order of the standard example
-        // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
-        let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
-        headers.unprotected.push(from_header.clone());
-        headers.protected.push(from_header);
-
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
                 Address::new_mailbox_with_name(sender_displayname.clone(), self.from_addr.clone());
@@ -528,9 +487,6 @@ impl<'a> MimeFactory<'a> {
                 .unprotected
                 .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
-        headers
-            .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
 
         let subject_str = self.subject_str(context).await?;
         let encoded_subject = if subject_str
@@ -658,6 +614,92 @@ impl<'a> MimeFactory<'a> {
         let should_encrypt =
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
+
+        let mut to = Vec::new();
+        if undisclosed_recipients {
+            to.push(Address::new_group(
+                "hidden-recipients".to_string(),
+                Vec::new(),
+            ));
+        } else {
+            let email_to_remove =
+                if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+                    self.msg.param.get(Param::Arg)
+                } else {
+                    None
+                };
+
+            for (name, addr) in &self.recipients {
+                if let Some(email_to_remove) = email_to_remove {
+                    if email_to_remove == addr {
+                        continue;
+                    }
+                }
+
+                if name.is_empty() {
+                    to.push(Address::new_mailbox(addr.clone()));
+                } else {
+                    to.push(Address::new_mailbox_with_name(
+                        name.to_string(),
+                        addr.clone(),
+                    ));
+                }
+            }
+
+            if to.is_empty() {
+                to.push(from.clone());
+            }
+        }
+
+        // Start with Internet Message Format headers in the order of the standard example
+        // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
+        let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
+
+        if is_encrypted {
+            warn!(context, "Sending encrypted message with display names etc.");
+
+            // Add receipients and sender with display names to the protected headers
+            headers
+                .protected
+                .push(Header::new_with_value("To".into(), to.clone()).unwrap());
+
+            headers.protected.push(from_header.clone());
+
+            // Add receipients and sender without display names to the unprotected headers
+            headers.unprotected.push(
+                Header::new_with_value(
+                    "To".into(),
+                    to.into_iter()
+                        .map(|header| match header {
+                            Address::Mailbox(mb) => Address::new_mailbox(mb.address),
+                            Address::Group(name, participants) => Address::new_group(
+                                name,
+                                participants
+                                    .into_iter()
+                                    .map(|mb| Mailbox::new(mb.address))
+                                    .collect(),
+                            ),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap(),
+            );
+
+            headers.unprotected.push(
+                Header::new_with_value(
+                    "From".into(),
+                    vec![Address::new_mailbox(self.from_addr.clone())],
+                )
+                .unwrap(),
+            );
+        } else {
+            // Unencrypted emails have display names in the unprotected headers
+            headers
+                .unprotected
+                .push(Header::new_with_value("To".into(), to.clone()).unwrap());
+            headers.protected.push(from_header.clone());
+            headers.unprotected.push(from_header);
+        }
 
         let message = if parts.is_empty() {
             // Single part, render as regular message.
