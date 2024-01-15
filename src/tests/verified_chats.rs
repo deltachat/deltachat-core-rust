@@ -860,6 +860,35 @@ async fn test_verified_member_added_reordering() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_no_unencrypted_name_if_verified() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    for verified in [false, true] {
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+        bob.set_config(Config::Displayname, Some("Bob Smith"))
+            .await?;
+        if verified {
+            enable_verified_oneonone_chats(&[&bob]).await;
+            mark_as_verified(&bob, &alice).await;
+        } else {
+            tcm.send_recv_accept(&alice, &bob, "hi").await;
+        }
+
+        let chat_id = bob.create_chat(&alice).await.id;
+        let msg = &bob.send_text(chat_id, "hi").await;
+
+        assert_eq!(msg.payload.contains("Bob Smith"), !verified);
+        assert!(msg.payload.contains("BEGIN PGP MESSAGE"));
+
+        let msg = alice.recv_msg(msg).await;
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+
+        assert_eq!(Contact::get_display_name(&contact), "Bob Smith");
+    }
+    Ok(())
+}
+
 // ============== Helper Functions ==============
 
 async fn assert_verified(this: &TestContext, other: &TestContext, protected: ProtectionStatus) {
