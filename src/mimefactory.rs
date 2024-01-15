@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
+use email::Mailbox;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
@@ -552,8 +553,7 @@ impl<'a> MimeFactory<'a> {
         // Start with Internet Message Format headers in the order of the standard example
         // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
         let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
-        headers.unprotected.push(from_header.clone());
-        headers.protected.push(from_header);
+        headers.protected.push(from_header.clone());
 
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
@@ -563,8 +563,8 @@ impl<'a> MimeFactory<'a> {
                 .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
         headers
-            .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
+            .protected
+            .push(Header::new_with_value("To".into(), to.clone()).unwrap());
 
         let subject_str = self.subject_str(context).await?;
         let encoded_subject = if subject_str
@@ -680,6 +680,46 @@ impl<'a> MimeFactory<'a> {
         let should_encrypt =
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
+
+        if is_encrypted {
+            headers.unprotected.insert(
+                0,
+                Header::new_with_value(
+                    "To".into(),
+                    to.into_iter()
+                        .map(|header| match header {
+                            Address::Mailbox(mb) => Address::Mailbox(Mailbox {
+                                address: mb.address,
+                                name: None,
+                            }),
+                            Address::Group(name, participants) => Address::new_group(
+                                name,
+                                participants
+                                    .into_iter()
+                                    .map(|mb| Mailbox {
+                                        address: mb.address,
+                                        name: None,
+                                    })
+                                    .collect(),
+                            ),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap(),
+            );
+        }
+        if is_encrypted && verified {
+            headers.unprotected.insert(
+                0,
+                Header::new_with_value(
+                    "From".into(),
+                    vec![Address::new_mailbox(self.from_addr.clone())],
+                )
+                .unwrap(),
+            );
+        } else {
+            headers.unprotected.insert(0, from_header);
+        }
 
         let (main_part, parts) = match self.loaded {
             Loaded::Message { .. } => {
@@ -827,7 +867,6 @@ impl<'a> MimeFactory<'a> {
 
             message
         } else {
-            // Store hidden headers in the inner unencrypted message.
             let message = headers
                 .hidden
                 .into_iter()
@@ -835,8 +874,6 @@ impl<'a> MimeFactory<'a> {
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
-
-            // Store protected headers in the outer message.
             let message = headers
                 .protected
                 .iter()

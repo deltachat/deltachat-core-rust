@@ -302,7 +302,7 @@ impl MimeMessage {
         // them in signed-only emails, but has no value currently.
         Self::remove_secured_headers(&mut headers);
 
-        let from = from.context("No from in message")?;
+        let mut from = from.context("No from in message")?;
         let private_keyring = load_self_secret_keyring(context).await?;
 
         let mut decryption_info =
@@ -398,6 +398,7 @@ impl MimeMessage {
             if let (Some(inner_from), true) = (inner_from, !signatures.is_empty()) {
                 if addr_cmp(&inner_from.addr, &from.addr) {
                     from_is_signed = true;
+                    from = inner_from;
                 } else {
                     // There is a From: header in the encrypted &
                     // signed part, but it doesn't match the outer one.
