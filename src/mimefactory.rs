@@ -656,8 +656,6 @@ impl<'a> MimeFactory<'a> {
         let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
 
         if is_encrypted {
-            warn!(context, "Sending encrypted message with display names etc.");
-
             // Add receipients and sender with display names to the protected headers
             headers
                 .protected
@@ -671,12 +669,18 @@ impl<'a> MimeFactory<'a> {
                     "To".into(),
                     to.into_iter()
                         .map(|header| match header {
-                            Address::Mailbox(mb) => Address::new_mailbox(mb.address),
+                            Address::Mailbox(mb) => Address::Mailbox(Mailbox {
+                                address: mb.address,
+                                name: None,
+                            }),
                             Address::Group(name, participants) => Address::new_group(
                                 name,
                                 participants
                                     .into_iter()
-                                    .map(|mb| Mailbox::new(mb.address))
+                                    .map(|mb| Mailbox {
+                                        address: mb.address,
+                                        name: None,
+                                    })
                                     .collect(),
                             ),
                         })
