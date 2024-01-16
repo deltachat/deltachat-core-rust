@@ -606,8 +606,10 @@ class ACFactory:
         qr = chat.get_join_qr()
         ac2.qr_join_chat(qr)
         setupplugin.member_added.wait(timeout=30)
-        ac2.wait_next_incoming_message()
-        ac2.wait_next_incoming_message()
+        msg = ac2.wait_next_incoming_message()
+        assert msg.text == "Messages are guaranteed to be end-to-end encrypted from now on."
+        msg = ac2.wait_next_incoming_message()
+        assert "Member Me " in msg.text and " added by " in msg.text
         return chat
 
     def introduce_each_other(self, accounts, sending=True):
