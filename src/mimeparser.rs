@@ -270,7 +270,7 @@ impl MimeMessage {
         // them in signed-only emails, but has no value currently.
         Self::remove_secured_headers(&mut headers);
 
-        let from = from.context("No from in message")?;
+        let mut from = from.context("No from in message")?;
         let private_keyring = load_self_secret_keyring(context).await?;
 
         let mut decryption_info =
@@ -311,13 +311,13 @@ impl MimeMessage {
             signatures.extend(signatures_detached);
             content
         });
-        if let (Ok(mail), true) = (mail, encrypted) {
+        if let (Ok(encrypted_part), true) = (mail, encrypted) {
             if !signatures.is_empty() {
                 // Handle any gossip headers if the mail was encrypted. See section
                 // "3.6 Key Gossip" of <https://autocrypt.org/autocrypt-spec-1.1.0.pdf>
                 // but only if the mail was correctly signed. Probably it's ok to not require
                 // encryption here, but let's follow the standard.
-                let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
+                let gossip_headers = encrypted_part.headers.get_all_values("Autocrypt-Gossip");
                 gossiped_addr = update_gossip_peerstates(
                     context,
                     message_time,
@@ -345,12 +345,13 @@ impl MimeMessage {
                 &mut inner_from,
                 &mut list_post,
                 &mut chat_disposition_notification_to,
-                &mail.headers,
+                &encrypted_part.headers,
             );
 
             if let (Some(inner_from), true) = (inner_from, !signatures.is_empty()) {
                 if addr_cmp(&inner_from.addr, &from.addr) {
                     from_is_signed = true;
+                    from = inner_from;
                 } else {
                     // There is a From: header in the encrypted &
                     // signed part, but it doesn't match the outer one.
