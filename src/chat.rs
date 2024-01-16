@@ -2657,6 +2657,11 @@ pub async fn send_msg(context: &Context, chat_id: ChatId, msg: &mut Message) -> 
         return send_msg_inner(context, chat_id, msg).await;
     }
 
+    if msg.state != MessageState::Undefined && msg.state != MessageState::OutPreparing {
+        msg.param.remove(Param::GuaranteeE2ee);
+        msg.param.remove(Param::ForcePlaintext);
+        msg.update_param(context).await?;
+    }
     send_msg_inner(context, chat_id, msg).await
 }
 
