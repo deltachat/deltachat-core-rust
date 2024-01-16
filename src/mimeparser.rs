@@ -2225,7 +2225,7 @@ mod tests {
         constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
         message::{Message, MessageState, MessengerMessage},
         receive_imf::receive_imf,
-        test_utils::TestContext,
+        test_utils::{TestContext, TestContextManager},
     };
 
     impl AvatarAction {
@@ -3817,6 +3817,27 @@ Content-Disposition: reaction\n\
         // Actual contents part.
         assert_eq!(msg.parts[1].typ, Viewtype::Text);
         assert_eq!(msg.parts[1].msg, "hello,\nbye");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_long_and_duplicated_filenames() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        bob.set_config(Config::Displayname, Some("bob")).await?;
+
+        let msg = tcm.send_recv_accept(&alice, &bob, "hi").await;
+        let msg = &bob.send_text(msg.chat_id, "hi").await;
+
+        assert!(!msg.payload.contains("bob <bob@example.net>"));
+
+        let msg = alice.recv_msg(msg).await;
+        let contact = Contact::get_by_id(&alice, msg.from_id).await?;
+
+        assert_eq!(Contact::get_display_name(&contact), "bob");
 
         Ok(())
     }
