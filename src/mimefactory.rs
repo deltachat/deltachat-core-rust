@@ -2295,15 +2295,9 @@ mod tests {
         msg.set_text("this is the text!".to_string());
 
         let sent_msg = t.send_msg(chat.id, &mut msg).await;
-
-        println!(
-            "{:#?}",
-            sent_msg.payload().splitn(4, "\r\n\r\n").collect::<Vec<_>>()
-        );
         let mut payload = sent_msg.payload().splitn(4, "\r\n\r\n");
 
         let part = payload.next().unwrap();
-        println!("part:: {part}");
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 1);
