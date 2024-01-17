@@ -470,11 +470,6 @@ impl<'a> MimeFactory<'a> {
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         let mut headers: MessageHeaders = Default::default();
 
-        let from = Address::new_mailbox_with_name(
-            self.from_displayname.to_string(),
-            self.from_addr.clone(),
-        );
-
         let undisclosed_recipients = match &self.loaded {
             Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
             Loaded::Mdn { .. } => false,
@@ -615,6 +610,12 @@ impl<'a> MimeFactory<'a> {
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
 
+        let from = Address::new_mailbox_with_name(
+            self.from_displayname.to_string(),
+            self.from_addr.clone(),
+        );
+        let from_header = Header::new_with_value("From".into(), vec![from.clone()]).unwrap();
+
         let mut to = Vec::new();
         if undisclosed_recipients {
             to.push(Address::new_group(
@@ -647,24 +648,23 @@ impl<'a> MimeFactory<'a> {
             }
 
             if to.is_empty() {
-                to.push(from.clone());
+                to.push(from);
             }
         }
 
-        // Start with Internet Message Format headers in the order of the standard example
+        // It is sufficient to put `from` and `to` only to protected headers
+        // because for unencrypted messages, they will also go to the outer message
+        // Use insert to keep message order as defined in
         // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
-        let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
+        headers
+            .protected
+            .insert(0, Header::new_with_value("To".into(), to.clone()).unwrap());
+        headers.protected.insert(0, from_header.clone());
 
         if is_encrypted {
-            // Add receipients and sender with display names to the protected headers
-            headers
-                .protected
-                .push(Header::new_with_value("To".into(), to.clone()).unwrap());
-
-            headers.protected.push(from_header.clone());
-
             // Add receipients and sender without display names to the unprotected headers
-            headers.unprotected.push(
+            headers.unprotected.insert(
+                0,
                 Header::new_with_value(
                     "To".into(),
                     to.into_iter()
@@ -689,7 +689,8 @@ impl<'a> MimeFactory<'a> {
                 .unwrap(),
             );
 
-            headers.unprotected.push(
+            headers.unprotected.insert(
+                0,
                 Header::new_with_value(
                     "From".into(),
                     vec![Address::new_mailbox(self.from_addr.clone())],
@@ -697,11 +698,7 @@ impl<'a> MimeFactory<'a> {
                 .unwrap(),
             );
         } else {
-            // Unencrypted emails have display names in the unprotected headers
-            headers
-                .unprotected
-                .push(Header::new_with_value("To".into(), to.clone()).unwrap());
-            headers.unprotected.push(from_header);
+            headers.unprotected.insert(0, from_header);
         }
 
         let message = if parts.is_empty() {
@@ -838,7 +835,7 @@ impl<'a> MimeFactory<'a> {
 
             message
         } else {
-            // Store hidden headers in the inner unencrypted message.
+            // Store hidden headers in the outer message.
             let message = headers
                 .hidden
                 .into_iter()
@@ -2298,9 +2295,15 @@ mod tests {
         msg.set_text("this is the text!".to_string());
 
         let sent_msg = t.send_msg(chat.id, &mut msg).await;
+
+        println!(
+            "{:#?}",
+            sent_msg.payload().splitn(4, "\r\n\r\n").collect::<Vec<_>>()
+        );
         let mut payload = sent_msg.payload().splitn(4, "\r\n\r\n");
 
         let part = payload.next().unwrap();
+        println!("part:: {part}");
         assert_eq!(part.match_indices("multipart/signed").count(), 1);
         assert_eq!(part.match_indices("From:").count(), 1);
         assert_eq!(part.match_indices("Message-ID:").count(), 1);

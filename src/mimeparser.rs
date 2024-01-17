@@ -3827,12 +3827,13 @@ Content-Disposition: reaction\n\
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        bob.set_config(Config::Displayname, Some("Bob Smith")).await?;
+        bob.set_config(Config::Displayname, Some("Bob Smith"))
+            .await?;
 
         let msg = tcm.send_recv_accept(&alice, &bob, "hi").await;
         let msg = &bob.send_text(msg.chat_id, "hi").await;
 
-        assert!(!msg.payload.contains("Bob Smith <bob@example.net>"));
+        assert!(!msg.payload.contains("Bob Smith"));
         assert!(msg.payload.contains("BEGIN PGP MESSAGE"));
 
         let msg = alice.recv_msg(msg).await;
