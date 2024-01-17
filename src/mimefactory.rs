@@ -701,7 +701,6 @@ impl<'a> MimeFactory<'a> {
             headers
                 .unprotected
                 .push(Header::new_with_value("To".into(), to.clone()).unwrap());
-            headers.protected.push(from_header.clone());
             headers.unprotected.push(from_header);
         }
 

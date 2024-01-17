@@ -3822,22 +3822,23 @@ Content-Disposition: reaction\n\
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_long_and_duplicated_filenames() -> Result<()> {
+    async fn test_name_only_in_encrypted() -> Result<()> {
         let mut tcm = TestContextManager::new();
         let alice = tcm.alice().await;
         let bob = tcm.bob().await;
 
-        bob.set_config(Config::Displayname, Some("bob")).await?;
+        bob.set_config(Config::Displayname, Some("Bob Smith")).await?;
 
         let msg = tcm.send_recv_accept(&alice, &bob, "hi").await;
         let msg = &bob.send_text(msg.chat_id, "hi").await;
 
-        assert!(!msg.payload.contains("bob <bob@example.net>"));
+        assert!(!msg.payload.contains("Bob Smith <bob@example.net>"));
+        assert!(msg.payload.contains("BEGIN PGP MESSAGE"));
 
         let msg = alice.recv_msg(msg).await;
         let contact = Contact::get_by_id(&alice, msg.from_id).await?;
 
-        assert_eq!(Contact::get_display_name(&contact), "bob");
+        assert_eq!(Contact::get_display_name(&contact), "Bob Smith");
 
         Ok(())
     }
