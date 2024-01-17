@@ -605,7 +605,7 @@ class ACFactory:
         chat = ac1.create_group_chat("Protected Group", verified=True)
         qr = chat.get_join_qr()
         ac2.qr_join_chat(qr)
-        setupplugin.member_added.wait(timeout=30)
+        setupplugin.member_added.wait()
         msg = ac2.wait_next_incoming_message()
         assert msg.text == "Messages are guaranteed to be end-to-end encrypted from now on."
         msg = ac2.wait_next_incoming_message()

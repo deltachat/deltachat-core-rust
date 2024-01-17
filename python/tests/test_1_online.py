@@ -509,7 +509,7 @@ def test_forward_encrypted_to_unencrypted(acfactory, lp):
     assert msg.text == txt
     assert msg.is_encrypted()
 
-    lp.sec("ac2: forward message to ac3 unencrypted ")
+    lp.sec("ac2: forward message to ac3 unencrypted")
     unencrypted_chat = ac2.create_chat(ac3)
     msg_id = msg.id
     msg2 = unencrypted_chat.send_msg(msg)
