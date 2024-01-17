@@ -15,7 +15,7 @@ use self::connectivity::ConnectivityStore;
 use crate::config::Config;
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
-use crate::download::download_msg;
+use crate::download::{download_msg, DownloadState};
 use crate::ephemeral::{self, delete_expired_imap_messages};
 use crate::events::EventType;
 use crate::imap::{FolderMeaning, Imap};
@@ -350,6 +350,16 @@ async fn download_msgs(context: &Context, imap: &mut Imap) -> Result<()> {
     for msg_id in msg_ids {
         if let Err(err) = download_msg(context, msg_id, imap).await {
             warn!(context, "Failed to download message {msg_id}: {:#}.", err);
+
+            // Update download state to failure
+            // so it can be retried.
+            //
+            // On success update_download_state() is not needed
+            // as receive_imf() already
+            // set the state and emitted the event.
+            msg_id
+                .update_download_state(context, DownloadState::Failure)
+                .await?;
         }
         context
             .sql
