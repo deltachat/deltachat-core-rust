@@ -146,29 +146,19 @@ pub(crate) async fn download_msg(context: &Context, msg_id: MsgId, imap: &mut Im
         )
         .await?;
 
-    if let Some((server_uid, server_folder)) = row {
-        match imap
-            .fetch_single_msg(context, &server_folder, server_uid, msg.rfc724_mid.clone())
-            .await
-        {
-            ImapActionResult::RetryLater | ImapActionResult::Failed => {
-                msg.id
-                    .update_download_state(context, DownloadState::Failure)
-                    .await?;
-                Err(anyhow!("Call download_full() again to try over."))
-            }
-            ImapActionResult::Success => {
-                // update_download_state() not needed as receive_imf() already
-                // set the state and emitted the event.
-                Ok(())
-            }
-        }
-    } else {
+    let Some((server_uid, server_folder)) = row else {
         // No IMAP record found, we don't know the UID and folder.
-        msg.id
-            .update_download_state(context, DownloadState::Failure)
-            .await?;
-        Err(anyhow!("Call download_full() again to try over."))
+        return Err(anyhow!("Call download_full() again to try over."));
+    };
+
+    match imap
+        .fetch_single_msg(context, &server_folder, server_uid, msg.rfc724_mid.clone())
+        .await
+    {
+        ImapActionResult::RetryLater | ImapActionResult::Failed => {
+            Err(anyhow!("Call download_full() again to try over."))
+        }
+        ImapActionResult::Success => Ok(()),
     }
 }
 
