@@ -835,16 +835,15 @@ impl<'a> MimeFactory<'a> {
 
             message
         } else {
-            // Store hidden headers in the outer message.
             let message = headers
                 .hidden
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
+
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
 
-            // Store protected headers in the outer message.
             let message = headers
                 .protected
                 .iter()
