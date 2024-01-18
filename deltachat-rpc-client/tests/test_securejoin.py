@@ -175,7 +175,7 @@ def test_verified_group_recovery(acfactory) -> None:
     logging.info("ac2 joins verified group")
     qr_code, _svg = chat.get_qr_code()
     ac2.secure_join(qr_code)
-    ac1.wait_for_securejoin_inviter_success()
+    ac2.wait_for_securejoin_joiner_success()
 
     # ac1 has ac2 directly verified.
     ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
@@ -183,7 +183,8 @@ def test_verified_group_recovery(acfactory) -> None:
 
     logging.info("ac3 joins verified group")
     ac3_chat = ac3.secure_join(qr_code)
-    ac1.wait_for_securejoin_inviter_success()
+    ac3.wait_for_securejoin_joiner_success()
+    ac3.wait_for_incoming_msg_event()  # Member added
 
     logging.info("ac2 logs in on a new device")
     ac2 = acfactory.resetup_account(ac2)
@@ -191,8 +192,7 @@ def test_verified_group_recovery(acfactory) -> None:
     logging.info("ac2 reverifies with ac3")
     qr_code, _svg = ac3.get_qr_code()
     ac2.secure_join(qr_code)
-
-    ac3.wait_for_securejoin_inviter_success()
+    ac2.wait_for_securejoin_joiner_success()
 
     logging.info("ac3 sends a message to the group")
     assert len(ac3_chat.get_contacts()) == 3
@@ -239,7 +239,7 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     logging.info("ac2 joins verified group")
     qr_code, _svg = chat.get_qr_code()
     ac2.secure_join(qr_code)
-    ac1.wait_for_securejoin_inviter_success()
+    ac2.wait_for_securejoin_joiner_success()
 
     # ac1 has ac2 directly verified.
     ac1_contact_ac2 = ac1.get_contact_by_addr(ac2.get_config("addr"))
@@ -247,7 +247,8 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
 
     logging.info("ac3 joins verified group")
     ac3_chat = ac3.secure_join(qr_code)
-    ac1.wait_for_securejoin_inviter_success()
+    ac3.wait_for_securejoin_joiner_success()
+    ac3.wait_for_incoming_msg_event()  # Member added
 
     logging.info("ac2 logs in on a new device")
     ac2 = acfactory.resetup_account(ac2)
@@ -255,8 +256,7 @@ def test_verified_group_member_added_recovery(acfactory) -> None:
     logging.info("ac2 reverifies with ac3")
     qr_code, _svg = ac3.get_qr_code()
     ac2.secure_join(qr_code)
-
-    ac3.wait_for_securejoin_inviter_success()
+    ac2.wait_for_securejoin_joiner_success()
 
     logging.info("ac3 sends a message to the group")
     assert len(ac3_chat.get_contacts()) == 3
