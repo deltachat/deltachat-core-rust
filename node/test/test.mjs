@@ -1,13 +1,17 @@
 // @ts-check
-import DeltaChat from '../dist'
+import { DeltaChat } from '../dist/index.js'
 
 import { deepStrictEqual, strictEqual } from 'assert'
 import chai, { expect } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
-import { EventId2EventName, C } from '../dist/constants'
+import { EventId2EventName, C } from '../dist/constants.js'
 import { join } from 'path'
 import { statSync } from 'fs'
-import { Context } from '../dist/context'
+import { Context } from '../dist/context.js'
+import {fileURLToPath} from 'url';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
 chai.use(chaiAsPromised)
 chai.config.truncateThreshold = 0 // Do not truncate assertion errors.
 
