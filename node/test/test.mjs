@@ -8,12 +8,9 @@ import { EventId2EventName, C } from '../dist/constants.js'
 import { join } from 'path'
 import { statSync } from 'fs'
 import { Context } from '../dist/context.js'
-import { log } from 'console'
+import {fileURLToPath} from 'url';
 
-import * as url from 'url';
-const __filename = url.fileURLToPath(import.meta.url);
-const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
-
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 chai.use(chaiAsPromised)
 chai.config.truncateThreshold = 0 // Do not truncate assertion errors.
@@ -45,7 +42,6 @@ describe('static tests', function () {
   })
 
   it('static method maybeValidAddr()', function () {
-    log(DeltaChat)
     expect(DeltaChat.maybeValidAddr(null)).to.equal(false)
     expect(DeltaChat.maybeValidAddr('')).to.equal(false)
     expect(DeltaChat.maybeValidAddr('uuu')).to.equal(false)
