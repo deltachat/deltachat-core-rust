@@ -178,7 +178,7 @@ export class AccountManager extends EventEmitter {
   static newTemporary() {
     let directory = null
     while (true) {
-      const randomString = Math.random().toString(36).substr(2, 5)
+      const randomString = Math.random().toString(36).substring(2, 5)
       directory = join(tmpdir(), 'deltachat-' + randomString)
       if (!existsSync(directory)) break
     }
