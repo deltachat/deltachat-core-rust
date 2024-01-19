@@ -593,7 +593,6 @@ pub(crate) async fn send_msg_to_smtp(
                 .await?;
         }
         SendResult::Failure(ref err) => {
-            error!(context, "hi from: {err}");
             if err.to_string().contains("Invalid unencrypted mail") {
                 let res = context
                     .sql
@@ -602,10 +601,9 @@ pub(crate) async fn send_msg_to_smtp(
                         (msg_id,),
                         |row| Ok((row.get::<_, ChatId>(0), row.get::<_, i64>(1))),
                     )
-                    .await?
-                    .context("failed to get chat_id and timestamp_sort")?;
+                    .await?;
 
-                if let (Ok(chat_id), Ok(timestamp_sort)) = res {
+                if let Some((Ok(chat_id), Ok(timestamp_sort))) = res {
                     let text = unencrypted_email(context).await;
                     add_info_msg_with_cmd(
                         context,

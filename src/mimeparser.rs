@@ -177,7 +177,7 @@ pub enum SystemMessage {
     ChatProtectionDisabled = 12,
 
     /// Message can't be sent because of `Invalid unencrypted mail to <>`
-    /// which is sent by
+    /// which is sent by chatmail servers.
     InvalidUnencryptedMail = 13,
 
     /// Self-sent-message that contains only json used for multi-device-sync;
