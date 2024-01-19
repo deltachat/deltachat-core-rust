@@ -4076,6 +4076,7 @@ pub async fn resend_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
             chat_id: msg.chat_id,
             msg_id: msg.id,
         });
+        msg.timestamp_sort = create_smeared_timestamp(context);
         if !create_send_msg_jobs(context, &mut msg).await?.is_empty() {
             context.scheduler.interrupt_smtp().await;
         }
@@ -6502,6 +6503,7 @@ mod tests {
         // Bob receives all messages
         let bob = TestContext::new_bob().await;
         let msg = bob.recv_msg(&sent1).await;
+        let sent1_ts_sent = msg.timestamp_sent;
         assert_eq!(msg.get_text(), "alice->bob");
         assert_eq!(get_chat_contacts(&bob, msg.chat_id).await?.len(), 2);
         assert_eq!(get_chat_msgs(&bob, msg.chat_id).await?.len(), 1);
@@ -6524,6 +6526,7 @@ mod tests {
         assert_eq!(get_chat_msgs(&claire, msg.chat_id).await?.len(), 2);
         let msg_from = Contact::get_by_id(&claire, msg.get_from_id()).await?;
         assert_eq!(msg_from.get_addr(), "alice@example.org");
+        assert!(sent1_ts_sent < msg.timestamp_sent);
 
         Ok(())
     }
