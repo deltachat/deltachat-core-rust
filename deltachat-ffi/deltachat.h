@@ -5072,6 +5072,15 @@ int             dc_contact_is_blocked        (const dc_contact_t* contact);
  */
 int             dc_contact_is_verified       (dc_contact_t* contact);
 
+/**
+ * Returns whether contact is a bot.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 0 if the contact is not a bot, 1 otherwise.
+ */
+int             dc_contact_is_bot            (dc_contact_t* contact);
+
 
 /**
  * Return the contact ID that verified a contact.

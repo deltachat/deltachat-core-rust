@@ -4133,6 +4133,15 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_contact_is_bot(contact: *mut dc_contact_t) -> libc::c_int {
+    if contact.is_null() {
+        eprintln!("ignoring careless call to dc_contact_is_bot()");
+        return 0;
+    }
+    (*contact).contact.is_bot() as libc::c_int
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_contact_get_verifier_id(contact: *mut dc_contact_t) -> u32 {
     if contact.is_null() {
         eprintln!("ignoring careless call to dc_contact_get_verifier_id()");

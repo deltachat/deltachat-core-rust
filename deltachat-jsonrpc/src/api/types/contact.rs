@@ -45,6 +45,9 @@ pub struct ContactObject {
     /// the contact's last seen timestamp
     last_seen: i64,
     was_seen_recently: bool,
+
+    /// If the contact is a bot.
+    is_bot: bool,
 }
 
 impl ContactObject {
@@ -80,6 +83,7 @@ impl ContactObject {
             verifier_id,
             last_seen: contact.last_seen(),
             was_seen_recently: contact.was_seen_recently(),
+            is_bot: contact.is_bot(),
         })
     }
 }
