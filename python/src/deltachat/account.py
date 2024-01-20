@@ -477,6 +477,16 @@ class Account:
         msg_ids = [msg.id for msg in messages]
         lib.dc_forward_msgs(self._dc_context, msg_ids, len(msg_ids), chat.id)
 
+    def resend_messages(self, messages: List[Message]) -> None:
+        """Resend list of messages.
+
+        :param messages: list of :class:`deltachat.message.Message` object.
+        :returns: None
+        """
+        msg_ids = [msg.id for msg in messages]
+        if lib.dc_resend_msgs(self._dc_context, msg_ids, len(msg_ids)) != 1:
+            raise ValueError(f"could not resend messages {msg_ids}")
+
     def delete_messages(self, messages: List[Message]) -> None:
         """delete messages (local and remote).
 

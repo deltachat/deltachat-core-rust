@@ -73,6 +73,7 @@ pub enum ImapActionResult {
 ///   not necessarily sent by Delta Chat.
 const PREFETCH_FLAGS: &str = "(UID INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
                               MESSAGE-ID \
+                              DATE \
                               X-MICROSOFT-ORIGINAL-MESSAGE-ID \
                               FROM \
                               IN-REPLY-TO REFERENCES \
@@ -769,6 +770,7 @@ impl Imap {
         let mut uids_fetch = Vec::<(_, bool /* partially? */)>::with_capacity(msgs.len() + 1);
         let mut uid_message_ids = BTreeMap::new();
         let mut largest_uid_skipped = None;
+        let delete_target = context.get_delete_msgs_target().await?;
 
         // Store the info about IMAP messages in the database.
         for (uid, ref fetch_response) in msgs {
@@ -794,8 +796,24 @@ impl Imap {
             // Such move to the same folder results in the messages
             // getting a new UID, so the messages will be detected as new
             // in the `INBOX.DeltaChat` folder again.
+            let _target;
             let target = if let Some(message_id) = &message_id {
-                if context
+                let is_dup = if let Some((_, ts_sent_old)) =
+                    message::rfc724_mid_exists(context, message_id).await?
+                {
+                    let is_chat_msg = headers.get_header_value(HeaderDef::ChatVersion).is_some();
+                    let ts_sent = headers
+                        .get_header_value(HeaderDef::Date)
+                        .and_then(|v| mailparse::dateparse(&v).ok())
+                        .unwrap_or_default();
+                    is_dup_msg(is_chat_msg, ts_sent, ts_sent_old)
+                } else {
+                    false
+                };
+                if is_dup {
+                    info!(context, "Deleting duplicate message {message_id}.");
+                    &delete_target
+                } else if context
                     .sql
                     .exists(
                         "SELECT COUNT (*) FROM imap WHERE rfc724_mid=?",
@@ -807,9 +825,10 @@ impl Imap {
                         context,
                         "Not moving the message {} that we have seen before.", &message_id
                     );
-                    folder.to_string()
+                    folder
                 } else {
-                    target_folder(context, folder, folder_meaning, &headers).await?
+                    _target = target_folder(context, folder, folder_meaning, &headers).await?;
+                    &_target
                 }
             } else {
                 // Do not move the messages without Message-ID.
@@ -819,7 +838,7 @@ impl Imap {
                     context,
                     "Not moving the message that does not have a Message-ID."
                 );
-                folder.to_string()
+                folder
             };
 
             // Generate a fake Message-ID to identify the message in the database
@@ -834,7 +853,7 @@ impl Imap {
                        ON CONFLICT(folder, uid, uidvalidity)
                        DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
                                      target=excluded.target",
-                    (&message_id, &folder, uid, uid_validity, &target),
+                    (&message_id, &folder, uid, uid_validity, target),
                 )
                 .await?;
 
@@ -887,6 +906,7 @@ impl Imap {
                     .fetch_many_msgs(
                         context,
                         folder,
+                        uid_validity,
                         uids_fetch_in_batch.split_off(0),
                         &uid_message_ids,
                         fetch_partially,
@@ -1431,10 +1451,12 @@ impl Imap {
     /// Returns the last UID fetched successfully and the info about each downloaded message.
     /// If the message is incorrect or there is a failure to write a message to the database,
     /// it is skipped and the error is logged.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn fetch_many_msgs(
         &mut self,
         context: &Context,
         folder: &str,
+        uidvalidity: u32,
         request_uids: Vec<u32>,
         uid_message_ids: &BTreeMap<u32, String>,
         fetch_partially: bool,
@@ -1568,6 +1590,9 @@ impl Imap {
                 );
                 match receive_imf_inner(
                     context,
+                    folder,
+                    uidvalidity,
+                    request_uid,
                     rfc724_mid,
                     body,
                     is_seen,
@@ -2245,6 +2270,15 @@ pub(crate) async fn prefetch_should_download(
 
     let should_download = (show && !blocked_contact) || maybe_ndn;
     Ok(should_download)
+}
+
+/// Returns whether a message is a duplicate (resent message).
+pub(crate) fn is_dup_msg(is_chat_msg: bool, ts_sent: i64, ts_sent_old: i64) -> bool {
+    // If the existing message has timestamp_sent == 0, that means we don't know its actual sent
+    // timestamp, so don't delete the new message. E.g. outgoing messages have zero timestamp_sent
+    // because they are stored to the db before sending. Also consider as duplicates only messages
+    // with greater timestamp to avoid deleting both messages in a multi-device setting.
+    is_chat_msg && ts_sent_old != 0 && ts_sent > ts_sent_old
 }
 
 /// Marks messages in `msgs` table as seen, searching for them by UID.

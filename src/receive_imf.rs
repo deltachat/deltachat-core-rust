@@ -87,7 +87,7 @@ pub async fn receive_imf(
                 .split("\r\n\r\n")
                 .next()
                 .context("No empty line in the message")?;
-            return receive_imf_inner(
+            return receive_imf_from_inbox(
                 context,
                 &rfc724_mid,
                 head.as_bytes(),
@@ -98,7 +98,32 @@ pub async fn receive_imf(
             .await;
         }
     }
-    receive_imf_inner(context, &rfc724_mid, imf_raw, seen, None, false).await
+    receive_imf_from_inbox(context, &rfc724_mid, imf_raw, seen, None, false).await
+}
+
+/// Emulates reception of a message from "INBOX".
+///
+/// Only used for tests and REPL tool, not actual message reception pipeline.
+pub(crate) async fn receive_imf_from_inbox(
+    context: &Context,
+    rfc724_mid: &str,
+    imf_raw: &[u8],
+    seen: bool,
+    is_partial_download: Option<u32>,
+    fetching_existing_messages: bool,
+) -> Result<Option<ReceivedMsg>> {
+    receive_imf_inner(
+        context,
+        "INBOX",
+        0,
+        0,
+        rfc724_mid,
+        imf_raw,
+        seen,
+        is_partial_download,
+        fetching_existing_messages,
+    )
+    .await
 }
 
 /// Inserts a tombstone into `msgs` table
@@ -130,8 +155,12 @@ async fn insert_tombstone(context: &Context, rfc724_mid: &str) -> Result<MsgId> 
 /// If `is_partial_download` is set, it contains the full message size in bytes.
 /// Do not confuse that with `replace_msg_id` that will be set when the full message is loaded
 /// later.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn receive_imf_inner(
     context: &Context,
+    folder: &str,
+    uidvalidity: u32,
+    uid: u32,
     rfc724_mid: &str,
     imf_raw: &[u8],
     seen: bool,
@@ -193,48 +222,17 @@ pub(crate) async fn receive_imf_inner(
     );
     let incoming = !context.is_self_addr(&mime_parser.from.addr).await?;
 
-    // For the case if we missed a successful SMTP response. Be optimistic that the message is
-    // delivered also.
-    let delivered = !incoming && {
-        let self_addr = context.get_primary_self_addr().await?;
-        context
-            .sql
-            .execute(
-                "DELETE FROM smtp \
-                WHERE rfc724_mid=?1 AND (recipients LIKE ?2 OR recipients LIKE ('% ' || ?2))",
-                (rfc724_mid_orig, &self_addr),
-            )
-            .await?;
-        !context
-            .sql
-            .exists(
-                "SELECT COUNT(*) FROM smtp WHERE rfc724_mid=?",
-                (rfc724_mid_orig,),
-            )
-            .await?
-    };
-
-    async fn on_msg_in_db(
-        context: &Context,
-        msg_id: MsgId,
-        delivered: bool,
-    ) -> Result<Option<ReceivedMsg>> {
-        if delivered {
-            msg_id.set_delivered(context).await?;
-        }
-        Ok(None)
-    }
-
     // check, if the mail is already in our database.
     // make sure, this check is done eg. before securejoin-processing.
     let (replace_msg_id, replace_chat_id);
-    if let Some(old_msg_id) = message::rfc724_mid_exists(context, rfc724_mid).await? {
+    if let Some((old_msg_id, _)) = message::rfc724_mid_exists(context, rfc724_mid).await? {
         if is_partial_download.is_some() {
+            // Should never happen, see imap::prefetch_should_download(), but still.
             info!(
                 context,
                 "Got a partial download and message is already in DB."
             );
-            return on_msg_in_db(context, old_msg_id, delivered).await;
+            return Ok(None);
         }
         let msg = Message::load_from_db(context, old_msg_id).await?;
         replace_msg_id = Some(old_msg_id);
@@ -249,8 +247,27 @@ pub(crate) async fn receive_imf_inner(
             None
         };
     } else {
-        replace_msg_id = if rfc724_mid_orig != rfc724_mid {
+        replace_msg_id = if rfc724_mid_orig == rfc724_mid {
+            None
+        } else if let Some((old_msg_id, old_ts_sent)) =
             message::rfc724_mid_exists(context, rfc724_mid_orig).await?
+        {
+            if imap::is_dup_msg(
+                mime_parser.has_chat_version(),
+                mime_parser.timestamp_sent,
+                old_ts_sent,
+            ) {
+                info!(context, "Deleting duplicate message {rfc724_mid_orig}.");
+                let target = context.get_delete_msgs_target().await?;
+                context
+                    .sql
+                    .execute(
+                        "UPDATE imap SET target=? WHERE folder=? AND uidvalidity=? AND uid=?",
+                        (target, folder, uidvalidity, uid),
+                    )
+                    .await?;
+            }
+            Some(old_msg_id)
         } else {
             None
         };
@@ -261,7 +278,31 @@ pub(crate) async fn receive_imf_inner(
         // Need to update chat id in the db.
     } else if let Some(msg_id) = replace_msg_id {
         info!(context, "Message is already downloaded.");
-        return on_msg_in_db(context, msg_id, delivered).await;
+        if incoming {
+            return Ok(None);
+        }
+        // For the case if we missed a successful SMTP response. Be optimistic that the message is
+        // delivered also.
+        let self_addr = context.get_primary_self_addr().await?;
+        context
+            .sql
+            .execute(
+                "DELETE FROM smtp \
+                WHERE rfc724_mid=?1 AND (recipients LIKE ?2 OR recipients LIKE ('% ' || ?2))",
+                (rfc724_mid_orig, &self_addr),
+            )
+            .await?;
+        if !context
+            .sql
+            .exists(
+                "SELECT COUNT(*) FROM smtp WHERE rfc724_mid=?",
+                (rfc724_mid_orig,),
+            )
+            .await?
+        {
+            msg_id.set_delivered(context).await?;
+        }
+        return Ok(None);
     };
 
     let prevent_rename =
@@ -2589,7 +2630,7 @@ async fn get_previous_message(
 ) -> Result<Option<Message>> {
     if let Some(field) = mime_parser.get_header(HeaderDef::References) {
         if let Some(rfc724mid) = parse_message_ids(field).last() {
-            if let Some(msg_id) = rfc724_mid_exists(context, rfc724mid).await? {
+            if let Some((msg_id, _)) = rfc724_mid_exists(context, rfc724mid).await? {
                 return Ok(Some(Message::load_from_db(context, msg_id).await?));
             }
         }
