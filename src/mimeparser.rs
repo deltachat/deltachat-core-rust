@@ -176,6 +176,10 @@ pub enum SystemMessage {
     /// "%1$s sent a message from another device."
     ChatProtectionDisabled = 12,
 
+    /// Message can't be sent because of `Invalid unencrypted mail to <>`
+    /// which is sent by chatmail servers.
+    InvalidUnencryptedMail = 13,
+
     /// Self-sent-message that contains only json used for multi-device-sync;
     /// if possible, we attach that to other messages as for locations.
     MultiDeviceSync = 20,

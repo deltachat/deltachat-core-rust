@@ -345,6 +345,7 @@ pub enum SystemMessageType {
     SecurejoinMessage,
     LocationStreamingEnabled,
     LocationOnly,
+    InvalidUnencryptedMail,
 
     /// Chat ephemeral message timer is changed.
     EphemeralTimerChanged,
@@ -385,6 +386,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
             SystemMessage::MultiDeviceSync => SystemMessageType::MultiDeviceSync,
             SystemMessage::WebxdcStatusUpdate => SystemMessageType::WebxdcStatusUpdate,
             SystemMessage::WebxdcInfoMessage => SystemMessageType::WebxdcInfoMessage,
+            SystemMessage::InvalidUnencryptedMail => SystemMessageType::InvalidUnencryptedMail,
         }
     }
 }

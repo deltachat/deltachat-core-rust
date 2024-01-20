@@ -10,6 +10,7 @@ use async_smtp::{self as smtp, EmailAddress, SmtpTransport};
 use tokio::io::BufStream;
 use tokio::task;
 
+use crate::chat::{add_info_msg_with_cmd, ChatId};
 use crate::config::Config;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
@@ -26,6 +27,7 @@ use crate::provider::Socket;
 use crate::scheduler::connectivity::ConnectivityStore;
 use crate::socks::Socks5Config;
 use crate::sql;
+use crate::stock_str::unencrypted_email;
 
 /// SMTP connection, write and read timeout.
 const SMTP_TIMEOUT: Duration = Duration::from_secs(60);
@@ -584,7 +586,46 @@ pub(crate) async fn send_msg_to_smtp(
 
     match status {
         SendResult::Retry => {}
-        SendResult::Success | SendResult::Failure(_) => {
+        SendResult::Success => {
+            context
+                .sql
+                .execute("DELETE FROM smtp WHERE id=?", (rowid,))
+                .await?;
+        }
+        SendResult::Failure(ref err) => {
+            if err.to_string().contains("Invalid unencrypted mail") {
+                let res = context
+                    .sql
+                    .query_row_optional(
+                        "SELECT chat_id, timestamp FROM msgs WHERE id=?;",
+                        (msg_id,),
+                        |row| Ok((row.get::<_, ChatId>(0)?, row.get::<_, i64>(1)?)),
+                    )
+                    .await?;
+
+                if let Some((chat_id, timestamp_sort)) = res {
+                    let addr = context.get_config(Config::ConfiguredAddr).await?;
+                    let text = unencrypted_email(
+                        context,
+                        addr.unwrap_or_default()
+                            .split('@')
+                            .nth(1)
+                            .unwrap_or_default(),
+                    )
+                    .await;
+                    add_info_msg_with_cmd(
+                        context,
+                        chat_id,
+                        &text,
+                        crate::mimeparser::SystemMessage::InvalidUnencryptedMail,
+                        timestamp_sort,
+                        None,
+                        None,
+                        None,
+                    )
+                    .await?;
+                };
+            }
             context
                 .sql
                 .execute("DELETE FROM smtp WHERE id=?", (rowid,))
