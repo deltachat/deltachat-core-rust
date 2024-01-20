@@ -252,7 +252,7 @@ pub(crate) async fn set_msg_reaction(
     contact_id: ContactId,
     reaction: Reaction,
 ) -> Result<()> {
-    if let Some(msg_id) = rfc724_mid_exists(context, in_reply_to).await? {
+    if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
         set_msg_id_reaction(context, msg_id, chat_id, contact_id, reaction).await
     } else {
         info!(
@@ -316,7 +316,7 @@ mod tests {
     use crate::contact::{Contact, ContactAddress, Origin};
     use crate::download::DownloadState;
     use crate::message::MessageState;
-    use crate::receive_imf::{receive_imf, receive_imf_inner};
+    use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
     use crate::test_utils::TestContext;
     use crate::test_utils::TestContextManager;
 
@@ -568,7 +568,7 @@ Here's my footer -- bob@example.net"
         let msg_full = format!("{msg_header}\n\n100k text...");
 
         // Alice downloads message from Bob partially.
-        let alice_received_message = receive_imf_inner(
+        let alice_received_message = receive_imf_from_inbox(
             &alice,
             "first@example.org",
             msg_header.as_bytes(),
@@ -599,7 +599,7 @@ Here's my footer -- bob@example.net"
         assert_eq!(msg.download_state(), DownloadState::Available);
 
         // Alice downloads full message.
-        receive_imf_inner(
+        receive_imf_from_inbox(
             &alice,
             "first@example.org",
             msg_full.as_bytes(),

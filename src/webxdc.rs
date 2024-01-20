@@ -883,7 +883,7 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::config::Config;
     use crate::contact::Contact;
-    use crate::receive_imf::{receive_imf, receive_imf_inner};
+    use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
     use crate::test_utils::TestContext;
     use crate::{message, sql};
 
@@ -1216,7 +1216,7 @@ mod tests {
         let sent2 = alice.pop_sent_msg().await;
 
         // Bob does not download instance but already receives update
-        receive_imf_inner(
+        receive_imf_from_inbox(
             &bob,
             &alice_instance.rfc724_mid,
             sent1.payload().as_bytes(),
@@ -1231,7 +1231,7 @@ mod tests {
         assert_eq!(bob_instance.download_state, DownloadState::Available);
 
         // Bob downloads instance, updates should be assigned correctly
-        let received_msg = receive_imf_inner(
+        let received_msg = receive_imf_from_inbox(
             &bob,
             &alice_instance.rfc724_mid,
             sent1.payload().as_bytes(),

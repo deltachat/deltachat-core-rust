@@ -543,6 +543,27 @@ def test_forward_own_message(acfactory, lp):
     assert msg_in.is_forwarded()
 
 
+def test_resend_message(acfactory, lp):
+    ac1, ac2 = acfactory.get_online_accounts(2)
+    chat1 = ac1.create_chat(ac2)
+
+    lp.sec("ac1: send message to ac2")
+    chat1.send_text("message")
+
+    lp.sec("ac2: receive message")
+    msg_in = ac2._evtracker.wait_next_incoming_message()
+    assert msg_in.text == "message"
+    chat2 = msg_in.chat
+    chat2_msg_cnt = len(chat2.get_messages())
+
+    lp.sec("ac1: resend message")
+    ac1.resend_messages([msg_in])
+
+    lp.sec("ac2: check that message is deleted")
+    ac2._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
+    assert len(chat2.get_messages()) == chat2_msg_cnt
+
+
 def test_long_group_name(acfactory, lp):
     """See bug https://github.com/deltachat/deltachat-core-rust/issues/3650 "Space added before long
     group names after MIME serialization/deserialization".

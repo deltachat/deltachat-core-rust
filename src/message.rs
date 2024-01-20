@@ -1130,7 +1130,7 @@ impl Message {
     /// `References` header is not taken into account.
     pub async fn parent(&self, context: &Context) -> Result<Option<Message>> {
         if let Some(in_reply_to) = &self.in_reply_to {
-            if let Some(msg_id) = rfc724_mid_exists(context, in_reply_to).await? {
+            if let Some((msg_id, _ts_sent)) = rfc724_mid_exists(context, in_reply_to).await? {
                 let msg = Message::load_from_db(context, msg_id).await?;
                 return if msg.chat_id.is_trash() {
                     // If message is already moved to trash chat, pretend it does not exist.
@@ -1816,18 +1816,23 @@ pub async fn estimate_deletion_cnt(
     Ok(cnt)
 }
 
+/// See [`rfc724_mid_exists_and()`].
 pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
-) -> Result<Option<MsgId>> {
+) -> Result<Option<(MsgId, i64)>> {
     rfc724_mid_exists_and(context, rfc724_mid, "1").await
 }
 
+/// Returns [MsgId] and "sent" timestamp of the message with given `rfc724_mid` (Message-ID header)
+/// if it exists in the db.
+///
+/// @param cond SQL subexpression for filtering messages.
 pub(crate) async fn rfc724_mid_exists_and(
     context: &Context,
     rfc724_mid: &str,
     cond: &str,
-) -> Result<Option<MsgId>> {
+) -> Result<Option<(MsgId, i64)>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
@@ -1837,12 +1842,13 @@ pub(crate) async fn rfc724_mid_exists_and(
     let res = context
         .sql
         .query_row_optional(
-            &("SELECT id FROM msgs WHERE rfc724_mid=? AND ".to_string() + cond),
+            &("SELECT id, timestamp_sent FROM msgs WHERE rfc724_mid=? AND ".to_string() + cond),
             (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
+                let timestamp_sent: i64 = row.get(1)?;
 
-                Ok(msg_id)
+                Ok((msg_id, timestamp_sent))
             },
         )
         .await?;
@@ -1858,7 +1864,7 @@ pub(crate) async fn get_latest_by_rfc724_mids(
     mids: &[String],
 ) -> Result<Option<Message>> {
     for id in mids.iter().rev() {
-        if let Some(msg_id) = rfc724_mid_exists(context, id).await? {
+        if let Some((msg_id, _)) = rfc724_mid_exists(context, id).await? {
             let msg = Message::load_from_db(context, msg_id).await?;
             if msg.chat_id != DC_CHAT_ID_TRASH {
                 return Ok(Some(msg));

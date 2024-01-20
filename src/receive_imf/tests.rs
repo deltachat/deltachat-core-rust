@@ -1882,7 +1882,7 @@ async fn create_test_alias(chat_request: bool, group_request: bool) -> (TestCont
         .await
         .unwrap();
 
-    let msg_id = rfc724_mid_exists(&claire, "non-dc-1@example.org")
+    let (msg_id, _) = rfc724_mid_exists(&claire, "non-dc-1@example.org")
         .await
         .unwrap()
         .unwrap();
@@ -4075,7 +4075,7 @@ async fn test_partial_group_consistency() -> Result<()> {
         .unwrap();
 
     // Bob receives partial message.
-    let msg_id = receive_imf_inner(
+    let msg_id = receive_imf_from_inbox(
         &bob,
         "first@example.org",
         b"From: Alice <alice@example.org>\n\
@@ -4128,7 +4128,7 @@ Chat-Group-Member-Added: charlie@example.com",
     assert_eq!(contacts.len(), 3);
 
     // Bob fully reives the partial message.
-    let msg_id = receive_imf_inner(
+    let msg_id = receive_imf_from_inbox(
         &bob,
         "first@example.org",
         b"From: Alice <alice@example.org>\n\
