@@ -421,7 +421,7 @@ pub enum StockMessage {
     MsgAddMember = 173,
 
     #[strum(props(
-        fallback = "⚠️ Your email provider %1$s requires end-to-end encryption which is not setup yet. Tap to learn more."
+        fallback = "⚠️ Your email provider %1$s requires end-to-end encryption which is not setup yet."
     ))]
     InvalidUnencryptedMail = 174,
 }
