@@ -420,7 +420,7 @@ pub enum StockMessage {
     #[strum(props(fallback = "Member %1$s added."))]
     MsgAddMember = 173,
 
-    #[strum(props(fallback = "⚠️ Your email provider does not allow sending unencrypted emails"))]
+    #[strum(props(fallback = "⚠️ Your email provider %1$s requires end-to-end encryption which is not setup yet. Tap to learn more."))]
     InvalidUnencryptedMail = 174,
 }
 
@@ -1288,9 +1288,9 @@ pub(crate) async fn aeap_addr_changed(
         .replace3(new_addr)
 }
 
-/// Stock string: `⚠️ Your email provider does not allow sending unencrypted emails`.
-pub(crate) async fn unencrypted_email(context: &Context) -> String {
-    translated(context, StockMessage::InvalidUnencryptedMail).await
+/// Stock string: `⚠️ Your email provider %1$s requires end-to-end encryption which is not setup yet. Tap to learn more.`.
+pub(crate) async fn unencrypted_email(context: &Context, provider: &str) -> String {
+    translated(context, StockMessage::InvalidUnencryptedMail).await.replace1(provider)
 }
 
 pub(crate) async fn aeap_explanation_and_link(
