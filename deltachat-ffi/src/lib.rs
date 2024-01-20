@@ -4138,7 +4138,7 @@ pub unsafe extern "C" fn dc_contact_is_bot(contact: *mut dc_contact_t) -> libc::
         eprintln!("ignoring careless call to dc_contact_is_bot()");
         return 0;
     }
-    (&*contact).contact.is_bot() as libc::c_int
+    *contact.contact.is_bot() as libc::c_int
 }
 
 #[no_mangle]
