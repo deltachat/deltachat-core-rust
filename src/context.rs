@@ -30,7 +30,7 @@ use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
-use crate::tools::{duration_to_str, time};
+use crate::tools::{create_id, duration_to_str, time};
 
 /// Builder for the [`Context`].
 ///
@@ -887,12 +887,26 @@ impl Context {
 
         let secret_key = &load_self_secret_key(self).await?.primary_key;
         let key_created = secret_key.created_at().timestamp();
-        res += &format!("key_created {}", key_created);
+        res += &format!("key_created {}\n", key_created);
+
+        let self_reporting_id = match self.get_config(Config::SelfReportingId).await? {
+            Some(id) => id,
+            None => {
+                let id = create_id();
+                self.set_config(Config::SelfReportingId, Some(&id)).await?;
+                id
+            }
+        };
+        res += &format!("self_reporting_id {}\n", self_reporting_id);
 
         Ok(res)
     }
 
-    /// TODO doc comment
+    /// Drafts a message with statistics about the usage of Delta Chat.
+    /// The user can inspect the message if they want, and then hit "Send".
+    ///
+    /// On the other end, a bot will receive the message and make it available
+    /// to Delta Chat's developers.
     pub async fn draft_self_report(&self) -> Result<ChatId> {
         const SELF_REPORTING_BOT: &str = "self_reporting@testrun.org";
 

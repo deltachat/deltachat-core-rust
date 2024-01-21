@@ -347,6 +347,10 @@ pub enum Config {
     /// Row ID of the key in the `keypairs` table
     /// used for signatures, encryption to self and included in `Autocrypt` header.
     KeyId,
+
+    /// This key is sent to the self_reporting bot so that the bot can recognize the user
+    /// without storing the email address
+    SelfReportingId,
 }
 
 impl Config {
