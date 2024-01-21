@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.133.1] - 2024-01-21
+
+### API-Changes
+
+- Add `is_bot` to cffi and jsonrpc ([#5197](https://github.com/deltachat/deltachat-core-rust/pull/5197)).
+
+### Features / Changes
+
+- Add system message when provider does not allow unencrypted messages ([#5195](https://github.com/deltachat/deltachat-core-rust/pull/5195)).
+
+### Fixes
+
+- `Chat::send_msg`: Remove encryption-related params from already sent message. This allows to send received encrypted `dc_msg_t` object to unencrypted chat, e.g. in a Python bot.
+- Set message download state to Failure on IMAP errors. This avoids partially downloaded messages getting stuck in "Downloading..." state without actually being in a download queue.
+- BCC-to-self even if server deletion is set to "at once". This is a workaround for SMTP servers which do not return response in time, BCC-self works as a confirmation that message was sent out successfully and does not need more retries.
+- node: Run tests with native ESM modules instead of `esm` ([#5194](https://github.com/deltachat/deltachat-core-rust/pull/5194)).
+- Use Quoted-Printable MIME encoding for the text part ([#3986](https://github.com/deltachat/deltachat-core-rust/pull/3986)).
+
+### Tests
+
+- python: Add `get_protected_chat` to testplugin.py.
+
 ## [1.133.0] - 2024-01-14
 
 ### Features / Changes
@@ -3414,3 +3436,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.132.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.131.9...v1.132.0
 [1.132.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.0...v1.132.1
 [1.133.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.1...v1.133.0
+[1.133.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.0...v1.133.1
