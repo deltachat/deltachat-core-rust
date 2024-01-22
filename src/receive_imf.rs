@@ -733,7 +733,7 @@ async fn add_parts(
             create_blocked_default
         };
 
-        if chat_id.is_none() {
+        if chat_id.is_none() && !is_mdn {
             // try to create a group
 
             if let Some((new_chat_id, new_chat_id_blocked)) = create_or_lookup_group(
