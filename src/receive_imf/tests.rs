@@ -315,16 +315,14 @@ async fn test_mdn_and_alias() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
-
     let alice_chat = alice.create_chat(&bob).await;
-
     let sent = alice.send_text(alice_chat.id, "alice -> bob").await;
     let msg_id = sent.sender_msg_id;
     receive_imf(
         &alice,
         format!(
             "Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
-             From: bob@example.com\n\
+             From: bob@example.net\n\
              To: alicechat@example.org\n\
              Subject: message opened\n\
              Date: Sun, 22 Mar 2020 23:37:57 +0000\n\
@@ -345,7 +343,7 @@ async fn test_mdn_and_alias() -> Result<()> {
              Reporting-UA: Delta Chat 1.28.0\n\
              Original-Recipient: rfc822;bob@example.com\n\
              Final-Recipient: rfc822;bob@example.com\n\
-             Original-Message-ID: <{msg_id}>
+             Original-Message-ID: <{msg_id}>\n\
              Disposition: manual-action/MDN-sent-automatically; displayed\n\
              \n\
              \n\
@@ -357,7 +355,7 @@ async fn test_mdn_and_alias() -> Result<()> {
     .await?;
 
     let chats = Chatlist::try_load(&alice, 0, None, None).await?;
-    assert_eq!(chats.len(), 2);
+    assert_eq!(chats.len(), 1);
 
     Ok(())
 }

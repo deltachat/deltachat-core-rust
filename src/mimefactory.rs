@@ -257,10 +257,7 @@ impl<'a> MimeFactory<'a> {
             sender_displayname: None,
             selfstatus,
             recipients: vec![(
-                msg.param
-                    .get(Param::OverrideSenderDisplayname)
-                    .unwrap_or(contact.get_name())
-                    .to_string(),
+                contact.get_authname().to_string(),
                 contact.get_addr().to_string(),
             )],
             timestamp,
@@ -354,7 +351,7 @@ impl<'a> MimeFactory<'a> {
                         .unwrap_or_default()
                 }
             }
-            Loaded::Mdn { .. } => true,
+            Loaded::Mdn { .. } => false,
         }
     }
 
