@@ -596,7 +596,7 @@ pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()
         };
     let target = context.get_delete_msgs_target().await?;
 
-    context
+    let msg_cnt = context
         .sql
         .execute(
             "UPDATE imap
@@ -615,7 +615,38 @@ pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()
             ),
         )
         .await?;
-
+    info!(
+        context,
+        "delete_expired_imap_messages: {threshold_timestamp}: Marked {msg_cnt} messages.",
+    );
+    let Some(rfc724_mid) = context
+        .sql
+        .query_get_value::<String>(
+            "SELECT rfc724_mid from imap WHERE folder='INBOX' AND uid=14",
+            (),
+        )
+        .await?
+    else {
+        return Ok(());
+    };
+    info!(
+        context,
+        "delete_expired_imap_messages: rfc724_mid={rfc724_mid}",
+    );
+    let Some(timestamp) = context
+        .sql
+        .query_get_value::<i64>(
+            "SELECT timestamp from msgs WHERE rfc724_mid=?",
+            (rfc724_mid,),
+        )
+        .await?
+    else {
+        return Ok(());
+    };
+    info!(
+        context,
+        "delete_expired_imap_messages: timestamp={timestamp}",
+    );
     Ok(())
 }
 

@@ -627,7 +627,14 @@ def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
     chat2 = ac2.qr_join_chat(qr)
     ac1._evtracker.wait_securejoin_inviter_progress(1000)
     # Wait for "Member Me (<addr>) added by <addr>." message.
-    msg_in = ac2._evtracker.wait_next_incoming_message()
+    try:
+        ev = ac2._evtracker.get_matching("DC_EVENT_INCOMING_MSG", timeout=60)
+        msg_in = ac2.get_message_by_id(ev.data2)
+    except Exception:
+        ac2.stop_io()
+        ac2.start_io()
+        msg_in = ac2._evtracker.wait_next_incoming_message()
+        assert False
     assert msg_in.is_system_message()
 
     lp.sec("ac2: waiting for 'member added' to be deleted on the server")
