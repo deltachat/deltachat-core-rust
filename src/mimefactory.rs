@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
+use email::Mailbox;
 use format_flowed::{format_flowed, format_flowed_quote};
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
@@ -469,57 +470,10 @@ impl<'a> MimeFactory<'a> {
     pub async fn render(mut self, context: &Context) -> Result<RenderedEmail> {
         let mut headers: MessageHeaders = Default::default();
 
-        let from = Address::new_mailbox_with_name(
-            self.from_displayname.to_string(),
-            self.from_addr.clone(),
-        );
-
         let undisclosed_recipients = match &self.loaded {
             Loaded::Message { chat } => chat.typ == Chattype::Broadcast,
             Loaded::Mdn { .. } => false,
         };
-
-        let mut to = Vec::new();
-        if undisclosed_recipients {
-            to.push(Address::new_group(
-                "hidden-recipients".to_string(),
-                Vec::new(),
-            ));
-        } else {
-            let email_to_remove =
-                if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
-                    self.msg.param.get(Param::Arg)
-                } else {
-                    None
-                };
-
-            for (name, addr) in &self.recipients {
-                if let Some(email_to_remove) = email_to_remove {
-                    if email_to_remove == addr {
-                        continue;
-                    }
-                }
-
-                if name.is_empty() {
-                    to.push(Address::new_mailbox(addr.clone()));
-                } else {
-                    to.push(Address::new_mailbox_with_name(
-                        name.to_string(),
-                        addr.clone(),
-                    ));
-                }
-            }
-
-            if to.is_empty() {
-                to.push(from.clone());
-            }
-        }
-
-        // Start with Internet Message Format headers in the order of the standard example
-        // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
-        let from_header = Header::new_with_value("From".into(), vec![from]).unwrap();
-        headers.unprotected.push(from_header.clone());
-        headers.protected.push(from_header);
 
         if let Some(sender_displayname) = &self.sender_displayname {
             let sender =
@@ -528,9 +482,6 @@ impl<'a> MimeFactory<'a> {
                 .unprotected
                 .push(Header::new_with_value("Sender".into(), vec![sender]).unwrap());
         }
-        headers
-            .unprotected
-            .push(Header::new_with_value("To".into(), to).unwrap());
 
         let subject_str = self.subject_str(context).await?;
         let encoded_subject = if subject_str
@@ -658,6 +609,97 @@ impl<'a> MimeFactory<'a> {
         let should_encrypt =
             encrypt_helper.should_encrypt(context, e2ee_guaranteed, &peerstates)?;
         let is_encrypted = should_encrypt && !force_plaintext;
+
+        let from = Address::new_mailbox_with_name(
+            self.from_displayname.to_string(),
+            self.from_addr.clone(),
+        );
+        let from_header = Header::new_with_value("From".into(), vec![from.clone()]).unwrap();
+
+        let mut to = Vec::new();
+        if undisclosed_recipients {
+            to.push(Address::new_group(
+                "hidden-recipients".to_string(),
+                Vec::new(),
+            ));
+        } else {
+            let email_to_remove =
+                if self.msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+                    self.msg.param.get(Param::Arg)
+                } else {
+                    None
+                };
+
+            for (name, addr) in &self.recipients {
+                if let Some(email_to_remove) = email_to_remove {
+                    if email_to_remove == addr {
+                        continue;
+                    }
+                }
+
+                if name.is_empty() {
+                    to.push(Address::new_mailbox(addr.clone()));
+                } else {
+                    to.push(Address::new_mailbox_with_name(
+                        name.to_string(),
+                        addr.clone(),
+                    ));
+                }
+            }
+
+            if to.is_empty() {
+                to.push(from);
+            }
+        }
+
+        // It is sufficient to put `from` and `to` only to protected headers
+        // because for unencrypted messages, they will also go to the outer message
+        // Use insert to keep message order as defined in
+        // <https://datatracker.ietf.org/doc/html/rfc5322#appendix-A.1.1>.
+        headers
+            .protected
+            .insert(0, Header::new_with_value("To".into(), to.clone()).unwrap());
+        headers.protected.insert(0, from_header.clone());
+
+        if is_encrypted {
+            // Add receipients and sender without display names to the unprotected headers
+            headers.unprotected.insert(
+                0,
+                Header::new_with_value(
+                    "To".into(),
+                    to.into_iter()
+                        .map(|header| match header {
+                            Address::Mailbox(mb) => Address::Mailbox(Mailbox {
+                                address: mb.address,
+                                name: None,
+                            }),
+                            Address::Group(name, participants) => Address::new_group(
+                                name,
+                                participants
+                                    .into_iter()
+                                    .map(|mb| Mailbox {
+                                        address: mb.address,
+                                        name: None,
+                                    })
+                                    .collect(),
+                            ),
+                        })
+                        .collect::<Vec<_>>(),
+                )
+                .unwrap(),
+            );
+
+            headers.unprotected.insert(
+                0,
+                Header::new_with_value(
+                    "From".into(),
+                    vec![Address::new_mailbox(self.from_addr.clone())],
+                )
+                .unwrap(),
+            );
+        } else {
+            headers.unprotected.insert(0, from_header);
+        }
 
         let message = if parts.is_empty() {
             // Single part, render as regular message.
@@ -793,16 +835,15 @@ impl<'a> MimeFactory<'a> {
 
             message
         } else {
-            // Store hidden headers in the inner unencrypted message.
             let message = headers
                 .hidden
                 .into_iter()
                 .fold(message, |message, header| message.header(header));
+
             let message = PartBuilder::new()
                 .message_type(MimeMultipartType::Mixed)
                 .child(message.build());
 
-            // Store protected headers in the outer message.
             let message = headers
                 .protected
                 .iter()
