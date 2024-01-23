@@ -895,7 +895,7 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
                SET backward_verified_key_id=(SELECT value FROM config WHERE keyname='key_id')
                WHERE verified_key IS NOT NULL
                "#,
-            109)
+            109).await?;
     }
 
     if dbversion < 110 {

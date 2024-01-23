@@ -40,8 +40,7 @@ use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::tools::{
-    buf_compress, extract_grpid_from_rfc724_mid, get_topic_from_msg_id, smeared_time,
-    strip_rtlo_characters,
+    buf_compress, extract_grpid_from_rfc724_mid, get_topic_from_msg_id, strip_rtlo_characters,
 };
 use crate::{contact, imap};
 
