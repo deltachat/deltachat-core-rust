@@ -58,7 +58,7 @@ impl Context {
     pub async fn join_and_subscribe_topic(&self, rfc724_mid: &str, msg_id: MsgId) -> Result<()> {
         let Some(ref gossip) = *self.gossip.lock().await else {
             warn!(
-                &self,
+                self,
                 "Not joining topic for {rfc724_mid:?} because there is no gossip."
             );
             return Ok(());

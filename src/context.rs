@@ -249,6 +249,7 @@ pub struct InnerContext {
 
     /// [MagicEndpoint] needed for iroh peer channels.
     pub(crate) endpoint: Mutex<Option<MagicEndpoint>>,
+
     /// [Gossip] needed for iroh peer channels.
     pub(crate) gossip: Mutex<Option<Gossip>>,
 }
@@ -446,7 +447,7 @@ impl Context {
         self.scheduler.restart(self).await;
     }
 
-    /// Indicates that the network likely has come back.
+    /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
         if let Some(ref mut endpoint) = *self.endpoint.lock().await {
             endpoint.network_change().await;

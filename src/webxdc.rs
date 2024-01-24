@@ -507,8 +507,6 @@ impl Context {
 
         status_update.uid = Some(create_id());
         let ephemeral = status_update.ephemeral;
-        println!("ephemeral: {}", ephemeral);
-
         let status_update_serial: StatusUpdateSerial = self
             .create_status_update_record(
                 &mut instance,
