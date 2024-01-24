@@ -974,10 +974,13 @@ impl MimeMessage {
                             }
                         }
                         Some(_) => {
-                            if let Some(first) = mail.subparts.first() {
-                                any_part_added = self
-                                    .parse_mime_recursive(context, first, is_related)
-                                    .await?;
+                            for cur_data in &mail.subparts {
+                                if self
+                                    .parse_mime_recursive(context, cur_data, is_related)
+                                    .await?
+                                {
+                                    any_part_added = true;
+                                }
                             }
                         }
                     }
@@ -3820,6 +3823,22 @@ Content-Disposition: reaction\n\
         // Actual contents part.
         assert_eq!(msg.parts[1].typ, Viewtype::Text);
         assert_eq!(msg.parts[1].msg, "hello,\nbye");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_tlsrpt() -> Result<()> {
+        let context = TestContext::new_alice().await;
+        let raw = include_bytes!("../test-data/message/tlsrpt.eml");
+
+        let msg = MimeMessage::from_bytes(&context.ctx, &raw[..], None)
+            .await
+            .unwrap();
+        assert_eq!(msg.parts.len(), 1);
+
+        assert_eq!(msg.parts[0].typ, Viewtype::File);
+        assert_eq!(msg.parts[0].msg, "Report Domain: nine.testrun.org Submitter: google.com Report-ID: <2024.01.20T00.00.00Z+nine.testrun.org@google.com> – This is an aggregate TLS report from google.com");
 
         Ok(())
     }
