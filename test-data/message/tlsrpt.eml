@@ -1,0 +1,66 @@
+Return-Path: <37u6sZRoKALMghkXier-lfmi-mel-kXihkmbgZZhhZeX.Vhf@smtp-tls-reporting.bounces.google.com>
+Delivered-To: root@nine.testrun.org
+Received: from nine.testrun.org
+	by nine with LMTP
+	id UB0TOe/urGX8mhwAPdT8mA
+	(envelope-from <37u6sZRoKALMghkXier-lfmi-mel-kXihkmbgZZhhZeX.Vhf@smtp-tls-reporting.bounces.google.com>)
+	for <root@nine.testrun.org>; Sun, 21 Jan 2024 11:16:15 +0100
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=google.com; s=20230601; t=1705832174; x=1706436974; darn=nine.testrun.org;
+        h=to:from:subject:message-id:tls-report-submitter:tls-report-domain
+         :date:mime-version:from:to:cc:subject:date:message-id:reply-to;
+        bh=ij33gq0ofQz4EhX9TLi6EGnOILUSDSZtwZir1iybY6o=;
+        b=IQ/TiJ4wMppgECWZQaC8EE3Q3ON4VjB94gp/l4uxL0mSAKo+CeKn+wh5jJooKCN3uZ
+         wjp9w3+fcQq/3UvvthDzlcBHA2QHXkGC4ONliODX4uaWalRkc21ODHVvx8ILGuAFeKxw
+         dl6+hn3Qk56FbVdRNBrAKvx7YvJjQHecrO79AoURhcCVfNtqpwPXuok4c/w6TtLhLLsu
+         pwcPlkAJphdD5hvXLciHjRszvIWOYu9v2G0c4bcCXBRrXhNnIPLl+SO5FAkkyxNOgVmg
+         EYyBJJoUZH9njyHeazbDnlMCQ5aQBndrfnk357/jSR/Fx6Nti1SvguLUOZbVV2vhh4oD
+         R6bA==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1705832174; x=1706436974;
+        h=to:from:subject:message-id:tls-report-submitter:tls-report-domain
+         :date:mime-version:x-gm-message-state:from:to:cc:subject:date
+         :message-id:reply-to;
+        bh=ij33gq0ofQz4EhX9TLi6EGnOILUSDSZtwZir1iybY6o=;
+        b=eYcl9flKTT6YIUTx01fK86e390qJCgQmR9RSDbCGiKTTCzJ1NQn1ev7pUhzOoQL44z
+         w27ZOgAeiz8eKHxXMQ0DQhjyQ3anHEqej4NJPJ5+7epL8eZQ7QDs2/EQmqJNe9DP4Bd7
+         sjq2QyUdi2UbU9OrxBL4mRKu8PRZyR4/0cgaJJIgphziUHZBRbfEksl8Ev5XBDMBy11x
+         1oZZSOmkqK2ujPZZiQrdbqOxWijd4bCpBj5gWH/M9jRI/gHCiIwF+ZaxIXQBoVIhvBKK
+         t0tADdYcd3qjN2gxr7PO04NaABJgxLGC9YFXH+jRPKdycAvRKwZYpRXuHA2bynvYryk8
+         MDJg==
+X-Gm-Message-State: AOJu0YyM8qPQlVoa6jtAlpPtrku3niz3QTG1nLKht5uRJsjZg5pzwktC
+	kh/X3YhSj2u0uIzVNqlLH0Lo/XiBUTJbicLQrpfIKD5aeVC8LPhrWBE4mJ4eZ5mYtTLSmgbu3fr
+	mM4hyzb7+m+pqL0bi2IZTUQh4wbDop+p2LLA99g4Ezji4hkTbMzXy07ekctK/9/bcSBS2
+X-Google-Smtp-Source: AGHT+IEPBnMUwx3a4EQI3kJIaLlQcaDz6nx+VMmBsWiYDbqDBgNl26HDryxj5uANI/wyiLBwSQcwyTfmJewf/23eykdQ83fh4kERed6SIB4=
+MIME-Version: 1.0
+X-Received: by 2002:a05:622a:124f:b0:42a:128:c13c with SMTP id
+ z15-20020a05622a124f00b0042a0128c13cmr470166qtx.12.1705832174325; Sun, 21 Jan
+ 2024 02:16:14 -0800 (PST)
+Date: Sun, 21 Jan 2024 02:16:14 -0800
+TLS-Report-Domain: nine.testrun.org
+TLS-Report-Submitter: google.com
+Message-ID: <000000000000cc154d060f720057@google.com>
+Subject: Report Domain: nine.testrun.org Submitter: google.com Report-ID: <2024.01.20T00.00.00Z+nine.testrun.org@google.com>
+From: noreply-smtp-tls-reporting@google.com
+To: root@nine.testrun.org
+Content-Type: multipart/report; boundary="000000000000cc153d060f720056"; report-type=tlsrpt
+
+--000000000000cc153d060f720056
+Content-Type: text/plain; charset="UTF-8"; format=flowed; delsp=yes
+
+This is an aggregate TLS report from google.com
+
+--000000000000cc153d060f720056
+Content-Type: application/tlsrpt+gzip; 
+	name="google.com!nine.testrun.org!1705708800!1705795199!001.json.gz"
+Content-Disposition: attachment; 
+	filename="google.com!nine.testrun.org!1705708800!1705795199!001.json.gz"
+Content-Transfer-Encoding: base64
+
+H4sIAAAAAAAAAHVRTWvDMAz9K8HnOrhZx6hPu5Wd21NHKcZRM0MsBVsp6Ur++5R022FrQWB9vKcn
+yVdFqXEYPh0HQo0ugrJqQ9S0ULyhL9VC1Y5BJ4eNlK4qs0uspxyHGVyZaqXNUldmZ4ydbS8swPoB
+qnqyz2uxvRoXyhOy86wDnkhgOXKnuc06QUeJAzavzTxM6SlK11tah/qB8BEDQsmQOfVYym7C6agN
+PkBW9v16Cy7TIjdP86Wb5sucf6AXLWxRFrw6Q8pyGFtsd9vzUhCRarAFyLTJwxQPtrijGd1wdI0g
+q9VyXRmjDr/Na4ouoEjeow36gzJPyv+qB7lW7mN0aR6fiV2rc+895HzqxZV3+kNPPUqHl8U35ORC
+2yf4WzfjeBi/APFqfhD/AQAA
+--000000000000cc153d060f720056--
