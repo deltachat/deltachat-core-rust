@@ -301,11 +301,12 @@ pub fn format_backup(qr: &Qr) -> Result<String> {
 async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
     let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
 
-    let (fingerprint, fragment) = match payload.find('#').map(|offset| {
-        let (fp, rest) = payload.split_at(offset);
-        // need to remove the # from the fragment
-        (fp, &rest[1..])
-    }) {
+    // macOS and iOS sometimes replace the # with %23 (uri encode it), we should be able to parse this wrong format too.
+    // see issue https://github.com/deltachat/deltachat-core-rust/issues/1969 for more info
+    let (fingerprint, fragment) = match payload
+        .split_once('#')
+        .or_else(|| payload.split_once("%23"))
+    {
         Some(pair) => pair,
         None => (payload, ""),
     };
@@ -940,6 +941,21 @@ mod tests {
             bail!("Wrong QR code type");
         }
 
+        Ok(())
+    }
+
+    // macOS and iOS sometimes replace the # with %23 (uri encode it), we should be able to parse this wrong format too.
+    // see issue https://github.com/deltachat/deltachat-core-rust/issues/1969 for more info
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_openpgp_tolerance_for_issue_1969() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let qr = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7%23a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+        ).await?;
+
+        assert!(matches!(qr, Qr::AskVerifyGroup { .. }));
         Ok(())
     }
 
