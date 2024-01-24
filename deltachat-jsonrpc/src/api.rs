@@ -904,7 +904,7 @@ impl CommandApi {
     /// the message is not added again, even if the message was deleted in between.
     /// If needed, the device-chat is created before.
     ///
-    /// Sends the event MsgsChanged event on success.
+    /// Sends the `MsgsChanged` event on success.
     ///
     /// Setting msg to None will prevent the device message with this label from being added in the future.
     async fn add_device_message(
@@ -918,15 +918,13 @@ impl CommandApi {
             let mut message = msg.create_message(&ctx).await?;
             let message_id =
                 deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut message)).await?;
-            if message_id.is_unset() {
-                Ok(None)
-            } else {
-                Ok(Some(message_id.to_u32()))
+            if !message_id.is_unset() {
+                return Ok(Some(message_id.to_u32()));
             }
         } else {
             deltachat::chat::add_device_msg(&ctx, Some(&label), None).await?;
-            Ok(None)
         }
+        Ok(None)
     }
 
     ///  Mark all messages in a chat as _noticed_.
