@@ -548,6 +548,44 @@ pub struct MessageData {
     pub quoted_message_id: Option<u32>,
 }
 
+impl MessageData {
+    pub(crate) async fn create_message(self, context: &Context) -> Result<Message> {
+        let mut message = Message::new(if let Some(viewtype) = self.viewtype {
+            viewtype.into()
+        } else if self.file.is_some() {
+            Viewtype::File
+        } else {
+            Viewtype::Text
+        });
+        message.set_text(self.text.unwrap_or_default());
+        if self.html.is_some() {
+            message.set_html(self.html);
+        }
+        if self.override_sender_name.is_some() {
+            message.set_override_sender_name(self.override_sender_name);
+        }
+        if let Some(file) = self.file {
+            message.set_file(file, None);
+        }
+        if let Some((latitude, longitude)) = self.location {
+            message.set_location(latitude, longitude);
+        }
+        if let Some(id) = self.quoted_message_id {
+            message
+                .set_quote(
+                    context,
+                    Some(
+                        &Message::load_from_db(context, MsgId::new(id))
+                            .await
+                            .context("message to quote could not be loaded")?,
+                    ),
+                )
+                .await?;
+        }
+        Ok(message)
+    }
+}
+
 #[derive(Serialize, TypeDef, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageReadReceipt {
