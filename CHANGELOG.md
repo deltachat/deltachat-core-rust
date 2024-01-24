@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.133.2] - 2024-01-24
+
+### Fixes
+
+- Downgrade OpenSSL from 3.2.0 to 3.1.4 ([#5206](https://github.com/deltachat/deltachat-core-rust/issues/5206))
+- No new chats for MDNs with alias ([#5196](https://github.com/deltachat/deltachat-core-rust/issues/5196)) ([#5199](https://github.com/deltachat/deltachat-core-rust/pull/5199)).
+
 ## [1.133.1] - 2024-01-21
 
 ### API-Changes
@@ -3437,3 +3444,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.132.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.0...v1.132.1
 [1.133.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.1...v1.133.0
 [1.133.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.0...v1.133.1
+[1.133.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.1...v1.133.2
