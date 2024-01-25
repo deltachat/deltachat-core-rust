@@ -440,6 +440,12 @@ pub(crate) async fn receive_imf_inner(
         {
             // join advertised gossip topics
             Ok((topics, instance_id)) => {
+                warn!(context, "Joining topics: {:#?}", topics);
+                warn!(
+                    context,
+                    "{:?}",
+                    mime_parser.get_header(HeaderDef::IrohPublicGossip)
+                );
                 if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicGossip) {
                     match serde_json::from_str::<NodeAddr>(node_addr)
                         .context("Failed to parse node address")

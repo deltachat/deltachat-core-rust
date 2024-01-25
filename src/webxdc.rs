@@ -497,30 +497,39 @@ impl Context {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
         );
 
-        let ephemeral = status_update.gossip_topic.is_some();
+        let mut ephemeral = status_update.gossip_topic.is_some();
         if send_now {
             if let Some(ref topic) = status_update.gossip_topic {
-                let topic = TopicId::from_str(&iroh_base::base32::fmt(
-                    topic
-                        .get(0..32)
-                        .context("Can't get 32 bytes from rfc724_mid")?,
-                ))?;
+                // find out if any row with `topic = topic` exists in the gossip_peers table
+                let topic_exists = self
+                    .sql
+                    .query_row_optional(
+                        "SELECT 1 FROM iroh_gossip_peers WHERE topic=?",
+                        (topic,),
+                        |_| Ok(()),
+                    )
+                    .await
+                    .context("Failed to check if gossip topic exists")?
+                    .is_some();
 
+                let topic = TopicId::from_str(&iroh_base::base32::fmt(
+                    topic.get(0..32).context("Can't get 32 bytes from topic")?,
+                ))?;
                 self.join_and_subscribe_topic(topic, instance_msg_id)
                     .await?;
-
-                info!(self, "here3");
-
-                let gossip = self.gossip.lock().await;
-                if let Some(ref gossip) = *gossip {
-                    gossip
-                        .broadcast(topic, serde_json::to_string(&status_update)?.into())
-                        .await?;
+                if !topic_exists {
+                    info!(
+                        self,
+                        "Gossip topic {topic} does not exist, sending over smpt",
+                    );
+                    ephemeral = false;
                 } else {
-                    warn!(self, "send_webxdc_status_update: no gossip available.");
+                    if let Some(ref gossip) = *self.gossip.lock().await {
+                        gossip
+                            .broadcast(topic, serde_json::to_string(&status_update)?.into())
+                            .await?;
+                    }
                 }
-            } else {
-                warn!(self, "send_webxdc_status_update: no gossip topic given.")
             }
         }
 
@@ -668,9 +677,7 @@ impl Context {
         for update_item in updates.updates {
             if let Some(ref topic) = update_item.gossip_topic {
                 let topic = TopicId::from_str(&iroh_base::base32::fmt(
-                    topic
-                        .get(0..32)
-                        .context("Can't get 32 bytes from rfc724_mid")?,
+                    topic.get(0..32).context("Can't get 32 bytes from topic")?,
                 ))?;
                 topics.push(topic);
             }
@@ -919,9 +926,7 @@ impl Message {
 /// Join a gossip topic and subscribe to it.
 pub async fn join_gossip_topic(ctx: &Context, msg_id: MsgId, topic: &str) -> Result<()> {
     let topic = TopicId::from_str(&iroh_base::base32::fmt(
-        topic
-            .get(0..32)
-            .context("Can't get 32 bytes from rfc724_mid")?,
+        topic.get(0..32).context("Can't get 32 bytes from topic")?,
     ))?;
     info!(ctx, "Received join request from frontend");
     ctx.join_and_subscribe_topic(topic, msg_id).await
