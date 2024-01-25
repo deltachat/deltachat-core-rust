@@ -2684,6 +2684,36 @@ async fn test_read_receipts_dont_create_chats() -> Result<()> {
     Ok(())
 }
 
+/// Test that read receipts don't unmark contacts as bots.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_read_receipts_dont_unmark_bots() -> Result<()> {
+    let alice = &TestContext::new_alice().await;
+    let bob = &TestContext::new_bob().await;
+    let ab_contact = alice.add_or_lookup_contact(bob).await;
+    ab_contact.id.mark_bot(alice, true).await?;
+    let alice_chat = alice.create_chat(bob).await;
+
+    // Alice sends and Bob receives a message.
+    bob.recv_msg(&alice.send_text(alice_chat.id, "Message").await)
+        .await;
+    let received_msg = bob.get_last_msg().await;
+
+    // Bob sends a read receipt.
+    let mdn_mimefactory =
+        crate::mimefactory::MimeFactory::from_mdn(bob, &received_msg, vec![]).await?;
+    let rendered_mdn = mdn_mimefactory.render(bob).await?;
+    let mdn_body = rendered_mdn.message;
+
+    // Alice receives the read receipt.
+    receive_imf(alice, mdn_body.as_bytes(), false).await?;
+    let msg = alice.get_last_msg_in(alice_chat.id).await;
+    assert_eq!(msg.state, MessageState::OutMdnRcvd);
+    let ab_contact = alice.add_or_lookup_contact(bob).await;
+    assert!(ab_contact.is_bot());
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_gmx_forwarded_msg() -> Result<()> {
     let t = TestContext::new_alice().await;

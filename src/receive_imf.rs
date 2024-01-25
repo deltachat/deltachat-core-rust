@@ -539,7 +539,9 @@ pub(crate) async fn receive_imf_inner(
         .handle_reports(context, from_id, &mime_parser.parts)
         .await;
 
-    from_id.mark_bot(context, mime_parser.is_bot).await?;
+    if let Some(is_bot) = mime_parser.is_bot {
+        from_id.mark_bot(context, is_bot).await?;
+    }
 
     Ok(Some(received_msg))
 }
