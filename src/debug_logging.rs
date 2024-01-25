@@ -63,7 +63,7 @@ pub async fn debug_logging_loop(context: &Context, events: Receiver<DebugEventLo
                     summary: None,
                     document: None,
                     uid: None,
-                    ephemeral: false,
+                    gossip_topic: None,
                 },
             )
             .await

@@ -895,13 +895,15 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
                SET backward_verified_key_id=(SELECT value FROM config WHERE keyname='key_id')
                WHERE verified_key IS NOT NULL
                "#,
-            109).await?;
+            109,
+        )
+        .await?;
     }
 
     if dbversion < 110 {
         sql.execute_migration(
-            "CREATE TABLE iroh_gossip_peers (topic TEXT NOT NULL, public_key TEXT NOT NULL)",
-            108,
+            "CREATE TABLE iroh_gossip_peers (msg_id TEXT not NULL, topic TEXT NOT NULL, public_key TEXT NOT NULL)",
+            110,
         )
         .await?;
     }

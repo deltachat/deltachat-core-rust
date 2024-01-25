@@ -39,9 +39,7 @@ use crate::simplify;
 use crate::sql;
 use crate::stock_str;
 use crate::sync::Sync::*;
-use crate::tools::{
-    buf_compress, extract_grpid_from_rfc724_mid, get_topic_from_msg_id, strip_rtlo_characters,
-};
+use crate::tools::{buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters};
 use crate::{contact, imap};
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
@@ -436,11 +434,40 @@ pub(crate) async fn receive_imf_inner(
     }
 
     if let Some(ref status_update) = mime_parser.webxdc_status_update {
-        if let Err(err) = context
+        match context
             .receive_status_update(from_id, insert_msg_id, status_update)
             .await
         {
-            warn!(context, "receive_imf cannot update status: {err:#}.");
+            // join advertised gossip topics
+            Ok((topics, instance_id)) => {
+                if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicGossip) {
+                    match serde_json::from_str::<NodeAddr>(node_addr)
+                        .context("Failed to parse node address")
+                    {
+                        Ok(node_addr) => {
+                            context
+                                .endpoint
+                                .lock()
+                                .await
+                                .as_ref()
+                                .context("Failed to get magic endpoint")?
+                                .add_node_addr(node_addr.clone())
+                                .context("Failed to add node address")?;
+
+                            for topic in topics {
+                                let node_id = node_addr.node_id;
+                                context
+                                    .add_peer_for_topic(instance_id, topic, node_id)
+                                    .await?;
+                            }
+                        }
+                        Err(err) => {
+                            warn!(context, "couldn't parse NodeAddr: {err}");
+                        }
+                    }
+                }
+            }
+            Err(err) => warn!(context, "receive_imf cannot update status: {err:#}."),
         }
     }
 
@@ -1457,44 +1484,6 @@ RETURNING id
 
         debug_assert!(!row_id.is_special());
         created_db_entries.push(row_id);
-    }
-
-    // Connect to iroh gossip group if it has been advertised.
-    if incoming {
-        if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicGossip) {
-            info!(context, "Create connection with node_addr: {node_addr}.");
-            match serde_json::from_str::<NodeAddr>(node_addr)
-                .context("Failed to parse node address")
-            {
-                Ok(node_addr) => {
-                    context
-                        .endpoint
-                        .lock()
-                        .await
-                        .as_ref()
-                        .context("Failed to get magic endpoint")?
-                        .add_node_addr(node_addr.clone())
-                        .context("Failed to add node address")?;
-
-                    let rfc724_mid = mime_parser
-                        .get_rfc724_mid()
-                        .context("Can't get Message-ID")?;
-
-                    let topic = get_topic_from_msg_id(&rfc724_mid)?;
-
-                    let node_id = node_addr.node_id;
-                    context
-                        .add_peer_for_topic(topic, node_id)
-                        .await
-                        .with_context(|| {
-                            format!("Failed to add peer {node_id} for topic {topic}")
-                        })?;
-                }
-                Err(err) => {
-                    warn!(context, "{err:#}.");
-                }
-            }
-        }
     }
 
     // check all parts whether they contain a new logging webxdc

@@ -16,10 +16,12 @@
 //! - `descr` - text to send along with the updates
 
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
 use deltachat_derive::FromSql;
+use iroh_gossip::proto::TopicId;
 use lettre_email::mime;
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
@@ -38,7 +40,6 @@ use crate::mimeparser::SystemMessage;
 use crate::param::Param;
 use crate::param::Params;
 use crate::tools::create_id;
-use crate::tools::get_topic_from_msg_id;
 use crate::tools::strip_rtlo_characters;
 use crate::tools::{create_smeared_timestamp, get_abs_path};
 
@@ -183,11 +184,11 @@ pub struct StatusUpdateItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
 
-    /// Wheter the message should be sent over an ephemeral channel.
-    /// This means it will only be received by the other side if they are currently online
-    /// and part of the gossip group.
+    /// If this update should only be gossiped and which topic to use.
+    /// Gossiped Updates will only be received by the other side if they
+    /// are currently online and part of the gossip topic.
     #[serde(default)]
-    pub ephemeral: bool,
+    pub gossip_topic: Option<String>,
 }
 
 /// Update items as passed to the UIs.
@@ -496,17 +497,34 @@ impl Context {
             MessageState::Undefined | MessageState::OutPreparing | MessageState::OutDraft
         );
 
+        let ephemeral = status_update.gossip_topic.is_some();
         if send_now {
-            if let Some(ref gossip) = *self.gossip.lock().await {
-                let topic = get_topic_from_msg_id(&instance.rfc724_mid)?;
-                gossip
-                    .broadcast(topic, serde_json::to_string(&status_update)?.into())
+            if let Some(ref topic) = status_update.gossip_topic {
+                let topic = TopicId::from_str(&iroh_base::base32::fmt(
+                    topic
+                        .get(0..32)
+                        .context("Can't get 32 bytes from rfc724_mid")?,
+                ))?;
+
+                self.join_and_subscribe_topic(topic, instance_msg_id)
                     .await?;
+
+                info!(self, "here3");
+
+                let gossip = self.gossip.lock().await;
+                if let Some(ref gossip) = *gossip {
+                    gossip
+                        .broadcast(topic, serde_json::to_string(&status_update)?.into())
+                        .await?;
+                } else {
+                    warn!(self, "send_webxdc_status_update: no gossip available.");
+                }
+            } else {
+                warn!(self, "send_webxdc_status_update: no gossip topic given.")
             }
         }
 
         status_update.uid = Some(create_id());
-        let ephemeral = status_update.ephemeral;
         let status_update_serial: StatusUpdateSerial = self
             .create_status_update_record(
                 &mut instance,
@@ -610,12 +628,14 @@ impl Context {
     ///
     /// `json` is an array containing one or more update items as created by send_webxdc_status_update(),
     /// the array is parsed using serde, the single payloads are used as is.
+    ///
+    /// Returns: List of topics that have been advertised in the updates and the [MsgId] of the instance.
     pub(crate) async fn receive_status_update(
         &self,
         from_id: ContactId,
         msg_id: MsgId,
         json: &str,
-    ) -> Result<()> {
+    ) -> Result<(Vec<TopicId>, MsgId)> {
         let msg = Message::load_from_db(self, msg_id).await?;
         let (timestamp, mut instance, can_info_msg) = if msg.viewtype == Viewtype::Webxdc {
             (msg.timestamp_sort, msg, false)
@@ -644,7 +664,17 @@ impl Context {
         }
 
         let updates: StatusUpdates = serde_json::from_str(json)?;
+        let mut topics = Vec::new();
         for update_item in updates.updates {
+            if let Some(ref topic) = update_item.gossip_topic {
+                let topic = TopicId::from_str(&iroh_base::base32::fmt(
+                    topic
+                        .get(0..32)
+                        .context("Can't get 32 bytes from rfc724_mid")?,
+                ))?;
+                topics.push(topic);
+            }
+
             self.create_status_update_record(
                 &mut instance,
                 update_item,
@@ -655,7 +685,7 @@ impl Context {
             .await?;
         }
 
-        Ok(())
+        Ok((topics, instance.id))
     }
 
     /// Returns status updates as an JSON-array, ready to be consumed by a webxdc.
@@ -670,10 +700,6 @@ impl Context {
         instance_msg_id: MsgId,
         last_known_serial: StatusUpdateSerial,
     ) -> Result<String> {
-        let rfc724_mid = instance_msg_id.get_rfc724_mid(self).await?;
-        self.join_and_subscribe_topic(&rfc724_mid, instance_msg_id)
-            .await?;
-
         let json = self
             .sql
             .query_map(
@@ -890,11 +916,21 @@ impl Message {
     }
 }
 
+/// Join a gossip topic and subscribe to it.
+pub async fn join_gossip_topic(ctx: &Context, msg_id: MsgId, topic: &str) -> Result<()> {
+    let topic = TopicId::from_str(&iroh_base::base32::fmt(
+        topic
+            .get(0..32)
+            .context("Can't get 32 bytes from rfc724_mid")?,
+    ))?;
+    info!(ctx, "Received join request from frontend");
+    ctx.join_and_subscribe_topic(topic, msg_id).await
+}
+
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use serde_json::json;
+    use std::time::Duration;
 
     use super::*;
     use crate::chat::{
@@ -1396,7 +1432,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
-                    ephemeral: false,
+                    gossip_topic: None,
                 },
                 1640178619,
                 true,
@@ -1421,7 +1457,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: Some("iecie2Ze".to_string()),
-                    ephemeral: false,
+                    gossip_topic: None,
                 },
                 1640178619,
                 true,
@@ -1455,7 +1491,7 @@ mod tests {
                     document: None,
                     summary: None,
                     uid: None,
-                    ephemeral: false,
+                    gossip_topic: None,
                 },
                 1640178619,
                 true,
@@ -1475,7 +1511,7 @@ mod tests {
                 document: None,
                 summary: None,
                 uid: None,
-                ephemeral: false,
+                gossip_topic: None,
             },
             1640178619,
             true,
