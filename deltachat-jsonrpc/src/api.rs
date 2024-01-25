@@ -896,19 +896,35 @@ impl CommandApi {
             .to_u32())
     }
 
-    // for now only text messages, because we only used text messages in desktop thusfar
+    /// Add a message to the device-chat.
+    /// Device-messages usually contain update information
+    /// and some hints that are added during the program runs, multi-device etc.
+    /// The device-message may be defined by a label;
+    /// if a message with the same label was added or skipped before,
+    /// the message is not added again, even if the message was deleted in between.
+    /// If needed, the device-chat is created before.
+    ///
+    /// Sends the `MsgsChanged` event on success.
+    ///
+    /// Setting msg to None will prevent the device message with this label from being added in the future.
     async fn add_device_message(
         &self,
         account_id: u32,
         label: String,
-        text: String,
-    ) -> Result<u32> {
+        msg: Option<MessageData>,
+    ) -> Result<Option<u32>> {
         let ctx = self.get_context(account_id).await?;
-        let mut msg = Message::new(Viewtype::Text);
-        msg.set_text(text);
-        let message_id =
-            deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut msg)).await?;
-        Ok(message_id.to_u32())
+        if let Some(msg) = msg {
+            let mut message = msg.create_message(&ctx).await?;
+            let message_id =
+                deltachat::chat::add_device_msg(&ctx, Some(&label), Some(&mut message)).await?;
+            if !message_id.is_unset() {
+                return Ok(Some(message_id.to_u32()));
+            }
+        } else {
+            deltachat::chat::add_device_msg(&ctx, Some(&label), None).await?;
+        }
+        Ok(None)
     }
 
     ///  Mark all messages in a chat as _noticed_.
@@ -1808,38 +1824,7 @@ impl CommandApi {
 
     async fn send_msg(&self, account_id: u32, chat_id: u32, data: MessageData) -> Result<u32> {
         let ctx = self.get_context(account_id).await?;
-        let mut message = Message::new(if let Some(viewtype) = data.viewtype {
-            viewtype.into()
-        } else if data.file.is_some() {
-            Viewtype::File
-        } else {
-            Viewtype::Text
-        });
-        message.set_text(data.text.unwrap_or_default());
-        if data.html.is_some() {
-            message.set_html(data.html);
-        }
-        if data.override_sender_name.is_some() {
-            message.set_override_sender_name(data.override_sender_name);
-        }
-        if let Some(file) = data.file {
-            message.set_file(file, None);
-        }
-        if let Some((latitude, longitude)) = data.location {
-            message.set_location(latitude, longitude);
-        }
-        if let Some(id) = data.quoted_message_id {
-            message
-                .set_quote(
-                    &ctx,
-                    Some(
-                        &Message::load_from_db(&ctx, MsgId::new(id))
-                            .await
-                            .context("message to quote could not be loaded")?,
-                    ),
-                )
-                .await?;
-        }
+        let mut message = data.create_message(&ctx).await?;
         let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
             .await?
             .to_u32();
