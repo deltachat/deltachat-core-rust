@@ -757,7 +757,7 @@ impl Message {
         self.param.get_int(Param::GuaranteeE2ee).unwrap_or_default() != 0
     }
 
-    /// Returns true if message is Auto-Submitted.
+    /// Returns true if message is auto-generated.
     pub fn is_bot(&self) -> bool {
         self.param.get_bool(Param::Bot).unwrap_or_default()
     }
