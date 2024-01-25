@@ -19,6 +19,7 @@ use crate::constants::DC_VERSION_STR;
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::imap::ServerMetadata;
 use crate::key::{load_self_public_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, MessageState, MsgId};
@@ -224,6 +225,9 @@ pub struct InnerContext {
     /// <https://datatracker.ietf.org/doc/html/rfc2971>
     pub(crate) server_id: RwLock<Option<HashMap<String, String>>>,
 
+    /// IMAP METADATA.
+    pub(crate) metadata: RwLock<Option<ServerMetadata>>,
+
     pub(crate) last_full_folder_scan: Mutex<Option<Instant>>,
 
     /// ID for this `Context` in the current process.
@@ -384,6 +388,7 @@ impl Context {
             resync_request: AtomicBool::new(false),
             new_msgs_notify,
             server_id: RwLock::new(None),
+            metadata: RwLock::new(None),
             creation_time: std::time::SystemTime::now(),
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
@@ -667,6 +672,16 @@ impl Context {
 
         if let Some(server_id) = &*self.server_id.read().await {
             res.insert("imap_server_id", format!("{server_id:?}"));
+        }
+
+        if let Some(metadata) = &*self.metadata.read().await {
+            if let Some(comment) = &metadata.comment {
+                res.insert("imap_server_comment", format!("{comment:?}"));
+            }
+
+            if let Some(admin) = &metadata.admin {
+                res.insert("imap_server_admin", format!("{admin:?}"));
+            }
         }
 
         res.insert("secondary_addrs", secondary_addrs);

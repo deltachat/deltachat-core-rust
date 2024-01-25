@@ -460,6 +460,10 @@ async fn inbox_loop(
                 warn!(ctx, "Failed to download messages: {:#}", err);
             }
 
+            if let Err(err) = connection.fetch_metadata(&ctx).await {
+                warn!(ctx, "Failed to fetch metadata: {err:#}.");
+            }
+
             fetch_idle(&ctx, &mut connection, FolderMeaning::Inbox).await;
         }
     };

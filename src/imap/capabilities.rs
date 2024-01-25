@@ -21,6 +21,10 @@ pub(crate) struct Capabilities {
     /// <https://tools.ietf.org/html/rfc7162>
     pub can_condstore: bool,
 
+    /// True if the server has METADATA capability as defined in
+    /// <https://tools.ietf.org/html/rfc5464>
+    pub can_metadata: bool,
+
     /// Server ID if the server supports ID capability.
     pub server_id: Option<HashMap<String, String>>,
 }

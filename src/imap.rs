@@ -118,6 +118,17 @@ struct OAuth2 {
     access_token: String,
 }
 
+#[derive(Debug)]
+pub(crate) struct ServerMetadata {
+    /// IMAP METADATA `/shared/comment` as defined in
+    /// <https://www.rfc-editor.org/rfc/rfc5464#section-6.2.1>.
+    pub comment: Option<String>,
+
+    /// IMAP METADATA `/shared/admin` as defined in
+    /// <https://www.rfc-editor.org/rfc/rfc5464#section-6.2.2>.
+    pub admin: Option<String>,
+}
+
 impl async_imap::Authenticator for OAuth2 {
     type Response = String;
 
@@ -1635,6 +1646,50 @@ impl Imap {
         }
 
         Ok((last_uid, received_msgs))
+    }
+
+    /// Retrieves server metadata if it is supported.
+    ///
+    /// We get [`/shared/comment`](https://www.rfc-editor.org/rfc/rfc5464#section-6.2.1)
+    /// and [`/shared/admin`](https://www.rfc-editor.org/rfc/rfc5464#section-6.2.2)
+    /// metadata.
+    pub(crate) async fn fetch_metadata(&mut self, context: &Context) -> Result<()> {
+        let session = self.session.as_mut().context("no session")?;
+        if !session.can_metadata() {
+            return Ok(());
+        }
+
+        let mut lock = context.metadata.write().await;
+        if (*lock).is_some() {
+            return Ok(());
+        }
+
+        info!(
+            context,
+            "Server supports metadata, retrieving server comment and admin contact."
+        );
+
+        let mut comment = None;
+        let mut admin = None;
+
+        let mailbox = "";
+        let options = "";
+        let metadata = session
+            .get_metadata(mailbox, options, "(/shared/comment /shared/admin)")
+            .await?;
+        for m in metadata {
+            match m.entry.as_ref() {
+                "/shared/comment" => {
+                    comment = m.value;
+                }
+                "/shared/admin" => {
+                    admin = m.value;
+                }
+                _ => {}
+            }
+        }
+        *lock = Some(ServerMetadata { comment, admin });
+        Ok(())
     }
 }
 
