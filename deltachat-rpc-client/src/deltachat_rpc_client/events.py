@@ -1,4 +1,5 @@
 """High-level classes for event processing and filtering."""
+
 import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Optional, Set, Tuple, Union
