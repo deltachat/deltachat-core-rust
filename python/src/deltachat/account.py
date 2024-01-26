@@ -1,6 +1,5 @@
 """Account class implementation."""
 
-
 import os
 from array import array
 from contextlib import contextmanager
