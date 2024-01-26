@@ -1284,17 +1284,19 @@ impl<'a> MimeFactory<'a> {
             self.sync_ids_to_delete = Some(ids.to_string());
         } else if command == SystemMessage::WebxdcStatusUpdate {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
+
+            if json.find("gossip_topic").is_some() {
+                if let Some(ref endpoint) = *context.endpoint.lock().await {
+                    // Add iroh NodeAddr to headers so peers can connect to us.
+                    let node_addr = endpoint.my_addr().await.unwrap();
+                    headers.protected.push(Header::new(
+                        HeaderDef::IrohPublicGossip.get_headername().to_string(),
+                        serde_json::to_string(&node_addr)?,
+                    ));
+                }
+            }
             parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
-            if let Some(ref endpoint) = *context.endpoint.lock().await {
-                // Add iroh NodeAddr to headers so peers can connect to us.
-                let node_addr = endpoint.my_addr().await.unwrap();
-                headers.protected.push(Header::new(
-                    HeaderDef::IrohPublicGossip.get_headername().to_string(),
-                    serde_json::to_string(&node_addr)?,
-                ));
-            }
-
             if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
                 .await?

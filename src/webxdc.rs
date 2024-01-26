@@ -505,7 +505,7 @@ impl Context {
                     .sql
                     .query_row_optional(
                         "SELECT 1 FROM iroh_gossip_peers WHERE topic=?",
-                        (topic,),
+                        (topic.as_bytes(),),
                         |_| Ok(()),
                     )
                     .await
@@ -520,8 +520,20 @@ impl Context {
                 if !topic_exists {
                     info!(
                         self,
-                        "Gossip topic {topic} does not exist, sending over smpt",
+                        "Gossip topic {topic} does not exist, sending over smtp",
                     );
+                    let addr = self
+                        .endpoint
+                        .lock()
+                        .await
+                        .as_ref()
+                        .unwrap()
+                        .my_addr()
+                        .await
+                        .unwrap();
+
+                    self.add_peer_for_topic(instance_msg_id, topic, addr.node_id)
+                        .await?;
                     ephemeral = false;
                 } else {
                     if let Some(ref gossip) = *self.gossip.lock().await {
