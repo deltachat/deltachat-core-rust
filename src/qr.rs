@@ -25,6 +25,8 @@ use crate::socks::Socks5Config;
 use crate::token;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
+const IDELTACHAT_SCHEME: &str = "https://i.delta.chat/#";
+const IDELTACHAT_NOSLASH_SCHEME: &str = "https://i.delta.chat#";
 const DCACCOUNT_SCHEME: &str = "DCACCOUNT:";
 pub(super) const DCLOGIN_SCHEME: &str = "DCLOGIN:";
 const DCWEBRTC_SCHEME: &str = "DCWEBRTC:";
@@ -253,6 +255,10 @@ pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
         decode_openpgp(context, qr)
             .await
             .context("failed to decode OPENPGP4FPR QR code")?
+    } else if qr.starts_with(IDELTACHAT_SCHEME) {
+        decode_ideltachat(context, IDELTACHAT_SCHEME, qr).await?
+    } else if qr.starts_with(IDELTACHAT_NOSLASH_SCHEME) {
+        decode_ideltachat(context, IDELTACHAT_NOSLASH_SCHEME, qr).await?
     } else if starts_with_ignore_case(qr, DCACCOUNT_SCHEME) {
         decode_account(qr)?
     } else if starts_with_ignore_case(qr, DCLOGIN_SCHEME) {
@@ -452,6 +458,15 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
             fingerprint: fingerprint.to_string(),
         })
     }
+}
+
+/// scheme: `https://i.delta.chat[/]#FINGERPRINT&a=ADDR[&OPTIONAL_PARAMS]`
+async fn decode_ideltachat(context: &Context, prefix: &str, qr: &str) -> Result<Qr> {
+    let qr = qr.replacen(prefix, OPENPGP4FPR_SCHEME, 1);
+    let qr = qr.replacen('&', "#", 1);
+    decode_openpgp(context, &qr)
+        .await
+        .context("failed to decode {prefix} QR code")
 }
 
 /// scheme: `DCACCOUNT:https://example.org/new_email?t=1w_7wDjgjelxeX884x96v3`
@@ -940,6 +955,25 @@ mod tests {
         } else {
             bail!("Wrong QR code type");
         }
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_ideltachat_link() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        let qr = check_qr(
+            &ctx.ctx,
+            "https://i.delta.chat/#79252762C34C5096AF57958F4FC3D21A81B0F0A7&a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+        ).await?;
+        assert!(matches!(qr, Qr::AskVerifyGroup { .. }));
+
+        let qr = check_qr(
+            &ctx.ctx,
+            "https://i.delta.chat#79252762C34C5096AF57958F4FC3D21A81B0F0A7&a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+        ).await?;
+        assert!(matches!(qr, Qr::AskVerifyGroup { .. }));
 
         Ok(())
     }
