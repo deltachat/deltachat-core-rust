@@ -515,14 +515,13 @@ impl Context {
                 let topic = TopicId::from_str(&iroh_base::base32::fmt(
                     topic.get(0..32).context("Can't get 32 bytes from topic")?,
                 ))?;
-                self.join_and_subscribe_topic(topic, instance_msg_id)
-                    .await?;
+
                 if !topic_exists {
                     info!(
                         self,
                         "Gossip topic {topic} does not exist, sending over smtp",
                     );
-                    let addr = self
+                    let node_id = self
                         .endpoint
                         .lock()
                         .await
@@ -530,9 +529,11 @@ impl Context {
                         .unwrap()
                         .my_addr()
                         .await
-                        .unwrap();
-
-                    self.add_peer_for_topic(instance_msg_id, topic, addr.node_id)
+                        .unwrap()
+                        .node_id;
+                    self.join_and_subscribe_topic(topic, instance_msg_id)
+                        .await?;
+                    self.add_peer_for_topic(instance_msg_id, topic, node_id)
                         .await?;
                     ephemeral = false;
                 } else {
@@ -940,7 +941,6 @@ pub async fn join_gossip_topic(ctx: &Context, msg_id: MsgId, topic: &str) -> Res
     let topic = TopicId::from_str(&iroh_base::base32::fmt(
         topic.get(0..32).context("Can't get 32 bytes from topic")?,
     ))?;
-    info!(ctx, "Received join request from frontend");
     ctx.join_and_subscribe_topic(topic, msg_id).await
 }
 

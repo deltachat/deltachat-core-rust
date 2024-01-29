@@ -191,9 +191,11 @@ async fn subscribe_loop(
         let event = stream.recv().await?;
         match event {
             IrohEvent::NeighborUp(node) => {
+                info!(context, "NeighborUp: {:?}", node);
                 context.add_peer_for_topic(msg_id, topic, node).await?;
             }
             IrohEvent::NeighborDown(node) => {
+                info!(context, "NeighborDown: {:?}", node);
                 context.delete_peer_for_topic(topic, node).await?;
             }
             IrohEvent::Received(event) => {
