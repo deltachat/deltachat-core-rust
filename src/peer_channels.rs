@@ -56,7 +56,7 @@ impl Context {
 
     /// Join a topic and create the subscriber loop for it.
     pub async fn join_and_subscribe_topic(&self, topic: TopicId, msg_id: MsgId) -> Result<()> {
-        info!(&self, "Joining topic {topic}.");
+        info!(&self, "Joining topic {}.", topic.to_string());
 
         let Some(ref gossip) = *self.gossip.lock().await else {
             warn!(
@@ -69,7 +69,9 @@ impl Context {
         // restore old peers from db, if any
         let peers = self.get_peers_for_topic(topic).await?;
         if peers.len() == 0 {
-            warn!(self, "joining gossip with zero peers: {peers:?}");
+            warn!(self, "joining gossip with zero peers");
+        } else {
+            info!(self, "joining gossip with peers: {peers:?}");
         }
 
         // TODO: add timeout as the returned future might be pending forever
@@ -199,6 +201,7 @@ async fn subscribe_loop(
                 context.delete_peer_for_topic(topic, node).await?;
             }
             IrohEvent::Received(event) => {
+                info!(context, "Received: {:?}", event);
                 let payload = String::from_utf8_lossy(event.content.as_bytes());
                 let mut instance = Message::load_from_db(&context, msg_id).await?;
                 let update: StatusUpdateItem = serde_json::from_str(&payload)?;
