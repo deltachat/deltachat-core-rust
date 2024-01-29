@@ -97,13 +97,28 @@ pub struct Peerstate {
 impl Peerstate {
     /// Creates a peerstate from the `Autocrypt` header.
     pub fn from_header(header: &Aheader, message_time: i64) -> Self {
+        Self::from_public_key(
+            &header.addr,
+            message_time,
+            header.prefer_encrypt,
+            &header.public_key,
+        )
+    }
+
+    /// Creates a peerstate from the given public key.
+    pub fn from_public_key(
+        addr: &str,
+        last_seen: i64,
+        prefer_encrypt: EncryptPreference,
+        public_key: &SignedPublicKey,
+    ) -> Self {
         Peerstate {
-            addr: header.addr.clone(),
-            last_seen: message_time,
-            last_seen_autocrypt: message_time,
-            prefer_encrypt: header.prefer_encrypt,
-            public_key: Some(header.public_key.clone()),
-            public_key_fingerprint: Some(header.public_key.fingerprint()),
+            addr: addr.to_string(),
+            last_seen,
+            last_seen_autocrypt: last_seen,
+            prefer_encrypt,
+            public_key: Some(public_key.clone()),
+            public_key_fingerprint: Some(public_key.fingerprint()),
             gossip_key: None,
             gossip_key_fingerprint: None,
             gossip_timestamp: 0,
