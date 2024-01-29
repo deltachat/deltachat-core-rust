@@ -1551,10 +1551,11 @@ def test_reactions_for_a_reordering_move(acfactory, lp):
 
 
 def test_import_export_online_all(acfactory, tmp_path, data, lp):
-    (ac1,) = acfactory.get_online_accounts(1)
+    (ac1, some1) = acfactory.get_online_accounts(2)
 
     lp.sec("create some chat content")
-    chat1 = ac1.create_contact("some1@example.org", name="some1").create_chat()
+    some1_addr = some1.get_config("addr")
+    chat1 = ac1.create_contact(some1_addr, name="some1").create_chat()
     chat1.send_text("msg1")
     assert len(ac1.get_contacts(query="some1")) == 1
 
@@ -1571,7 +1572,7 @@ def test_import_export_online_all(acfactory, tmp_path, data, lp):
         contacts = ac.get_contacts(query="some1")
         assert len(contacts) == 1
         contact2 = contacts[0]
-        assert contact2.addr == "some1@example.org"
+        assert contact2.addr == some1_addr
         chat2 = contact2.create_chat()
         messages = chat2.get_messages()
         assert len(messages) == 3
