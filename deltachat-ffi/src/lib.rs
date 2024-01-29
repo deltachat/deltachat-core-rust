@@ -4916,7 +4916,7 @@ pub unsafe extern "C" fn dc_accounts_background_fetch(
     block_on(async move {
         let accounts = accounts.read().await;
         match accounts
-            .background_fetch_with_timeout(Duration::from_secs(timeout_in_seconds))
+            .background_fetch(Duration::from_secs(timeout_in_seconds))
             .await
         {
             Ok(()) => 1,
