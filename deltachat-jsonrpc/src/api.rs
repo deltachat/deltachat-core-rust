@@ -240,7 +240,7 @@ impl CommandApi {
         self.accounts
             .write()
             .await
-            .background_fetch_with_timeout(std::time::Duration::from_secs_f64(timeout_in_seconds))
+            .background_fetch(std::time::Duration::from_secs_f64(timeout_in_seconds))
             .await?;
         Ok(())
     }
