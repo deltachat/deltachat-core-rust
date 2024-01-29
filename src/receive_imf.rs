@@ -460,8 +460,8 @@ pub(crate) async fn receive_imf_inner(
                                 .add_node_addr(node_addr.clone())
                                 .context("Failed to add node address")?;
 
+                            let node_id = node_addr.node_id;
                             for topic in topics {
-                                let node_id = node_addr.node_id;
                                 context
                                     .add_peer_for_topic(instance_id, topic, node_id)
                                     .await?;

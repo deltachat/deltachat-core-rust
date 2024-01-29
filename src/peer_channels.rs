@@ -67,7 +67,10 @@ impl Context {
         };
 
         // restore old peers from db, if any
-        let peers = self.get_peers_for_topic(&topic.to_string()).await?;
+        let peers = self.get_peers_for_topic(topic).await?;
+        if peers.len() == 0 {
+            warn!(self, "joining gossip with zero peers: {peers:?}");
+        }
 
         // TODO: add timeout as the returned future might be pending forever
         let connect_future = gossip.join(topic, peers).await?;
@@ -81,11 +84,11 @@ impl Context {
     /// Get list of [NodeId]s for one topic.
     /// This is used to rejoin a gossip group when reopening the xdc.
     /// Only [NodeId] is needed because the magic endpoint caches region and derp server for [NodeId]s.
-    pub async fn get_peers_for_topic(&self, topic: &str) -> Result<Vec<NodeId>> {
+    pub async fn get_peers_for_topic(&self, topic: TopicId) -> Result<Vec<NodeId>> {
         self.sql
             .query_map(
                 "SELECT public_key FROM iroh_gossip_peers WHERE topic = ?",
-                (topic,),
+                (topic.as_bytes(),),
                 |row| {
                     let data = row.get::<_, Vec<u8>>(0)?;
                     Ok(data)
