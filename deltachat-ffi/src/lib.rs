@@ -4915,19 +4915,11 @@ pub unsafe extern "C" fn dc_accounts_background_fetch(
     let accounts = &*accounts;
     block_on(async move {
         let accounts = accounts.read().await;
-        match accounts
+        accounts
             .background_fetch(Duration::from_secs(timeout_in_seconds))
-            .await
-        {
-            Ok(()) => 1,
-            Err(err) => {
-                accounts.emit_event(EventType::Error(format!(
-                    "Failed to do background fetch: {err:#}"
-                )));
-                0
-            }
-        }
-    })
+            .await;
+    });
+    1
 }
 
 #[no_mangle]
