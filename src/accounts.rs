@@ -317,10 +317,18 @@ impl Accounts {
     /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
     /// without forgetting to create notifications caused by timing race conditions.
+    ///
+    /// On error no `AccountsBackgroundFetchDone` event is emitted.
     pub async fn background_fetch(&self, timeout: std::time::Duration) -> Result<()> {
-        let result = tokio::time::timeout(timeout, self.background_fetch_without_timeout()).await;
+        if let Err(_err) =
+            tokio::time::timeout(timeout, self.background_fetch_without_timeout()).await
+        {
+            self.emit_event(EventType::Warning(
+                "Background fetch timed out.".to_string(),
+            ));
+        }
         self.emit_event(EventType::AccountsBackgroundFetchDone);
-        result.map_err(|err| err.into())
+        Ok(())
     }
 
     /// Emits a single event.
