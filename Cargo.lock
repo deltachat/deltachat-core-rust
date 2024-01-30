@@ -2559,8 +2559,9 @@ dependencies = [
 
 [[package]]
 name = "imap-proto"
-version = "0.16.3"
-source = "git+https://github.com/djc/tokio-imap.git?rev=01ff256a7e42a9f7d2732706f8b71a16ce93427e#01ff256a7e42a9f7d2732706f8b71a16ce93427e"
+version = "0.16.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e70cd66882c8cb1c9802096ba75212822153c51478dc61621e1a22f6c92361"
 dependencies = [
  "nom",
 ]
