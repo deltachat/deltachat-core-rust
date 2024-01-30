@@ -235,7 +235,7 @@ impl CommandApi {
     ///
     /// The `AccountsBackgroundFetchDone` event is emitted at the end,
     /// process all events until you get this one and you can safely return to the background
-    /// without forgeting to create notifications caused by timing race conditions.
+    /// without forgetting to create notifications caused by timing race conditions.
     async fn accounts_background_fetch(&self, timeout_in_seconds: f64) -> Result<()> {
         self.accounts
             .write()

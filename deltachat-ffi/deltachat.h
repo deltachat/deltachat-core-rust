@@ -3159,7 +3159,7 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  *
  * The `DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE` event is emitted at the end,
  * process all events until you get this one and you can safely return to the background
- * without forgeting to create notifications caused by timing race conditions.
+ * without forgetting to create notifications caused by timing race conditions.
  *
  * @memberof dc_accounts_t
  * @param timeout The timeout in seconds
