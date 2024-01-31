@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.134.0] - 2024-01-31
+
+### API-Changes
+
+- [**breaking**] JSON-RPC: device message api now requires `Option<MessageData>` instead of `String` for the message ([#5211](https://github.com/deltachat/deltachat-core-rust/pull/5211)).
+- CFFI: add `dc_accounts_background_fetch` and event `DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE`.
+- JSON-RPC: add `accounts_background_fetch`.
+
+### Features / Changes
+
+- `Qr::check_qr()`: Accept i.delta.chat invite links ([#5217](https://github.com/deltachat/deltachat-core-rust/pull/5217)).
+- Add support for IMAP METADATA, fetching `/shared/comment` and `/shared/admin` and displaying it in account info.
+
+### Fixes
+
+- Add tolerance for macOS and iOS changing `#` to `%23`.
+- Do not drop unknown report attachments, such as TLS reports.
+- Treat only "Auto-Submitted: auto-generated" messages as bot-sent ([#5213](https://github.com/deltachat/deltachat-core-rust/pull/5213)).
+- `Chat::resend_msgs`: Guarantee strictly increasing time in the `Date` header.
+- Delete resent messages on receiver side ([#5155](https://github.com/deltachat/deltachat-core-rust/pull/5155)).
+- Fix iOS build issue.
+
+### CI
+
+- Add/remove necessary newlines to fix Python lint.
+
+### Tests
+
+- `test_import_export_online_all`: Send the message to the existing address to avoid errors ([#5220](https://github.com/deltachat/deltachat-core-rust/pull/5220)).
+
 ## [1.133.2] - 2024-01-24
 
 ### Fixes
@@ -3445,3 +3475,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.133.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.132.1...v1.133.0
 [1.133.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.0...v1.133.1
 [1.133.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.1...v1.133.2
+[1.134.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.2...v1.134.0
