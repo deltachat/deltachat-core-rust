@@ -30,7 +30,6 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
-use async_channel::Receiver;
 use futures_lite::StreamExt;
 use iroh::blobs::Collection;
 use iroh::get::DataStream;
@@ -48,7 +47,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::blob::BlobDirContents;
 use crate::chat::{add_device_msg, delete_and_reset_all_device_msgs};
-use crate::context::Context;
+use crate::context::{Context, OngoingGuard};
 use crate::message::{Message, Viewtype};
 use crate::qr::{self, Qr};
 use crate::stock_str::backup_transfer_msg_body;
@@ -98,8 +97,8 @@ impl BackupProvider {
             .context("Private key not available, aborting backup export")?;
 
         // Acquire global "ongoing" mutex.
-        let cancel_token = context.alloc_ongoing().await?;
-        let paused_guard = context.scheduler.pause(context.clone()).await?;
+        let mut ongoing_guard = context.alloc_ongoing().await?;
+        let paused_guard = context.scheduler.pause(context.clone()).await;
         let context_dir = context
             .get_blobdir()
             .parent()
@@ -110,7 +109,7 @@ impl BackupProvider {
             warn!(context, "Previous database export deleted");
         }
         let dbfile = TempPathGuard::new(dbfile);
-        let res = tokio::select! {
+        let (provider, ticket) = tokio::select! {
             biased;
             res = Self::prepare_inner(context, &dbfile) => {
                 match res {
@@ -121,22 +120,14 @@ impl BackupProvider {
                     },
                 }
             },
-            _ = cancel_token.recv() => Err(format_err!("cancelled")),
-        };
-        let (provider, ticket) = match res {
-            Ok((provider, ticket)) => (provider, ticket),
-            Err(err) => {
-                context.free_ongoing().await;
-                return Err(err);
-            }
-        };
+            _ = &mut ongoing_guard => Err(format_err!("cancelled")),
+        }?;
         let drop_token = CancellationToken::new();
         let handle = {
             let context = context.clone();
             let drop_token = drop_token.clone();
             tokio::spawn(async move {
-                let res = Self::watch_provider(&context, provider, cancel_token, drop_token).await;
-                context.free_ongoing().await;
+                let res = Self::watch_provider(&context, provider, ongoing_guard, drop_token).await;
 
                 // Explicit drop to move the guards into this future
                 drop(paused_guard);
@@ -201,7 +192,7 @@ impl BackupProvider {
     async fn watch_provider(
         context: &Context,
         mut provider: Provider,
-        cancel_token: Receiver<()>,
+        mut cancel_token: OngoingGuard,
         drop_token: CancellationToken,
     ) -> Result<()> {
         let mut events = provider.subscribe();
@@ -261,7 +252,7 @@ impl BackupProvider {
                         }
                     }
                 },
-                _ = cancel_token.recv() => {
+                _ = &mut cancel_token => {
                     provider.shutdown();
                     break Err(anyhow!("BackupProvider cancelled"));
                 },
@@ -394,20 +385,18 @@ pub async fn get_backup(context: &Context, qr: Qr) -> Result<()> {
         "Cannot import backups to accounts in use."
     );
     // Acquire global "ongoing" mutex.
-    let cancel_token = context.alloc_ongoing().await?;
+    let mut cancel_token = context.alloc_ongoing().await?;
     let _guard = context.scheduler.pause(context.clone()).await;
     info!(
         context,
         "Running get_backup for {}",
         qr::format_backup(&qr)?
     );
-    let res = tokio::select! {
+    tokio::select! {
         biased;
         res = get_backup_inner(context, qr) => res,
-        _ = cancel_token.recv() => Err(format_err!("cancelled")),
-    };
-    context.free_ongoing().await;
-    res
+        _ = &mut cancel_token => Err(format_err!("cancelled")),
+    }
 }
 
 async fn get_backup_inner(context: &Context, qr: Qr) -> Result<()> {
