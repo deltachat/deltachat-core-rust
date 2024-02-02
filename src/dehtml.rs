@@ -181,7 +181,12 @@ fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
     if dehtml.get_add_text() == AddText::YesPreserveLineEnds
         || dehtml.get_add_text() == AddText::YesRemoveLineEnds
     {
-        let last_added = escaper::decode_html_buf_sloppy(event as &[_]).unwrap_or_default();
+        let event = event as &[_];
+        let event_str = std::str::from_utf8(event).unwrap_or_default();
+        let mut last_added = escaper::decode_html_buf_sloppy(event).unwrap_or_default();
+        if event_str.starts_with(&last_added) {
+            last_added = event_str.to_string();
+        }
 
         if dehtml.get_add_text() == AddText::YesRemoveLineEnds {
             // Replace all line ends with spaces.
@@ -527,6 +532,6 @@ mod tests {
     fn test_spaces() {
         let input = include_str!("../test-data/spaces.html");
         let txt = dehtml(input).unwrap();
-        assert_eq!(txt.text, "Welcome back to Strolling!\n\nHey there,\n\nWelcome back! Use this link to securely sign in to your Strolling account:\n\nSign in to Strolling\n\nFor your security, the link will expire in 24 hours time.\n\nSee you soon!\n\nYou can also copy\n\nhttps://strolling.rosano.ca/members/?token=XXX\n\nIf you did not make this request, you can safely ignore this email.\n\nThis message was sent from [strolling.rosano.ca](https://strolling.rosano.ca/) to [alice@example.org](mailto:alice@example.org)");
+        assert_eq!(txt.text, "Welcome back to Strolling!\n\nHey there,\n\nWelcome back! Use this link to securely sign in to your Strolling account:\n\nSign in to Strolling\n\nFor your security, the link will expire in 24 hours time.\n\nSee you soon!\n\nYou can also copy & paste this URL into your browser:\n\nhttps://strolling.rosano.ca/members/?token=XXX&action=signin&r=https%3A%2F%2Fstrolling.rosano.ca%2F\n\nIf you did not make this request, you can safely ignore this email.\n\nThis message was sent from [strolling.rosano.ca](https://strolling.rosano.ca/) to [alice@example.org](mailto:alice@example.org)");
     }
 }
