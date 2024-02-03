@@ -208,11 +208,12 @@ impl MimeMessage {
     ) -> Result<Self> {
         let mail = mailparse::parse_mail(body)?;
 
-        let message_time = mail
+        let timestamp_rcvd = smeared_time(context);
+        let timestamp_sent = mail
             .headers
             .get_header_value(HeaderDef::Date)
             .and_then(|v| mailparse::dateparse(&v).ok())
-            .unwrap_or_default();
+            .map_or(timestamp_rcvd, |value| min(value, timestamp_rcvd + 60));
         let mut hop_info = parse_receive_headers(&mail.get_headers());
 
         let mut headers = Default::default();
@@ -279,7 +280,7 @@ impl MimeMessage {
         let private_keyring = load_self_secret_keyring(context).await?;
 
         let mut decryption_info =
-            prepare_decryption(context, &mail, &from.addr, message_time).await?;
+            prepare_decryption(context, &mail, &from.addr, timestamp_sent).await?;
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
@@ -325,7 +326,7 @@ impl MimeMessage {
                 let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
                 gossiped_keys = update_gossip_peerstates(
                     context,
-                    message_time,
+                    timestamp_sent,
                     &from.addr,
                     &recipients,
                     gossip_headers,
@@ -376,12 +377,12 @@ impl MimeMessage {
 
             // If it is not a read receipt, degrade encryption.
             if let (Some(peerstate), Ok(mail)) = (&mut decryption_info.peerstate, mail) {
-                if message_time > peerstate.last_seen_autocrypt
+                if timestamp_sent > peerstate.last_seen_autocrypt
                     && mail.ctype.mimetype != "multipart/report"
                 // Disallowing keychanges is disabled for now:
                 // && decryption_info.dkim_results.allow_keychange
                 {
-                    peerstate.degrade_encryption(message_time);
+                    peerstate.degrade_encryption(timestamp_sent);
                 }
             }
         }
@@ -394,12 +395,6 @@ impl MimeMessage {
                 peerstate.save_to_db(&context.sql).await?;
             }
         }
-
-        let timestamp_rcvd = smeared_time(context);
-        let timestamp_sent = headers
-            .get(HeaderDef::Date.get_headername())
-            .and_then(|value| mailparse::dateparse(value).ok())
-            .map_or(timestamp_rcvd, |value| min(value, timestamp_rcvd + 60));
 
         let mut parser = MimeMessage {
             parts: Vec::new(),
