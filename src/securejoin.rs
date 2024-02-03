@@ -18,7 +18,7 @@ use crate::key::{load_self_public_key, DcKey, Fingerprint};
 use crate::message::{Message, Viewtype};
 use crate::mimeparser::{MimeMessage, SystemMessage};
 use crate::param::Param;
-use crate::peerstate::{Peerstate, PeerstateKeyType};
+use crate::peerstate::Peerstate;
 use crate::qr::check_qr;
 use crate::securejoin::bob::JoinerProgress;
 use crate::stock_str;
@@ -229,11 +229,13 @@ async fn verify_sender_by_fingerprint(
             .filter(|&fp| fp == fingerprint)
             .is_some()
         {
-            let verifier = contact.get_addr().to_owned();
-            peerstate.set_verified(PeerstateKeyType::PublicKey, fingerprint.clone(), verifier)?;
-            peerstate.prefer_encrypt = EncryptPreference::Mutual;
-            peerstate.save_to_db(&context.sql).await?;
-            return Ok(true);
+            if let Some(public_key) = &peerstate.public_key {
+                let verifier = contact.get_addr().to_owned();
+                peerstate.set_verified(public_key.clone(), fingerprint.clone(), verifier)?;
+                peerstate.prefer_encrypt = EncryptPreference::Mutual;
+                peerstate.save_to_db(&context.sql).await?;
+                return Ok(true);
+            }
         }
     }
 
@@ -599,7 +601,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         .get_addr()
         .to_lowercase();
 
-    if !mime_message.gossiped_addr.contains(&addr) {
+    let Some(key) = mime_message.gossiped_keys.get(&addr) else {
         could_not_establish_secure_connection(
             context,
             contact_id,
@@ -612,7 +614,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         )
         .await?;
         return Ok(HandshakeMessage::Ignore);
-    }
+    };
 
     let Some(mut peerstate) = Peerstate::from_addr(context, &addr).await? else {
         could_not_establish_secure_connection(
@@ -638,7 +640,7 @@ pub(crate) async fn observe_securejoin_on_other_device(
         .await?;
         return Ok(HandshakeMessage::Ignore);
     };
-    peerstate.set_verified(PeerstateKeyType::GossipKey, fingerprint, addr)?;
+    peerstate.set_verified(key.clone(), fingerprint, addr)?;
     peerstate.prefer_encrypt = EncryptPreference::Mutual;
     peerstate.save_to_db(&context.sql).await?;
 
@@ -714,7 +716,10 @@ async fn mark_peer_as_verified(
     let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, &fingerprint).await? else {
         return Ok(false);
     };
-    peerstate.set_verified(PeerstateKeyType::PublicKey, fingerprint, verifier)?;
+    let Some(ref public_key) = peerstate.public_key else {
+        return Ok(false);
+    };
+    peerstate.set_verified(public_key.clone(), fingerprint, verifier)?;
     peerstate.prefer_encrypt = EncryptPreference::Mutual;
     if backward_verified {
         peerstate.backward_verified_key_id =
