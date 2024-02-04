@@ -2232,6 +2232,7 @@ mod tests {
         message::{Message, MessageState, MessengerMessage},
         receive_imf::receive_imf,
         test_utils::TestContext,
+        tools::time,
     };
 
     impl AvatarAction {
@@ -3841,6 +3842,42 @@ Content-Disposition: reaction\n\
 
         assert_eq!(msg.parts[0].typ, Viewtype::File);
         assert_eq!(msg.parts[0].msg, "Report Domain: nine.testrun.org Submitter: google.com Report-ID: <2024.01.20T00.00.00Z+nine.testrun.org@google.com> – This is an aggregate TLS report from google.com");
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_time_in_future() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let beginning_time = time();
+
+        // Receive a message with a date far in the future (year 3004)
+        // I'm just going to assume that no one uses this code after the year 3000
+        let mime_message = MimeMessage::from_bytes(
+            &alice,
+            b"To: alice@example.org\n\
+              From: bob@example.net\n\
+              Date: Today, 29 February 3004 00:00:10 -800\n\
+              Message-ID: 56789@example.net\n\
+              Subject: Meeting\n\
+              Mime-Version: 1.0 (1.0)\n\
+              Content-Type: text/plain; charset=utf-8\n\
+              \n\
+              Hi",
+            None,
+        )
+        .await?;
+
+        // We do allow the time to be in the future a bit (because of unsynchronized clocks),
+        // but only 60 seconds:
+        assert!(mime_message.decryption_info.message_time <= time() + 60);
+        assert!(mime_message.decryption_info.message_time >= beginning_time + 60);
+        assert_eq!(
+            mime_message.decryption_info.message_time,
+            mime_message.timestamp_sent
+        );
+        assert!(mime_message.timestamp_rcvd <= time());
 
         Ok(())
     }
