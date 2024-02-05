@@ -220,9 +220,9 @@ if __name__ == "__main__":
 
     process_dir(Path(sys.argv[1]))
 
-    out_all += "pub(crate) static PROVIDER_DATA: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| HashMap::from([\n"
+    out_all += "pub(crate) static PROVIDER_DATA: [(&str, &Provider); " + str(len(domains_set)) + "] = [\n";
     out_all += out_domains
-    out_all += "]));\n\n"
+    out_all += "];\n\n"
 
     out_all += "pub(crate) static PROVIDER_IDS: Lazy<HashMap<&'static str, &'static Provider>> = Lazy::new(|| HashMap::from([\n"
     out_all += out_ids
