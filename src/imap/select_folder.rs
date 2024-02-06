@@ -112,11 +112,16 @@ impl ImapSession {
             Err(err) => match err {
                 Error::NoFolder(..) => {
                     info!(context, "Failed to select folder {} because it does not exist, trying to create it.", folder);
-                    self.create(folder).await.with_context(|| {
-                        format!("Couldn't select folder ('{err}'), then create() failed")
-                    })?;
-
-                    Ok(self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"))?)
+                    let create_res = self.create(folder).await;
+                    if let Err(ref err) = create_res {
+                        info!(context, "Couldn't select folder, then create() failed: {err:#}.");
+                        // Need to recheck, could have been created in parallel.
+                    }
+                    let select_res = self.select_folder(context, Some(folder)).await.with_context(|| format!("failed to select newely created folder {folder}"));
+                    if select_res.is_err() {
+                        create_res?;
+                    }
+                    select_res
                 }
                 _ => Err(err).with_context(|| format!("failed to select folder {folder} with error other than NO, not trying to create it")),
             },
