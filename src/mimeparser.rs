@@ -82,9 +82,10 @@ pub(crate) struct MimeMessage {
     /// If a message is not encrypted or the signature is not valid,
     /// this set is empty.
     pub signatures: HashSet<Fingerprint>,
-    /// The set of mail recipient addresses for which gossip headers were applied, regardless of
-    /// whether they modified any peerstates.
-    pub gossiped_addr: HashSet<String>,
+    /// The mail recipient addresses for which gossip headers were applied
+    /// and their respective gossiped keys,
+    /// regardless of whether they modified any peerstates.
+    pub gossiped_keys: HashMap<String, SignedPublicKey>,
 
     /// True if the message is a forwarded message.
     pub is_forwarded: bool,
@@ -282,7 +283,7 @@ impl MimeMessage {
 
         // Memory location for a possible decrypted message.
         let mut mail_raw = Vec::new();
-        let mut gossiped_addr = Default::default();
+        let mut gossiped_keys = Default::default();
         let mut from_is_signed = false;
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
@@ -322,7 +323,7 @@ impl MimeMessage {
                 // but only if the mail was correctly signed. Probably it's ok to not require
                 // encryption here, but let's follow the standard.
                 let gossip_headers = mail.headers.get_all_values("Autocrypt-Gossip");
-                gossiped_addr = update_gossip_peerstates(
+                gossiped_keys = update_gossip_peerstates(
                     context,
                     message_time,
                     &from.addr,
@@ -413,7 +414,7 @@ impl MimeMessage {
 
             // only non-empty if it was a valid autocrypt message
             signatures,
-            gossiped_addr,
+            gossiped_keys,
             is_forwarded: false,
             mdn_reports: Vec::new(),
             is_system_message: SystemMessage::Unknown,
@@ -1728,9 +1729,9 @@ async fn update_gossip_peerstates(
     from: &str,
     recipients: &[SingleInfo],
     gossip_headers: Vec<String>,
-) -> Result<HashSet<String>> {
+) -> Result<HashMap<String, SignedPublicKey>> {
     // XXX split the parsing from the modification part
-    let mut gossiped_addr: HashSet<String> = Default::default();
+    let mut gossiped_keys: HashMap<String, SignedPublicKey> = Default::default();
 
     for value in &gossip_headers {
         let header = match value.parse::<Aheader>() {
@@ -1774,10 +1775,10 @@ async fn update_gossip_peerstates(
             .handle_fingerprint_change(context, message_time)
             .await?;
 
-        gossiped_addr.insert(header.addr.to_lowercase());
+        gossiped_keys.insert(header.addr.to_lowercase(), header.public_key);
     }
 
-    Ok(gossiped_addr)
+    Ok(gossiped_keys)
 }
 
 /// Message Disposition Notification (RFC 8098)

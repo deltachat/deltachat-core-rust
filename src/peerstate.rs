@@ -457,59 +457,44 @@ impl Peerstate {
         Ok(backward_verified)
     }
 
-    /// Set this peerstate to verified
-    /// Make sure to call `self.save_to_db` to save these changes
+    /// Set this peerstate to verified;
+    /// make sure to call `self.save_to_db` to save these changes.
+    ///
     /// Params:
-    /// verifier:
+    ///
+    /// * key: The new verified key.
+    /// * fingerprint: Only set to verified if the key's fingerprint matches this.
+    /// * verifier:
     ///   The address which introduces the given contact.
     ///   If we are verifying the contact, use that contacts address.
     pub fn set_verified(
         &mut self,
-        which_key: PeerstateKeyType,
+        key: SignedPublicKey,
         fingerprint: Fingerprint,
         verifier: String,
     ) -> Result<()> {
-        match which_key {
-            PeerstateKeyType::PublicKey => {
-                if self.public_key_fingerprint.is_some()
-                    && self.public_key_fingerprint.as_ref().unwrap() == &fingerprint
-                {
-                    self.verified_key = self.public_key.clone();
-                    self.verified_key_fingerprint = Some(fingerprint);
-                    self.verifier = Some(verifier);
-                    Ok(())
-                } else {
-                    Err(Error::msg(format!(
-                        "{fingerprint} is not peer's public key fingerprint",
-                    )))
-                }
-            }
-            PeerstateKeyType::GossipKey => {
-                if self.gossip_key_fingerprint.is_some()
-                    && self.gossip_key_fingerprint.as_ref().unwrap() == &fingerprint
-                {
-                    self.verified_key = self.gossip_key.clone();
-                    self.verified_key_fingerprint = Some(fingerprint);
-                    self.verifier = Some(verifier);
-                    Ok(())
-                } else {
-                    Err(Error::msg(format!(
-                        "{fingerprint} is not peer's gossip key fingerprint",
-                    )))
-                }
-            }
+        if key.fingerprint() == fingerprint {
+            self.verified_key = Some(key);
+            self.verified_key_fingerprint = Some(fingerprint);
+            self.verifier = Some(verifier);
+            Ok(())
+        } else {
+            Err(Error::msg(format!(
+                "{fingerprint} is not peer's key fingerprint",
+            )))
         }
     }
 
-    /// Sets current gossiped key as the secondary verified key.
+    /// Sets the gossiped key as the secondary verified key.
     ///
     /// If gossiped key is the same as the current verified key,
     /// do nothing to avoid overwriting secondary verified key
     /// which may be different.
-    pub fn set_secondary_verified_key_from_gossip(&mut self, verifier: String) {
-        if self.gossip_key_fingerprint != self.verified_key_fingerprint {
-            self.secondary_verified_key = self.gossip_key.clone();
-            self.secondary_verified_key_fingerprint = self.gossip_key_fingerprint.clone();
+    pub fn set_secondary_verified_key(&mut self, gossip_key: SignedPublicKey, verifier: String) {
+        let fingerprint = gossip_key.fingerprint();
+        if self.verified_key_fingerprint.as_ref() != Some(&fingerprint) {
+            self.secondary_verified_key = Some(gossip_key);
+            self.secondary_verified_key_fingerprint = Some(fingerprint);
             self.secondary_verifier = Some(verifier);
         }
     }

@@ -31,7 +31,7 @@ use crate::message::{
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
 use crate::param::{Param, Params};
-use crate::peerstate::{Peerstate, PeerstateKeyType};
+use crate::peerstate::Peerstate;
 use crate::reaction::{set_msg_reaction, Reaction};
 use crate::securejoin::{self, handle_securejoin_handshake, observe_securejoin_on_other_device};
 use crate::simplify;
@@ -440,7 +440,7 @@ pub(crate) async fn receive_imf_inner(
         && mime_parser
             .recipients
             .iter()
-            .all(|recipient| mime_parser.gossiped_addr.contains(&recipient.addr))
+            .all(|recipient| mime_parser.gossiped_keys.contains_key(&recipient.addr))
     {
         info!(
             context,
@@ -2572,7 +2572,7 @@ async fn mark_recipients_as_verified(
 
     for (to_addr, is_verified) in rows {
         // mark gossiped keys (if any) as verified
-        if mimeparser.gossiped_addr.contains(&to_addr.to_lowercase()) {
+        if let Some(gossiped_key) = mimeparser.gossiped_keys.get(&to_addr.to_lowercase()) {
             if let Some(mut peerstate) = Peerstate::from_addr(context, &to_addr).await? {
                 // If we're here, we know the gossip key is verified.
                 //
@@ -2587,7 +2587,7 @@ async fn mark_recipients_as_verified(
                 if !is_verified {
                     info!(context, "{verifier_addr} has verified {to_addr}.");
                     if let Some(fp) = peerstate.gossip_key_fingerprint.clone() {
-                        peerstate.set_verified(PeerstateKeyType::GossipKey, fp, verifier_addr)?;
+                        peerstate.set_verified(gossiped_key.clone(), fp, verifier_addr)?;
                         peerstate.backward_verified_key_id =
                             Some(context.get_config_i64(Config::KeyId).await?).filter(|&id| id > 0);
                         peerstate.save_to_db(&context.sql).await?;
@@ -2609,7 +2609,7 @@ async fn mark_recipients_as_verified(
                 } else {
                     // The contact already has a verified key.
                     // Store gossiped key as the secondary verified key.
-                    peerstate.set_secondary_verified_key_from_gossip(verifier_addr);
+                    peerstate.set_secondary_verified_key(gossiped_key.clone(), verifier_addr);
                     peerstate.save_to_db(&context.sql).await?;
                 }
             }
