@@ -1460,6 +1460,7 @@ mod tests {
             "mail_security",
             "notify_about_wrong_pw",
             "save_mime_headers",
+            "self_reporting_id",
             "selfstatus",
             "send_server",
             "send_user",
@@ -1776,7 +1777,7 @@ mod tests {
         assert!(draft.text.starts_with("core_version"));
 
         // Test that sending into the protected chat works:
-        let sent = alice.send_msg(chat_id, &mut draft).await;
+        let _sent = alice.send_msg(chat_id, &mut draft).await;
 
         Ok(())
     }
