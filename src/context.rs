@@ -18,7 +18,7 @@ use crate::aheader::EncryptPreference;
 use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
 use crate::config::Config;
 use crate::constants::{
-    DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
+    self, DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
 };
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
@@ -672,7 +672,7 @@ impl Context {
         let only_fetch_mvbox = self.get_config_int(Config::OnlyFetchMvbox).await?;
         let folders_configured = self
             .sql
-            .get_raw_config_int("folders_configured")
+            .get_raw_config_int(constants::DC_FOLDERS_CONFIGURED_KEY)
             .await?
             .unwrap_or_default();
 
@@ -764,7 +764,10 @@ impl Context {
         res.insert("sentbox_watch", sentbox_watch.to_string());
         res.insert("mvbox_move", mvbox_move.to_string());
         res.insert("only_fetch_mvbox", only_fetch_mvbox.to_string());
-        res.insert("folders_configured", folders_configured.to_string());
+        res.insert(
+            constants::DC_FOLDERS_CONFIGURED_KEY,
+            folders_configured.to_string(),
+        );
         res.insert("configured_inbox_folder", configured_inbox_folder);
         res.insert("configured_sentbox_folder", configured_sentbox_folder);
         res.insert("configured_mvbox_folder", configured_mvbox_folder);

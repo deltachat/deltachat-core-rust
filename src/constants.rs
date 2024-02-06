@@ -206,6 +206,8 @@ pub(crate) const WORSE_AVATAR_SIZE: u32 = 128;
 pub const BALANCED_IMAGE_SIZE: u32 = 1280;
 pub const WORSE_IMAGE_SIZE: u32 = 640;
 
+// Key for the folder configuration version (see below).
+pub(crate) const DC_FOLDERS_CONFIGURED_KEY: &str = "folders_configured";
 // this value can be increased if the folder configuration is changed and must be redone on next program start
 pub(crate) const DC_FOLDERS_CONFIGURED_VERSION: i32 = 4;
 

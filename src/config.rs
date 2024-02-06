@@ -10,7 +10,7 @@ use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
 use crate::blob::BlobObject;
-use crate::constants::DC_VERSION_STR;
+use crate::constants::{self, DC_VERSION_STR};
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::events::EventType;
@@ -594,6 +594,12 @@ impl Context {
             Config::Addr => {
                 self.sql
                     .set_raw_config(key.as_ref(), value.map(|s| s.to_lowercase()).as_deref())
+                    .await?;
+            }
+            Config::MvboxMove => {
+                self.sql.set_raw_config(key.as_ref(), value).await?;
+                self.sql
+                    .set_raw_config(constants::DC_FOLDERS_CONFIGURED_KEY, None)
                     .await?;
             }
             _ => {

@@ -22,9 +22,7 @@ use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
-use crate::constants::{
-    Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT, DC_FOLDERS_CONFIGURED_VERSION,
-};
+use crate::constants::{self, Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT};
 use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -1767,11 +1765,17 @@ impl Imap {
         context: &Context,
         create_mvbox: bool,
     ) -> Result<()> {
-        let folders_configured = context.sql.get_raw_config_int("folders_configured").await?;
-        if folders_configured.unwrap_or_default() >= DC_FOLDERS_CONFIGURED_VERSION {
+        let folders_configured = context
+            .sql
+            .get_raw_config_int(constants::DC_FOLDERS_CONFIGURED_KEY)
+            .await?;
+        if folders_configured.unwrap_or_default() >= constants::DC_FOLDERS_CONFIGURED_VERSION {
             return Ok(());
         }
-
+        if let Err(err) = self.connect(context).await {
+            self.connectivity.set_err(context, &err).await;
+            return Err(err);
+        }
         self.configure_folders(context, create_mvbox).await
     }
 
@@ -1893,7 +1897,10 @@ impl Imap {
         }
         context
             .sql
-            .set_raw_config_int("folders_configured", DC_FOLDERS_CONFIGURED_VERSION)
+            .set_raw_config_int(
+                constants::DC_FOLDERS_CONFIGURED_KEY,
+                constants::DC_FOLDERS_CONFIGURED_VERSION,
+            )
             .await?;
 
         info!(context, "FINISHED configuring IMAP-folders.");

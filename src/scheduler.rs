@@ -521,6 +521,20 @@ pub async fn convert_folder_meaning(
 /// critical operation fails such as fetching new messages fails, connection is reset via
 /// `trigger_reconnect`, so a fresh one can be opened.
 async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: FolderMeaning) {
+    let create_mvbox = true;
+    if let Err(err) = connection
+        .ensure_configured_folders(ctx, create_mvbox)
+        .await
+    {
+        warn!(
+            ctx,
+            "Cannot watch {folder_meaning}, ensure_configured_folders() failed: {:#}", err,
+        );
+        connection
+            .fake_idle(ctx, None, FolderMeaning::Unknown)
+            .await;
+        return;
+    }
     let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
         Ok(meaning) => meaning,
         Err(error) => {
