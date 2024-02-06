@@ -27,7 +27,7 @@ use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
-use crate::peerstate::{Peerstate, PeerstateKeyType};
+use crate::peerstate::Peerstate;
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
@@ -934,11 +934,8 @@ impl Context {
             EncryptPreference::Mutual,
             &public_key,
         );
-        peerstate.set_verified(
-            PeerstateKeyType::PublicKey,
-            public_key.fingerprint(),
-            "".to_string(),
-        )?;
+        let fingerprint = public_key.fingerprint();
+        peerstate.set_verified(public_key, fingerprint, "".to_string())?;
         peerstate.save_to_db(&self.sql).await?;
         chat_id
             .set_protection(self, ProtectionStatus::Protected, time(), Some(contact_id))
