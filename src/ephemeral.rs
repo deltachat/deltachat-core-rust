@@ -590,7 +590,11 @@ pub(crate) async fn delete_expired_imap_messages(context: &Context) -> Result<()
         match context.get_config_delete_server_after().await? {
             None => (0, 0),
             Some(delete_server_after) => (
-                now - delete_server_after,
+                match delete_server_after {
+                    // Guarantee immediate deletion.
+                    0 => i64::MAX,
+                    _ => now - delete_server_after,
+                },
                 now - max(delete_server_after, MIN_DELETE_SERVER_AFTER),
             ),
         };
