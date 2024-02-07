@@ -10,25 +10,30 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, ensure, Context as _, Result};
 use async_channel::{self as channel, Receiver, Sender};
+use pgp::SignedPublicKey;
 use ratelimit::Ratelimit;
 use tokio::sync::{Mutex, Notify, RwLock};
 
-use crate::chat::{get_chat_cnt, ChatId};
+use crate::aheader::EncryptPreference;
+use crate::chat::{get_chat_cnt, ChatId, ProtectionStatus};
 use crate::config::Config;
-use crate::constants::{DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_VERSION_STR};
+use crate::constants::{
+    DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
+};
 use crate::contact::Contact;
 use crate::debug_logging::DebugLogging;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
-use crate::key::{load_self_public_key, DcKey as _};
+use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
-use crate::message::{self, MessageState, MsgId};
+use crate::message::{self, Message, MessageState, MsgId, Viewtype};
+use crate::peerstate::Peerstate;
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
-use crate::tools::{duration_to_str, time};
+use crate::tools::{create_id, duration_to_str, time};
 
 /// Builder for the [`Context`].
 ///
@@ -859,6 +864,91 @@ impl Context {
         Ok(res)
     }
 
+    async fn get_self_report(&self) -> Result<String> {
+        let mut res = String::new();
+        res += &format!("core_version {}\n", get_version_str());
+
+        let num_msgs: u32 = self
+            .sql
+            .query_get_value(
+                "SELECT COUNT(*) FROM msgs WHERE hidden=0 AND chat_id!=?",
+                (DC_CHAT_ID_TRASH,),
+            )
+            .await?
+            .unwrap_or_default();
+        res += &format!("num_msgs {}\n", num_msgs);
+
+        let num_chats: u32 = self
+            .sql
+            .query_get_value("SELECT COUNT(*) FROM chats WHERE id>9 AND blocked!=1", ())
+            .await?
+            .unwrap_or_default();
+        res += &format!("num_chats {}\n", num_chats);
+
+        let db_size = tokio::fs::metadata(&self.sql.dbfile).await?.len();
+        res += &format!("db_size_bytes {}\n", db_size);
+
+        let secret_key = &load_self_secret_key(self).await?.primary_key;
+        let key_created = secret_key.created_at().timestamp();
+        res += &format!("key_created {}\n", key_created);
+
+        let self_reporting_id = match self.get_config(Config::SelfReportingId).await? {
+            Some(id) => id,
+            None => {
+                let id = create_id();
+                self.set_config(Config::SelfReportingId, Some(&id)).await?;
+                id
+            }
+        };
+        res += &format!("self_reporting_id {}", self_reporting_id);
+
+        Ok(res)
+    }
+
+    /// Drafts a message with statistics about the usage of Delta Chat.
+    /// The user can inspect the message if they want, and then hit "Send".
+    ///
+    /// On the other end, a bot will receive the message and make it available
+    /// to Delta Chat's developers.
+    pub async fn draft_self_report(&self) -> Result<ChatId> {
+        const SELF_REPORTING_BOT: &str = "self_reporting@testrun.org";
+
+        let contact_id = Contact::create(self, "Statistics bot", SELF_REPORTING_BOT).await?;
+        let chat_id = ChatId::create_for_contact(self, contact_id).await?;
+
+        // We're including the bot's public key in Delta Chat
+        // so that the first message to the bot can directly be encrypted:
+        let public_key = SignedPublicKey::from_base64(
+            "xjMEZbfBlBYJKwYBBAHaRw8BAQdABpLWS2PUIGGo4pslVt4R8sylP5wZihmhf1DTDr3oCM\
+	        PNHDxzZWxmX3JlcG9ydGluZ0B0ZXN0cnVuLm9yZz7CiwQQFggAMwIZAQUCZbfBlAIbAwQLCQgHBhUI\
+	        CQoLAgMWAgEWIQTS2i16sHeYTckGn284K3M5Z4oohAAKCRA4K3M5Z4oohD8dAQCQV7CoH6UP4PD+Nq\
+	        I4kW5tbbqdh2AnDROg60qotmLExAEAxDfd3QHAK9f8b9qQUbLmHIztCLxhEuVbWPBEYeVW0gvOOARl\
+	        t8GUEgorBgEEAZdVAQUBAQdAMBUhYoAAcI625vGZqnM5maPX4sGJ7qvJxPAFILPy6AcDAQgHwngEGB\
+	        YIACAFAmW3wZQCGwwWIQTS2i16sHeYTckGn284K3M5Z4oohAAKCRA4K3M5Z4oohPwCAQCvzk1ObIkj\
+	        2GqsuIfaULlgdnfdZY8LNary425CEfHZDQD5AblXVrlMO1frdlc/Vo9z3pEeCrfYdD7ITD3/OeVoiQ\
+	        4=",
+        )?;
+        let mut peerstate = Peerstate::from_public_key(
+            SELF_REPORTING_BOT,
+            0,
+            EncryptPreference::Mutual,
+            &public_key,
+        );
+        let fingerprint = public_key.fingerprint();
+        peerstate.set_verified(public_key, fingerprint, "".to_string())?;
+        peerstate.save_to_db(&self.sql).await?;
+        chat_id
+            .set_protection(self, ProtectionStatus::Protected, time(), Some(contact_id))
+            .await?;
+
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = self.get_self_report().await?;
+
+        chat_id.set_draft(self, Some(&mut msg)).await?;
+
+        Ok(chat_id)
+    }
+
     /// Get a list of fresh, unmuted messages in unblocked chats.
     ///
     /// The list starts with the most recent message
@@ -1129,8 +1219,9 @@ mod tests {
     use crate::constants::Chattype;
     use crate::contact::ContactId;
     use crate::message::{Message, Viewtype};
+    use crate::mimeparser::SystemMessage;
     use crate::receive_imf::receive_imf;
-    use crate::test_utils::TestContext;
+    use crate::test_utils::{get_chat_msg, TestContext};
     use crate::tools::create_outgoing_rfc724_mid;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1369,6 +1460,7 @@ mod tests {
             "mail_security",
             "notify_about_wrong_pw",
             "save_mime_headers",
+            "self_reporting_id",
             "selfstatus",
             "send_server",
             "send_user",
@@ -1666,6 +1758,26 @@ mod tests {
             .set_config_u32(Config::LastMsgId, sent_msg.sender_msg_id.to_u32())
             .await?;
         assert!(alice.get_next_msgs().await?.is_empty());
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_draft_self_report() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let chat_id = alice.draft_self_report().await?;
+        let msg = get_chat_msg(&alice, chat_id, 0, 1).await;
+        assert_eq!(msg.get_info_type(), SystemMessage::ChatProtectionEnabled);
+
+        let chat = Chat::load_from_db(&alice, chat_id).await?;
+        assert!(chat.is_protected());
+
+        let mut draft = chat_id.get_draft(&alice).await?.unwrap();
+        assert!(draft.text.starts_with("core_version"));
+
+        // Test that sending into the protected chat works:
+        let _sent = alice.send_msg(chat_id, &mut draft).await;
 
         Ok(())
     }
