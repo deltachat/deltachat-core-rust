@@ -1131,6 +1131,7 @@ mod tests {
             (1030, now - 19 * HOUR, 0),
             (2000, now - 18 * HOUR, now - HOUR),
             (2020, now - 17 * HOUR, now + HOUR),
+            (3000, now + HOUR, 0),
         ] {
             let message_id = id.to_string();
             t.sql
@@ -1215,6 +1216,10 @@ mod tests {
                 .await?,
             0
         );
+
+        t.set_config(Config::DeleteServerAfter, Some("1")).await?;
+        delete_expired_imap_messages(&t).await?;
+        test_marked_for_deletion(&t, 3000).await?;
 
         Ok(())
     }
