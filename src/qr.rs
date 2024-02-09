@@ -383,7 +383,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
                 .await
                 .with_context(|| format!("can't check if address {addr:?} is our address"))?
             {
-                if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
+                if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await? {
                     Ok(Qr::WithdrawVerifyGroup {
                         grpname,
                         grpid,
@@ -413,7 +413,7 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
                 })
             }
         } else if context.is_self_addr(&addr).await? {
-            if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await {
+            if token::exists(context, token::Namespace::InviteNumber, &invitenumber).await? {
                 Ok(Qr::WithdrawVerifyContact {
                     contact_id,
                     fingerprint,
