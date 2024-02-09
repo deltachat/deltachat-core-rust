@@ -236,6 +236,7 @@ pub async fn pk_encrypt(
     plain: &[u8],
     public_keys_for_encryption: Vec<SignedPublicKey>,
     private_key_for_signing: Option<SignedSecretKey>,
+    compress: bool,
 ) -> Result<String> {
     let lit_msg = Message::new_literal_bytes("", plain);
 
@@ -249,20 +250,19 @@ pub async fn pk_encrypt(
 
             let mut rng = thread_rng();
 
-            // TODO: measure time
             let encrypted_msg = if let Some(ref skey) = private_key_for_signing {
-                lit_msg
-                    .sign(skey, || "".into(), HASH_ALGORITHM)
-                    .and_then(|msg| msg.compress(CompressionAlgorithm::ZLIB))
-                    .and_then(|msg| {
-                        msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
-                    })
+                let signed_msg = lit_msg.sign(skey, || "".into(), HASH_ALGORITHM)?;
+                let compressed_msg = if compress {
+                    signed_msg.compress(CompressionAlgorithm::ZLIB)?
+                } else {
+                    signed_msg
+                };
+                compressed_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
             } else {
-                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)
+                lit_msg.encrypt_to_keys(&mut rng, SYMMETRIC_KEY_ALGORITHM, &pkeys_refs)?
             };
 
-            let msg = encrypted_msg?;
-            let encoded_msg = msg.to_armored_string(None)?;
+            let encoded_msg = encrypted_msg.to_armored_string(None)?;
 
             Ok(encoded_msg)
         })
@@ -484,10 +484,16 @@ mod tests {
         CTEXT_SIGNED
             .get_or_init(|| async {
                 let keyring = vec![KEYS.alice_public.clone(), KEYS.bob_public.clone()];
+                let compress = true;
 
-                pk_encrypt(CLEARTEXT, keyring, Some(KEYS.alice_secret.clone()))
-                    .await
-                    .unwrap()
+                pk_encrypt(
+                    CLEARTEXT,
+                    keyring,
+                    Some(KEYS.alice_secret.clone()),
+                    compress,
+                )
+                .await
+                .unwrap()
             })
             .await
     }
@@ -497,7 +503,11 @@ mod tests {
         CTEXT_UNSIGNED
             .get_or_init(|| async {
                 let keyring = vec![KEYS.alice_public.clone(), KEYS.bob_public.clone()];
-                pk_encrypt(CLEARTEXT, keyring, None).await.unwrap()
+                let compress = true;
+
+                pk_encrypt(CLEARTEXT, keyring, None, compress)
+                    .await
+                    .unwrap()
             })
             .await
     }

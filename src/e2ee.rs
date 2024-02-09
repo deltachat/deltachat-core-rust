@@ -95,6 +95,7 @@ impl EncryptHelper {
         verified: bool,
         mail_to_encrypt: lettre_email::PartBuilder,
         peerstates: Vec<(Option<Peerstate>, String)>,
+        compress: bool,
     ) -> Result<String> {
         let mut keyring: Vec<SignedPublicKey> = Vec::new();
 
@@ -135,7 +136,7 @@ impl EncryptHelper {
 
         let raw_message = mail_to_encrypt.build().as_string().into_bytes();
 
-        let ctext = pgp::pk_encrypt(&raw_message, keyring, Some(sign_key)).await?;
+        let ctext = pgp::pk_encrypt(&raw_message, keyring, Some(sign_key), compress).await?;
 
         Ok(ctext)
     }

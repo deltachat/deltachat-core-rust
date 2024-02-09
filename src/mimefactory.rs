@@ -734,8 +734,12 @@ impl<'a> MimeFactory<'a> {
                 );
             }
 
+            // Disable compression for SecureJoin to ensure
+            // there are no compression side channels
+            // leaking information about the tokens.
+            let compress = self.msg.param.get_cmd() != SystemMessage::SecurejoinMessage;
             let encrypted = encrypt_helper
-                .encrypt(context, verified, message, peerstates)
+                .encrypt(context, verified, message, peerstates, compress)
                 .await?;
 
             outer_message
