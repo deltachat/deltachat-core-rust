@@ -1388,6 +1388,13 @@ impl MimeMessage {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
         headers.remove("autocrypt-gossip");
+
+        // Secure-Join is secured unless it is an initial "vc-request"/"vg-request".
+        if let Some(secure_join) = headers.remove("secure-join") {
+            if secure_join == "vc-request" || secure_join == "vg-request" {
+                headers.insert("secure-join".to_string(), secure_join);
+            }
+        }
     }
 
     fn merge_headers(
@@ -1812,6 +1819,8 @@ pub(crate) fn parse_message_id(ids: &str) -> Result<String> {
     }
 }
 
+/// Returns true if the header overwrites outer header
+/// when it comes from protected headers.
 fn is_known(key: &str) -> bool {
     matches!(
         key,
@@ -1827,6 +1836,7 @@ fn is_known(key: &str) -> bool {
             | "in-reply-to"
             | "references"
             | "subject"
+            | "secure-join"
     )
 }
 
