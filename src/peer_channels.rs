@@ -22,7 +22,7 @@ impl Context {
         if self.endpoint.lock().await.is_some() {
             warn!(
                 self,
-                "Tried to create gossip even tough there still exists an instance"
+                "Tried to create endpoint even though there is already one."
             );
             return Ok(());
         }

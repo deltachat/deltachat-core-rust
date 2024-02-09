@@ -501,6 +501,11 @@ impl Context {
         if send_now {
             if let Some(ref topic) = status_update.gossip_topic {
                 // find out if any row with `topic = topic` exists in the gossip_peers table
+
+                let topic = TopicId::from_str(&iroh_base::base32::fmt(
+                    topic.get(0..32).context("Can't get 32 bytes from topic")?,
+                ))?;
+
                 let topic_exists = self
                     .sql
                     .query_row_optional(
@@ -511,10 +516,6 @@ impl Context {
                     .await
                     .context("Failed to check if gossip topic exists")?
                     .is_some();
-
-                let topic = TopicId::from_str(&iroh_base::base32::fmt(
-                    topic.get(0..32).context("Can't get 32 bytes from topic")?,
-                ))?;
 
                 if !topic_exists {
                     info!(
@@ -531,9 +532,9 @@ impl Context {
                         .await
                         .unwrap()
                         .node_id;
-                    self.join_and_subscribe_topic(topic, instance_msg_id)
-                        .await?;
                     self.add_peer_for_topic(instance_msg_id, topic, node_id)
+                        .await?;
+                    self.join_and_subscribe_topic(topic, instance_msg_id)
                         .await?;
                     ephemeral = false;
                 } else {
