@@ -1387,6 +1387,7 @@ impl MimeMessage {
     fn remove_secured_headers(headers: &mut HashMap<String, String>) {
         headers.remove("secure-join-fingerprint");
         headers.remove("chat-verified");
+        headers.remove("autocrypt-gossip");
     }
 
     fn merge_headers(
