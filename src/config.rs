@@ -564,11 +564,12 @@ impl Context {
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
         }
-
+        if key.is_synced() {
+            self.emit_event(EventType::ConfigSynced { key });
+        }
         if sync != Sync {
             return Ok(());
         }
-        self.emit_event(EventType::ConfigSynced { key });
         let Some(val) = value else {
             return Ok(());
         };
@@ -872,42 +873,9 @@ mod tests {
         // versions.
         alice0.set_config(Config::MdnsEnabled, None).await?;
         assert_eq!(alice0.get_config_bool(Config::MdnsEnabled).await?, true);
-        alice0
-            .evtracker
-            .get_matching(|e| {
-                matches!(
-                    e,
-                    EventType::ConfigSynced {
-                        key: Config::MdnsEnabled
-                    }
-                )
-            })
-            .await;
         alice0.set_config_bool(Config::MdnsEnabled, false).await?;
-        alice0
-            .evtracker
-            .get_matching(|e| {
-                matches!(
-                    e,
-                    EventType::ConfigSynced {
-                        key: Config::MdnsEnabled
-                    }
-                )
-            })
-            .await;
         sync(&alice0, &alice1).await;
         assert_eq!(alice1.get_config_bool(Config::MdnsEnabled).await?, false);
-        alice1
-            .evtracker
-            .get_matching(|e| {
-                matches!(
-                    e,
-                    EventType::ConfigSynced {
-                        key: Config::MdnsEnabled
-                    }
-                )
-            })
-            .await;
 
         let show_emails = alice0.get_config_bool(Config::ShowEmails).await?;
         alice0
@@ -935,6 +903,61 @@ mod tests {
             alice1.get_config(Config::Displayname).await?,
             Some("Alice Sync".to_string())
         );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_event_config_synced() -> Result<()> {
+        let alice0 = TestContext::new_alice().await;
+        let alice1 = TestContext::new_alice().await;
+        for a in [&alice0, &alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+
+        alice0
+            .set_config(Config::Displayname, Some("Alice Sync"))
+            .await?;
+        alice0
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::Displayname
+                    }
+                )
+            })
+            .await;
+        sync(&alice0, &alice1).await;
+        assert_eq!(
+            alice1.get_config(Config::Displayname).await?,
+            Some("Alice Sync".to_string())
+        );
+        alice1
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::Displayname
+                    }
+                )
+            })
+            .await;
+
+        alice0.set_config(Config::Displayname, None).await?;
+        alice0
+            .evtracker
+            .get_matching(|e| {
+                matches!(
+                    e,
+                    EventType::ConfigSynced {
+                        key: Config::Displayname
+                    }
+                )
+            })
+            .await;
 
         Ok(())
     }
