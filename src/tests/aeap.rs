@@ -177,7 +177,7 @@ async fn check_aeap_transition(
 
     // Already add the new contact to one of the groups.
     // We can then later check that the contact isn't in the group twice.
-    let already_new_contact = Contact::create(&bob, "Alice", "fiona@example.net")
+    let already_new_contact = Contact::create(&bob, "Alice", ALICE_NEW_ADDR)
         .await
         .unwrap();
     if verified {
@@ -282,7 +282,10 @@ async fn check_that_transition_worked(
             new_contact,
             ContactId::SELF
         );
-        assert!(members.contains(&new_contact));
+        assert!(
+            members.contains(&new_contact),
+            "Group {group} lacks {new_contact}"
+        );
         assert!(members.contains(&ContactId::SELF));
 
         let info_msg = get_last_info_msg(bob, *group).await.unwrap();
