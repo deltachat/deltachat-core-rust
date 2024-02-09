@@ -74,6 +74,11 @@ pub enum HeaderDef {
     Autocrypt,
     AutocryptSetupMessage,
     SecureJoin,
+
+    /// Deprecated header containing Group-ID in `vg-request-with-auth` message.
+    ///
+    /// It is not used by Alice as Alice knows the group corresponding to the AUTH token.
+    /// Bob still sends it for backwards compatibility.
     SecureJoinGroup,
     SecureJoinFingerprint,
     SecureJoinInvitenumber,

@@ -398,7 +398,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             };
-            if !token::exists(context, token::Namespace::Auth, auth).await? {
+            let Some(group_chat_id) = token::auth_chat_id(context, auth).await? else {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,
@@ -407,7 +407,8 @@ pub(crate) async fn handle_securejoin_handshake(
                 )
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
-            }
+            };
+
             let contact_addr = Contact::get_by_id(context, contact_id)
                 .await?
                 .get_addr()
@@ -435,41 +436,8 @@ pub(crate) async fn handle_securejoin_handshake(
             info!(context, "Auth verified.",);
             context.emit_event(EventType::ContactsChanged(Some(contact_id)));
             inviter_progress(context, contact_id, 600);
-            if join_vg {
-                // the vg-member-added message is special:
-                // this is a normal Chat-Group-Member-Added message
-                // with an additional Secure-Join header
-                let field_grpid = match mime_message.get_header(HeaderDef::SecureJoinGroup) {
-                    Some(s) => s.as_str(),
-                    None => {
-                        warn!(context, "Missing Secure-Join-Group header");
-                        return Ok(HandshakeMessage::Ignore);
-                    }
-                };
-                match chat::get_chat_id_by_grpid(context, field_grpid).await? {
-                    Some((group_chat_id, _, _)) => {
-                        secure_connection_established(
-                            context,
-                            contact_id,
-                            group_chat_id,
-                            mime_message.timestamp_sent,
-                        )
-                        .await?;
-                        chat::add_contact_to_chat_ex(
-                            context,
-                            Nosync,
-                            group_chat_id,
-                            contact_id,
-                            true,
-                        )
-                        .await?;
-                    }
-                    None => bail!("Chat {} not found", &field_grpid),
-                }
-                inviter_progress(context, contact_id, 800);
-                inviter_progress(context, contact_id, 1000);
-            } else {
-                // Alice -> Bob
+            if group_chat_id.is_unset() {
+                // Setup verified contact.
                 secure_connection_established(
                     context,
                     contact_id,
@@ -481,6 +449,19 @@ pub(crate) async fn handle_securejoin_handshake(
                     .await
                     .context("failed sending vc-contact-confirm message")?;
 
+                inviter_progress(context, contact_id, 1000);
+            } else {
+                // Join group.
+                secure_connection_established(
+                    context,
+                    contact_id,
+                    group_chat_id,
+                    mime_message.timestamp_sent,
+                )
+                .await?;
+                chat::add_contact_to_chat_ex(context, Nosync, group_chat_id, contact_id, true)
+                    .await?;
+                inviter_progress(context, contact_id, 800);
                 inviter_progress(context, contact_id, 1000);
             }
             Ok(HandshakeMessage::Ignore) // "Done" would delete the message and break multi-device (the key from Autocrypt-header is needed)

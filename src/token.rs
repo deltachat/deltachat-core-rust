@@ -114,6 +114,25 @@ pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> Res
     Ok(exists)
 }
 
+/// Looks up ChatId by auth token.
+///
+/// Returns None if auth token is not valid.
+/// Returns zero/unset ChatId if the token corresponds to "setup contact" rather than group join.
+pub async fn auth_chat_id(context: &Context, token: &str) -> Result<Option<ChatId>> {
+    let chat_id: Option<ChatId> = context
+        .sql
+        .query_row_optional(
+            "SELECT foreign_id FROM tokens WHERE namespc=? AND token=?",
+            (Namespace::Auth, token),
+            |row| {
+                let chat_id: ChatId = row.get(0)?;
+                Ok(chat_id)
+            },
+        )
+        .await?;
+    Ok(chat_id)
+}
+
 pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Result<()> {
     context
         .sql
