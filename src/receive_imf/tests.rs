@@ -12,6 +12,7 @@ use crate::config::Config;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
 use crate::download::{DownloadState, MIN_DOWNLOAD_LIMIT};
 use crate::imap::prefetch_should_download;
+use crate::imex::{imex, ImexMode};
 use crate::message::{self, Message};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
@@ -4012,6 +4013,37 @@ async fn test_download_later() -> Result<()> {
     assert_eq!(msg.state, MessageState::InFresh);
     assert_eq!(alice.get_last_msg_in(msg.chat_id).await.id, hi_msg.id);
     assert!(msg.timestamp_sort <= hi_msg.timestamp_sort);
+
+    Ok(())
+}
+
+/// Malice can pretend they have the same address as Alice and sends a message encrypted to Alice's
+/// key but signed with another one. Alice must detect that this message is wrongly signed and not
+/// treat it as Autocrypt-encrypted.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_outgoing_msg_forgery() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let export_dir = tempfile::tempdir().unwrap();
+    let alice = &tcm.alice().await;
+    let alice_addr = &alice.get_config(Config::Addr).await?.unwrap();
+    imex(alice, ImexMode::ExportSelfKeys, export_dir.path(), None).await?;
+    // We need Bob only to encrypt the forged message to Alice's key, actually Bob doesn't
+    // participate in the scenario.
+    let bob = &TestContext::new().await;
+    bob.configure_addr("bob@example.net").await;
+    imex(bob, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
+    let malice = &TestContext::new().await;
+    malice.configure_addr(alice_addr).await;
+
+    let malice_chat_id = tcm
+        .send_recv_accept(bob, malice, "hi from bob")
+        .await
+        .chat_id;
+
+    let sent_msg = malice.send_text(malice_chat_id, "hi from malice").await;
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert_eq!(msg.state, MessageState::OutDelivered);
+    assert!(!msg.get_showpadlock());
 
     Ok(())
 }
