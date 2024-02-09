@@ -314,7 +314,7 @@ pub(crate) async fn handle_securejoin_handshake(
                     return Ok(HandshakeMessage::Ignore);
                 }
             };
-            if !token::exists(context, token::Namespace::InviteNumber, invitenumber).await {
+            if !token::exists(context, token::Namespace::InviteNumber, invitenumber).await? {
                 warn!(context, "Secure-join denied (bad invitenumber).");
                 return Ok(HandshakeMessage::Ignore);
             }
@@ -398,7 +398,7 @@ pub(crate) async fn handle_securejoin_handshake(
                 .await?;
                 return Ok(HandshakeMessage::Ignore);
             };
-            if !token::exists(context, token::Namespace::Auth, auth).await {
+            if !token::exists(context, token::Namespace::Auth, auth).await? {
                 could_not_establish_secure_connection(
                     context,
                     contact_id,

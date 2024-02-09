@@ -514,7 +514,7 @@ mod tests {
     async fn test_execute_sync_items() -> Result<()> {
         let t = TestContext::new_alice().await;
 
-        assert!(!token::exists(&t, Namespace::Auth, "yip-auth").await);
+        assert!(!token::exists(&t, Namespace::Auth, "yip-auth").await?);
 
         let sync_items = t
             .parse_sync_items(
@@ -537,10 +537,10 @@ mod tests {
                 .await?
                 .is_none()
         );
-        assert!(token::exists(&t, Namespace::InviteNumber, "yip-in").await);
-        assert!(token::exists(&t, Namespace::Auth, "yip-auth").await);
-        assert!(!token::exists(&t, Namespace::Auth, "non-existent").await);
-        assert!(!token::exists(&t, Namespace::Auth, "directly deleted").await);
+        assert!(token::exists(&t, Namespace::InviteNumber, "yip-in").await?);
+        assert!(token::exists(&t, Namespace::Auth, "yip-auth").await?);
+        assert!(!token::exists(&t, Namespace::Auth, "non-existent").await?);
+        assert!(!token::exists(&t, Namespace::Auth, "directly deleted").await?);
 
         Ok(())
     }
@@ -577,13 +577,13 @@ mod tests {
         let alice2 = TestContext::new_alice().await;
         alice2.set_config_bool(Config::SyncMsgs, true).await?;
         alice2.recv_msg(&sent_msg).await;
-        assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await);
+        assert!(token::exists(&alice2, token::Namespace::Auth, "testtoken").await?);
         assert_eq!(Chatlist::try_load(&alice2, 0, None, None).await?.len(), 0);
 
         // the same sync message sent to bob must not be executed
         let bob = TestContext::new_bob().await;
         bob.recv_msg(&sent_msg).await;
-        assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await);
+        assert!(!token::exists(&bob, token::Namespace::Auth, "testtoken").await?);
 
         Ok(())
     }

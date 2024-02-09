@@ -103,15 +103,15 @@ pub async fn lookup_or_new(
     token
 }
 
-pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> bool {
-    context
+pub async fn exists(context: &Context, namespace: Namespace, token: &str) -> Result<bool> {
+    let exists = context
         .sql
         .exists(
             "SELECT COUNT(*) FROM tokens WHERE namespc=? AND token=?;",
             (namespace, token),
         )
-        .await
-        .unwrap_or_default()
+        .await?;
+    Ok(exists)
 }
 
 pub async fn delete(context: &Context, namespace: Namespace, token: &str) -> Result<()> {
