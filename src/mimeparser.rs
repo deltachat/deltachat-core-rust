@@ -275,6 +275,18 @@ impl MimeMessage {
             }
         }
 
+        // Overwrite Message-ID with X-Microsoft-Original-Message-ID.
+        // However if we later find Message-ID in the protected part,
+        // it will overwrite both.
+        if let Some(microsoft_message_id) =
+            headers.remove(HeaderDef::XMicrosoftOriginalMessageId.get_headername())
+        {
+            headers.insert(
+                HeaderDef::MessageId.get_headername().to_string(),
+                microsoft_message_id,
+            );
+        }
+
         // Remove headers that are allowed _only_ in the encrypted+signed part. It's ok to leave
         // them in signed-only emails, but has no value currently.
         Self::remove_secured_headers(&mut headers);
@@ -1379,8 +1391,7 @@ impl MimeMessage {
     }
 
     pub(crate) fn get_rfc724_mid(&self) -> Option<String> {
-        self.get_header(HeaderDef::XMicrosoftOriginalMessageId)
-            .or_else(|| self.get_header(HeaderDef::MessageId))
+        self.get_header(HeaderDef::MessageId)
             .and_then(|msgid| parse_message_id(msgid).ok())
     }
 
