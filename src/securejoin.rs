@@ -759,11 +759,13 @@ mod tests {
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::contact::ContactAddress;
+    use crate::imex::{imex, ImexMode};
     use crate::receive_imf::receive_imf;
     use crate::stock_str::chat_protection_enabled;
     use crate::test_utils::get_chat_msg;
     use crate::test_utils::{TestContext, TestContextManager};
     use crate::tools::{EmailAddress, SystemTime};
+    use std::collections::HashSet;
     use std::time::Duration;
 
     #[derive(PartialEq)]
@@ -1429,5 +1431,56 @@ First thread."#;
         // and Bob now marks alice as verified.
         let contact_alice = Contact::get_by_id(&bob, contact_alice_id).await.unwrap();
         assert_eq!(contact_alice.is_verified(&bob).await.unwrap(), true);
+    }
+
+    /// An unencrypted message with already known Autocrypt key, but sent from another address,
+    /// means that it's rather a new contact sharing the same key than the existing one changed its
+    /// address, otherwise it would already have our key to encrypt.
+    ///
+    /// This is a regression test for a bug where DC wrongly executed AEAP in this case.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_shared_bobs_key() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = &tcm.alice().await;
+        let bob = &tcm.bob().await;
+        let bob_addr = &bob.get_config(Config::Addr).await?.unwrap();
+
+        tcm.execute_securejoin(bob, alice).await;
+
+        let export_dir = tempfile::tempdir().unwrap();
+        imex(bob, ImexMode::ExportSelfKeys, export_dir.path(), None).await?;
+        let bob2 = &TestContext::new().await;
+        let bob2_addr = "bob2@example.net";
+        bob2.configure_addr(bob2_addr).await;
+        imex(bob2, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
+
+        tcm.execute_securejoin(bob2, alice).await;
+
+        let bob3 = &TestContext::new().await;
+        let bob3_addr = "bob3@example.net";
+        bob3.configure_addr(bob3_addr).await;
+        imex(bob3, ImexMode::ImportSelfKeys, export_dir.path(), None).await?;
+        tcm.send_recv(bob3, alice, "hi Alice!").await;
+        let msg = tcm.send_recv(alice, bob3, "hi Bob3!").await;
+        assert!(msg.get_showpadlock());
+
+        let mut bob_ids = HashSet::new();
+        bob_ids.insert(
+            Contact::lookup_id_by_addr(alice, bob_addr, Origin::Unknown)
+                .await?
+                .unwrap(),
+        );
+        bob_ids.insert(
+            Contact::lookup_id_by_addr(alice, bob2_addr, Origin::Unknown)
+                .await?
+                .unwrap(),
+        );
+        bob_ids.insert(
+            Contact::lookup_id_by_addr(alice, bob3_addr, Origin::Unknown)
+                .await?
+                .unwrap(),
+        );
+        assert_eq!(bob_ids.len(), 3);
+        Ok(())
     }
 }
