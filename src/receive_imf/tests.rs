@@ -4241,3 +4241,22 @@ Chat-Group-Member-Added: charlie@example.com",
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_forged_from() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = tcm.alice().await;
+    let bob = tcm.bob().await;
+
+    let bob_chat_id = tcm.send_recv_accept(&alice, &bob, "hi").await.chat_id;
+    chat::send_text_msg(&bob, bob_chat_id, "hi!".to_string()).await?;
+
+    let mut sent_msg = bob.pop_sent_msg().await;
+    sent_msg.payload = sent_msg
+        .payload
+        .replace("bob@example.net", "notbob@example.net");
+
+    let msg = alice.recv_msg(&sent_msg).await;
+    assert!(msg.chat_id.is_trash());
+    Ok(())
+}

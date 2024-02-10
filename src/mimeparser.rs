@@ -378,13 +378,20 @@ impl MimeMessage {
                     // signed part, but it doesn't match the outer one.
                     // This _might_ be because the sender's mail server
                     // replaced the sending address, e.g. in a mailing list.
-                    // Or it's because someone is doing some replay attack
-                    // - OTOH, I can't come up with an attack scenario
-                    // where this would be useful.
+                    // Or it's because someone is doing some replay attack.
+                    // Resending encrypted messages via mailing lists
+                    // without reencrypting is not useful anyway,
+                    // so we return an error below.
                     warn!(
                         context,
                         "From header in signed part doesn't match the outer one",
                     );
+
+                    // Return an error from the parser.
+                    // This will result in creating a tombstone
+                    // and no further message processing
+                    // as if the MIME structure is broken.
+                    bail!("From header is forged");
                 }
             }
         }
