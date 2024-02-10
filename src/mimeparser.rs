@@ -304,7 +304,8 @@ impl MimeMessage {
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
-        let public_keyring = keyring_from_peerstate(decryption_info.peerstate.as_ref());
+        let public_keyring =
+            keyring_from_peerstate(context, decryption_info.peerstate.as_ref()).await?;
         let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
             try_decrypt(&mail, &private_keyring, &public_keyring)
         }) {

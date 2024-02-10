@@ -101,6 +101,25 @@ pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPubl
     }
 }
 
+/// Returns our own public keyring.
+pub(crate) async fn load_self_public_keyring(context: &Context) -> Result<Vec<SignedPublicKey>> {
+    let keys = context
+        .sql
+        .query_map(
+            r#"SELECT public_key
+               FROM keypairs
+               ORDER BY id=(SELECT value FROM config WHERE keyname='key_id') DESC"#,
+            (),
+            |row| row.get::<_, Vec<u8>>(0),
+            |keys| keys.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        )
+        .await?
+        .into_iter()
+        .filter_map(|bytes| SignedPublicKey::from_slice(&bytes).log_err(context).ok())
+        .collect();
+    Ok(keys)
+}
+
 pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecretKey> {
     let private_key = context
         .sql
