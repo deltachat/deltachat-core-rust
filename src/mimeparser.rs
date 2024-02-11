@@ -2246,11 +2246,12 @@ mod tests {
 
     use super::*;
     use crate::{
+        chat,
         chatlist::Chatlist,
         constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
         message::{Message, MessageState, MessengerMessage},
         receive_imf::receive_imf,
-        test_utils::TestContext,
+        test_utils::{TestContext, TestContextManager},
         tools::time,
     };
 
@@ -3567,6 +3568,29 @@ On 2020-10-25, Bob wrote:
             message.get_rfc724_mid(),
             Some("Mr.6Dx7ITn4w38.n9j7epIcuQI@outlook.com".to_string())
         );
+    }
+
+    /// Tests that X-Microsoft-Original-Message-ID does not overwrite encrypted Message-ID.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_x_microsoft_original_message_id_precedence() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let bob_chat_id = tcm.send_recv_accept(&alice, &bob, "hi").await.chat_id;
+        chat::send_text_msg(&bob, bob_chat_id, "hi!".to_string()).await?;
+        let mut sent_msg = bob.pop_sent_msg().await;
+
+        // Insert X-Microsoft-Original-Message-ID.
+        // It should be ignored because there is a Message-ID in the encrypted part.
+        sent_msg.payload = sent_msg.payload.replace(
+            "Message-ID:",
+            "X-Microsoft-Original-Message-ID: <fake-message-id@example.net>\r\nMessage-ID:",
+        );
+
+        let msg = alice.recv_msg(&sent_msg).await;
+        assert!(!msg.rfc724_mid.contains("fake-message-id"));
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
