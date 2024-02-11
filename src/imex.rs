@@ -827,7 +827,7 @@ mod tests {
     use crate::key;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
-    use crate::test_utils::{alice_keypair, TestContext};
+    use crate::test_utils::{alice_keypair, TestContext, TestContextManager};
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_render_setup_file() {
@@ -1133,6 +1133,7 @@ mod tests {
         alice2.configure_addr("alice@example.org").await;
         alice2.recv_msg(&sent).await;
         let msg = alice2.get_last_msg().await;
+        assert!(msg.is_setupmessage());
 
         // Send a message that cannot be decrypted because the keys are
         // not synchronized yet.
@@ -1147,6 +1148,27 @@ mod tests {
         let sent = alice2.send_text(msg.chat_id, "Test").await;
         alice.recv_msg(&sent).await;
         assert_eq!(alice.get_last_msg().await.get_text(), "Test");
+
+        Ok(())
+    }
+
+    /// Tests that Autocrypt Setup Messages is only clickable if it is self-sent.
+    /// This prevents Bob from tricking Alice into changing the key
+    /// by sending her an Autocrypt Setup Message as long as Alice's server
+    /// does not allow to forge the `From:` header.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_key_transfer_non_self_sent() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let _setup_code = initiate_key_transfer(&alice).await?;
+
+        // Get Autocrypt Setup Message.
+        let sent = alice.pop_sent_msg().await;
+
+        let rcvd = bob.recv_msg(&sent).await;
+        assert!(!rcvd.is_setupmessage());
 
         Ok(())
     }

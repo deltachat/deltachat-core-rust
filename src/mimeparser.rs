@@ -510,7 +510,7 @@ impl MimeMessage {
 
     /// Parses system messages.
     fn parse_system_message_headers(&mut self, context: &Context) {
-        if self.get_header(HeaderDef::AutocryptSetupMessage).is_some() {
+        if self.get_header(HeaderDef::AutocryptSetupMessage).is_some() && !self.incoming {
             self.parts.retain(|part| {
                 part.mimetype.is_none()
                     || part.mimetype.as_ref().unwrap().as_ref() == MIME_AC_SETUP_FILE
