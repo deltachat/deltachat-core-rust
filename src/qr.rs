@@ -249,8 +249,6 @@ fn starts_with_ignore_case(string: &str, pattern: &str) -> bool {
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
 pub async fn check_qr(context: &Context, qr: &str) -> Result<Qr> {
-    info!(context, "Scanned QR code: {}", qr);
-
     let qrcode = if starts_with_ignore_case(qr, OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)
             .await
@@ -474,8 +472,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
     let payload = qr
         .get(DCACCOUNT_SCHEME.len()..)
         .context("invalid DCACCOUNT payload")?;
-    let url =
-        url::Url::parse(payload).with_context(|| format!("Invalid account URL: {payload:?}"))?;
+    let url = url::Url::parse(payload).context("Invalid account URL")?;
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::Account {
             domain: url
@@ -484,7 +481,7 @@ fn decode_account(qr: &str) -> Result<Qr> {
                 .to_string(),
         })
     } else {
-        bail!("Bad scheme for account URL: {:?}.", payload);
+        bail!("Bad scheme for account URL: {:?}.", url.scheme());
     }
 }
 
@@ -495,8 +492,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
         .context("invalid DCWEBRTC payload")?;
 
     let (_type, url) = Message::parse_webrtc_instance(payload);
-    let url =
-        url::Url::parse(&url).with_context(|| format!("Invalid WebRTC instance: {payload:?}"))?;
+    let url = url::Url::parse(&url).context("Invalid WebRTC instance")?;
 
     if url.scheme() == "http" || url.scheme() == "https" {
         Ok(Qr::WebrtcInstance {
@@ -507,7 +503,7 @@ fn decode_webrtc_instance(_context: &Context, qr: &str) -> Result<Qr> {
             instance_pattern: payload.to_string(),
         })
     } else {
-        bail!("Bad URL scheme for WebRTC instance: {:?}", payload);
+        bail!("Bad URL scheme for WebRTC instance: {:?}", url.scheme());
     }
 }
 
@@ -549,16 +545,15 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
         .send()
         .await?;
     let response_status = response.status();
-    let response_text = response.text().await.with_context(|| {
-        format!("Cannot create account, request to {url_str:?} failed: empty response")
-    })?;
+    let response_text = response
+        .text()
+        .await
+        .context("Cannot create account, request failed: empty response")?;
 
     if response_status.is_success() {
         let CreateAccountSuccessResponse { password, email } = serde_json::from_str(&response_text)
             .with_context(|| {
-                format!(
-                    "Cannot create account, response from {url_str:?} is malformed:\n{response_text:?}"
-                )
+                format!("Cannot create account, response is malformed:\n{response_text:?}")
             })?;
         context
             .set_config_internal(Config::Addr, Some(&email))
@@ -653,7 +648,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
         Qr::Login { address, options } => {
             configure_from_login_qr(context, &address, options).await?
         }
-        _ => bail!("qr code {:?} does not contain config", qr),
+        _ => bail!("QR code does not contain config"),
     }
 
     Ok(())

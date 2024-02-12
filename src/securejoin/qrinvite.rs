@@ -97,7 +97,7 @@ impl TryFrom<Qr> for QrInvite {
                 invitenumber,
                 authcode,
             }),
-            _ => bail!("Unsupported QR type {:?}", qr),
+            _ => bail!("Unsupported QR type"),
         }
     }
 }

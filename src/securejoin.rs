@@ -124,8 +124,7 @@ pub async fn get_securejoin_qr(context: &Context, group: Option<ChatId>) -> Resu
         )
     };
 
-    info!(context, "Generated QR code: {}", qr);
-
+    info!(context, "Generated QR code.");
     Ok(qr)
 }
 
