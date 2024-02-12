@@ -12,7 +12,7 @@ use tokio::sync::{oneshot, RwLock, RwLockWriteGuard};
 use tokio::task;
 
 use self::connectivity::ConnectivityStore;
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::contact::{ContactId, RecentlySeenLoop};
 use crate::context::Context;
 use crate::download::{download_msg, DownloadState};
@@ -290,7 +290,7 @@ enum InnerSchedulerState {
 ///
 /// Returned by [`SchedulerState::pause`].  To resume the IO scheduler simply drop this
 /// guard.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub(crate) struct IoPausedGuard {
     sender: Option<oneshot::Sender<()>>,
 }
@@ -439,8 +439,12 @@ async fn inbox_loop(
                         //
                         // This operation is not critical enough to retry,
                         // especially if the error is persistent.
-                        if let Err(err) =
-                            ctx.set_config_bool(Config::FetchedExistingMsgs, true).await
+                        if let Err(err) = ctx
+                            .set_config_internal(
+                                Config::FetchedExistingMsgs,
+                                config::from_bool(true),
+                            )
+                            .await
                         {
                             warn!(ctx, "Can't set Config::FetchedExistingMsgs: {:#}", err);
                         }

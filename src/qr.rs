@@ -560,8 +560,12 @@ async fn set_account_from_qr(context: &Context, qr: &str) -> Result<()> {
                     "Cannot create account, response from {url_str:?} is malformed:\n{response_text:?}"
                 )
             })?;
-        context.set_config(Config::Addr, Some(&email)).await?;
-        context.set_config(Config::MailPw, Some(&password)).await?;
+        context
+            .set_config_internal(Config::Addr, Some(&email))
+            .await?;
+        context
+            .set_config_internal(Config::MailPw, Some(&password))
+            .await?;
 
         Ok(())
     } else {
@@ -589,7 +593,7 @@ pub async fn set_config_from_qr(context: &Context, qr: &str) -> Result<()> {
             instance_pattern,
         } => {
             context
-                .set_config(Config::WebrtcInstance, Some(&instance_pattern))
+                .set_config_internal(Config::WebrtcInstance, Some(&instance_pattern))
                 .await?;
         }
         Qr::WithdrawVerifyContact {

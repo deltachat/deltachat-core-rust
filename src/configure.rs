@@ -22,7 +22,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use server_params::{expand_param_vector, ServerParams};
 use tokio::task;
 
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::imap::Imap;
@@ -112,12 +112,13 @@ impl Context {
         let mut param = LoginParam::load_candidate_params(self).await?;
         let old_addr = self.get_config(Config::ConfiguredAddr).await?;
         let success = configure(self, &mut param).await;
-        self.set_config(Config::NotifyAboutWrongPw, None).await?;
+        self.set_config_internal(Config::NotifyAboutWrongPw, None)
+            .await?;
 
         on_configure_completed(self, param, old_addr).await?;
 
         success?;
-        self.set_config(Config::NotifyAboutWrongPw, Some("1"))
+        self.set_config_internal(Config::NotifyAboutWrongPw, Some("1"))
             .await?;
         Ok(())
     }
@@ -473,7 +474,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // the trailing underscore is correct
     param.save_as_configured_params(ctx).await?;
-    ctx.set_config(Config::ConfiguredTimestamp, Some(&time().to_string()))
+    ctx.set_config_internal(Config::ConfiguredTimestamp, Some(&time().to_string()))
         .await?;
 
     progress!(ctx, 920);
@@ -481,7 +482,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
     e2ee::ensure_secret_key_exists(ctx).await?;
     info!(ctx, "key generation completed");
 
-    ctx.set_config_bool(Config::FetchedExistingMsgs, false)
+    ctx.set_config_internal(Config::FetchedExistingMsgs, config::from_bool(false))
         .await?;
     ctx.scheduler.interrupt_inbox().await;
 

@@ -251,7 +251,7 @@ impl CommandApi {
 
     /// Starts background tasks for a single account.
     async fn start_io(&self, account_id: u32) -> Result<()> {
-        let mut ctx = self.get_context(account_id).await?;
+        let ctx = self.get_context(account_id).await?;
         ctx.start_io().await;
         Ok(())
     }
@@ -402,7 +402,7 @@ impl CommandApi {
     /// Configures this account with the currently set parameters.
     /// Setup the credential config before calling this.
     async fn configure(&self, account_id: u32) -> Result<()> {
-        let mut ctx = self.get_context(account_id).await?;
+        let ctx = self.get_context(account_id).await?;
         ctx.stop_io().await;
         let result = ctx.configure().await;
         if result.is_err() {
@@ -2125,13 +2125,6 @@ async fn set_config(
             value,
         )
         .await?;
-
-        match key {
-            "sentbox_watch" | "mvbox_move" | "only_fetch_mvbox" => {
-                ctx.restart_io_if_running().await;
-            }
-            _ => {}
-        }
     }
     Ok(())
 }

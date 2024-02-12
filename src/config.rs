@@ -367,9 +367,21 @@ impl Config {
     /// multiple users are sharing an account. Another example is `Self::SyncMsgs` itself which
     /// mustn't be controlled by other devices.
     pub(crate) fn is_synced(&self) -> bool {
+        // We don't restart IO from the synchronisation code, so this is to be on the safe side.
+        if self.needs_io_restart() {
+            return false;
+        }
         matches!(
             self,
             Self::Displayname | Self::MdnsEnabled | Self::ShowEmails
+        )
+    }
+
+    /// Whether the config option needs an IO scheduler restart to take effect.
+    pub(crate) fn needs_io_restart(&self) -> bool {
+        matches!(
+            self,
+            Config::MvboxMove | Config::OnlyFetchMvbox | Config::SentboxWatch
         )
     }
 }
@@ -491,10 +503,50 @@ impl Context {
         }
     }
 
-    /// Set the given config key.
-    /// If `None` is passed as a value the value is cleared and set to the default if there is one.
+    fn check_config(key: Config, value: Option<&str>) -> Result<()> {
+        match key {
+            Config::Socks5Enabled
+            | Config::BccSelf
+            | Config::E2eeEnabled
+            | Config::MdnsEnabled
+            | Config::SentboxWatch
+            | Config::MvboxMove
+            | Config::OnlyFetchMvbox
+            | Config::FetchExistingMsgs
+            | Config::DeleteToTrash
+            | Config::SaveMimeHeaders
+            | Config::Configured
+            | Config::Bot
+            | Config::NotifyAboutWrongPw
+            | Config::SyncMsgs
+            | Config::SignUnencrypted
+            | Config::DisableIdle => {
+                ensure!(
+                    matches!(value, None | Some("0") | Some("1")),
+                    "Boolean value must be either 0 or 1"
+                );
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
+    /// Set the given config key and make it effective.
+    /// This may restart the IO scheduler. If `None` is passed as a value the value is cleared and
+    /// set to the default if there is one.
     pub async fn set_config(&self, key: Config, value: Option<&str>) -> Result<()> {
-        self.set_config_ex(key.is_synced().into(), key, value).await
+        Self::check_config(key, value)?;
+
+        let _pause = match key.needs_io_restart() {
+            true => self.scheduler.pause(self.clone()).await?,
+            _ => Default::default(),
+        };
+        self.set_config_internal(key, value).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn set_config_internal(&self, key: Config, value: Option<&str>) -> Result<()> {
+        self.set_config_ex(Sync, key, value).await
     }
 
     pub(crate) async fn set_config_ex(
@@ -503,7 +555,10 @@ impl Context {
         key: Config,
         mut value: Option<&str>,
     ) -> Result<()> {
+        Self::check_config(key, value)?;
+        let sync = sync == Sync && key.is_synced();
         let better_value;
+
         match key {
             Config::Selfavatar => {
                 self.sql
@@ -536,28 +591,6 @@ impl Context {
                 }
                 self.sql.set_raw_config(key.as_ref(), value).await?;
             }
-            Config::Socks5Enabled
-            | Config::BccSelf
-            | Config::E2eeEnabled
-            | Config::MdnsEnabled
-            | Config::SentboxWatch
-            | Config::MvboxMove
-            | Config::OnlyFetchMvbox
-            | Config::FetchExistingMsgs
-            | Config::DeleteToTrash
-            | Config::SaveMimeHeaders
-            | Config::Configured
-            | Config::Bot
-            | Config::NotifyAboutWrongPw
-            | Config::SyncMsgs
-            | Config::SignUnencrypted
-            | Config::DisableIdle => {
-                ensure!(
-                    matches!(value, None | Some("0") | Some("1")),
-                    "Boolean value must be either 0 or 1"
-                );
-                self.sql.set_raw_config(key.as_ref(), value).await?;
-            }
             Config::Addr => {
                 self.sql
                     .set_raw_config(key.as_ref(), value.map(|s| s.to_lowercase()).as_deref())
@@ -570,7 +603,7 @@ impl Context {
         if key.is_synced() {
             self.emit_event(EventType::ConfigSynced { key });
         }
-        if sync != Sync {
+        if !sync {
             return Ok(());
         }
         let Some(val) = value else {
@@ -597,8 +630,7 @@ impl Context {
 
     /// Set the given config to a boolean value.
     pub async fn set_config_bool(&self, key: Config, value: bool) -> Result<()> {
-        self.set_config(key, if value { Some("1") } else { Some("0") })
-            .await?;
+        self.set_config(key, from_bool(value)).await?;
         Ok(())
     }
 
@@ -616,6 +648,11 @@ impl Context {
         ensure!(key.starts_with("ui."), "get_ui_config(): prefix missing.");
         self.sql.get_raw_config(key).await
     }
+}
+
+/// Returns a value for use in `Context::set_config_*()` for the given `bool`.
+pub(crate) fn from_bool(val: bool) -> Option<&'static str> {
+    Some(if val { "1" } else { "0" })
 }
 
 // Separate impl block for self address handling
@@ -644,13 +681,13 @@ impl Context {
         let mut secondary_addrs = self.get_all_self_addrs().await?;
         // never store a primary address also as a secondary
         secondary_addrs.retain(|a| !addr_cmp(a, primary_new));
-        self.set_config(
+        self.set_config_internal(
             Config::SecondaryAddrs,
             Some(secondary_addrs.join(" ").as_str()),
         )
         .await?;
 
-        self.set_config(Config::ConfiguredAddr, Some(primary_new))
+        self.set_config_internal(Config::ConfiguredAddr, Some(primary_new))
             .await?;
 
         Ok(())

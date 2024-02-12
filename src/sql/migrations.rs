@@ -368,7 +368,7 @@ UPDATE chats SET protected=1, type=120 WHERE type=130;"#,
         if let Ok(addr) = context.get_primary_self_addr().await {
             if let Ok(domain) = EmailAddress::new(&addr).map(|email| email.domain) {
                 context
-                    .set_config(
+                    .set_config_internal(
                         Config::ConfiguredProvider,
                         get_provider_by_domain(&domain).map(|provider| provider.id),
                     )

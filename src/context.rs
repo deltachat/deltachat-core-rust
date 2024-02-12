@@ -408,7 +408,7 @@ impl Context {
     }
 
     /// Starts the IO scheduler.
-    pub async fn start_io(&mut self) {
+    pub async fn start_io(&self) {
         if !self.is_configured().await.unwrap_or_default() {
             warn!(self, "can not start io on a context that is not configured");
             return;

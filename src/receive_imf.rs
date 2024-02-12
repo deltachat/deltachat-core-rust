@@ -1034,7 +1034,10 @@ async fn add_parts(
             };
             if update_config {
                 context
-                    .set_config(Config::LastCantDecryptOutgoingMsgs, Some(&now.to_string()))
+                    .set_config_internal(
+                        Config::LastCantDecryptOutgoingMsgs,
+                        Some(&now.to_string()),
+                    )
                     .await?;
             }
         }

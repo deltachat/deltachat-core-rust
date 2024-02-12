@@ -423,19 +423,16 @@ char*           dc_get_blobdir               (const dc_context_t* context);
  *                    Sending messages to self is needed for a proper multi-account setup,
  *                    however, on the other hand, may lead to unwanted notifications in non-delta clients.
  * - `sentbox_watch`= 1=watch `Sent`-folder for changes,
- *                    0=do not watch the `Sent`-folder (default),
- *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
+ *                    0=do not watch the `Sent`-folder (default).
  * - `mvbox_move`   = 1=detect chat messages,
  *                    move them to the `DeltaChat` folder,
  *                    and watch the `DeltaChat` folder for updates (default),
  *                    0=do not move chat-messages
- *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `only_fetch_mvbox` = 1=Do not fetch messages from folders other than the
  *                    `DeltaChat` folder. Messages will still be fetched from the
  *                    spam folder and `sendbox_watch` will also still be respected
  *                    if enabled.
  *                    0=watch all folders normally (default)
- *                    changes require restarting IO by calling dc_stop_io() and then dc_start_io().
  * - `show_emails`  = DC_SHOW_EMAILS_OFF (0)=
  *                    show direct replies to chats only,
  *                    DC_SHOW_EMAILS_ACCEPTED_CONTACTS (1)=

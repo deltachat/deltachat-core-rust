@@ -216,7 +216,7 @@ async fn update_authservid_candidates(
     if old_ids != new_ids {
         let new_config = new_ids.into_iter().collect::<Vec<_>>().join(" ");
         context
-            .set_config(Config::AuthservIdCandidates, Some(&new_config))
+            .set_config_internal(Config::AuthservIdCandidates, Some(&new_config))
             .await?;
         // Updating the authservid candidates may mean that we now consider
         // emails as "failed" which "passed" previously, so we need to
