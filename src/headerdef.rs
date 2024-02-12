@@ -2,7 +2,7 @@
 
 use mailparse::{MailHeader, MailHeaderMap};
 
-#[derive(Debug, Display, Clone, PartialEq, Eq, EnumVariantNames, IntoStaticStr)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, IntoStaticStr)]
 #[strum(serialize_all = "kebab_case")]
 #[allow(missing_docs)]
 pub enum HeaderDef {
