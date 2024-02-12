@@ -382,6 +382,21 @@ def test_webxdc_download_on_demand(acfactory, data, lp):
     assert msgs_changed_event.data2 == 0
 
 
+def test_enable_mvbox_move(acfactory, lp):
+    (ac1,) = acfactory.get_online_accounts(1)
+
+    lp.sec("ac2: start without mvbox thread")
+    ac2 = acfactory.new_online_configuring_account(mvbox_move=False)
+    acfactory.bring_accounts_online()
+
+    lp.sec("ac2: configuring mvbox")
+    ac2.set_config("mvbox_move", "1")
+
+    lp.sec("ac1: send message and wait for ac2 to receive it")
+    acfactory.get_accepted_chat(ac1, ac2).send_text("message1")
+    assert ac2._evtracker.wait_next_incoming_message().text == "message1"
+
+
 def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac1: start with mvbox thread")
     ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)

@@ -1522,7 +1522,9 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     if !msg_ids.is_empty() {
         // Run housekeeping to delete unused blobs.
-        context.set_config(Config::LastHousekeeping, None).await?;
+        context
+            .set_config_internal(Config::LastHousekeeping, None)
+            .await?;
     }
 
     // Interrupt Inbox loop to start message deletion and run housekeeping.
@@ -1550,7 +1552,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
     let old_last_msg_id = MsgId::new(context.get_config_u32(Config::LastMsgId).await?);
     let last_msg_id = msg_ids.iter().fold(&old_last_msg_id, std::cmp::max);
     context
-        .set_config_u32(Config::LastMsgId, last_msg_id.to_u32())
+        .set_config_internal(Config::LastMsgId, Some(&last_msg_id.to_u32().to_string()))
         .await?;
 
     let msgs = context

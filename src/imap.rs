@@ -451,7 +451,10 @@ impl Imap {
                     && err.to_string().to_lowercase().contains("authentication")
                     && context.get_config_bool(Config::NotifyAboutWrongPw).await?
                 {
-                    if let Err(e) = context.set_config(Config::NotifyAboutWrongPw, None).await {
+                    if let Err(e) = context
+                        .set_config_internal(Config::NotifyAboutWrongPw, None)
+                        .await
+                    {
                         warn!(context, "{:#}", e);
                     }
                     drop(lock);
@@ -1877,16 +1880,16 @@ impl Imap {
             .context("failed to configure mvbox")?;
 
         context
-            .set_config(Config::ConfiguredInboxFolder, Some("INBOX"))
+            .set_config_internal(Config::ConfiguredInboxFolder, Some("INBOX"))
             .await?;
         if let Some(mvbox_folder) = mvbox_folder {
             info!(context, "Setting MVBOX FOLDER TO {}", &mvbox_folder);
             context
-                .set_config(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
+                .set_config_internal(Config::ConfiguredMvboxFolder, Some(mvbox_folder))
                 .await?;
         }
         for (config, name) in folder_configs {
-            context.set_config(config, Some(&name)).await?;
+            context.set_config_internal(config, Some(&name)).await?;
         }
         context
             .sql

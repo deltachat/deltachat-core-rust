@@ -89,7 +89,7 @@ impl Imap {
             Config::ConfiguredTrashFolder,
         ] {
             context
-                .set_config(conf, folder_configs.get(&conf).map(|s| s.as_str()))
+                .set_config_internal(conf, folder_configs.get(&conf).map(|s| s.as_str()))
                 .await?;
         }
 

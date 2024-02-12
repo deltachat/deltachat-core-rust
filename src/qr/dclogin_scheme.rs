@@ -163,7 +163,9 @@ pub(crate) async fn configure_from_login_qr(
     address: &str,
     options: LoginOptions,
 ) -> Result<()> {
-    context.set_config(Config::Addr, Some(address)).await?;
+    context
+        .set_config_internal(Config::Addr, Some(address))
+        .await?;
 
     match options {
         LoginOptions::V1 {
@@ -181,27 +183,35 @@ pub(crate) async fn configure_from_login_qr(
             smtp_security,
             smtp_certificate_checks,
         } => {
-            context.set_config(Config::MailPw, Some(&mail_pw)).await?;
+            context
+                .set_config_internal(Config::MailPw, Some(&mail_pw))
+                .await?;
             if let Some(value) = imap_host {
-                context.set_config(Config::MailServer, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::MailServer, Some(&value))
+                    .await?;
             }
             if let Some(value) = imap_port {
                 context
-                    .set_config(Config::MailPort, Some(&value.to_string()))
+                    .set_config_internal(Config::MailPort, Some(&value.to_string()))
                     .await?;
             }
             if let Some(value) = imap_username {
-                context.set_config(Config::MailUser, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::MailUser, Some(&value))
+                    .await?;
             }
             if let Some(value) = imap_password {
-                context.set_config(Config::MailPw, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::MailPw, Some(&value))
+                    .await?;
             }
             if let Some(value) = imap_security {
                 let code = value
                     .to_u8()
                     .context("could not convert imap security value to number")?;
                 context
-                    .set_config(Config::MailSecurity, Some(&code.to_string()))
+                    .set_config_internal(Config::MailSecurity, Some(&code.to_string()))
                     .await?;
             }
             if let Some(value) = imap_certificate_checks {
@@ -209,29 +219,35 @@ pub(crate) async fn configure_from_login_qr(
                     .to_u32()
                     .context("could not convert imap certificate checks value to number")?;
                 context
-                    .set_config(Config::ImapCertificateChecks, Some(&code.to_string()))
+                    .set_config_internal(Config::ImapCertificateChecks, Some(&code.to_string()))
                     .await?;
             }
             if let Some(value) = smtp_host {
-                context.set_config(Config::SendServer, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::SendServer, Some(&value))
+                    .await?;
             }
             if let Some(value) = smtp_port {
                 context
-                    .set_config(Config::SendPort, Some(&value.to_string()))
+                    .set_config_internal(Config::SendPort, Some(&value.to_string()))
                     .await?;
             }
             if let Some(value) = smtp_username {
-                context.set_config(Config::SendUser, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::SendUser, Some(&value))
+                    .await?;
             }
             if let Some(value) = smtp_password {
-                context.set_config(Config::SendPw, Some(&value)).await?;
+                context
+                    .set_config_internal(Config::SendPw, Some(&value))
+                    .await?;
             }
             if let Some(value) = smtp_security {
                 let code = value
                     .to_u8()
                     .context("could not convert smtp security value to number")?;
                 context
-                    .set_config(Config::SendSecurity, Some(&code.to_string()))
+                    .set_config_internal(Config::SendSecurity, Some(&code.to_string()))
                     .await?;
             }
             if let Some(value) = smtp_certificate_checks {
@@ -239,7 +255,7 @@ pub(crate) async fn configure_from_login_qr(
                     .to_u32()
                     .context("could not convert smtp certificate checks value to number")?;
                 context
-                    .set_config(Config::SmtpCertificateChecks, Some(&code.to_string()))
+                    .set_config_internal(Config::SmtpCertificateChecks, Some(&code.to_string()))
                     .await?;
             }
             Ok(())

@@ -783,7 +783,9 @@ impl ChatId {
 
         context.emit_msgs_changed_without_ids();
 
-        context.set_config(Config::LastHousekeeping, None).await?;
+        context
+            .set_config_internal(Config::LastHousekeeping, None)
+            .await?;
         context.scheduler.interrupt_inbox().await;
 
         if chat.is_self_talk() {
@@ -4266,7 +4268,9 @@ pub(crate) async fn delete_and_reset_all_device_msgs(context: &Context) -> Resul
             (),
         )
         .await?;
-    context.set_config(Config::QuotaExceeding, None).await?;
+    context
+        .set_config_internal(Config::QuotaExceeding, None)
+        .await?;
     Ok(())
 }
 

@@ -1550,7 +1550,7 @@ pub(crate) async fn set_profile_image(
             if contact_id == ContactId::SELF {
                 if was_encrypted {
                     context
-                        .set_config(Config::Selfavatar, Some(profile_image))
+                        .set_config_internal(Config::Selfavatar, Some(profile_image))
                         .await?;
                 } else {
                     info!(context, "Do not use unencrypted selfavatar.");
@@ -1563,7 +1563,9 @@ pub(crate) async fn set_profile_image(
         AvatarAction::Delete => {
             if contact_id == ContactId::SELF {
                 if was_encrypted {
-                    context.set_config(Config::Selfavatar, None).await?;
+                    context
+                        .set_config_internal(Config::Selfavatar, None)
+                        .await?;
                 } else {
                     info!(context, "Do not use unencrypted selfavatar deletion.");
                 }
@@ -1595,7 +1597,7 @@ pub(crate) async fn set_status(
     if contact_id == ContactId::SELF {
         if encrypted && has_chat_version {
             context
-                .set_config(Config::Selfstatus, Some(&status))
+                .set_config_internal(Config::Selfstatus, Some(&status))
                 .await?;
         }
     } else {

@@ -248,7 +248,7 @@ impl Sql {
                 msg.set_text(stock_str::delete_server_turned_off(context).await);
                 add_device_msg(context, None, Some(&mut msg)).await?;
                 context
-                    .set_config(Config::DeleteServerAfter, Some("0"))
+                    .set_config_internal(Config::DeleteServerAfter, Some("0"))
                     .await?;
             }
         }
@@ -259,12 +259,14 @@ impl Sql {
                 match blob.recode_to_avatar_size(context).await {
                     Ok(()) => {
                         context
-                            .set_config(Config::Selfavatar, Some(&avatar))
+                            .set_config_internal(Config::Selfavatar, Some(&avatar))
                             .await?
                     }
                     Err(e) => {
                         warn!(context, "Migrations can't recode avatar, removing. {:#}", e);
-                        context.set_config(Config::Selfavatar, None).await?
+                        context
+                            .set_config_internal(Config::Selfavatar, None)
+                            .await?
                     }
                 }
             }
@@ -702,7 +704,7 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     // Setting `Config::LastHousekeeping` at the beginning avoids endless loops when things do not
     // work out for whatever reason or are interrupted by the OS.
     if let Err(e) = context
-        .set_config(Config::LastHousekeeping, Some(&time().to_string()))
+        .set_config_internal(Config::LastHousekeeping, Some(&time().to_string()))
         .await
     {
         warn!(context, "Can't set config: {e:#}.");
