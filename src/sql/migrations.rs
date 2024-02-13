@@ -811,12 +811,9 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
             "CREATE TABLE new_keypairs (
                id INTEGER PRIMARY KEY AUTOINCREMENT,
                private_key UNIQUE NOT NULL,
-               public_key UNIQUE NOT NULL,
-               addr TEXT DEFAULT '' COLLATE NOCASE,
-               is_default INTEGER DEFAULT 0,
-               created INTEGER DEFAULT 0
+               public_key UNIQUE NOT NULL
              );
-             INSERT OR IGNORE INTO new_keypairs SELECT id, private_key, public_key, addr, is_default, created FROM keypairs;
+             INSERT OR IGNORE INTO new_keypairs SELECT id, private_key, public_key FROM keypairs;
 
              INSERT OR IGNORE
              INTO config (keyname, value)
@@ -827,7 +824,11 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
                             WHERE addr=(SELECT value FROM config WHERE keyname='configured_addr')
                             AND is_default=1)));
 
-             DROP TABLE keypairs;
+             -- We do not drop the old `keypairs` table for now,
+             -- but move it to `old_keypairs`. We can remove it later
+             -- in next migrations. This may be needed for recovery
+             -- in case something is wrong with the migration.
+             ALTER TABLE keypairs RENAME TO old_keypairs;
              ALTER TABLE new_keypairs RENAME TO keypairs;
              ",
             107,
@@ -895,6 +896,17 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
                WHERE verified_key IS NOT NULL
                "#,
             109,
+        )
+        .await?;
+    }
+
+    if dbversion < 110 {
+        sql.execute_migration(
+            "ALTER TABLE keypairs ADD COLUMN addr TEXT DEFAULT '' COLLATE NOCASE;
+            ALTER TABLE keypairs ADD COLUMN is_default INTEGER DEFAULT 0;
+            ALTER TABLE keypairs ADD COLUMN created INTEGER DEFAULT 0;
+            UPDATE keypairs SET addr=(SELECT value FROM config WHERE keyname='configured_addr'), is_default=1;",
+            110,
         )
         .await?;
     }
