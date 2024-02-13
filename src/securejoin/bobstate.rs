@@ -378,13 +378,20 @@ async fn send_handshake_message(
             // Sends our own fingerprint in the Secure-Join-Fingerprint header.
             let bob_fp = load_self_public_key(context).await?.fingerprint();
             msg.param.set(Param::Arg3, bob_fp.hex());
+
+            // Sends the grpid in the Secure-Join-Group header.
+            //
+            // `Secure-Join-Group` header is deprecated,
+            // but old Delta Chat core requires that Alice receives it.
+            //
+            // Previous Delta Chat core also sent `Secure-Join-Group` header
+            // in `vg-request` messages,
+            // but it was not used on the receiver.
+            if let QrInvite::Group { ref grpid, .. } = invite {
+                msg.param.set(Param::Arg4, grpid);
+            }
         }
     };
-
-    // Sends the grpid in the Secure-Join-Group header.
-    if let QrInvite::Group { ref grpid, .. } = invite {
-        msg.param.set(Param::Arg4, grpid);
-    }
 
     chat::send_msg(context, chat_id, &mut msg).await?;
     Ok(())

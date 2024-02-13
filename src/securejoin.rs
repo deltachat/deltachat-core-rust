@@ -1125,6 +1125,14 @@ mod tests {
         assert_eq!(msg.get_header(HeaderDef::SecureJoin).unwrap(), "vg-request");
         assert!(msg.get_header(HeaderDef::SecureJoinInvitenumber).is_some());
 
+        // Old Delta Chat core sent `Secure-Join-Group` header in `vg-request`,
+        // but it was only used by Alice in `vg-request-with-auth`.
+        // New Delta Chat versions do not use `Secure-Join-Group` header at all
+        // and it is deprecated.
+        // Now `Secure-Join-Group` header
+        // is only sent in `vg-request-with-auth` for compatibility.
+        assert!(msg.get_header(HeaderDef::SecureJoinGroup).is_none());
+
         // Step 3: Alice receives vg-request, sends vg-auth-required
         alice.recv_msg(&sent).await;
 
