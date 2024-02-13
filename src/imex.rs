@@ -1095,6 +1095,10 @@ mod tests {
     const S_EM_SETUPCODE: &str = "1742-0185-6197-1303-7016-8412-3581-4441-0597";
     const S_EM_SETUPFILE: &str = include_str!("../test-data/message/stress.txt");
 
+    // Autocrypt Setup Message payload "encrypted" with plaintext algorithm.
+    const S_PLAINTEXT_SETUPFILE: &str =
+        include_str!("../test-data/message/plaintext-autocrypt-setup.txt");
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_split_and_decrypt() {
         let buf_1 = S_EM_SETUPFILE.as_bytes().to_vec();
@@ -1116,6 +1120,23 @@ mod tests {
         assert_eq!(typ, BlockType::PrivateKey);
         assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
         assert!(headers.get(HEADER_SETUPCODE).is_none());
+    }
+
+    /// Tests that Autocrypt Setup Message encrypted with "plaintext" algorithm cannot be
+    /// decrypted.
+    ///
+    /// According to <https://datatracker.ietf.org/doc/html/rfc4880#section-13.4>
+    /// "Implementations MUST NOT use plaintext in Symmetrically Encrypted Data packets".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decrypt_plaintext_autocrypt_setup_message() {
+        let setup_file = S_PLAINTEXT_SETUPFILE.to_string();
+        let incorrect_setupcode = "0000-0000-0000-0000-0000-0000-0000-0000-0000";
+        assert!(decrypt_setup_file(
+            incorrect_setupcode,
+            std::io::Cursor::new(setup_file.as_bytes()),
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
