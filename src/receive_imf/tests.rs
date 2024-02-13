@@ -3547,6 +3547,32 @@ async fn test_mua_user_adds_recipient_to_single_chat() -> Result<()> {
     Ok(())
 }
 
+/// If a message is Autocrypt-encrypted, unsigned Chat-Group-* headers have no effect.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_unsigned_chat_group_hdr() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let bob_addr = bob.get_config(Config::Addr).await?.unwrap();
+    let bob_id = Contact::create(alice, "Bob", &bob_addr).await?;
+    let alice_chat_id = create_group_chat(alice, ProtectionStatus::Unprotected, "foos").await?;
+    add_contact_to_chat(alice, alice_chat_id, bob_id).await?;
+    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
+    let sent_msg = alice.pop_sent_msg().await;
+    let bob_chat_id = bob.recv_msg(&sent_msg).await.chat_id;
+    bob_chat_id.accept(bob).await?;
+    send_text_msg(bob, bob_chat_id, "hi all!".to_string()).await?;
+    let mut sent_msg = bob.pop_sent_msg().await;
+    sent_msg.payload = sent_msg.payload.replace(
+        "Chat-Version:",
+        &format!("Chat-Group-Member-Removed: {bob_addr}\r\nChat-Version:"),
+    );
+    let chat_id = alice.recv_msg(&sent_msg).await.chat_id;
+    assert_eq!(chat_id, alice_chat_id);
+    assert_eq!(get_chat_contacts(alice, alice_chat_id).await?.len(), 2);
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_sync_member_list_on_rejoin() -> Result<()> {
     let mut tcm = TestContextManager::new();

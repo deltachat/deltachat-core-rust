@@ -348,9 +348,20 @@ impl MimeMessage {
                     gossip_headers,
                 )
                 .await?;
-                // Remove unsigned subject from messages displayed with padlock.
-                // See <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
-                headers.remove("subject");
+                // Remove unsigned opportunistically protected headers from messages considered
+                // Autocrypt-encrypted / displayed with padlock.
+                // For "Subject" see <https://github.com/deltachat/deltachat-core-rust/issues/1790>.
+                for h in [
+                    HeaderDef::Subject,
+                    HeaderDef::ChatGroupId,
+                    HeaderDef::ChatGroupName,
+                    HeaderDef::ChatGroupNameChanged,
+                    HeaderDef::ChatGroupAvatar,
+                    HeaderDef::ChatGroupMemberRemoved,
+                    HeaderDef::ChatGroupMemberAdded,
+                ] {
+                    headers.remove(h.get_headername());
+                }
             }
 
             // let known protected headers from the decrypted
