@@ -294,11 +294,17 @@ pub async fn store_self_keypair(
                 KeyPairUse::ReadOnly => false,
             };
 
+            // `addr` and `is_default` written for compatibility with older versions,
+            // until new cores are rolled out everywhere.
+            // otherwise "add second device" or "backup" may break.
+            // moreover, this allows downgrades to the previous version.
+            // writing of `addr` and `is_default` can be removed ~ 2024-08
+            let addr = keypair.addr.to_string();
             transaction
                 .execute(
-                    "INSERT OR REPLACE INTO keypairs (public_key, private_key)
-                     VALUES (?,?)",
-                    (&public_key, &secret_key),
+                    "INSERT OR REPLACE INTO keypairs (public_key, private_key, addr, is_default)
+                     VALUES (?,?,?,?)",
+                    (&public_key, &secret_key, addr, is_default),
                 )
                 .context("Failed to insert keypair")?;
 

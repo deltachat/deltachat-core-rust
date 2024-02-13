@@ -900,6 +900,17 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 110 {
+        sql.execute_migration(
+            "ALTER TABLE keypairs ADD COLUMN addr TEXT DEFAULT '' COLLATE NOCASE;
+            ALTER TABLE keypairs ADD COLUMN is_default INTEGER DEFAULT 0;
+            ALTER TABLE keypairs ADD COLUMN created INTEGER DEFAULT 0;
+            UPDATE keypairs SET addr=(SELECT value FROM config WHERE keyname='configured_addr'), is_default=1;",
+            110,
+        )
+        .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
