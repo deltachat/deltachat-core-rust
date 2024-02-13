@@ -21,6 +21,7 @@
 - Emit ConfigSynced event on the second device.
 - Create mvbox on setting mvbox_move.
 - Use SystemTime instead of Instant everywhere.
+- Restore database rows removed in previous release; this ensures compatibility when adding second device or importing backup and not all devices run the new core ([#5254](https://github.com/deltachat/deltachat-core-rust/pull/5254))
 
 ### Miscellaneous Tasks
 
