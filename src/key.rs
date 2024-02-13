@@ -304,7 +304,7 @@ pub async fn store_self_keypair(
                 .execute(
                     "INSERT OR REPLACE INTO keypairs (public_key, private_key, addr, is_default)
                      VALUES (?,?,?,?)",
-                    (&public_key, &secret_key, addr, &is_default),
+                    (&public_key, &secret_key, addr, is_default),
                 )
                 .context("Failed to insert keypair")?;
 
