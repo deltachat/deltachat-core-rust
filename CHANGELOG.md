@@ -9,6 +9,7 @@
 - Context::set_config(): Restart IO scheduler if needed ([#5111](https://github.com/deltachat/deltachat-core-rust/pull/5111)).
 - Server_sent_unsolicited_exists(): Log folder name.
 - Cache system time instead of looking at the clock several times in a row.
+- Basic self-reporting ([#5129](https://github.com/deltachat/deltachat-core-rust/pull/5129)).
 
 ### Fixes
 
@@ -49,47 +50,11 @@
 ### Other
 
 - Update welcome image, thanks @paulaluap
-.
 - Merge pull request #5243 from deltachat/dependabot/cargo/pin-project-1.1.4
-
-.
 - Merge pull request #5241 from deltachat/dependabot/cargo/futures-lite-2.2.0
-
-.
 - Merge pull request #5236 from deltachat/dependabot/cargo/chrono-0.4.33
-
-.
 - Merge pull request #5235 from deltachat/dependabot/cargo/image-0.24.8
 
-.
-- Basic self-reporting, core part ([#5129](https://github.com/deltachat/deltachat-core-rust/pull/5129))
-
-Part of https://github.com/deltachat/deltachat-android/issues/2909
-
-For now, this is only sending a few basic metrics..
-- Do not change db schema in an incompatible way ([#5254](https://github.com/deltachat/deltachat-core-rust/pull/5254))
-
-PR #5099 removed some columns in the database that were actually in use.
-
-usually, to not worsen UX unnecessarily
-(releases take time - in between, "Add Second Device", "Backup" etc.
-would fail), we try to avoid such schema changes (checking for
-db-version would avoid import etc. but would still worse UX),
-see discussion at #2294.
-
-these are the errors, the user will be confronted with otherwise:
-
-<img width=400
-src=https://github.com/deltachat/deltachat-core-rust/assets/9800740/e3f0fd6e-a7a9-43f6-9023-0ae003985425>
-
-it is not great to maintain the old columns, but well :)
-
-as no official releases with newer cores are rolled out yet, i think, it
-is fine to change the "107" migration
-and not copy things a second time in a newer migration.
-
-(this issue happens to me during testing, and is probably also the issue
-reported by @lk108 for ubuntu-touch).
 
 ### Refactor
 
