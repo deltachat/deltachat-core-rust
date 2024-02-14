@@ -1,5 +1,104 @@
 # Changelog
 
+## [1.135.0] - 2024-02-13
+
+### Features / Changes
+
+- Add wildcard pattern support to provider database.
+- Add device message about outgoing undecryptable messages ([#5164](https://github.com/deltachat/deltachat-core-rust/pull/5164)).
+- Context::set_config(): Restart IO scheduler if needed ([#5111](https://github.com/deltachat/deltachat-core-rust/pull/5111)).
+- Server_sent_unsolicited_exists(): Log folder name.
+- Cache system time instead of looking at the clock several times in a row.
+
+### Fixes
+
+- Dehtml: Don't just truncate text when trying to decode ([#5223](https://github.com/deltachat/deltachat-core-rust/pull/5223)).
+- Mark the gossip keys from the message as verified, not the ones from the db ([#5247](https://github.com/deltachat/deltachat-core-rust/pull/5247)).
+- Guarantee immediate message deletion if delete_server_after == 0 ([#5201](https://github.com/deltachat/deltachat-core-rust/pull/5201)).
+- Never allow a message timestamp to be a lot in the future ([#5249](https://github.com/deltachat/deltachat-core-rust/pull/5249)).
+- Imap::configure_mvbox: Do select_with_uidvalidity() before return.
+- ImapSession::select_or_create_folder(): Don't fail if folder is created in parallel.
+- Emit ConfigSynced event on the second device.
+- Create mvbox on setting mvbox_move.
+- Use SystemTime instead of Instant everywhere.
+- Restore database rows removed in previous release; this ensures compatibility when adding second device or importing backup and not all devices run the new core ([#5254](https://github.com/deltachat/deltachat-core-rust/pull/5254))
+
+### Miscellaneous Tasks
+
+- cargo: Bump image from 0.24.7 to 0.24.8.
+- cargo: Bump chrono from 0.4.31 to 0.4.33.
+- cargo: Bump futures-lite from 2.1.0 to 2.2.0.
+- cargo: Bump pin-project from 1.1.3 to 1.1.4.
+- cargo: Bump iana-time-zone from yanked 0.1.59 to 0.1.60.
+- cargo: Bump smallvec from 1.11.2 to 1.13.1.
+- cargo: Bump base64 from 0.21.5 to 0.21.7.
+- cargo: Bump regex from 1.10.2 to 1.10.3.
+- cargo: Bump libc from 0.2.151 to 0.2.153.
+- cargo: Bump reqwest from 0.11.23 to 0.11.24.
+- cargo: Bump axum from 0.7.3 to 0.7.4.
+- cargo: Bump uuid from 1.6.1 to 1.7.0.
+- cargo: Bump fast-socks5 from 0.9.2 to 0.9.5.
+- cargo: Bump serde_json from 1.0.111 to 1.0.113.
+- cargo: Bump syn from 2.0.46 to 2.0.48.
+- cargo: Bump serde from 1.0.194 to 1.0.196.
+- cargo: Bump toml from 0.8.8 to 0.8.10.
+- cargo: Update to strum 0.26.
+- Cargo update.
+- scripts: Do not install deltachat-rpc-client twice.
+
+### Other
+
+- Update welcome image, thanks @paulaluap
+.
+- Merge pull request #5243 from deltachat/dependabot/cargo/pin-project-1.1.4
+
+.
+- Merge pull request #5241 from deltachat/dependabot/cargo/futures-lite-2.2.0
+
+.
+- Merge pull request #5236 from deltachat/dependabot/cargo/chrono-0.4.33
+
+.
+- Merge pull request #5235 from deltachat/dependabot/cargo/image-0.24.8
+
+.
+- Basic self-reporting, core part ([#5129](https://github.com/deltachat/deltachat-core-rust/pull/5129))
+
+Part of https://github.com/deltachat/deltachat-android/issues/2909
+
+For now, this is only sending a few basic metrics..
+- Do not change db schema in an incompatible way ([#5254](https://github.com/deltachat/deltachat-core-rust/pull/5254))
+
+PR #5099 removed some columns in the database that were actually in use.
+
+usually, to not worsen UX unnecessarily
+(releases take time - in between, "Add Second Device", "Backup" etc.
+would fail), we try to avoid such schema changes (checking for
+db-version would avoid import etc. but would still worse UX),
+see discussion at #2294.
+
+these are the errors, the user will be confronted with otherwise:
+
+<img width=400
+src=https://github.com/deltachat/deltachat-core-rust/assets/9800740/e3f0fd6e-a7a9-43f6-9023-0ae003985425>
+
+it is not great to maintain the old columns, but well :)
+
+as no official releases with newer cores are rolled out yet, i think, it
+is fine to change the "107" migration
+and not copy things a second time in a newer migration.
+
+(this issue happens to me during testing, and is probably also the issue
+reported by @lk108 for ubuntu-touch).
+
+### Refactor
+
+- Resultify token::exists.
+
+### Tests
+
+- Delete_server_after="1" should cause immediate message deletion ([#5201](https://github.com/deltachat/deltachat-core-rust/pull/5201)).
+
 ## [1.134.0] - 2024-01-31
 
 ### API-Changes
@@ -3476,3 +3575,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.133.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.0...v1.133.1
 [1.133.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.1...v1.133.2
 [1.134.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.2...v1.134.0
+[1.135.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.134.0...v1.135.0
