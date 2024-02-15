@@ -263,7 +263,7 @@ pub fn new_html_mimepart(html: String) -> PartBuilder {
 mod tests {
     use super::*;
     use crate::chat;
-    use crate::chat::forward_msgs;
+    use crate::chat::{forward_msgs, ProtectionStatus};
     use crate::config::Config;
     use crate::contact::ContactId;
     use crate::message::{MessengerMessage, Viewtype};
@@ -494,8 +494,10 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
 
         // forward the message to saved-messages,
         // this will encrypt the message as new_alice() has set up keys
-        let chat = alice.get_self_chat().await;
-        forward_msgs(&alice, &[msg.get_id()], chat.get_id())
+        let chat_id = alice
+            .create_group_with_members(ProtectionStatus::Protected, "foo", &[])
+            .await;
+        forward_msgs(&alice, &[msg.get_id()], chat_id)
             .await
             .unwrap();
         let msg = alice.pop_sent_msg().await;
@@ -507,7 +509,6 @@ test some special html-characters as &lt; &gt; and &amp; but also &quot; and &#x
             .await
             .unwrap();
         let msg = alice.recv_msg(&msg).await;
-        assert_eq!(msg.chat_id, alice.get_self_chat().await.id);
         assert_eq!(msg.get_from_id(), ContactId::SELF);
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
         assert!(msg.get_showpadlock());
