@@ -51,18 +51,6 @@ const WEBXDC_API_VERSION: u32 = 1;
 pub const WEBXDC_SUFFIX: &str = "xdc";
 const WEBXDC_DEFAULT_ICON: &str = "__webxdc__/default-icon.png";
 
-/// Defines the maximal size in bytes of an .xdc file that can be sent.
-///
-/// We introduce a limit to force developer to create small .xdc
-/// to save user's traffic and disk space for a better ux.
-///
-/// The 100K limit should also let .xdc pass worse-quality auto-download filters
-/// which are usually 160K incl. base64 overhead.
-///
-/// The limit is also an experiment to see how small we can go;
-/// it is planned to raise that limit as needed in subsequent versions.
-const WEBXDC_SENDING_LIMIT: u64 = 655360;
-
 /// Raw information read from manifest.toml
 #[derive(Debug, Deserialize, Default)]
 #[non_exhaustive]
@@ -229,21 +217,11 @@ impl Context {
         Ok(true)
     }
 
-    /// ensure that a file is an acceptable webxdc for sending
-    /// (sending has more strict size limits).
+    /// Ensure that a file is an acceptable webxdc for sending.
     pub(crate) async fn ensure_sendable_webxdc_file(&self, path: &Path) -> Result<()> {
         let filename = path.to_str().unwrap_or_default();
         if !filename.ends_with(WEBXDC_SUFFIX) {
             bail!("{} is not a valid webxdc file", filename);
-        }
-
-        let size = tokio::fs::metadata(path).await?.len();
-        if size > WEBXDC_SENDING_LIMIT {
-            bail!(
-                "webxdc {} exceeds acceptable size of {} bytes",
-                path.to_str().unwrap_or_default(),
-                WEBXDC_SENDING_LIMIT
-            );
         }
 
         let valid = match async_zip::read::fs::ZipFileReader::new(path).await {
@@ -886,14 +864,6 @@ mod tests {
     use crate::receive_imf::{receive_imf, receive_imf_from_inbox};
     use crate::test_utils::TestContext;
     use crate::{message, sql};
-
-    #[allow(clippy::assertions_on_constants)]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_webxdc_file_limits() -> Result<()> {
-        assert!(WEBXDC_SENDING_LIMIT >= 32768);
-        assert!(WEBXDC_SENDING_LIMIT < 16777216);
-        Ok(())
-    }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_is_webxdc_file() -> Result<()> {
