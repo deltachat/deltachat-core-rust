@@ -24,7 +24,9 @@ jobs:
     name: Cross-compile deltachat-rpc-server for x86_64, i686, aarch64 and armv7 Linux
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install ziglang
         run: pip install wheel ziglang==0.11.0
@@ -57,7 +59,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Setup rust target
         run: rustup target add ${{ matrix.target }}
@@ -83,7 +87,9 @@ jobs:
 
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Setup rust target
         run: rustup target add ${{ matrix.arch }}-apple-darwin
@@ -105,7 +111,9 @@ jobs:
       contents: write
     runs-on: "ubuntu-latest"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Download Linux binaries
         uses: actions/download-artifact@v4

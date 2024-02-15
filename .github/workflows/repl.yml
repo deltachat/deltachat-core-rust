@@ -12,7 +12,9 @@ jobs:
     name: Build REPL example
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Build
         run: cargo build -p deltachat-repl --features vendored

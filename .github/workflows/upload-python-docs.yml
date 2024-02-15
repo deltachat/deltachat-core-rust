@@ -10,8 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          show-progress: false
           fetch-depth: 0 # Fetch history to calculate VCS version number.
       - name: Build Python documentation
         run: scripts/build-python-docs.sh

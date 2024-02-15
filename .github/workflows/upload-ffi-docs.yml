@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - name: Build the documentation with cargo
         run: |
           cargo doc --package deltachat_ffi --no-deps

@@ -13,8 +13,9 @@ jobs:
     steps:
       - name: Install tree
         run: sudo apt install tree
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v3
         with:
           node-version: "18"

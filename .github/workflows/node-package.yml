@@ -14,8 +14,9 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v3
         with:
           node-version: "18"
@@ -74,8 +75,9 @@ jobs:
       - name: Change working directory owner
         run: chown root:root .
 
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v3
         with:
           node-version: "18"
@@ -137,8 +139,9 @@ jobs:
     steps:
       - name: Install tree
         run: sudo apt install tree
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v2
         with:
           node-version: "18"

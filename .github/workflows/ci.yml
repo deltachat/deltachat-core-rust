@@ -26,7 +26,9 @@ jobs:
     env:
       RUSTUP_TOOLCHAIN: 1.75.0
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - name: Install rustfmt and clippy
         run: rustup toolchain install $RUSTUP_TOOLCHAIN --profile minimal --component rustfmt --component clippy
       - name: Cache rust cargo artifacts
@@ -42,7 +44,9 @@ jobs:
     name: cargo deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: EmbarkStudios/cargo-deny-action@v1
         with:
           arguments: --all-features --workspace
@@ -53,7 +57,9 @@ jobs:
     name: Check provider database
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - name: Check provider database
         run: scripts/update-provider-database.sh
 
@@ -63,8 +69,9 @@ jobs:
     env:
       RUSTDOCFLAGS: -Dwarnings
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
       - name: Rustdoc
@@ -87,7 +94,9 @@ jobs:
             rust: 1.70.0
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install Rust ${{ matrix.rust }}
         run: rustup toolchain install --profile minimal ${{ matrix.rust }}
@@ -111,7 +120,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
@@ -133,7 +144,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Cache rust cargo artifacts
         uses: swatinem/rust-cache@v2
@@ -152,8 +165,9 @@ jobs:
     name: Python lint
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install tox
         run: pip install tox
@@ -193,7 +207,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Download libdeltachat.a
         uses: actions/download-artifact@v4
@@ -243,7 +259,9 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
 
       - name: Install python
         uses: actions/setup-python@v4
