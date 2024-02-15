@@ -108,31 +108,31 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Download Linux binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux
           path: dist/
 
       - name: Download win32 binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deltachat-rpc-server-win32.exe
           path: deltachat-rpc-server-win32.exe.d
 
       - name: Download win64 binary
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deltachat-rpc-server-win64.exe
           path: deltachat-rpc-server-win64.exe.d
 
       - name: Download macOS binary for x86_64
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deltachat-rpc-server-x86_64-macos
           path: deltachat-rpc-server-x86_64-macos.d
 
       - name: Download macOS binary for aarch64
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deltachat-rpc-server-aarch64-macos
           path: deltachat-rpc-server-aarch64-macos.d
