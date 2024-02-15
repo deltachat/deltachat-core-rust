@@ -33,7 +33,7 @@ jobs:
         run: sh scripts/zig-rpc-server.sh
 
       - name: Upload dist directory with Linux binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux
           path: dist/
@@ -66,7 +66,7 @@ jobs:
         run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.target }} --features vendored
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deltachat-rpc-server-${{ matrix.artifact }}
           path: target/${{ matrix.target}}/release/${{ matrix.path }}
@@ -92,7 +92,7 @@ jobs:
         run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.arch }}-apple-darwin --features vendored
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deltachat-rpc-server-${{ matrix.arch }}-macos
           path: target/${{ matrix.arch }}-apple-darwin/release/deltachat-rpc-server

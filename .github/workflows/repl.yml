@@ -18,7 +18,7 @@ jobs:
         run: cargo build -p deltachat-repl --features vendored
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: repl.exe
           path: "target/debug/deltachat-repl.exe"
