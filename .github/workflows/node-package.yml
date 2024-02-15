@@ -165,15 +165,15 @@ jobs:
           node --version
           echo $DELTACHAT_NODE_TAR_GZ
       - name: Download Linux prebuild
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: linux
       - name: Download macOS prebuild
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: macos-latest
       - name: Download Windows prebuild
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v4
         with:
           name: windows-latest
       - shell: bash
