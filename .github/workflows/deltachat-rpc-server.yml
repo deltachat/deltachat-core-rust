@@ -188,6 +188,7 @@ jobs:
         run: ls -l dist/
 
       - name: Upload binaries to the GitHub release
+        if: github.event_name == 'release'
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         run: |
