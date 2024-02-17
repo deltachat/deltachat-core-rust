@@ -389,11 +389,11 @@ async fn imex_inner(
 
     if what == ImexMode::ExportBackup || what == ImexMode::ExportSelfKeys {
         // before we export anything, make sure the private key exists
-        if e2ee::ensure_secret_key_exists(context).await.is_err() {
-            bail!("Cannot create private key or private key not available.");
-        } else {
-            create_folder(context, &path).await?;
-        }
+        e2ee::ensure_secret_key_exists(context)
+            .await
+            .context("Cannot create private key or private key not available")?;
+
+        create_folder(context, &path).await?;
     }
 
     match what {
