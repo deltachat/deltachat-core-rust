@@ -182,9 +182,9 @@ jobs:
       - shell: bash
         run: |
           mkdir node/prebuilds
-          tar -xvzf linux/linux.tar.gz -C node/prebuilds
-          tar -xvzf macos-latest/macos-latest.tar.gz -C node/prebuilds
-          tar -xvzf windows-latest/windows-latest.tar.gz -C node/prebuilds
+          tar -xvzf linux.tar.gz -C node/prebuilds
+          tar -xvzf macos-latest.tar.gz -C node/prebuilds
+          tar -xvzf windows-latest.tar.gz -C node/prebuilds
           tree node/prebuilds
           rm -rf linux macos-latest windows-latest
       - name: Install dependencies without running scripts
