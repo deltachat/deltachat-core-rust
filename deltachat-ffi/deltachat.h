@@ -1960,10 +1960,10 @@ void            dc_delete_msgs               (dc_context_t* context, const uint3
 /**
  * Forward messages to another chat.
  *
- * All types of messages can be forwarded,
- * however, they will be flagged as such (dc_msg_is_forwarded() is set).
- *
- * Original sender, info-state and webxdc updates are not forwarded on purpose.
+ * Unless forwarded to "Saved Messages",
+ * UI should mark forwarded messages as such.
+ * Whether to mark a message as forwarded can be determined by dc_msg_is_forwarded().
+ * Original sender, webxdc updates and other metadata are not forwarded on purpose.
  *
  * @memberof dc_context_t
  * @param context The context object.
@@ -4384,10 +4384,9 @@ int             dc_msg_is_sent                (const dc_msg_t* msg);
 
 
 /**
- * Check if the message is a forwarded message.
+ * Check if the message should be marked as forwarded message.
  *
  * Forwarded messages may not be created by the contact given as "from".
- *
  * Typically, the UI shows a little text for a symbol above forwarded messages.
  *
  * For privacy reasons, we do not provide the name or the e-mail address of the
@@ -4867,6 +4866,19 @@ dc_msg_t*       dc_msg_get_quoted_msg         (const dc_msg_t* msg);
  */
 dc_msg_t*       dc_msg_get_parent             (const dc_msg_t* msg);
 
+
+/**
+ * Get original message for a saved message.
+ *
+ * For messages from the "Saved Messages" chat,
+ * this function returns the original message ID, if possible.
+ *
+ * @param msg The message object as returned for the "Saved Messages" chat.
+ * @return The message object of the original message.
+ *     NULL of the given message object is not a "Saved Message"
+ *     or if the original does no longer exist.
+ */
+dc_msg_t*       dc_msg_get_original_msg       (const dc_msg_t* msg);
 
 /**
  * Force the message to be sent in plain text.

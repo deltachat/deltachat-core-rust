@@ -3981,6 +3981,30 @@ pub unsafe extern "C" fn dc_msg_get_parent(msg: *const dc_msg_t) -> *mut dc_msg_
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_original_msg(msg: *const dc_msg_t) -> *mut dc_msg_t {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_original_msg()");
+        return ptr::null_mut();
+    }
+    let ffi_msg: &MessageWrapper = &*msg;
+    let context = &*ffi_msg.context;
+    let res = block_on(async move {
+        ffi_msg
+            .message
+            .get_original_msg(context)
+            .await
+            .context("failed to get original message")
+            .log_err(context)
+            .unwrap_or(None)
+    });
+
+    match res {
+        Some(message) => Box::into_raw(Box::new(MessageWrapper { context, message })),
+        None => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_force_plaintext(msg: *mut dc_msg_t) {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_force_plaintext()");

@@ -1256,6 +1256,19 @@ impl Message {
         Ok(None)
     }
 
+    /// Returns original message object for message from "Saved Messages".
+    pub async fn get_original_msg(&self, context: &Context) -> Result<Option<Message>> {
+        if let Some(msg_id) = self.param.get_int(Param::OriginalMsgId) {
+            let msg = Message::load_from_db(context, MsgId::new(msg_id as u32)).await?;
+            return if msg.chat_id.is_trash() {
+                Ok(None)
+            } else {
+                Ok(Some(msg))
+            };
+        }
+        Ok(None)
+    }
+
     /// Force the message to be sent in plain text.
     pub fn force_plaintext(&mut self) {
         self.param.set_int(Param::ForcePlaintext, 1);
@@ -2168,7 +2181,8 @@ mod tests {
 
     use super::*;
     use crate::chat::{
-        self, add_contact_to_chat, marknoticed_chat, send_text_msg, ChatItem, ProtectionStatus,
+        self, add_contact_to_chat, forward_msgs, marknoticed_chat, send_text_msg, ChatItem,
+        ProtectionStatus,
     };
     use crate::chatlist::Chatlist;
     use crate::config::Config;
@@ -2475,6 +2489,41 @@ mod tests {
             msg.get_override_sender_name(),
             Some("over ride".to_string())
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_get_original_msg() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        // normal sending of messages does not have an original ID
+        let one2one_chat = alice.create_chat(&bob).await;
+        let sent = alice.send_text(one2one_chat.id, "foo").await;
+        let orig_msg = Message::load_from_db(&alice, sent.sender_msg_id).await?;
+        assert!(orig_msg.get_original_msg(&alice).await?.is_none());
+        assert!(orig_msg.parent(&alice).await?.is_none());
+        assert!(orig_msg.quoted_message(&alice).await?.is_none());
+
+        // forwarding to "Saved Messages", the message gets the original ID attached
+        let self_chat = alice.get_self_chat().await;
+        forward_msgs(&alice, &[sent.sender_msg_id], self_chat.get_id()).await?;
+        let saved_msg = alice.get_last_msg_in(self_chat.get_id()).await;
+        assert_ne!(saved_msg.get_id(), orig_msg.get_id());
+        assert_eq!(
+            saved_msg.get_original_msg(&alice).await?.unwrap().get_id(),
+            orig_msg.get_id()
+        );
+        assert!(saved_msg.parent(&alice).await?.is_none());
+        assert!(saved_msg.quoted_message(&alice).await?.is_none());
+
+        // forwarding from "Saved Messages" back to another chat, the original ID attached
+        forward_msgs(&alice, &[saved_msg.get_id()], one2one_chat.get_id()).await?;
+        let forwarded_msg = alice.get_last_msg_in(one2one_chat.get_id()).await;
+        assert_ne!(forwarded_msg.get_id(), saved_msg.get_id());
+        assert_ne!(forwarded_msg.get_id(), orig_msg.get_id());
+        assert!(forwarded_msg.get_original_msg(&alice).await?.is_none());
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
