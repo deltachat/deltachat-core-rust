@@ -281,15 +281,12 @@ pub(crate) fn create_id() -> String {
 /// - this function is called for all outgoing messages.
 /// - the message ID should be globally unique
 /// - do not add a counter or any private data as this leaks information unnecessarily
-pub(crate) fn create_outgoing_rfc724_mid(grpid: Option<&str>, from_addr: &str) -> String {
+pub(crate) fn create_outgoing_rfc724_mid(from_addr: &str) -> String {
     let hostname = from_addr
         .find('@')
         .and_then(|k| from_addr.get(k..))
         .unwrap_or("@nohost");
-    match grpid {
-        Some(grpid) => format!("Gr.{}.{}{}", grpid, create_id(), hostname),
-        None => format!("Mr.{}.{}{}", create_id(), create_id(), hostname),
-    }
+    format!("Mr.{}.{}{}", create_id(), create_id(), hostname)
 }
 
 /// Extract the group id (grpid) from a message id (mid)
@@ -1013,21 +1010,10 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
 
     #[test]
     fn test_create_outgoing_rfc724_mid() {
-        // create a normal message-id
-        let mid = create_outgoing_rfc724_mid(None, "foo@bar.de");
+        let mid = create_outgoing_rfc724_mid("foo@bar.de");
         assert!(mid.starts_with("Mr."));
         assert!(mid.ends_with("bar.de"));
         assert!(extract_grpid_from_rfc724_mid(mid.as_str()).is_none());
-
-        // create a message-id containing a group-id
-        let grpid = create_id();
-        let mid = create_outgoing_rfc724_mid(Some(&grpid), "foo@bar.de");
-        assert!(mid.starts_with("Gr."));
-        assert!(mid.ends_with("bar.de"));
-        assert_eq!(
-            extract_grpid_from_rfc724_mid(mid.as_str()),
-            Some(grpid.as_str())
-        );
     }
 
     #[test]

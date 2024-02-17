@@ -1795,13 +1795,7 @@ impl Chat {
         let mut location_id = 0;
 
         let from = context.get_primary_self_addr().await?;
-        let new_rfc724_mid = {
-            let grpid = match self.typ {
-                Chattype::Group => Some(self.grpid.as_str()),
-                _ => None,
-            };
-            create_outgoing_rfc724_mid(grpid, &from)
-        };
+        let new_rfc724_mid = create_outgoing_rfc724_mid(&from);
 
         if self.typ == Chattype::Single {
             if let Some(id) = context
@@ -4151,7 +4145,7 @@ pub async fn add_device_msg_with_importance(
     if let Some(msg) = msg {
         chat_id = ChatId::get_for_contact(context, ContactId::DEVICE).await?;
 
-        let rfc724_mid = create_outgoing_rfc724_mid(None, "@device");
+        let rfc724_mid = create_outgoing_rfc724_mid("@device");
         prepare_msg_blob(context, msg).await?;
 
         let timestamp_sent = create_smeared_timestamp(context);
@@ -4291,7 +4285,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     parent: Option<&Message>,
     from_id: Option<ContactId>,
 ) -> Result<MsgId> {
-    let rfc724_mid = create_outgoing_rfc724_mid(None, "@device");
+    let rfc724_mid = create_outgoing_rfc724_mid("@device");
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
     let mut param = Params::new();
@@ -5932,11 +5926,11 @@ mod tests {
         // Alice has an SMTP-server replacing the `Message-ID:`-header (as done eg. by outlook.com).
         let sent_msg = alice.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 2);
-        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
-        let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
-        assert_eq!(msg.match_indices("Message-ID: <Gr.").count(), 0);
-        assert_eq!(msg.match_indices("References: <Gr.").count(), 1);
+        assert_eq!(msg.match_indices("Message-ID: <Mr.").count(), 2);
+        assert_eq!(msg.match_indices("References: <Mr.").count(), 1);
+        let msg = msg.replace("Message-ID: <Mr.", "Message-ID: <XXX");
+        assert_eq!(msg.match_indices("Message-ID: <Mr.").count(), 0);
+        assert_eq!(msg.match_indices("References: <Mr.").count(), 1);
 
         // Bob receives this message, he may detect group by `References:`- or `Chat-Group:`-header
         receive_imf(&bob, msg.as_bytes(), false).await.unwrap();
@@ -5953,7 +5947,7 @@ mod tests {
         send_text_msg(&bob, bob_chat.id, "ho!".to_string()).await?;
         let sent_msg = bob.pop_sent_msg().await;
         let msg = sent_msg.payload();
-        let msg = msg.replace("Message-ID: <Gr.", "Message-ID: <XXX");
+        let msg = msg.replace("Message-ID: <Mr.", "Message-ID: <XXX");
         let msg = msg.replace("Chat-", "XXXX-");
         assert_eq!(msg.match_indices("Chat-").count(), 0);
 
