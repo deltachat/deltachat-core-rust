@@ -10,17 +10,17 @@ on:
 jobs:
   build_repl:
     name: Build REPL example
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           show-progress: false
-
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build
-        run: cargo build -p deltachat-repl --features vendored
-
+        run: nix build .#deltachat-repl-win64
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: repl.exe
-          path: "target/debug/deltachat-repl.exe"
+          path: "result/bin/deltachat-repl.exe"
