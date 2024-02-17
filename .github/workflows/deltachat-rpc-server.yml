@@ -21,24 +21,27 @@ jobs:
   # Build a version statically linked against musl libc
   # to avoid problems with glibc version incompatibility.
   build_linux:
-    name: Cross-compile deltachat-rpc-server for x86_64, i686, aarch64 and armv7 Linux
-    runs-on: ubuntu-22.04
+    name: Build deltachat-rpc-server for Linux
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, armv7l, armv6l, i686, x86_64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           show-progress: false
-
-      - name: Install ziglang
-        run: pip install wheel ziglang==0.11.0
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Build deltachat-rpc-server binaries
-        run: sh scripts/zig-rpc-server.sh
+        run: nix build .#deltachat-rpc-server-${{ matrix.arch }}-linux
 
-      - name: Upload dist directory with Linux binaries
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: linux
-          path: dist/
+          name: deltachat-rpc-server-${{ matrix.arch }}-linux
+          path: result/bin/deltachat-rpc-server
           if-no-files-found: error
 
   build_windows:
@@ -46,34 +49,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: windows-latest
-            artifact: win32.exe
-            path: deltachat-rpc-server.exe
-            target: i686-pc-windows-msvc
-
-          - os: windows-latest
-            artifact: win64.exe
-            path: deltachat-rpc-server.exe
-            target: x86_64-pc-windows-msvc
-
-    runs-on: ${{ matrix.os }}
+        arch: [win32, win64]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Setup rust target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Build
-        run: cargo build --release --package deltachat-rpc-server --target ${{ matrix.target }} --features vendored
+      - name: Build deltachat-rpc-server binaries
+        run: nix build .#deltachat-rpc-server-${{ matrix.arch }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: deltachat-rpc-server-${{ matrix.artifact }}
-          path: target/${{ matrix.target}}/release/${{ matrix.path }}
+          name: deltachat-rpc-server-${{ matrix.arch }}
+          path: result/bin/deltachat-rpc-server.exe
           if-no-files-found: error
 
   build_macos:
@@ -81,9 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - arch: x86_64
-          - arch: aarch64
+        arch: [x86_64, aarch64]
 
     runs-on: macos-latest
     steps:
@@ -106,7 +96,7 @@ jobs:
 
   publish:
     name: Build wheels and upload binaries to the release
-    needs: ["build_linux", "build_windows", "build_macos"]
+    needs: ["build_linux", "build_macos"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
@@ -115,23 +105,47 @@ jobs:
         with:
           show-progress: false
 
-      - name: Download Linux binaries
+      - name: Download Linux aarch64 binary
         uses: actions/download-artifact@v4
         with:
-          name: linux
-          path: dist/
+          name: deltachat-rpc-server-aarch64-linux
+          path: deltachat-rpc-server-aarch64-linux.d
 
-      - name: Download win32 binary
+      - name: Download Linux armv7l binary
         uses: actions/download-artifact@v4
         with:
-          name: deltachat-rpc-server-win32.exe
-          path: deltachat-rpc-server-win32.exe.d
+          name: deltachat-rpc-server-armv7l-linux
+          path: deltachat-rpc-server-armv7l-linux.d
 
-      - name: Download win64 binary
+      - name: Download Linux armv6l binary
         uses: actions/download-artifact@v4
         with:
-          name: deltachat-rpc-server-win64.exe
-          path: deltachat-rpc-server-win64.exe.d
+          name: deltachat-rpc-server-armv6l-linux
+          path: deltachat-rpc-server-armv6l-linux.d
+
+      - name: Download Linux i686 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-i686-linux
+          path: deltachat-rpc-server-i686-linux.d
+
+      - name: Download Linux x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-x86_64-linux
+          path: deltachat-rpc-server-x86_64-linux.d
+
+      - name: Download Win32 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-win32
+          path: deltachat-rpc-server-win32.d
+
+      - name: Download Win64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-win64
+          path: deltachat-rpc-server-win64.d
 
       - name: Download macOS binary for x86_64
         uses: actions/download-artifact@v4
@@ -147,8 +161,14 @@ jobs:
 
       - name: Flatten dist/ directory
         run: |
-          mv deltachat-rpc-server-win32.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win32.exe
-          mv deltachat-rpc-server-win64.exe.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
+          mkdir -p dist
+          mv deltachat-rpc-server-aarch64-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-linux
+          mv deltachat-rpc-server-armv7l-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-armv7l-linux
+          mv deltachat-rpc-server-armv6l-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-armv6l-linux
+          mv deltachat-rpc-server-i686-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-i686-linux
+          mv deltachat-rpc-server-x86_64-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-linux
+          mv deltachat-rpc-server-win32.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win32.exe
+          mv deltachat-rpc-server-win64.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
           mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
           mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
 
