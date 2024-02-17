@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::io::Cursor;
 
-use anyhow::{bail, format_err, Context as _, Result};
+use anyhow::{bail, Context as _, Result};
 use pgp::armor::BlockType;
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -174,31 +174,25 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
-                .map_err(|e| format_err!("{}", e))
                 .context("failed to build subkey parameters")?,
         )
         .build()
-        .map_err(|e| format_err!("{}", e))
         .context("invalid key params")?;
     let key = key_params.generate().context("invalid params")?;
     let private_key = key
         .sign(|| "".into())
-        .map_err(|e| format_err!("{}", e))
         .context("failed to sign secret key")?;
 
     let public_key = private_key.public_key();
     let public_key = public_key
         .sign(&private_key, || "".into())
-        .map_err(|e| format_err!("{}", e))
         .context("failed to sign public key")?;
 
     private_key
         .verify()
-        .map_err(|e| format_err!("{}", e))
         .context("invalid private key generated")?;
     public_key
         .verify()
-        .map_err(|e| format_err!("{}", e))
         .context("invalid public key generated")?;
 
     Ok(KeyPair {
