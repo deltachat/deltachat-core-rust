@@ -138,8 +138,11 @@ pub struct KeyPair {
 }
 
 /// Create a new key pair.
+///
+/// Both secret and public key consist of signing primary key and encryption subkey
+/// as [described in the Autocrypt standard](https://autocrypt.org/level1.html#openpgp-based-key-data).
 pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Result<KeyPair> {
-    let (secret_key_type, public_key_type) = match keygen_type {
+    let (signing_key_type, encryption_key_type) = match keygen_type {
         KeyGenType::Rsa2048 => (PgpKeyType::Rsa(2048), PgpKeyType::Rsa(2048)),
         KeyGenType::Rsa4096 => (PgpKeyType::Rsa(4096), PgpKeyType::Rsa(4096)),
         KeyGenType::Ed25519 | KeyGenType::Default => (PgpKeyType::EdDSA, PgpKeyType::ECDH),
@@ -147,7 +150,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
 
     let user_id = format!("<{addr}>");
     let key_params = SecretKeyParamsBuilder::default()
-        .key_type(secret_key_type)
+        .key_type(signing_key_type)
         .can_create_certificates(true)
         .can_sign(true)
         .primary_user_id(user_id)
@@ -170,27 +173,28 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
         ])
         .subkey(
             SubkeyParamsBuilder::default()
-                .key_type(public_key_type)
+                .key_type(encryption_key_type)
                 .can_encrypt(true)
                 .passphrase(None)
                 .build()
                 .context("failed to build subkey parameters")?,
         )
         .build()
-        .context("invalid key params")?;
-    let key = key_params.generate().context("invalid params")?;
-    let private_key = key
+        .context("failed to build key parameters")?;
+
+    let secret_key = key_params
+        .generate()
+        .context("failed to generate the key")?
         .sign(|| "".into())
         .context("failed to sign secret key")?;
-
-    let public_key = private_key.public_key();
-    let public_key = public_key
-        .sign(&private_key, || "".into())
-        .context("failed to sign public key")?;
-
-    private_key
+    secret_key
         .verify()
-        .context("invalid private key generated")?;
+        .context("invalid secret key generated")?;
+
+    let public_key = secret_key
+        .public_key()
+        .sign(&secret_key, || "".into())
+        .context("failed to sign public key")?;
     public_key
         .verify()
         .context("invalid public key generated")?;
@@ -198,7 +202,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     Ok(KeyPair {
         addr,
         public: public_key,
-        secret: private_key,
+        secret: secret_key,
     })
 }
 
