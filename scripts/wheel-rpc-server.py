@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Build Python wheels for deltachat-rpc-server.
-Run scripts/zig-rpc-server.sh first."""
+"""Build Python wheels for deltachat-rpc-server."""
 from pathlib import Path
 from wheel.wheelfile import WheelFile
 import tomllib
@@ -157,8 +156,13 @@ def main():
     )
     build_wheel(
         version,
-        "dist/deltachat-rpc-server-armv7-linux",
+        "dist/deltachat-rpc-server-armv7l-linux",
         "py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l",
+    )
+    build_wheel(
+        version,
+        "dist/deltachat-rpc-server-armv6l-linux",
+        "py3-none-manylinux_2_17_armv6l.manylinux2014_armv6l.musllinux_1_1_armv6l",
     )
     build_wheel(
         version,
