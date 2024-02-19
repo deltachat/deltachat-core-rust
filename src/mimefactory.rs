@@ -338,18 +338,11 @@ impl<'a> MimeFactory<'a> {
     fn should_force_plaintext(&self) -> bool {
         match &self.loaded {
             Loaded::Message { chat } => {
-                if chat.is_protected() {
-                    false
-                } else if chat.typ == Chattype::Broadcast {
-                    // encryption may disclose recipients;
-                    // this is probably a worse issue than not opportunistically (!) encrypting
-                    true
-                } else {
-                    self.msg
-                        .param
-                        .get_bool(Param::ForcePlaintext)
-                        .unwrap_or_default()
-                }
+                self.msg
+                    .param
+                    .get_bool(Param::ForcePlaintext)
+                    .unwrap_or_default()
+                    || chat.typ == Chattype::Broadcast
             }
             Loaded::Mdn { .. } => false,
         }
