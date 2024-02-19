@@ -164,6 +164,21 @@ def test_qr_readreceipt(acfactory) -> None:
     assert not bob.get_chat_by_contact(bob_contact_charlie)
 
 
+def test_setup_contact_resetup(acfactory) -> None:
+    """Tests that setup contact works after Alice resets the device and changes the key."""
+    alice, bob = acfactory.get_online_accounts(2)
+
+    qr_code, _svg = alice.get_qr_code()
+    bob.secure_join(qr_code)
+    bob.wait_for_securejoin_joiner_success()
+
+    alice = acfactory.resetup_account(alice)
+
+    qr_code, _svg = alice.get_qr_code()
+    bob.secure_join(qr_code)
+    bob.wait_for_securejoin_joiner_success()
+
+
 def test_verified_group_recovery(acfactory) -> None:
     """Tests verified group recovery by reverifying a member and sending a message in a group."""
     ac1, ac2, ac3 = acfactory.get_online_accounts(3)
