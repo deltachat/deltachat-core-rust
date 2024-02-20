@@ -337,7 +337,7 @@ impl Peerstate {
             return;
         }
 
-        if message_time > self.last_seen {
+        if message_time >= self.last_seen {
             self.last_seen = message_time;
             self.last_seen_autocrypt = message_time;
             if (header.prefer_encrypt == EncryptPreference::Mutual
@@ -360,7 +360,7 @@ impl Peerstate {
             return;
         }
 
-        if message_time > self.gossip_timestamp {
+        if message_time >= self.gossip_timestamp {
             self.gossip_timestamp = message_time;
             if self.gossip_key.as_ref() != Some(&gossip_header.public_key) {
                 self.gossip_key = Some(gossip_header.public_key.clone());
@@ -995,7 +995,7 @@ mod tests {
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Reset);
 
         // Same header will be applied in the future.
-        peerstate.apply_header(&header, 400);
+        peerstate.apply_header(&header, 300);
         assert_eq!(peerstate.prefer_encrypt, EncryptPreference::Mutual);
     }
 }
