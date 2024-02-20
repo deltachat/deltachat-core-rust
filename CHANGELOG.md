@@ -1,5 +1,80 @@
 # Changelog
 
+## [1.135.1] - 2024-02-20
+
+### Features / Changes
+
+- Sync self-avatar across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- Sync Config::Selfstatus across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- Remove webxdc sending limit.
+
+### Fixes
+
+- Never encrypt `{vc,vg}-request` SecureJoin messages.
+- Apply Autocrypt headers if timestamp is unchanged.
+- `Context::get_info`: Report displayname as "displayname" (w/o underscore).
+
+### Tests
+
+- Mock `SystemTime::now()` for the tests.
+- Add a test on protection message sort timestamp ([#5088](https://github.com/deltachat/deltachat-core-rust/pull/5088)).
+
+### Build system
+
+- Add flake.nix.
+- Add footer template for git-cliff.
+
+### CI
+
+- Update GitHub Actions `actions/upload-artifact`, `actions/download-artifact`, `actions/checkout`.
+- Build deltachat-repl for Windows with nix.
+- Build deltachat-rpc-server with nix.
+- Try to upload deltachat-rpc-server only on release.
+
+### Refactor
+
+- `create_keypair`: Remove unnecessary `map_err`.
+- Return error with a cause when failing to export keys.
+- Rename incorrectly named variables in `create_keypair`.
+
+## [1.135.1] - 2024-02-20
+
+### CI
+
+- Update actions/upload-artifact.
+- Use actions/download-artifact@v4.
+- Replace download-artifact v1 with v4.
+- Update to actions/checkout@v4.
+- Fixup node-package.yml after artifact actions upgrade.
+
+### Features / Changes
+
+- Mock SystemTime::now() for the tests.
+- Remove webxdc sending limit.
+- Sync self-avatar across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+- Sync Config::Selfstatus across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
+
+### Fixes
+
+- Context::get_info: Report displayname as "displayname" (w/o underscore).
+- Never encrypt {vc,vg}-request.
+
+### Other
+
+- Cleanup changelog ([#5265](https://github.com/deltachat/deltachat-core-rust/pull/5265))
+
+somehow a whole issue sneaked in :).
+
+### Refactor
+
+- create_keypair: Remove unnecessary map_err.
+- Return error with a cause when failing to export keys.
+- Rename incorrectly named variables in create_keypair.
+
+### Tests
+
+- Add a test on protection message sort timestamp ([#5088](https://github.com/deltachat/deltachat-core-rust/pull/5088)).
+
 ## [1.135.0] - 2024-02-13
 
 ### Features / Changes
@@ -3541,3 +3616,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.133.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.1...v1.133.2
 [1.134.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.133.2...v1.134.0
 [1.135.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.134.0...v1.135.0
+[1.135.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.0...v1.135.1
