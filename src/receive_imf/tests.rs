@@ -1693,7 +1693,7 @@ async fn test_in_reply_to_two_member_group() {
                  Subject: foo\n\
                  Message-ID: <message@example.org>\n\
                  Chat-Version: 1.0\n\
-                 Chat-Group-ID: foo\n\
+                 Chat-Group-ID: foobarbaz12\n\
                  Chat-Group-Name: foo\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
@@ -1738,7 +1738,7 @@ async fn test_in_reply_to_two_member_group() {
                  Message-ID: <chatreply@example.org>\n\
                  In-Reply-To: <message@example.org>\n\
                  Chat-Version: 1.0\n\
-                 Chat-Group-ID: foo\n\
+                 Chat-Group-ID: foobarbaz12\n\
                  Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
                  \n\
                  chat reply\n",

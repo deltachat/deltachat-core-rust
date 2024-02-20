@@ -164,7 +164,7 @@ mod tests {
                  To: alice@example.org\n\
                  Message-ID: <msg1@example.org>\n\
                  Chat-Version: 1.0\n\
-                 Chat-Group-ID: abcde\n\
+                 Chat-Group-ID: abcde123456\n\
                  Chat-Group-Name: initial name\n\
                  Date: Sun, 22 Mar 2021 01:00:00 +0000\n\
                  \n\
@@ -182,7 +182,7 @@ mod tests {
                  To: alice@example.org\n\
                  Message-ID: <msg3@example.org>\n\
                  Chat-Version: 1.0\n\
-                 Chat-Group-ID: abcde\n\
+                 Chat-Group-ID: abcde123456\n\
                  Chat-Group-Name: another name update\n\
                  Chat-Group-Name-Changed: a name update\n\
                  Date: Sun, 22 Mar 2021 03:00:00 +0000\n\
@@ -197,7 +197,7 @@ mod tests {
                  To: alice@example.org\n\
                  Message-ID: <msg2@example.org>\n\
                  Chat-Version: 1.0\n\
-                 Chat-Group-ID: abcde\n\
+                 Chat-Group-ID: abcde123456\n\
                  Chat-Group-Name: a name update\n\
                  Chat-Group-Name-Changed: initial name\n\
                  Date: Sun, 22 Mar 2021 02:00:00 +0000\n\

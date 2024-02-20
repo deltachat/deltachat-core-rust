@@ -119,8 +119,9 @@ All group members form the member list.
 To allow different groups with the same members,
 groups are identified by a group-id.
 The group-id MUST be created only from the characters
-`0`-`9`, `A`-`Z`, `a`-`z` `_` and `-`
-and MUST have a length of at least 11 characters.
+`0`-`9`, `A`-`Z`, `a`-`z` `_` and `-`,
+MUST have a length of at least 11 characters
+and no more than 32 characters.
 
 Groups MUST have a group-name.
 The group-name is any non-zero-length UTF-8 string.

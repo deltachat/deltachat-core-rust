@@ -23,6 +23,7 @@ use crate::message::Message;
 use crate::peerstate::Peerstate;
 use crate::socks::Socks5Config;
 use crate::token;
+use crate::tools::validate_id;
 
 const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
 const IDELTACHAT_SCHEME: &str = "https://i.delta.chat/#";
@@ -345,9 +346,18 @@ async fn decode_openpgp(context: &Context, qr: &str) -> Result<Qr> {
         "".to_string()
     };
 
-    let invitenumber = param.get("i").map(|s| s.to_string());
-    let authcode = param.get("s").map(|s| s.to_string());
-    let grpid = param.get("x").map(|s| s.to_string());
+    let invitenumber = param
+        .get("i")
+        .filter(|&s| validate_id(s))
+        .map(|s| s.to_string());
+    let authcode = param
+        .get("s")
+        .filter(|&s| validate_id(s))
+        .map(|s| s.to_string());
+    let grpid = param
+        .get("x")
+        .filter(|&s| validate_id(s))
+        .map(|s| s.to_string());
 
     let grpname = if grpid.is_some() {
         if let Some(encoded_name) = param.get("g") {
@@ -1031,6 +1041,21 @@ mod tests {
         } else {
             bail!("Wrong QR code type");
         }
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_decode_openpgp_invalid_token() -> Result<()> {
+        let ctx = TestContext::new().await;
+
+        // Token cannot contain "/"
+        let qr = check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=test%20%3F+test%20%21&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL/cxRL"
+        ).await?;
+
+        assert!(matches!(qr, Qr::FprMismatch { .. }));
 
         Ok(())
     }
