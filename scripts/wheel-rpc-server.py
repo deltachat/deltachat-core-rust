@@ -157,12 +157,12 @@ def main():
     build_wheel(
         version,
         "dist/deltachat-rpc-server-armv7l-linux",
-        "py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l",
+        "py3-none-linux_armv7l.manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l",
     )
     build_wheel(
         version,
         "dist/deltachat-rpc-server-armv6l-linux",
-        "py3-none-manylinux_2_17_armv6l.manylinux2014_armv6l.musllinux_1_1_armv6l",
+        "py3-none-linux_armv6l",
     )
     build_wheel(
         version,
