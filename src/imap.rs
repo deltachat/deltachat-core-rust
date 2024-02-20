@@ -2183,6 +2183,26 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         "草稿",
         "임시보관함",
     ];
+    const TRASH_NAMES: &[&str] = &[
+        "Trash",
+        "Bin",
+        "Caixote do lixo",
+        "Cestino",
+        "Corbeille",
+        "Papelera",
+        "Papierkorb",
+        "Papirkurv",
+        "Papperskorgen",
+        "Prullenbak",
+        "Rubujo",
+        "Κάδος απορριμμάτων",
+        "Корзина",
+        "Кошик",
+        "ゴミ箱",
+        "垃圾桶",
+        "已删除邮件",
+        "휴지통",
+    ];
     let lower = folder_name.to_lowercase();
 
     if SENT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
@@ -2191,6 +2211,8 @@ fn get_folder_meaning_by_name(folder_name: &str) -> FolderMeaning {
         FolderMeaning::Spam
     } else if DRAFT_NAMES.iter().any(|s| s.to_lowercase() == lower) {
         FolderMeaning::Drafts
+    } else if TRASH_NAMES.iter().any(|s| s.to_lowercase() == lower) {
+        FolderMeaning::Trash
     } else {
         FolderMeaning::Unknown
     }
@@ -2693,6 +2715,7 @@ mod tests {
         );
         assert_eq!(get_folder_meaning_by_name("xxx"), FolderMeaning::Unknown);
         assert_eq!(get_folder_meaning_by_name("SPAM"), FolderMeaning::Spam);
+        assert_eq!(get_folder_meaning_by_name("Trash"), FolderMeaning::Trash);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
