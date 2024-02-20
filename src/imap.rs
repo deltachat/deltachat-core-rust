@@ -990,7 +990,7 @@ impl Imap {
             .context("failed to get recipients from the sentbox")?;
         add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder)
             .await
-            .context("failed to ge recipients from the movebox")?;
+            .context("failed to get recipients from the movebox")?;
         add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder)
             .await
             .context("failed to get recipients from the inbox")?;
