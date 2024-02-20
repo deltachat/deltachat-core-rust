@@ -19,6 +19,9 @@ pub(crate) struct Session {
     pub selected_mailbox: Option<Mailbox>,
 
     pub selected_folder_needs_expunge: bool,
+
+    /// True if NOTIFY SET command was executed in this session.
+    pub notify_set: bool,
 }
 
 impl Deref for Session {
@@ -46,11 +49,16 @@ impl Session {
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
+            notify_set: false,
         }
     }
 
     pub fn can_idle(&self) -> bool {
         self.capabilities.can_idle
+    }
+
+    pub fn can_notify(&self) -> bool {
+        self.capabilities.can_notify
     }
 
     pub fn can_move(&self) -> bool {

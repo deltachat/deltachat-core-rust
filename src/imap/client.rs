@@ -56,6 +56,7 @@ async fn determine_capabilities(
     };
     let capabilities = Capabilities {
         can_idle: caps.has_str("IDLE"),
+        can_notify: caps.has_str("NOTIFY"),
         can_move: caps.has_str("MOVE"),
         can_check_quota: caps.has_str("QUOTA"),
         can_condstore: caps.has_str("CONDSTORE"),
