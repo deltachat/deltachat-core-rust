@@ -30,9 +30,9 @@ class RpcFuture:
 
 
 class RpcMethod:
-    def __init__(self, rpc: "Rpc", method: str):
+    def __init__(self, rpc: "Rpc", name str):
         self.rpc = rpc
-        self.method = method
+        self.name = name
 
     def __call__(self, *args) -> Any:
         """Synchronously calls JSON-RPC method."""
@@ -44,7 +44,7 @@ class RpcMethod:
         request_id = next(self.rpc.id_iterator)
         request = {
             "jsonrpc": "2.0",
-            "method": self.method,
+            "method": self.name,
             "params": args,
             "id": request_id,
         }
