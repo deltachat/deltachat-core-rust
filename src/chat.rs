@@ -4189,7 +4189,6 @@ pub async fn forward_msgs(context: &Context, msg_ids: &[MsgId], chat_id: ChatId)
         msg.param.remove(Param::ForcePlaintext);
         msg.param.remove(Param::Cmd);
         msg.param.remove(Param::OverrideSenderDisplayname);
-        msg.param.remove(Param::OriginalMsgId);
         msg.param.remove(Param::WebxdcDocument);
         msg.param.remove(Param::WebxdcDocumentTimestamp);
         msg.param.remove(Param::WebxdcSummary);
@@ -4245,16 +4244,14 @@ pub(crate) async fn save_copy_in_self_talk(
     msg.param.remove(Param::WebxdcDocumentTimestamp);
     msg.param.remove(Param::WebxdcSummary);
     msg.param.remove(Param::WebxdcSummaryTimestamp);
-    msg.param
-        .set_int(Param::OriginalMsgId, src_msg_id.to_u32() as i32);
     let copy_fields = "from_id, to_id, timestamp_sent, timestamp_rcvd, type, txt, txt_raw, \
                              mime_modified, mime_headers, mime_compressed, mime_in_reply_to, subject, msgrmsg";
     let row_id = context
         .sql
         .insert(
             &*format!(
-                "INSERT INTO msgs ({copy_fields}, chat_id, rfc724_mid, state, timestamp, param) \
-                            SELECT {copy_fields}, ?, ?, ?, ?, ? \
+                "INSERT INTO msgs ({copy_fields}, chat_id, rfc724_mid, state, timestamp, param, starred) \
+                            SELECT {copy_fields}, ?, ?, ?, ?, ?, ? \
                             FROM msgs WHERE id=?;"
             ),
             (
@@ -4267,6 +4264,7 @@ pub(crate) async fn save_copy_in_self_talk(
                 },
                 create_smeared_timestamp(context),
                 msg.param.to_string(),
+                src_msg_id,
                 src_msg_id,
             ),
         )
