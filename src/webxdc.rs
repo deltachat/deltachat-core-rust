@@ -500,8 +500,6 @@ impl Context {
         let mut ephemeral = status_update.gossip_topic.is_some();
         if send_now {
             if let Some(ref topic) = status_update.gossip_topic {
-                // find out if any row with `topic = topic` exists in the gossip_peers table
-
                 let topic = TopicId::from_str(&iroh_base::base32::fmt(
                     topic.get(0..32).context("Can't get 32 bytes from topic")?,
                 ))?;
@@ -539,6 +537,10 @@ impl Context {
                     ephemeral = false;
                 } else {
                     if let Some(ref gossip) = *self.gossip.lock().await {
+                        println!(
+                            "sending to topic {topic} with peers: {:?}",
+                            self.get_peers_for_topic(topic).await?
+                        );
                         gossip
                             .broadcast(topic, serde_json::to_string(&status_update)?.into())
                             .await?;

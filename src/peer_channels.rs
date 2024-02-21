@@ -8,6 +8,7 @@ use crate::tools::time;
 use crate::webxdc::StatusUpdateItem;
 use anyhow::{anyhow, Context as _, Result};
 use image::EncodableLayout;
+use iroh_base::base32;
 use iroh_gossip::net::{Gossip, GOSSIP_ALPN};
 use iroh_gossip::proto::{Event as IrohEvent, TopicId};
 use iroh_net::magic_endpoint::accept_conn;
@@ -18,6 +19,8 @@ impl Context {
     /// Create magic endpoint and gossip for the context.
     pub async fn create_gossip(&self) -> Result<()> {
         let secret_key: SecretKey = self.get_or_create_iroh_keypair().await?;
+
+        println!("> our secret key: {}", base32::fmt(secret_key.to_bytes()));
 
         if self.endpoint.lock().await.is_some() {
             warn!(
@@ -32,12 +35,6 @@ impl Context {
             .secret_key(secret_key)
             .alpns(vec![GOSSIP_ALPN.to_vec()])
             .derp_mode(DerpMode::Default)
-            .peers_data_path(
-                self.blobdir
-                    .parent()
-                    .context("Can't get parent of blob dir")?
-                    .to_path_buf(),
-            )
             .bind(0)
             .await?;
 
@@ -72,6 +69,17 @@ impl Context {
             warn!(self, "joining gossip with zero peers");
         } else {
             info!(self, "joining gossip with peers: {peers:?}");
+            info!(
+                self,
+                "{:?}",
+                self.endpoint
+                    .lock()
+                    .await
+                    .as_ref()
+                    .unwrap()
+                    .my_addr()
+                    .await?
+            );
         }
 
         // TODO: add timeout as the returned future might be pending forever
@@ -139,7 +147,8 @@ impl Context {
 
     /// Get the iroh gossip secret key from the database or create one.
     pub async fn get_or_create_iroh_keypair(&self) -> Result<SecretKey> {
-        match self.get_config_parsed(Config::IrohSecretKey).await? {
+        Ok(SecretKey::generate())
+        /* match self.get_config_parsed(Config::IrohSecretKey).await? {
             Some(key) => Ok(key),
             None => {
                 let key = SecretKey::generate();
@@ -147,7 +156,7 @@ impl Context {
                     .await?;
                 Ok(key)
             }
-        }
+        } */
     }
 }
 

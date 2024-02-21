@@ -457,9 +457,15 @@ pub(crate) async fn receive_imf_inner(
 
                             let node_id = node_addr.node_id;
                             for topic in topics {
+                                println!("Adding peer: {:?}", node_id);
                                 context
                                     .add_peer_for_topic(instance_id, topic, node_id)
                                     .await?;
+
+                                println!(
+                                    "New peer topics: {:?}",
+                                    context.get_peers_for_topic(topic).await?
+                                );
                             }
                         }
                         Err(err) => {
