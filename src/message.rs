@@ -476,6 +476,7 @@ pub struct Message {
     /// `In-Reply-To` header value.
     pub(crate) in_reply_to: Option<String>,
     pub(crate) is_dc_message: MessengerMessage,
+    pub(crate) original_msg_id: MsgId,
     pub(crate) mime_modified: bool,
     pub(crate) chat_blocked: Blocked,
     pub(crate) location_id: u32,
@@ -542,6 +543,7 @@ impl Message {
                     "    m.download_state AS download_state,",
                     "    m.error AS error,",
                     "    m.msgrmsg AS msgrmsg,",
+                    "    m.starred AS original_msg_id,",
                     "    m.mime_modified AS mime_modified,",
                     "    m.txt AS txt,",
                     "    m.subject AS subject,",
@@ -598,6 +600,7 @@ impl Message {
                         error: Some(row.get::<_, String>("error")?)
                             .filter(|error| !error.is_empty()),
                         is_dc_message: row.get("msgrmsg")?,
+                        original_msg_id: row.get("original_msg_id")?,
                         mime_modified: row.get("mime_modified")?,
                         text,
                         subject: row.get("subject")?,
@@ -1274,8 +1277,8 @@ impl Message {
 
     /// Returns original message object for message from "Saved Messages".
     pub async fn get_original_msg(&self, context: &Context) -> Result<Option<Message>> {
-        if let Some(msg_id) = self.param.get_int(Param::OriginalMsgId) {
-            let msg = Message::load_from_db(context, MsgId::new(msg_id as u32)).await?;
+        if !self.original_msg_id.is_special() {
+            let msg = Message::load_from_db(context, self.original_msg_id).await?;
             return if msg.chat_id.is_trash() {
                 Ok(None)
             } else {
