@@ -112,9 +112,6 @@ pub enum Param {
     /// For Messages
     WebrtcRoom = b'V',
 
-    /// For Messages
-    OriginalMsgId = b'y',
-
     /// For Messages: space-separated list of messaged IDs of forwarded copies.
     ///
     /// This is used when a [crate::message::Message] is in the
