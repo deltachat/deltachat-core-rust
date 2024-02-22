@@ -324,8 +324,6 @@ impl Imap {
             return Ok(());
         }
 
-        self.connectivity.set_connecting(context).await;
-
         let ratelimit_duration = self.ratelimit.read().await.until_can_send();
         if !ratelimit_duration.is_zero() {
             warn!(
@@ -337,6 +335,7 @@ impl Imap {
         }
 
         info!(context, "Connecting to IMAP server");
+        self.connectivity.set_connecting(context).await;
         self.ratelimit.write().await.send();
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
