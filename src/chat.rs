@@ -4244,6 +4244,11 @@ pub(crate) async fn save_copy_in_self_talk(
     msg.param.remove(Param::WebxdcDocumentTimestamp);
     msg.param.remove(Param::WebxdcSummary);
     msg.param.remove(Param::WebxdcSummaryTimestamp);
+    let original_msg_id = if !msg.original_msg_id.is_special() {
+        msg.original_msg_id
+    } else {
+        *src_msg_id
+    };
     let copy_fields = "from_id, to_id, timestamp_sent, timestamp_rcvd, type, txt, txt_raw, \
                              mime_modified, mime_headers, mime_compressed, mime_in_reply_to, subject, msgrmsg";
     let row_id = context
@@ -4264,7 +4269,7 @@ pub(crate) async fn save_copy_in_self_talk(
                 },
                 create_smeared_timestamp(context),
                 msg.param.to_string(),
-                src_msg_id,
+                original_msg_id,
                 src_msg_id,
             ),
         )
@@ -6913,6 +6918,10 @@ mod tests {
         forward_msgs(&alice, &[sent.sender_msg_id], self_chat.id).await?;
         let msg = alice.get_last_msg_in(self_chat.id).await;
         assert_ne!(msg.get_id(), sent.sender_msg_id);
+        assert_eq!(
+            msg.get_original_msg(&alice).await?.unwrap().id,
+            sent.sender_msg_id
+        );
         assert_eq!(msg.get_text(), "hi, bob");
         assert!(!msg.is_forwarded()); // UI should not flag "saved messages" as "forwarded"
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -6925,6 +6934,7 @@ mod tests {
         forward_msgs(&bob, &[rcvd_msg.id], self_chat.id).await?;
         let msg = bob.get_last_msg_in(self_chat.id).await;
         assert_ne!(msg.get_id(), rcvd_msg.id);
+        assert_eq!(msg.get_original_msg(&bob).await?.unwrap().id, rcvd_msg.id);
         assert_eq!(msg.get_text(), "hi, bob");
         assert!(!msg.is_forwarded());
         assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
@@ -6938,7 +6948,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_forward_to_saved_is_not_added_to_shared_chats() -> Result<()> {
         let alice = TestContext::new_alice().await;
-        let bob = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
         let alice_chat = alice.create_chat(&bob).await;
         let bob_chat = bob.create_chat(&alice).await;
 
@@ -6955,6 +6965,32 @@ mod tests {
         let shared_chats = Chatlist::try_load(&bob, 0, None, Some(contact.id)).await?;
         assert_eq!(shared_chats.len(), 1);
         assert_eq!(shared_chats.get_chat_id(0).unwrap(), bob_chat.id);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_forward_from_saved_to_saved() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+        let sent = alice.send_text(alice.create_chat(&bob).await.id, "k").await;
+
+        bob.recv_msg(&sent).await;
+        let orig = bob.get_last_msg().await;
+        let self_chat = bob.get_self_chat().await;
+        forward_msgs(&bob, &[orig.id], self_chat.id).await?;
+        let saved1 = bob.get_last_msg().await;
+        assert_eq!(
+            saved1.get_original_msg(&bob).await?.unwrap().id,
+            sent.sender_msg_id
+        );
+
+        forward_msgs(&bob, &[saved1.id], self_chat.id).await?;
+        let saved2 = bob.get_last_msg().await;
+        assert_eq!(
+            saved2.get_original_msg(&bob).await?.unwrap().id,
+            sent.sender_msg_id
+        );
 
         Ok(())
     }
