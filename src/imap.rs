@@ -94,16 +94,11 @@ pub struct Imap {
 
     pub(crate) connectivity: ConnectivityStore,
 
-    /// Rate limit for IMAP connection usage attempts.
+    /// Rate limit for IMAP connection attempts.
     ///
-    /// Rate limit is checked before connecting
-    /// and updated right before login attempt.
-    /// It does not limit the number of connection attempts
-    /// if the network is bad as only successful connections are counted.
-    ///
-    /// Main purpose of this rate limit is
-    /// to prevent busy loop in case
-    /// connection gets dropped over and over due to IMAP bug,
+    /// This rate limit prevents busy loop
+    /// in case the server refuses connections
+    /// or in case connection gets dropped over and over due to IMAP bug,
     /// e.g. the server returning invalid response to SELECT command
     /// immediately after logging in or returning an error in response to LOGIN command
     /// due to internal server error.
@@ -280,7 +275,7 @@ impl Imap {
             session: None,
             login_failed_once: false,
             connectivity: Default::default(),
-            // 1 login per minute + a burst of 2.
+            // 1 connection per minute + a burst of 2.
             ratelimit: RwLock::new(Ratelimit::new(Duration::new(120, 0), 2.0)),
         };
 
@@ -331,11 +326,6 @@ impl Imap {
 
         self.connectivity.set_connecting(context).await;
 
-        // Check rate limit before trying to connect
-        // to avoid connecting and not using the connection
-        // in case we are currently ratelimited.
-        // Otherwise connection may become unusable due to NAT forgetting about it
-        // before we attempt to actually login.
         let ratelimit_duration = self.ratelimit.read().await.until_can_send();
         if !ratelimit_duration.is_zero() {
             warn!(
@@ -347,6 +337,7 @@ impl Imap {
         }
 
         info!(context, "Connecting to IMAP server");
+        self.ratelimit.write().await.send();
         let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
             || self.config.lp.security == Socket::Plain
         {
@@ -397,7 +388,6 @@ impl Imap {
             }
         };
         let client = connection_res?;
-        self.ratelimit.write().await.send();
 
         let config = &self.config;
         let imap_user: &str = config.lp.user.as_ref();
