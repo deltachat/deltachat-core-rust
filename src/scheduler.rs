@@ -559,9 +559,6 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     {
         warn!(ctx, "{:#}", err);
         connection.trigger_reconnect(ctx);
-        connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
-            .await;
         return;
     }
 
