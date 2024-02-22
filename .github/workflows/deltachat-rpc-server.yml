@@ -174,7 +174,7 @@ jobs:
 
       # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
       - name: Install python 3.12
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.12
 
