@@ -18,7 +18,7 @@ use crate::imex::BLOBS_BACKUP_NAME;
 use crate::log::LogExt;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::param::{Param, Params};
-use crate::peerstate::{deduplicate_peerstates, Peerstate};
+use crate::peerstate::Peerstate;
 use crate::stock_str;
 use crate::tools::{delete_file, time, SystemTime};
 
@@ -728,10 +728,6 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
             context,
             "Housekeeping: Cannot prune message tombstones: {:#}.", err
         );
-    }
-
-    if let Err(err) = deduplicate_peerstates(&context.sql).await {
-        warn!(context, "Failed to deduplicate peerstates: {:#}.", err)
     }
 
     // Try to clear the freelist to free some space on the disk. This
