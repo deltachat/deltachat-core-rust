@@ -151,7 +151,7 @@ pub(crate) fn create_keypair(addr: EmailAddress, keygen_type: KeyGenType) -> Res
     let user_id = format!("<{addr}>");
     let key_params = SecretKeyParamsBuilder::default()
         .key_type(signing_key_type)
-        .can_create_certificates(true)
+        .can_certify(true)
         .can_sign(true)
         .primary_user_id(user_id)
         .passphrase(None)
