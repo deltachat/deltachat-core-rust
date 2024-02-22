@@ -56,6 +56,7 @@ skip = [
      { name = "spki", version = "0.6.0" },
      { name = "syn", version = "1.0.109" },
      { name = "time", version = "<0.3" },
+     { name = "toml_edit", version = "0.21.1" },
      { name = "untrusted", version = "0.7.1" },
      { name = "wasi", version = "<0.11" },
      { name = "windows_aarch64_gnullvm", version = "<0.52" },
