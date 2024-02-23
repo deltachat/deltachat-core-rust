@@ -98,6 +98,7 @@ mod color;
 pub mod html;
 pub mod net;
 pub mod plaintext;
+mod push;
 pub mod summary;
 
 mod debug_logging;

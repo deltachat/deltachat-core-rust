@@ -60,6 +60,7 @@ async fn determine_capabilities(
         can_check_quota: caps.has_str("QUOTA"),
         can_condstore: caps.has_str("CONDSTORE"),
         can_metadata: caps.has_str("METADATA"),
+        can_push: caps.has_str("XDELTAPUSH"),
         server_id,
     };
     Ok(capabilities)

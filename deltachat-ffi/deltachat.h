@@ -686,6 +686,24 @@ int             dc_get_connectivity          (dc_context_t* context);
 char*           dc_get_connectivity_html     (dc_context_t* context);
 
 
+#define DC_PUSH_NOT_CONNECTED 0
+#define DC_PUSH_HEARTBEAT     1
+#define DC_PUSH_CONNECTED     2
+
+/**
+ * Get the current push notification state.
+ * One of:
+ * - DC_PUSH_NOT_CONNECTED
+ * - DC_PUSH_HEARTBEAT
+ * - DC_PUSH_CONNECTED
+ *
+ * @memberof dc_context_t
+ * @param context The context object.
+ * @return Push notification state.
+ */
+int              dc_get_push_state           (dc_context_t* context);
+
+
 /**
  * Standalone version of dc_accounts_all_work_done().
  * Only used by the python tests.
@@ -3164,6 +3182,16 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  * @return Return 1 if DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE was emitted and 0 otherwise.
  */
 int            dc_accounts_background_fetch    (dc_accounts_t* accounts, uint64_t timeout);
+
+
+/**
+ * Sets device token for Apple Push Notification service.
+ * Returns immediately.
+ *
+ * @memberof dc_accounts_t
+ * @param token Hexadecimal device token
+ */
+void           dc_accounts_set_push_device_token (dc_accounts_t* accounts, const char *token);
 
 /**
  * Create the event emitter that is used to receive events.

@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     iter::Peekable,
     mem::take,
+    sync::atomic::Ordering,
     time::Duration,
 };
 
@@ -1443,6 +1444,37 @@ impl Session {
             }
         }
         *lock = Some(ServerMetadata { comment, admin });
+        Ok(())
+    }
+
+    /// Stores device token into /private/devicetoken IMAP METADATA of the Inbox.
+    pub(crate) async fn register_token(&mut self, context: &Context) -> Result<()> {
+        if context.push_subscribed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        let Some(device_token) = context.push_subscriber.device_token().await else {
+            return Ok(());
+        };
+
+        if self.can_metadata() && self.can_push() {
+            let folder = context
+                .get_config(Config::ConfiguredInboxFolder)
+                .await?
+                .context("INBOX is not configured")?;
+
+            self.run_command_and_check_ok(format!(
+                "SETMETADATA \"{folder}\" (/private/devicetoken \"{device_token}\")"
+            ))
+            .await
+            .context("SETMETADATA command failed")?;
+            context.push_subscribed.store(true, Ordering::Relaxed);
+        } else if !context.push_subscriber.heartbeat_subscribed().await {
+            let context = context.clone();
+            // Subscribe for heartbeat notifications.
+            tokio::spawn(async move { context.push_subscriber.subscribe().await });
+        }
+
         Ok(())
     }
 }
