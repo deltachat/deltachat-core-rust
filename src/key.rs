@@ -255,7 +255,7 @@ pub(crate) async fn load_keypair(
 
 /// Use of a key pair for encryption or decryption.
 ///
-/// This is used by [store_self_keypair] to know what kind of key is
+/// This is used by `store_self_keypair` to know what kind of key is
 /// being saved.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum KeyPairUse {
@@ -277,7 +277,7 @@ pub enum KeyPairUse {
 /// same key again overwrites it.
 ///
 /// [Config::ConfiguredAddr]: crate::config::Config::ConfiguredAddr
-pub async fn store_self_keypair(
+pub(crate) async fn store_self_keypair(
     context: &Context,
     keypair: &KeyPair,
     default: KeyPairUse,
