@@ -933,7 +933,6 @@ impl<'a> MimeFactory<'a> {
         };
         let command = self.msg.param.get_cmd();
         let mut placeholdertext = None;
-        let mut meta_part = None;
 
         let send_verified_headers = match chat.typ {
             Chattype::Single => true,
@@ -1119,17 +1118,13 @@ impl<'a> MimeFactory<'a> {
 
         if let Some(grpimage) = grpimage {
             info!(context, "setting group image '{}'", grpimage);
-            let mut meta = Message {
-                viewtype: Viewtype::Image,
-                ..Default::default()
-            };
-            meta.param.set(Param::File, grpimage);
-
-            let (mail, filename_as_sent) = build_body_file(context, &meta, "group-image").await?;
-            meta_part = Some(mail);
-            headers
-                .protected
-                .push(Header::new("Chat-Group-Avatar".into(), filename_as_sent));
+            let avatar = build_avatar_file(context, grpimage)
+                .await
+                .context("Cannot attach group image")?;
+            headers.hidden.push(Header::new(
+                "Chat-Group-Avatar".into(),
+                format!("base64:{avatar}"),
+            ));
         }
 
         if self.msg.viewtype == Viewtype::Sticker {
@@ -1253,10 +1248,6 @@ impl<'a> MimeFactory<'a> {
             parts.push(file_part);
         }
 
-        if let Some(meta_part) = meta_part {
-            parts.push(meta_part);
-        }
-
         if let Some(msg_kml_part) = self.get_message_kml_part() {
             parts.push(msg_kml_part);
         }
@@ -1288,7 +1279,7 @@ impl<'a> MimeFactory<'a> {
 
         if self.attach_selfavatar {
             match context.get_config(Config::Selfavatar).await? {
-                Some(path) => match build_selfavatar_file(context, &path).await {
+                Some(path) => match build_avatar_file(context, &path).await {
                     Ok(avatar) => headers.hidden.push(Header::new(
                         "Chat-User-Avatar".into(),
                         format!("base64:{avatar}"),
@@ -1497,8 +1488,11 @@ async fn build_body_file(
     Ok((mail, filename_to_send))
 }
 
-async fn build_selfavatar_file(context: &Context, path: &str) -> Result<String> {
-    let blob = BlobObject::from_path(context, path.as_ref())?;
+async fn build_avatar_file(context: &Context, path: &str) -> Result<String> {
+    let blob = match path.starts_with("$BLOBDIR/") {
+        true => BlobObject::from_name(context, path.to_string())?,
+        false => BlobObject::from_path(context, path.as_ref())?,
+    };
     let body = fs::read(blob.to_abs_path()).await?;
     let encoded_body = wrapped_base64_encode(&body);
     Ok(encoded_body)
