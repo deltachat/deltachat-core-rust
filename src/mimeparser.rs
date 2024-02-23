@@ -265,8 +265,10 @@ impl MimeMessage {
                 for field in &part.headers {
                     let key = field.get_key().to_lowercase();
 
-                    // For now only Chat-User-Avatar can be hidden.
-                    if !headers.contains_key(&key) && key == "chat-user-avatar" {
+                    // For now only avatar headers can be hidden.
+                    if !headers.contains_key(&key)
+                        && (key == "chat-user-avatar" || key == "chat-group-avatar")
+                    {
                         headers.insert(key.to_string(), field.get_value());
                     }
                 }
