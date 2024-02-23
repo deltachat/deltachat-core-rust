@@ -525,6 +525,10 @@ async fn inbox_fetch_idle(ctx: &Context, imap: &mut Imap, mut session: Session) 
         .fetch_metadata(ctx)
         .await
         .context("Failed to fetch metadata")?;
+    session
+        .register_token(ctx)
+        .await
+        .context("Failed to register push token")?;
 
     let session = fetch_idle(ctx, imap, session, FolderMeaning::Inbox).await?;
     Ok(session)

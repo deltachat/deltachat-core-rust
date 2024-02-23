@@ -19,6 +19,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::context::{Context, ContextBuilder};
 use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::push::PushSubscriber;
 use crate::stock_str::StockStrings;
 
 /// Account manager, that can handle multiple accounts in a single place.
@@ -37,6 +38,9 @@ pub struct Accounts {
     /// This way changing a translation for one context automatically
     /// changes it for all other contexts.
     pub(crate) stockstrings: StockStrings,
+
+    /// Push notification subscriber shared between accounts.
+    push_subscriber: PushSubscriber,
 }
 
 impl Accounts {
@@ -73,8 +77,9 @@ impl Accounts {
             .context("failed to load accounts config")?;
         let events = Events::new();
         let stockstrings = StockStrings::new();
+        let push_subscriber = PushSubscriber::new();
         let accounts = config
-            .load_accounts(&events, &stockstrings, &dir)
+            .load_accounts(&events, &stockstrings, push_subscriber.clone(), &dir)
             .await
             .context("failed to load accounts")?;
 
@@ -84,6 +89,7 @@ impl Accounts {
             accounts,
             events,
             stockstrings,
+            push_subscriber,
         })
     }
 
@@ -124,6 +130,7 @@ impl Accounts {
             .with_id(account_config.id)
             .with_events(self.events.clone())
             .with_stock_strings(self.stockstrings.clone())
+            .with_push_subscriber(self.push_subscriber.clone())
             .build()
             .await?;
         // Try to open without a passphrase,
@@ -144,6 +151,7 @@ impl Accounts {
             .with_id(account_config.id)
             .with_events(self.events.clone())
             .with_stock_strings(self.stockstrings.clone())
+            .with_push_subscriber(self.push_subscriber.clone())
             .build()
             .await?;
         self.accounts.insert(account_config.id, ctx);
@@ -340,6 +348,12 @@ impl Accounts {
     pub fn get_event_emitter(&self) -> EventEmitter {
         self.events.get_emitter()
     }
+
+    /// Sets notification token for Apple Push Notification service.
+    pub async fn set_push_device_token(&mut self, token: &str) -> Result<()> {
+        self.push_subscriber.set_device_token(token).await;
+        Ok(())
+    }
 }
 
 /// Configuration file name.
@@ -525,6 +539,7 @@ impl Config {
         &self,
         events: &Events,
         stockstrings: &StockStrings,
+        push_subscriber: PushSubscriber,
         dir: &Path,
     ) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
@@ -535,6 +550,7 @@ impl Config {
                 .with_id(account_config.id)
                 .with_events(events.clone())
                 .with_stock_strings(stockstrings.clone())
+                .with_push_subscriber(push_subscriber.clone())
                 .build()
                 .await
                 .with_context(|| format!("failed to create context from file {:?}", &dbfile))?;

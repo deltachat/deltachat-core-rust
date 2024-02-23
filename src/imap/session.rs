@@ -90,6 +90,10 @@ impl Session {
         self.capabilities.can_metadata
     }
 
+    pub fn can_push(&self) -> bool {
+        self.capabilities.can_push
+    }
+
     /// Returns the names of all folders on the IMAP server.
     pub async fn list_folders(&mut self) -> Result<Vec<async_imap::types::Name>> {
         let list = self.list(Some(""), Some("*")).await?.try_collect().await?;

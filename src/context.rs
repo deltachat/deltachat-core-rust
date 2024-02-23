@@ -30,6 +30,7 @@ use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
+use crate::push::PushSubscriber;
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
@@ -86,6 +87,8 @@ pub struct ContextBuilder {
     events: Events,
     stock_strings: StockStrings,
     password: Option<String>,
+
+    push_subscriber: Option<PushSubscriber>,
 }
 
 impl ContextBuilder {
@@ -101,6 +104,7 @@ impl ContextBuilder {
             events: Events::new(),
             stock_strings: StockStrings::new(),
             password: None,
+            push_subscriber: None,
         }
     }
 
@@ -155,10 +159,23 @@ impl ContextBuilder {
         self
     }
 
+    /// Sets push subscriber.
+    pub(crate) fn with_push_subscriber(mut self, push_subscriber: PushSubscriber) -> Self {
+        self.push_subscriber = Some(push_subscriber);
+        self
+    }
+
     /// Builds the [`Context`] without opening it.
     pub async fn build(self) -> Result<Context> {
-        let context =
-            Context::new_closed(&self.dbfile, self.id, self.events, self.stock_strings).await?;
+        let push_subscriber = self.push_subscriber.unwrap_or_default();
+        let context = Context::new_closed(
+            &self.dbfile,
+            self.id,
+            self.events,
+            self.stock_strings,
+            push_subscriber,
+        )
+        .await?;
         Ok(context)
     }
 
@@ -263,6 +280,13 @@ pub struct InnerContext {
     /// Standard RwLock instead of [`tokio::sync::RwLock`] is used
     /// because the lock is used from synchronous [`Context::emit_event`].
     pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
+
+    /// Push subscriber to store device token
+    /// and register for heartbeat notifications.
+    pub(crate) push_subscriber: PushSubscriber,
+
+    /// True if account has subscribed to push notifications via IMAP.
+    pub(crate) push_subscribed: AtomicBool,
 }
 
 /// The state of ongoing process.
@@ -308,7 +332,8 @@ impl Context {
         events: Events,
         stock_strings: StockStrings,
     ) -> Result<Context> {
-        let context = Self::new_closed(dbfile, id, events, stock_strings).await?;
+        let context =
+            Self::new_closed(dbfile, id, events, stock_strings, Default::default()).await?;
 
         // Open the database if is not encrypted.
         if context.check_passphrase("".to_string()).await? {
@@ -323,6 +348,7 @@ impl Context {
         id: u32,
         events: Events,
         stockstrings: StockStrings,
+        push_subscriber: PushSubscriber,
     ) -> Result<Context> {
         let mut blob_fname = OsString::new();
         blob_fname.push(dbfile.file_name().unwrap_or_default());
@@ -331,7 +357,14 @@ impl Context {
         if !blobdir.exists() {
             tokio::fs::create_dir_all(&blobdir).await?;
         }
-        let context = Context::with_blobdir(dbfile.into(), blobdir, id, events, stockstrings)?;
+        let context = Context::with_blobdir(
+            dbfile.into(),
+            blobdir,
+            id,
+            events,
+            stockstrings,
+            push_subscriber,
+        )?;
         Ok(context)
     }
 
@@ -374,6 +407,7 @@ impl Context {
         id: u32,
         events: Events,
         stockstrings: StockStrings,
+        push_subscriber: PushSubscriber,
     ) -> Result<Context> {
         ensure!(
             blobdir.is_dir(),
@@ -408,6 +442,8 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
+            push_subscriber,
+            push_subscribed: AtomicBool::new(false),
         };
 
         let ctx = Context {
@@ -1509,7 +1545,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = PathBuf::new();
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
+        let res = Context::with_blobdir(
+            dbfile,
+            blobdir,
+            1,
+            Events::new(),
+            StockStrings::new(),
+            Default::default(),
+        );
         assert!(res.is_err());
     }
 
@@ -1518,7 +1561,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dbfile = tmp.path().join("db.sqlite");
         let blobdir = tmp.path().join("blobs");
-        let res = Context::with_blobdir(dbfile, blobdir, 1, Events::new(), StockStrings::new());
+        let res = Context::with_blobdir(
+            dbfile,
+            blobdir,
+            1,
+            Events::new(),
+            StockStrings::new(),
+            Default::default(),
+        );
         assert!(res.is_err());
     }
 
@@ -1741,16 +1791,18 @@ mod tests {
         let dir = tempdir()?;
         let dbfile = dir.path().join("db.sqlite");
 
-        let id = 1;
-        let context = Context::new_closed(&dbfile, id, Events::new(), StockStrings::new())
+        let context = ContextBuilder::new(dbfile.clone())
+            .with_id(1)
+            .build()
             .await
             .context("failed to create context")?;
         assert_eq!(context.open("foo".to_string()).await?, true);
         assert_eq!(context.is_open().await, true);
         drop(context);
 
-        let id = 2;
-        let context = Context::new(&dbfile, id, Events::new(), StockStrings::new())
+        let context = ContextBuilder::new(dbfile)
+            .with_id(2)
+            .build()
             .await
             .context("failed to create context")?;
         assert_eq!(context.is_open().await, false);
@@ -1766,8 +1818,9 @@ mod tests {
         let dir = tempdir()?;
         let dbfile = dir.path().join("db.sqlite");
 
-        let id = 1;
-        let context = Context::new_closed(&dbfile, id, Events::new(), StockStrings::new())
+        let context = ContextBuilder::new(dbfile)
+            .with_id(1)
+            .build()
             .await
             .context("failed to create context")?;
         assert_eq!(context.open("foo".to_string()).await?, true);
