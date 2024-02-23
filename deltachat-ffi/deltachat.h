@@ -3165,6 +3165,16 @@ void           dc_accounts_maybe_network_lost    (dc_accounts_t* accounts);
  */
 int            dc_accounts_background_fetch    (dc_accounts_t* accounts, uint64_t timeout);
 
+
+/**
+ * Sets device token for Apple Push Notification service.
+ * Returns immediately.
+ *
+ * @memberof dc_accounts_t
+ * @param token Hexadecimal device token
+ */
+void           dc_accounts_set_notify_token (dc_accounts_t* accounts, char *token);
+
 /**
  * Create the event emitter that is used to receive events.
  *

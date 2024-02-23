@@ -19,6 +19,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::context::{Context, ContextBuilder};
 use crate::events::{Event, EventEmitter, EventType, Events};
+use crate::net::http;
 use crate::stock_str::StockStrings;
 
 /// Account manager, that can handle multiple accounts in a single place.
@@ -340,6 +341,28 @@ impl Accounts {
     /// Returns event emitter.
     pub fn get_event_emitter(&self) -> EventEmitter {
         self.events.get_emitter()
+    }
+
+    /// Sets notification token for Apple Push Notification service.
+    pub async fn set_notify_token(&self, token: &str) -> Result<()> {
+        let socks5_config = None;
+        let response = http::get_client(socks5_config)?
+            .post("https://notifications.delta.chat/register")
+            .body(format!("{{\"token\":\"{token}\"}}"))
+            .send()
+            .await?;
+
+        let response_status = response.status();
+        if response_status.is_success() {
+            self.emit_event(EventType::Info(
+                "Request to notification server succeeded.".to_string(),
+            ));
+        } else {
+            self.emit_event(EventType::Error(
+                "Request to notification server failed.".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
