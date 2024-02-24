@@ -153,11 +153,19 @@ impl ContextBuilder {
         self
     }
 
-    /// Opens the [`Context`].
-    pub async fn open(self) -> Result<Context> {
+    /// Builds the [`Context`] without opening it.
+    pub async fn build(self) -> Result<Context> {
         let context =
             Context::new_closed(&self.dbfile, self.id, self.events, self.stock_strings).await?;
-        let password = self.password.unwrap_or_default();
+        Ok(context)
+    }
+
+    /// Builds the [`Context`] and opens it.
+    ///
+    /// Returns error if context cannot be opened with the given passphrase.
+    pub async fn open(self) -> Result<Context> {
+        let password = self.password.clone().unwrap_or_default();
+        let context = self.build().await?;
         match context.open(password).await? {
             true => Ok(context),
             false => bail!("database could not be decrypted, incorrect or missing password"),
