@@ -9,7 +9,6 @@ extern crate deltachat;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
-use std::path::Path;
 use std::process::Command;
 
 use ansi_term::Color;
@@ -20,8 +19,7 @@ use deltachat::context::*;
 use deltachat::oauth2::*;
 use deltachat::qr_code_generator::get_securejoin_qr_svg;
 use deltachat::securejoin::*;
-use deltachat::stock_str::StockStrings;
-use deltachat::{EventType, Events};
+use deltachat::EventType;
 use log::{error, info, warn};
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
@@ -312,7 +310,10 @@ async fn start(args: Vec<String>) -> Result<(), Error> {
         println!("Error: Bad arguments, expected [db-name].");
         bail!("No db-name specified");
     }
-    let context = Context::new(Path::new(&args[1]), 0, Events::new(), StockStrings::new()).await?;
+    let context = ContextBuilder::new(args[1].clone().into())
+        .with_id(1)
+        .open()
+        .await?;
 
     let events = context.get_event_emitter();
     tokio::task::spawn(async move {

@@ -17,7 +17,7 @@ use tokio::sync::oneshot;
 #[cfg(not(target_os = "ios"))]
 use tokio::time::{sleep, Duration};
 
-use crate::context::Context;
+use crate::context::{Context, ContextBuilder};
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::stock_str::StockStrings;
 
@@ -120,13 +120,16 @@ impl Accounts {
         let account_config = self.config.new_account().await?;
         let dbfile = account_config.dbfile(&self.dir);
 
-        let ctx = Context::new(
-            &dbfile,
-            account_config.id,
-            self.events.clone(),
-            self.stockstrings.clone(),
-        )
-        .await?;
+        let ctx = ContextBuilder::new(dbfile)
+            .with_id(account_config.id)
+            .with_events(self.events.clone())
+            .with_stock_strings(self.stockstrings.clone())
+            .build()
+            .await?;
+        // Try to open without a passphrase,
+        // but do not return an error if account is passphare-protected.
+        ctx.open("".to_string()).await?;
+
         self.accounts.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -135,14 +138,14 @@ impl Accounts {
     /// Adds a new closed account.
     pub async fn add_closed_account(&mut self) -> Result<u32> {
         let account_config = self.config.new_account().await?;
+        let dbfile = account_config.dbfile(&self.dir);
 
-        let ctx = Context::new_closed(
-            &account_config.dbfile(&self.dir),
-            account_config.id,
-            self.events.clone(),
-            self.stockstrings.clone(),
-        )
-        .await?;
+        let ctx = ContextBuilder::new(dbfile)
+            .with_id(account_config.id)
+            .with_events(self.events.clone())
+            .with_stock_strings(self.stockstrings.clone())
+            .build()
+            .await?;
         self.accounts.insert(account_config.id, ctx);
 
         Ok(account_config.id)
@@ -527,19 +530,17 @@ impl Config {
         let mut accounts = BTreeMap::new();
 
         for account_config in &self.inner.accounts {
-            let ctx = Context::new(
-                &account_config.dbfile(dir),
-                account_config.id,
-                events.clone(),
-                stockstrings.clone(),
-            )
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to create context from file {:?}",
-                    account_config.dbfile(dir)
-                )
-            })?;
+            let dbfile = account_config.dbfile(dir);
+            let ctx = ContextBuilder::new(dbfile.clone())
+                .with_id(account_config.id)
+                .with_events(events.clone())
+                .with_stock_strings(stockstrings.clone())
+                .build()
+                .await
+                .with_context(|| format!("failed to create context from file {:?}", &dbfile))?;
+            // Try to open without a passphrase,
+            // but do not return an error if account is passphare-protected.
+            ctx.open("".to_string()).await?;
 
             accounts.insert(account_config.id, ctx);
         }
