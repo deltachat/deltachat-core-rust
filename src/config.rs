@@ -779,7 +779,7 @@ mod tests {
 
     use super::*;
     use crate::constants;
-    use crate::test_utils::{sync, TestContext};
+    use crate::test_utils::{sync, TestContext, TestContextManager};
 
     #[test]
     fn test_to_string() {
@@ -1003,6 +1003,65 @@ mod tests {
         alice0.set_config(Config::Selfavatar, None).await?;
         sync(&alice0, &alice1).await;
         assert!(alice1.get_config(Config::Selfavatar).await?.is_none());
+
+        Ok(())
+    }
+
+    /// Sync message mustn't be sent if self-{status,avatar} is changed by a self-sent message.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_no_sync_on_self_sent_msg() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice0 = &tcm.alice().await;
+        let alice1 = &tcm.alice().await;
+        for a in [alice0, alice1] {
+            a.set_config_bool(Config::SyncMsgs, true).await?;
+        }
+
+        let status = "Synced via usual message";
+        alice0.set_config(Config::Selfstatus, Some(status)).await?;
+        alice0.pop_sent_msg().await; // Sync message
+        let status1 = "Synced via sync message";
+        alice1.set_config(Config::Selfstatus, Some(status1)).await?;
+        tcm.send_recv(alice0, alice1, "hi Alice!").await;
+        assert_eq!(
+            alice1.get_config(Config::Selfstatus).await?,
+            Some(status.to_string())
+        );
+        sync(alice1, alice0).await;
+        assert_eq!(
+            alice0.get_config(Config::Selfstatus).await?,
+            Some(status1.to_string())
+        );
+
+        // Need a chat with another contact to send self-avatar.
+        let bob = &tcm.bob().await;
+        let a0b_chat_id = tcm.send_recv_accept(bob, alice0, "hi").await.chat_id;
+        let file = alice0.dir.path().join("avatar.png");
+        let bytes = include_bytes!("../test-data/image/avatar64x64.png");
+        tokio::fs::write(&file, bytes).await?;
+        alice0
+            .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+        alice0.pop_sent_msg().await; // Sync message
+        let file = alice1.dir.path().join("avatar.jpg");
+        let bytes = include_bytes!("../test-data/image/avatar1000x1000.jpg");
+        tokio::fs::write(&file, bytes).await?;
+        alice1
+            .set_config(Config::Selfavatar, Some(file.to_str().unwrap()))
+            .await?;
+        let sent_msg = alice0.send_text(a0b_chat_id, "hi").await;
+        alice1.recv_msg(&sent_msg).await;
+        assert!(alice1
+            .get_config(Config::Selfavatar)
+            .await?
+            .filter(|path| path.ends_with(".png"))
+            .is_some());
+        sync(alice1, alice0).await;
+        assert!(alice0
+            .get_config(Config::Selfavatar)
+            .await?
+            .filter(|path| path.ends_with(".jpg"))
+            .is_some());
 
         Ok(())
     }
