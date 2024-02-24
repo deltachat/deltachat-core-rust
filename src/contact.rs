@@ -1537,7 +1537,7 @@ WHERE type=? AND id IN (
 /// as profile images can be set only by receiving messages, this should be always the case, however.
 ///
 /// For contact SELF, the image is not saved in the contact-database but as Config::Selfavatar;
-/// this typically happens if we see message with our own profile image, sent from another device.
+/// this typically happens if we see message with our own profile image.
 pub(crate) async fn set_profile_image(
     context: &Context,
     contact_id: ContactId,
@@ -1550,7 +1550,7 @@ pub(crate) async fn set_profile_image(
             if contact_id == ContactId::SELF {
                 if was_encrypted {
                     context
-                        .set_config_internal(Config::Selfavatar, Some(profile_image))
+                        .set_config_ex(Nosync, Config::Selfavatar, Some(profile_image))
                         .await?;
                 } else {
                     info!(context, "Do not use unencrypted selfavatar.");
@@ -1564,7 +1564,7 @@ pub(crate) async fn set_profile_image(
             if contact_id == ContactId::SELF {
                 if was_encrypted {
                     context
-                        .set_config_internal(Config::Selfavatar, None)
+                        .set_config_ex(Nosync, Config::Selfavatar, None)
                         .await?;
                 } else {
                     info!(context, "Do not use unencrypted selfavatar deletion.");
@@ -1597,7 +1597,7 @@ pub(crate) async fn set_status(
     if contact_id == ContactId::SELF {
         if encrypted && has_chat_version {
             context
-                .set_config_internal(Config::Selfstatus, Some(&status))
+                .set_config_ex(Nosync, Config::Selfstatus, Some(&status))
                 .await?;
         }
     } else {
