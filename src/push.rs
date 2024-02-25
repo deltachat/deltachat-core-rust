@@ -1,37 +1,37 @@
-use crate::net::http;
+use std::sync::Arc;
+
 use anyhow::Result;
+use tokio::sync::RwLock;
+
+use crate::context::Context;
+use crate::net::http;
 
 /// Manages subscription to Apple Push Notification services.
-#[derive(Debug)]
-pub(crate) struct PushSubscriber {
-    /// Device token.
-    device_token: Option<String>,
-
-    /// True if subscribed to heartbeat push notifications.
-    subscribed: bool,
+#[derive(Debug, Clone, Default)]
+pub struct PushSubscriber {
+    inner: Arc<RwLock<PushSubscriberState>>,
 }
 
 impl PushSubscriber {
     /// Creates new push notification subscriber.
     pub(crate) fn new() -> Self {
-        Self {
-            device_token: None,
-            subscribed: false,
-        }
+        Default::default()
     }
 
     /// Sets device token for Apple Push Notification service.
-    pub(crate) fn set_notify_token(&mut self, token: &str) {
-        self.device_token = Some(token.to_string());
+    pub(crate) async fn set_notify_token(&mut self, token: &str) {
+        self.inner.write().await.device_token = Some(token.to_string());
     }
 
     /// Subscribes to Apple Push Notificaion service with previously set device token.
     pub(crate) async fn subscribe(&mut self) -> Result<()> {
-        if self.subscribed {
+        let mut state = self.inner.write().await;
+
+        if state.subscribed == NotifyState::Heartbeat {
             return Ok(());
         }
 
-        let Some(ref token) = self.device_token else {
+        let Some(ref token) = state.device_token else {
             return Ok(());
         };
 
@@ -44,8 +44,36 @@ impl PushSubscriber {
 
         let response_status = response.status();
         if response_status.is_success() {
-            self.subscribed = true;
+            state.subscribed = NotifyState::Heartbeat;
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct PushSubscriberState {
+    /// Device token.
+    device_token: Option<String>,
+
+    /// If subscribed to heartbeat push notifications.
+    subscribed: NotifyState,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(i8)]
+pub enum NotifyState {
+    /// Not subscribed to push notifications.
+    #[default]
+    NotConnected = 0,
+
+    /// Subscribed to heartbeat push notifications.
+    Heartbeat = 1,
+}
+
+impl Context {
+    /// Returns push notification subscriber state.
+    pub fn get_notify_state(&self) -> NotifyState {
+        // FIXME
+        NotifyState::NotConnected
     }
 }

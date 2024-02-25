@@ -7,14 +7,13 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, Context as _, Result};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 #[cfg(not(target_os = "ios"))]
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::oneshot;
 #[cfg(not(target_os = "ios"))]
 use tokio::time::{sleep, Duration};
 
@@ -40,7 +39,8 @@ pub struct Accounts {
     /// changes it for all other contexts.
     pub(crate) stockstrings: StockStrings,
 
-    push_subscriber: Arc<RwLock<PushSubscriber>>,
+    /// Push notification subscriber shared between accounts.
+    push_subscriber: PushSubscriber,
 }
 
 impl Accounts {
@@ -77,7 +77,7 @@ impl Accounts {
             .context("failed to load accounts config")?;
         let events = Events::new();
         let stockstrings = StockStrings::new();
-        let push_subscriber = Arc::new(RwLock::new(PushSubscriber::new()));
+        let push_subscriber = PushSubscriber::new();
         let accounts = config
             .load_accounts(&events, &stockstrings, push_subscriber.clone(), &dir)
             .await
@@ -351,9 +351,8 @@ impl Accounts {
 
     /// Sets notification token for Apple Push Notification service.
     pub async fn set_notify_token(&mut self, token: &str) -> Result<()> {
-        let mut push_subscriber = self.push_subscriber.write().await;
-        push_subscriber.set_notify_token(token);
-        push_subscriber.subscribe().await?;
+        self.push_subscriber.set_notify_token(token);
+        self.push_subscriber.subscribe().await?;
         Ok(())
     }
 }
@@ -541,7 +540,7 @@ impl Config {
         &self,
         events: &Events,
         stockstrings: &StockStrings,
-        push_subscriber: Arc<RwLock<PushSubscriber>>,
+        push_subscriber: PushSubscriber,
         dir: &Path,
     ) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
