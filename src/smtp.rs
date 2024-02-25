@@ -804,7 +804,7 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
         .sql
         .execute("DELETE FROM smtp_mdns WHERE retries > 6", [])
         .await?;
-    let msg_row = match context
+    let Some(msg_row) = context
         .sql
         .query_row_optional(
             "SELECT msg_id, from_id FROM smtp_mdns ORDER BY retries LIMIT 1",
@@ -816,9 +816,8 @@ async fn send_mdn(context: &Context, smtp: &mut Smtp) -> Result<bool> {
             },
         )
         .await?
-    {
-        Some(msg_row) => msg_row,
-        None => return Ok(false),
+    else {
+        return Ok(false);
     };
     let (msg_id, contact_id) = msg_row;
 
