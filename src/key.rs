@@ -79,7 +79,7 @@ pub(crate) trait DcKey: Serialize + Deserializable + KeyTrait + Clone {
 }
 
 pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPublicKey> {
-    match context
+    let public_key = context
         .sql
         .query_row_optional(
             "SELECT public_key
@@ -91,8 +91,8 @@ pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPubl
                 Ok(bytes)
             },
         )
-        .await?
-    {
+        .await?;
+    match public_key {
         Some(bytes) => SignedPublicKey::from_slice(&bytes),
         None => {
             let keypair = generate_keypair(context).await?;
@@ -102,7 +102,7 @@ pub(crate) async fn load_self_public_key(context: &Context) -> Result<SignedPubl
 }
 
 pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecretKey> {
-    match context
+    let private_key = context
         .sql
         .query_row_optional(
             "SELECT private_key
@@ -114,8 +114,8 @@ pub(crate) async fn load_self_secret_key(context: &Context) -> Result<SignedSecr
                 Ok(bytes)
             },
         )
-        .await?
-    {
+        .await?;
+    match private_key {
         Some(bytes) => SignedSecretKey::from_slice(&bytes),
         None => {
             let keypair = generate_keypair(context).await?;
