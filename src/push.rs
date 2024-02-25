@@ -48,6 +48,10 @@ impl PushSubscriber {
         }
         Ok(())
     }
+
+    pub(crate) async fn notify_state(&self) -> NotifyState {
+        self.inner.read().await.subscribed
+    }
 }
 
 #[derive(Debug, Default)]
@@ -72,8 +76,7 @@ pub enum NotifyState {
 
 impl Context {
     /// Returns push notification subscriber state.
-    pub fn get_notify_state(&self) -> NotifyState {
-        // FIXME
-        NotifyState::NotConnected
+    pub async fn notify_state(&self) -> NotifyState {
+        self.push_subscriber.notify_state().await
     }
 }
