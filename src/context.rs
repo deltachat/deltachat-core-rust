@@ -27,6 +27,7 @@ use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
+use crate::param::{Param, Params};
 use crate::peerstate::Peerstate;
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
@@ -877,6 +878,16 @@ impl Context {
     }
 
     async fn get_self_report(&self) -> Result<String> {
+        #[derive(Default)]
+        struct ChatNumbers {
+            protected: u32,
+            protection_broken: u32,
+            opportunistic_dc: u32,
+            opportunistic_mua: u32,
+            unencrypted_dc: u32,
+            unencrypted_mua: u32,
+        }
+
         let mut res = String::new();
         res += &format!("core_version {}\n", get_version_str());
 
@@ -903,6 +914,74 @@ impl Context {
         let secret_key = &load_self_secret_key(self).await?.primary_key;
         let key_created = secret_key.created_at().timestamp();
         res += &format!("key_created {}\n", key_created);
+
+        // how many of the chats active in the last months are:
+        // - protected
+        // - protection-broken
+        // - opportunistic-encrypted and the contact uses Delta Chat
+        // - opportunistic-encrypted and the contact uses a classical MUA
+        // - unencrypted and the contact uses Delta Chat
+        // - unencrypted and the contact uses a classical MUA
+        let three_months_ago = time() - (3600 * 24 * 30 * 3);
+        let chats = self
+            .sql
+            .query_map(
+                "SELECT c.protected, m.param, m.msgrmsg
+                    FROM chats c
+                    JOIN msgs m
+                        ON c.id=m.chat_id
+                        AND m.id=(
+                                SELECT id
+                                FROM msgs
+                                WHERE chat_id=c.id
+                                AND (hidden=0 OR state=?)
+                                ORDER BY timestamp DESC, id DESC LIMIT 1)
+                    WHERE c.id>9
+                    AND (c.blocked=0 OR c.blocked=2)
+                    AND IFNULL(m.timestamp,c.created_timestamp) > ?
+                    GROUP BY c.id",
+                (MessageState::OutDraft, three_months_ago),
+                |row| {
+                    let protected: ProtectionStatus = row.get(0)?;
+                    let message_param: Params =
+                        row.get::<_, String>(1)?.parse().unwrap_or_default();
+                    let is_dc_message: bool = row.get(2)?;
+                    Ok((protected, message_param, is_dc_message))
+                },
+                |rows| {
+                    let mut chats = ChatNumbers::default();
+                    for row in rows {
+                        let (protected, message_param, is_dc_message) = row?;
+                        if protected == ProtectionStatus::Protected {
+                            chats.protected += 1;
+                        } else if protected == ProtectionStatus::ProtectionBroken {
+                            chats.protection_broken += 1;
+                        }
+                        if message_param
+                            .get_bool(Param::GuaranteeE2ee)
+                            .unwrap_or_default()
+                        {
+                            if is_dc_message {
+                                chats.opportunistic_dc += 1;
+                            } else {
+                                chats.opportunistic_mua += 1;
+                            }
+                        } else if is_dc_message {
+                            chats.unencrypted_dc += 1;
+                        } else {
+                            chats.unencrypted_mua += 1;
+                        }
+                    }
+                    Ok(chats)
+                },
+            )
+            .await?;
+        res += &format!("chats_protected {}\n", chats.protected);
+        res += &format!("chats_protection_broken {}\n", chats.protection_broken);
+        res += &format!("chats_opportunistic_dc {}\n", chats.opportunistic_dc);
+        res += &format!("chats_opportunistic_mua {}\n", chats.opportunistic_mua);
+        res += &format!("chats_unencrypted_dc {}\n", chats.unencrypted_dc);
+        res += &format!("chats_unencrypted_mua {}\n", chats.unencrypted_mua);
 
         let self_reporting_id = match self.get_config(Config::SelfReportingId).await? {
             Some(id) => id,
