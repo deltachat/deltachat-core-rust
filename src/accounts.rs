@@ -7,19 +7,20 @@ use std::path::{Path, PathBuf};
 use anyhow::{ensure, Context as _, Result};
 use futures::future::join_all;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 #[cfg(not(target_os = "ios"))]
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
 #[cfg(not(target_os = "ios"))]
 use tokio::time::{sleep, Duration};
 
 use crate::context::{Context, ContextBuilder};
 use crate::events::{Event, EventEmitter, EventType, Events};
-use crate::net::http;
+use crate::push::PushSubscriber;
 use crate::stock_str::StockStrings;
 
 /// Account manager, that can handle multiple accounts in a single place.
@@ -38,6 +39,8 @@ pub struct Accounts {
     /// This way changing a translation for one context automatically
     /// changes it for all other contexts.
     pub(crate) stockstrings: StockStrings,
+
+    push_subscriber: Arc<RwLock<PushSubscriber>>,
 }
 
 impl Accounts {
@@ -74,8 +77,9 @@ impl Accounts {
             .context("failed to load accounts config")?;
         let events = Events::new();
         let stockstrings = StockStrings::new();
+        let push_subscriber = Arc::new(RwLock::new(PushSubscriber::new()));
         let accounts = config
-            .load_accounts(&events, &stockstrings, &dir)
+            .load_accounts(&events, &stockstrings, push_subscriber.clone(), &dir)
             .await
             .context("failed to load accounts")?;
 
@@ -85,6 +89,7 @@ impl Accounts {
             accounts,
             events,
             stockstrings,
+            push_subscriber,
         })
     }
 
@@ -146,6 +151,7 @@ impl Accounts {
             .with_id(account_config.id)
             .with_events(self.events.clone())
             .with_stock_strings(self.stockstrings.clone())
+            .with_push_subscriber(self.push_subscriber.clone())
             .build()
             .await?;
         self.accounts.insert(account_config.id, ctx);
@@ -344,24 +350,10 @@ impl Accounts {
     }
 
     /// Sets notification token for Apple Push Notification service.
-    pub async fn set_notify_token(&self, token: &str) -> Result<()> {
-        let socks5_config = None;
-        let response = http::get_client(socks5_config)?
-            .post("https://notifications.delta.chat/register")
-            .body(format!("{{\"token\":\"{token}\"}}"))
-            .send()
-            .await?;
-
-        let response_status = response.status();
-        if response_status.is_success() {
-            self.emit_event(EventType::Info(
-                "Request to notification server succeeded.".to_string(),
-            ));
-        } else {
-            self.emit_event(EventType::Error(
-                "Request to notification server failed.".to_string(),
-            ));
-        }
+    pub async fn set_notify_token(&mut self, token: &str) -> Result<()> {
+        let mut push_subscriber = self.push_subscriber.write().await;
+        push_subscriber.set_notify_token(token);
+        push_subscriber.subscribe().await?;
         Ok(())
     }
 }
@@ -549,6 +541,7 @@ impl Config {
         &self,
         events: &Events,
         stockstrings: &StockStrings,
+        push_subscriber: Arc<RwLock<PushSubscriber>>,
         dir: &Path,
     ) -> Result<BTreeMap<u32, Context>> {
         let mut accounts = BTreeMap::new();
@@ -559,6 +552,7 @@ impl Config {
                 .with_id(account_config.id)
                 .with_events(events.clone())
                 .with_stock_strings(stockstrings.clone())
+                .with_push_subscriber(push_subscriber.clone())
                 .build()
                 .await
                 .with_context(|| format!("failed to create context from file {:?}", &dbfile))?;

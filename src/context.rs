@@ -28,6 +28,7 @@ use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
 use crate::login_param::LoginParam;
 use crate::message::{self, Message, MessageState, MsgId, Viewtype};
 use crate::peerstate::Peerstate;
+use crate::push::PushSubscriber;
 use crate::quota::QuotaInfo;
 use crate::scheduler::{convert_folder_meaning, SchedulerState};
 use crate::sql::Sql;
@@ -84,6 +85,8 @@ pub struct ContextBuilder {
     events: Events,
     stock_strings: StockStrings,
     password: Option<String>,
+
+    push_subscriber: Option<Arc<RwLock<PushSubscriber>>>,
 }
 
 impl ContextBuilder {
@@ -99,6 +102,7 @@ impl ContextBuilder {
             events: Events::new(),
             stock_strings: StockStrings::new(),
             password: None,
+            push_subscriber: None,
         }
     }
 
@@ -150,6 +154,15 @@ impl ContextBuilder {
     /// password on a new database will enable encryption.
     pub fn with_password(mut self, password: String) -> Self {
         self.password = Some(password);
+        self
+    }
+
+    /// Sets push subscriber.
+    pub(crate) fn with_push_subscriber(
+        mut self,
+        push_subscriber: Arc<RwLock<PushSubscriber>>,
+    ) -> Self {
+        self.push_subscriber = Some(push_subscriber);
         self
     }
 
