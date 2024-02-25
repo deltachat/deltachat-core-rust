@@ -411,15 +411,13 @@ pub unsafe extern "C" fn dc_get_connectivity_html(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_push_state(
-    context: *const dc_context_t,
-) -> libc::c_int {
+pub unsafe extern "C" fn dc_get_push_state(context: *const dc_context_t) -> libc::c_int {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_push_state()");
         return 0;
     }
     let ctx = &*context;
-    block_on(ctx.push_state())
+    block_on(ctx.push_state()) as libc::c_int
 }
 
 #[no_mangle]
@@ -4948,7 +4946,7 @@ pub unsafe extern "C" fn dc_accounts_set_push_device_token(
     let token = to_string_lossy(token);
 
     block_on(async move {
-        let accounts = accounts.read().await;
+        let mut accounts = accounts.write().await;
         if let Err(err) = accounts.set_push_device_token(&token).await {
             accounts.emit_event(EventType::Error(format!(
                 "Failed to set notify token: {err:#}."
