@@ -279,7 +279,7 @@ pub struct InnerContext {
     /// because the lock is used from synchronous [`Context::emit_event`].
     pub(crate) debug_logging: std::sync::RwLock<Option<DebugLogging>>,
 
-    pub(crate) push_subscriber: PushSubscriber
+    pub(crate) push_subscriber: PushSubscriber,
 }
 
 /// The state of ongoing process.
@@ -435,7 +435,7 @@ impl Context {
             last_full_folder_scan: Mutex::new(None),
             last_error: std::sync::RwLock::new("".to_string()),
             debug_logging: std::sync::RwLock::new(None),
-            push_subscriber
+            push_subscriber,
         };
 
         let ctx = Context {

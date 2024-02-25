@@ -76,7 +76,7 @@ pub enum NotifyState {
 
 impl Context {
     /// Returns push notification subscriber state.
-    pub async fn notify_state(&self) -> NotifyState {
+    pub async fn push_state(&self) -> NotifyState {
         self.push_subscriber.notify_state().await
     }
 }
