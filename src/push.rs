@@ -7,6 +7,18 @@ use crate::context::Context;
 use crate::net::http;
 
 /// Manages subscription to Apple Push Notification services.
+///
+/// This structure is created by account manager and is shared between accounts.
+/// To enable notifications, application should request the device token as described in
+/// <https://developer.apple.com/documentation/usernotifications/registering-your-app-with-apns>
+/// and give it to the account manager, which will forward the token in this structure.
+///
+/// Each account (context) can then retrieve device token
+/// from this structure and give it to the email server.
+/// If email server does not support push notifications,
+/// account can call `subscribe` method
+/// to register device token with the heartbeat
+/// notification provider server as a fallback.
 #[derive(Debug, Clone, Default)]
 pub struct PushSubscriber {
     inner: Arc<RwLock<PushSubscriberState>>,
@@ -19,8 +31,19 @@ impl PushSubscriber {
     }
 
     /// Sets device token for Apple Push Notification service.
-    pub(crate) async fn set_notify_token(&mut self, token: &str) {
+    pub(crate) async fn set_device_token(&mut self, token: &str) {
         self.inner.write().await.device_token = Some(token.to_string());
+    }
+
+    /// Retrieves device token.
+    ///
+    /// Token may be not available if application is not running on Apple platform,
+    /// failed to register for remote notifications or is in the process of registering.
+    ///
+    /// IMAP loop should periodically check if device token is available
+    /// and send the token to the email server if it supports push notifications.
+    pub(crate) async fn device_token(&self) -> Option<String> {
+        self.inner.read().await.device_token.clone()
     }
 
     /// Subscribes to Apple Push Notificaion service with previously set device token.

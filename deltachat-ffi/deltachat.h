@@ -3189,7 +3189,7 @@ int            dc_accounts_background_fetch    (dc_accounts_t* accounts, uint64_
  * @memberof dc_accounts_t
  * @param token Hexadecimal device token
  */
-void           dc_accounts_set_notify_token (dc_accounts_t* accounts, char *token);
+void           dc_accounts_set_push_device_token (dc_accounts_t* accounts, char *token);
 
 /**
  * Create the event emitter that is used to receive events.

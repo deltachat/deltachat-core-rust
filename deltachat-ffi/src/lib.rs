@@ -4935,12 +4935,12 @@ pub unsafe extern "C" fn dc_accounts_background_fetch(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_set_notify_token(
+pub unsafe extern "C" fn dc_accounts_set_push_device_token(
     accounts: *mut dc_accounts_t,
     token: *const libc::c_char,
 ) {
     if accounts.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_set_notify_token()");
+        eprintln!("ignoring careless call to dc_accounts_set_push_device_token()");
         return;
     }
 
@@ -4949,7 +4949,7 @@ pub unsafe extern "C" fn dc_accounts_set_notify_token(
 
     block_on(async move {
         let accounts = accounts.read().await;
-        if let Err(err) = accounts.set_notify_token(&token).await {
+        if let Err(err) = accounts.set_push_device_token(&token).await {
             accounts.emit_event(EventType::Error(format!(
                 "Failed to set notify token: {err:#}."
             )));
