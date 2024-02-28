@@ -408,8 +408,10 @@ async fn inbox_loop(
                 };
 
                 if quota_needs_update {
-                    if let Err(err) = ctx.update_recent_quota(&mut connection).await {
-                        warn!(ctx, "Failed to update quota: {:#}.", err);
+                    if let Some(session) = connection.session.as_mut() {
+                        if let Err(err) = ctx.update_recent_quota(session).await {
+                            warn!(ctx, "Failed to update quota: {:#}.", err);
+                        }
                     }
                 }
             }

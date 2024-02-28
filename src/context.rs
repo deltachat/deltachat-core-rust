@@ -484,8 +484,10 @@ impl Context {
         };
 
         if quota_needs_update {
-            if let Err(err) = self.update_recent_quota(&mut connection).await {
-                warn!(self, "Failed to update quota: {err:#}.");
+            if let Some(session) = connection.session.as_mut() {
+                if let Err(err) = self.update_recent_quota(session).await {
+                    warn!(self, "Failed to update quota: {err:#}.");
+                }
             }
         }
 
