@@ -456,7 +456,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     imap.configure_folders(ctx, create_mvbox).await?;
 
-    imap.select_with_uidvalidity(ctx, "INBOX")
+    imap.session
+        .as_mut()
+        .context("no IMAP connection established")?
+        .select_with_uidvalidity(ctx, "INBOX")
         .await
         .context("could not read INBOX status")?;
 
