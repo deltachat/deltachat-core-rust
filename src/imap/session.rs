@@ -1,12 +1,31 @@
+use std::cmp;
+use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use async_imap::types::Mailbox;
 use async_imap::Session as ImapSession;
 use futures::TryStreamExt;
 
+use crate::constants::DC_FETCH_EXISTING_MSGS_COUNT;
 use crate::imap::capabilities::Capabilities;
 use crate::net::session::SessionStream;
+
+/// Prefetch:
+/// - Message-ID to check if we already have the message.
+/// - In-Reply-To and References to check if message is a reply to chat message.
+/// - Chat-Version to check if a message is a chat message
+/// - Autocrypt-Setup-Message to check if a message is an autocrypt setup message,
+///   not necessarily sent by Delta Chat.
+const PREFETCH_FLAGS: &str = "(UID INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
+                              MESSAGE-ID \
+                              DATE \
+                              X-MICROSOFT-ORIGINAL-MESSAGE-ID \
+                              FROM \
+                              IN-REPLY-TO REFERENCES \
+                              CHAT-VERSION \
+                              AUTOCRYPT-SETUP-MESSAGE\
+                              )])";
 
 #[derive(Debug)]
 pub(crate) struct Session {
@@ -77,8 +96,42 @@ impl Session {
         Ok(list)
     }
 
-    /// Like fetch_after(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
-    async fn prefetch_existing_msgs(&mut self) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
+    /// Prefetch all messages greater than or equal to `uid_next`. Returns a list of fetch results
+    /// in the order of ascending delivery time to the server (INTERNALDATE).
+    pub(crate) async fn prefetch(
+        &mut self,
+        uid_next: u32,
+    ) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
+        // fetch messages with larger UID than the last one seen
+        let set = format!("{uid_next}:*");
+        let mut list = self
+            .uid_fetch(set, PREFETCH_FLAGS)
+            .await
+            .context("IMAP could not fetch")?;
+
+        let mut msgs = BTreeMap::new();
+        while let Some(msg) = list.try_next().await? {
+            if let Some(msg_uid) = msg.uid {
+                // If the mailbox is not empty, results always include
+                // at least one UID, even if last_seen_uid+1 is past
+                // the last UID in the mailbox.  It happens because
+                // uid:* is interpreted the same way as *:uid.
+                // See <https://tools.ietf.org/html/rfc3501#page-61> for
+                // standard reference. Therefore, sometimes we receive
+                // already seen messages and have to filter them out.
+                if msg_uid >= uid_next {
+                    msgs.insert((msg.internal_date(), msg_uid), msg);
+                }
+            }
+        }
+
+        Ok(msgs.into_iter().map(|((_, uid), msg)| (uid, msg)).collect())
+    }
+
+    /// Like prefetch(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
+    pub(crate) async fn prefetch_existing_msgs(
+        &mut self,
+    ) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
         let exists: i64 = {
             let mailbox = self.selected_mailbox.as_ref().context("no mailbox")?;
             mailbox.exists.into()

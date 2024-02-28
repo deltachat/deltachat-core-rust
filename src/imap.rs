@@ -4,7 +4,6 @@
 //! to implement connect, fetch, delete functionality with standard IMAP servers.
 
 use std::{
-    cmp,
     cmp::max,
     collections::{BTreeMap, BTreeSet, HashMap},
     iter::Peekable,
@@ -22,7 +21,7 @@ use tokio::sync::RwLock;
 
 use crate::chat::{self, ChatId, ChatIdBlocked};
 use crate::config::Config;
-use crate::constants::{self, Blocked, Chattype, ShowEmails, DC_FETCH_EXISTING_MSGS_COUNT};
+use crate::constants::{self, Blocked, Chattype, ShowEmails};
 use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
 use crate::events::EventType;
@@ -63,21 +62,6 @@ pub enum ImapActionResult {
     Success,
 }
 
-/// Prefetch:
-/// - Message-ID to check if we already have the message.
-/// - In-Reply-To and References to check if message is a reply to chat message.
-/// - Chat-Version to check if a message is a chat message
-/// - Autocrypt-Setup-Message to check if a message is an autocrypt setup message,
-///   not necessarily sent by Delta Chat.
-const PREFETCH_FLAGS: &str = "(UID INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS (\
-                              MESSAGE-ID \
-                              DATE \
-                              X-MICROSOFT-ORIGINAL-MESSAGE-ID \
-                              FROM \
-                              IN-REPLY-TO REFERENCES \
-                              CHAT-VERSION \
-                              AUTOCRYPT-SETUP-MESSAGE\
-                              )])";
 const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              MESSAGE-ID \
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
@@ -758,12 +742,14 @@ impl Imap {
         let uid_validity = get_uidvalidity(context, folder).await?;
         let old_uid_next = get_uid_next(context, folder).await?;
 
+        let session = self.session.as_mut().context("No IMAP session")?;
         let msgs = if fetch_existing_msgs {
-            self.prefetch_existing_msgs()
+            session
+                .prefetch_existing_msgs()
                 .await
                 .context("prefetch_existing_msgs")?
         } else {
-            self.prefetch(old_uid_next).await.context("prefetch")?
+            session.prefetch(old_uid_next).await.context("prefetch")?
         };
         let read_cnt = msgs.len();
 
@@ -1384,40 +1370,6 @@ impl Imap {
             }
         }
         Ok(result)
-    }
-
-    /// Prefetch all messages greater than or equal to `uid_next`. Returns a list of fetch results
-    /// in the order of ascending delivery time to the server (INTERNALDATE).
-    async fn prefetch(&mut self, uid_next: u32) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
-        let session = self
-            .session
-            .as_mut()
-            .context("no IMAP connection established")?;
-
-        // fetch messages with larger UID than the last one seen
-        let set = format!("{uid_next}:*");
-        let mut list = session
-            .uid_fetch(set, PREFETCH_FLAGS)
-            .await
-            .context("IMAP could not fetch")?;
-
-        let mut msgs = BTreeMap::new();
-        while let Some(msg) = list.try_next().await? {
-            if let Some(msg_uid) = msg.uid {
-                // If the mailbox is not empty, results always include
-                // at least one UID, even if last_seen_uid+1 is past
-                // the last UID in the mailbox.  It happens because
-                // uid:* is interpreted the same way as *:uid.
-                // See <https://tools.ietf.org/html/rfc3501#page-61> for
-                // standard reference. Therefore, sometimes we receive
-                // already seen messages and have to filter them out.
-                if msg_uid >= uid_next {
-                    msgs.insert((msg.internal_date(), msg_uid), msg);
-                }
-            }
-        }
-
-        Ok(msgs.into_iter().map(|((_, uid), msg)| (uid, msg)).collect())
     }
 
     /// Fetches a list of messages by server UID.
