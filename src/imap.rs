@@ -683,6 +683,9 @@ impl Imap {
         for (uid, fp) in uids_fetch {
             if fp != fetch_partially {
                 let (largest_uid_fetched_in_batch, received_msgs_in_batch) = self
+                    .session
+                    .as_mut()
+                    .context("No IMAP session")?
                     .fetch_many_msgs(
                         context,
                         folder,
@@ -1222,9 +1225,7 @@ impl Session {
         }
         Ok(result)
     }
-}
 
-impl Imap {
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last UID fetched successfully and the info about each downloaded message.
@@ -1248,7 +1249,6 @@ impl Imap {
             return Ok((last_uid, received_msgs));
         }
 
-        let session = self.session.as_mut().context("no IMAP session")?;
         for (request_uids, set) in build_sequence_sets(&request_uids)? {
             info!(
                 context,
@@ -1256,7 +1256,7 @@ impl Imap {
                 if fetch_partially { "partial" } else { "full" },
                 set
             );
-            let mut fetch_responses = session
+            let mut fetch_responses = self
                 .uid_fetch(
                     &set,
                     if fetch_partially {
@@ -1415,9 +1415,7 @@ impl Imap {
 
         Ok((last_uid, received_msgs))
     }
-}
 
-impl Session {
     /// Retrieves server metadata if it is supported.
     ///
     /// We get [`/shared/comment`](https://www.rfc-editor.org/rfc/rfc5464#section-6.2.1)
