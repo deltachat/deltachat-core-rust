@@ -756,13 +756,14 @@ impl Imap {
         }
         self.prepare(context).await.context("could not connect")?;
 
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredSentboxFolder)
+        let session = self.session.as_mut().context("No IMAP session")?;
+        add_all_recipients_as_contacts(context, session, Config::ConfiguredSentboxFolder)
             .await
             .context("failed to get recipients from the sentbox")?;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredMvboxFolder)
+        add_all_recipients_as_contacts(context, session, Config::ConfiguredMvboxFolder)
             .await
             .context("failed to get recipients from the movebox")?;
-        add_all_recipients_as_contacts(context, self, Config::ConfiguredInboxFolder)
+        add_all_recipients_as_contacts(context, session, Config::ConfiguredInboxFolder)
             .await
             .context("failed to get recipients from the inbox")?;
 
@@ -2398,7 +2399,7 @@ impl std::fmt::Display for UidRange {
 }
 async fn add_all_recipients_as_contacts(
     context: &Context,
-    imap: &mut Imap,
+    session: &mut Session,
     folder: Config,
 ) -> Result<()> {
     let mailbox = if let Some(m) = context.get_config(folder).await? {
@@ -2410,7 +2411,6 @@ async fn add_all_recipients_as_contacts(
         );
         return Ok(());
     };
-    let session = imap.session.as_mut().context("No IMAP session")?;
     session
         .select_with_uidvalidity(context, &mailbox)
         .await
