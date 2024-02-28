@@ -509,85 +509,6 @@ impl Imap {
         Ok(())
     }
 
-    /// Synchronizes UIDs in the database with UIDs on the server.
-    ///
-    /// It is assumed that no operations are taking place on the same
-    /// folder at the moment. Make sure to run it in the same
-    /// thread/task as other network operations on this folder to
-    /// avoid race conditions.
-    pub(crate) async fn resync_folder_uids(
-        &mut self,
-        context: &Context,
-        folder: &str,
-        folder_meaning: FolderMeaning,
-    ) -> Result<()> {
-        // Collect pairs of UID and Message-ID.
-        let mut msgs = BTreeMap::new();
-
-        let session = self
-            .session
-            .as_mut()
-            .context("IMAP No connection established")?;
-
-        session.select_folder(context, Some(folder)).await?;
-
-        let mut list = session
-            .uid_fetch("1:*", RFC724MID_UID)
-            .await
-            .with_context(|| format!("can't resync folder {folder}"))?;
-        while let Some(fetch) = list.try_next().await? {
-            let headers = match get_fetch_headers(&fetch) {
-                Ok(headers) => headers,
-                Err(err) => {
-                    warn!(context, "Failed to parse FETCH headers: {}", err);
-                    continue;
-                }
-            };
-            let message_id = prefetch_get_message_id(&headers);
-
-            if let (Some(uid), Some(rfc724_mid)) = (fetch.uid, message_id) {
-                msgs.insert(
-                    uid,
-                    (
-                        rfc724_mid,
-                        target_folder(context, folder, folder_meaning, &headers).await?,
-                    ),
-                );
-            }
-        }
-
-        info!(
-            context,
-            "Resync: collected {} message IDs in folder {}",
-            msgs.len(),
-            folder,
-        );
-
-        let uid_validity = get_uidvalidity(context, folder).await?;
-
-        // Write collected UIDs to SQLite database.
-        context
-            .sql
-            .transaction(move |transaction| {
-                transaction.execute("DELETE FROM imap WHERE folder=?", (folder,))?;
-                for (uid, (rfc724_mid, target)) in &msgs {
-                    // This may detect previously undetected moved
-                    // messages, so we update server_folder too.
-                    transaction.execute(
-                        "INSERT INTO imap (rfc724_mid, folder, uid, uidvalidity, target)
-                         VALUES           (?1,         ?2,     ?3,  ?4,          ?5)
-                         ON CONFLICT(folder, uid, uidvalidity)
-                         DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
-                                       target=excluded.target",
-                        (rfc724_mid, folder, uid, uid_validity, target),
-                    )?;
-                }
-                Ok(())
-            })
-            .await?;
-        Ok(())
-    }
-
     /// Selects a folder and takes care of UIDVALIDITY changes.
     ///
     /// When selecting a folder for the first time, sets the uid_next to the current
@@ -1008,7 +929,8 @@ impl Imap {
         for folder in all_folders {
             let folder_meaning = get_folder_meaning(&folder);
             if folder_meaning != FolderMeaning::Virtual {
-                self.resync_folder_uids(context, folder.name(), folder_meaning)
+                session
+                    .resync_folder_uids(context, folder.name(), folder_meaning)
                     .await?;
             }
         }
@@ -1017,6 +939,80 @@ impl Imap {
 }
 
 impl Session {
+    /// Synchronizes UIDs in the database with UIDs on the server.
+    ///
+    /// It is assumed that no operations are taking place on the same
+    /// folder at the moment. Make sure to run it in the same
+    /// thread/task as other network operations on this folder to
+    /// avoid race conditions.
+    pub(crate) async fn resync_folder_uids(
+        &mut self,
+        context: &Context,
+        folder: &str,
+        folder_meaning: FolderMeaning,
+    ) -> Result<()> {
+        // Collect pairs of UID and Message-ID.
+        let mut msgs = BTreeMap::new();
+
+        self.select_folder(context, Some(folder)).await?;
+
+        let mut list = self
+            .uid_fetch("1:*", RFC724MID_UID)
+            .await
+            .with_context(|| format!("can't resync folder {folder}"))?;
+        while let Some(fetch) = list.try_next().await? {
+            let headers = match get_fetch_headers(&fetch) {
+                Ok(headers) => headers,
+                Err(err) => {
+                    warn!(context, "Failed to parse FETCH headers: {}", err);
+                    continue;
+                }
+            };
+            let message_id = prefetch_get_message_id(&headers);
+
+            if let (Some(uid), Some(rfc724_mid)) = (fetch.uid, message_id) {
+                msgs.insert(
+                    uid,
+                    (
+                        rfc724_mid,
+                        target_folder(context, folder, folder_meaning, &headers).await?,
+                    ),
+                );
+            }
+        }
+
+        info!(
+            context,
+            "Resync: collected {} message IDs in folder {}",
+            msgs.len(),
+            folder,
+        );
+
+        let uid_validity = get_uidvalidity(context, folder).await?;
+
+        // Write collected UIDs to SQLite database.
+        context
+            .sql
+            .transaction(move |transaction| {
+                transaction.execute("DELETE FROM imap WHERE folder=?", (folder,))?;
+                for (uid, (rfc724_mid, target)) in &msgs {
+                    // This may detect previously undetected moved
+                    // messages, so we update server_folder too.
+                    transaction.execute(
+                        "INSERT INTO imap (rfc724_mid, folder, uid, uidvalidity, target)
+                         VALUES           (?1,         ?2,     ?3,  ?4,          ?5)
+                         ON CONFLICT(folder, uid, uidvalidity)
+                         DO UPDATE SET rfc724_mid=excluded.rfc724_mid,
+                                       target=excluded.target",
+                        (rfc724_mid, folder, uid, uid_validity, target),
+                    )?;
+                }
+                Ok(())
+            })
+            .await?;
+        Ok(())
+    }
+
     /// Deletes batch of messages identified by their UID from the currently
     /// selected folder.
     async fn delete_message_batch(
