@@ -922,7 +922,7 @@ impl Context {
         // - opportunistic-encrypted and the contact uses a classical MUA
         // - unencrypted and the contact uses Delta Chat
         // - unencrypted and the contact uses a classical MUA
-        let three_months_ago = time() - (3600 * 24 * 30 * 3);
+        let three_months_ago = time().saturating_sub(3600 * 24 * 30 * 3);
         let chats = self
             .sql
             .query_map(
