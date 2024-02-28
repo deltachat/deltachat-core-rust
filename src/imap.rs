@@ -1104,17 +1104,10 @@ impl Session {
 
         Ok(())
     }
-}
 
-impl Imap {
     /// Synchronizes `\Seen` flags using `CONDSTORE` extension.
     pub(crate) async fn sync_seen_flags(&mut self, context: &Context, folder: &str) -> Result<()> {
-        let session = self
-            .session
-            .as_mut()
-            .with_context(|| format!("No IMAP connection established, folder: {folder}"))?;
-
-        if !session.can_condstore() {
+        if !self.can_condstore() {
             info!(
                 context,
                 "Server does not support CONDSTORE, skipping flag synchronization."
@@ -1122,12 +1115,11 @@ impl Imap {
             return Ok(());
         }
 
-        session
-            .select_folder(context, Some(folder))
+        self.select_folder(context, Some(folder))
             .await
             .context("failed to select folder")?;
 
-        let mailbox = session
+        let mailbox = self
             .selected_mailbox
             .as_ref()
             .with_context(|| format!("No mailbox selected, folder: {folder}"))?;
@@ -1149,7 +1141,7 @@ impl Imap {
         let mut highest_modseq = get_modseq(context, folder)
             .await
             .with_context(|| format!("failed to get MODSEQ for folder {folder}"))?;
-        let mut list = session
+        let mut list = self
             .uid_fetch("1:*", format!("(FLAGS) (CHANGEDSINCE {highest_modseq})"))
             .await
             .context("failed to fetch flags")?;
@@ -1195,7 +1187,9 @@ impl Imap {
 
         Ok(())
     }
+}
 
+impl Imap {
     /// Gets the from, to and bcc addresses from all existing outgoing emails.
     pub async fn get_all_recipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
         let session = self

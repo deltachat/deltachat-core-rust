@@ -638,12 +638,16 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     }
 
     // Synchronize Seen flags.
-    connection
-        .sync_seen_flags(ctx, &watch_folder)
-        .await
-        .context("sync_seen_flags")
-        .log_err(ctx)
-        .ok();
+    if let Some(session) = connection.session.as_mut() {
+        session
+            .sync_seen_flags(ctx, &watch_folder)
+            .await
+            .context("sync_seen_flags")
+            .log_err(ctx)
+            .ok();
+    } else {
+        warn!(ctx, "No IMAP session, skipping flag synchronization.");
+    }
 
     connection.connectivity.set_idle(ctx).await;
 
