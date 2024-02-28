@@ -20,8 +20,9 @@ use crate::config::Config;
 use crate::constants::{
     self, DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT, DC_CHAT_ID_TRASH, DC_VERSION_STR,
 };
-use crate::contact::Contact;
+use crate::contact::{Contact, ContactId};
 use crate::debug_logging::DebugLogging;
+use crate::download::DownloadState;
 use crate::events::{Event, EventEmitter, EventType, Events};
 use crate::imap::{FolderMeaning, Imap, ServerMetadata};
 use crate::key::{load_self_public_key, load_self_secret_key, DcKey as _};
@@ -934,13 +935,15 @@ impl Context {
                                 SELECT id
                                 FROM msgs
                                 WHERE chat_id=c.id
-                                AND (hidden=0 OR state=?)
+                                AND hidden=0
+                                AND download_state=?
+                                AND to_id!=?
                                 ORDER BY timestamp DESC, id DESC LIMIT 1)
                     WHERE c.id>9
                     AND (c.blocked=0 OR c.blocked=2)
                     AND IFNULL(m.timestamp,c.created_timestamp) > ?
                     GROUP BY c.id",
-                (MessageState::OutDraft, three_months_ago),
+                (DownloadState::Done, ContactId::INFO, three_months_ago),
                 |row| {
                     let protected: ProtectionStatus = row.get(0)?;
                     let message_param: Params =
