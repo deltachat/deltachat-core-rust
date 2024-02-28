@@ -1420,34 +1420,6 @@ impl Imap {
         Ok(msgs.into_iter().map(|((_, uid), msg)| (uid, msg)).collect())
     }
 
-    /// Like fetch_after(), but not for new messages but existing ones (the DC_FETCH_EXISTING_MSGS_COUNT newest messages)
-    async fn prefetch_existing_msgs(&mut self) -> Result<Vec<(u32, async_imap::types::Fetch)>> {
-        let session = self.session.as_mut().context("no IMAP session")?;
-        let exists: i64 = {
-            let mailbox = session.selected_mailbox.as_ref().context("no mailbox")?;
-            mailbox.exists.into()
-        };
-
-        // Fetch last DC_FETCH_EXISTING_MSGS_COUNT (100) messages.
-        // Sequence numbers are sequential. If there are 1000 messages in the inbox,
-        // we can fetch the sequence numbers 900-1000 and get the last 100 messages.
-        let first = cmp::max(1, exists - DC_FETCH_EXISTING_MSGS_COUNT + 1);
-        let set = format!("{first}:{exists}");
-        let mut list = session
-            .fetch(&set, PREFETCH_FLAGS)
-            .await
-            .context("IMAP Could not fetch")?;
-
-        let mut msgs = BTreeMap::new();
-        while let Some(msg) = list.try_next().await? {
-            if let Some(msg_uid) = msg.uid {
-                msgs.insert((msg.internal_date(), msg_uid), msg);
-            }
-        }
-
-        Ok(msgs.into_iter().map(|((_, uid), msg)| (uid, msg)).collect())
-    }
-
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last UID fetched successfully and the info about each downloaded message.
