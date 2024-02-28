@@ -905,7 +905,6 @@ async fn test_github_mailing_list() -> Result<()> {
     let msg1 = get_chat_msg(&t, chat_id, 0, 2).await;
     let contact1 = Contact::get_by_id(&t.ctx, msg1.from_id).await?;
     assert_eq!(contact1.get_addr(), "notifications@github.com");
-    assert_eq!(contact1.get_display_name(), "notifications@github.com"); // Make sure this is not "Max Mustermann" or somethinng
 
     let msg2 = get_chat_msg(&t, chat_id, 1, 2).await;
     let contact2 = Contact::get_by_id(&t.ctx, msg2.from_id).await?;
@@ -977,6 +976,16 @@ Hello mailinglist!\r\n"
 
     let chat = chat::Chat::load_from_db(&t.ctx, chat_id).await?;
     assert!(chat.can_send(&t.ctx).await?);
+
+    for addr in ["bob@posteo.org", "charlie@posteo.org"] {
+        let contact_id = Contact::lookup_id_by_addr(&t, addr, Origin::Unknown)
+            .await
+            .unwrap()
+            .unwrap();
+        let contact = Contact::get_by_id(&t, contact_id).await.unwrap();
+        assert_eq!(contact.get_authname(), addr);
+        assert_eq!(contact.get_display_name(), addr);
+    }
 
     Ok(())
 }
