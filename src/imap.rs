@@ -1415,15 +1415,16 @@ impl Imap {
 
         Ok((last_uid, received_msgs))
     }
+}
 
+impl Session {
     /// Retrieves server metadata if it is supported.
     ///
     /// We get [`/shared/comment`](https://www.rfc-editor.org/rfc/rfc5464#section-6.2.1)
     /// and [`/shared/admin`](https://www.rfc-editor.org/rfc/rfc5464#section-6.2.2)
     /// metadata.
     pub(crate) async fn fetch_metadata(&mut self, context: &Context) -> Result<()> {
-        let session = self.session.as_mut().context("no session")?;
-        if !session.can_metadata() {
+        if !self.can_metadata() {
             return Ok(());
         }
 
@@ -1442,7 +1443,7 @@ impl Imap {
 
         let mailbox = "";
         let options = "";
-        let metadata = session
+        let metadata = self
             .get_metadata(mailbox, options, "(/shared/comment /shared/admin)")
             .await?;
         for m in metadata {
