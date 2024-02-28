@@ -1014,7 +1014,8 @@ impl Imap {
     pub(crate) async fn resync_folders(&mut self, context: &Context) -> Result<()> {
         self.prepare(context).await?;
 
-        let all_folders = self
+        let session = self.session.as_mut().context("No IMAP session")?;
+        let all_folders = session
             .list_folders()
             .await
             .context("listing folders for resync")?;

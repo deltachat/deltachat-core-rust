@@ -1,7 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
+use anyhow::Result;
 use async_imap::types::Mailbox;
 use async_imap::Session as ImapSession;
+use futures::TryStreamExt;
 
 use crate::imap::capabilities::Capabilities;
 use crate::net::session::SessionStream;
@@ -67,5 +69,11 @@ impl Session {
 
     pub fn can_metadata(&self) -> bool {
         self.capabilities.can_metadata
+    }
+
+    /// Returns the names of all folders on the IMAP server.
+    pub async fn list_folders(&mut self) -> Result<Vec<async_imap::types::Name>> {
+        let list = self.list(Some(""), Some("*")).await?.try_collect().await?;
+        Ok(list)
     }
 }
