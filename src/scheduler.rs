@@ -541,9 +541,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             ctx,
             "Cannot watch {folder_meaning}, ensure_configured_folders() failed: {:#}", err,
         );
-        connection
-            .fake_idle(ctx, None, FolderMeaning::Unknown)
-            .await;
+        connection.idle_interrupt_receiver.recv().await.ok();
         return;
     }
     let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
@@ -554,9 +552,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             // but watching Sent folder is enabled.
             warn!(ctx, "Error converting IMAP Folder name: {:?}", error);
             connection.connectivity.set_not_configured(ctx).await;
-            connection
-                .fake_idle(ctx, None, FolderMeaning::Unknown)
-                .await;
+            connection.idle_interrupt_receiver.recv().await.ok();
             return;
         }
     };
@@ -657,7 +653,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     let Some(session) = connection.session.take() else {
         warn!(ctx, "No IMAP session, going to fake idle.");
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     };
@@ -668,7 +664,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             "IMAP session does not support IDLE, going to fake idle."
         );
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     }
@@ -682,7 +678,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     }

@@ -101,7 +101,7 @@ impl Imap {
     pub(crate) async fn fake_idle(
         &mut self,
         context: &Context,
-        watch_folder: Option<String>,
+        watch_folder: String,
         folder_meaning: FolderMeaning,
     ) {
         // Idle using polling. This is also needed if we're not yet configured -
@@ -110,13 +110,6 @@ impl Imap {
         let fake_idle_start_time = tools::Time::now();
 
         // Do not poll, just wait for an interrupt when no folder is passed in.
-        let watch_folder = if let Some(watch_folder) = watch_folder {
-            watch_folder
-        } else {
-            info!(context, "IMAP-fake-IDLE: no folder, waiting for interrupt");
-            self.idle_interrupt_receiver.recv().await.ok();
-            return;
-        };
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
         const TIMEOUT_INIT_MS: u64 = 60_000;
