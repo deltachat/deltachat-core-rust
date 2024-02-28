@@ -393,6 +393,10 @@ async fn inbox_loop(
         };
 
         loop {
+            if let Err(err) = connection.prepare(&ctx).await {
+                warn!(ctx, "Failed to prepare connection: {:#}.", err);
+            }
+
             {
                 // Update quota no more than once a minute.
                 let quota_needs_update = {
@@ -412,9 +416,11 @@ async fn inbox_loop(
 
             let resync_requested = ctx.resync_request.swap(false, Ordering::Relaxed);
             if resync_requested {
-                if let Err(err) = connection.resync_folders(&ctx).await {
-                    warn!(ctx, "Failed to resync folders: {:#}.", err);
-                    ctx.resync_request.store(true, Ordering::Relaxed);
+                if let Some(session) = connection.session.as_mut() {
+                    if let Err(err) = session.resync_folders(&ctx).await {
+                        warn!(ctx, "Failed to resync folders: {:#}.", err);
+                        ctx.resync_request.store(true, Ordering::Relaxed);
+                    }
                 }
             }
 

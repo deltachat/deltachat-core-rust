@@ -789,29 +789,25 @@ impl Imap {
         info!(context, "Done fetching existing messages.");
         Ok(())
     }
+}
 
+impl Session {
     /// Synchronizes UIDs for all folders.
     pub(crate) async fn resync_folders(&mut self, context: &Context) -> Result<()> {
-        self.prepare(context).await?;
-
-        let session = self.session.as_mut().context("No IMAP session")?;
-        let all_folders = session
+        let all_folders = self
             .list_folders()
             .await
             .context("listing folders for resync")?;
         for folder in all_folders {
             let folder_meaning = get_folder_meaning(&folder);
             if folder_meaning != FolderMeaning::Virtual {
-                session
-                    .resync_folder_uids(context, folder.name(), folder_meaning)
+                self.resync_folder_uids(context, folder.name(), folder_meaning)
                     .await?;
             }
         }
         Ok(())
     }
-}
 
-impl Session {
     /// Synchronizes UIDs in the database with UIDs on the server.
     ///
     /// It is assumed that no operations are taking place on the same
