@@ -536,7 +536,6 @@ impl Imap {
         let uid_validity = get_uidvalidity(context, folder).await?;
         let old_uid_next = get_uid_next(context, folder).await?;
 
-        let session = self.session.as_mut().context("No IMAP session")?;
         let msgs = if fetch_existing_msgs {
             session
                 .prefetch_existing_msgs()
