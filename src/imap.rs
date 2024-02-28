@@ -1187,17 +1187,10 @@ impl Session {
 
         Ok(())
     }
-}
 
-impl Imap {
     /// Gets the from, to and bcc addresses from all existing outgoing emails.
     pub async fn get_all_recipients(&mut self, context: &Context) -> Result<Vec<SingleInfo>> {
-        let session = self
-            .session
-            .as_mut()
-            .context("IMAP No Connection established")?;
-
-        let mut uids: Vec<_> = session
+        let mut uids: Vec<_> = self
             .uid_search(get_imap_self_sent_search_command(context).await?)
             .await?
             .into_iter()
@@ -1206,7 +1199,7 @@ impl Imap {
 
         let mut result = Vec::new();
         for (_, uid_set) in build_sequence_sets(&uids)? {
-            let mut list = session
+            let mut list = self
                 .uid_fetch(uid_set, "(UID BODY.PEEK[HEADER.FIELDS (FROM TO CC BCC)])")
                 .await
                 .context("IMAP Could not fetch")?;
@@ -1229,7 +1222,9 @@ impl Imap {
         }
         Ok(result)
     }
+}
 
+impl Imap {
     /// Fetches a list of messages by server UID.
     ///
     /// Returns the last UID fetched successfully and the info about each downloaded message.
@@ -2422,7 +2417,7 @@ async fn add_all_recipients_as_contacts(
         .await
         .with_context(|| format!("could not select {mailbox}"))?;
 
-    let recipients = imap
+    let recipients = session
         .get_all_recipients(context)
         .await
         .context("could not get recipients")?;
