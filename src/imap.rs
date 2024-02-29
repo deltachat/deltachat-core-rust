@@ -15,7 +15,8 @@ use std::{
 use anyhow::{bail, format_err, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::types::{Fetch, Flag, Name, NameAttribute, UnsolicitedResponse};
-use futures::{StreamExt, TryStreamExt};
+use futures::{FutureExt as _, StreamExt, TryStreamExt};
+use futures_lite::FutureExt;
 use num_traits::FromPrimitive;
 use ratelimit::Ratelimit;
 use tokio::sync::RwLock;
@@ -331,7 +332,18 @@ impl Imap {
                 "IMAP got rate limited, waiting for {} until can connect",
                 duration_to_str(ratelimit_duration),
             );
-            tokio::time::sleep(ratelimit_duration).await;
+            let interrupted = async {
+                tokio::time::sleep(ratelimit_duration).await;
+                false
+            }
+            .race(self.idle_interrupt_receiver.recv().map(|_| true))
+            .await;
+            if interrupted {
+                info!(
+                    context,
+                    "Connecting to IMAP without waiting for ratelimit due to interrupt."
+                );
+            }
         }
 
         info!(context, "Connecting to IMAP server");
