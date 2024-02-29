@@ -2492,8 +2492,9 @@ async fn prepare_msg_blob(context: &Context, msg: &mut Message) -> Result<()> {
         if msg.viewtype == Viewtype::Image
             || maybe_sticker && !msg.param.exists(Param::ForceSticker)
         {
-            blob.recode_to_image_size(context, &mut maybe_sticker)
-                .await?;
+            if let Err(err) = blob.recode_to_image_size(context, &mut maybe_sticker).await {
+                warn!(context, "Failed to recode image: {err:#}.");
+            }
 
             if !maybe_sticker {
                 msg.viewtype = Viewtype::Image;
@@ -7276,6 +7277,29 @@ mod tests {
         let a1_broadcast_chat = Chat::load_from_db(alice1, a1_broadcast_id).await?;
         assert_eq!(a1_broadcast_chat.get_type(), Chattype::Broadcast);
         assert_eq!(a1_broadcast_chat.get_name(), "Broadcast list 42");
+        Ok(())
+    }
+
+    /// Tests sending JPEG image with .png extension.
+    ///
+    /// This is a regression test, previously sending failed
+    /// because image was passed to PNG decoder
+    /// and it failed to decode image.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_jpeg_png() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+        let bob = TestContext::new_bob().await;
+
+        let bytes = include_bytes!("../test-data/image/screenshot.jpg");
+        let file = alice.get_blobdir().join("screenshot.png");
+        tokio::fs::write(&file, bytes).await?;
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_file(file.to_str().unwrap(), None);
+
+        let alice_chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_msg(alice_chat.get_id(), &mut msg).await;
+        let _msg = bob.recv_msg(&sent_msg).await;
+
         Ok(())
     }
 }
