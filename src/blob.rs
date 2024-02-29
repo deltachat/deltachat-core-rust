@@ -3,7 +3,7 @@
 use core::cmp::max;
 use std::ffi::OsStr;
 use std::fmt;
-use std::io::Cursor;
+use std::io::{Cursor, Seek};
 use std::iter::FusedIterator;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -12,6 +12,7 @@ use anyhow::{format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
 use image::codecs::jpeg::JpegEncoder;
+use image::io::Reader as ImageReader;
 use image::{DynamicImage, GenericImage, GenericImageView, ImageFormat, Pixel, Rgba};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
@@ -426,9 +427,25 @@ impl<'a> BlobObject<'a> {
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
         let res = tokio::task::block_in_place(move || {
-            let (nr_bytes, exif) = self.metadata()?;
+            let mut file = std::fs::File::open(self.to_abs_path())?;
+            let (nr_bytes, exif) = image_metadata(&file)?;
             *no_exif_ref = exif.is_none();
-            let mut img = image::open(&blob_abs).context("image decode failure")?;
+            // It's strange that BufReader modifies a file position while it takes a non-mut
+            // reference. Ok, just rewind it.
+            file.rewind()?;
+            let imgreader = ImageReader::new(std::io::BufReader::new(&file)).with_guessed_format();
+            let imgreader = match imgreader {
+                Ok(ir) => ir,
+                _ => {
+                    file.rewind()?;
+                    ImageReader::with_format(
+                        std::io::BufReader::new(&file),
+                        ImageFormat::from_path(&blob_abs)?,
+                    )
+                }
+            };
+            let fmt = imgreader.format().context("No format??")?;
+            let mut img = imgreader.decode().context("image decode failure")?;
             let orientation = exif.as_ref().map(|exif| exif_orientation(exif, context));
             let mut encoded = Vec::new();
             let mut changed_name = None;
@@ -457,10 +474,9 @@ impl<'a> BlobObject<'a> {
             let exceeds_max_bytes = nr_bytes > max_bytes as u64;
 
             let jpeg_quality = 75;
-            let fmt = ImageFormat::from_path(&blob_abs);
             let ofmt = match fmt {
-                Ok(ImageFormat::Png) if !exceeds_max_bytes => ImageOutputFormat::Png,
-                Ok(ImageFormat::Jpeg) => {
+                ImageFormat::Png if !exceeds_max_bytes => ImageOutputFormat::Png,
+                ImageFormat::Jpeg => {
                     add_white_bg = false;
                     ImageOutputFormat::Jpeg {
                         quality: jpeg_quality,
@@ -497,7 +513,7 @@ impl<'a> BlobObject<'a> {
                     img_wh = max(img.width(), img.height());
                     // PNGs and WebPs may be huge because of animation, which is lost by the `image`
                     // crate when recoding, so don't scale them down.
-                    if matches!(fmt, Ok(ImageFormat::Jpeg)) || !encoded.is_empty() {
+                    if matches!(fmt, ImageFormat::Jpeg) || !encoded.is_empty() {
                         img_wh = img_wh * 2 / 3;
                     }
                 }
@@ -538,7 +554,7 @@ impl<'a> BlobObject<'a> {
 
             if do_scale || exif.is_some() {
                 // The file format is JPEG/PNG now, we may have to change the file extension
-                if !matches!(fmt, Ok(ImageFormat::Jpeg))
+                if !matches!(fmt, ImageFormat::Jpeg)
                     && matches!(ofmt, ImageOutputFormat::Jpeg { .. })
                 {
                     blob_abs = blob_abs.with_extension("jpg");
@@ -575,15 +591,14 @@ impl<'a> BlobObject<'a> {
             }
         }
     }
+}
 
-    /// Returns image file size and Exif.
-    pub fn metadata(&self) -> Result<(u64, Option<exif::Exif>)> {
-        let file = std::fs::File::open(self.to_abs_path())?;
-        let len = file.metadata()?.len();
-        let mut bufreader = std::io::BufReader::new(&file);
-        let exif = exif::Reader::new().read_from_container(&mut bufreader).ok();
-        Ok((len, exif))
-    }
+/// Returns image file size and Exif.
+pub fn image_metadata(file: &std::fs::File) -> Result<(u64, Option<exif::Exif>)> {
+    let len = file.metadata()?.len();
+    let mut bufreader = std::io::BufReader::new(file);
+    let exif = exif::Reader::new().read_from_container(&mut bufreader).ok();
+    Ok((len, exif))
 }
 
 fn exif_orientation(exif: &exif::Exif, context: &Context) -> i32 {
@@ -1306,8 +1321,7 @@ mod tests {
             .context("failed to write file")?;
         check_image_size(&file, original_width, original_height);
 
-        let blob = BlobObject::new_from_path(&alice, &file).await?;
-        let (_, exif) = blob.metadata()?;
+        let (_, exif) = image_metadata(&std::fs::File::open(&file)?)?;
         if has_exif {
             let exif = exif.unwrap();
             assert_eq!(exif_orientation(&exif, &alice), orientation);
@@ -1342,8 +1356,7 @@ mod tests {
             assert_eq!(&bytes1, bytes);
         }
 
-        let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
-        let (_, exif) = blob.metadata()?;
+        let (_, exif) = image_metadata(&std::fs::File::open(&file_saved)?)?;
         assert!(exif.is_none());
 
         let img = check_image_size(file_saved, compressed_width, compressed_height);
@@ -1379,8 +1392,7 @@ mod tests {
             .get_blobdir()
             .join("saved-".to_string() + &bob_msg.get_filename().unwrap());
         bob_msg.save_file(&bob, &file_saved).await?;
-        let blob = BlobObject::new_from_path(&bob, &file_saved).await?;
-        let (file_size, _) = blob.metadata()?;
+        let (file_size, _) = image_metadata(&std::fs::File::open(&file_saved)?)?;
         assert_eq!(file_size, bytes.len() as u64);
         check_image_size(file_saved, width, height);
         Ok(())
