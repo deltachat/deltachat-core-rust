@@ -10,7 +10,6 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::imap::scan_folders::get_watched_folders;
 use crate::imap::session::Session as ImapSession;
-use crate::imap::Imap;
 use crate::message::{Message, Viewtype};
 use crate::tools;
 use crate::{stock_str, EventType};
@@ -111,13 +110,7 @@ impl Context {
     /// As the message is added only once, the user is not spammed
     /// in case for some providers the quota is always at ~100%
     /// and new space is allocated as needed.
-    pub(crate) async fn update_recent_quota(&self, imap: &mut Imap) -> Result<()> {
-        if let Err(err) = imap.prepare(self).await {
-            warn!(self, "could not connect: {:#}", err);
-            return Ok(());
-        }
-
-        let session = imap.session.as_mut().context("no session")?;
+    pub(crate) async fn update_recent_quota(&self, session: &mut ImapSession) -> Result<()> {
         let quota = if session.can_check_quota() {
             let folders = get_watched_folders(self).await?;
             get_unique_quota_roots_and_usage(session, folders).await

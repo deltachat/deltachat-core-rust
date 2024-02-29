@@ -194,7 +194,10 @@ impl Imap {
 
         let mut uid_message_ids: BTreeMap<u32, String> = BTreeMap::new();
         uid_message_ids.insert(uid, rfc724_mid);
-        let (last_uid, _received) = match self
+        let Some(session) = self.session.as_mut() else {
+            return ImapActionResult::Failed;
+        };
+        let (last_uid, _received) = match session
             .fetch_many_msgs(
                 context,
                 folder,

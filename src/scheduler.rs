@@ -393,6 +393,10 @@ async fn inbox_loop(
         };
 
         loop {
+            if let Err(err) = connection.prepare(&ctx).await {
+                warn!(ctx, "Failed to prepare connection: {:#}.", err);
+            }
+
             {
                 // Update quota no more than once a minute.
                 let quota_needs_update = {
@@ -404,17 +408,21 @@ async fn inbox_loop(
                 };
 
                 if quota_needs_update {
-                    if let Err(err) = ctx.update_recent_quota(&mut connection).await {
-                        warn!(ctx, "Failed to update quota: {:#}.", err);
+                    if let Some(session) = connection.session.as_mut() {
+                        if let Err(err) = ctx.update_recent_quota(session).await {
+                            warn!(ctx, "Failed to update quota: {:#}.", err);
+                        }
                     }
                 }
             }
 
             let resync_requested = ctx.resync_request.swap(false, Ordering::Relaxed);
             if resync_requested {
-                if let Err(err) = connection.resync_folders(&ctx).await {
-                    warn!(ctx, "Failed to resync folders: {:#}.", err);
-                    ctx.resync_request.store(true, Ordering::Relaxed);
+                if let Some(session) = connection.session.as_mut() {
+                    if let Err(err) = session.resync_folders(&ctx).await {
+                        warn!(ctx, "Failed to resync folders: {:#}.", err);
+                        ctx.resync_request.store(true, Ordering::Relaxed);
+                    }
                 }
             }
 
@@ -465,8 +473,10 @@ async fn inbox_loop(
                 warn!(ctx, "Failed to download messages: {:#}", err);
             }
 
-            if let Err(err) = connection.fetch_metadata(&ctx).await {
-                warn!(ctx, "Failed to fetch metadata: {err:#}.");
+            if let Some(session) = connection.session.as_mut() {
+                if let Err(err) = session.fetch_metadata(&ctx).await {
+                    warn!(ctx, "Failed to fetch metadata: {err:#}.");
+                }
             }
 
             fetch_idle(&ctx, &mut connection, FolderMeaning::Inbox).await;
@@ -531,9 +541,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             ctx,
             "Cannot watch {folder_meaning}, ensure_configured_folders() failed: {:#}", err,
         );
-        connection
-            .fake_idle(ctx, None, FolderMeaning::Unknown)
-            .await;
+        connection.idle_interrupt_receiver.recv().await.ok();
         return;
     }
     let (folder_config, watch_folder) = match convert_folder_meaning(ctx, folder_meaning).await {
@@ -544,9 +552,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             // but watching Sent folder is enabled.
             warn!(ctx, "Error converting IMAP Folder name: {:?}", error);
             connection.connectivity.set_not_configured(ctx).await;
-            connection
-                .fake_idle(ctx, None, FolderMeaning::Unknown)
-                .await;
+            connection.idle_interrupt_receiver.recv().await.ok();
             return;
         }
     };
@@ -630,12 +636,16 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     }
 
     // Synchronize Seen flags.
-    connection
-        .sync_seen_flags(ctx, &watch_folder)
-        .await
-        .context("sync_seen_flags")
-        .log_err(ctx)
-        .ok();
+    if let Some(session) = connection.session.as_mut() {
+        session
+            .sync_seen_flags(ctx, &watch_folder)
+            .await
+            .context("sync_seen_flags")
+            .log_err(ctx)
+            .ok();
+    } else {
+        warn!(ctx, "No IMAP session, skipping flag synchronization.");
+    }
 
     connection.connectivity.set_idle(ctx).await;
 
@@ -643,7 +653,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     let Some(session) = connection.session.take() else {
         warn!(ctx, "No IMAP session, going to fake idle.");
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     };
@@ -654,7 +664,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
             "IMAP session does not support IDLE, going to fake idle."
         );
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     }
@@ -668,7 +678,7 @@ async fn fetch_idle(ctx: &Context, connection: &mut Imap, folder_meaning: Folder
     {
         info!(ctx, "IMAP IDLE is disabled, going to fake idle.");
         connection
-            .fake_idle(ctx, Some(watch_folder), folder_meaning)
+            .fake_idle(ctx, watch_folder, folder_meaning)
             .await;
         return;
     }

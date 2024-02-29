@@ -3,6 +3,7 @@
 use anyhow::Context as _;
 
 use super::session::Session as ImapSession;
+use super::{get_uid_next, get_uidvalidity, set_modseq, set_uid_next, set_uidvalidity};
 use crate::context::Context;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -126,6 +127,131 @@ impl ImapSession {
                 _ => Err(err).with_context(|| format!("failed to select folder {folder} with error other than NO, not trying to create it")),
             },
         }
+    }
+
+    /// Selects a folder and takes care of UIDVALIDITY changes.
+    ///
+    /// When selecting a folder for the first time, sets the uid_next to the current
+    /// mailbox.uid_next so that no old emails are fetched.
+    ///
+    /// Returns Result<new_emails> (i.e. whether new emails arrived),
+    /// if in doubt, returns new_emails=true so emails are fetched.
+    pub(crate) async fn select_with_uidvalidity(
+        &mut self,
+        context: &Context,
+        folder: &str,
+    ) -> Result<bool> {
+        let newly_selected = self
+            .select_or_create_folder(context, folder)
+            .await
+            .with_context(|| format!("failed to select or create folder {folder}"))?;
+        let mailbox = self
+            .selected_mailbox
+            .as_mut()
+            .with_context(|| format!("No mailbox selected, folder: {folder}"))?;
+
+        let old_uid_validity = get_uidvalidity(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID validity for folder {folder}"))?;
+        let old_uid_next = get_uid_next(context, folder)
+            .await
+            .with_context(|| format!("failed to get old UID NEXT for folder {folder}"))?;
+
+        let new_uid_validity = mailbox
+            .uid_validity
+            .with_context(|| format!("No UIDVALIDITY for folder {folder}"))?;
+        let new_uid_next = if let Some(uid_next) = mailbox.uid_next {
+            Some(uid_next)
+        } else {
+            warn!(
+                context,
+                "SELECT response for IMAP folder {folder:?} has no UIDNEXT, fall back to STATUS command."
+            );
+
+            // RFC 3501 says STATUS command SHOULD NOT be used
+            // on the currently selected mailbox because the same
+            // information can be obtained by other means,
+            // such as reading SELECT response.
+            //
+            // However, it also says that UIDNEXT is REQUIRED
+            // in the SELECT response and if we are here,
+            // it is actually not returned.
+            //
+            // In particular, Winmail Pro Mail Server 5.1.0616
+            // never returns UIDNEXT in SELECT response,
+            // but responds to "STATUS INBOX (UIDNEXT)" command.
+            let status = self
+                .inner
+                .status(folder, "(UIDNEXT)")
+                .await
+                .with_context(|| format!("STATUS (UIDNEXT) error for {folder:?}"))?;
+
+            if status.uid_next.is_none() {
+                // This happens with mail.163.com as of 2023-11-26.
+                // It does not return UIDNEXT on SELECT and returns invalid
+                // `* STATUS "INBOX" ()` response on explicit request for UIDNEXT.
+                warn!(context, "STATUS {folder} (UIDNEXT) did not return UIDNEXT.");
+            }
+            status.uid_next
+        };
+        mailbox.uid_next = new_uid_next;
+
+        if new_uid_validity == old_uid_validity {
+            let new_emails = if newly_selected == NewlySelected::No {
+                // The folder was not newly selected i.e. no SELECT command was run. This means that mailbox.uid_next
+                // was not updated and may contain an incorrect value. So, just return true so that
+                // the caller tries to fetch new messages (we could of course run a SELECT command now, but trying to fetch
+                // new messages is only one command, just as a SELECT command)
+                true
+            } else if let Some(new_uid_next) = new_uid_next {
+                if new_uid_next < old_uid_next {
+                    warn!(
+                        context,
+                        "The server illegally decreased the uid_next of folder {folder:?} from {old_uid_next} to {new_uid_next} without changing validity ({new_uid_validity}), resyncing UIDs...",
+                    );
+                    set_uid_next(context, folder, new_uid_next).await?;
+                    context.schedule_resync().await?;
+                }
+                new_uid_next != old_uid_next // If UIDNEXT changed, there are new emails
+            } else {
+                // We have no UIDNEXT and if in doubt, return true.
+                true
+            };
+
+            return Ok(new_emails);
+        }
+
+        // UIDVALIDITY is modified, reset highest seen MODSEQ.
+        set_modseq(context, folder, 0).await?;
+
+        // ==============  uid_validity has changed or is being set the first time.  ==============
+
+        let new_uid_next = new_uid_next.unwrap_or_default();
+        set_uid_next(context, folder, new_uid_next).await?;
+        set_uidvalidity(context, folder, new_uid_validity).await?;
+
+        // Collect garbage entries in `imap` table.
+        context
+            .sql
+            .execute(
+                "DELETE FROM imap WHERE folder=? AND uidvalidity!=?",
+                (&folder, new_uid_validity),
+            )
+            .await?;
+
+        if old_uid_validity != 0 || old_uid_next != 0 {
+            context.schedule_resync().await?;
+        }
+        info!(
+            context,
+            "uid/validity change folder {}: new {}/{} previous {}/{}.",
+            folder,
+            new_uid_next,
+            new_uid_validity,
+            old_uid_next,
+            old_uid_validity,
+        );
+        Ok(false)
     }
 }
 
