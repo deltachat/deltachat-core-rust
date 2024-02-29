@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::imap::{Imap, ImapActionResult};
+use crate::imap::{session::Session, ImapActionResult};
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::tools::time;
@@ -129,9 +129,11 @@ impl Message {
 /// Actually download a message partially downloaded before.
 ///
 /// Most messages are downloaded automatically on fetch instead.
-pub(crate) async fn download_msg(context: &Context, msg_id: MsgId, imap: &mut Imap) -> Result<()> {
-    imap.prepare(context).await?;
-
+pub(crate) async fn download_msg(
+    context: &Context,
+    msg_id: MsgId,
+    session: &mut Session,
+) -> Result<()> {
     let msg = Message::load_from_db(context, msg_id).await?;
     let row = context
         .sql
@@ -152,7 +154,7 @@ pub(crate) async fn download_msg(context: &Context, msg_id: MsgId, imap: &mut Im
         return Err(anyhow!("Call download_full() again to try over."));
     };
 
-    match imap
+    match session
         .fetch_single_msg(
             context,
             &server_folder,
@@ -169,7 +171,7 @@ pub(crate) async fn download_msg(context: &Context, msg_id: MsgId, imap: &mut Im
     }
 }
 
-impl Imap {
+impl Session {
     /// Download a single message and pipe it to receive_imf().
     ///
     /// receive_imf() is not directly aware that this is a result of a call to download_msg(),
@@ -194,10 +196,7 @@ impl Imap {
 
         let mut uid_message_ids: BTreeMap<u32, String> = BTreeMap::new();
         uid_message_ids.insert(uid, rfc724_mid);
-        let Some(session) = self.session.as_mut() else {
-            return ImapActionResult::Failed;
-        };
-        let (last_uid, _received) = match session
+        let (last_uid, _received) = match self
             .fetch_many_msgs(
                 context,
                 folder,

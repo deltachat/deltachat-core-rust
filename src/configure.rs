@@ -25,7 +25,7 @@ use tokio::task;
 use crate::config::{self, Config};
 use crate::contact::addr_cmp;
 use crate::context::Context;
-use crate::imap::Imap;
+use crate::imap::{session::Session as ImapSession, Imap};
 use crate::log::LogExt;
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
 use crate::message::{Message, Viewtype};
@@ -395,7 +395,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     // Configure IMAP
 
-    let mut imap: Option<Imap> = None;
+    let mut imap: Option<(Imap, ImapSession)> = None;
     let imap_servers: Vec<&ServerParams> = servers
         .iter()
         .filter(|params| params.protocol == Protocol::Imap)
@@ -433,7 +433,7 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
             600 + (800 - 600) * (1 + imap_server_index) / imap_servers_count
         );
     }
-    let mut imap = match imap {
+    let (mut imap, mut imap_session) = match imap {
         Some(imap) => imap,
         None => bail!(nicer_configuration_error(ctx, errors).await),
     };
@@ -454,11 +454,10 @@ async fn configure(ctx: &Context, param: &mut LoginParam) -> Result<()> {
 
     let create_mvbox = ctx.should_watch_mvbox().await?;
 
-    imap.configure_folders(ctx, create_mvbox).await?;
+    imap.configure_folders(ctx, &mut imap_session, create_mvbox)
+        .await?;
 
-    imap.session
-        .as_mut()
-        .context("no IMAP connection established")?
+    imap_session
         .select_with_uidvalidity(ctx, "INBOX")
         .await
         .context("could not read INBOX status")?;
@@ -579,7 +578,7 @@ async fn try_imap_one_param(
     socks5_config: &Option<Socks5Config>,
     addr: &str,
     provider_strict_tls: bool,
-) -> Result<Imap, ConfigurationError> {
+) -> Result<(Imap, ImapSession), ConfigurationError> {
     let inf = format!(
         "imap: {}@{}:{} security={} certificate_checks={} oauth2={} socks5_config={}",
         param.user,
@@ -617,9 +616,9 @@ async fn try_imap_one_param(
                 msg: format!("{err:#}"),
             })
         }
-        Ok(()) => {
+        Ok(session) => {
             info!(context, "success: {}", inf);
-            Ok(imap)
+            Ok((imap, session))
         }
     }
 }

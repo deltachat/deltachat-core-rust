@@ -4,13 +4,12 @@ use anyhow::{bail, Context as _, Result};
 use async_channel::Receiver;
 use async_imap::extensions::idle::IdleResponse;
 use futures_lite::FutureExt;
+use tokio::time::timeout;
 
 use super::session::Session;
 use super::Imap;
-use crate::config::Config;
 use crate::context::Context;
 use crate::imap::{client::IMAP_TIMEOUT, FolderMeaning};
-use crate::log::LogExt;
 use crate::tools::{self, time_elapsed};
 
 /// Timeout after which IDLE is finished
@@ -98,90 +97,38 @@ impl Session {
 }
 
 impl Imap {
+    /// Idle using polling.
     pub(crate) async fn fake_idle(
         &mut self,
         context: &Context,
+        session: &mut Session,
         watch_folder: String,
         folder_meaning: FolderMeaning,
-    ) {
-        // Idle using polling. This is also needed if we're not yet configured -
-        // in this case, we're waiting for a configure job (and an interrupt).
-
+    ) -> Result<()> {
         let fake_idle_start_time = tools::Time::now();
 
-        // Do not poll, just wait for an interrupt when no folder is passed in.
         info!(context, "IMAP-fake-IDLEing folder={:?}", watch_folder);
 
-        const TIMEOUT_INIT_MS: u64 = 60_000;
-        let mut timeout_ms: u64 = TIMEOUT_INIT_MS;
-        enum Event {
-            Tick,
-            Interrupt,
-        }
-        // loop until we are interrupted or if we fetched something
+        // Loop until we are interrupted or until we fetch something.
         loop {
-            use futures::future::FutureExt;
-            use rand::Rng;
-
-            let mut interval = tokio::time::interval(Duration::from_millis(timeout_ms));
-            timeout_ms = timeout_ms
-                .saturating_add(rand::thread_rng().gen_range((timeout_ms / 2)..=timeout_ms));
-            interval.tick().await; // The first tick completes immediately.
-            match interval
-                .tick()
-                .map(|_| Event::Tick)
-                .race(
-                    self.idle_interrupt_receiver
-                        .recv()
-                        .map(|_| Event::Interrupt),
-                )
-                .await
-            {
-                Event::Tick => {
-                    // try to connect with proper login params
-                    // (setup_handle_if_needed might not know about them if we
-                    // never successfully connected)
-                    if let Err(err) = self.prepare(context).await {
-                        warn!(context, "fake_idle: could not connect: {}", err);
-                        continue;
-                    }
-                    if let Some(session) = &self.session {
-                        if session.can_idle()
-                            && !context
-                                .get_config_bool(Config::DisableIdle)
-                                .await
-                                .context("Failed to get disable_idle config")
-                                .log_err(context)
-                                .unwrap_or_default()
-                        {
-                            // we only fake-idled because network was gone during IDLE, probably
-                            break;
-                        }
-                    }
-                    info!(context, "fake_idle is connected");
-                    // we are connected, let's see if fetching messages results
+            match timeout(Duration::from_secs(60), self.idle_interrupt_receiver.recv()).await {
+                Err(_) => {
+                    // Let's see if fetching messages results
                     // in anything.  If so, we behave as if IDLE had data but
                     // will have already fetched the messages so perform_*_fetch
                     // will not find any new.
-                    match self
-                        .fetch_new_messages(context, &watch_folder, folder_meaning, false)
-                        .await
-                    {
-                        Ok(res) => {
-                            info!(context, "fetch_new_messages returned {:?}", res);
-                            timeout_ms = TIMEOUT_INIT_MS;
-                            if res {
-                                break;
-                            }
-                        }
-                        Err(err) => {
-                            error!(context, "could not fetch from folder: {:#}", err);
-                            self.trigger_reconnect(context);
-                        }
+                    let res = self
+                        .fetch_new_messages(context, session, &watch_folder, folder_meaning, false)
+                        .await?;
+
+                    info!(context, "fetch_new_messages returned {:?}", res);
+
+                    if res {
+                        break;
                     }
                 }
-                Event::Interrupt => {
-                    info!(context, "Fake IDLE interrupted");
+                Ok(_) => {
+                    info!(context, "Fake IDLE interrupted.");
                     break;
                 }
             }
@@ -192,5 +139,6 @@ impl Imap {
             "IMAP-fake-IDLE done after {:.4}s",
             time_elapsed(&fake_idle_start_time).as_millis() as f64 / 1000.,
         );
+        Ok(())
     }
 }

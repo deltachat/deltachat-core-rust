@@ -69,10 +69,9 @@ const BODY_FULL: &str = "(FLAGS BODY.PEEK[])";
 const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 
 #[derive(Debug)]
-pub struct Imap {
+pub(crate) struct Imap {
     pub(crate) idle_interrupt_receiver: Receiver<()>,
     config: ImapConfig,
-    pub(crate) session: Option<Session>,
     login_failed_once: bool,
 
     pub(crate) connectivity: ConnectivityStore,
@@ -255,7 +254,6 @@ impl Imap {
         let imap = Imap {
             idle_interrupt_receiver,
             config,
-            session: None,
             login_failed_once: false,
             connectivity: Default::default(),
             // 1 connection per minute + a burst of 2.
@@ -298,13 +296,9 @@ impl Imap {
     /// Calling this function is not enough to perform IMAP operations. Use [`Imap::prepare`]
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
-    pub async fn connect(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn connect(&mut self, context: &Context) -> Result<Session> {
         if self.config.lp.server.is_empty() {
             bail!("IMAP operation attempted while it is torn down");
-        }
-
-        if self.session.is_some() {
-            return Ok(());
         }
 
         let ratelimit_duration = self.ratelimit.read().await.until_can_send();
@@ -410,7 +404,6 @@ impl Imap {
                 let mut lock = context.server_id.write().await;
                 *lock = session.capabilities.server_id.clone();
 
-                self.session = Some(session);
                 self.login_failed_once = false;
                 context.emit_event(EventType::ImapConnected(format!(
                     "IMAP-LOGIN as {}",
@@ -418,7 +411,7 @@ impl Imap {
                 )));
                 self.connectivity.set_connected(context).await;
                 info!(context, "Successfully logged into IMAP server");
-                Ok(())
+                Ok(session)
             }
 
             Err(err) => {
@@ -461,22 +454,26 @@ impl Imap {
     ///
     /// Ensure that IMAP client is connected, folders are created and IMAP capabilities are
     /// determined.
-    pub async fn prepare(&mut self, context: &Context) -> Result<()> {
-        if let Err(err) = self.connect(context).await {
-            self.connectivity.set_err(context, &err).await;
-            return Err(err);
+    pub(crate) async fn prepare(&mut self, context: &Context) -> Result<Session> {
+        let mut session = match self.connect(context).await {
+            Ok(session) => session,
+            Err(err) => {
+                self.connectivity.set_err(context, &err).await;
+                return Err(err);
+            }
+        };
+
+        let folders_configured = context
+            .sql
+            .get_raw_config_int(constants::DC_FOLDERS_CONFIGURED_KEY)
+            .await?;
+        if folders_configured.unwrap_or_default() < constants::DC_FOLDERS_CONFIGURED_VERSION {
+            let create_mvbox = true;
+            self.configure_folders(context, &mut session, create_mvbox)
+                .await?;
         }
 
-        self.ensure_configured_folders(context, true).await?;
-        Ok(())
-    }
-
-    /// Drops the session without disconnecting properly.
-    /// Useful in case of an IMAP error, when it's unclear if it's in a correct state and it's
-    /// easier to setup a new connection.
-    pub fn trigger_reconnect(&mut self, context: &Context) {
-        info!(context, "Dropping an IMAP connection.");
-        self.session = None;
+        Ok(session)
     }
 
     /// FETCH-MOVE-DELETE iteration.
@@ -486,6 +483,7 @@ impl Imap {
     pub async fn fetch_move_delete(
         &mut self,
         context: &Context,
+        session: &mut Session,
         watch_folder: &str,
         folder_meaning: FolderMeaning,
     ) -> Result<()> {
@@ -493,10 +491,9 @@ impl Imap {
             // probably shutdown
             bail!("IMAP operation attempted while it is torn down");
         }
-        self.prepare(context).await?;
 
         let msgs_fetched = self
-            .fetch_new_messages(context, watch_folder, folder_meaning, false)
+            .fetch_new_messages(context, session, watch_folder, folder_meaning, false)
             .await
             .context("fetch_new_messages")?;
         if msgs_fetched && context.get_config_delete_device_after().await?.is_some() {
@@ -507,10 +504,6 @@ impl Imap {
             context.scheduler.interrupt_ephemeral_task().await;
         }
 
-        let session = self
-            .session
-            .as_mut()
-            .context("no IMAP connection established")?;
         session
             .move_delete_messages(context, watch_folder)
             .await
@@ -525,6 +518,7 @@ impl Imap {
     pub(crate) async fn fetch_new_messages(
         &mut self,
         context: &Context,
+        session: &mut Session,
         folder: &str,
         folder_meaning: FolderMeaning,
         fetch_existing_msgs: bool,
@@ -534,7 +528,6 @@ impl Imap {
             return Ok(false);
         }
 
-        let session = self.session.as_mut().context("No IMAP session")?;
         let new_emails = session
             .select_with_uidvalidity(context, folder)
             .await
@@ -694,10 +687,7 @@ impl Imap {
         uids_fetch.push((0, !uids_fetch.last().unwrap_or(&(0, false)).1));
         for (uid, fp) in uids_fetch {
             if fp != fetch_partially {
-                let (largest_uid_fetched_in_batch, received_msgs_in_batch) = self
-                    .session
-                    .as_mut()
-                    .context("No IMAP session")?
+                let (largest_uid_fetched_in_batch, received_msgs_in_batch) = session
                     .fetch_many_msgs(
                         context,
                         folder,
@@ -724,10 +714,7 @@ impl Imap {
         // Largest known UID is normally less than UIDNEXT,
         // but a message may have arrived between determining UIDNEXT
         // and executing the FETCH command.
-        let mailbox_uid_next = self
-            .session
-            .as_ref()
-            .context("No IMAP session")?
+        let mailbox_uid_next = session
             .selected_mailbox
             .as_ref()
             .with_context(|| format!("Expected {folder:?} to be selected"))?
@@ -762,13 +749,15 @@ impl Imap {
     ///
     /// Then, Fetch the last messages DC_FETCH_EXISTING_MSGS_COUNT emails from the server
     /// and show them in the chat list.
-    pub(crate) async fn fetch_existing_msgs(&mut self, context: &Context) -> Result<()> {
+    pub(crate) async fn fetch_existing_msgs(
+        &mut self,
+        context: &Context,
+        session: &mut Session,
+    ) -> Result<()> {
         if context.get_config_bool(Config::Bot).await? {
             return Ok(()); // Bots don't want those messages
         }
-        self.prepare(context).await.context("could not connect")?;
 
-        let session = self.session.as_mut().context("No IMAP session")?;
         add_all_recipients_as_contacts(context, session, Config::ConfiguredSentboxFolder)
             .await
             .context("failed to get recipients from the sentbox")?;
@@ -794,7 +783,7 @@ impl Imap {
                         context,
                         "Fetching existing messages from folder {folder:?}."
                     );
-                    self.fetch_new_messages(context, &folder, meaning, true)
+                    self.fetch_new_messages(context, session, &folder, meaning, true)
                         .await
                         .context("could not fetch existing messages")?;
                 }
@@ -1493,9 +1482,7 @@ impl Session {
         }
         Ok(())
     }
-}
 
-impl Imap {
     pub(crate) async fn prepare_imap_operation_on_msg(
         &mut self,
         context: &Context,
@@ -1505,24 +1492,8 @@ impl Imap {
         if uid == 0 {
             return Some(ImapActionResult::RetryLater);
         }
-        if let Err(err) = self.prepare(context).await {
-            warn!(context, "prepare_imap_op failed: {}", err);
-            return Some(ImapActionResult::RetryLater);
-        }
 
-        let session = match self
-            .session
-            .as_mut()
-            .context("no IMAP connection established")
-        {
-            Err(err) => {
-                error!(context, "Failed to prepare IMAP operation: {:#}", err);
-                return Some(ImapActionResult::Failed);
-            }
-            Ok(session) => session,
-        };
-
-        match session.select_folder(context, Some(folder)).await {
+        match self.select_folder(context, Some(folder)).await {
             Ok(_) => None,
             Err(select_folder::Error::ConnectionLost) => {
                 warn!(context, "Lost imap connection");
@@ -1539,25 +1510,6 @@ impl Imap {
         }
     }
 
-    pub async fn ensure_configured_folders(
-        &mut self,
-        context: &Context,
-        create_mvbox: bool,
-    ) -> Result<()> {
-        let folders_configured = context
-            .sql
-            .get_raw_config_int(constants::DC_FOLDERS_CONFIGURED_KEY)
-            .await?;
-        if folders_configured.unwrap_or_default() >= constants::DC_FOLDERS_CONFIGURED_VERSION {
-            return Ok(());
-        }
-        if let Err(err) = self.connect(context).await {
-            self.connectivity.set_err(context, &err).await;
-            return Err(err);
-        }
-        self.configure_folders(context, create_mvbox).await
-    }
-
     /// Attempts to configure mvbox.
     ///
     /// Tries to find any folder in the given list of `folders`. If none is found, tries to create
@@ -1572,27 +1524,22 @@ impl Imap {
         folders: &[&'a str],
         create_mvbox: bool,
     ) -> Result<Option<&'a str>> {
-        let session = self
-            .session
-            .as_mut()
-            .context("no IMAP connection established")?;
-
         // Close currently selected folder if needed.
         // We are going to select folders using low-level EXAMINE operations below.
-        session.select_folder(context, None).await?;
+        self.select_folder(context, None).await?;
 
         for folder in folders {
             info!(context, "Looking for MVBOX-folder \"{}\"...", &folder);
-            let res = session.examine(&folder).await;
+            let res = self.examine(&folder).await;
             if res.is_ok() {
                 info!(
                     context,
                     "MVBOX-folder {:?} successfully selected, using it.", &folder
                 );
-                session.close().await?;
+                self.close().await?;
                 // Before moving emails to the mvbox we need to remember its UIDVALIDITY, otherwise
                 // emails moved before that wouldn't be fetched but considered "old" instead.
-                session.select_with_uidvalidity(context, folder).await?;
+                self.select_with_uidvalidity(context, folder).await?;
                 return Ok(Some(folder));
             }
         }
@@ -1603,7 +1550,7 @@ impl Imap {
         let Some(folder) = folders.first() else {
             return Ok(None);
         };
-        match session.select_with_uidvalidity(context, folder).await {
+        match self.select_with_uidvalidity(context, folder).await {
             Ok(_) => {
                 info!(context, "MVBOX-folder {} created.", folder);
                 return Ok(Some(folder));
@@ -1614,13 +1561,15 @@ impl Imap {
         }
         Ok(None)
     }
+}
 
-    pub async fn configure_folders(&mut self, context: &Context, create_mvbox: bool) -> Result<()> {
-        let session = self
-            .session
-            .as_mut()
-            .context("no IMAP connection established")?;
-
+impl Imap {
+    pub(crate) async fn configure_folders(
+        &mut self,
+        context: &Context,
+        session: &mut Session,
+        create_mvbox: bool,
+    ) -> Result<()> {
         let mut folders = session
             .list(Some(""), Some("*"))
             .await
@@ -1657,7 +1606,7 @@ impl Imap {
         info!(context, "Using \"{}\" as folder-delimiter.", delimiter);
 
         let fallback_folder = format!("INBOX{delimiter}DeltaChat");
-        let mvbox_folder = self
+        let mvbox_folder = session
             .configure_mvbox(context, &["DeltaChat", &fallback_folder], create_mvbox)
             .await
             .context("failed to configure mvbox")?;

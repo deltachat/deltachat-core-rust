@@ -4,14 +4,18 @@ use anyhow::{Context as _, Result};
 
 use super::{get_folder_meaning_by_attrs, get_folder_meaning_by_name};
 use crate::config::Config;
-use crate::imap::Imap;
+use crate::imap::{session::Session, Imap};
 use crate::log::LogExt;
 use crate::tools::{self, time_elapsed};
 use crate::{context::Context, imap::FolderMeaning};
 
 impl Imap {
     /// Returns true if folders were scanned, false if scanning was postponed.
-    pub(crate) async fn scan_folders(&mut self, context: &Context) -> Result<bool> {
+    pub(crate) async fn scan_folders(
+        &mut self,
+        context: &Context,
+        session: &mut Session,
+    ) -> Result<bool> {
         // First of all, debounce to once per minute:
         let mut last_scan = context.last_full_folder_scan.lock().await;
         if let Some(last_scan) = *last_scan {
@@ -26,8 +30,6 @@ impl Imap {
         }
         info!(context, "Starting full folder scan");
 
-        self.prepare(context).await?;
-        let session = self.session.as_mut().context("No IMAP session")?;
         let folders = session.list_folders().await?;
         let watched_folders = get_watched_folders(context).await?;
 
@@ -64,18 +66,16 @@ impl Imap {
                 && folder_meaning != FolderMeaning::Drafts
                 && folder_meaning != FolderMeaning::Trash
             {
-                let session = self.session.as_mut().context("no session")?;
                 // Drain leftover unsolicited EXISTS messages
                 session.server_sent_unsolicited_exists(context)?;
 
                 loop {
-                    self.fetch_move_delete(context, folder.name(), folder_meaning)
+                    self.fetch_move_delete(context, session, folder.name(), folder_meaning)
                         .await
                         .context("Can't fetch new msgs in scanned folder")
                         .log_err(context)
                         .ok();
 
-                    let session = self.session.as_mut().context("no session")?;
                     // If the server sent an unsocicited EXISTS during the fetch, we need to fetch again
                     if !session.server_sent_unsolicited_exists(context)? {
                         break;

@@ -461,13 +461,13 @@ impl Context {
 
         // connection
         let mut connection = Imap::new_configured(self, channel::bounded(1).1).await?;
-        connection.prepare(self).await?;
+        let mut session = connection.prepare(self).await?;
 
         // fetch imap folders
         for folder_meaning in [FolderMeaning::Inbox, FolderMeaning::Mvbox] {
             let (_, watch_folder) = convert_folder_meaning(self, folder_meaning).await?;
             connection
-                .fetch_move_delete(self, &watch_folder, folder_meaning)
+                .fetch_move_delete(self, &mut session, &watch_folder, folder_meaning)
                 .await?;
         }
 
@@ -484,10 +484,8 @@ impl Context {
         };
 
         if quota_needs_update {
-            if let Some(session) = connection.session.as_mut() {
-                if let Err(err) = self.update_recent_quota(session).await {
-                    warn!(self, "Failed to update quota: {err:#}.");
-                }
+            if let Err(err) = self.update_recent_quota(&mut session).await {
+                warn!(self, "Failed to update quota: {err:#}.");
             }
         }
 
