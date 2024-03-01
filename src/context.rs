@@ -955,15 +955,15 @@ impl Context {
                     let mut chats = ChatNumbers::default();
                     for row in rows {
                         let (protected, message_param, is_dc_message) = row?;
+                        let encrypted = message_param
+                            .get_bool(Param::GuaranteeE2ee)
+                            .unwrap_or(false);
+
                         if protected == ProtectionStatus::Protected {
                             chats.protected += 1;
                         } else if protected == ProtectionStatus::ProtectionBroken {
                             chats.protection_broken += 1;
-                        }
-                        if message_param
-                            .get_bool(Param::GuaranteeE2ee)
-                            .unwrap_or_default()
-                        {
+                        } else if encrypted {
                             if is_dc_message {
                                 chats.opportunistic_dc += 1;
                             } else {
