@@ -71,7 +71,17 @@ const BODY_PARTIAL: &str = "(FLAGS RFC822.SIZE BODY.PEEK[HEADER])";
 #[derive(Debug)]
 pub(crate) struct Imap {
     pub(crate) idle_interrupt_receiver: Receiver<()>,
-    config: ImapConfig,
+
+    /// Email address.
+    addr: String,
+
+    /// Login parameters.
+    lp: ServerLoginParam,
+
+    /// SOCKS 5 configuration.
+    socks5_config: Option<Socks5Config>,
+    strict_tls: bool,
+
     login_failed_once: bool,
 
     pub(crate) connectivity: ConnectivityStore,
@@ -149,17 +159,6 @@ impl FolderMeaning {
             FolderMeaning::Virtual => None,
         }
     }
-}
-
-#[derive(Debug)]
-struct ImapConfig {
-    /// Email address.
-    pub addr: String,
-    pub lp: ServerLoginParam,
-
-    /// SOCKS 5 configuration.
-    pub socks5_config: Option<Socks5Config>,
-    pub strict_tls: bool,
 }
 
 struct UidGrouper<T: Iterator<Item = (i64, u32, String)>> {
@@ -244,16 +243,13 @@ impl Imap {
             CertificateChecks::AcceptInvalidCertificates
             | CertificateChecks::AcceptInvalidCertificates2 => false,
         };
-        let config = ImapConfig {
+
+        let imap = Imap {
+            idle_interrupt_receiver,
             addr: addr.to_string(),
             lp: lp.clone(),
             socks5_config,
             strict_tls,
-        };
-
-        let imap = Imap {
-            idle_interrupt_receiver,
-            config,
             login_failed_once: false,
             connectivity: Default::default(),
             // 1 connection per minute + a burst of 2.
@@ -297,7 +293,7 @@ impl Imap {
     /// instead if you are going to actually use connection rather than trying connection
     /// parameters.
     pub(crate) async fn connect(&mut self, context: &Context) -> Result<Session> {
-        if self.config.lp.server.is_empty() {
+        if self.lp.server.is_empty() {
             bail!("IMAP operation attempted while it is torn down");
         }
 
@@ -325,65 +321,61 @@ impl Imap {
         info!(context, "Connecting to IMAP server");
         self.connectivity.set_connecting(context).await;
         self.ratelimit.write().await.send();
-        let connection_res: Result<Client> = if self.config.lp.security == Socket::Starttls
-            || self.config.lp.security == Socket::Plain
-        {
-            let config = &mut self.config;
-            let imap_server: &str = config.lp.server.as_ref();
-            let imap_port = config.lp.port;
+        let connection_res: Result<Client> =
+            if self.lp.security == Socket::Starttls || self.lp.security == Socket::Plain {
+                let imap_server: &str = self.lp.server.as_ref();
+                let imap_port = self.lp.port;
 
-            if let Some(socks5_config) = &config.socks5_config {
-                if config.lp.security == Socket::Starttls {
-                    Client::connect_starttls_socks5(
+                if let Some(socks5_config) = &self.socks5_config {
+                    if self.lp.security == Socket::Starttls {
+                        Client::connect_starttls_socks5(
+                            context,
+                            imap_server,
+                            imap_port,
+                            socks5_config.clone(),
+                            self.strict_tls,
+                        )
+                        .await
+                    } else {
+                        Client::connect_insecure_socks5(
+                            context,
+                            imap_server,
+                            imap_port,
+                            socks5_config.clone(),
+                        )
+                        .await
+                    }
+                } else if self.lp.security == Socket::Starttls {
+                    Client::connect_starttls(context, imap_server, imap_port, self.strict_tls).await
+                } else {
+                    Client::connect_insecure(context, imap_server, imap_port).await
+                }
+            } else {
+                let imap_server: &str = self.lp.server.as_ref();
+                let imap_port = self.lp.port;
+
+                if let Some(socks5_config) = &self.socks5_config {
+                    Client::connect_secure_socks5(
                         context,
                         imap_server,
                         imap_port,
+                        self.strict_tls,
                         socks5_config.clone(),
-                        config.strict_tls,
                     )
                     .await
                 } else {
-                    Client::connect_insecure_socks5(
-                        context,
-                        imap_server,
-                        imap_port,
-                        socks5_config.clone(),
-                    )
-                    .await
+                    Client::connect_secure(context, imap_server, imap_port, self.strict_tls).await
                 }
-            } else if config.lp.security == Socket::Starttls {
-                Client::connect_starttls(context, imap_server, imap_port, config.strict_tls).await
-            } else {
-                Client::connect_insecure(context, imap_server, imap_port).await
-            }
-        } else {
-            let config = &self.config;
-            let imap_server: &str = config.lp.server.as_ref();
-            let imap_port = config.lp.port;
-
-            if let Some(socks5_config) = &config.socks5_config {
-                Client::connect_secure_socks5(
-                    context,
-                    imap_server,
-                    imap_port,
-                    config.strict_tls,
-                    socks5_config.clone(),
-                )
-                .await
-            } else {
-                Client::connect_secure(context, imap_server, imap_port, config.strict_tls).await
-            }
-        };
+            };
         let client = connection_res?;
 
-        let config = &self.config;
-        let imap_user: &str = config.lp.user.as_ref();
-        let imap_pw: &str = config.lp.password.as_ref();
-        let oauth2 = self.config.lp.oauth2;
+        let imap_user: &str = self.lp.user.as_ref();
+        let imap_pw: &str = self.lp.password.as_ref();
+        let oauth2 = self.lp.oauth2;
 
         let login_res = if oauth2 {
             info!(context, "Logging into IMAP server with OAuth 2");
-            let addr: &str = config.addr.as_ref();
+            let addr: &str = self.addr.as_ref();
 
             let token = get_oauth2_access_token(context, addr, imap_pw, true)
                 .await?
@@ -407,7 +399,7 @@ impl Imap {
                 self.login_failed_once = false;
                 context.emit_event(EventType::ImapConnected(format!(
                     "IMAP-LOGIN as {}",
-                    self.config.lp.user
+                    self.lp.user
                 )));
                 self.connectivity.set_connected(context).await;
                 info!(context, "Successfully logged into IMAP server");
@@ -415,7 +407,7 @@ impl Imap {
             }
 
             Err(err) => {
-                let imap_user = self.config.lp.user.to_owned();
+                let imap_user = self.lp.user.to_owned();
                 let message = stock_str::cannot_login(context, &imap_user).await;
 
                 warn!(context, "{} ({:#})", message, err);
