@@ -250,6 +250,7 @@
                   ./deltachat-ratelimit
                   ./deltachat-repl
                   ./deltachat-rpc-client
+                  ./deltachat-time
                   ./deltachat-rpc-server
                   ./format-flowed
                   ./release-date.in
