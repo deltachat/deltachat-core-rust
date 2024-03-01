@@ -1,4 +1,4 @@
-name: Build & Deploy Documentation on rs.delta.chat
+name: Build & Deploy Documentation on rs.delta.chat, c.delta.chat, py.delta.chat
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build:
+  build-rs:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,41 @@ jobs:
           HOST: "delta.chat"
           SOURCE: "target/doc"
           TARGET: "/var/www/html/rs/"
+
+  build-python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Build Python documentation
+        run: nix build .#python-docs
+      - name: Upload to py.delta.chat
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@py.delta.chat:/home/delta/build/master"
+
+  build-c:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Build C documentation
+        run: nix build .#docs
+      - name: Upload to py.delta.chat
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@c.delta.chat:/home/delta/build-c/master"
