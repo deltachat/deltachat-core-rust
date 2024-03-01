@@ -14,13 +14,15 @@ jobs:
         with:
           show-progress: false
           fetch-depth: 0 # Fetch history to calculate VCS version number.
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build Python documentation
-        run: scripts/build-python-docs.sh
+        run: nix build .#python-docs
       - name: Upload to py.delta.chat
         uses: up9cloud/action-rsync@v1.3
         env:
           USER: delta
           KEY: ${{ secrets.CODESPEAK_KEY }}
           HOST: "lists.codespeak.net"
-          SOURCE: "dist/html/"
+          SOURCE: "result/html/"
           TARGET: "/home/delta/build/master"
