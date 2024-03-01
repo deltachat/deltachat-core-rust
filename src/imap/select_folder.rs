@@ -52,7 +52,7 @@ impl ImapSession {
     /// Selects a folder, possibly updating uid_validity and, if needed,
     /// expunging the folder to remove delete-marked messages.
     /// Returns whether a new folder was selected.
-    pub(super) async fn select_folder(
+    pub(crate) async fn select_folder(
         &mut self,
         context: &Context,
         folder: Option<&str>,
@@ -256,7 +256,7 @@ impl ImapSession {
 }
 
 #[derive(PartialEq, Debug, Copy, Clone, Eq)]
-pub(super) enum NewlySelected {
+pub(crate) enum NewlySelected {
     /// The folder was newly selected during this call to select_folder().
     Yes,
     /// No SELECT command was run because the folder already was selected
