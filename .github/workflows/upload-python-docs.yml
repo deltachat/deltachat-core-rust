@@ -19,10 +19,8 @@ jobs:
       - name: Build Python documentation
         run: nix build .#python-docs
       - name: Upload to py.delta.chat
-        uses: up9cloud/action-rsync@v1.3
-        env:
-          USER: delta
-          KEY: ${{ secrets.CODESPEAK_KEY }}
-          HOST: "lists.codespeak.net"
-          SOURCE: "result/html/"
-          TARGET: "/home/delta/build/master"
+        run: |
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.CODESPEAK_KEY }}" > "$HOME/.ssh/key"
+          chmod 600 "$HOME/.ssh/key"
+          rsync -avzh -e "ssh -i $HOME/.ssh/key -o StrictHostKeyChecking=no" $GITHUB_WORKSPACE/result/html/ "delta@lists.codespeak.net:/home/delta/build/master"
