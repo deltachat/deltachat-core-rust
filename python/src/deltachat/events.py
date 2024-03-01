@@ -182,6 +182,12 @@ class FFIEventTracker:
                 print(f"** SECUREJOINT-INVITER PROGRESS {target}", self.account)
                 break
 
+    def wait_securejoin_joiner_progress(self, target):
+        while True:
+            event = self.get_matching("DC_EVENT_SECUREJOIN_JOINER_PROGRESS")
+            if event.data2 >= target:
+                break
+
     def wait_idle_inbox_ready(self):
         """Has to be called after start_io() to wait for fetch_existing_msgs to run
         so that new messages are not mistaken for old ones:
