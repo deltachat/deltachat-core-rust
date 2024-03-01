@@ -3,13 +3,13 @@
 use std::cmp::max;
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use deltachat_derive::{FromSql, ToSql};
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::context::Context;
-use crate::imap::{session::Session, ImapActionResult};
+use crate::imap::session::Session;
 use crate::message::{Message, MsgId, Viewtype};
 use crate::mimeparser::{MimeMessage, Part};
 use crate::tools::time;
@@ -154,7 +154,7 @@ pub(crate) async fn download_msg(
         return Err(anyhow!("Call download_full() again to try over."));
     };
 
-    match session
+    session
         .fetch_single_msg(
             context,
             &server_folder,
@@ -162,13 +162,8 @@ pub(crate) async fn download_msg(
             server_uid,
             msg.rfc724_mid.clone(),
         )
-        .await
-    {
-        ImapActionResult::RetryLater | ImapActionResult::Failed => {
-            Err(anyhow!("Call download_full() again to try over."))
-        }
-        ImapActionResult::Success => Ok(()),
-    }
+        .await?;
+    Ok(())
 }
 
 impl Session {
@@ -183,20 +178,19 @@ impl Session {
         uidvalidity: u32,
         uid: u32,
         rfc724_mid: String,
-    ) -> ImapActionResult {
-        if let Some(imapresult) = self
-            .prepare_imap_operation_on_msg(context, folder, uid)
-            .await
-        {
-            return imapresult;
+    ) -> Result<()> {
+        if uid == 0 {
+            bail!("Attempt to fetch UID 0");
         }
+
+        self.select_folder(context, Some(folder)).await?;
 
         // we are connected, and the folder is selected
         info!(context, "Downloading message {}/{} fully...", folder, uid);
 
         let mut uid_message_ids: BTreeMap<u32, String> = BTreeMap::new();
         uid_message_ids.insert(uid, rfc724_mid);
-        let (last_uid, _received) = match self
+        let (last_uid, _received) = self
             .fetch_many_msgs(
                 context,
                 folder,
@@ -206,16 +200,11 @@ impl Session {
                 false,
                 false,
             )
-            .await
-        {
-            Ok(res) => res,
-            Err(_) => return ImapActionResult::Failed,
-        };
+            .await?;
         if last_uid.is_none() {
-            ImapActionResult::Failed
-        } else {
-            ImapActionResult::Success
+            bail!("Failed to fetch UID {uid}");
         }
+        Ok(())
     }
 }
 

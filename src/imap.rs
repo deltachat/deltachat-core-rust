@@ -54,13 +54,6 @@ use session::Session;
 
 pub(crate) const GENERATED_PREFIX: &str = "GEN_";
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
-pub enum ImapActionResult {
-    Failed,
-    RetryLater,
-    Success,
-}
-
 const RFC724MID_UID: &str = "(UID BODY.PEEK[HEADER.FIELDS (\
                              MESSAGE-ID \
                              X-MICROSOFT-ORIGINAL-MESSAGE-ID\
@@ -1473,33 +1466,6 @@ impl Session {
             // Read all the responses
         }
         Ok(())
-    }
-
-    pub(crate) async fn prepare_imap_operation_on_msg(
-        &mut self,
-        context: &Context,
-        folder: &str,
-        uid: u32,
-    ) -> Option<ImapActionResult> {
-        if uid == 0 {
-            return Some(ImapActionResult::RetryLater);
-        }
-
-        match self.select_folder(context, Some(folder)).await {
-            Ok(_) => None,
-            Err(select_folder::Error::ConnectionLost) => {
-                warn!(context, "Lost imap connection");
-                Some(ImapActionResult::RetryLater)
-            }
-            Err(select_folder::Error::BadFolderName(folder_name)) => {
-                warn!(context, "invalid folder name: {:?}", folder_name);
-                Some(ImapActionResult::Failed)
-            }
-            Err(err) => {
-                warn!(context, "failed to select folder {:?}: {:#}", folder, err);
-                Some(ImapActionResult::RetryLater)
-            }
-        }
     }
 
     /// Attempts to configure mvbox.
