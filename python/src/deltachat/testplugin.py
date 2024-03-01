@@ -10,7 +10,6 @@ import time
 import weakref
 import random
 from queue import Queue
-from threading import Event
 from typing import Callable, Dict, List, Optional, Set
 
 import pytest
@@ -592,23 +591,16 @@ class ACFactory:
         return ac1.create_chat(ac2)
 
     def get_protected_chat(self, ac1: Account, ac2: Account):
-        class SetupPlugin:
-            def __init__(self) -> None:
-                self.member_added = Event()
-
-            @account_hookimpl
-            def ac_member_added(self, chat: deltachat.Chat, contact, actor, message):
-                self.member_added.set()
-
-        setupplugin = SetupPlugin()
-        ac1.add_account_plugin(setupplugin)
         chat = ac1.create_group_chat("Protected Group", verified=True)
         qr = chat.get_join_qr()
         ac2.qr_join_chat(qr)
-        setupplugin.member_added.wait()
-        msg = ac2.wait_next_incoming_message()
+        ac2._evtracker.wait_securejoin_joiner_progress(1000)
+        ev = ac2._evtracker.get_matching("DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev.data2)
+        assert msg is not None
         assert msg.text == "Messages are guaranteed to be end-to-end encrypted from now on."
-        msg = ac2.wait_next_incoming_message()
+        msg = ac2._evtracker.wait_next_incoming_message()
+        assert msg is not None
         assert "Member Me " in msg.text and " added by " in msg.text
         return chat
 
