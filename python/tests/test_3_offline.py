@@ -52,8 +52,8 @@ class TestOfflineAccountBasic:
     def test_wrong_db(self, tmp_path):
         p = tmp_path / "hello.db"
         p.write_text("123")
-        account = Account(str(p))
-        assert not account.is_open()
+        with pytest.raises(ValueError):
+            _account = Account(str(p))
 
     def test_os_name(self, tmp_path):
         p = tmp_path / "hello.db"
