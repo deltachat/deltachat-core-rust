@@ -1,5 +1,4 @@
 [advisories]
-unmaintained = "allow"
 ignore = [
     "RUSTSEC-2020-0071",
     "RUSTSEC-2022-0093",
@@ -10,6 +9,15 @@ ignore = [
     # There is no fix at the time of writing this (2023-11-28).
     # <https://rustsec.org/advisories/RUSTSEC-2023-0071>
     "RUSTSEC-2023-0071",
+
+    # Unmaintained ansi_term
+    "RUSTSEC-2021-0139",
+
+    # Unmaintained encoding
+    "RUSTSEC-2021-0153",
+
+    # Unmaintained safemem
+    "RUSTSEC-2023-0081",
 ]
 
 [bans]
