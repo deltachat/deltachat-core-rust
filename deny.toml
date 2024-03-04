@@ -15,9 +15,6 @@ ignore = [
 
     # Unmaintained encoding
     "RUSTSEC-2021-0153",
-
-    # Unmaintained safemem
-    "RUSTSEC-2023-0081",
 ]
 
 [bans]
