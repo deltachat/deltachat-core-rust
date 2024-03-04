@@ -447,7 +447,7 @@ pub(crate) async fn delete_expired_messages(context: &Context, now: i64) -> Resu
                 for (msg_id, chat_id, viewtype, location_id) in rows {
                     transaction.execute(
                         "UPDATE msgs
-                     SET chat_id=?, txt='', subject='', txt_raw='',
+                     SET chat_id=?, txt='', txt_normalized=NULL, subject='', txt_raw='',
                          mime_headers='', from_id=0, to_id=0, param=''
                      WHERE id=?",
                         (DC_CHAT_ID_TRASH, msg_id),
