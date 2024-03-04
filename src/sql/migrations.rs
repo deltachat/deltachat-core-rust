@@ -911,6 +911,24 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 111 {
+        sql.execute_migration(
+            "CREATE VIRTUAL TABLE msgs_search USING fts5(txt, content='msgs', content_rowid='id'); \
+            CREATE TRIGGER msgs_search_insert AFTER INSERT ON msgs BEGIN \
+              INSERT INTO msgs_search (rowid, txt) VALUES (new.id, new.txt); \
+            END; \
+            CREATE TRIGGER msgs_search_delete AFTER DELETE ON msgs BEGIN \
+              INSERT INTO msgs_search (msgs_search, rowid, txt) VALUES ('delete', old.id, old.txt); \
+            END; \
+            CREATE TRIGGER msgs_search_update AFTER UPDATE ON msgs BEGIN \
+              INSERT INTO msgs_search (msgs_search, rowid, txt) VALUES ('delete', old.id, old.txt); \
+              INSERT INTO msgs_search (rowid, txt) VALUES (new.id, new.txt); \
+            END; \
+            INSERT INTO msgs_search (msgs_search) VALUES ('rebuild');",
+            111,
+        ).await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
