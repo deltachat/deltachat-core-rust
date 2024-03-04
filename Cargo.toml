@@ -30,6 +30,9 @@ opt-level = "z"
 codegen-units = 1
 strip = true
 
+[patch.crates-io]
+openssl-src = { git = "https://github.com/link2xt/openssl-src-rs.git", branch = "link2xt/copy-symlink" }
+
 [dependencies]
 deltachat_derive = { path = "./deltachat_derive" }
 deltachat-time = { path = "./deltachat-time" }

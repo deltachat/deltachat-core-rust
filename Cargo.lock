@@ -3244,8 +3244,7 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 [[package]]
 name = "openssl-src"
 version = "300.2.3+3.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cff92b6f71555b61bb9315f7c64da3ca43d87531622120fea0195fc761b4843"
+source = "git+https://github.com/link2xt/openssl-src-rs.git?branch=link2xt/copy-symlink#68efa9733ace4aae3372646838d7430b8f974c67"
 dependencies = [
  "cc",
 ]
