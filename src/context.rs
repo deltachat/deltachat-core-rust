@@ -1259,12 +1259,12 @@ impl Context {
         Ok(list)
     }
 
-    /// Searches for messages containing the query string.
+    /// Searches for messages containing the query string case-insensitively.
     ///
     /// If `chat_id` is provided this searches only for messages in this chat, if `chat_id`
     /// is `None` this searches messages from all chats.
     pub async fn search_msgs(&self, chat_id: Option<ChatId>, query: &str) -> Result<Vec<MsgId>> {
-        let real_query = query.trim();
+        let real_query = query.trim().to_lowercase();
         if real_query.is_empty() {
             return Ok(Vec::new());
         }
@@ -1280,7 +1280,7 @@ impl Context {
                  WHERE m.chat_id=?
                    AND m.hidden=0
                    AND ct.blocked=0
-                   AND txt LIKE ?
+                   AND IFNULL(txt_normalized, txt) LIKE ?
                  ORDER BY m.timestamp,m.id;",
                     (chat_id, str_like_in_text),
                     |row| row.get::<_, MsgId>("id"),
@@ -1316,7 +1316,7 @@ impl Context {
                    AND m.hidden=0
                    AND c.blocked!=1
                    AND ct.blocked=0
-                   AND m.txt LIKE ?
+                   AND IFNULL(txt_normalized, txt) LIKE ?
                  ORDER BY m.id DESC LIMIT 1000",
                     (str_like_in_text,),
                     |row| row.get::<_, MsgId>("id"),
@@ -1721,6 +1721,8 @@ mod tests {
         msg2.set_text("barbaz".to_string());
         send_msg(&alice, chat.id, &mut msg2).await?;
 
+        alice.send_text(chat.id, "Δ-Chat").await;
+
         // Global search with a part of text finds the message.
         let res = alice.search_msgs(None, "ob").await?;
         assert_eq!(res.len(), 1);
@@ -1732,6 +1734,12 @@ mod tests {
         // Message added later is returned first.
         assert_eq!(res.first(), Some(&msg2.id));
         assert_eq!(res.get(1), Some(&msg1.id));
+
+        // Search is case-insensitive.
+        for chat_id in [None, Some(chat.id)] {
+            let res = alice.search_msgs(chat_id, "δ-chat").await?;
+            assert_eq!(res.len(), 1);
+        }
 
         // Global search with longer text does not find any message.
         let res = alice.search_msgs(None, "foobarbaz").await?;
