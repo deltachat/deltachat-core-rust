@@ -115,7 +115,7 @@ def pytest_configure(config):
     deltachat.register_global_plugin(la)
 
 
-def pytest_report_header(config, startdir):
+def pytest_report_header(config):
     info = get_core_info()
     summary = [
         "Deltachat core={} sqlite={} journal_mode={}".format(
