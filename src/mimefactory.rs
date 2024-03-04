@@ -359,20 +359,25 @@ impl<'a> MimeFactory<'a> {
         }
     }
 
-    async fn should_do_gossip(&self, context: &Context) -> Result<bool> {
+    async fn should_do_gossip(&self, context: &Context, multiple_recipients: bool) -> Result<bool> {
         match &self.loaded {
             Loaded::Message { chat } => {
-                // beside key- and member-changes, force a periodic re-gossip.
-                let gossiped_timestamp = chat.id.get_gossiped_timestamp(context).await?;
-                let gossip_period = context.get_config_i64(Config::GossipPeriod).await?;
-                if time() >= gossiped_timestamp + gossip_period {
+                let cmd = self.msg.param.get_cmd();
+                if cmd == SystemMessage::MemberAddedToGroup
+                    || cmd == SystemMessage::SecurejoinMessage
+                {
                     Ok(true)
+                } else if multiple_recipients {
+                    // beside key- and member-changes, force a periodic re-gossip.
+                    let gossiped_timestamp = chat.id.get_gossiped_timestamp(context).await?;
+                    let gossip_period = context.get_config_i64(Config::GossipPeriod).await?;
+                    if time() >= gossiped_timestamp + gossip_period {
+                        Ok(true)
+                    } else {
+                        Ok(false)
+                    }
                 } else {
-                    let cmd = self.msg.param.get_cmd();
-                    // Do gossip in all Securejoin messages not to complicate the code. There's no
-                    // need in gossips in "vg-auth-required" messages f.e., but let them be.
-                    Ok(cmd == SystemMessage::MemberAddedToGroup
-                        || cmd == SystemMessage::SecurejoinMessage)
+                    Ok(false)
                 }
             }
             Loaded::Mdn { .. } => Ok(false),
@@ -698,9 +703,9 @@ impl<'a> MimeFactory<'a> {
                 .fold(message, |message, header| message.header(header));
 
             // Add gossip headers in chats with multiple recipients
-            if (peerstates.len() > 1 || context.get_config_bool(Config::BccSelf).await?)
-                && self.should_do_gossip(context).await?
-            {
+            let multiple_recipients =
+                peerstates.len() > 1 || context.get_config_bool(Config::BccSelf).await?;
+            if self.should_do_gossip(context, multiple_recipients).await? {
                 for peerstate in peerstates.iter().filter_map(|(state, _)| state.as_ref()) {
                     if let Some(header) = peerstate.render_gossip_header(verified) {
                         message = message.header(Header::new("Autocrypt-Gossip".into(), header));
