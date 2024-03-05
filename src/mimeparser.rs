@@ -27,7 +27,7 @@ use crate::decrypt::{
 use crate::dehtml::dehtml;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{load_self_secret_keyring, DcKey, Fingerprint, SignedPublicKey};
+use crate::key::{self, load_self_secret_keyring, DcKey, Fingerprint, SignedPublicKey};
 use crate::message::{
     self, set_msg_failed, update_msg_state, Message, MessageState, MsgId, Viewtype,
 };
@@ -304,8 +304,11 @@ impl MimeMessage {
         hop_info += "\n\n";
         hop_info += &decryption_info.dkim_results.to_string();
 
-        let public_keyring =
-            keyring_from_peerstate(context, decryption_info.peerstate.as_ref()).await?;
+        let incoming = !context.is_self_addr(&from.addr).await?;
+        let public_keyring = match decryption_info.peerstate.is_none() && !incoming {
+            true => key::load_self_public_keyring(context).await?,
+            false => keyring_from_peerstate(decryption_info.peerstate.as_ref()),
+        };
         let (mail, mut signatures, encrypted) = match tokio::task::block_in_place(|| {
             try_decrypt(&mail, &private_keyring, &public_keyring)
         }) {
@@ -430,7 +433,6 @@ impl MimeMessage {
             }
         }
 
-        let incoming = !context.is_self_addr(&from.addr).await?;
         let mut parser = MimeMessage {
             parts: Vec::new(),
             headers,

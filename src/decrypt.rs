@@ -12,7 +12,7 @@ use crate::authres::{self, DkimResults};
 use crate::contact::addr_cmp;
 use crate::context::Context;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
-use crate::key::{self, DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
+use crate::key::{DcKey, Fingerprint, SignedPublicKey, SignedSecretKey};
 use crate::peerstate::Peerstate;
 use crate::pgp;
 
@@ -69,25 +69,26 @@ pub(crate) async fn prepare_decryption(
         });
     }
 
-    let autocrypt_header =
-        if let Some(autocrypt_header_value) = mail.headers.get_header_value(HeaderDef::Autocrypt) {
-            match Aheader::from_str(&autocrypt_header_value) {
-                Ok(header) if addr_cmp(&header.addr, from) => Some(header),
-                Ok(header) => {
-                    warn!(
-                        context,
-                        "Autocrypt header address {:?} is not {:?}.", header.addr, from
-                    );
-                    None
-                }
-                Err(err) => {
-                    warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
-                    None
-                }
+    let autocrypt_header = if context.is_self_addr(from).await? {
+        None
+    } else if let Some(aheader_value) = mail.headers.get_header_value(HeaderDef::Autocrypt) {
+        match Aheader::from_str(&aheader_value) {
+            Ok(header) if addr_cmp(&header.addr, from) => Some(header),
+            Ok(header) => {
+                warn!(
+                    context,
+                    "Autocrypt header address {:?} is not {:?}.", header.addr, from
+                );
+                None
             }
-        } else {
-            None
-        };
+            Err(err) => {
+                warn!(context, "Failed to parse Autocrypt header: {:#}.", err);
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     let dkim_results = handle_authres(context, mail, from, message_time).await?;
 
@@ -265,21 +266,16 @@ pub(crate) fn validate_detached_signature<'a, 'b>(
 }
 
 /// Returns public keyring for `peerstate`.
-pub(crate) async fn keyring_from_peerstate(
-    context: &Context,
-    peerstate: Option<&Peerstate>,
-) -> Result<Vec<SignedPublicKey>> {
+pub(crate) fn keyring_from_peerstate(peerstate: Option<&Peerstate>) -> Vec<SignedPublicKey> {
     let mut public_keyring_for_validate = Vec::new();
     if let Some(peerstate) = peerstate {
         if let Some(key) = &peerstate.public_key {
             public_keyring_for_validate.push(key.clone());
         } else if let Some(key) = &peerstate.gossip_key {
             public_keyring_for_validate.push(key.clone());
-        } else if context.is_self_addr(&peerstate.addr).await? {
-            public_keyring_for_validate = key::load_self_public_keyring(context).await?;
         }
     }
-    Ok(public_keyring_for_validate)
+    public_keyring_for_validate
 }
 
 /// Applies Autocrypt header to Autocrypt peer state and saves it into the database.
