@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.136.2] - 2024-03-05
+
+### Build system
+
+- Downgrade `cc` to 1.0.83 to fix build for Android.
+
+### CI
+
+- Update setup-node action.
+
 ## [1.136.1] - 2024-03-05
 
 ### Build system
@@ -3689,3 +3699,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.135.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.0...v1.135.1
 [1.136.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.1...v1.136.0
 [1.136.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.0...v1.136.1
+[1.136.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.1...v1.136.2
