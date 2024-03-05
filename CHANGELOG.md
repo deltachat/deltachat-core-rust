@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.136.1] - 2024-03-05
+
+### Build system
+
+- Revert to OpenSSL 3.1.
+- Restore MSRV 1.70.0.
+
+### Miscellaneous Tasks
+
+- Update node constants.
+
 ## [1.136.0] - 2024-03-04
 
 ### Features / Changes
@@ -3677,3 +3688,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.135.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.134.0...v1.135.0
 [1.135.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.0...v1.135.1
 [1.136.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.1...v1.136.0
+[1.136.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.0...v1.136.1
