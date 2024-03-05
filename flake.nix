@@ -14,6 +14,69 @@
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+
+        rustSrc = nix-filter.lib {
+          root = ./.;
+
+          # Include only necessary files
+          # to avoid rebuilds e.g. when README.md or flake.nix changes.
+          include = [
+            ./benches
+            ./assets
+            ./Cargo.lock
+            ./Cargo.toml
+            ./CMakeLists.txt
+            ./CONTRIBUTING.md
+            ./deltachat_derive
+            ./deltachat-ffi
+            ./deltachat-jsonrpc
+            ./deltachat-ratelimit
+            ./deltachat-repl
+            ./deltachat-rpc-client
+            ./deltachat-time
+            ./deltachat-rpc-server
+            ./format-flowed
+            ./release-date.in
+            ./src
+          ];
+          exclude = [
+            (nix-filter.lib.matchExt "nix")
+            "flake.lock"
+          ];
+        };
+
+        # Map from architecture name to rust targets and nixpkgs targets.
+        arch2targets = {
+          "x86_64-linux" = {
+            rustTarget = "x86_64-unknown-linux-musl";
+            crossTarget = "x86_64-unknown-linux-musl";
+          };
+          "armv7l-linux" = {
+            rustTarget = "armv7-unknown-linux-musleabihf";
+            crossTarget = "armv7l-unknown-linux-musleabihf";
+          };
+          "armv6l-linux" = {
+            rustTarget = "arm-unknown-linux-musleabihf";
+            crossTarget = "armv6l-unknown-linux-musleabihf";
+          };
+          "aarch64-linux" = {
+            rustTarget = "aarch64-unknown-linux-musl";
+            crossTarget = "aarch64-unknown-linux-musl";
+          };
+          "i686-linux" = {
+            rustTarget = "i686-unknown-linux-musl";
+            crossTarget = "i686-unknown-linux-musl";
+          };
+
+          "x86_64-darwin" = {
+            rustTarget = "x86_64-apple-darwin";
+            crossTarget = "x86_64-darwin";
+          };
+          "aarch64-darwin" = {
+            rustTarget = "aarch64-apple-darwin";
+            crossTarget = "aarch64-darwin";
+          };
+        };
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
@@ -141,8 +204,10 @@
             LD = "${winCC}/bin/${winCC.targetPrefix}cc";
           };
 
-        mkCrossRustPackage = rustTarget: crossTarget: packageName:
+        mkCrossRustPackage = arch: packageName:
           let
+            rustTarget = arch2targets."${arch}".rustTarget;
+            crossTarget = arch2targets."${arch}".crossTarget;
             pkgsCross = import nixpkgs {
               system = system;
               crossSystem.config = crossTarget;
@@ -164,7 +229,7 @@
             cargoBuildOptions = x: x ++ [ "--package" packageName ];
             version = manifest.version;
             strictDeps = true;
-            src = pkgs.lib.cleanSource ./.;
+            src = rustSrc;
             nativeBuildInputs = [
               pkgs.perl # Needed to build vendored OpenSSL.
             ];
@@ -182,150 +247,113 @@
             LD = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
           };
 
-        mk-aarch64-RustPackage = mkCrossRustPackage "aarch64-unknown-linux-musl" "aarch64-unknown-linux-musl";
-        mk-i686-RustPackage = mkCrossRustPackage "i686-unknown-linux-musl" "i686-unknown-linux-musl";
-        mk-x86_64-RustPackage = mkCrossRustPackage "x86_64-unknown-linux-musl" "x86_64-unknown-linux-musl";
-        mk-armv7l-RustPackage = mkCrossRustPackage "armv7-unknown-linux-musleabihf" "armv7l-unknown-linux-musleabihf";
-        mk-armv6l-RustPackage = mkCrossRustPackage "arm-unknown-linux-musleabihf" "armv6l-unknown-linux-musleabihf";
+        mkRustPackages = arch: {
+          "deltachat-repl-${arch}" = mkCrossRustPackage arch "deltachat-repl";
+          "deltachat-rpc-server-${arch}" = mkCrossRustPackage arch "deltachat-rpc-server";
+        };
       in
       {
         formatter = pkgs.nixpkgs-fmt;
 
-        packages = rec {
-          # Run with `nix run .#deltachat-repl foo.db`.
-          deltachat-repl = mkRustPackage "deltachat-repl";
-          deltachat-rpc-server = mkRustPackage "deltachat-rpc-server";
+        packages =
+          mkRustPackages "aarch64-linux" //
+          mkRustPackages "i686-linux" //
+          mkRustPackages "x86_64-linux" //
+          mkRustPackages "armv7l-linux" //
+          mkRustPackages "armv6l-linux" // rec {
+            # Run with `nix run .#deltachat-repl foo.db`.
+            deltachat-repl = mkRustPackage "deltachat-repl";
+            deltachat-rpc-server = mkRustPackage "deltachat-rpc-server";
 
-          deltachat-repl-win64 = mkWin64RustPackage "deltachat-repl";
-          deltachat-rpc-server-win64 = mkWin64RustPackage "deltachat-rpc-server";
+            deltachat-repl-win64 = mkWin64RustPackage "deltachat-repl";
+            deltachat-rpc-server-win64 = mkWin64RustPackage "deltachat-rpc-server";
 
-          deltachat-repl-win32 = mkWin32RustPackage "deltachat-repl";
-          deltachat-rpc-server-win32 = mkWin32RustPackage "deltachat-rpc-server";
+            deltachat-repl-win32 = mkWin32RustPackage "deltachat-repl";
+            deltachat-rpc-server-win32 = mkWin32RustPackage "deltachat-rpc-server";
 
-          deltachat-repl-aarch64-linux = mk-aarch64-RustPackage "deltachat-repl";
-          deltachat-rpc-server-aarch64-linux = mk-aarch64-RustPackage "deltachat-rpc-server";
 
-          deltachat-repl-i686-linux = mk-i686-RustPackage "deltachat-repl";
-          deltachat-rpc-server-i686-linux = mk-i686-RustPackage "deltachat-rpc-server";
 
-          deltachat-repl-x86_64-linux = mk-x86_64-RustPackage "deltachat-repl";
-          deltachat-rpc-server-x86_64-linux = mk-x86_64-RustPackage "deltachat-rpc-server";
+            # Run `nix build .#docs` to get C docs generated in `./result/`.
+            docs =
+              pkgs.stdenv.mkDerivation {
+                pname = "docs";
+                version = manifest.version;
+                src = pkgs.lib.cleanSource ./.;
+                nativeBuildInputs = [ pkgs.doxygen ];
+                buildPhase = ''scripts/run-doxygen.sh'';
+                installPhase = ''mkdir -p $out; cp -av deltachat-ffi/html deltachat-ffi/xml $out'';
+              };
 
-          deltachat-repl-armv7l-linux = mk-armv7l-RustPackage "deltachat-repl";
-          deltachat-rpc-server-armv7l-linux = mk-armv7l-RustPackage "deltachat-rpc-server";
+            libdeltachat =
+              pkgs.stdenv.mkDerivation rec {
+                pname = "libdeltachat";
+                version = manifest.version;
+                src = rustSrc;
+                cargoDeps = pkgs.rustPlatform.importCargoLock cargoLock;
 
-          deltachat-repl-armv6l-linux = mk-armv6l-RustPackage "deltachat-repl";
-          deltachat-rpc-server-armv6l-linux = mk-armv6l-RustPackage "deltachat-rpc-server";
-
-          # Run `nix build .#docs` to get C docs generated in `./result/`.
-          docs =
-            pkgs.stdenv.mkDerivation {
-              pname = "docs";
-              version = manifest.version;
-              src = pkgs.lib.cleanSource ./.;
-              nativeBuildInputs = [ pkgs.doxygen ];
-              buildPhase = ''scripts/run-doxygen.sh'';
-              installPhase = ''mkdir -p $out; cp -av deltachat-ffi/html deltachat-ffi/xml $out'';
-            };
-
-          libdeltachat =
-            pkgs.stdenv.mkDerivation rec {
-              pname = "libdeltachat";
-              version = manifest.version;
-              src = nix-filter.lib {
-                root = ./.;
-
-                # Include only necessary files
-                # to avoid rebuilds e.g. when README.md or flake.nix changes.
-                include = [
-                  ./benches
-                  ./assets
-                  ./Cargo.lock
-                  ./Cargo.toml
-                  ./CMakeLists.txt
-                  ./CONTRIBUTING.md
-                  ./deltachat_derive
-                  ./deltachat-ffi
-                  ./deltachat-jsonrpc
-                  ./deltachat-ratelimit
-                  ./deltachat-repl
-                  ./deltachat-rpc-client
-                  ./deltachat-time
-                  ./deltachat-rpc-server
-                  ./format-flowed
-                  ./release-date.in
-                  ./src
+                nativeBuildInputs = [
+                  pkgs.perl # Needed to build vendored OpenSSL.
+                  pkgs.cmake
+                  pkgs.rustPlatform.cargoSetupHook
+                  pkgs.cargo
                 ];
-                exclude = [
-                  (nix-filter.lib.matchExt "nix")
-                  "flake.lock"
+
+                postInstall = ''
+                  substituteInPlace $out/include/deltachat.h \
+                    --replace __FILE__ '"${placeholder "out"}/include/deltachat.h"'
+                '';
+              };
+
+            deltachat-rpc-client =
+              pkgs.python3Packages.buildPythonPackage rec {
+                pname = "deltachat-rpc-client";
+                version = manifest.version;
+                src = pkgs.lib.cleanSource ./deltachat-rpc-client;
+                format = "pyproject";
+                propagatedBuildInputs = [
+                  pkgs.python3Packages.setuptools
+                  pkgs.python3Packages.setuptools_scm
                 ];
               };
-              cargoDeps = pkgs.rustPlatform.importCargoLock cargoLock;
 
-              nativeBuildInputs = [
-                pkgs.perl # Needed to build vendored OpenSSL.
-                pkgs.cmake
-                pkgs.rustPlatform.cargoSetupHook
-                pkgs.cargo
-              ];
-
-              postInstall = ''
-                substituteInPlace $out/include/deltachat.h \
-                  --replace __FILE__ '"${placeholder "out"}/include/deltachat.h"'
-              '';
-            };
-
-          deltachat-rpc-client =
-            pkgs.python3Packages.buildPythonPackage rec {
-              pname = "deltachat-rpc-client";
-              version = manifest.version;
-              src = pkgs.lib.cleanSource ./deltachat-rpc-client;
-              format = "pyproject";
-              propagatedBuildInputs = [
-                pkgs.python3Packages.setuptools
-                pkgs.python3Packages.setuptools_scm
-              ];
-            };
-
-          deltachat-python =
-            pkgs.python3Packages.buildPythonPackage rec {
-              pname = "deltachat-python";
-              version = manifest.version;
-              src = pkgs.lib.cleanSource ./python;
-              format = "pyproject";
-              buildInputs = [
-                libdeltachat
-              ];
-              nativeBuildInputs = [
-                pkgs.pkg-config
-              ];
-              propagatedBuildInputs = [
-                pkgs.python3Packages.setuptools
-                pkgs.python3Packages.setuptools_scm
-                pkgs.python3Packages.pkgconfig
-                pkgs.python3Packages.cffi
-                pkgs.python3Packages.imap-tools
-                pkgs.python3Packages.pluggy
-                pkgs.python3Packages.requests
-              ];
-            };
-          python-docs =
-            pkgs.stdenv.mkDerivation {
-              pname = "docs";
-              version = manifest.version;
-              src = pkgs.lib.cleanSource ./.;
-              buildInputs = [
-                deltachat-python
-                deltachat-rpc-client
-                pkgs.python3Packages.breathe
-                pkgs.python3Packages.sphinx_rtd_theme
-              ];
-              nativeBuildInputs = [ pkgs.sphinx ];
-              buildPhase = ''sphinx-build -b html -a python/doc/ dist/html'';
-              installPhase = ''mkdir -p $out; cp -av dist/html $out'';
-            };
-        };
+            deltachat-python =
+              pkgs.python3Packages.buildPythonPackage rec {
+                pname = "deltachat-python";
+                version = manifest.version;
+                src = pkgs.lib.cleanSource ./python;
+                format = "pyproject";
+                buildInputs = [
+                  libdeltachat
+                ];
+                nativeBuildInputs = [
+                  pkgs.pkg-config
+                ];
+                propagatedBuildInputs = [
+                  pkgs.python3Packages.setuptools
+                  pkgs.python3Packages.setuptools_scm
+                  pkgs.python3Packages.pkgconfig
+                  pkgs.python3Packages.cffi
+                  pkgs.python3Packages.imap-tools
+                  pkgs.python3Packages.pluggy
+                  pkgs.python3Packages.requests
+                ];
+              };
+            python-docs =
+              pkgs.stdenv.mkDerivation {
+                pname = "docs";
+                version = manifest.version;
+                src = pkgs.lib.cleanSource ./.;
+                buildInputs = [
+                  deltachat-python
+                  deltachat-rpc-client
+                  pkgs.python3Packages.breathe
+                  pkgs.python3Packages.sphinx_rtd_theme
+                ];
+                nativeBuildInputs = [ pkgs.sphinx ];
+                buildPhase = ''sphinx-build -b html -a python/doc/ dist/html'';
+                installPhase = ''mkdir -p $out; cp -av dist/html $out'';
+              };
+          };
       }
     );
 }
