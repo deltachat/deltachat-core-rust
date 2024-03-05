@@ -16,7 +16,6 @@ use crate::message::Message;
 use crate::mimeparser::SystemMessage;
 use crate::sql::Sql;
 use crate::stock_str;
-use crate::tools;
 
 /// Type of the public key stored inside the peerstate.
 #[derive(Debug)]
@@ -167,7 +166,7 @@ impl Peerstate {
     /// Loads peerstate corresponding to the given address from the database.
     pub async fn from_addr(context: &Context, addr: &str) -> Result<Option<Peerstate>> {
         if context.is_self_addr(addr).await? {
-            return Ok(Some(Peerstate::get_self_stub(addr)));
+            return Ok(None);
         }
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
@@ -212,7 +211,7 @@ impl Peerstate {
         addr: &str,
     ) -> Result<Option<Peerstate>> {
         if context.is_self_addr(addr).await? {
-            return Ok(Some(Peerstate::get_self_stub(addr)));
+            return Ok(None);
         }
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
@@ -227,34 +226,6 @@ impl Peerstate {
                      ORDER BY verified_key_fingerprint=? DESC, last_seen DESC LIMIT 1;";
         let fp = fingerprint.hex();
         Self::from_stmt(context, query, (&fp, &addr, &fp)).await
-    }
-
-    /// Returns peerstate stub for self `addr`.
-    ///
-    /// Needed for [`crate::decrypt::keyring_from_peerstate()`] which returns a keyring of all our
-    /// pubkeys for such a stub so that we can check if a message is signed by us.
-    fn get_self_stub(addr: &str) -> Self {
-        let now = tools::time();
-        // We can have multiple pubkeys, just make the corresponding fields None.
-        Self {
-            addr: addr.to_string(),
-            last_seen: now,
-            last_seen_autocrypt: now,
-            prefer_encrypt: EncryptPreference::Mutual,
-            public_key: None,
-            public_key_fingerprint: None,
-            gossip_key: None,
-            gossip_key_fingerprint: None,
-            gossip_timestamp: 0,
-            verified_key: None,
-            verified_key_fingerprint: None,
-            verifier: None,
-            secondary_verified_key: None,
-            secondary_verified_key_fingerprint: None,
-            secondary_verifier: None,
-            backward_verified_key_id: None,
-            fingerprint_changed: false,
-        }
     }
 
     async fn from_stmt(
