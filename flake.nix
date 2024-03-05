@@ -165,6 +165,9 @@
             version = manifest.version;
             strictDeps = true;
             src = pkgs.lib.cleanSource ./.;
+            nativeBuildInputs = [
+              pkgs.perl # Needed to build vendored OpenSSL.
+            ];
             auditable = false; # Avoid cargo-auditable failures.
             doCheck = false; # Disable test as it requires network access.
 
@@ -177,11 +180,6 @@
 
             CC = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
             LD = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
-
-            OPENSSL_LIB_DIR = "${pkgsCross.pkgsStatic.openssl.out}/lib";
-            OPENSSL_INCLUDE_DIR = "${pkgsCross.pkgsStatic.openssl.dev}/include";
-            OPENSSL_STATIC = "1";
-            OPENSSL_NO_VENDOR = "1";
           };
 
         mk-aarch64-RustPackage = mkCrossRustPackage "aarch64-unknown-linux-musl" "aarch64-unknown-linux-musl";
