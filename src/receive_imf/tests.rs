@@ -4283,3 +4283,25 @@ async fn test_forged_from() -> Result<()> {
     assert!(msg.chat_id.is_trash());
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_multiline_iso_8859_1_subject() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+    let mail = b"Received: (Postfix, from userid 1000); Mon, 4 Dec 2006 14:51:39 +0100 (CET)\n\
+        From: bob@example.com\n\
+        To: alice@example.org, claire@example.com\n\
+        Subject:\n \
+        =?iso-8859-1?Q?Weihnachten_&_Silvester:_Feiern,_genie=DFen_&_entspannen_i?=\n \
+        =?iso-8859-1?Q?nmitten_der_Weing=E4rten?=\n\
+        Message-ID: <3333@example.com>\n\
+        Date: Sun, 22 Mar 2020 22:37:57 +0000\n\
+        \n\
+        hello\n";
+    receive_imf(t, mail, false).await?;
+    let msg = t.get_last_msg().await;
+    assert_eq!(
+        msg.get_subject(),
+        "Weihnachten & Silvester: Feiern, genießen & entspannen inmitten der Weingärten"
+    );
+    Ok(())
+}

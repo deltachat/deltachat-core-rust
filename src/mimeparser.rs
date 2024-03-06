@@ -809,6 +809,7 @@ impl MimeMessage {
 
     pub(crate) fn get_subject(&self) -> Option<String> {
         self.get_header(HeaderDef::Subject)
+            .map(|s| s.trim_start())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
     }
