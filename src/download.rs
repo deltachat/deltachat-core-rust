@@ -253,7 +253,6 @@ mod tests {
     use super::*;
     use crate::chat::{get_chat_msgs, send_msg};
     use crate::ephemeral::Timer;
-    use crate::message::Viewtype;
     use crate::receive_imf::receive_imf_from_inbox;
     use crate::test_utils::TestContext;
 

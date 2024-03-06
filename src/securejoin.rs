@@ -1,7 +1,5 @@
 //! Verified contact protocol implementation as [specified by countermitm project](https://securejoin.readthedocs.io/en/latest/new.html#setup-contact-protocol).
 
-use std::convert::TryFrom;
-
 use anyhow::{bail, Context as _, Error, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 
@@ -757,12 +755,10 @@ fn encrypted_and_signed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat;
-    use crate::chat::{remove_contact_from_chat, ProtectionStatus};
+    use crate::chat::remove_contact_from_chat;
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
     use crate::contact::ContactAddress;
-    use crate::peerstate::Peerstate;
     use crate::receive_imf::receive_imf;
     use crate::stock_str::chat_protection_enabled;
     use crate::test_utils::get_chat_msg;

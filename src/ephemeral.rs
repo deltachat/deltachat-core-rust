@@ -64,7 +64,7 @@
 
 use std::cmp::max;
 use std::collections::BTreeSet;
-use std::convert::{TryFrom, TryInto};
+use std::fmt;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::time::{Duration, UNIX_EPOCH};
@@ -131,9 +131,9 @@ impl Default for Timer {
     }
 }
 
-impl ToString for Timer {
-    fn to_string(&self) -> String {
-        self.to_u32().to_string()
+impl fmt::Display for Timer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_u32())
     }
 }
 

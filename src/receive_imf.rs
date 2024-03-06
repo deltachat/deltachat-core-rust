@@ -1,7 +1,6 @@
 //! Internet Message Format reception pipeline.
 
 use std::collections::HashSet;
-use std::convert::TryFrom;
 
 use anyhow::{Context as _, Result};
 use mailparse::{parse_mail, SingleInfo};

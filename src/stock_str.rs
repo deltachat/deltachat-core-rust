@@ -1421,7 +1421,6 @@ mod tests {
 
     use super::*;
     use crate::chat::delete_and_reset_all_device_msgs;
-    use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use crate::test_utils::TestContext;
 

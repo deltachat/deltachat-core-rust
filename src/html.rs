@@ -13,7 +13,7 @@ use std::pin::Pin;
 use anyhow::{Context as _, Result};
 use base64::Engine as _;
 use futures::future::FutureExt;
-use lettre_email::mime::{self, Mime};
+use lettre_email::mime::Mime;
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
 
@@ -67,7 +67,7 @@ enum MimeMultipartType {
 /// and checks and returns the rough mime-type.
 fn get_mime_multipart_type(ctype: &ParsedContentType) -> MimeMultipartType {
     let mimetype = ctype.mimetype.to_lowercase();
-    if mimetype.starts_with("multipart") && ctype.params.get("boundary").is_some() {
+    if mimetype.starts_with("multipart") && ctype.params.contains_key("boundary") {
         MimeMultipartType::Multiple
     } else if mimetype == "message/rfc822" {
         MimeMultipartType::Message

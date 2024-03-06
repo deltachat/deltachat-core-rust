@@ -3,7 +3,7 @@ extern crate dirs;
 
 use std::path::Path;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use anyhow::{bail, ensure, Result};
 use deltachat::chat::{

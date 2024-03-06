@@ -4,8 +4,6 @@
 //! with it rather hard, so here we have a wrapper type that specifically deals with Secure-Join
 //! QR-codes so that the Secure-Join code can have more guarantees when dealing with this.
 
-use std::convert::TryFrom;
-
 use anyhow::{bail, Error, Result};
 
 use crate::contact::ContactId;

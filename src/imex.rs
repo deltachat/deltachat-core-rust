@@ -824,7 +824,6 @@ mod tests {
     use tokio::task;
 
     use super::*;
-    use crate::key;
     use crate::pgp::{split_armored_data, HEADER_AUTOCRYPT, HEADER_SETUPCODE};
     use crate::stock_str::StockMessage;
     use crate::test_utils::{alice_keypair, TestContext, TestContextManager};
@@ -1105,7 +1104,7 @@ mod tests {
         let (typ, headers, base64) = split_armored_data(&buf_1).unwrap();
         assert_eq!(typ, BlockType::Message);
         assert!(S_EM_SETUPCODE.starts_with(headers.get(HEADER_SETUPCODE).unwrap()));
-        assert!(headers.get(HEADER_AUTOCRYPT).is_none());
+        assert!(!headers.contains_key(HEADER_AUTOCRYPT));
 
         assert!(!base64.is_empty());
 
@@ -1119,7 +1118,7 @@ mod tests {
 
         assert_eq!(typ, BlockType::PrivateKey);
         assert_eq!(headers.get(HEADER_AUTOCRYPT), Some(&"mutual".to_string()));
-        assert!(headers.get(HEADER_SETUPCODE).is_none());
+        assert!(!headers.contains_key(HEADER_SETUPCODE));
     }
 
     /// Tests that Autocrypt Setup Message encrypted with "plaintext" algorithm cannot be

@@ -1,7 +1,6 @@
 //! # Synchronize items between devices.
 
 use anyhow::Result;
-use lettre_email::mime::{self};
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 
@@ -321,11 +320,9 @@ mod tests {
     use anyhow::bail;
 
     use super::*;
-    use crate::chat::Chat;
     use crate::chatlist::Chatlist;
     use crate::contact::{Contact, Origin};
     use crate::test_utils::TestContext;
-    use crate::token::Namespace;
     use crate::tools::SystemTime;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

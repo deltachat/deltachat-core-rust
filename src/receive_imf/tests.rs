@@ -1,19 +1,16 @@
 use tokio::fs;
 
 use super::*;
-use crate::aheader::EncryptPreference;
-use crate::chat::{self, get_chat_msgs, ChatItem, ChatVisibility};
 use crate::chat::{
     add_contact_to_chat, add_to_chat_contacts_table, create_group_chat, get_chat_contacts,
-    is_contact_in_chat, remove_contact_from_chat, send_text_msg,
+    get_chat_msgs, is_contact_in_chat, remove_contact_from_chat, send_text_msg, ChatItem,
+    ChatVisibility,
 };
 use crate::chatlist::Chatlist;
-use crate::config::Config;
 use crate::constants::{DC_GCL_FOR_FORWARDING, DC_GCL_NO_SPECIALS};
-use crate::download::{DownloadState, MIN_DOWNLOAD_LIMIT};
+use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
-use crate::message::{self, Message};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

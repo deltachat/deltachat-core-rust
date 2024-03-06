@@ -1,13 +1,12 @@
 //! # MIME message production.
 
 use std::collections::HashSet;
-use std::convert::TryInto;
 
 use anyhow::{bail, ensure, Context as _, Result};
 use base64::Engine as _;
 use chrono::TimeZone;
 use format_flowed::{format_flowed, format_flowed_quote};
-use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
+use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
 
 use crate::blob::BlobObject;
