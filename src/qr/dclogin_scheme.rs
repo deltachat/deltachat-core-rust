@@ -268,7 +268,7 @@ pub(crate) async fn configure_from_login_qr(
 
 #[cfg(test)]
 mod test {
-    use anyhow::{self, bail};
+    use anyhow::bail;
 
     use super::{decode_login, LoginOptions};
     use crate::{login_param::CertificateChecks, provider::Socket, qr::Qr};

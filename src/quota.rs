@@ -155,10 +155,6 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::quota::{
-        QUOTA_ALLCLEAR_PERCENTAGE, QUOTA_ERROR_THRESHOLD_PERCENTAGE,
-        QUOTA_WARN_THRESHOLD_PERCENTAGE,
-    };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_needs_quota_warning() -> Result<()> {

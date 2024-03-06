@@ -1079,7 +1079,7 @@ DKIM Results: Passed=true, Works=true, Allow_Keychange=true";
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
 
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+    use chrono::NaiveDate;
     use proptest::prelude::*;
 
     use crate::chatlist::Chatlist;

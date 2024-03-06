@@ -696,9 +696,8 @@ fn encoded_img_exceeds_bytes(
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
     use fs::File;
-    use image::{GenericImageView, Pixel};
+    use image::Pixel;
 
     use super::*;
     use crate::chat::{self, create_group_chat, ProtectionStatus};

@@ -10,7 +10,7 @@ use std::str;
 use anyhow::{bail, Context as _, Result};
 use deltachat_derive::{FromSql, ToSql};
 use format_flowed::unformat_flowed;
-use lettre_email::mime::{self, Mime};
+use lettre_email::mime::Mime;
 use mailparse::{addrparse_header, DispositionType, MailHeader, MailHeaderMap, SingleInfo};
 
 use crate::aheader::{Aheader, EncryptPreference};
@@ -836,7 +836,7 @@ impl MimeMessage {
             let mimetype = mail.ctype.mimetype.to_lowercase();
 
             let m = if mimetype.starts_with("multipart") {
-                if mail.ctype.params.get("boundary").is_some() {
+                if mail.ctype.params.contains_key("boundary") {
                     MimeS::Multiple
                 } else {
                     MimeS::Single
@@ -2262,7 +2262,7 @@ mod tests {
         chat,
         chatlist::Chatlist,
         constants::{Blocked, DC_DESIRED_TEXT_LEN, DC_ELLIPSIS},
-        message::{Message, MessageState, MessengerMessage},
+        message::MessengerMessage,
         receive_imf::receive_imf,
         test_utils::{TestContext, TestContextManager},
         tools::time,

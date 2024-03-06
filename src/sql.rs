@@ -1,11 +1,10 @@
 //! # SQLite wrapper.
 
 use std::collections::{HashMap, HashSet};
-use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context as _, Result};
-use rusqlite::{self, config::DbConfig, types::ValueRef, Connection, OpenFlags, Row};
+use rusqlite::{config::DbConfig, types::ValueRef, Connection, OpenFlags, Row};
 use tokio::sync::{Mutex, MutexGuard, RwLock};
 
 use crate::blob::BlobObject;
@@ -1015,7 +1014,6 @@ mod tests {
     use async_channel as channel;
 
     use super::*;
-    use crate::config::Config;
     use crate::{test_utils::TestContext, EventType};
 
     #[test]

@@ -773,12 +773,9 @@ fn get_config_keys_string() -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::string::ToString;
-
     use num_traits::FromPrimitive;
 
     use super::*;
-    use crate::constants;
     use crate::test_utils::{sync, TestContext, TestContextManager};
 
     #[test]

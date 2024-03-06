@@ -2414,9 +2414,6 @@ async fn add_all_recipients_as_contacts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chat::ChatId;
-    use crate::config::Config;
-    use crate::contact::Contact;
     use crate::test_utils::TestContext;
 
     #[test]

@@ -1343,20 +1343,14 @@ pub fn get_version_str() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use anyhow::Context as _;
     use strum::IntoEnumIterator;
     use tempfile::tempdir;
 
     use super::*;
-    use crate::chat::{
-        get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, ChatId, MuteDuration,
-    };
+    use crate::chat::{get_chat_contacts, get_chat_msgs, send_msg, set_muted, Chat, MuteDuration};
     use crate::chatlist::Chatlist;
     use crate::constants::Chattype;
-    use crate::contact::ContactId;
-    use crate::message::{Message, Viewtype};
     use crate::mimeparser::SystemMessage;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{get_chat_msg, TestContext};
@@ -1583,14 +1577,14 @@ mod tests {
         let t = TestContext::new().await;
 
         let info = t.get_info().await.unwrap();
-        assert!(info.get("database_dir").is_some());
+        assert!(info.contains_key("database_dir"));
     }
 
     #[test]
     fn test_get_info_no_context() {
         let info = get_info();
-        assert!(info.get("deltachat_core_version").is_some());
-        assert!(info.get("database_dir").is_none());
+        assert!(info.contains_key("deltachat_core_version"));
+        assert!(!info.contains_key("database_dir"));
         assert_eq!(info.get("level").unwrap(), "awesome");
     }
 

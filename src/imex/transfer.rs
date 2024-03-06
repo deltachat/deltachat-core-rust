@@ -597,7 +597,6 @@ mod tests {
     use std::time::Duration;
 
     use crate::chat::{get_chat_msgs, send_msg, ChatItem};
-    use crate::message::{Message, Viewtype};
     use crate::test_utils::TestContextManager;
 
     use super::*;

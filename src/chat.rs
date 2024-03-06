@@ -2,7 +2,6 @@
 
 use std::cmp;
 use std::collections::{HashMap, HashSet};
-use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -4468,9 +4467,8 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chatlist::{get_archived_cnt, Chatlist};
+    use crate::chatlist::get_archived_cnt;
     use crate::constants::{DC_GCL_ARCHIVED_ONLY, DC_GCL_NO_SPECIALS};
-    use crate::contact::{Contact, ContactAddress};
     use crate::message::delete_msgs;
     use crate::receive_imf::receive_imf;
     use crate::test_utils::{sync, TestContext, TestContextManager};

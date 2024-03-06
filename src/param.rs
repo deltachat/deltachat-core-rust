@@ -455,7 +455,6 @@ mod tests {
     use std::path::Path;
     use std::str::FromStr;
 
-    use anyhow::Result;
     use tokio::fs;
 
     use super::*;

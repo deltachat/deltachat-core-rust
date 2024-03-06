@@ -821,8 +821,6 @@ fn normalize_address(addr: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
     use super::*;
     use crate::aheader::EncryptPreference;
     use crate::chat::{create_group_chat, ProtectionStatus};

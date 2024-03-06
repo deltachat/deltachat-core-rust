@@ -20,7 +20,6 @@ use std::path::Path;
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
 
 use deltachat_derive::FromSql;
-use lettre_email::mime;
 use lettre_email::PartBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
