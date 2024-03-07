@@ -11,6 +11,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        inherit (pkgs.stdenv) isDarwin;
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
@@ -93,6 +94,9 @@
             src = pkgs.lib.cleanSource ./.;
             nativeBuildInputs = [
               pkgs.perl # Needed to build vendored OpenSSL.
+            ];
+            buildInputs = pkgs.lib.optionals isDarwin [
+              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
             ];
             auditable = false; # Avoid cargo-auditable failures.
             doCheck = false; # Disable test as it requires network access.
