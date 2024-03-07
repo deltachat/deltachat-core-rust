@@ -96,7 +96,7 @@ jobs:
 
   publish:
     name: Build wheels and upload binaries to the release
-    needs: ["build_linux", "build_macos"]
+    needs: ["build_linux", "build_windows", "build_macos"]
     permissions:
       contents: write
     runs-on: "ubuntu-latest"
