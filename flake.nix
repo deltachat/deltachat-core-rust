@@ -237,6 +237,9 @@
             nativeBuildInputs = [
               pkgs.perl # Needed to build vendored OpenSSL.
             ];
+            buildInputs = pkgs.lib.optionals isDarwin [
+              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+            ];
             auditable = false; # Avoid cargo-auditable failures.
             doCheck = false; # Disable test as it requires network access.
 
@@ -295,7 +298,9 @@
           mkRustPackages "i686-linux" //
           mkRustPackages "x86_64-linux" //
           mkRustPackages "armv7l-linux" //
-          mkRustPackages "armv6l-linux" // rec {
+          mkRustPackages "armv6l-linux" //
+          mkRustPackages "x86_64-darwin" //
+          mkRustPackages "aarch64-darwin" // rec {
             # Run with `nix run .#deltachat-repl foo.db`.
             deltachat-repl = mkRustPackage "deltachat-repl";
             deltachat-rpc-server = mkRustPackage "deltachat-rpc-server";
