@@ -5,7 +5,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     naersk.url = "github:nix-community/naersk";
     nix-filter.url = "github:numtide/nix-filter";
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:reckenrode/nixpkgs/darwin-cross";
   };
   outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix }:
     flake-utils.lib.eachDefaultSystem (system:
