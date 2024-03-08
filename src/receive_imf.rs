@@ -23,6 +23,7 @@ use crate::ephemeral::{stock_ephemeral_timer_changed, Timer as EphemeralTimer};
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
+use crate::key::{load_self_public_key, DcKey};
 use crate::location;
 use crate::log::LogExt;
 use crate::message::{
@@ -2529,40 +2530,42 @@ async fn has_verified_encryption(
 ) -> Result<VerifiedEncryption> {
     use VerifiedEncryption::*;
 
-    // We do not need to check if we are verified with ourself.
-    let to_ids = to_ids
-        .iter()
-        .copied()
-        .filter(|id| *id != ContactId::SELF)
-        .collect::<Vec<ContactId>>();
-
     if !mimeparser.was_encrypted() {
         return Ok(NotVerified("This message is not encrypted".to_string()));
     };
 
-    // ensure, the contact is verified
+    // Ensure the sender is verified
     // and the message is signed with a verified key of the sender.
-    // this check is skipped for SELF as there is no proper SELF-peerstate
-    // and results in group-splits otherwise.
-    if from_id != ContactId::SELF {
+    let signed_with_verified_key = if from_id != ContactId::SELF {
         let Some(peerstate) = &mimeparser.decryption_info.peerstate else {
             return Ok(NotVerified(
                 "No peerstate, the contact isn't verified".to_string(),
             ));
         };
 
-        let signed_with_verified_key = peerstate
+        peerstate
             .verified_key_fingerprint
             .as_ref()
             .filter(|fp| mimeparser.signatures.contains(fp))
-            .is_some();
+            .is_some()
+    } else {
+        let self_public_key = load_self_public_key(context).await?;
+        mimeparser
+            .signatures
+            .contains(&self_public_key.fingerprint())
+    };
 
-        if !signed_with_verified_key {
-            return Ok(NotVerified(
-                "The message was sent with non-verified encryption".to_string(),
-            ));
-        }
+    if !signed_with_verified_key {
+        return Ok(NotVerified(
+            "The message was sent with non-verified encryption".to_string(),
+        ));
     }
+
+    let to_ids = to_ids
+        .iter()
+        .copied()
+        .filter(|id| *id != ContactId::SELF)
+        .collect::<Vec<ContactId>>();
 
     mark_recipients_as_verified(context, from_id, to_ids, mimeparser).await?;
     Ok(Verified)
