@@ -830,10 +830,7 @@ impl Scheduler {
 
         for (meaning, should_watch) in [
             (FolderMeaning::Mvbox, ctx.should_watch_mvbox().await),
-            (
-                FolderMeaning::Sent,
-                ctx.get_config_bool(Config::SentboxWatch).await,
-            ),
+            (FolderMeaning::Sent, ctx.should_watch_sentbox().await),
         ] {
             if should_watch? {
                 let (conn_state, handlers) = ImapConnectionState::new(ctx).await?;

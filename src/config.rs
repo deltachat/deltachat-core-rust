@@ -475,6 +475,15 @@ impl Context {
             || self.get_config_bool(Config::OnlyFetchMvbox).await?)
     }
 
+    /// Returns true if sentbox ("Sent" folder) should be watched.
+    pub(crate) async fn should_watch_sentbox(&self) -> Result<bool> {
+        Ok(self.get_config_bool(Config::SentboxWatch).await?
+            && self
+                .get_config(Config::ConfiguredSentboxFolder)
+                .await?
+                .is_some())
+    }
+
     /// Gets configured "delete_server_after" value.
     ///
     /// `None` means never delete the message, `Some(0)` means delete
