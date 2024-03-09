@@ -301,6 +301,12 @@
                   pkgs.rustPlatform.cargoSetupHook
                   pkgs.cargo
                 ];
+                buildInputs = pkgs.lib.optionals isDarwin [
+                  pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+                  pkgs.darwin.apple_sdk.frameworks.Security
+                  pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+                  pkgs.libiconv
+                ];
 
                 postInstall = ''
                   substituteInPlace $out/include/deltachat.h \
