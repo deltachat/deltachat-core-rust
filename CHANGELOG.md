@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.136.3] - 2024-03-09
+
+### Features / Changes
+
+- Start IMAP loop for sentbox only if it is configured ([#5105](https://github.com/deltachat/deltachat-core-rust/pull/5105)).
+
+### Fixes
+
+- Remove leading whitespace from Subject ([#5106](https://github.com/deltachat/deltachat-core-rust/pull/5106)).
+- Create new Peerstate for unencrypted message with already known Autocrypt key, but a new address.
+
+### Build system
+
+- nix: Cleanup cross-compilation code.
+- nix: Include SystemConfiguration framework on darwin systems.
+
+### CI
+
+- Wait for `build_windows` task before trying to publish it.
+- Remove artifacts from npm package.
+
+### Refactor
+
+- Don't parse Autocrypt header for outgoing messages ([#5259](https://github.com/deltachat/deltachat-core-rust/pull/5259)).
+- Remove `deduplicate_peerstates()`.
+- Fix 2024-03-05 nightly clippy warnings.
+
+### Miscellaneous Tasks
+
+- deps: Bump mio from 0.8.8 to 0.8.11 in /fuzz.
+- RPC client: Add missing constants ([#5110](https://github.com/deltachat/deltachat-core-rust/pull/5110)).
+
 ## [1.136.2] - 2024-03-05
 
 ### Build system
