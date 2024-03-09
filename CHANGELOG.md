@@ -142,50 +142,15 @@
 - Build deltachat-repl for Windows with nix.
 - Build deltachat-rpc-server with nix.
 - Try to upload deltachat-rpc-server only on release.
+- Fixup node-package.yml after artifact actions upgrade.
+- Update to actions/checkout@v4.
+- Replace download-artifact v1 with v4.
 
 ### Refactor
 
 - `create_keypair`: Remove unnecessary `map_err`.
 - Return error with a cause when failing to export keys.
 - Rename incorrectly named variables in `create_keypair`.
-
-## [1.135.1] - 2024-02-20
-
-### CI
-
-- Update actions/upload-artifact.
-- Use actions/download-artifact@v4.
-- Replace download-artifact v1 with v4.
-- Update to actions/checkout@v4.
-- Fixup node-package.yml after artifact actions upgrade.
-
-### Features / Changes
-
-- Mock SystemTime::now() for the tests.
-- Remove webxdc sending limit.
-- Sync self-avatar across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
-- Sync Config::Selfstatus across devices ([#4893](https://github.com/deltachat/deltachat-core-rust/pull/4893)).
-
-### Fixes
-
-- Context::get_info: Report displayname as "displayname" (w/o underscore).
-- Never encrypt {vc,vg}-request.
-
-### Other
-
-- Cleanup changelog ([#5265](https://github.com/deltachat/deltachat-core-rust/pull/5265))
-
-somehow a whole issue sneaked in :).
-
-### Refactor
-
-- create_keypair: Remove unnecessary map_err.
-- Return error with a cause when failing to export keys.
-- Rename incorrectly named variables in create_keypair.
-
-### Tests
-
-- Add a test on protection message sort timestamp ([#5088](https://github.com/deltachat/deltachat-core-rust/pull/5088)).
 
 ## [1.135.0] - 2024-02-13
 
