@@ -22,6 +22,8 @@ references:
 
 - To build platform packages, run the `build_platform_package.py` script:
     ```
+    python3 build_platform_package.py <cargo-target>
+    # example
     python3 build_platform_package.py x86_64-apple-darwin
     ```
 - Then pass it as an artifact to the last CI action that publishes the main package.
