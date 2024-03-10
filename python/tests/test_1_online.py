@@ -399,7 +399,7 @@ def test_enable_mvbox_move(acfactory, lp):
 
 def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac1: start with mvbox thread")
-    ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=True)
+    ac1 = acfactory.new_online_configuring_account(mvbox_move=True, sentbox_watch=False)
 
     lp.sec("ac2: start without mvbox/sentbox threads")
     ac2 = acfactory.new_online_configuring_account(mvbox_move=False, sentbox_watch=False)
@@ -407,9 +407,17 @@ def test_mvbox_sentbox_threads(acfactory, lp):
     lp.sec("ac2 and ac1: waiting for configuration")
     acfactory.bring_accounts_online()
 
+    lp.sec("ac1: create and configure sentbox")
+    ac1.direct_imap.create_folder("Sent")
+    ac1.set_config("sentbox_watch", "1")
+
     lp.sec("ac1: send message and wait for ac2 to receive it")
     acfactory.get_accepted_chat(ac1, ac2).send_text("message1")
     assert ac2._evtracker.wait_next_incoming_message().text == "message1"
+
+    assert ac1.get_config("configured_mvbox_folder") == "DeltaChat"
+    while ac1.get_config("configured_sentbox_folder") != "Sent":
+        ac1._evtracker.get_matching("DC_EVENT_CONNECTIVITY_CHANGED")
 
 
 def test_move_works(acfactory):
