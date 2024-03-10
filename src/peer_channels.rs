@@ -65,6 +65,7 @@ impl Context {
         // restore old peers from db, if any
         let peers = self.get_peers_for_topic(topic).await?;
         if peers.len() == 0 {
+            // TODO: When there's no peers we will never be able to join the gossip?
             warn!(self, "joining gossip with zero peers");
         } else {
             info!(self, "joining gossip with peers: {peers:?}");
@@ -162,6 +163,7 @@ async fn endpoint_loop(context: Context, endpoint: MagicEndpoint, gossip: Gossip
         });
     }
 }
+
 async fn handle_connection(
     context: &Context,
     conn: quinn::Connecting,

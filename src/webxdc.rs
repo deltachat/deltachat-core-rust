@@ -19,7 +19,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{anyhow, bail, ensure, format_err, Context as _, Result};
-
 use deltachat_derive::FromSql;
 use iroh_gossip::proto::TopicId;
 use lettre_email::mime;
