@@ -1,0 +1,47 @@
+name: Publish deltachat-rpc-client to PyPI
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Install pypa/build
+        run: python3 -m pip install build
+      - name: Build a binary wheel and a source tarball
+        working-directory: deltachat-rpc-client
+        run: python3 -m build
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: deltachat-rpc-client/dist/
+
+  publish-to-pypi:
+    name: Publish Python distribution to PyPI
+    if: github.event_name == 'release'
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/deltachat-rpc-client
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish deltachat-rpc-client to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
