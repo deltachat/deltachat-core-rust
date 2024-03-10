@@ -1,11 +1,5 @@
 //! Peer channels for webxdc updates using iroh.
 
-use crate::config::Config;
-use crate::contact::ContactId;
-use crate::context::Context;
-use crate::message::{Message, MsgId};
-use crate::tools::time;
-use crate::webxdc::StatusUpdateItem;
 use anyhow::{anyhow, Context as _, Result};
 use image::EncodableLayout;
 use iroh_base::base32;
@@ -15,11 +9,16 @@ use iroh_net::magic_endpoint::accept_conn;
 use iroh_net::NodeId;
 use iroh_net::{derp::DerpMode, key::SecretKey, MagicEndpoint};
 
+use crate::contact::ContactId;
+use crate::context::Context;
+use crate::message::{Message, MsgId};
+use crate::tools::time;
+use crate::webxdc::StatusUpdateItem;
+
 impl Context {
     /// Create magic endpoint and gossip for the context.
     pub async fn create_gossip(&self) -> Result<()> {
-        let secret_key: SecretKey = self.get_or_create_iroh_keypair().await?;
-
+        let secret_key: SecretKey = self.generate_iroh_keypair();
         println!("> our secret key: {}", base32::fmt(secret_key.to_bytes()));
 
         if self.endpoint.lock().await.is_some() {
@@ -146,17 +145,8 @@ impl Context {
     }
 
     /// Get the iroh gossip secret key from the database or create one.
-    pub async fn get_or_create_iroh_keypair(&self) -> Result<SecretKey> {
-        Ok(SecretKey::generate())
-        /* match self.get_config_parsed(Config::IrohSecretKey).await? {
-            Some(key) => Ok(key),
-            None => {
-                let key = SecretKey::generate();
-                self.set_config(Config::IrohSecretKey, Some(&key.to_string()))
-                    .await?;
-                Ok(key)
-            }
-        } */
+    pub fn generate_iroh_keypair(&self) -> SecretKey {
+        SecretKey::generate()
     }
 }
 
