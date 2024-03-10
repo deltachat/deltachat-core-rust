@@ -1,0 +1,4 @@
+platform_package/*
+build_platform_package.py
+update_optional_dependencie_and_version.js
+*.tgz
