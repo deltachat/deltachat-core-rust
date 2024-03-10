@@ -104,6 +104,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Download Linux aarch64 binary
         uses: actions/download-artifact@v4
@@ -182,9 +184,28 @@ jobs:
         run: pip install wheel
 
       - name: Build deltachat-rpc-server Python wheels and source package
-        run: scripts/wheel-rpc-server.py
+        run: |
+          nix build .#deltachat-rpc-server-x86_64-linux-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-armv7l-linux-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-armv6l-linux-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-aarch64-linux-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-i686-linux-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-win64-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-win32-wheel
+          cp result/*.whl dist/
+          nix build .#deltachat-rpc-server-source
+          cp result/*.tar.gz dist/
+          python3 scripts/wheel-rpc-server.py 1.136.3 x86_64-darwin dist/deltachat-rpc-server-x86_64-macos
+          python3 scripts/wheel-rpc-server.py 1.136.3 aarch64-darwin dist/deltachat-rpc-server-aarch64-macos
+          mv *.whl dist/
 
-      - name: List downloaded artifacts
+      - name: List artifacts
         run: ls -l dist/
 
       - name: Upload binaries to the GitHub release
