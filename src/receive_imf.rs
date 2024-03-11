@@ -1,8 +1,10 @@
 //! Internet Message Format reception pipeline.
 
 use std::collections::HashSet;
+use std::str::FromStr;
 
 use anyhow::{Context as _, Result};
+use iroh_gossip::proto::TopicId;
 use mailparse::{parse_mail, SingleInfo};
 use num_traits::FromPrimitive;
 use once_cell::sync::Lazy;
@@ -41,6 +43,7 @@ use crate::tools::{
     self, buf_compress, extract_grpid_from_rfc724_mid, strip_rtlo_characters, validate_id,
 };
 use crate::{contact, imap};
+use iroh_net::NodeAddr;
 
 /// This is the struct that is returned after receiving one email (aka MIME message).
 ///
@@ -1160,7 +1163,7 @@ async fn add_parts(
     }
 
     let orig_chat_id = chat_id;
-    let chat_id = if is_mdn || is_reaction {
+    let mut chat_id = if is_mdn || is_reaction {
         DC_CHAT_ID_TRASH
     } else {
         chat_id.unwrap_or_else(|| {
@@ -1372,6 +1375,33 @@ async fn add_parts(
         .await?;
     }
 
+    if let Some(node_addr) = mime_parser.get_header(HeaderDef::IrohPublicKey) {
+        match serde_json::from_str::<NodeAddr>(node_addr).context("Failed to parse node address") {
+            Ok(node_addr) => {
+                context
+                    .endpoint
+                    .lock()
+                    .await
+                    .as_ref()
+                    .context("Failed to get magic endpoint")?
+                    .add_node_addr(node_addr.clone())
+                    .context("Failed to add node address")?;
+
+                let node_id = node_addr.node_id;
+                let instance_id = parent.context("Failed to get parent message")?.id;
+                let topic = context.get_topic_for_msg_id(instance_id).await?;
+                context
+                    .add_peer_for_topic(instance_id, topic, node_id)
+                    .await?;
+
+                chat_id = DC_CHAT_ID_TRASH;
+            }
+            Err(err) => {
+                warn!(context, "couldn't parse NodeAddr: {err}");
+            }
+        }
+    }
+
     for part in &mime_parser.parts {
         if part.is_reaction {
             let reaction_str = simplify::remove_footers(part.msg.as_str());
@@ -1539,6 +1569,16 @@ RETURNING id
 
     // check all parts whether they contain a new logging webxdc
     for (part, msg_id) in mime_parser.parts.iter().zip(&created_db_entries) {
+        if part.typ == Viewtype::Webxdc {
+            if let Some(topic) = mime_parser.get_header(HeaderDef::GossipTopic) {
+                let topic = TopicId::from_str(topic).unwrap();
+                let peer = context.get_iroh_node_addr().await?.node_id;
+                context.add_peer_for_topic(*msg_id, topic, peer).await?;
+            } else {
+                warn!(context, "webxdc doesn't have a gossip topic")
+            }
+        }
+
         maybe_set_logging_xdc_inner(
             context,
             part.typ,

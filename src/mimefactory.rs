@@ -17,11 +17,13 @@ use crate::contact::Contact;
 use crate::context::Context;
 use crate::e2ee::EncryptHelper;
 use crate::ephemeral::Timer as EphemeralTimer;
+use crate::headerdef::HeaderDef;
 use crate::html::new_html_mimepart;
 use crate::location;
 use crate::message::{self, Message, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::param::Param;
+use crate::peer_channels::create_random_topic;
 use crate::peerstate::Peerstate;
 use crate::simplify::escape_message_footer_marks;
 use crate::stock_str;
@@ -1147,6 +1149,12 @@ impl<'a> MimeFactory<'a> {
                     "protection-disabled".to_string(),
                 ));
             }
+            SystemMessage::IrohGossipAdvertisement => {
+                headers.protected.push(Header::new(
+                    HeaderDef::IrohPublicKey.get_headername().to_string(),
+                    serde_json::to_string(&context.get_iroh_node_addr().await?)?,
+                ));
+            }
             _ => {}
         }
 
@@ -1303,6 +1311,19 @@ impl<'a> MimeFactory<'a> {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
             parts.push(context.build_status_update_part(json));
         } else if self.msg.viewtype == Viewtype::Webxdc {
+            let topic = create_random_topic();
+
+            context
+                .add_peer_for_topic(
+                    self.msg.id,
+                    topic,
+                    context.get_iroh_node_addr().await.unwrap().node_id,
+                )
+                .await?;
+            headers.protected.push(Header::new(
+                HeaderDef::GossipTopic.get_headername().to_string(),
+                topic.to_string(),
+            ));
             if let Some(json) = context
                 .render_webxdc_status_update_object(self.msg.id, None)
                 .await?

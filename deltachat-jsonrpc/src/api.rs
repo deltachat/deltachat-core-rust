@@ -1719,6 +1719,27 @@ impl CommandApi {
             .await
     }
 
+    async fn send_webxdc_ephemeral_status_update(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+        update_str: String,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.send_webxdc_ephemeral_status_update(MsgId::new(instance_msg_id), &update_str)
+            .await
+    }
+
+    async fn send_webxdc_gossip_advertisement(
+        &self,
+        account_id: u32,
+        instance_msg_id: u32,
+    ) -> Result<()> {
+        let ctx = self.get_context(account_id).await?;
+        ctx.send_gossip_advertisement(&MsgId::new(instance_msg_id))
+            .await
+    }
+
     async fn get_webxdc_status_updates(
         &self,
         account_id: u32,
