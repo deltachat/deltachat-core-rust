@@ -93,6 +93,12 @@ pub enum HeaderDef {
     /// See <https://datatracker.ietf.org/doc/html/rfc8601>
     AuthenticationResults,
 
+    /// Public key to advertise to others.
+    IrohPublicKey,
+
+    /// Advertised gossip topic for one webxdc.
+    GossipTopic,
+
     #[cfg(test)]
     TestHeader,
 }
