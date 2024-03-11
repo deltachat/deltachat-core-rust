@@ -6,8 +6,9 @@
     naersk.url = "github:nix-community/naersk";
     nix-filter.url = "github:numtide/nix-filter";
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    android.url = "github:tadfisher/android-nixpkgs";
   };
-  outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix }:
+  outputs = { self, nixpkgs, flake-utils, nix-filter, naersk, fenix, android }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -15,6 +16,11 @@
         fenixPkgs = fenix.packages.${system};
         naersk' = pkgs.callPackage naersk { };
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+        androidSdk = android.sdk.${system} (sdkPkgs:
+          builtins.attrValues {
+            inherit (sdkPkgs) ndk-24-0-8215888 cmdline-tools-latest;
+          });
+        androidNdkRoot = "${androidSdk}/share/android-sdk/ndk/24.0.8215888";
 
         rustSrc = nix-filter.lib {
           root = ./.;
@@ -251,6 +257,71 @@
             LD = "${pkgsCross.stdenv.cc}/bin/${pkgsCross.stdenv.cc.targetPrefix}cc";
           };
 
+        androidAttrs = {
+          armeabi-v7a = {
+            cc = "armv7a-linux-androideabi19-clang";
+            rustTarget = "armv7-linux-androideabi";
+          };
+          arm64-v8a = {
+            cc = "aarch64-linux-android21-clang";
+            rustTarget = "aarch64-linux-android";
+          };
+          x86 = {
+            cc = "i686-linux-android19-clang";
+            rustTarget = "i686-linux-android";
+          };
+          x86_64 = {
+            cc = "x86_64-linux-android21-clang";
+            rustTarget = "x86_64-linux-android";
+          };
+        };
+
+        mkAndroidRustPackage = arch: packageName:
+          let
+            rustTarget = androidAttrs.${arch}.rustTarget;
+          in
+          let
+            toolchain = fenixPkgs.combine [
+              fenixPkgs.stable.rustc
+              fenixPkgs.stable.cargo
+              fenixPkgs.targets.${rustTarget}.stable.rust-std
+            ];
+            naersk-lib = pkgs.callPackage naersk {
+              cargo = toolchain;
+              rustc = toolchain;
+            };
+            targetToolchain = "${androidNdkRoot}/toolchains/llvm/prebuilt/linux-x86_64";
+            targetCcName = androidAttrs.${arch}.cc;
+            targetCc = "${targetToolchain}/bin/${targetCcName}";
+          in
+          naersk-lib.buildPackage rec {
+            pname = packageName;
+            cargoBuildOptions = x: x ++ [ "--package" packageName ];
+            version = manifest.version;
+            strictDeps = true;
+            src = rustSrc;
+            nativeBuildInputs = [
+              pkgs.perl # Needed to build vendored OpenSSL.
+            ];
+            auditable = false; # Avoid cargo-auditable failures.
+            doCheck = false; # Disable test as it requires network access.
+
+            CARGO_BUILD_TARGET = rustTarget;
+            TARGET_CC = "${targetCc}";
+            CARGO_BUILD_RUSTFLAGS = [
+              "-C"
+              "linker=${TARGET_CC}"
+            ];
+
+            CC = "${targetCc}";
+            LD = "${targetCc}";
+          };
+
+        mkAndroidPackages = arch: {
+          "deltachat-rpc-server-${arch}-android" = mkAndroidRustPackage arch "deltachat-rpc-server";
+          "deltachat-repl-${arch}-android" = mkAndroidRustPackage arch "deltachat-repl";
+        };
+
         mkRustPackages = arch:
           let
             rpc-server = mkCrossRustPackage arch "deltachat-rpc-server";
@@ -295,7 +366,11 @@
           mkRustPackages "i686-linux" //
           mkRustPackages "x86_64-linux" //
           mkRustPackages "armv7l-linux" //
-          mkRustPackages "armv6l-linux" // rec {
+          mkRustPackages "armv6l-linux" //
+          mkAndroidPackages "armeabi-v7a" //
+          mkAndroidPackages "arm64-v8a" //
+          mkAndroidPackages "x86" //
+          mkAndroidPackages "x86_64" // rec {
             # Run with `nix run .#deltachat-repl foo.db`.
             deltachat-repl = mkRustPackage "deltachat-repl";
             deltachat-rpc-server = mkRustPackage "deltachat-rpc-server";
