@@ -1630,8 +1630,8 @@ mod tests {
     async fn test_keypair_saving() -> Result<()> {
         let alice = TestContext::new_alice().await;
 
-        let key = alice.get_or_create_iroh_keypair().await?;
-        let loaded_key = alice.get_or_create_iroh_keypair().await?;
+        let key = alice.get_or_generate_iroh_keypair().await?;
+        let loaded_key = alice.get_or_generate_iroh_keypair().await?;
         assert_eq!(key.to_bytes(), loaded_key.to_bytes());
 
         Ok(())
