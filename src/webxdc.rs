@@ -519,20 +519,9 @@ impl Context {
                         self,
                         "Gossip topic {topic} does not exist, sending over smtp",
                     );
-                    let node_id = self
-                        .endpoint
-                        .lock()
-                        .await
-                        .as_ref()
-                        .unwrap()
-                        .my_addr()
-                        .await
-                        .unwrap()
-                        .node_id;
-                    self.add_peer_for_topic(instance_msg_id, topic, node_id)
-                        .await?;
                     self.join_and_subscribe_topic(topic, instance_msg_id)
-                        .await?;
+                        .await
+                        .context("Failed to join and subscribe to gossip topic")?;
                     ephemeral = false;
                 } else {
                     if let Some(ref gossip) = *self.gossip.lock().await {

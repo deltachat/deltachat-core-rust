@@ -228,3 +228,186 @@ async fn subscribe_loop(
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{os::unix::thread, str::FromStr, time::Duration};
+
+    use tokio::time::timeout;
+
+    use crate::{
+        chat::send_msg,
+        message::Viewtype,
+        test_utils::TestContextManager,
+        webxdc::{join_gossip_topic, StatusUpdateSerial},
+        EventType,
+    };
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_can_connect() {
+        let mut tcm = TestContextManager::new();
+        let alice = &mut tcm.alice().await;
+        let bob = &mut tcm.bob().await;
+        alice.ctx.start_io().await;
+        bob.ctx.start_io().await;
+
+        // Alice sends webxdc to bob
+        let alice_chat = alice.create_chat(bob).await;
+        let mut instance = Message::new(Viewtype::File);
+        instance
+            .set_file_from_bytes(
+                alice,
+                "minimal.xdc",
+                include_bytes!("../test-data/webxdc/minimal.xdc"),
+                None,
+            )
+            .await
+            .unwrap();
+
+        send_msg(alice, alice_chat.id, &mut instance).await.unwrap();
+
+        let alice_instance = alice.get_last_msg().await;
+        assert_eq!(alice_instance.get_viewtype(), Viewtype::Webxdc);
+
+        let webxdc = alice.pop_sent_msg().await;
+        let bob_webdxc = bob.recv_msg(&webxdc).await;
+        bob_webdxc.chat_id.accept(bob).await.unwrap();
+
+        assert_eq!(bob_webdxc.get_viewtype(), Viewtype::Webxdc);
+
+        // Alice sends webxdc update with gossip.
+        // This produces an SMTP message that contains the topic and a header with alices' node id
+        alice
+            .send_webxdc_status_update_struct(
+                alice_instance.id,
+                StatusUpdateItem {
+                    payload: "test".to_string().into(),
+                    gossip_topic: Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string()),
+                    ..Default::default()
+                },
+                "",
+            )
+            .await
+            .unwrap();
+
+        alice.flush_status_updates().await.unwrap();
+        bob.recv_msg(&alice.pop_sent_msg().await).await;
+
+        let status = bob
+            .get_webxdc_status_updates(bob_webdxc.id, StatusUpdateSerial::new(0))
+            .await
+            .unwrap();
+        let status_update_items: Vec<StatusUpdateItem> = serde_json::from_str(&status).unwrap();
+        let topic = status_update_items[0].gossip_topic.as_ref().unwrap();
+        assert_eq!(topic, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+        let topic_id = TopicId::from_str(&iroh_base::base32::fmt(topic)).unwrap();
+        let topics = bob.get_peers_for_topic(topic_id).await.unwrap();
+        assert_eq!(
+            topics,
+            vec![alice.endpoint.lock().await.as_ref().unwrap().node_id()]
+        );
+
+        let mut stream = alice
+            .ctx
+            .gossip
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
+            .subscribe(topic_id)
+            .await
+            .unwrap();
+
+        // Bob joins topic
+        join_gossip_topic(bob, bob_webdxc.id, topic).await.unwrap();
+
+        let event = timeout(Duration::from_secs(5), stream.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        match event {
+            IrohEvent::NeighborUp(node) => {
+                assert_eq!(node, bob.endpoint.lock().await.as_ref().unwrap().node_id());
+            }
+            _ => panic!("Expected NeighborUp event"),
+        }
+
+        // Bob sends webxdc update with gossip.
+        bob.send_webxdc_status_update_struct(
+            bob_webdxc.id,
+            StatusUpdateItem {
+                payload: "bob -> alice".to_string().into(),
+                gossip_topic: Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string()),
+                ..Default::default()
+            },
+            "",
+        )
+        .await
+        .unwrap();
+
+        alice.evtracker.try_recv().unwrap();
+        while let Ok(event) = alice.evtracker.try_recv() {
+            if let EventType::WebxdcStatusUpdate {
+                msg_id,
+                status_update_serial,
+            } = event.typ
+            {
+                let status_update = alice
+                    .get_status_update(msg_id, status_update_serial)
+                    .await
+                    .unwrap();
+                let status_update_item: StatusUpdateItem =
+                    serde_json::from_str(&status_update).unwrap();
+                println!("{:?}", status_update_item.payload.to_string());
+                if status_update_item
+                    .payload
+                    .to_string()
+                    .contains("bob -> alice")
+                {
+                    break;
+                }
+            }
+        }
+
+        // Alice sends webxdc update with gossip.
+        alice
+            .send_webxdc_status_update_struct(
+                bob_webdxc.id,
+                StatusUpdateItem {
+                    payload: "alice -> bob".to_string().into(),
+                    gossip_topic: Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string()),
+                    ..Default::default()
+                },
+                "",
+            )
+            .await
+            .unwrap();
+
+        while let Ok(event) = bob.evtracker.try_recv() {
+            if let EventType::WebxdcStatusUpdate {
+                msg_id,
+                status_update_serial,
+            } = event.typ
+            {
+                let status_update = alice
+                    .get_status_update(msg_id, status_update_serial)
+                    .await
+                    .unwrap();
+
+                let status_update_item: StatusUpdateItem =
+                    serde_json::from_str(&status_update).unwrap();
+
+                if status_update_item
+                    .payload
+                    .to_string()
+                    .contains("alice -> bob")
+                {
+                    break;
+                }
+            }
+        }
+    }
+}

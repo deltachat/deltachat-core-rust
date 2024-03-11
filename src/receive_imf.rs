@@ -472,6 +472,8 @@ pub(crate) async fn receive_imf_inner(
                             warn!(context, "couldn't parse NodeAddr: {err}");
                         }
                     }
+                } else {
+                    error!(context, "No IrohPublicGossip header found");
                 }
             }
             Err(err) => warn!(context, "receive_imf cannot update status: {err:#}."),

@@ -1275,6 +1275,7 @@ impl<'a> MimeFactory<'a> {
             }
         }
 
+        println!("hiiiii");
         // we do not piggyback sync-files to other self-sent-messages
         // to not risk files becoming too larger and being skipped by download-on-demand.
         if command == SystemMessage::MultiDeviceSync && self.is_e2ee_guaranteed() {
@@ -1284,7 +1285,6 @@ impl<'a> MimeFactory<'a> {
             self.sync_ids_to_delete = Some(ids.to_string());
         } else if command == SystemMessage::WebxdcStatusUpdate {
             let json = self.msg.param.get(Param::Arg).unwrap_or_default();
-
             if json.find("gossip_topic").is_some() {
                 if let Some(ref endpoint) = *context.endpoint.lock().await {
                     // Add iroh NodeAddr to headers so peers can connect to us.
