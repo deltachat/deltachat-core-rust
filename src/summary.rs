@@ -96,7 +96,7 @@ impl Summary {
             || msg.viewtype == Viewtype::Gif
             || msg.viewtype == Viewtype::Sticker
         {
-            msg.get_file(context)
+            msg.get_filedata_path(context)
                 .and_then(|path| path.to_str().map(|p| p.to_owned()))
         } else {
             None

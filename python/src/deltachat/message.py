@@ -109,7 +109,7 @@ class Message:
     @props.with_doc
     def file_path(self):
         """file path if there was an attachment, otherwise empty string."""
-        return from_dc_charpointer(lib.dc_msg_get_file(self._dc_msg))
+        return from_dc_charpointer(lib.dc_msg_get_filedata_path(self._dc_msg))
 
     def set_file(self, path, mime_type=None):
         """set file for this message from path and mime_type."""

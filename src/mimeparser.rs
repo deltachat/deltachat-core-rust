@@ -3458,7 +3458,10 @@ On 2020-10-25, Bob wrote:
         assert_eq!(msg.chat_blocked, Blocked::Request);
         assert_eq!(msg.state, MessageState::InFresh);
         assert_eq!(msg.get_filebytes(&t).await.unwrap().unwrap(), 2115);
-        assert!(msg.get_file(&t).is_some());
+        assert_eq!(
+            msg.get_filedata_path(&t).unwrap().extension().unwrap(),
+            "png"
+        );
         assert_eq!(msg.get_filename().unwrap(), "avatar64x64.png");
         assert_eq!(msg.get_width(), 64);
         assert_eq!(msg.get_height(), 64);

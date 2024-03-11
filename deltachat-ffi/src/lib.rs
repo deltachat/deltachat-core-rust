@@ -3359,6 +3359,21 @@ pub unsafe extern "C" fn dc_msg_get_subject(msg: *mut dc_msg_t) -> *mut libc::c_
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filedata_path(msg: *mut dc_msg_t) -> *mut libc::c_char {
+    if msg.is_null() {
+        eprintln!("ignoring careless call to dc_msg_get_filedata_path()");
+        return "".strdup();
+    }
+    let ffi_msg = &*msg;
+    let ctx = &*ffi_msg.context;
+    ffi_msg
+        .message
+        .get_filedata_path(ctx)
+        .map(|p| p.to_string_lossy().strdup())
+        .unwrap_or_else(|| "".strdup())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_file()");
@@ -3366,10 +3381,14 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
     }
     let ffi_msg = &*msg;
     let ctx = &*ffi_msg.context;
-    ffi_msg
-        .message
-        .get_file(ctx)
-        .map(|p| p.to_string_lossy().strdup())
+    let r = block_on(ffi_msg.message.get_file(ctx));
+    let Ok(r) = r else {
+        r.context("Failed to get file from message")
+            .log_err(ctx)
+            .unwrap_or_default();
+        return "".strdup();
+    };
+    r.map(|p| p.to_string_lossy().strdup())
         .unwrap_or_else(|| "".strdup())
 }
 

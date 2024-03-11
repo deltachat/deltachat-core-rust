@@ -2964,7 +2964,7 @@ async fn test_long_and_duplicated_filenames() -> Result<()> {
             assert_eq!(msg.get_viewtype(), Viewtype::File);
             let resulting_filename = msg.get_filename().unwrap();
             assert_eq!(resulting_filename, filename);
-            let path = msg.get_file(t).unwrap();
+            let path = msg.get_filedata_path(t).unwrap();
             let path2 = path.with_file_name("saved.txt");
             msg.save_file(t, &path2).await.unwrap();
             assert!(
@@ -2974,6 +2974,13 @@ async fn test_long_and_duplicated_filenames() -> Result<()> {
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
             assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
             fs::remove_file(path2).await.unwrap();
+
+            let path = msg.get_file(t).await.unwrap().unwrap();
+            assert_eq!(path.with_file_name(resulting_filename), path);
+            assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
+            let path2 = msg.get_file(t).await.unwrap().unwrap();
+            assert_eq!(path2, path);
+            assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
         }
         check_message(&msg_alice, &alice, filename_sent, &content).await;
         check_message(&msg_bob, &bob, filename_sent, &content).await;

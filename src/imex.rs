@@ -280,7 +280,7 @@ pub async fn continue_key_transfer(
         "Message is no Autocrypt Setup Message."
     );
 
-    if let Some(filename) = msg.get_file(context) {
+    if let Some(filename) = msg.get_filedata_path(context) {
         let file = open_file_std(context, filename)?;
         let sc = normalize_setup_code(setup_code);
         let armored_key = decrypt_setup_file(&sc, file).await?;
