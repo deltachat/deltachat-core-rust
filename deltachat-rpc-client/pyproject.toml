@@ -22,6 +22,7 @@ classifiers = [
 dynamic = [
     "version"
 ]
+readme = "README.md"
 
 [tool.setuptools.package-data]
 deltachat_rpc_client = [
