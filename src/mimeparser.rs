@@ -193,6 +193,9 @@ pub enum SystemMessage {
 
     /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
     WebxdcInfoMessage = 32,
+
+    /// This message contains a users iroh public key.
+    IrohGossipAdvertisement = 40,
 }
 
 const MIME_AC_SETUP_FILE: &str = "application/autocrypt-setup";

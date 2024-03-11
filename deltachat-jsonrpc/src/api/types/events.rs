@@ -240,6 +240,9 @@ pub enum EventType {
         status_update_serial: u32,
     },
 
+    #[serde(rename_all = "camelCase")]
+    WebxdcEphemeralStatusUpdate { msg_id: u32, status_update: String },
+
     /// Inform that a message containing a webxdc instance has been deleted
     #[serde(rename_all = "camelCase")]
     WebxdcInstanceDeleted { msg_id: u32 },
@@ -352,6 +355,13 @@ impl From<CoreEventType> for EventType {
             } => WebxdcStatusUpdate {
                 msg_id: msg_id.to_u32(),
                 status_update_serial: status_update_serial.to_u32(),
+            },
+            CoreEventType::WebxdcEphemeralStatusUpdate {
+                msg_id,
+                status_update,
+            } => WebxdcEphemeralStatusUpdate {
+                msg_id: msg_id.to_u32(),
+                status_update,
             },
             CoreEventType::WebxdcInstanceDeleted { msg_id } => WebxdcInstanceDeleted {
                 msg_id: msg_id.to_u32(),

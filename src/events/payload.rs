@@ -279,6 +279,15 @@ pub enum EventType {
         status_update_serial: StatusUpdateSerial,
     },
 
+    /// Webxdc ephemeral status update received.
+    WebxdcEphemeralStatusUpdate {
+        /// Message ID.
+        msg_id: MsgId,
+
+        /// Status update.
+        status_update: String,
+    },
+
     /// Inform that a message containing a webxdc instance has been deleted.
     WebxdcInstanceDeleted {
         /// ID of the deleted message.
