@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.136.4] - 2024-03-11
+
+### Build system
+
+- nix: Make .#libdeltachat buildable on macOS.
+- Build deltachat-rpc-server wheels with nix.
+
+### CI
+
+- Add workflow for automatic publishing of deltachat-rpc-client.
+
+### Fixes
+
+- Remove duplicate CHANGELOG entries for 1.135.1.
+
 ## [1.136.3] - 2024-03-09
 
 ### Features / Changes
@@ -3697,3 +3712,5 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.0]: https://github.com/deltachat/deltachat-core-rust/compare/v1.135.1...v1.136.0
 [1.136.1]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.0...v1.136.1
 [1.136.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.1...v1.136.2
+[1.136.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.2...v1.136.3
+[1.136.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.3...v1.136.4
