@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use regex::Regex;
 use tokio::fs;
 
 use super::*;
@@ -2960,20 +2961,27 @@ Reply from different address
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_long_and_duplicated_filenames() -> Result<()> {
+async fn test_weird_and_duplicated_filenames() -> Result<()> {
     let mut tcm = TestContextManager::new();
     let alice = tcm.alice().await;
     let bob = tcm.bob().await;
 
-    for filename_sent in &[
-        "foo.bar very long file name test baz.tar.gz",
-        "foobarabababababababbababababverylongfilenametestbaz.tar.gz",
-        "fooo...tar.gz",
-        "foo. .tar.gz",
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
-        "a.tar.gz",
-        "a.tar.gz",
-        "a.a..a.a.a.a.tar.gz",
+    for (filename_sent, expected_ext) in &[
+        ("foo.bar very long file name test baz.tar.gz", "tar.gz"),
+        (
+            "foo.barabababababababbababababverylongfilenametestbaz.tar.gz",
+            "tar.gz",
+        ),
+        ("fooo...tar.gz", "..tar.gz"),
+        ("foo. .tar.gz", "tar.gz"),
+        (
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.tar.gz",
+            "tar.gz",
+        ),
+        ("a.tar.gz", "tar.gz"),
+        ("a.tar.gz", "tar.gz"),
+        ("a.a..a.a.a.a.tar.gz", "a..a.a.a.a.tar.gz"),
+        ("a. tar.tar.gz", "tar.gz"),
     ] {
         let attachment = alice.blobdir.join(filename_sent);
         let content = format!("File content of {filename_sent}");
@@ -2987,23 +2995,33 @@ async fn test_long_and_duplicated_filenames() -> Result<()> {
 
         let msg_bob = bob.recv_msg(&sent).await;
 
-        async fn check_message(msg: &Message, t: &TestContext, filename: &str, content: &str) {
+        async fn check_message(
+            msg: &Message,
+            t: &TestContext,
+            filename: &str,
+            expected_ext: &str,
+            content: &str,
+        ) {
             assert_eq!(msg.get_viewtype(), Viewtype::File);
             let resulting_filename = msg.get_filename().unwrap();
             assert_eq!(resulting_filename, filename);
             let path = msg.get_file(t).unwrap();
+            if !msg.get_state().is_outgoing() {
+                let re =
+                    Regex::new(&("^[[:xdigit:]]{16}.".to_string() + expected_ext + "$")).unwrap();
+                assert!(
+                    re.is_match(path.file_name().unwrap().to_str().unwrap()),
+                    "invalid path {path:?}"
+                );
+            }
             let path2 = path.with_file_name("saved.txt");
             msg.save_file(t, &path2).await.unwrap();
-            assert!(
-                path.to_str().unwrap().ends_with(".tar.gz"),
-                "path {path:?} doesn't end with .tar.gz"
-            );
             assert_eq!(fs::read_to_string(&path).await.unwrap(), content);
             assert_eq!(fs::read_to_string(&path2).await.unwrap(), content);
             fs::remove_file(path2).await.unwrap();
         }
-        check_message(&msg_alice, &alice, filename_sent, &content).await;
-        check_message(&msg_bob, &bob, filename_sent, &content).await;
+        check_message(&msg_alice, &alice, filename_sent, expected_ext, &content).await;
+        check_message(&msg_bob, &bob, filename_sent, expected_ext, &content).await;
     }
 
     Ok(())

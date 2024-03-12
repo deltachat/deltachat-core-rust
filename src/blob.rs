@@ -232,41 +232,44 @@ impl<'a> BlobObject<'a> {
 
     /// Get a file extension if any, including the dot, in lower case, otherwise an empty string.
     fn get_extension(name: &str) -> String {
-        let mut name = name.to_string();
+        let mut name = name;
         for part in name.rsplit('/') {
             if !part.is_empty() {
-                name = part.to_string();
+                name = part;
                 break;
             }
         }
         for part in name.rsplit('\\') {
             if !part.is_empty() {
-                name = part.to_string();
+                name = part;
                 break;
             }
         }
 
         // Let's take the tricky filename
         // "file.with_lots_of_characters_behind_point_and_double_ending.tar.gz" as an example.
-        // Split it into "file" and "with_lots_of_characters_behind_point_and_double_ending.tar.gz":
-        let mut iter = name.splitn(2, '.');
-        iter.next();
-
-        let ext_chars = iter.next().unwrap_or_default().chars();
-        let ext: String = ext_chars
+        // Assume that the extension is 32 chars maximum.
+        let ext: String = name
+            .chars()
             .rev()
-            .take(32)
+            .take_while(|c| !c.is_whitespace())
+            .take(33)
             .collect::<Vec<_>>()
             .iter()
             .rev()
             .collect();
-        // ext == "d_point_and_double_ending.tar.gz"
+        // ext == "nd_point_and_double_ending.tar.gz"
 
+        // Split it into "nd_point_and_double_ending" and "tar.gz":
+        let mut iter = ext.splitn(2, '.');
+        iter.next();
+
+        let ext = iter.next().unwrap_or_default();
         if ext.is_empty() {
-            ext
+            String::new()
         } else {
             format!(".{ext}").to_lowercase()
-            // Return ".d_point_and_double_ending.tar.gz", which is not perfect but acceptable.
+            // Return ".tar.gz".
         }
     }
 
