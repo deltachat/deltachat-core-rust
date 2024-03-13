@@ -569,9 +569,21 @@ pub(crate) async fn ephemeral_loop(context: &Context, interrupt_receiver: Receiv
                 "Ephemeral loop waiting for deletion in {} or interrupt",
                 duration_to_str(duration)
             );
-            if timeout(duration, interrupt_receiver.recv()).await.is_ok() {
-                // received an interruption signal, recompute waiting time (if any)
-                continue;
+            match timeout(duration, interrupt_receiver.recv()).await {
+                Ok(Ok(())) => {
+                    // received an interruption signal, recompute waiting time (if any)
+                    continue;
+                }
+                Ok(Err(err)) => {
+                    warn!(
+                        context,
+                        "Interrupt channel closed, ephemeral loop exits now: {err:#}."
+                    );
+                    return;
+                }
+                Err(_err) => {
+                    // Timeout.
+                }
             }
         }
 
