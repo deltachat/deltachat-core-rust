@@ -679,7 +679,21 @@ pub(crate) async fn location_loop(context: &Context, interrupt_receiver: Receive
             "Location loop is waiting for {} or interrupt",
             duration_to_str(duration)
         );
-        timeout(duration, interrupt_receiver.recv()).await.ok();
+        match timeout(duration, interrupt_receiver.recv()).await {
+            Err(_err) => {
+                info!(context, "Location loop timeout.");
+            }
+            Ok(Err(err)) => {
+                warn!(
+                    context,
+                    "Interrupt channel closed, location loop exits now: {err:#}."
+                );
+                return;
+            }
+            Ok(Ok(())) => {
+                info!(context, "Location loop received interrupt.");
+            }
+        }
     }
 }
 
