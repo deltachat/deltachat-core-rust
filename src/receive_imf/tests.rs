@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use tokio::fs;
 
 use super::*;
@@ -12,6 +14,7 @@ use crate::download::MIN_DOWNLOAD_LIMIT;
 use crate::imap::prefetch_should_download;
 use crate::imex::{imex, ImexMode};
 use crate::test_utils::{get_chat_msg, TestContext, TestContextManager};
+use crate::tools::SystemTime;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_grpid_simple() {
@@ -3608,6 +3611,52 @@ async fn test_sync_member_list_on_rejoin() -> Result<()> {
     Ok(())
 }
 
+/// Test for the bug when remote group membership changes from outdated messages overrode local
+/// ones. Especially that was a problem when a message is sent offline so that it doesn't
+/// incorporate recent group membership changes.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ignore_outdated_membership_changes() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let alice_bob_id =
+        Contact::create(alice, "", &bob.get_config(Config::Addr).await?.unwrap()).await?;
+    let alice_chat_id = create_group_chat(alice, ProtectionStatus::Unprotected, "grp").await?;
+
+    // Alice creates a group chat. Bob accepts it.
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_id).await?;
+    send_text_msg(alice, alice_chat_id, "populate".to_string()).await?;
+    let msg = &alice.pop_sent_msg().await;
+    bob.recv_msg(msg).await;
+    let bob_chat_id = bob.get_last_msg().await.chat_id;
+    bob_chat_id.accept(bob).await?;
+
+    // Bob replies.
+    send_text_msg(bob, bob_chat_id, "i'm bob".to_string()).await?;
+    let msg = &bob.pop_sent_msg().await;
+
+    SystemTime::shift(Duration::from_secs(3600));
+
+    // Alice leaves.
+    remove_contact_from_chat(alice, alice_chat_id, ContactId::SELF).await?;
+    alice.pop_sent_msg().await;
+    assert!(!is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
+
+    // Alice receives Bob's message, but it's outdated to add Alice back.
+    alice.recv_msg(msg).await;
+    assert!(!is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
+
+    SystemTime::shift(Duration::from_secs(3600));
+
+    // Bob replies again adding Alice back.
+    send_text_msg(bob, bob_chat_id, "i'm bob".to_string()).await?;
+    let msg = &bob.pop_sent_msg().await;
+    alice.recv_msg(msg).await;
+    assert!(is_contact_in_chat(alice, alice_chat_id, ContactId::SELF).await?);
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
     let alice = TestContext::new_alice().await;
@@ -3891,7 +3940,6 @@ async fn test_mua_can_readd() -> Result<()> {
 
     // And leaves it.
     remove_contact_from_chat(&alice, alice_chat.id, ContactId::SELF).await?;
-    let alice_chat = Chat::load_from_db(&alice, alice_chat.id).await?;
     assert!(!is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
 
     // Bob uses a classical MUA to answer, adding Alice back.
@@ -3900,7 +3948,7 @@ async fn test_mua_can_readd() -> Result<()> {
         b"Subject: Re: Message from alice\r\n\
             From: <bob@example.net>\r\n\
             To: <alice@example.org>, <claire@example.org>, <fiona@example.org>\r\n\
-            Date: Mon, 12 Dec 2022 14:32:39 +0000\r\n\
+            Date: Mon, 12 Dec 3000 14:32:39 +0000\r\n\
             Message-ID: <bobs_answer_to_two_recipients@example.net>\r\n\
             In-Reply-To: <Mr.alices_original_mail@example.org>\r\n\
             \r\n\
@@ -3909,8 +3957,6 @@ async fn test_mua_can_readd() -> Result<()> {
     )
     .await?
     .unwrap();
-
-    let alice_chat = Chat::load_from_db(&alice, alice_chat.id).await?;
     assert!(is_contact_in_chat(&alice, alice_chat.id, ContactId::SELF).await?);
     Ok(())
 }

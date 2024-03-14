@@ -2805,6 +2805,12 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         msg.chat_id.set_gossiped_timestamp(context, now).await?;
     }
 
+    if rendered_msg.is_group {
+        msg.chat_id
+            .update_timestamp(context, Param::MemberListTimestamp, now)
+            .await?;
+    }
+
     if let Some(last_added_location_id) = rendered_msg.last_added_location_id {
         if let Err(err) = location::set_kml_sent_timestamp(context, msg.chat_id, now).await {
             error!(context, "Failed to set kml sent_timestamp: {err:#}.");

@@ -85,6 +85,7 @@ pub struct RenderedEmail {
     // pub envelope: Envelope,
     pub is_encrypted: bool,
     pub is_gossiped: bool,
+    pub is_group: bool,
     pub last_added_location_id: Option<u32>,
 
     /// A comma-separated string of sync-IDs that are used by the rendered email
@@ -587,6 +588,8 @@ impl<'a> MimeFactory<'a> {
             ));
         }
 
+        let mut is_group = false;
+
         if let Loaded::Message { chat } = &self.loaded {
             if chat.typ == Chattype::Broadcast {
                 let encoded_chat_name = encode_words(&chat.name);
@@ -594,6 +597,8 @@ impl<'a> MimeFactory<'a> {
                     "List-ID".into(),
                     format!("{encoded_chat_name} <{}>", chat.grpid),
                 ));
+            } else if chat.typ == Chattype::Group {
+                is_group = true;
             }
         }
 
@@ -865,6 +870,7 @@ impl<'a> MimeFactory<'a> {
             // envelope: Envelope::new,
             is_encrypted,
             is_gossiped,
+            is_group,
             last_added_location_id,
             sync_ids_to_delete: self.sync_ids_to_delete,
             rfc724_mid,
