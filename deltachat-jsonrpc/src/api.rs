@@ -1730,7 +1730,7 @@ impl CommandApi {
         instance_msg_id: u32,
     ) -> Result<()> {
         let ctx = self.get_context(account_id).await?;
-        ctx.send_gossip_advertisement(&MsgId::new(instance_msg_id))
+        ctx.send_gossip_advertisement(MsgId::new(instance_msg_id))
             .await
     }
 
