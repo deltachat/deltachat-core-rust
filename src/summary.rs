@@ -120,70 +120,120 @@ impl Summary {
 impl Message {
     /// Returns a summary text.
     async fn get_summary_text(&self, context: &Context) -> String {
-        let mut append_text = true;
-        let prefix = match self.viewtype {
-            Viewtype::Image => stock_str::image(context).await,
-            Viewtype::Gif => stock_str::gif(context).await,
-            Viewtype::Sticker => stock_str::sticker(context).await,
-            Viewtype::Video => stock_str::video(context).await,
-            Viewtype::Voice => stock_str::voice_message(context).await,
-            Viewtype::Audio | Viewtype::File => {
+        let (emoji, type_name, type_file, append_text);
+        match self.viewtype {
+            Viewtype::Image => {
+                emoji = Some("📷");
+                type_name = Some(stock_str::image(context).await);
+                type_file = None;
+                append_text = true;
+            }
+            Viewtype::Gif => {
+                emoji = None;
+                type_name = Some(stock_str::gif(context).await);
+                type_file = None;
+                append_text = true;
+            }
+            Viewtype::Sticker => {
+                emoji = None;
+                type_name = Some(stock_str::sticker(context).await);
+                type_file = None;
+                append_text = true;
+            }
+            Viewtype::Video => {
+                emoji = Some("🎥");
+                type_name = Some(stock_str::video(context).await);
+                type_file = None;
+                append_text = true;
+            }
+            Viewtype::Voice => {
+                emoji = Some("🎤");
+                type_name = Some(stock_str::voice_message(context).await);
+                type_file = None;
+                append_text = true;
+            }
+            Viewtype::Audio => {
+                emoji = Some("🎵");
+                type_name = Some(stock_str::audio(context).await);
+                type_file = self.get_filename();
+                append_text = true
+            }
+            Viewtype::File => {
                 if self.param.get_cmd() == SystemMessage::AutocryptSetupMessage {
+                    emoji = None;
+                    type_name = Some(stock_str::ac_setup_msg_subject(context).await);
+                    type_file = None;
                     append_text = false;
-                    stock_str::ac_setup_msg_subject(context).await
                 } else {
-                    let file_name = self
-                        .get_filename()
-                        .unwrap_or_else(|| String::from("ErrFileName"));
-                    let label = if self.viewtype == Viewtype::Audio {
-                        stock_str::audio(context).await
-                    } else {
-                        stock_str::file(context).await
-                    };
-                    format!("{label} – {file_name}")
+                    emoji = Some("📎");
+                    type_name = Some(stock_str::file(context).await);
+                    type_file = self.get_filename();
+                    append_text = true
                 }
             }
             Viewtype::VideochatInvitation => {
+                emoji = None;
+                type_name = Some(stock_str::videochat_invitation(context).await);
+                type_file = None;
                 append_text = false;
-                stock_str::videochat_invitation(context).await
             }
             Viewtype::Webxdc => {
+                emoji = None;
+                type_name = None;
+                type_file = Some(
+                    self.get_webxdc_info(context)
+                        .await
+                        .map(|info| info.name)
+                        .unwrap_or_else(|_| "ErrWebxdcName".to_string()),
+                );
                 append_text = true;
-                self.get_webxdc_info(context)
-                    .await
-                    .map(|info| info.name)
-                    .unwrap_or_else(|_| "ErrWebxdcName".to_string())
             }
             Viewtype::Text | Viewtype::Unknown => {
-                if self.param.get_cmd() != SystemMessage::LocationOnly {
-                    "".to_string()
-                } else {
+                emoji = None;
+                if self.param.get_cmd() == SystemMessage::LocationOnly {
+                    type_name = Some(stock_str::location(context).await);
+                    type_file = None;
                     append_text = false;
-                    stock_str::location(context).await
+                } else {
+                    type_name = None;
+                    type_file = None;
+                    append_text = true;
                 }
             }
         };
 
-        if !append_text {
-            return prefix;
-        }
+        let text = self.text.clone();
 
-        let summary_content = if self.text.is_empty() {
-            prefix
-        } else if prefix.is_empty() {
-            self.text.to_string()
+        let summary = if let Some(type_file) = type_file {
+            if append_text && !text.is_empty() {
+                format!("{type_file} – {text}")
+            } else {
+                type_file
+            }
+        } else if append_text && !text.is_empty() {
+            if emoji.is_some() {
+                text
+            } else if let Some(type_name) = type_name {
+                format!("{type_name} – {text}")
+            } else {
+                text
+            }
+        } else if let Some(type_name) = type_name {
+            type_name
         } else {
-            format!("{prefix} – {}", self.text)
+            "".to_string()
+        };
+
+        let summary = if let Some(emoji) = emoji {
+            format!("{emoji} {summary}")
+        } else {
+            summary
         };
 
         let summary = if self.is_forwarded() {
-            format!(
-                "{}: {}",
-                stock_str::forwarded(context).await,
-                summary_content
-            )
+            format!("{}: {}", stock_str::forwarded(context).await, summary)
         } else {
-            summary_content
+            summary
         };
 
         summary.split_whitespace().collect::<Vec<&str>>().join(" ")
@@ -211,75 +261,99 @@ mod tests {
         );
 
         let mut msg = Message::new(Viewtype::Image);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.jpg", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Image" // file names are not added for images
+            "📷 Image" // file names are not added for images
+        );
+
+        let mut msg = Message::new(Viewtype::Image);
+        msg.set_text(some_text.to_string());
+        msg.set_file("foo.jpg", None);
+        assert_eq!(
+            msg.get_summary_text(ctx).await,
+            "📷 bla bla" // type is visible by emoji if text is set
         );
 
         let mut msg = Message::new(Viewtype::Video);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.mp4", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Video" // file names are not added for videos
+            "🎥 Video" // file names are not added for videos
+        );
+
+        let mut msg = Message::new(Viewtype::Video);
+        msg.set_text(some_text.to_string());
+        msg.set_file("foo.mp4", None);
+        assert_eq!(
+            msg.get_summary_text(ctx).await,
+            "🎥 bla bla" // type is visible by emoji if text is set
         );
 
         let mut msg = Message::new(Viewtype::Gif);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.gif", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
             "GIF" // file names are not added for GIFs
         );
 
+        let mut msg = Message::new(Viewtype::Gif);
+        msg.set_text(some_text.to_string());
+        msg.set_file("foo.gif", None);
+        assert_eq!(
+            msg.get_summary_text(ctx).await,
+            "GIF \u{2013} bla bla" // file names are not added for GIFs
+        );
+
         let mut msg = Message::new(Viewtype::Sticker);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.png", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
             "Sticker" // file names are not added for stickers
         );
 
         let mut msg = Message::new(Viewtype::Voice);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.mp3", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Voice message" // file names are not added for voice messages, empty text is skipped
-        );
-
-        let mut msg = Message::new(Viewtype::Voice);
-        msg.set_file("foo.bar", None);
-        assert_eq!(
-            msg.get_summary_text(ctx).await,
-            "Voice message" // file names are not added for voice messages
+            "🎤 Voice message" // file names are not added for voice messages
         );
 
         let mut msg = Message::new(Viewtype::Voice);
         msg.set_text(some_text.clone());
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.mp3", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Voice message \u{2013} bla bla" // `\u{2013}` explicitly checks for "EN DASH"
+            "🎤 bla bla" // `\u{2013}` explicitly checks for "EN DASH"
         );
 
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.mp3", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Audio \u{2013} foo.bar" // file name is added for audio
+            "🎵 foo.mp3" // file name is added for audio
         );
 
         let mut msg = Message::new(Viewtype::Audio);
-        msg.set_file("foo.bar", None);
+        msg.set_file("foo.mp3", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Audio \u{2013} foo.bar" // file name is added for audio, empty text is not added
+            "🎵 foo.mp3" // file name is added for audio, empty text is not added
         );
 
         let mut msg = Message::new(Viewtype::Audio);
         msg.set_text(some_text.clone());
+        msg.set_file("foo.mp3", None);
+        assert_eq!(
+            msg.get_summary_text(ctx).await,
+            "🎵 foo.mp3 \u{2013} bla bla" // file name and text added for audio
+        );
+
+        let mut msg = Message::new(Viewtype::File);
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Audio \u{2013} foo.bar \u{2013} bla bla" // file name and text added for audio
+            "📎 foo.bar" // file name is added for files
         );
 
         let mut msg = Message::new(Viewtype::File);
@@ -287,7 +361,15 @@ mod tests {
         msg.set_file("foo.bar", None);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "File \u{2013} foo.bar \u{2013} bla bla" // file name is added for files
+            "📎 foo.bar \u{2013} bla bla" // file name is added for files
+        );
+
+        let mut msg = Message::new(Viewtype::VideochatInvitation);
+        msg.set_text(some_text.clone());
+        msg.set_file("foo.bar", None);
+        assert_eq!(
+            msg.get_summary_text(ctx).await,
+            "Video chat invitation" // text is not added for videochat invitations
         );
 
         // Forwarded
@@ -305,10 +387,11 @@ mod tests {
         msg.param.set_int(Param::Forwarded, 1);
         assert_eq!(
             msg.get_summary_text(ctx).await,
-            "Forwarded: File \u{2013} foo.bar \u{2013} bla bla"
+            "Forwarded: 📎 foo.bar \u{2013} bla bla"
         );
 
         let mut msg = Message::new(Viewtype::File);
+        msg.set_text(some_text.clone());
         msg.param.set(Param::File, "foo.bar");
         msg.param.set_cmd(SystemMessage::AutocryptSetupMessage);
         assert_eq!(
