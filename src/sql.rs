@@ -684,7 +684,7 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
 
     // Avoid SQLITE_IOERR_GETTEMPPATH errors on Android and maybe other systems.
     // Downside is more RAM consumption esp. on VACUUM.
-    // Therefore, on system known to have working gettemppath(), stay with the default.
+    // Therefore, on systems known to have working default (using files), stay with that.
     if cfg!(not(target_os = "ios")) {
         conn.pragma_update(None, "temp_store", "memory")?;
     }
