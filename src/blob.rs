@@ -5,12 +5,15 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::io::Cursor;
 use std::iter::FusedIterator;
+use std::mem;
 use std::path::{Path, PathBuf};
 
 use anyhow::{format_err, Context as _, Result};
 use base64::Engine as _;
 use futures::StreamExt;
-use image::{DynamicImage, GenericImageView, ImageFormat, ImageOutputFormat};
+use image::{
+    DynamicImage, GenericImage, GenericImageView, ImageFormat, ImageOutputFormat, Pixel, Rgba,
+};
 use num_traits::FromPrimitive;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, io};
@@ -413,6 +416,8 @@ impl<'a> BlobObject<'a> {
         max_bytes: usize,
         strict_limits: bool,
     ) -> Result<Option<String>> {
+        // Add white background only to avatars to spare the CPU.
+        let mut add_white_bg = img_wh <= constants::BALANCED_AVATAR_SIZE;
         let mut no_exif = false;
         let no_exif_ref = &mut no_exif;
         let res = tokio::task::block_in_place(move || {
@@ -446,13 +451,15 @@ impl<'a> BlobObject<'a> {
             let exceeds_wh = img.width() > img_wh || img.height() > img_wh;
             let exceeds_max_bytes = nr_bytes > max_bytes as u64;
 
+            let jpeg_quality = 75;
             let fmt = ImageFormat::from_path(&blob_abs);
             let ofmt = match fmt {
                 Ok(ImageFormat::Png) if !exceeds_max_bytes => ImageOutputFormat::Png,
-                _ => {
-                    let jpeg_quality = 75;
+                Ok(ImageFormat::Jpeg) => {
+                    add_white_bg = false;
                     ImageOutputFormat::Jpeg(jpeg_quality)
                 }
+                _ => ImageOutputFormat::Jpeg(jpeg_quality),
             };
             // We need to rewrite images with Exif to remove metadata such as location,
             // camera model, etc.
@@ -463,14 +470,18 @@ impl<'a> BlobObject<'a> {
             let do_scale = exceeds_max_bytes
                 || strict_limits
                     && (exceeds_wh
-                        || exif.is_some()
-                            && encoded_img_exceeds_bytes(
+                        || exif.is_some() && {
+                            if mem::take(&mut add_white_bg) {
+                                self::add_white_bg(&mut img);
+                            }
+                            encoded_img_exceeds_bytes(
                                 context,
                                 &img,
                                 ofmt.clone(),
                                 max_bytes,
                                 &mut encoded,
-                            )?);
+                            )?
+                        });
 
             if do_scale {
                 if !exceeds_wh {
@@ -483,6 +494,9 @@ impl<'a> BlobObject<'a> {
                 }
 
                 loop {
+                    if mem::take(&mut add_white_bg) {
+                        self::add_white_bg(&mut img);
+                    }
                     let new_img = img.thumbnail(img_wh, img_wh);
 
                     if encoded_img_exceeds_bytes(
@@ -525,6 +539,9 @@ impl<'a> BlobObject<'a> {
                 }
 
                 if encoded.is_empty() {
+                    if mem::take(&mut add_white_bg) {
+                        self::add_white_bg(&mut img);
+                    }
                     encode_img(&img, ofmt, &mut encoded)?;
                 }
 
@@ -692,6 +709,17 @@ fn encoded_img_exceeds_bytes(
         return Ok(true);
     }
     Ok(false)
+}
+
+/// Removes transparency from an image using a white background.
+fn add_white_bg(img: &mut DynamicImage) {
+    for y in 0..img.height() {
+        for x in 0..img.width() {
+            let mut p = Rgba([255u8, 255, 255, 255]);
+            p.blend(&img.get_pixel(x, y));
+            img.put_pixel(x, y, p);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -907,6 +935,40 @@ mod tests {
         assert!(!stem.contains(':'));
         assert!(!stem.contains('*'));
         assert!(!stem.contains('?'));
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_add_white_bg() {
+        let t = TestContext::new().await;
+        let bytes0 = include_bytes!("../test-data/image/logo.png").as_slice();
+        let bytes1 = include_bytes!("../test-data/image/avatar900x900.png").as_slice();
+        for (bytes, color) in [
+            (bytes0, [255u8, 255, 255, 255]),
+            (bytes1, [253u8, 198, 0, 255]),
+        ] {
+            let avatar_src = t.dir.path().join("avatar.png");
+            fs::write(&avatar_src, bytes).await.unwrap();
+
+            let mut blob = BlobObject::new_from_path(&t, &avatar_src).await.unwrap();
+            let img_wh = 128;
+            let maybe_sticker = &mut false;
+            let strict_limits = true;
+            blob.recode_to_size(
+                &t,
+                blob.to_abs_path(),
+                maybe_sticker,
+                img_wh,
+                20_000,
+                strict_limits,
+            )
+            .unwrap();
+            tokio::task::block_in_place(move || {
+                let img = image::open(blob.to_abs_path()).unwrap();
+                assert!(img.width() == img_wh);
+                assert!(img.height() == img_wh);
+                assert_eq!(img.get_pixel(0, 0), Rgba(color));
+            });
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
