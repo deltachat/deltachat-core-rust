@@ -805,6 +805,12 @@ impl Context {
             self.get_config_int(Config::ShowEmails).await?.to_string(),
         );
         res.insert(
+            "save_mime_headers",
+            self.get_config_bool(Config::SaveMimeHeaders)
+                .await?
+                .to_string(),
+        );
+        res.insert(
             "download_limit",
             self.get_config_int(Config::DownloadLimit)
                 .await?
@@ -1605,7 +1611,6 @@ mod tests {
             "mail_port",
             "mail_security",
             "notify_about_wrong_pw",
-            "save_mime_headers",
             "self_reporting_id",
             "selfstatus",
             "send_server",
