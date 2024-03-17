@@ -85,7 +85,7 @@ def convert_os_to_npm_os(os):
     return os
 
 package_json = dict({
-    "name": "@deltachat/stdio-rpc-server-" + target,
+    "name": "@deltachat/stdio-rpc-server-" + convert_os_to_npm_os(os) + "-" + convert_cpu_arch_to_npm_cpu_arch(cpu_arch),
     "version": version,
     "os": [convert_os_to_npm_os(os)],
     "cpu": [convert_cpu_arch_to_npm_cpu_arch(cpu_arch)],

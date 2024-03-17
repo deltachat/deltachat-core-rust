@@ -18,6 +18,11 @@ references:
 - https://docs.npmjs.com/cli/v6/configuring-npm/package-json#cpu
 - https://docs.npmjs.com/cli/v6/configuring-npm/package-json#os
 
+When you import this package it searches for the rpc server in the following locations and order:
+1. `DELTA_CHAT_RPC_SERVER` environment variable
+2. prebuilds in npm packages
+3. in PATH, but there an additional version check is performed
+
 ## How do you built this package in CI
 
 - To build platform packages, run the `build_platform_package.py` script:
