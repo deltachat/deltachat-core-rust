@@ -677,11 +677,18 @@ fn new_connection(path: &Path, passphrase: &str) -> Result<Connection> {
         "PRAGMA cipher_memory_security = OFF; -- Too slow on Android
          PRAGMA secure_delete=on;
          PRAGMA busy_timeout = 0; -- fail immediately
-         PRAGMA temp_store=memory; -- Avoid SQLITE_IOERR_GETTEMPPATH errors on Android
          PRAGMA soft_heap_limit = 8388608; -- 8 MiB limit, same as set in Android SQLiteDatabase.
          PRAGMA foreign_keys=on;
          ",
     )?;
+
+    // Avoid SQLITE_IOERR_GETTEMPPATH errors on Android and maybe other systems.
+    // Downside is more RAM consumption esp. on VACUUM.
+    // Therefore, on systems known to have working default (using files), stay with that.
+    if cfg!(not(target_os = "ios")) {
+        conn.pragma_update(None, "temp_store", "memory")?;
+    }
+
     conn.pragma_update(None, "key", passphrase)?;
     // Try to enable auto_vacuum. This will only be
     // applied if the database is new or after successful
