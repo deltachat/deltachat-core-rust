@@ -94,6 +94,30 @@ jobs:
           path: target/${{ matrix.arch }}-apple-darwin/release/deltachat-rpc-server
           if-no-files-found: error
 
+  build_android:
+    name: Build deltachat-rpc-server for Android
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64-v8a, armeabi-v7a, x86, x86_64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build deltachat-rpc-server binaries
+        run: nix build .#deltachat-rpc-server-${{ matrix.arch }}-android
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: deltachat-rpc-server-${{ matrix.arch }}-android
+          path: result/bin/deltachat-rpc-server
+          if-no-files-found: error
+
   publish:
     name: Build wheels and upload binaries to the release
     needs: ["build_linux", "build_windows", "build_macos"]
@@ -165,6 +189,30 @@ jobs:
           name: deltachat-rpc-server-aarch64-macos
           path: deltachat-rpc-server-aarch64-macos.d
 
+      - name: Download Android binary for arm64-v8a
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-arm64-v8a-android
+          path: deltachat-rpc-server-arm64-v8a-android.d
+
+      - name: Download Android binary for armeabi-v7a
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-armeabi-v7a-android
+          path: deltachat-rpc-server-armeabi-v7a-android.d
+
+      - name: Download Android binary for x86
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-x86-android
+          path: deltachat-rpc-server-x86-android.d
+
+      - name: Download Android binary for x86_64
+        uses: actions/download-artifact@v4
+        with:
+          name: deltachat-rpc-server-x86_64-android
+          path: deltachat-rpc-server-x86_64-android.d
+
       - name: Create bin/ directory
         run: |
           mkdir -p bin
@@ -177,6 +225,10 @@ jobs:
           mv deltachat-rpc-server-win64.d/deltachat-rpc-server.exe bin/deltachat-rpc-server-win64.exe
           mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server bin/deltachat-rpc-server-x86_64-macos
           mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server bin/deltachat-rpc-server-aarch64-macos
+          mv deltachat-rpc-server-arm64-v8a-android.d/deltachat-rpc-server bin/deltachat-rpc-server-arm64-v8a-android
+          mv deltachat-rpc-server-armeabi-v7a-android.d/deltachat-rpc-server bin/deltachat-rpc-server-armeabi-v7a-android
+          mv deltachat-rpc-server-x86-android.d/deltachat-rpc-server bin/deltachat-rpc-server-x86-android
+          mv deltachat-rpc-server-x86_64-android.d/deltachat-rpc-server bin/deltachat-rpc-server-x86_64-android
 
       - name: List binaries
         run: ls -l bin/
