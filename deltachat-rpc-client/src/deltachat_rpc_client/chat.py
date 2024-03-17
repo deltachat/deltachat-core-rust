@@ -84,7 +84,9 @@ class Chat:
         self._rpc.set_chat_name(self.account.id, self.id, name)
 
     def set_ephemeral_timer(self, timer: int) -> None:
-        """Set ephemeral timer of this chat."""
+        """Set ephemeral timer of this chat in seconds.
+
+        0 means the timer is disabled, use 1 for immediate deletion."""
         self._rpc.set_chat_ephemeral_timer(self.account.id, self.id, timer)
 
     def get_encryption_info(self) -> str:
