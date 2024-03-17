@@ -5,7 +5,7 @@
     "license": "MPL-2.0",
     "main": "index.js",
     "scripts": {
-        "prepack": "node update_optional_dependencie_and_version.js"
+        "prepack": "node update_optional_dependencies_and_version.js"
     },
     "optionalDependencies": {
         "@deltachat/stdio-rpc-server-darwin-arm64": "1.136.3",
