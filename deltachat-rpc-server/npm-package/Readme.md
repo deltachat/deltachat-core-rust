@@ -1,4 +1,4 @@
-## npm backage for deltachat-rpc-server
+## npm package for deltachat-rpc-server
 
 This is the successor of `deltachat-node`,
 it does not use NAPI bindings but instead uses stdio executables
