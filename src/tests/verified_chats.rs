@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pretty_assertions::assert_eq;
 
-use crate::chat::{self, Chat, ProtectionStatus};
+use crate::chat::{self, add_contact_to_chat, Chat, ProtectionStatus};
 use crate::chatlist::Chatlist;
 use crate::config::Config;
 use crate::constants::{Chattype, DC_GCL_FOR_FORWARDING};
@@ -811,6 +811,49 @@ async fn test_create_protected_grp_multidev() -> Result<()> {
         SystemMessage::ChatProtectionEnabled
     );
     assert_eq!(get_chat_msg(alice1, group1.id, 1, 2).await.id, msg.id);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_verified_member_added_reordering() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    let fiona = &tcm.fiona().await;
+    enable_verified_oneonone_chats(&[alice, bob, fiona]).await;
+
+    let alice_fiona_contact_id = Contact::create(alice, "Fiona", "fiona@example.net").await?;
+
+    // Bob and Fiona scan Alice's QR code.
+    tcm.execute_securejoin(bob, alice).await;
+    tcm.execute_securejoin(fiona, alice).await;
+
+    // Alice creates protected group with Bob.
+    let alice_chat_id = alice
+        .create_group_with_members(ProtectionStatus::Protected, "Group", &[bob])
+        .await;
+    let alice_sent_group_promotion = alice.send_text(alice_chat_id, "I created a group").await;
+    let msg = bob.recv_msg(&alice_sent_group_promotion).await;
+    let bob_chat_id = msg.chat_id;
+
+    // Alice adds Fiona.
+    add_contact_to_chat(alice, alice_chat_id, alice_fiona_contact_id).await?;
+    let alice_sent_member_added = alice.pop_sent_msg().await;
+
+    // Bob receives "Alice added Fiona" message.
+    bob.recv_msg(&alice_sent_member_added).await;
+
+    // Bob sends a message to the group.
+    let bob_sent_message = bob.send_text(bob_chat_id, "Hi").await;
+
+    // Fiona receives message from Bob before receiving
+    // "Member added" message.
+    let fiona_received_message = fiona.recv_msg(&bob_sent_message).await;
+    assert_eq!(
+        fiona_received_message.get_text(),
+        "[The message was sent with non-verified encryption. See 'Info' for more details]"
+    );
 
     Ok(())
 }
