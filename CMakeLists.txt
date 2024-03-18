@@ -14,24 +14,14 @@ endif()
 
 add_custom_command(
 	OUTPUT
-	"target/release/libdeltachat.a"
-	"target/release/libdeltachat.${DYNAMIC_EXT}"
-	"target/release/pkgconfig/deltachat.pc"
+	"${CMAKE_BINARY_DIR}/target/release/libdeltachat.a"
+	"${CMAKE_BINARY_DIR}/target/release/libdeltachat.${DYNAMIC_EXT}"
+	"${CMAKE_BINARY_DIR}/target/release/pkgconfig/deltachat.pc"
         COMMAND
         PREFIX=${CMAKE_INSTALL_PREFIX}
         LIBDIR=${CMAKE_INSTALL_FULL_LIBDIR}
         INCLUDEDIR=${CMAKE_INSTALL_FULL_INCLUDEDIR}
-        ${CARGO} build --release --no-default-features --features jsonrpc
-
-	# Build in `deltachat-ffi` directory instead of using
-	# `--package deltachat_ffi` to avoid feature resolver version
-	# "1" bug which makes `--no-default-features` affect only
-	# `deltachat`, but not `deltachat-ffi` package.
-	#
-	# We can't enable version "2" resolver [1] because it is not
-	# stable yet on rust 1.50.0.
-	#
-	# [1] https://doc.rust-lang.org/nightly/cargo/reference/features.html#resolver-version-2-command-line-flags
+	${CARGO} build --target-dir=${CMAKE_BINARY_DIR}/target --release --no-default-features --features jsonrpc
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/deltachat-ffi
 )
 
@@ -39,12 +29,12 @@ add_custom_target(
 	lib_deltachat
 	ALL
 	DEPENDS
-	"target/release/libdeltachat.a"
-	"target/release/libdeltachat.${DYNAMIC_EXT}"
-	"target/release/pkgconfig/deltachat.pc"
+	"${CMAKE_BINARY_DIR}/target/release/libdeltachat.a"
+	"${CMAKE_BINARY_DIR}/target/release/libdeltachat.${DYNAMIC_EXT}"
+	"${CMAKE_BINARY_DIR}/target/release/pkgconfig/deltachat.pc"
 )
 
 install(FILES "deltachat-ffi/deltachat.h" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES "target/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES "target/release/libdeltachat.${DYNAMIC_EXT}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES "target/release/pkgconfig/deltachat.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+install(FILES "${CMAKE_BINARY_DIR}/target/release/libdeltachat.a" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "${CMAKE_BINARY_DIR}/target/release/libdeltachat.${DYNAMIC_EXT}" DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES "${CMAKE_BINARY_DIR}/target/release/pkgconfig/deltachat.pc" DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
