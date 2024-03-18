@@ -148,7 +148,7 @@ impl MessageObject {
                             || quote.get_viewtype() == Viewtype::Gif
                             || quote.get_viewtype() == Viewtype::Sticker
                         {
-                            match quote.get_file(context) {
+                            match quote.get_filedata_path(context) {
                                 Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
                                 None => None,
                             }
@@ -221,7 +221,7 @@ impl MessageObject {
 
             setup_code_begin: message.get_setupcodebegin(context).await,
 
-            file: match message.get_file(context) {
+            file: match message.get_filedata_path(context) {
                 Some(path_buf) => path_buf.to_str().map(|s| s.to_owned()),
                 None => None,
             }, //BLOBS
@@ -420,7 +420,7 @@ impl MessageNotificationInfo {
             Viewtype::Image | Viewtype::Gif | Viewtype::Sticker
         ) {
             message
-                .get_file(context)
+                .get_filedata_path(context)
                 .map(|path_buf| path_buf.to_str().map(|s| s.to_owned()))
                 .unwrap_or_default()
         } else {

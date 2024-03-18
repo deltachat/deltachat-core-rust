@@ -4081,12 +4081,30 @@ char*           dc_msg_get_subject            (const dc_msg_t* msg);
  *
  * Typically files are associated with images, videos, audios, documents.
  * Plain text messages do not have a file.
- * File name may be mangled. To obtain the original attachment filename use dc_msg_get_filename().
+ * The filename isn't meaningful, only the extension is preserved. To obtain the original attachment
+ * filename use dc_msg_get_filename().
  *
  * @memberof dc_msg_t
  * @param msg The message object.
  * @return The full path (with file name and extension) of the file associated with the message.
  *     If there is no file associated with the message, an empty string is returned.
+ *     NULL is never returned and the returned value must be released using dc_str_unref().
+ */
+char*           dc_msg_get_filedata_path      (const dc_msg_t* msg);
+
+
+/**
+ * Get full path to the copy of the file, associated with a message, with the original filename.
+ * Deprecated, use dc_msg_get_filedata_path() and dc_msg_get_filename() instead.
+ *
+ * Typically files are associated with images, videos, audios, documents.
+ * Plain text messages do not have a file.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The full path (with file name and extension) of the file associated with the message.
+ *     If there is no file associated with the message, an empty string is returned.
+ *     In case of an error an empty string is returned.
  *     NULL is never returned and the returned value must be released using dc_str_unref().
  */
 char*           dc_msg_get_file               (const dc_msg_t* msg);

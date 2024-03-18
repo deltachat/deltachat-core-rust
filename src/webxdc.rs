@@ -745,7 +745,7 @@ impl Message {
         context: &Context,
     ) -> Result<async_zip::read::fs::ZipFileReader> {
         let path = self
-            .get_file(context)
+            .get_filedata_path(context)
             .ok_or_else(|| format_err!("No webxdc instance file."))?;
         let path_abs = get_abs_path(context, &path);
         let archive = async_zip::read::fs::ZipFileReader::new(path_abs).await?;

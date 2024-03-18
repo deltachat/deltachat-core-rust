@@ -1,6 +1,7 @@
 //! # Messages and their identifiers.
 
-use std::collections::BTreeSet;
+use std::collections::{hash_map::DefaultHasher, BTreeSet};
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use anyhow::{ensure, format_err, Context as _, Result};
@@ -288,9 +289,14 @@ WHERE id=?;
             ret += &format!("Error: {error}");
         }
 
-        if let Some(path) = msg.get_file(context) {
+        if let Some(path) = msg.get_filedata_path(context) {
             let bytes = get_filebytes(context, &path).await?;
-            ret += &format!("\nFile: {}, {} bytes\n", path.display(), bytes);
+            ret += &format!(
+                "\nFile: {}, name: {}, {} bytes\n",
+                path.display(),
+                msg.get_filename().unwrap_or_default(),
+                bytes
+            );
         }
 
         if msg.viewtype != Viewtype::Text {
@@ -575,14 +581,49 @@ impl Message {
         None
     }
 
-    /// Returns the full path to the file associated with a message.
-    pub fn get_file(&self, context: &Context) -> Option<PathBuf> {
+    /// Returns the full path to the file associated with a message. The filename isn't meaningful,
+    /// only the extension is preserved.
+    pub fn get_filedata_path(&self, context: &Context) -> Option<PathBuf> {
         self.param.get_path(Param::File, context).unwrap_or(None)
+    }
+
+    /// Returns the full path to the copy of the file, associated with a message, with the original
+    /// filename.
+    ///
+    /// Deprecated, use `get_filedata_path()` and `get_filename()` instead.
+    pub async fn get_file(&self, context: &Context) -> Result<Option<PathBuf>> {
+        let Some(data_path) = self.get_filedata_path(context) else {
+            return Ok(None);
+        };
+        let Some(filename) = self.get_filename() else {
+            return Ok(Some(data_path));
+        };
+        if data_path.with_file_name(&filename) == data_path {
+            return Ok(Some(data_path));
+        }
+        let mut hasher = DefaultHasher::new();
+        data_path
+            .file_name()
+            .context("no filename??")?
+            .hash(&mut hasher);
+        let dirname = format!("tmp.{:016x}", hasher.finish());
+        let dir_path = context.get_blobdir().join(&dirname);
+        fs::create_dir_all(&dir_path).await?;
+        let file_path = dir_path.join(&filename);
+        let mut src = fs::OpenOptions::new().read(true).open(data_path).await?;
+        let mut dst = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&file_path)
+            .await?;
+        io::copy(&mut src, &mut dst).await?;
+        Ok(Some(file_path))
     }
 
     /// Save file copy at the user-provided path.
     pub async fn save_file(&self, context: &Context, path: &Path) -> Result<()> {
-        let path_src = self.get_file(context).context("No file")?;
+        let path_src = self.get_filedata_path(context).context("No file")?;
         let mut src = fs::OpenOptions::new().read(true).open(path_src).await?;
         let mut dst = fs::OpenOptions::new()
             .write(true)
@@ -728,8 +769,6 @@ impl Message {
     }
 
     /// Returns original filename (as shown in chat).
-    ///
-    /// To get the full path, use [`Self::get_file()`].
     pub fn get_filename(&self) -> Option<String> {
         if let Some(name) = self.param.get(Param::Filename) {
             return Some(name.to_string());
@@ -904,7 +943,7 @@ impl Message {
             return None;
         }
 
-        if let Some(filename) = self.get_file(context) {
+        if let Some(filename) = self.get_filedata_path(context) {
             if let Ok(ref buf) = read_file(context, filename).await {
                 if let Ok((typ, headers, _)) = split_armored_data(buf) {
                     if typ == pgp::armor::BlockType::Message {
@@ -1925,7 +1964,7 @@ pub enum Viewtype {
 
     /// Animated GIF message.
     /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
-    /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
+    /// and retrieved via dc_msg_get_filedata_path(), dc_msg_get_width(), dc_msg_get_height().
     Gif = 21,
 
     /// Message containing a sticker, similar to image.
@@ -1935,26 +1974,24 @@ pub enum Viewtype {
 
     /// Message containing an Audio file.
     /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
-    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
+    /// and retrieved via dc_msg_get_filedata_path(), dc_msg_get_duration().
     Audio = 40,
 
     /// A voice message that was directly recorded by the user.
     /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
     /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
-    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
+    /// and retrieved via dc_msg_get_filedata_path(), dc_msg_get_duration().
     Voice = 41,
 
     /// Video messages.
     /// File, width, height and durarion
     /// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
-    /// and retrieved via
-    /// dc_msg_get_file(), dc_msg_get_width(),
+    /// and retrieved via dc_msg_get_filedata_path(), dc_msg_get_width(),
     /// dc_msg_get_height(), dc_msg_get_duration().
     Video = 50,
 
     /// Message containing any file, eg. a PDF.
-    /// The file is set via dc_msg_set_file()
-    /// and retrieved via dc_msg_get_file().
+    /// The file is set via dc_msg_set_file() and retrieved via dc_msg_get_filedata_path().
     File = 60,
 
     /// Message is an invitation to a videochat.

@@ -440,31 +440,34 @@ class TestOfflineChat:
         assert msg.is_image()
         assert msg
         assert msg.id > 0
-        assert os.path.exists(msg.filename)
+        assert os.path.exists(msg.file_path)
         assert msg.filemime == "image/png"
 
     @pytest.mark.parametrize(
-        ("fn", "typein", "typeout"),
+        ("stem", "ext", "typein", "typeout"),
         [
-            ("r", None, "application/octet-stream"),
-            ("r.txt", None, "text/plain"),
-            ("r.txt", "text/plain", "text/plain"),
-            ("r.txt", "image/png", "image/png"),
+            ("r", "", None, "application/octet-stream"),
+            ("r", ".txt", None, "text/plain"),
+            ("r", ".txt", "text/plain", "text/plain"),
+            ("r", ".txt", "image/png", "image/png"),
         ],
     )
-    def test_message_file(self, chat1, data, lp, fn, typein, typeout):
+    def test_message_file(self, chat1, data, lp, stem, ext, typein, typeout):
         lp.sec("sending file")
+        fn = stem + ext
         fp = data.get_path(fn)
         msg = chat1.send_file(fp, typein)
         assert msg
         assert msg.id > 0
         assert msg.is_file()
-        assert os.path.exists(msg.filename)
-        assert msg.filename.endswith(msg.basename)
+        assert os.path.exists(msg.file_path)
+        assert msg.file_path.endswith(ext)
+        assert msg.filename == fn
         assert msg.filemime == typeout
         msg2 = chat1.send_file(fp, typein)
         assert msg2 != msg
-        assert msg2.filename != msg.filename
+        assert msg2.file_path != msg.file_path
+        assert msg2.filename == fn
 
     def test_create_contact(self, acfactory):
         ac1 = acfactory.get_pseudo_configured_account()
@@ -532,7 +535,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
     def test_import_export_on_encrypted_acct(self, acfactory, tmp_path):
         passphrase1 = "passphrase1"
@@ -570,7 +573,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
         ac2.shutdown()
 
@@ -587,7 +590,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
     def test_import_export_with_passphrase(self, acfactory, tmp_path):
         passphrase = "test_passphrase"
@@ -626,7 +629,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
     def test_import_encrypted_bak_into_encrypted_acct(self, acfactory, tmp_path):
         """
@@ -671,7 +674,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
         ac2.shutdown()
 
@@ -688,7 +691,7 @@ class TestOfflineChat:
         messages = chat2.get_messages()
         assert len(messages) == 2
         assert messages[0].text == "msg1"
-        assert os.path.exists(messages[1].filename)
+        assert os.path.exists(messages[1].file_path)
 
     def test_set_get_draft(self, chat1):
         msg = Message.new_empty(chat1.account, "text")
