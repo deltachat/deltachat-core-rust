@@ -163,13 +163,15 @@ arch2tags = {
 
 
 def main():
-    version = sys.argv[1]
-    if sys.argv[2] == "source":
+    with Path("Cargo.toml").open("rb") as fp:
+        cargo_manifest = tomllib.load(fp)
+    version = cargo_manifest["package"]["version"]
+    if sys.argv[1] == "source":
         filename = f"deltachat-rpc-server-{version}.tar.gz"
         build_source_package(version, filename)
     else:
-        arch = sys.argv[2]
-        executable = sys.argv[3]
+        arch = sys.argv[1]
+        executable = sys.argv[2]
         tags = arch2tags[arch]
 
         if arch in ["win32", "win64"]:

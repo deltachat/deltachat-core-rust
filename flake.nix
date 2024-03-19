@@ -268,6 +268,7 @@
                     "scripts/wheel-rpc-server.py"
                     "deltachat-rpc-server/README.md"
                     "LICENSE"
+                    "Cargo.toml"
                   ];
                 };
                 nativeBuildInputs = [
@@ -280,7 +281,7 @@
                 buildPhase = ''
                   mkdir tmp
                   cp ${rpc-server}/bin/deltachat-rpc-server tmp/deltachat-rpc-server
-                  python3 scripts/wheel-rpc-server.py ${manifest.version} ${arch} tmp/deltachat-rpc-server
+                  python3 scripts/wheel-rpc-server.py ${arch} tmp/deltachat-rpc-server
                 '';
                 installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-*.whl $out'';
               };
@@ -311,6 +312,7 @@
                     "scripts/wheel-rpc-server.py"
                     "deltachat-rpc-server/README.md"
                     "LICENSE"
+                    "Cargo.toml"
                   ];
                 };
                 nativeBuildInputs = [
@@ -323,7 +325,7 @@
                 buildPhase = ''
                   mkdir tmp
                   cp ${deltachat-rpc-server-win64}/bin/deltachat-rpc-server.exe tmp/deltachat-rpc-server.exe
-                  python3 scripts/wheel-rpc-server.py ${manifest.version} win64 tmp/deltachat-rpc-server.exe
+                  python3 scripts/wheel-rpc-server.py win64 tmp/deltachat-rpc-server.exe
                 '';
                 installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-*.whl $out'';
               };
@@ -340,6 +342,7 @@
                     "scripts/wheel-rpc-server.py"
                     "deltachat-rpc-server/README.md"
                     "LICENSE"
+                    "Cargo.toml"
                   ];
                 };
                 nativeBuildInputs = [
@@ -352,7 +355,7 @@
                 buildPhase = ''
                   mkdir tmp
                   cp ${deltachat-rpc-server-win32}/bin/deltachat-rpc-server.exe tmp/deltachat-rpc-server.exe
-                  python3 scripts/wheel-rpc-server.py ${manifest.version} win32 tmp/deltachat-rpc-server.exe
+                  python3 scripts/wheel-rpc-server.py win32 tmp/deltachat-rpc-server.exe
                 '';
                 installPhase = ''mkdir -p $out; cp -av deltachat_rpc_server-*.whl $out'';
               };
@@ -405,7 +408,7 @@
                   pkgs.python3
                   pkgs.python3Packages.wheel
                 ];
-                buildPhase = ''python3 scripts/wheel-rpc-server.py ${manifest.version} source deltachat-rpc-server-${manifest.version}.tar.gz'';
+                buildPhase = ''python3 scripts/wheel-rpc-server.py source deltachat-rpc-server-${manifest.version}.tar.gz'';
                 installPhase = ''mkdir -p $out; cp -av deltachat-rpc-server-${manifest.version}.tar.gz $out'';
               };
 
