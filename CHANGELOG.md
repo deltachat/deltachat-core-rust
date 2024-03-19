@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.136.6] - 2024-03-19
+
+### Build system
+
+- Add description to deltachat-rpc-server wheels.
+- Read version from Cargo.toml in wheel-rpc-server.py.
+
+### CI
+
+- Update actions/cache from v3 to v4.
+- Automate publishing of deltachat-rpc-server to PyPI.
+
+### Documentation
+
+- deltachat-rpc-server: Update deltachat-rpc-client URL.
+
+### Miscellaneous Tasks
+
+- Nix flake update.
+
 ## [1.136.5] - 2024-03-18
 
 ### Features / Changes
@@ -3741,3 +3761,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.2...v1.136.3
 [1.136.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.3...v1.136.4
 [1.136.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.4...v1.136.5
+[1.136.6]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.5...v1.136.6
