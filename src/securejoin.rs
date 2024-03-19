@@ -23,6 +23,7 @@ use crate::stock_str;
 use crate::sync::Sync::*;
 use crate::token;
 use crate::tools::time;
+use crate::ui_events;
 
 mod bob;
 mod bobstate;
@@ -680,6 +681,7 @@ async fn secure_connection_established(
         )
         .await?;
     context.emit_event(EventType::ChatModified(chat_id));
+    ui_events::emit_chatlist_item_changed(context, chat_id);
     Ok(())
 }
 

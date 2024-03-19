@@ -30,6 +30,7 @@ use crate::tools::{
     buf_compress, buf_decompress, get_filebytes, get_filemeta, gm2local_offset, read_file, time,
     timestamp_to_str, truncate,
 };
+use crate::ui_events;
 
 /// Message ID, including reserved IDs.
 ///
@@ -138,6 +139,7 @@ WHERE id=?;
             chat_id,
             msg_id: self,
         });
+        ui_events::emit_chatlist_item_changed(context, chat_id);
         Ok(())
     }
 
@@ -1518,9 +1520,12 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
 
     for modified_chat_id in modified_chat_ids {
         context.emit_msgs_changed(modified_chat_id, MsgId::new(0));
+        ui_events::emit_chatlist_item_changed(context, modified_chat_id);
     }
 
     if !msg_ids.is_empty() {
+        context.emit_msgs_changed_without_ids();
+        ui_events::emit_chatlist_changed(context);
         // Run housekeeping to delete unused blobs.
         context
             .set_config_internal(Config::LastHousekeeping, None)
@@ -1655,6 +1660,7 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> Result<()>
 
     for updated_chat_id in updated_chat_ids {
         context.emit_event(EventType::MsgsNoticed(updated_chat_id));
+        ui_events::emit_chatlist_item_changed(context, updated_chat_id);
     }
 
     Ok(())
@@ -1715,6 +1721,7 @@ pub(crate) async fn set_msg_failed(
         chat_id: msg.chat_id,
         msg_id: msg.id,
     });
+    ui_events::emit_chatlist_item_changed(context, msg.chat_id);
 
     Ok(())
 }
