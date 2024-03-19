@@ -301,7 +301,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
                 let href = href
                     .decode_and_unescape_value(reader)
                     .unwrap_or_default()
-                    .to_lowercase();
+                    .to_string();
 
                 if !href.is_empty() {
                     dehtml.last_href = Some(href);
