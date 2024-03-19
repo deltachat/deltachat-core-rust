@@ -97,7 +97,11 @@ jobs:
   publish:
     name: Build wheels and upload binaries to the release
     needs: ["build_linux", "build_windows", "build_macos"]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/deltachat-rpc-server
     permissions:
+      id-token: write
       contents: write
     runs-on: "ubuntu-latest"
     steps:
@@ -161,18 +165,21 @@ jobs:
           name: deltachat-rpc-server-aarch64-macos
           path: deltachat-rpc-server-aarch64-macos.d
 
-      - name: Flatten dist/ directory
+      - name: Create bin/ directory
         run: |
-          mkdir -p dist
-          mv deltachat-rpc-server-aarch64-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-linux
-          mv deltachat-rpc-server-armv7l-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-armv7l-linux
-          mv deltachat-rpc-server-armv6l-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-armv6l-linux
-          mv deltachat-rpc-server-i686-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-i686-linux
-          mv deltachat-rpc-server-x86_64-linux.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-linux
-          mv deltachat-rpc-server-win32.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win32.exe
-          mv deltachat-rpc-server-win64.d/deltachat-rpc-server.exe dist/deltachat-rpc-server-win64.exe
-          mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-x86_64-macos
-          mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server dist/deltachat-rpc-server-aarch64-macos
+          mkdir -p bin
+          mv deltachat-rpc-server-aarch64-linux.d/deltachat-rpc-server bin/deltachat-rpc-server-aarch64-linux
+          mv deltachat-rpc-server-armv7l-linux.d/deltachat-rpc-server bin/deltachat-rpc-server-armv7l-linux
+          mv deltachat-rpc-server-armv6l-linux.d/deltachat-rpc-server bin/deltachat-rpc-server-armv6l-linux
+          mv deltachat-rpc-server-i686-linux.d/deltachat-rpc-server bin/deltachat-rpc-server-i686-linux
+          mv deltachat-rpc-server-x86_64-linux.d/deltachat-rpc-server bin/deltachat-rpc-server-x86_64-linux
+          mv deltachat-rpc-server-win32.d/deltachat-rpc-server.exe bin/deltachat-rpc-server-win32.exe
+          mv deltachat-rpc-server-win64.d/deltachat-rpc-server.exe bin/deltachat-rpc-server-win64.exe
+          mv deltachat-rpc-server-x86_64-macos.d/deltachat-rpc-server bin/deltachat-rpc-server-x86_64-macos
+          mv deltachat-rpc-server-aarch64-macos.d/deltachat-rpc-server bin/deltachat-rpc-server-aarch64-macos
+
+      - name: List binaries
+        run: ls -l bin/
 
       # Python 3.11 is needed for tomllib used in scripts/wheel-rpc-server.py
       - name: Install python 3.12
@@ -185,6 +192,7 @@ jobs:
 
       - name: Build deltachat-rpc-server Python wheels and source package
         run: |
+          mkdir -p dist
           nix build .#deltachat-rpc-server-x86_64-linux-wheel
           cp result/*.whl dist/
           nix build .#deltachat-rpc-server-armv7l-linux-wheel
@@ -201,8 +209,8 @@ jobs:
           cp result/*.whl dist/
           nix build .#deltachat-rpc-server-source
           cp result/*.tar.gz dist/
-          python3 scripts/wheel-rpc-server.py 1.136.3 x86_64-darwin dist/deltachat-rpc-server-x86_64-macos
-          python3 scripts/wheel-rpc-server.py 1.136.3 aarch64-darwin dist/deltachat-rpc-server-aarch64-macos
+          python3 scripts/wheel-rpc-server.py x86_64-darwin bin/deltachat-rpc-server-x86_64-macos
+          python3 scripts/wheel-rpc-server.py aarch64-darwin bin/deltachat-rpc-server-aarch64-macos
           mv *.whl dist/
 
       - name: List artifacts
@@ -215,4 +223,8 @@ jobs:
         run: |
           gh release upload ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            dist/*
+            bin/* dist/*
+
+      - name: Publish deltachat-rpc-client to PyPI
+        if: github.event_name == 'release'
+        uses: pypa/gh-action-pypi-publish@release/v1
