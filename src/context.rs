@@ -1395,7 +1395,7 @@ mod tests {
              \n\
              hello\n",
             contact.get_addr(),
-            create_outgoing_rfc724_mid(contact.get_addr())
+            create_outgoing_rfc724_mid()
         );
         println!("{msg}");
         receive_imf(t, msg.as_bytes(), false).await.unwrap();

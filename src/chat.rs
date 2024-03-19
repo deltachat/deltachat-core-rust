@@ -1793,8 +1793,7 @@ impl Chat {
         let mut to_id = 0;
         let mut location_id = 0;
 
-        let from = context.get_primary_self_addr().await?;
-        let new_rfc724_mid = create_outgoing_rfc724_mid(&from);
+        let new_rfc724_mid = create_outgoing_rfc724_mid();
 
         if self.typ == Chattype::Single {
             if let Some(id) = context
@@ -4150,7 +4149,7 @@ pub async fn add_device_msg_with_importance(
     if let Some(msg) = msg {
         chat_id = ChatId::get_for_contact(context, ContactId::DEVICE).await?;
 
-        let rfc724_mid = create_outgoing_rfc724_mid("@device");
+        let rfc724_mid = create_outgoing_rfc724_mid();
         prepare_msg_blob(context, msg).await?;
 
         let timestamp_sent = create_smeared_timestamp(context);
@@ -4290,7 +4289,7 @@ pub(crate) async fn add_info_msg_with_cmd(
     parent: Option<&Message>,
     from_id: Option<ContactId>,
 ) -> Result<MsgId> {
-    let rfc724_mid = create_outgoing_rfc724_mid("@device");
+    let rfc724_mid = create_outgoing_rfc724_mid();
     let ephemeral_timer = chat_id.get_ephemeral_timer(context).await?;
 
     let mut param = Params::new();

@@ -556,7 +556,7 @@ impl<'a> MimeFactory<'a> {
 
         let rfc724_mid = match self.loaded {
             Loaded::Message { .. } => self.msg.rfc724_mid.clone(),
-            Loaded::Mdn { .. } => create_outgoing_rfc724_mid(&self.from_addr),
+            Loaded::Mdn { .. } => create_outgoing_rfc724_mid(),
         };
         let rfc724_mid_headervalue = render_rfc724_mid(&rfc724_mid);
         let rfc724_mid_header = Header::new("Message-ID".into(), rfc724_mid_headervalue);

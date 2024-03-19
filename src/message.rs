@@ -2016,7 +2016,7 @@ mod tests {
         assert_eq!(_msg2.get_filemime(), None);
     }
 
-    /// Tests that message cannot be prepared if account has no configured address.
+    /// Tests that message can be prepared even if account has no configured address.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_prepare_not_configured() {
         let d = test::TestContext::new().await;
@@ -2026,7 +2026,7 @@ mod tests {
 
         let mut msg = Message::new(Viewtype::Text);
 
-        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_err());
+        assert!(chat::prepare_msg(ctx, chat.id, &mut msg).await.is_ok());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
