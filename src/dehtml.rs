@@ -464,6 +464,13 @@ mod tests {
     }
 
     #[test]
+    fn test_dehtml_case_sensitive_link() {
+        let html = "<html><A HrEf=\"https://foo.bar/Data\">case in URLs matter</A></html>";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "[case in URLs matter](https://foo.bar/Data)");
+    }
+
+    #[test]
     fn test_dehtml_bold_text() {
         let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
         let plain = dehtml(html).unwrap().text;
