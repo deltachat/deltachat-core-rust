@@ -101,17 +101,15 @@ pub enum EventType {
     /// There is a fresh message. Typically, the user will show an notification
     /// when receiving this message.
     ///
-    /// There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
+    /// There is no extra #DC_EVENT_MSGS_CHANGED event sent together with this event.
     #[serde(rename_all = "camelCase")]
     IncomingMsg { chat_id: u32, msg_id: u32 },
 
-    /// Downloading a bunch of messages just finished. This is an experimental
+    /// Downloading a bunch of messages just finished. This is an
     /// event to allow the UI to only show one notification per message bunch,
     /// instead of cluttering the user with many notifications.
-    ///
-    /// msg_ids contains the message ids.
     #[serde(rename_all = "camelCase")]
-    IncomingMsgBunch { msg_ids: Vec<u32> },
+    IncomingMsgBunch,
 
     /// Messages were seen or noticed.
     /// chat id is always set.
@@ -287,9 +285,7 @@ impl From<CoreEventType> for EventType {
                 chat_id: chat_id.to_u32(),
                 msg_id: msg_id.to_u32(),
             },
-            CoreEventType::IncomingMsgBunch { msg_ids } => IncomingMsgBunch {
-                msg_ids: msg_ids.into_iter().map(|id| id.to_u32()).collect(),
-            },
+            CoreEventType::IncomingMsgBunch => IncomingMsgBunch,
             CoreEventType::MsgsNoticed(chat_id) => MsgsNoticed {
                 chat_id: chat_id.to_u32(),
             },

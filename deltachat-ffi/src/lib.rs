@@ -719,7 +719,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::WebxdcStatusUpdate { .. }
         | EventType::WebxdcInstanceDeleted { .. }
         | EventType::AccountsBackgroundFetchDone
-        | EventType::ChatEphemeralTimerModified { .. } => ptr::null_mut(),
+        | EventType::ChatEphemeralTimerModified { .. }
+        | EventType::IncomingMsgBunch { .. } => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
                 comment.to_c_string().unwrap_or_default().into_raw()
@@ -731,11 +732,6 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
             let data2 = file.to_c_string().unwrap_or_default();
             data2.into_raw()
         }
-        EventType::IncomingMsgBunch { msg_ids } => serde_json::to_string(msg_ids)
-            .unwrap_or_default()
-            .to_c_string()
-            .unwrap_or_default()
-            .into_raw(),
         EventType::ConfigSynced { key } => {
             let data2 = key.to_string().to_c_string().unwrap_or_default();
             data2.into_raw()
