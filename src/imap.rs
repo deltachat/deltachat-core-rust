@@ -717,12 +717,8 @@ impl Imap {
 
         info!(context, "{} mails read from \"{}\".", read_cnt, folder);
 
-        let msg_ids: Vec<MsgId> = received_msgs
-            .iter()
-            .flat_map(|m| m.msg_ids.clone())
-            .collect();
-        if !msg_ids.is_empty() {
-            context.emit_event(EventType::IncomingMsgBunch { msg_ids });
+        if !received_msgs.is_empty() {
+            context.emit_event(EventType::IncomingMsgBunch);
         }
 
         chat::mark_old_messages_as_noticed(context, received_msgs).await?;

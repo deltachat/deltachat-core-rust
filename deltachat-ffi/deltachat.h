@@ -6074,10 +6074,12 @@ void dc_event_unref(dc_event_t* event);
  * Downloading a bunch of messages just finished. This is an
  * event to allow the UI to only show one notification per message bunch,
  * instead of cluttering the user with many notifications.
- * For each of the msg_ids, an additional #DC_EVENT_INCOMING_MSG event was emitted before.
+ * UI may store #DC_EVENT_INCOMING_MSG events
+ * and display notifications for all messages at once
+ * when this event arrives.
  * 
  * @param data1 0
- * @param data2 (char*) msg_ids, a json object with the message ids.
+ * @param data2 0
  */
 #define DC_EVENT_INCOMING_MSG_BUNCH       2006
 

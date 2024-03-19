@@ -107,10 +107,7 @@ pub enum EventType {
     },
 
     /// Downloading a bunch of messages just finished.
-    IncomingMsgBunch {
-        /// List of incoming message IDs.
-        msg_ids: Vec<MsgId>,
-    },
+    IncomingMsgBunch,
 
     /// Messages were seen or noticed.
     /// chat id is always set.
