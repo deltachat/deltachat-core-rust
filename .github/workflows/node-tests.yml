@@ -38,7 +38,7 @@ jobs:
           node --version
 
       - name: Cache node modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.APPDATA }}/npm-cache
@@ -46,7 +46,7 @@ jobs:
           key: ${{ matrix.os }}-node-${{ hashFiles('**/package.json') }}
 
       - name: Cache cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/
