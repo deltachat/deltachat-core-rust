@@ -301,7 +301,7 @@ fn dehtml_starttag_cb<B: std::io::BufRead>(
                 let href = href
                     .decode_and_unescape_value(reader)
                     .unwrap_or_default()
-                    .to_lowercase();
+                    .to_string();
 
                 if !href.is_empty() {
                     dehtml.last_href = Some(href);
@@ -461,6 +461,13 @@ mod tests {
         let plain = dehtml(html).unwrap().text;
 
         assert_eq!(plain, "[text](url)");
+    }
+
+    #[test]
+    fn test_dehtml_case_sensitive_link() {
+        let html = "<html><A HrEf=\"https://foo.bar/Data\">case in URLs matter</A></html>";
+        let plain = dehtml(html).unwrap().text;
+        assert_eq!(plain, "[case in URLs matter](https://foo.bar/Data)");
     }
 
     #[test]
