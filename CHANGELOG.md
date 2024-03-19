@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.136.5] - 2024-03-18
+
+### Features / Changes
+
+- Nicer summaries: prefer emoji over names
+- Add `save_mime_headers` to debug info ([#5350](https://github.com/deltachat/deltachat-core-rust/pull/5350))
+
+### Fixes
+
+- Terminate ephemeral and location loop immediately on channel close.
+- Update MemberListTimestamp when sending a group message.
+- On iOS, use FILE (default) instead of MEMORY ([#5349](https://github.com/deltachat/deltachat-core-rust/pull/5349)).
+- Add white background to recoded avatars ([#3787](https://github.com/deltachat/deltachat-core-rust/pull/3787)).
+
+### Build system
+
+- Add README to deltachat-rpc-client Python packages.
+
+### Documentation
+
+- deltachat-rpc-client: Document that 0 is a special value of `set_ephemeral_timer()`.
+
+### Tests
+
+- Test that reordering of Member added message results in square bracket error.
+
 ## [1.136.4] - 2024-03-11
 
 ### Build system
@@ -3714,3 +3740,4 @@ https://github.com/deltachat/deltachat-core-rust/pulls?q=is%3Apr+is%3Aclosed
 [1.136.2]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.1...v1.136.2
 [1.136.3]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.2...v1.136.3
 [1.136.4]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.3...v1.136.4
+[1.136.5]: https://github.com/deltachat/deltachat-core-rust/compare/v1.136.4...v1.136.5
