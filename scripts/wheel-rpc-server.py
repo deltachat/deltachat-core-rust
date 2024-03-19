@@ -9,10 +9,14 @@ from io import BytesIO
 
 
 def metadata_contents(version):
+    readme_text = (Path("deltachat-rpc-server") / "README.md").read_text()
     return f"""Metadata-Version: 2.1
 Name: deltachat-rpc-server
 Version: {version}
 Summary: Delta Chat JSON-RPC server
+Description-Content-Type: text/markdown
+
+{readme_text}
 """
 
 
@@ -124,9 +128,11 @@ def main():
         Path(binary).chmod(0o755)
         wheel.write(
             binary,
-            "deltachat_rpc_server/deltachat-rpc-server.exe"
-            if windows
-            else "deltachat_rpc_server/deltachat-rpc-server",
+            (
+                "deltachat_rpc_server/deltachat-rpc-server.exe"
+                if windows
+                else "deltachat_rpc_server/deltachat-rpc-server"
+            ),
         )
         wheel.writestr(
             f"deltachat_rpc_server-{version}.dist-info/METADATA",
