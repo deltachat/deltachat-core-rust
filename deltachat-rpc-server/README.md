@@ -30,7 +30,7 @@ deltachat-rpc-server
 The common use case for this program is to create bindings to use Delta Chat core from programming
 languages other than Rust, for example:
 
-1. Python: https://github.com/deltachat/deltachat-core-rust/tree/master/deltachat-rpc-client/
+1. Python: https://pypi.org/project/deltachat-rpc-client/
 2. Go: https://github.com/deltachat/deltachat-rpc-client-go/
 
 Run `deltachat-rpc-server --version` to check the version of the server.
