@@ -564,8 +564,8 @@ pub unsafe extern "C" fn dc_event_get_id(event: *mut dc_event_t) -> libc::c_int 
         EventType::WebxdcStatusUpdate { .. } => 2120,
         EventType::WebxdcInstanceDeleted { .. } => 2121,
         EventType::AccountsBackgroundFetchDone => 2200,
-        EventType::UIChatListChanged => 2300,
-        EventType::UIChatListItemChanged { .. } => 2301,
+        EventType::ChatListChanged => 2300,
+        EventType::ChatListItemChanged { .. } => 2301,
     }
 }
 
@@ -595,7 +595,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         | EventType::IncomingMsgBunch { .. }
         | EventType::ErrorSelfNotInGroup(_)
         | EventType::AccountsBackgroundFetchDone => 0,
-        | EventType::UIChatListChanged => 0,
+        | EventType::ChatListChanged => 0,
         EventType::MsgsChanged { chat_id, .. }
         | EventType::ReactionsChanged { chat_id, .. }
         | EventType::IncomingMsg { chat_id, .. }
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn dc_event_get_data1_int(event: *mut dc_event_t) -> libc:
         }
         EventType::WebxdcStatusUpdate { msg_id, .. } => msg_id.to_u32() as libc::c_int,
         EventType::WebxdcInstanceDeleted { msg_id, .. } => msg_id.to_u32() as libc::c_int,
-        EventType::UIChatListItemChanged { chat_id } => {
+        EventType::ChatListItemChanged { chat_id } => {
             chat_id.unwrap_or_default().to_u32() as libc::c_int
         }
     }
@@ -659,8 +659,8 @@ pub unsafe extern "C" fn dc_event_get_data2_int(event: *mut dc_event_t) -> libc:
         | EventType::IncomingMsgBunch { .. }
         | EventType::SelfavatarChanged
         | EventType::AccountsBackgroundFetchDone
-        | EventType::UIChatListChanged
-        | EventType::UIChatListItemChanged { .. }
+        | EventType::ChatListChanged
+        | EventType::ChatListItemChanged { .. }
         | EventType::ConfigSynced { .. } => 0,
         EventType::ChatModified(_) => 0,
         EventType::MsgsChanged { msg_id, .. }
@@ -726,8 +726,8 @@ pub unsafe extern "C" fn dc_event_get_data2_str(event: *mut dc_event_t) -> *mut 
         | EventType::AccountsBackgroundFetchDone
         | EventType::ChatEphemeralTimerModified { .. }
         | EventType::IncomingMsgBunch { .. }
-        | EventType::UIChatListItemChanged { .. }
-        | EventType::UIChatListChanged => ptr::null_mut(),
+        | EventType::ChatListItemChanged { .. }
+        | EventType::ChatListChanged => ptr::null_mut(),
         EventType::ConfigureProgress { comment, .. } => {
             if let Some(comment) = comment {
                 comment.to_c_string().unwrap_or_default().into_raw()
