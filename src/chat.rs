@@ -2742,17 +2742,8 @@ async fn prepare_send_msg(
 /// The caller has to interrupt SMTP loop or otherwise process new rows.
 pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -> Result<Vec<i64>> {
     let needs_encryption = msg.param.get_bool(Param::GuaranteeE2ee).unwrap_or_default();
-
-    let attach_selfavatar = match shall_attach_selfavatar(context, msg.chat_id).await {
-        Ok(attach_selfavatar) => attach_selfavatar,
-        Err(err) => {
-            warn!(context, "SMTP job cannot get selfavatar-state: {err:#}.");
-            false
-        }
-    };
-
-    let mimefactory = MimeFactory::from_msg(context, msg, attach_selfavatar).await?;
-
+    let mimefactory = MimeFactory::from_msg(context, msg).await?;
+    let attach_selfavatar = mimefactory.attach_selfavatar;
     let mut recipients = mimefactory.recipients();
 
     let from = context.get_primary_self_addr().await?;

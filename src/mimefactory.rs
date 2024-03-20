@@ -10,7 +10,7 @@ use lettre_email::{Address, Header, MimeMultipartType, PartBuilder};
 use tokio::fs;
 
 use crate::blob::BlobObject;
-use crate::chat::Chat;
+use crate::chat::{self, Chat};
 use crate::config::Config;
 use crate::constants::{Chattype, DC_FROM_HANDSHAKE};
 use crate::contact::Contact;
@@ -83,7 +83,7 @@ pub struct MimeFactory<'a> {
     sync_ids_to_delete: Option<String>,
 
     /// True if the avatar should be attached.
-    attach_selfavatar: bool,
+    pub attach_selfavatar: bool,
 }
 
 /// Result of rendering a message, ready to be submitted to a send job.
@@ -138,11 +138,7 @@ struct MessageHeaders {
 }
 
 impl<'a> MimeFactory<'a> {
-    pub async fn from_msg(
-        context: &Context,
-        msg: &'a Message,
-        attach_selfavatar: bool,
-    ) -> Result<MimeFactory<'a>> {
+    pub async fn from_msg(context: &Context, msg: &'a Message) -> Result<MimeFactory<'a>> {
         let chat = Chat::load_from_db(context, msg.chat_id).await?;
 
         let from_addr = context.get_primary_self_addr().await?;
@@ -217,6 +213,7 @@ impl<'a> MimeFactory<'a> {
                 },
             )
             .await?;
+        let attach_selfavatar = Self::should_attach_selfavatar(context, msg).await;
 
         let factory = MimeFactory {
             from_addr,
@@ -389,6 +386,31 @@ impl<'a> MimeFactory<'a> {
                 }
             }
             Loaded::Mdn { .. } => Ok(false),
+        }
+    }
+
+    async fn should_attach_selfavatar(context: &Context, msg: &Message) -> bool {
+        let cmd = msg.param.get_cmd();
+        (cmd != SystemMessage::SecurejoinMessage || {
+            let step = msg.param.get(Param::Arg).unwrap_or_default();
+            // Don't attach selfavatar at the earlier SecureJoin steps:
+            // - The corresponding messages, i.e. "v{c,g}-request" and "v{c,g}-auth-required" are
+            //   deleted right after processing, so other devices won't see the avatar.
+            // - It's also good for privacy because the contact isn't yet verified and these
+            //   messages are auto-sent unlike usual unencrypted messages.
+            step == "vg-request-with-auth"
+                || step == "vc-request-with-auth"
+                || step == "vg-member-added"
+                || step == "vc-contact-confirm"
+        }) && match chat::shall_attach_selfavatar(context, msg.chat_id).await {
+            Ok(should) => should,
+            Err(err) => {
+                warn!(
+                    context,
+                    "should_attach_selfavatar: cannot get selfavatar state: {err:#}."
+                );
+                false
+            }
         }
     }
 
@@ -1836,7 +1858,7 @@ mod tests {
                  Original-Message-ID: <2893@example.com>\n\
                  Disposition: manual-action/MDN-sent-automatically; displayed\n\
                  \n", &t).await;
-        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg).await.unwrap();
         // The subject string should not be "Re: message opened"
         assert_eq!("Re: Hello, Bob", mf.subject_str(&t).await.unwrap());
     }
@@ -1971,7 +1993,7 @@ mod tests {
         new_msg.chat_id = chat_id;
         chat::prepare_msg(&t, chat_id, &mut new_msg).await.unwrap();
 
-        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg).await.unwrap();
 
         mf.subject_str(&t).await.unwrap()
     }
@@ -2056,7 +2078,7 @@ mod tests {
             new_msg.set_quote(&t, Some(&incoming_msg)).await.unwrap();
         }
 
-        let mf = MimeFactory::from_msg(&t, &new_msg, false).await.unwrap();
+        let mf = MimeFactory::from_msg(&t, &new_msg).await.unwrap();
         mf.subject_str(&t).await.unwrap()
     }
 
@@ -2104,7 +2126,7 @@ mod tests {
         )
         .await;
 
-        let mimefactory = MimeFactory::from_msg(&t, &msg, false).await.unwrap();
+        let mimefactory = MimeFactory::from_msg(&t, &msg).await.unwrap();
 
         let recipients = mimefactory.recipients();
         assert_eq!(recipients, vec!["charlie@example.com"]);
