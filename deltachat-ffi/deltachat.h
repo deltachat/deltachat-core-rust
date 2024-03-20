@@ -6216,7 +6216,7 @@ void dc_event_unref(dc_event_t* event);
 #define DC_EVENT_ACCOUNTS_BACKGROUND_FETCH_DONE   2200
 
 /**
- * Inform UI that Order (and content as in chat ids) of the chatlist changed.
+ * Inform UI that order (and content as in chat ids) of the chatlist changed.
  *
  * Sometimes this is emitted together with `DC_EVENT_UI_CHATLIST_ITEM_CHANGED` such as on `DC_EVENT_INCOMING_MSG`.
  */
