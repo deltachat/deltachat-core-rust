@@ -291,7 +291,7 @@ pub enum EventType {
     ///
     /// This event is only emitted by the account manager
     AccountsBackgroundFetchDone,
-    /// Inform UI that Order (and content as in chat ids) of the chatlist changed.
+    /// Inform UI that Order (and content as in chat ids, NOT the actual content of the ChatListItem) of the chatlist changed.
     ///
     /// Sometimes this is emitted together with `UIChatListItemChanged` such as on IncomingMessage.
     UIChatListChanged,
