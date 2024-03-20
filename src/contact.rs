@@ -1816,7 +1816,8 @@ impl RecentlySeenLoop {
                             ui_events::emit_chatlist_item_changed_for_contact_chat(
                                 &context,
                                 *contact_id,
-                            ).await;
+                            )
+                            .await;
                             unseen_queue.pop();
                         }
                     }
@@ -1849,10 +1850,8 @@ impl RecentlySeenLoop {
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {
                     context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                    ui_events::emit_chatlist_item_changed_for_contact_chat(
-                        &context,
-                        *contact_id,
-                    ).await;
+                    ui_events::emit_chatlist_item_changed_for_contact_chat(&context, *contact_id)
+                        .await;
                 }
                 unseen_queue.pop();
             }
