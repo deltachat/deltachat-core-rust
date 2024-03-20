@@ -1,3 +1,6 @@
+use std::fmt::format;
+
+use anyhow::Result;
 use futures::executor::block_on;
 
 use crate::{chat::ChatId, contact::ContactId, context::Context, EventType};
@@ -25,15 +28,17 @@ fn emit_unknown_chatlist_items_changed(context: &Context) {
 
 /// update event for the 1:1 chat with the contact
 /// used when recently seen changes and when profile image changes
-pub(crate) fn emit_chatlist_item_changed_for_contact_chat(
+pub(crate) async fn emit_chatlist_item_changed_for_contact_chat(
     context: &Context,
     contact_id: ContactId,
 ) {
-    block_on(async {
-        if let Ok(Some(chat_id)) = ChatId::lookup_by_contact(context, contact_id).await {
-            self::emit_chatlist_item_changed(context, chat_id);
-        }
-    });
+    match ChatId::lookup_by_contact(context, contact_id).await {
+        Ok(Some(chat_id)) => self::emit_chatlist_item_changed(context, chat_id),
+        Ok(None) => {}
+        Err(error) => context.emit_event(EventType::Error(format!(
+            "failed to find chat id for contact for chatlist event: {error:?}"
+        ))),
+    }
 }
 
 /// update items for chats that have the contact
