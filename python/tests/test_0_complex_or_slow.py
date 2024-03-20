@@ -547,13 +547,14 @@ def test_see_new_verified_member_after_going_online(acfactory, tmp_path, lp):
     assert msg_in.get_sender_contact().addr == ac2_addr
 
 
-def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
+def test_use_new_verified_group_after_going_online(acfactory, data, tmp_path, lp):
     """Another test for the bug #3836:
     - Bob has two devices, the second is offline.
     - Alice creates a verified group and sends a QR invitation to Bob.
     - Bob joins the group.
     - Bob's second devices goes online, but sees a contact request instead of the verified group.
     - The "member added" message is not a system message but a plain text message.
+    - Bob's second device doesn't display the Alice's avatar (bug #5354).
     - Sending a message fails as the key is missing -- message info says "proper enc-key for <Alice>
       missing, cannot encrypt".
     """
@@ -568,6 +569,10 @@ def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
     ac2_offl.import_self_keys(str(dir))
     ac2_offl.stop_io()
 
+    lp.sec("ac1: set avatar")
+    avatar_path = data.get_path("d.png")
+    ac1.set_avatar(avatar_path)
+
     lp.sec("ac1: create verified-group QR, ac2 scans and joins")
     chat = ac1.create_group_chat("hello", verified=True)
     assert chat.is_protected()
@@ -580,11 +585,13 @@ def test_use_new_verified_group_after_going_online(acfactory, tmp_path, lp):
     ac2_offl.start_io()
     # Receive "Member Me (<addr>) added by <addr>." message.
     msg_in = ac2_offl._evtracker.wait_next_incoming_message()
+    contact = msg_in.get_sender_contact()
     assert msg_in.is_system_message()
-    assert msg_in.get_sender_contact().addr == ac1.get_config("addr")
+    assert contact.addr == ac1.get_config("addr")
     chat2 = msg_in.chat
     assert chat2.is_protected()
     assert chat2.get_messages()[0].text == "Messages are guaranteed to be end-to-end encrypted from now on."
+    assert open(contact.get_profile_image(), "rb").read() == open(avatar_path, "rb").read()
 
     lp.sec("ac2_offl: sending message")
     msg_out = chat2.send_text("hello")
