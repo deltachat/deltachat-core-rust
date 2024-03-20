@@ -7,12 +7,12 @@ use crate::{chat::ChatId, contact::ContactId, context::Context, EventType};
 
 /// order or content of chatlist changes (chat ids, not the actual chatlist item)
 pub(crate) fn emit_chatlist_changed(context: &Context) {
-    context.emit_event(EventType::UIChatListChanged);
+    context.emit_event(EventType::ChatListChanged);
 }
 
 /// Chatlist item of a specific chat changed
 pub(crate) fn emit_chatlist_item_changed(context: &Context, chat_id: ChatId) {
-    context.emit_event(EventType::UIChatListItemChanged {
+    context.emit_event(EventType::ChatListItemChanged {
         chat_id: Some(chat_id),
     });
 }
@@ -23,7 +23,7 @@ pub(crate) fn emit_chatlist_item_changed(context: &Context, chat_id: ChatId) {
 ///
 /// This method is not public, so you have to define and document your new case here in this file.
 fn emit_unknown_chatlist_items_changed(context: &Context) {
-    context.emit_event(EventType::UIChatListItemChanged { chat_id: None });
+    context.emit_event(EventType::ChatListItemChanged { chat_id: None });
 }
 
 /// update event for the 1:1 chat with the contact
