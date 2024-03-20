@@ -1603,7 +1603,7 @@ pub(crate) async fn set_profile_image(
     if changed {
         contact.update_param(context).await?;
         context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-        ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(context, contact_id);
+        ui_events::emit_chatlist_item_changed_for_contact_chat(context, contact_id);
     }
     Ok(())
 }
@@ -1814,7 +1814,7 @@ impl RecentlySeenLoop {
                         // Timeout, notify about contact.
                         if let Some(contact_id) = contact_id {
                             context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                            ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(
+                            ui_events::emit_chatlist_item_changed_for_contact_chat(
                                 &context,
                                 *contact_id,
                             );
@@ -1847,7 +1847,7 @@ impl RecentlySeenLoop {
                 // Event is already in the past.
                 if let Some(contact_id) = contact_id {
                     context.emit_event(EventType::ContactsChanged(Some(*contact_id)));
-                    ui_events::emit_chatlist_item_changed_for_contacts_dm_chat(
+                    ui_events::emit_chatlist_item_changed_for_contact_chat(
                         &context,
                         *contact_id,
                     );

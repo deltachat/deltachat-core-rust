@@ -1,15 +1,6 @@
-use std::{sync::Arc, task::Poll};
+use futures::executor::block_on;
 
-use crate::{
-    chat::ChatId,
-    contact::{Contact, ContactId},
-    context::Context,
-    EventType,
-};
-use async_channel::{self as channel, Receiver, Sender};
-use channel::{bounded, TrySendError};
-use futures::{executor::block_on, Future};
-use tokio::sync::RwLock;
+use crate::{chat::ChatId, contact::ContactId, context::Context, EventType};
 
 /// order or content of chatlist changes (chat ids, not the actual chatlist item)
 pub(crate) fn emit_chatlist_changed(context: &Context) {
@@ -23,16 +14,18 @@ pub(crate) fn emit_chatlist_item_changed(context: &Context, chat_id: ChatId) {
     });
 }
 
-#[allow(unused)]
 /// Used when you don't know which chatlist items changed, this reloads all cached chatlist items in the UI
-/// note(treefit): This is not used right now, but I know there will be a point where someone wants it
-pub(crate) fn emit_unknown_chatlist_items_changed(context: &Context) {
+///
+/// Avoid calling this when you can find out the affected chat ids easialy (without extra expensive db queries).
+///
+/// This method is not public, so you have to define and document your new case here in this file.
+fn emit_unknown_chatlist_items_changed(context: &Context) {
     context.emit_event(EventType::UIChatListItemChanged { chat_id: None });
 }
 
-/// update event for dm chat of contact
+/// update event for the 1:1 chat with the contact
 /// used when recently seen changes and when profile image changes
-pub(crate) fn emit_chatlist_item_changed_for_contacts_dm_chat(
+pub(crate) fn emit_chatlist_item_changed_for_contact_chat(
     context: &Context,
     contact_id: ContactId,
 ) {
@@ -43,15 +36,17 @@ pub(crate) fn emit_chatlist_item_changed_for_contacts_dm_chat(
     });
 }
 
-/// update dm for chats that have the contact
+/// update items for chats that have the contact
 /// used when contact changes their name or did AEAP for example
-pub(crate) fn emit_chatlist_items_changed_for_contact(context: &Context, contact_id: ContactId) {
-    // note:(treefit): could make sense to only update chats where the last message is from the contact, but the db query for that is more expensive
-    block_on(async {
-        if let Ok(chat_ids) = Contact::get_chats_with_contact(context, &contact_id).await {
-            for chat_id in chat_ids {
-                self::emit_chatlist_item_changed(context, chat_id);
-            }
-        }
-    });
+///
+/// The most common case is that the contact changed their name
+/// and their name should be updated in the chatlistitems for the chats
+/// where they sent the last message as there their name is shown in the summary on those
+pub(crate) fn emit_chatlist_items_changed_for_contact(context: &Context, _contact_id: ContactId) {
+    // note:(treefit): it is too expensive to find the right chats
+    // so we'll just tell ui to reload every loaded item
+    emit_unknown_chatlist_items_changed(context)
+    // note:(treefit): in the future we could instead emit an extra event for this and also store contact id in the chatlistitems
+    // (contact id for dm chats and contact id of contact that wrote the message in the summary)
+    // the ui could then look for this info in the cache and only reload the needed chats.
 }
