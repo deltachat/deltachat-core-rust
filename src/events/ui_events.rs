@@ -56,7 +56,7 @@ pub(crate) fn emit_chatlist_items_changed_for_contact(context: &Context, contact
     });
 }
 
-/// how many items can be pending before all visiable items are updated
+/// how many items can be pending before all visible items are updated
 const THRESHOLD_UNTIL_REFRESH_ALL: usize = 20;
 
 struct UIEventsStateInner {
