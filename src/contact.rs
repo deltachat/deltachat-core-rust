@@ -1600,7 +1600,7 @@ pub(crate) async fn set_profile_image(
     if changed {
         contact.update_param(context).await?;
         context.emit_event(EventType::ContactsChanged(Some(contact_id)));
-        ui_events::emit_chatlist_item_changed_for_contact_chat(context, contact_id);
+        ui_events::emit_chatlist_item_changed_for_contact_chat(context, contact_id).await;
     }
     Ok(())
 }
@@ -1816,7 +1816,7 @@ impl RecentlySeenLoop {
                             ui_events::emit_chatlist_item_changed_for_contact_chat(
                                 &context,
                                 *contact_id,
-                            );
+                            ).await;
                             unseen_queue.pop();
                         }
                     }
@@ -1852,7 +1852,7 @@ impl RecentlySeenLoop {
                     ui_events::emit_chatlist_item_changed_for_contact_chat(
                         &context,
                         *contact_id,
-                    );
+                    ).await;
                 }
                 unseen_queue.pop();
             }
