@@ -1,7 +1,8 @@
-const path = require('path')
-const { spawn } = require('./common')
+import path from 'path'
+import { spawn } from './common.js'
+import * as url from 'url'
 const opts = {
-  cwd: path.resolve(__dirname, '../..'),
+  cwd: path.resolve(url.fileURLToPath(new URL('.', import.meta.url)), '../..'),
   stdio: 'inherit'
 }
 
