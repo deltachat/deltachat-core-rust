@@ -3728,6 +3728,7 @@ async fn test_dont_recreate_contacts_on_add_remove() -> Result<()> {
     alice.recv_msg(&bob.pop_sent_msg().await).await;
     assert_eq!(get_chat_contacts(&alice, alice_chat_id).await?.len(), 3);
 
+    SystemTime::shift(Duration::from_secs(3600));
     send_text_msg(
         &alice,
         alice_chat_id,
@@ -3810,17 +3811,18 @@ async fn test_dont_readd_with_normal_msg() -> Result<()> {
     remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 1);
 
+    SystemTime::shift(Duration::from_secs(3600));
     add_contact_to_chat(
         &alice,
         alice_chat_id,
         Contact::create(&alice, "fiora", "fiora@example.net").await?,
     )
     .await?;
-
     bob.recv_msg(&alice.pop_sent_msg().await).await;
 
-    // Alice didn't receive Bob's leave message, so Bob must readd themselves otherwise other
-    // members would think Bob is still here while they aren't, and then retry to leave if they
+    // Alice didn't receive Bob's leave message although a lot of time has
+    // passed, so Bob must readd themselves otherwise other members would think
+    // Bob is still here while they aren't. Bob should retry to leave if they
     // think that Alice didn't re-add them on purpose (which is possible if Alice uses a classical
     // MUA).
     assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
@@ -4040,6 +4042,15 @@ async fn test_recreate_member_list_on_missing_add_of_self() -> Result<()> {
     // Bob missed the message adding them, but must recreate the member list.
     assert_eq!(get_chat_contacts(&bob, bob_chat_id).await?.len(), 2);
     assert!(is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
+
+    // But if Bob just left, they mustn't recreate the member list even after missing a message.
+    bob_chat_id.accept(&bob).await?;
+    remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
+    send_text_msg(&alice, alice_chat_id, "3rd message".to_string()).await?;
+    alice.pop_sent_msg().await;
+    send_text_msg(&alice, alice_chat_id, "4th message".to_string()).await?;
+    bob.recv_msg(&alice.pop_sent_msg().await).await;
+    assert!(!is_contact_in_chat(&bob, bob_chat_id, ContactId::SELF).await?);
     Ok(())
 }
 

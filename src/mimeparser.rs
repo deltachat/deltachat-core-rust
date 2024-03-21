@@ -15,7 +15,7 @@ use crate::aheader::{Aheader, EncryptPreference};
 use crate::blob::BlobObject;
 use crate::chat::{add_info_msg, ChatId};
 use crate::config::Config;
-use crate::constants::{Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
+use crate::constants::{self, Chattype, DC_DESIRED_TEXT_LINES, DC_DESIRED_TEXT_LINE_LEN};
 use crate::contact::{addr_cmp, addr_normalize, Contact, ContactId, Origin};
 use crate::context::Context;
 use crate::decrypt::{
@@ -212,7 +212,9 @@ impl MimeMessage {
             .headers
             .get_header_value(HeaderDef::Date)
             .and_then(|v| mailparse::dateparse(&v).ok())
-            .map_or(timestamp_rcvd, |value| min(value, timestamp_rcvd + 60));
+            .map_or(timestamp_rcvd, |value| {
+                min(value, timestamp_rcvd + constants::TIMESTAMP_SENT_TOLERANCE)
+            });
         let mut hop_info = parse_receive_headers(&mail.get_headers());
 
         let mut headers = Default::default();

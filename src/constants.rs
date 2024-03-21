@@ -219,6 +219,10 @@ pub(crate) const DEFAULT_MAX_SMTP_RCPT_TO: usize = 50;
 /// How far the last quota check needs to be in the past to be checked by the background function (in seconds).
 pub(crate) const DC_BACKGROUND_FETCH_QUOTA_CHECK_RATELIMIT: u64 = 12 * 60 * 60; // 12 hours
 
+/// How far in the future the sender timestamp of a message is allowed to be, in seconds. Also used
+/// in the group membership consistency algo to reject outdated membership changes.
+pub(crate) const TIMESTAMP_SENT_TOLERANCE: i64 = 60;
+
 #[cfg(test)]
 mod tests {
     use num_traits::FromPrimitive;

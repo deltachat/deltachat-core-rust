@@ -1172,6 +1172,15 @@ impl ChatId {
         Ok(self.get_param(context).await?.exists(Param::Devicetalk))
     }
 
+    /// Returns chat member list timestamp.
+    pub(crate) async fn get_member_list_timestamp(self, context: &Context) -> Result<i64> {
+        Ok(self
+            .get_param(context)
+            .await?
+            .get_i64(Param::MemberListTimestamp)
+            .unwrap_or_default())
+    }
+
     async fn parent_query<T, F>(
         self,
         context: &Context,
@@ -2804,15 +2813,21 @@ pub(crate) async fn create_send_msg_jobs(context: &Context, msg: &mut Message) -
         );
     }
 
-    let now = time();
+    let now = smeared_time(context);
 
     if rendered_msg.is_gossiped {
         msg.chat_id.set_gossiped_timestamp(context, now).await?;
     }
 
-    if rendered_msg.is_group {
+    if msg.param.get_cmd() == SystemMessage::MemberRemovedFromGroup {
+        // Reject member list synchronisation from older messages. See also
+        // `receive_imf::apply_group_changes()`.
         msg.chat_id
-            .update_timestamp(context, Param::MemberListTimestamp, now)
+            .update_timestamp(
+                context,
+                Param::MemberListTimestamp,
+                now.saturating_add(constants::TIMESTAMP_SENT_TOLERANCE),
+            )
             .await?;
     }
 
@@ -4777,9 +4792,9 @@ mod tests {
         Ok(())
     }
 
-    /// Test simultaneous removal of user from the chat and leaving the group.
+    /// Test parallel removal of user from the chat and leaving the group.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn test_simultaneous_member_remove() -> Result<()> {
+    async fn test_parallel_member_remove() -> Result<()> {
         let mut tcm = TestContextManager::new();
 
         let alice = tcm.alice().await;
@@ -4810,19 +4825,24 @@ mod tests {
         add_contact_to_chat(&alice, alice_chat_id, alice_claire_contact_id).await?;
         let alice_sent_add_msg = alice.pop_sent_msg().await;
 
-        // Alice removes Bob from the chat.
-        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
-        let alice_sent_remove_msg = alice.pop_sent_msg().await;
-
         // Bob leaves the chat.
         remove_contact_from_chat(&bob, bob_chat_id, ContactId::SELF).await?;
 
         // Bob receives a msg about Alice adding Claire to the group.
         bob.recv_msg(&alice_sent_add_msg).await;
 
+        SystemTime::shift(Duration::from_secs(3600));
+        // This adds Bob because they left quite long ago.
+        let alice_sent_msg = alice.send_text(alice_chat_id, "What a silence!").await;
+        bob.recv_msg(&alice_sent_msg).await;
+
         // Test that add message is rewritten.
-        bob.golden_test_chat(bob_chat_id, "chat_test_simultaneous_member_remove")
+        bob.golden_test_chat(bob_chat_id, "chat_test_parallel_member_remove")
             .await;
+
+        // Alice removes Bob from the chat.
+        remove_contact_from_chat(&alice, alice_chat_id, alice_bob_contact_id).await?;
+        let alice_sent_remove_msg = alice.pop_sent_msg().await;
 
         // Bob receives a msg about Alice removing him from the group.
         let bob_received_remove_msg = bob.recv_msg(&alice_sent_remove_msg).await;
@@ -4860,7 +4880,12 @@ mod tests {
         bob.recv_msg(&sent_msg).await;
         remove_contact_from_chat(&bob, bob_chat_id, bob_fiona_contact_id).await?;
 
+        // This doesn't add Fiona back because Bob just removed them.
         let sent_msg = alice.send_text(alice_chat_id, "Welcome, Fiona!").await;
+        bob.recv_msg(&sent_msg).await;
+
+        SystemTime::shift(Duration::from_secs(3600));
+        let sent_msg = alice.send_text(alice_chat_id, "Welcome back, Fiona!").await;
         bob.recv_msg(&sent_msg).await;
         bob.golden_test_chat(bob_chat_id, "chat_test_msg_with_implicit_member_add")
             .await;
