@@ -64,7 +64,15 @@ pub struct MimeFactory<'a> {
     loaded: Loaded,
     msg: &'a Message,
     in_reply_to: String,
+
+    /// Space-separated list of Message-IDs for `References` header.
+    ///
+    /// Each Message-ID in the list
+    /// may or may not be enclosed in angle brackets,
+    /// angle brackets must be added during message rendering
+    /// as needed.
     references: String,
+
     req_mdn: bool,
     last_added_location_id: Option<u32>,
 

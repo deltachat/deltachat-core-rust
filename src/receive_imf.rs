@@ -2683,7 +2683,6 @@ async fn get_rfc724_mid_in_list(context: &Context, mid_list: &str) -> Result<Opt
 ///
 /// If none found, tries In-Reply-To: as a fallback for classic MUAs that don't set the
 /// References: header.
-// TODO also save first entry of References and look for this?
 async fn get_parent_message(
     context: &Context,
     mime_parser: &MimeMessage,

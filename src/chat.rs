@@ -1789,7 +1789,6 @@ impl Chat {
         update_msg_id: Option<MsgId>,
         timestamp: i64,
     ) -> Result<MsgId> {
-        let mut new_references = "".into();
         let mut to_id = 0;
         let mut location_id = 0;
 
@@ -1831,58 +1830,72 @@ impl Chat {
         // reset encrypt error state eg. for forwarding
         msg.param.remove(Param::ErroneousE2ee);
 
-        // set "In-Reply-To:" to identify the message to which the composed message is a reply;
-        // set "References:" to identify the "thread" of the conversation;
-        // both according to RFC 5322 3.6.4, page 25
-        //
-        // as self-talks are mainly used to transfer data between devices,
-        // we do not set In-Reply-To/References in this case.
-        if !self.is_self_talk() {
-            if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                // We don't filter `OutPending` and `OutFailed` messages because the new message for
-                // which `parent_query()` is done may assume that it will be received in a context
-                // affected by those messages, e.g. they could add new members to a group and the
-                // new message will contain them in "To:". Anyway recipients must be prepared to
-                // orphaned references.
-                self
-                    .id
-                    .get_parent_mime_headers(context, MessageState::OutPending)
-                    .await?
-            {
-                // "In-Reply-To:" is not changed if it is set manually.
-                // This does not affect "References:" header, it will contain "default parent" (the
-                // latest message in the thread) anyway.
-                if msg.in_reply_to.is_none() && !parent_rfc724_mid.is_empty() {
-                    msg.in_reply_to = Some(parent_rfc724_mid.clone());
-                }
-
-                // the whole list of messages referenced may be huge;
-                // only use the oldest and the parent message
-                let parent_references = parent_references
-                    .find(' ')
-                    .and_then(|n| parent_references.get(..n))
-                    .unwrap_or(&parent_references);
-
-                if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
-                    // angle brackets are added by the mimefactory later
-                    new_references = format!("{parent_references} {parent_rfc724_mid}");
-                } else if !parent_references.is_empty() {
-                    new_references = parent_references.to_string();
-                } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
-                    new_references = format!("{parent_in_reply_to} {parent_rfc724_mid}");
-                } else if !parent_in_reply_to.is_empty() {
-                    new_references = parent_in_reply_to;
-                } else {
-                    // as a fallback, use our Message-ID, see reasoning below.
-                    new_references = new_rfc724_mid.clone();
-                }
-            } else {
-                // this is a top-level message, add our Message-ID as first reference.
-                // as we always try to extract the grpid also from `References:`-header,
-                // this allows group conversations also if smtp-server as outlook change `Message-ID:`-header
-                // (MUAs usually keep the first Message-ID in `References:`-header unchanged).
-                new_references = new_rfc724_mid.clone();
+        // Set "In-Reply-To:" to identify the message to which the composed message is a reply.
+        // Set "References:" to identify the "thread" of the conversation.
+        // Both according to [RFC 5322 3.6.4, page 25](https://www.rfc-editor.org/rfc/rfc5322#section-3.6.4).
+        let new_references;
+        if self.is_self_talk() {
+            // As self-talks are mainly used to transfer data between devices,
+            // we do not set In-Reply-To/References in this case.
+            new_references = String::new();
+        } else if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
+            // We don't filter `OutPending` and `OutFailed` messages because the new message for
+            // which `parent_query()` is done may assume that it will be received in a context
+            // affected by those messages, e.g. they could add new members to a group and the
+            // new message will contain them in "To:". Anyway recipients must be prepared to
+            // orphaned references.
+            self
+                .id
+                .get_parent_mime_headers(context, MessageState::OutPending)
+                .await?
+        {
+            // "In-Reply-To:" is not changed if it is set manually.
+            // This does not affect "References:" header, it will contain "default parent" (the
+            // latest message in the thread) anyway.
+            if msg.in_reply_to.is_none() && !parent_rfc724_mid.is_empty() {
+                msg.in_reply_to = Some(parent_rfc724_mid.clone());
             }
+
+            // Use parent `In-Reply-To` as a fallback
+            // in case parent message has no `References` header
+            // as specified in RFC 5322:
+            // > If the parent message does not contain
+            // > a "References:" field but does have an "In-Reply-To:" field
+            // > containing a single message identifier, then the "References:" field
+            // > will contain the contents of the parent's "In-Reply-To:" field
+            // > followed by the contents of the parent's "Message-ID:" field (if
+            // > any).
+            let parent_references = if parent_references.is_empty() {
+                parent_in_reply_to
+            } else {
+                parent_references
+            };
+
+            // The whole list of messages referenced may be huge.
+            // Only take 2 recent references and add third from `In-Reply-To`.
+            let mut references_vec: Vec<&str> = parent_references.rsplit(' ').take(2).collect();
+            references_vec.reverse();
+
+            if !parent_rfc724_mid.is_empty()
+                && !references_vec.contains(&parent_rfc724_mid.as_str())
+            {
+                references_vec.push(&parent_rfc724_mid)
+            }
+
+            if references_vec.is_empty() {
+                // As a fallback, use our Message-ID,
+                // same as in the case of top-level message.
+                new_references = new_rfc724_mid.clone();
+            } else {
+                new_references = references_vec.join(" ");
+            }
+        } else {
+            // This is a top-level message.
+            // Add our Message-ID as first references.
+            // This allows us to identify replies to our message even if
+            // email server such as Outlook changes `Message-ID:` header.
+            // MUAs usually keep the first Message-ID in `References:` header unchanged.
+            new_references = new_rfc724_mid.clone();
         }
 
         // add independent location to database

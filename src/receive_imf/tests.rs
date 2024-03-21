@@ -4351,3 +4351,45 @@ async fn test_multiline_iso_8859_1_subject() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_references() -> Result<()> {
+    let mut tcm = TestContextManager::new();
+    let alice = &tcm.alice().await;
+    let bob = &tcm.bob().await;
+    alice.set_config_bool(Config::BccSelf, true).await?;
+
+    let alice_chat_id = create_group_chat(alice, ProtectionStatus::Unprotected, "Group").await?;
+    let _sent = alice
+        .send_text(alice_chat_id, "Hi! I created a group.")
+        .await;
+
+    let alice_bob_contact_id = Contact::create(alice, "Bob", "bob@example.net").await?;
+    add_contact_to_chat(alice, alice_chat_id, alice_bob_contact_id).await?;
+    let sent = alice.pop_sent_msg().await;
+    let bob_received_msg = bob.recv_msg(&sent).await;
+    let bob_chat_id = bob_received_msg.chat_id;
+
+    // Alice sends another three messages, but two of them are lost.
+    let _sent = alice.send_text(alice_chat_id, "Second message").await;
+    let _sent = alice.send_text(alice_chat_id, "Third message").await;
+
+    // Message can still be assigned based on the `References` header.
+    let sent = alice.send_text(alice_chat_id, "Fourth message").await;
+    let bob_parsed_message = bob.parse_msg(&sent).await;
+    let bob_parent_message = get_parent_message(bob, &bob_parsed_message).await?.unwrap();
+    assert_eq!(bob_chat_id, bob_parent_message.chat_id);
+
+    // If more messages are lost, message cannot be assigned to the correct chat
+    // without `Chat-Group-ID` header, e.g. if the message is partially downloaded.
+    let sent = alice.send_text(alice_chat_id, "Fifth message").await;
+    let bob_parsed_message = bob.parse_msg(&sent).await;
+    let bob_parent_message = get_parent_message(bob, &bob_parsed_message).await?;
+    assert!(bob_parent_message.is_none());
+
+    // When the message is received, it is assigned correctly because of `Chat-Group-ID` header.
+    let bob_received_msg = bob.recv_msg(&sent).await;
+    assert_eq!(bob_chat_id, bob_received_msg.chat_id);
+
+    Ok(())
+}
