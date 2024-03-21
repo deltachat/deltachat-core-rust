@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 from warnings import warn
 
-from ._utils import AttrDict
+from ._utils import AttrDict, futuremethod
 from .chat import Chat
 from .const import ChatlistFlag, ContactFlag, EventType, SpecialContactId
 from .contact import Contact
@@ -76,9 +76,10 @@ class Account:
         """Get self avatar."""
         return self.get_config("selfavatar")
 
-    def configure(self) -> None:
+    @futuremethod
+    def configure(self):
         """Configure an account."""
-        self._rpc.configure(self.id)
+        yield self._rpc.configure.future(self.id)
 
     def create_contact(self, obj: Union[int, str, Contact], name: Optional[str] = None) -> Contact:
         """Create a new Contact or return an existing one.
