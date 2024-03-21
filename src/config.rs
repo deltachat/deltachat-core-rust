@@ -574,6 +574,9 @@ impl Context {
             _ => Default::default(),
         };
         self.set_config_internal(key, value).await?;
+        if key == Config::SentboxWatch {
+            self.last_full_folder_scan.lock().await.take();
+        }
         Ok(())
     }
 
