@@ -365,6 +365,9 @@ pub enum SystemMessageType {
 
     /// Webxdc info added with `info` set in `send_webxdc_status_update()`.
     WebxdcInfoMessage,
+
+    /// This message contains a users iroh public key.
+    IrohGossipAdvertisement,
 }
 
 impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
@@ -387,6 +390,7 @@ impl From<deltachat::mimeparser::SystemMessage> for SystemMessageType {
             SystemMessage::WebxdcStatusUpdate => SystemMessageType::WebxdcStatusUpdate,
             SystemMessage::WebxdcInfoMessage => SystemMessageType::WebxdcInfoMessage,
             SystemMessage::InvalidUnencryptedMail => SystemMessageType::InvalidUnencryptedMail,
+            SystemMessage::IrohGossipAdvertisement => SystemMessageType::IrohGossipAdvertisement,
         }
     }
 }

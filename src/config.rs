@@ -356,6 +356,9 @@ pub enum Config {
     /// This key is sent to the self_reporting bot so that the bot can recognize the user
     /// without storing the email address
     SelfReportingId,
+
+    /// Iroh secret key.
+    IrohSecretKey,
 }
 
 impl Config {

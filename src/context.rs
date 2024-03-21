@@ -37,6 +37,8 @@ use crate::sql::Sql;
 use crate::stock_str::StockStrings;
 use crate::timesmearing::SmearedTimestamp;
 use crate::tools::{self, create_id, duration_to_str, time, time_elapsed};
+use iroh_gossip::net::Gossip;
+use iroh_net::MagicEndpoint;
 
 /// Builder for the [`Context`].
 ///
@@ -287,6 +289,12 @@ pub struct InnerContext {
 
     /// True if account has subscribed to push notifications via IMAP.
     pub(crate) push_subscribed: AtomicBool,
+
+    /// [MagicEndpoint] needed for iroh peer channels.
+    pub(crate) endpoint: Mutex<Option<MagicEndpoint>>,
+
+    /// [Gossip] needed for iroh peer channels.
+    pub(crate) gossip: Mutex<Option<Gossip>>,
 }
 
 /// The state of ongoing process.
@@ -444,6 +452,8 @@ impl Context {
             debug_logging: std::sync::RwLock::new(None),
             push_subscriber,
             push_subscribed: AtomicBool::new(false),
+            endpoint: Mutex::new(None),
+            gossip: Mutex::new(None),
         };
 
         let ctx = Context {
@@ -473,11 +483,18 @@ impl Context {
                 *lock = Ratelimit::new(Duration::new(3, 0), 3.0);
             }
         }
+
+        if let Err(e) = self.create_gossip().await {
+            warn!(self, "{e}");
+        }
+
         self.scheduler.start(self.clone()).await;
     }
 
     /// Stops the IO scheduler.
     pub async fn stop_io(&self) {
+        self.endpoint.lock().await.take();
+        self.gossip.lock().await.take();
         self.scheduler.stop(self).await;
     }
 
@@ -489,6 +506,9 @@ impl Context {
 
     /// Indicate that the network likely has come back.
     pub async fn maybe_network(&self) {
+        if let Some(ref mut endpoint) = *self.endpoint.lock().await {
+            endpoint.network_change().await;
+        }
         self.scheduler.maybe_network().await;
     }
 
@@ -1626,6 +1646,7 @@ mod tests {
             "socks5_user",
             "socks5_password",
             "key_id",
+            "iroh_secret_key",
         ];
         let t = TestContext::new().await;
         let info = t.get_info().await.unwrap();
@@ -1932,6 +1953,17 @@ mod tests {
 
         // Test that sending into the protected chat works:
         let _sent = alice.send_msg(chat_id, &mut draft).await;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_keypair_saving() -> Result<()> {
+        let alice = TestContext::new_alice().await;
+
+        let key = alice.get_or_generate_iroh_keypair().await?;
+        let loaded_key = alice.get_or_generate_iroh_keypair().await?;
+        assert_eq!(key.to_bytes(), loaded_key.to_bytes());
 
         Ok(())
     }
