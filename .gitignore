@@ -44,3 +44,6 @@ node/build/
 node/dist/
 node/prebuilds/
 node/.nyc_output/
+
+# Nix symlink.
+result
