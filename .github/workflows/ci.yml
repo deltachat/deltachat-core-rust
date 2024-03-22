@@ -24,7 +24,7 @@ jobs:
     name: Lint Rust
     runs-on: ubuntu-latest
     env:
-      RUSTUP_TOOLCHAIN: 1.76.0
+      RUSTUP_TOOLCHAIN: 1.77.0
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,11 +83,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            rust: 1.76.0
+            rust: 1.77.0
           - os: windows-latest
-            rust: 1.76.0
+            rust: 1.77.0
           - os: macos-latest
-            rust: 1.76.0
+            rust: 1.77.0
 
           # Minimum Supported Rust Version = 1.70.0
           - os: ubuntu-latest
