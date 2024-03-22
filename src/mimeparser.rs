@@ -2,9 +2,7 @@
 
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::str;
 
 use anyhow::{bail, Context as _, Result};
@@ -818,59 +816,53 @@ impl MimeMessage {
         self.headers.get(headerdef.get_headername())
     }
 
-    fn parse_mime_recursive<'a>(
+    async fn parse_mime_recursive<'a>(
         &'a mut self,
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
         is_related: bool,
-    ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a + Send>> {
-        use futures::future::FutureExt;
+    ) -> Result<bool> {
+        enum MimeS {
+            Multiple,
+            Single,
+            Message,
+        }
 
-        // Boxed future to deal with recursion
-        async move {
-            enum MimeS {
-                Multiple,
-                Single,
-                Message,
-            }
+        let mimetype = mail.ctype.mimetype.to_lowercase();
 
-            let mimetype = mail.ctype.mimetype.to_lowercase();
-
-            let m = if mimetype.starts_with("multipart") {
-                if mail.ctype.params.contains_key("boundary") {
-                    MimeS::Multiple
-                } else {
-                    MimeS::Single
-                }
-            } else if mimetype.starts_with("message") {
-                if mimetype == "message/rfc822" && !is_attachment_disposition(mail) {
-                    MimeS::Message
-                } else {
-                    MimeS::Single
-                }
+        let m = if mimetype.starts_with("multipart") {
+            if mail.ctype.params.contains_key("boundary") {
+                MimeS::Multiple
             } else {
                 MimeS::Single
-            };
+            }
+        } else if mimetype.starts_with("message") {
+            if mimetype == "message/rfc822" && !is_attachment_disposition(mail) {
+                MimeS::Message
+            } else {
+                MimeS::Single
+            }
+        } else {
+            MimeS::Single
+        };
 
-            let is_related = is_related || mimetype == "multipart/related";
-            match m {
-                MimeS::Multiple => self.handle_multiple(context, mail, is_related).await,
-                MimeS::Message => {
-                    let raw = mail.get_body_raw()?;
-                    if raw.is_empty() {
-                        return Ok(false);
-                    }
-                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
+        let is_related = is_related || mimetype == "multipart/related";
+        match m {
+            MimeS::Multiple => Box::pin(self.handle_multiple(context, mail, is_related)).await,
+            MimeS::Message => {
+                let raw = mail.get_body_raw()?;
+                if raw.is_empty() {
+                    return Ok(false);
+                }
+                let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
 
-                    self.parse_mime_recursive(context, &mail, is_related).await
-                }
-                MimeS::Single => {
-                    self.add_single_part_if_known(context, mail, is_related)
-                        .await
-                }
+                Box::pin(self.parse_mime_recursive(context, &mail, is_related)).await
+            }
+            MimeS::Single => {
+                self.add_single_part_if_known(context, mail, is_related)
+                    .await
             }
         }
-        .boxed()
     }
 
     async fn handle_multiple(
