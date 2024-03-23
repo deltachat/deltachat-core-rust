@@ -105,11 +105,6 @@ enum MessageQuote {
 }
 
 impl MessageObject {
-    pub async fn from_message_id(context: &Context, message_id: u32) -> Result<Self> {
-        let msg_id = MsgId::new(message_id);
-        Self::from_msg_id(context, msg_id).await
-    }
-
     pub async fn from_msg_id(context: &Context, msg_id: MsgId) -> Result<Self> {
         let message = Message::load_from_db(context, msg_id).await?;
 

@@ -1099,7 +1099,7 @@ impl CommandApi {
 
     async fn get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
         let ctx = self.get_context(account_id).await?;
-        MessageObject::from_message_id(&ctx, message_id).await
+        MessageObject::from_msg_id(&ctx, MsgId::new(message_id)).await
     }
 
     async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
@@ -1119,7 +1119,7 @@ impl CommandApi {
         let ctx = self.get_context(account_id).await?;
         let mut messages: HashMap<u32, MessageLoadResult> = HashMap::new();
         for message_id in message_ids {
-            let message_result = MessageObject::from_message_id(&ctx, message_id).await;
+            let message_result = MessageObject::from_msg_id(&ctx, MsgId::new(message_id)).await;
             messages.insert(
                 message_id,
                 match message_result {
@@ -2042,11 +2042,9 @@ impl CommandApi {
                 )
                 .await?;
         }
-        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message)
-            .await?
-            .to_u32();
-        let message = MessageObject::from_message_id(&ctx, msg_id).await?;
-        Ok((msg_id, message))
+        let msg_id = chat::send_msg(&ctx, ChatId::new(chat_id), &mut message).await?;
+        let message = MessageObject::from_msg_id(&ctx, msg_id).await?;
+        Ok((msg_id.to_u32(), message))
     }
 
     // mimics the old desktop call, will get replaced with something better in the composer rewrite,
