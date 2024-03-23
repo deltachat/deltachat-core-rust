@@ -1097,9 +1097,12 @@ impl CommandApi {
             .collect::<Vec<JSONRPCMessageListItem>>())
     }
 
-    async fn get_message(&self, account_id: u32, message_id: u32) -> Result<MessageObject> {
+    async fn get_message(&self, account_id: u32, msg_id: u32) -> Result<MessageObject> {
         let ctx = self.get_context(account_id).await?;
-        MessageObject::from_msg_id(&ctx, MsgId::new(message_id)).await
+        let msg_id = MsgId::new(msg_id);
+        MessageObject::from_msg_id(&ctx, msg_id)
+            .await
+            .with_context(|| format!("Failed to load message {msg_id} for account {account_id}"))
     }
 
     async fn get_message_html(&self, account_id: u32, message_id: u32) -> Result<Option<String>> {
