@@ -628,12 +628,9 @@ pub async fn from_field_to_contact_id(
     if from_id == ContactId::SELF {
         Ok(Some((ContactId::SELF, false, Origin::OutgoingBcc)))
     } else {
-        let mut from_id_blocked = false;
-        let mut incoming_origin = Origin::Unknown;
-        if let Ok(contact) = Contact::get_by_id(context, from_id).await {
-            from_id_blocked = contact.blocked;
-            incoming_origin = contact.origin;
-        }
+        let contact = Contact::get_by_id(context, from_id).await?;
+        let from_id_blocked = contact.blocked;
+        let incoming_origin = contact.origin;
         Ok(Some((from_id, from_id_blocked, incoming_origin)))
     }
 }
