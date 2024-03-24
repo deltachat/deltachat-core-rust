@@ -4393,3 +4393,22 @@ async fn test_references() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_list_from() -> Result<()> {
+    let t = &TestContext::new_alice().await;
+
+    let raw = include_bytes!("../../test-data/message/list-from.eml");
+    let received = receive_imf(t, raw, false).await?.unwrap();
+    let msg = Message::load_from_db(t, *received.msg_ids.last().unwrap()).await?;
+    assert_eq!(msg.get_override_sender_name().unwrap(), "ÖAMTC");
+    let sender_contact = Contact::get_by_id(t, msg.from_id).await?;
+    assert_eq!(
+        sender_contact.get_display_name(),
+        "clubinfo@donotreply.oeamtc.at"
+    );
+    let info = msg.id.get_info(t).await?;
+    assert!(info.contains("Sent: 2024.03.20 09:00:01 by ~ÖAMTC (clubinfo@donotreply.oeamtc.at)"));
+
+    Ok(())
+}

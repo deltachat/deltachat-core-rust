@@ -316,6 +316,9 @@ pub(crate) async fn receive_imf_inner(
     //
     // If this is a mailing list email (i.e. list_id_header is some), don't change the displayname because in
     // a mailing list the sender displayname sometimes does not belong to the sender email address.
+    // For example, GitHub sends messages from `notifications@github.com`,
+    // but uses display name of the user whose action generated the notification
+    // as the display name.
     let (from_id, _from_id_blocked, incoming_origin) =
         match from_field_to_contact_id(context, &mime_parser.from, prevent_rename).await? {
             Some(contact_id_res) => contact_id_res,

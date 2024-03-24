@@ -201,12 +201,14 @@ WHERE id=?;
         let fts = timestamp_to_str(msg.get_timestamp());
         ret += &format!("Sent: {fts}");
 
-        let name = Contact::get_by_id(context, msg.from_id)
-            .await
-            .map(|contact| contact.get_name_n_addr())
-            .unwrap_or_default();
-
-        ret += &format!(" by {name}");
+        let from_contact = Contact::get_by_id(context, msg.from_id).await?;
+        let name = from_contact.get_name_n_addr();
+        if let Some(override_sender_name) = msg.get_override_sender_name() {
+            let addr = from_contact.get_addr();
+            ret += &format!(" by ~{override_sender_name} ({addr})");
+        } else {
+            ret += &format!(" by {name}");
+        }
         ret += "\n";
 
         if msg.from_id != ContactId::SELF {
