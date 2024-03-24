@@ -46,10 +46,12 @@ pub(crate) fn params_iter(
     iter.iter().map(|item| item as &dyn crate::sql::ToSql)
 }
 
+mod deserialize;
 mod migrations;
 mod pool;
+mod serialize;
 
-use pool::Pool;
+use pool::{Pool, PooledConnection};
 
 /// A wrapper around the underlying Sqlite3 object.
 #[derive(Debug)]
@@ -363,6 +365,12 @@ impl Sql {
         self.write_mtx.lock().await
     }
 
+    pub(crate) async fn get_connection(&self) -> Result<PooledConnection> {
+        let lock = self.pool.read().await;
+        let pool = lock.as_ref().context("no SQL connection")?;
+        pool.get().await
+    }
+
     /// Allocates a connection and calls `function` with the connection. If `function` does write
     /// queries,
     /// - either first take a lock using `write_lock()`
@@ -374,9 +382,7 @@ impl Sql {
         F: 'a + FnOnce(&mut Connection) -> Result<R> + Send,
         R: Send + 'static,
     {
-        let lock = self.pool.read().await;
-        let pool = lock.as_ref().context("no SQL connection")?;
-        let mut conn = pool.get().await?;
+        let mut conn = self.get_connection().await?;
         let res = tokio::task::block_in_place(move || function(&mut conn))?;
         Ok(res)
     }
