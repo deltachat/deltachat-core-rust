@@ -1,6 +1,6 @@
 //! # Common network utilities.
-use std::net::Ipv4Addr;
 use std::net::{IpAddr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::pin::Pin;
 use std::str::FromStr;
 use std::time::Duration;
@@ -41,7 +41,8 @@ async fn lookup_host_with_timeout(
 
 /// Looks up hostname and port using DNS and updates the address resolution cache.
 ///
-/// If `load_cache` is true, appends cached results not older than 30 days to the end.
+/// If `load_cache` is true, appends cached results not older than 30 days to the end
+/// or entries from fallback cache if there are no cached addresses.
 async fn lookup_host_with_cache(
     context: &Context,
     hostname: &str,
@@ -129,11 +130,72 @@ async fn lookup_host_with_cache(
             //
             // In the future we may pre-resolve all provider database addresses
             // and build them in.
-            if hostname == "mail.sangham.net" {
-                resolved_addrs.push(SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::new(159, 69, 186, 85)),
-                    port,
-                ));
+            match hostname {
+                "mail.sangham.net" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0xc17, 0x798c, 0, 0, 0, 1)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(159, 69, 186, 85)),
+                        port,
+                    ));
+                }
+                "nine.testrun.org" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2a01, 0x4f8, 0x241, 0x4ce8, 0, 0, 0, 2)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(116, 202, 233, 236)),
+                        port,
+                    ));
+                }
+                "disroot.org" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(178, 21, 23, 139)),
+                        port,
+                    ));
+                }
+                "mail.riseup.net" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(198, 252, 153, 70)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(198, 252, 153, 71)),
+                        port,
+                    ));
+                }
+                "imap.gmail.com" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6c)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x400c, 0xc1f, 0, 0, 0, 0x6d)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(142, 250, 110, 108)),
+                        port,
+                    ));
+                }
+                "smtp.gmail.com" => {
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V6(Ipv6Addr::new(0x2a00, 0x1450, 0x4013, 0xc04, 0, 0, 0, 0x6c)),
+                        port,
+                    ));
+                    resolved_addrs.push(SocketAddr::new(
+                        IpAddr::V4(Ipv4Addr::new(142, 250, 110, 109)),
+                        port,
+                    ));
+                }
+                _ => {}
             }
         }
     }
