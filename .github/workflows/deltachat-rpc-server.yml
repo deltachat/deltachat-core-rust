@@ -21,7 +21,7 @@ jobs:
   # Build a version statically linked against musl libc
   # to avoid problems with glibc version incompatibility.
   build_linux:
-    name: Build deltachat-rpc-server for Linux
+    name: Linux
     strategy:
       fail-fast: false
       matrix:
@@ -45,7 +45,7 @@ jobs:
           if-no-files-found: error
 
   build_windows:
-    name: Build deltachat-rpc-server for Windows
+    name: Windows
     strategy:
       fail-fast: false
       matrix:
@@ -69,7 +69,7 @@ jobs:
           if-no-files-found: error
 
   build_macos:
-    name: Build deltachat-rpc-server for macOS
+    name: macOS
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +95,7 @@ jobs:
           if-no-files-found: error
 
   build_android:
-    name: Build deltachat-rpc-server for Android
+    name: Android
     strategy:
       fail-fast: false
       matrix:
