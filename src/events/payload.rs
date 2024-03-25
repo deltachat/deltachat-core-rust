@@ -293,12 +293,12 @@ pub enum EventType {
     AccountsBackgroundFetchDone,
     /// Inform UI that Order (and content as in chat ids, NOT the actual content of the ChatListItem) of the chatlist changed.
     ///
-    /// Sometimes this is emitted together with `UIChatListItemChanged` such as on IncomingMessage.
-    ChatListChanged,
+    /// Sometimes this is emitted together with `UIChatlistItemChanged` such as on IncomingMessage.
+    ChatlistChanged,
 
     /// Inform UI that a single chat list item changed and needs to be rerendered.
     /// If `chat_id` is set to None, then all currently visible chats need to be rerendered, and all not-visible items need to be cleared from cache if the UI has a cache.
-    ChatListItemChanged {
+    ChatlistItemChanged {
         /// ID of the changed chat
         chat_id: Option<ChatId>,
     },
