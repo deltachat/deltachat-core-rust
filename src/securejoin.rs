@@ -349,7 +349,7 @@ pub(crate) async fn handle_securejoin_handshake(
             )
             .await
             .context("failed sending auth-required handshake message")?;
-            Ok(HandshakeMessage::Done)
+            Ok(HandshakeMessage::Ignore)
         }
         "vg-auth-required" | "vc-auth-required" => {
             /*========================================================

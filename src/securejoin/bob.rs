@@ -104,7 +104,7 @@ pub(super) async fn handle_auth_required(
                 .set_peer_verified(context, message.timestamp_sent)
                 .await?;
             bobstate.emit_progress(context, JoinerProgress::RequestWithAuthSent);
-            Ok(HandshakeMessage::Done)
+            Ok(HandshakeMessage::Ignore)
         }
         None => Ok(HandshakeMessage::Ignore),
     }
