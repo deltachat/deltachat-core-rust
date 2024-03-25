@@ -6218,10 +6218,10 @@ void dc_event_unref(dc_event_t* event);
 /**
  * Inform UI that order (and content as in chat ids) of the chatlist changed.
  *
- * Sometimes this is emitted together with `DC_EVENT_UI_CHATLIST_ITEM_CHANGED` such as on `DC_EVENT_INCOMING_MSG`.
+ * Sometimes this is emitted together with `DC_EVENT_CHATLIST_ITEM_CHANGED` such as on `DC_EVENT_INCOMING_MSG`.
  */
 
-#define DC_EVENT_UI_CHATLIST_CHANGED              2300
+#define DC_EVENT_CHATLIST_CHANGED              2300
 
 /**
  * Inform UI that all or a single chat list item changed and needs to be rerendered
@@ -6230,7 +6230,7 @@ void dc_event_unref(dc_event_t* event);
  * @param data1 (int) chat_id chat id of chatlist item to be rerendered, if chat_id = 0 all (cached & visible) items need to be rerendered
  */
 
-#define DC_EVENT_UI_CHATLIST_ITEM_CHANGED         2301
+#define DC_EVENT_CHATLIST_ITEM_CHANGED         2301
 
 /**
  * @}
