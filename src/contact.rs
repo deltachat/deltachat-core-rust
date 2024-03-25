@@ -39,8 +39,12 @@ use crate::tools::{
 };
 use crate::{chat, stock_str};
 
+
 /// Time during which a contact is considered as seen recently.
+#[cfg(not(test))]
 const SEEN_RECENTLY_SECONDS: i64 = 600;
+#[cfg(test)]
+const SEEN_RECENTLY_SECONDS: i64 = 4;
 
 /// Valid contact address.
 #[derive(Debug, Clone)]
@@ -2809,6 +2813,52 @@ Hi."#;
         let self_contact = Contact::get_by_id(&bob, ContactId::SELF).await?;
         assert!(!self_contact.was_seen_recently());
 
+        Ok(())
+    }
+    
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_was_seen_recently_event() -> Result<()> {
+        let mut tcm = TestContextManager::new();
+        let alice = tcm.alice().await;
+        let bob = tcm.bob().await;
+
+        let chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(chat.id, "moin").await;
+
+        let chat = bob.create_chat(&alice).await;
+        let contacts = chat::get_chat_contacts(&bob, chat.id).await?;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(!contact.was_seen_recently());
+
+        bob.recv_msg(&sent_msg).await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(contact.was_seen_recently());
+
+        // wait for recently seen to be done
+        tokio::time::sleep(Duration::from_secs((SEEN_RECENTLY_SECONDS + 2) as u64)).await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(!contact.was_seen_recently());
+        
+        // first contact establishing will always emit events.
+        while bob.evtracker.try_recv().is_ok() {}
+
+        let chat = alice.create_chat(&bob).await;
+        let sent_msg = alice.send_text(chat.id, "moin2").await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(!contact.was_seen_recently());
+        bob.recv_msg(&sent_msg).await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(contact.was_seen_recently());
+        println!("wait for event from alice turning to recently seen");
+        bob.evtracker.get_matching(|evt| matches!(evt, EventType::ContactsChanged{..})).await;
+        
+        // wait for recently seen to be done
+        tokio::time::sleep(Duration::from_secs((SEEN_RECENTLY_SECONDS + 2) as u64)).await;
+        let contact = Contact::get_by_id(&bob, *contacts.first().unwrap()).await?;
+        assert!(!contact.was_seen_recently());
+        println!("wait for event from alice turning to not recently seen");
+        bob.evtracker.get_matching(|evt| matches!(evt, EventType::ContactsChanged{..})).await;
+        
         Ok(())
     }
 
