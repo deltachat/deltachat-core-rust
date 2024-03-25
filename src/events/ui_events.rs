@@ -1,8 +1,3 @@
-use std::fmt::format;
-
-use anyhow::Result;
-use futures::executor::block_on;
-
 use crate::{chat::ChatId, contact::ContactId, context::Context, EventType};
 
 /// order or content of chatlist changes (chat ids, not the actual chatlist item)
