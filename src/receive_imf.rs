@@ -1445,7 +1445,7 @@ INSERT INTO msgs
     rfc724_mid, chat_id,
     from_id, to_id, timestamp, timestamp_sent, 
     timestamp_rcvd, type, state, msgrmsg, 
-    txt, subject, txt_raw, param, hidden,
+    txt, txt_normalized, subject, txt_raw, param, hidden,
     bytes, mime_headers, mime_compressed, mime_in_reply_to,
     mime_references, mime_modified, error, ephemeral_timer,
     ephemeral_timestamp, download_state, hop_info
@@ -1455,7 +1455,7 @@ INSERT INTO msgs
     ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, 1,
+    ?, ?, ?, ?, ?, 1,
     ?, ?, ?, ?,
     ?, ?, ?, ?
   )
@@ -1463,7 +1463,8 @@ ON CONFLICT (id) DO UPDATE
 SET rfc724_mid=excluded.rfc724_mid, chat_id=excluded.chat_id,
     from_id=excluded.from_id, to_id=excluded.to_id, timestamp_sent=excluded.timestamp_sent,
     type=excluded.type, msgrmsg=excluded.msgrmsg,
-    txt=excluded.txt, subject=excluded.subject, txt_raw=excluded.txt_raw, param=excluded.param,
+    txt=excluded.txt, txt_normalized=excluded.txt_normalized, subject=excluded.subject,
+    txt_raw=excluded.txt_raw, param=excluded.param,
     hidden=excluded.hidden,bytes=excluded.bytes, mime_headers=excluded.mime_headers,
     mime_compressed=excluded.mime_compressed, mime_in_reply_to=excluded.mime_in_reply_to,
     mime_references=excluded.mime_references, mime_modified=excluded.mime_modified, error=excluded.error, ephemeral_timer=excluded.ephemeral_timer,
@@ -1483,6 +1484,7 @@ RETURNING id
                     state,
                     is_dc_message,
                     if trash { "" } else { msg },
+                    if trash { None } else { message::normalize_text(msg) },
                     if trash { "" } else { &subject },
                     // txt_raw might contain invalid utf8
                     if trash { "" } else { &txt_raw },

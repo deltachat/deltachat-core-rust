@@ -98,7 +98,7 @@ impl MsgId {
                 r#"
 UPDATE msgs 
 SET 
-  chat_id=?, txt='', 
+  chat_id=?, txt='', txt_normalized=NULL, 
   subject='', txt_raw='', 
   mime_headers='', 
   from_id=0, to_id=0, 
@@ -1968,6 +1968,15 @@ impl Viewtype {
             Viewtype::Webxdc => true,
         }
     }
+}
+
+/// Returns text for storing in the `msg.txt_normalized` column (to make case-insensitive search
+/// possible for non-ASCII messages).
+pub(crate) fn normalize_text(text: &str) -> Option<String> {
+    if text.is_ascii() {
+        return None;
+    };
+    Some(text.to_lowercase()).filter(|t| t != text)
 }
 
 #[cfg(test)]

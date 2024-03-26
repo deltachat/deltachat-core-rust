@@ -911,6 +911,11 @@ CREATE INDEX msgs_status_updates_index2 ON msgs_status_updates (uid);
         .await?;
     }
 
+    if dbversion < 111 {
+        sql.execute_migration("ALTER TABLE msgs ADD COLUMN txt_normalized TEXT", 111)
+            .await?;
+    }
+
     let new_version = sql
         .get_raw_config_int(VERSION_CFG)
         .await?
