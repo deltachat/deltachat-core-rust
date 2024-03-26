@@ -7,7 +7,7 @@ use crate::chat::Chat;
 use crate::constants::Chattype;
 use crate::contact::{Contact, ContactId};
 use crate::context::Context;
-use crate::message::{Message, MessageState, Viewtype};
+use crate::message::{Message, MessageState, MsgId, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
 use crate::tools::truncate;
@@ -52,6 +52,12 @@ pub struct Summary {
 
     /// Message preview image path
     pub thumbnail_path: Option<String>,
+
+    /// Message viewtype.
+    pub viewtype: Viewtype,
+
+    /// Message ID.
+    pub id: Option<MsgId>,
 }
 
 impl Summary {
@@ -108,6 +114,8 @@ impl Summary {
             timestamp: msg.get_timestamp(),
             state: msg.state,
             thumbnail_path,
+            viewtype: msg.viewtype,
+            id: Some(msg.id),
         }
     }
 

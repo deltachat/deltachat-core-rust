@@ -384,6 +384,7 @@ async fn test_no_from() {
     let context = &t;
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+    assert!(chats.get_chat_id(0).is_err());
     assert!(chats.get_msg_id(0).is_err());
 
     let received = receive_imf(
@@ -426,6 +427,7 @@ async fn test_no_message_id_header() {
     let t = TestContext::new_alice().await;
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
+    assert!(chats.get_chat_id(0).is_err());
     assert!(chats.get_msg_id(0).is_err());
 
     let received = receive_imf(
@@ -528,8 +530,9 @@ async fn test_escaped_recipients() {
     assert_eq!(contact.get_display_name(), "h2");
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-    let msg = Message::load_from_db(&t, chats.get_msg_id(0).unwrap().unwrap())
+    let msg = Message::load_from_db_last_for_chat(&t, chats.get_chat_id(0).unwrap())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(msg.is_dc_message, MessengerMessage::Yes);
     assert_eq!(msg.text, "hello");
@@ -716,7 +719,7 @@ async fn test_parse_ndn(
     .unwrap();
 
     let chats = Chatlist::try_load(&t, 0, None, None).await.unwrap();
-    let msg_id = chats.get_msg_id(0).unwrap().unwrap();
+    let chat_id = chats.get_chat_id(0).unwrap();
 
     // Check that the ndn would be downloaded:
     let headers = mailparse::parse_mail(raw_ndn).unwrap().headers;
@@ -727,7 +730,10 @@ async fn test_parse_ndn(
     );
 
     receive_imf(&t, raw_ndn, false).await.unwrap();
-    let msg = Message::load_from_db(&t, msg_id).await.unwrap();
+    let msg = Message::load_from_db_last_for_chat(&t, chat_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     assert_eq!(
         msg.state,
@@ -831,8 +837,11 @@ async fn load_imf_email(context: &Context, imf_raw: &[u8]) -> Message {
         .unwrap();
     receive_imf(context, imf_raw, false).await.unwrap();
     let chats = Chatlist::try_load(context, 0, None, None).await.unwrap();
-    let msg_id = chats.get_msg_id(0).unwrap().unwrap();
-    Message::load_from_db(context, msg_id).await.unwrap()
+    let chat_id = chats.get_chat_id(0).unwrap();
+    Message::load_from_db_last_for_chat(context, chat_id)
+        .await
+        .unwrap()
+        .unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
