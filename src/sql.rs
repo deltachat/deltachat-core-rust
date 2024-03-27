@@ -760,8 +760,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     context
         .sql
         .execute(
-            "DELETE FROM msgs_mdns WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            (),
+            "DELETE FROM msgs_mdns WHERE msg_id NOT IN \
+            (SELECT id FROM msgs WHERE chat_id!=?)",
+            (DC_CHAT_ID_TRASH,),
         )
         .await
         .context("failed to remove old MDNs")
@@ -771,8 +772,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     context
         .sql
         .execute(
-            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            (),
+            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN \
+            (SELECT id FROM msgs WHERE chat_id!=?)",
+            (DC_CHAT_ID_TRASH,),
         )
         .await
         .context("failed to remove old webxdc status updates")
