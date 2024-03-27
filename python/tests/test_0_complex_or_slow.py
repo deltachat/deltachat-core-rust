@@ -1,4 +1,5 @@
 import sys
+import time
 
 import pytest
 import deltachat as dc
@@ -675,3 +676,16 @@ def test_verified_group_vs_delete_server_after(acfactory, tmp_path, lp):
     assert msg_in.chat == chat2_offl
     assert msg_in.get_sender_contact().addr == ac2.get_config("addr")
     assert ac2_offl_ac1_contact.is_verified()
+
+
+def test_deleted_msgs_dont_reappear(acfactory):
+    ac1 = acfactory.new_online_configuring_account()
+    acfactory.bring_accounts_online()
+    ac1.set_config("bcc_self", "1")
+    chat = ac1.get_self_contact().create_chat()
+    msg = chat.send_text("hello")
+    ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
+    ac1.delete_messages([msg])
+    ac1._evtracker.get_matching("DC_EVENT_MSG_DELETED")
+    time.sleep(5)
+    assert len(chat.get_messages()) == 0
