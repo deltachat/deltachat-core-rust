@@ -4852,16 +4852,6 @@ pub unsafe extern "C" fn dc_accounts_get_all(accounts: *mut dc_accounts_t) -> *m
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_accounts_all_work_done(accounts: *mut dc_accounts_t) -> libc::c_int {
-    if accounts.is_null() {
-        eprintln!("ignoring careless call to dc_accounts_all_work_done()");
-        return 0;
-    }
-    let accounts = &*accounts;
-    block_on(async move { accounts.read().await.all_work_done().await as libc::c_int })
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_accounts_start_io(accounts: *mut dc_accounts_t) {
     if accounts.is_null() {
         eprintln!("ignoring careless call to dc_accounts_start_io()");

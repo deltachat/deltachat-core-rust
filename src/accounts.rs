@@ -253,25 +253,6 @@ impl Accounts {
         self.accounts.keys().copied().collect()
     }
 
-    /// This is meant especially for iOS, because iOS needs to tell the system when its background work is done.
-    ///
-    /// Returns whether all accounts finished their background work.
-    /// DC_EVENT_CONNECTIVITY_CHANGED will be sent when this turns to true.
-    ///
-    /// iOS can:
-    /// - call dc_start_io() (in case IO was not running)
-    /// - call dc_maybe_network()
-    /// - while dc_accounts_all_work_done() returns false:
-    ///   -  Wait for DC_EVENT_CONNECTIVITY_CHANGED
-    pub async fn all_work_done(&self) -> bool {
-        for account in self.accounts.values() {
-            if !account.all_work_done().await {
-                return false;
-            }
-        }
-        true
-    }
-
     /// Starts background tasks such as IMAP and SMTP loops for all accounts.
     pub async fn start_io(&mut self) {
         for account in self.accounts.values_mut() {
