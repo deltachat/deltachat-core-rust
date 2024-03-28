@@ -7,12 +7,8 @@
 //! `MsgId.get_html()` will return HTML -
 //! this allows nice quoting, handling linebreaks properly etc.
 
-use std::future::Future;
-use std::pin::Pin;
-
 use anyhow::{Context as _, Result};
 use base64::Engine as _;
-use futures::future::FutureExt;
 use lettre_email::mime::Mime;
 use lettre_email::PartBuilder;
 use mailparse::ParsedContentType;
@@ -116,119 +112,109 @@ impl HtmlMsgParser {
     /// Usually, there is at most one plain-text and one HTML-text part,
     /// multiple plain-text parts might be used for mailinglist-footers,
     /// therefore we use the first one.
-    fn collect_texts_recursive<'a>(
+    async fn collect_texts_recursive<'a>(
         &'a mut self,
         mail: &'a mailparse::ParsedMail<'a>,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
-        // Boxed future to deal with recursion
-        async move {
-            match get_mime_multipart_type(&mail.ctype) {
-                MimeMultipartType::Multiple => {
-                    for cur_data in &mail.subparts {
-                        self.collect_texts_recursive(cur_data).await?
-                    }
-                    Ok(())
+    ) -> Result<()> {
+        match get_mime_multipart_type(&mail.ctype) {
+            MimeMultipartType::Multiple => {
+                for cur_data in &mail.subparts {
+                    Box::pin(self.collect_texts_recursive(cur_data)).await?
                 }
-                MimeMultipartType::Message => {
-                    let raw = mail.get_body_raw()?;
-                    if raw.is_empty() {
-                        return Ok(());
-                    }
-                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
-                    self.collect_texts_recursive(&mail).await
+                Ok(())
+            }
+            MimeMultipartType::Message => {
+                let raw = mail.get_body_raw()?;
+                if raw.is_empty() {
+                    return Ok(());
                 }
-                MimeMultipartType::Single => {
-                    let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
-                    if mimetype == mime::TEXT_HTML {
-                        if self.html.is_empty() {
-                            if let Ok(decoded_data) = mail.get_body() {
-                                self.html = decoded_data;
-                            }
-                        }
-                    } else if mimetype == mime::TEXT_PLAIN && self.plain.is_none() {
+                let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
+                Box::pin(self.collect_texts_recursive(&mail)).await
+            }
+            MimeMultipartType::Single => {
+                let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+                if mimetype == mime::TEXT_HTML {
+                    if self.html.is_empty() {
                         if let Ok(decoded_data) = mail.get_body() {
-                            self.plain = Some(PlainText {
-                                text: decoded_data,
-                                flowed: if let Some(format) = mail.ctype.params.get("format") {
-                                    format.as_str().to_ascii_lowercase() == "flowed"
-                                } else {
-                                    false
-                                },
-                                delsp: if let Some(delsp) = mail.ctype.params.get("delsp") {
-                                    delsp.as_str().to_ascii_lowercase() == "yes"
-                                } else {
-                                    false
-                                },
-                            });
+                            self.html = decoded_data;
                         }
                     }
-                    Ok(())
+                } else if mimetype == mime::TEXT_PLAIN && self.plain.is_none() {
+                    if let Ok(decoded_data) = mail.get_body() {
+                        self.plain = Some(PlainText {
+                            text: decoded_data,
+                            flowed: if let Some(format) = mail.ctype.params.get("format") {
+                                format.as_str().to_ascii_lowercase() == "flowed"
+                            } else {
+                                false
+                            },
+                            delsp: if let Some(delsp) = mail.ctype.params.get("delsp") {
+                                delsp.as_str().to_ascii_lowercase() == "yes"
+                            } else {
+                                false
+                            },
+                        });
+                    }
                 }
+                Ok(())
             }
         }
-        .boxed()
     }
 
     /// Replace cid:-protocol by the data:-protocol where appropriate.
     /// This allows the final html-file to be self-contained.
-    fn cid_to_data_recursive<'a>(
+    async fn cid_to_data_recursive<'a>(
         &'a mut self,
         context: &'a Context,
         mail: &'a mailparse::ParsedMail<'a>,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a + Send>> {
-        // Boxed future to deal with recursion
-        async move {
-            match get_mime_multipart_type(&mail.ctype) {
-                MimeMultipartType::Multiple => {
-                    for cur_data in &mail.subparts {
-                        self.cid_to_data_recursive(context, cur_data).await?;
-                    }
-                    Ok(())
+    ) -> Result<()> {
+        match get_mime_multipart_type(&mail.ctype) {
+            MimeMultipartType::Multiple => {
+                for cur_data in &mail.subparts {
+                    Box::pin(self.cid_to_data_recursive(context, cur_data)).await?;
                 }
-                MimeMultipartType::Message => {
-                    let raw = mail.get_body_raw()?;
-                    if raw.is_empty() {
-                        return Ok(());
-                    }
-                    let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
-                    self.cid_to_data_recursive(context, &mail).await
+                Ok(())
+            }
+            MimeMultipartType::Message => {
+                let raw = mail.get_body_raw()?;
+                if raw.is_empty() {
+                    return Ok(());
                 }
-                MimeMultipartType::Single => {
-                    let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
-                    if mimetype.type_() == mime::IMAGE {
-                        if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
-                            if let Ok(cid) = parse_message_id(&cid) {
-                                if let Ok(replacement) = mimepart_to_data_url(mail) {
-                                    let re_string = format!(
-                                        "(<img[^>]*src[^>]*=[^>]*)(cid:{})([^>]*>)",
-                                        regex::escape(&cid)
-                                    );
-                                    match regex::Regex::new(&re_string) {
-                                        Ok(re) => {
-                                            self.html = re
-                                                .replace_all(
-                                                    &self.html,
-                                                    format!("${{1}}{replacement}${{3}}").as_str(),
-                                                )
-                                                .as_ref()
-                                                .to_string()
-                                        }
-                                        Err(e) => warn!(
-                                            context,
-                                            "Cannot create regex for cid: {} throws {}",
-                                            re_string,
-                                            e
-                                        ),
+                let mail = mailparse::parse_mail(&raw).context("failed to parse mail")?;
+                Box::pin(self.cid_to_data_recursive(context, &mail)).await
+            }
+            MimeMultipartType::Single => {
+                let mimetype = mail.ctype.mimetype.parse::<Mime>()?;
+                if mimetype.type_() == mime::IMAGE {
+                    if let Some(cid) = mail.headers.get_header_value(HeaderDef::ContentId) {
+                        if let Ok(cid) = parse_message_id(&cid) {
+                            if let Ok(replacement) = mimepart_to_data_url(mail) {
+                                let re_string = format!(
+                                    "(<img[^>]*src[^>]*=[^>]*)(cid:{})([^>]*>)",
+                                    regex::escape(&cid)
+                                );
+                                match regex::Regex::new(&re_string) {
+                                    Ok(re) => {
+                                        self.html = re
+                                            .replace_all(
+                                                &self.html,
+                                                format!("${{1}}{replacement}${{3}}").as_str(),
+                                            )
+                                            .as_ref()
+                                            .to_string()
                                     }
+                                    Err(e) => warn!(
+                                        context,
+                                        "Cannot create regex for cid: {} throws {}", re_string, e
+                                    ),
                                 }
                             }
                         }
                     }
-                    Ok(())
                 }
+                Ok(())
             }
         }
-        .boxed()
     }
 }
 
