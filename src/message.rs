@@ -87,9 +87,13 @@ impl MsgId {
     /// It means the message is deleted locally, but not on the server.
     /// We keep some infos to
     /// 1. not download the same message again
-    /// 2. be able to delete the message on the server if we want to
-    pub async fn trash(self, context: &Context) -> Result<()> {
+    /// 2. be able to delete the message on the server if we want to (`on_server` parameter)
+    pub async fn trash(self, context: &Context, on_server: bool) -> Result<()> {
         let chat_id = DC_CHAT_ID_TRASH;
+        let download_state = match on_server {
+            false => DownloadState::Done,
+            true => DownloadState::ToDelete,
+        };
         context
             .sql
             .execute(
@@ -102,10 +106,10 @@ SET
   subject='', txt_raw='', 
   mime_headers='', 
   from_id=0, to_id=0, 
-  param='' 
+  param='', download_state=? 
 WHERE id=?;
 "#,
-                (chat_id, self),
+                (chat_id, download_state, self),
             )
             .await?;
 
@@ -1472,8 +1476,9 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         if msg.location_id > 0 {
             delete_poi_location(context, msg.location_id).await?;
         }
+        let on_server = true;
         msg_id
-            .trash(context)
+            .trash(context, on_server)
             .await
             .with_context(|| format!("Unable to trash message {msg_id}"))?;
 
@@ -1820,23 +1825,25 @@ pub async fn estimate_deletion_cnt(
     Ok(cnt)
 }
 
-/// See [`rfc724_mid_exists_and()`].
+/// See [`rfc724_mid_exists_ex()`].
 pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(MsgId, i64)>> {
-    rfc724_mid_exists_and(context, rfc724_mid, "1").await
+    Ok(rfc724_mid_exists_ex(context, rfc724_mid, "1")
+        .await?
+        .map(|(id, ts_sent, _)| (id, ts_sent)))
 }
 
-/// Returns [MsgId] and "sent" timestamp of the message with given `rfc724_mid` (Message-ID header)
-/// if it exists in the db.
+/// Returns [MsgId], "sent" timestamp of the message with given `rfc724_mid` (Message-ID header) and
+/// `cond` result if such a message exists in the db.
 ///
-/// @param cond SQL subexpression for filtering messages.
-pub(crate) async fn rfc724_mid_exists_and(
+/// * `cond`: SQL subexpression passed into `SELECT`.
+pub(crate) async fn rfc724_mid_exists_ex(
     context: &Context,
     rfc724_mid: &str,
     cond: &str,
-) -> Result<Option<(MsgId, i64)>> {
+) -> Result<Option<(MsgId, i64, bool)>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
@@ -1846,13 +1853,13 @@ pub(crate) async fn rfc724_mid_exists_and(
     let res = context
         .sql
         .query_row_optional(
-            &("SELECT id, timestamp_sent FROM msgs WHERE rfc724_mid=? AND ".to_string() + cond),
+            &("SELECT id, timestamp_sent, ".to_string() + cond + " FROM msgs WHERE rfc724_mid=?"),
             (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
                 let timestamp_sent: i64 = row.get(1)?;
-
-                Ok((msg_id, timestamp_sent))
+                let cond_res: bool = row.get(2)?;
+                Ok((msg_id, timestamp_sent, cond_res))
             },
         )
         .await?;

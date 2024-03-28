@@ -2023,7 +2023,7 @@ async fn test_dont_assign_to_trash_by_parent() {
     assert_eq!(msg.text, "Hi – hello");
 
     println!("\n========= Delete the message ==========");
-    msg.id.trash(&t).await.unwrap();
+    msg.id.trash(&t, false).await.unwrap();
 
     let msgs = chat::get_chat_msgs(&t.ctx, chat_id).await.unwrap();
     assert_eq!(msgs.len(), 0);
