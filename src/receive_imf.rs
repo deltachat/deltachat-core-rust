@@ -27,7 +27,7 @@ use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::imap::{markseen_on_imap_table, GENERATED_PREFIX};
 use crate::log::LogExt;
 use crate::message::{
-    self, rfc724_mid_exists, rfc724_mid_exists_and, Message, MessageState, MessengerMessage, MsgId,
+    self, rfc724_mid_exists, rfc724_mid_exists_ex, Message, MessageState, MessengerMessage, MsgId,
     Viewtype,
 };
 use crate::mimeparser::{parse_message_ids, AvatarAction, MimeMessage, SystemMessage};
@@ -1652,8 +1652,11 @@ RETURNING id
     }
 
     if let Some(replace_msg_id) = replace_msg_id {
-        // "Replace" placeholder with a message that has no parts.
-        replace_msg_id.trash(context).await?;
+        // Trash the "replace" placeholder with a message that has no parts. If it has the original
+        // "Message-ID", mark the placeholder for server-side deletion so as if the user deletes the
+        // fully downloaded message later, the server-side deletion is issued.
+        let on_server = rfc724_mid == rfc724_mid_orig;
+        replace_msg_id.trash(context, on_server).await?;
     }
 
     chat_id.unarchive_if_not_muted(context, state).await?;
@@ -2058,8 +2061,9 @@ async fn apply_group_changes(
             || match mime_parser.get_header(HeaderDef::InReplyTo) {
                 // If we don't know the referenced message, we missed some messages.
                 // Maybe they added/removed members, so we need to recreate our member list.
-                Some(reply_to) => rfc724_mid_exists_and(context, reply_to, "download_state=0")
+                Some(reply_to) => rfc724_mid_exists_ex(context, reply_to, "download_state=0")
                     .await?
+                    .filter(|(_, _, downloaded)| *downloaded)
                     .is_none(),
                 None => false,
             }

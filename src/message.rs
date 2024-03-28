@@ -103,23 +103,31 @@ impl MsgId {
     /// We keep some infos to
     /// 1. not download the same message again
     /// 2. be able to delete the message on the server if we want to
-    pub async fn trash(self, context: &Context) -> Result<()> {
+    ///
+    /// * `on_server`: Delete the message on the server also if it is seen on IMAP later, but only
+    ///   if all parts of the message are trashed with this flag. `true` if the user explicitly
+    ///   deletes the message. As for trashing a partially downloaded message when replacing it with
+    ///   a fully downloaded one, see `receive_imf::add_parts()`.
+    pub async fn trash(self, context: &Context, on_server: bool) -> Result<()> {
         let chat_id = DC_CHAT_ID_TRASH;
+        let deleted_subst = match on_server {
+            true => ", deleted=1",
+            false => "",
+        };
         context
             .sql
             .execute(
                 // If you change which information is removed here, also change delete_expired_messages() and
                 // which information receive_imf::add_parts() still adds to the db if the chat_id is TRASH
-                r#"
-UPDATE msgs 
-SET 
-  chat_id=?, txt='', txt_normalized=NULL, 
-  subject='', txt_raw='', 
-  mime_headers='', 
-  from_id=0, to_id=0, 
-  param='' 
-WHERE id=?;
-"#,
+                &format!(
+                    "UPDATE msgs SET \
+                     chat_id=?, txt='', txt_normalized=NULL, \
+                     subject='', txt_raw='', \
+                     mime_headers='', \
+                     from_id=0, to_id=0, \
+                     param=''{deleted_subst} \
+                     WHERE id=?"
+                ),
                 (chat_id, self),
             )
             .await?;
@@ -1549,8 +1557,9 @@ pub async fn delete_msgs(context: &Context, msg_ids: &[MsgId]) -> Result<()> {
         if msg.location_id > 0 {
             delete_poi_location(context, msg.location_id).await?;
         }
+        let on_server = true;
         msg_id
-            .trash(context)
+            .trash(context, on_server)
             .await
             .with_context(|| format!("Unable to trash message {msg_id}"))?;
 
@@ -1894,23 +1903,26 @@ pub async fn estimate_deletion_cnt(
     Ok(cnt)
 }
 
-/// See [`rfc724_mid_exists_and()`].
+/// See [`rfc724_mid_exists_ex()`].
 pub(crate) async fn rfc724_mid_exists(
     context: &Context,
     rfc724_mid: &str,
 ) -> Result<Option<(MsgId, i64)>> {
-    rfc724_mid_exists_and(context, rfc724_mid, "1").await
+    Ok(rfc724_mid_exists_ex(context, rfc724_mid, "1")
+        .await?
+        .map(|(id, ts_sent, _)| (id, ts_sent)))
 }
 
-/// Returns [MsgId] and "sent" timestamp of the message with given `rfc724_mid` (Message-ID header)
-/// if it exists in the db.
+/// Returns [MsgId] and "sent" timestamp of the most recent message with given `rfc724_mid`
+/// (Message-ID header) and bool `expr` result if such messages exists in the db.
 ///
-/// @param cond SQL subexpression for filtering messages.
-pub(crate) async fn rfc724_mid_exists_and(
+/// * `expr`: SQL expression additionally passed into `SELECT`. Evaluated to `true` iff it is true
+///   for all messages with the given `rfc724_mid`.
+pub(crate) async fn rfc724_mid_exists_ex(
     context: &Context,
     rfc724_mid: &str,
-    cond: &str,
-) -> Result<Option<(MsgId, i64)>> {
+    expr: &str,
+) -> Result<Option<(MsgId, i64, bool)>> {
     let rfc724_mid = rfc724_mid.trim_start_matches('<').trim_end_matches('>');
     if rfc724_mid.is_empty() {
         warn!(context, "Empty rfc724_mid passed to rfc724_mid_exists");
@@ -1920,13 +1932,15 @@ pub(crate) async fn rfc724_mid_exists_and(
     let res = context
         .sql
         .query_row_optional(
-            &("SELECT id, timestamp_sent FROM msgs WHERE rfc724_mid=? AND ".to_string() + cond),
+            &("SELECT id, timestamp_sent, MIN(".to_string()
+                + expr
+                + ") FROM msgs WHERE rfc724_mid=? ORDER BY timestamp_sent DESC"),
             (rfc724_mid,),
             |row| {
                 let msg_id: MsgId = row.get(0)?;
                 let timestamp_sent: i64 = row.get(1)?;
-
-                Ok((msg_id, timestamp_sent))
+                let expr_res: bool = row.get(2)?;
+                Ok((msg_id, timestamp_sent, expr_res))
             },
         )
         .await?;

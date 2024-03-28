@@ -2112,7 +2112,7 @@ mod tests {
         let incoming_msg = get_chat_msg(&t, new_msg.chat_id, 0, 2).await;
 
         if delete_original_msg {
-            incoming_msg.id.trash(&t).await.unwrap();
+            incoming_msg.id.trash(&t, false).await.unwrap();
         }
 
         if message_arrives_inbetween {

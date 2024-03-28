@@ -1024,7 +1024,7 @@ mod tests {
         t.send_text(self_chat.id, "Saved message, which we delete manually")
             .await;
         let msg = t.get_last_msg_in(self_chat.id).await;
-        msg.id.trash(&t).await?;
+        msg.id.trash(&t, false).await?;
         check_msg_is_deleted(&t, &self_chat, msg.id).await;
 
         self_chat
@@ -1304,7 +1304,7 @@ mod tests {
         let msg = alice.get_last_msg().await;
 
         // Message is deleted when its timer expires.
-        msg.id.trash(&alice).await?;
+        msg.id.trash(&alice, false).await?;
 
         // Message with Message-ID <third@example.com>, referencing <first@example.com> and
         // <second@example.com>, is received.  The message <second@example.come> is not in the

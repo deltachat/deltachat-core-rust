@@ -687,5 +687,6 @@ def test_deleted_msgs_dont_reappear(acfactory):
     ac1._evtracker.get_matching("DC_EVENT_SMTP_MESSAGE_SENT")
     ac1.delete_messages([msg])
     ac1._evtracker.get_matching("DC_EVENT_MSG_DELETED")
+    ac1._evtracker.get_matching("DC_EVENT_IMAP_MESSAGE_DELETED")
     time.sleep(5)
     assert len(chat.get_messages()) == 0
