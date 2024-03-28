@@ -26,6 +26,7 @@ use crate::config::Config;
 use crate::constants::{self, Blocked, Chattype, ShowEmails};
 use crate::contact::{normalize_name, Contact, ContactAddress, ContactId, Modifier, Origin};
 use crate::context::Context;
+use crate::download::DownloadState;
 use crate::events::EventType;
 use crate::headerdef::{HeaderDef, HeaderDefMap};
 use crate::login_param::{CertificateChecks, LoginParam, ServerLoginParam};
@@ -569,20 +570,30 @@ impl Imap {
             // in the `INBOX.DeltaChat` folder again.
             let _target;
             let target = if let Some(message_id) = &message_id {
-                let is_dup = if let Some((_, ts_sent_old)) =
-                    message::rfc724_mid_exists(context, message_id).await?
-                {
+                let msg_info = message::rfc724_mid_exists_ex(
+                    context,
+                    message_id,
+                    &format!("download_state={}", DownloadState::ToDelete as usize),
+                )
+                .await?;
+                let delete = if let Some((_, _, true)) = msg_info {
+                    info!(context, "Deleting locally deleted message {message_id}.");
+                    true
+                } else if let Some((_, ts_sent_old, _)) = msg_info {
                     let is_chat_msg = headers.get_header_value(HeaderDef::ChatVersion).is_some();
                     let ts_sent = headers
                         .get_header_value(HeaderDef::Date)
                         .and_then(|v| mailparse::dateparse(&v).ok())
                         .unwrap_or_default();
-                    is_dup_msg(is_chat_msg, ts_sent, ts_sent_old)
+                    let is_dup = is_dup_msg(is_chat_msg, ts_sent, ts_sent_old);
+                    if is_dup {
+                        info!(context, "Deleting duplicate message {message_id}.");
+                    }
+                    is_dup
                 } else {
                     false
                 };
-                if is_dup {
-                    info!(context, "Deleting duplicate message {message_id}.");
+                if delete {
                     &delete_target
                 } else if context
                     .sql

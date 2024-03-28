@@ -325,6 +325,7 @@ impl From<download::DownloadState> for DownloadState {
             download::DownloadState::Failure => DownloadState::Failure,
             download::DownloadState::Undecipherable => DownloadState::Undecipherable,
             download::DownloadState::InProgress => DownloadState::InProgress,
+            download::DownloadState::ToDelete => DownloadState::Done,
         }
     }
 }

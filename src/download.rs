@@ -47,7 +47,7 @@ pub(crate) const MIN_DELETE_SERVER_AFTER: i64 = 48 * 60 * 60;
 )]
 #[repr(u32)]
 pub enum DownloadState {
-    /// Message is fully downloaded.
+    /// Message is fully downloaded or deleted.
     #[default]
     Done = 0,
 
@@ -59,6 +59,9 @@ pub enum DownloadState {
 
     /// Undecipherable message.
     Undecipherable = 30,
+
+    /// Locally deleted message, should be deleted on the server also.
+    ToDelete = 40,
 
     /// Full download of the message is in progress.
     InProgress = 1000,
@@ -81,7 +84,7 @@ impl MsgId {
     pub async fn download_full(self, context: &Context) -> Result<()> {
         let msg = Message::load_from_db(context, self).await?;
         match msg.download_state() {
-            DownloadState::Done | DownloadState::Undecipherable => {
+            DownloadState::Done | DownloadState::Undecipherable | DownloadState::ToDelete => {
                 return Err(anyhow!("Nothing to download."))
             }
             DownloadState::InProgress => return Err(anyhow!("Download already in progress.")),

@@ -760,8 +760,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     context
         .sql
         .execute(
-            "DELETE FROM msgs_mdns WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            (),
+            "DELETE FROM msgs_mdns WHERE msg_id NOT IN \
+            (SELECT id FROM msgs WHERE chat_id!=?)",
+            (DC_CHAT_ID_TRASH,),
         )
         .await
         .context("failed to remove old MDNs")
@@ -771,8 +772,9 @@ pub async fn housekeeping(context: &Context) -> Result<()> {
     context
         .sql
         .execute(
-            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN (SELECT id FROM msgs)",
-            (),
+            "DELETE FROM msgs_status_updates WHERE msg_id NOT IN \
+            (SELECT id FROM msgs WHERE chat_id!=?)",
+            (DC_CHAT_ID_TRASH,),
         )
         .await
         .context("failed to remove old webxdc status updates")
@@ -987,16 +989,19 @@ async fn maybe_add_from_param(
     Ok(())
 }
 
-/// Removes from the database locally deleted messages that also don't
+/// Removes from the database stale locally deleted messages that also don't
 /// have a server UID.
 async fn prune_tombstones(sql: &Sql) -> Result<()> {
+    // Keep tombstones for the last two days to prevent redownloading locally deleted messages.
+    let timestamp_max = time().saturating_sub(2 * 24 * 3600);
     sql.execute(
         "DELETE FROM msgs
          WHERE chat_id=?
+         AND timestamp<=?
          AND NOT EXISTS (
          SELECT * FROM imap WHERE msgs.rfc724_mid=rfc724_mid AND target!=''
          )",
-        (DC_CHAT_ID_TRASH,),
+        (DC_CHAT_ID_TRASH, timestamp_max),
     )
     .await?;
     Ok(())
