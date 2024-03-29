@@ -7296,6 +7296,22 @@ void dc_event_unref(dc_event_t* event);
 /// `%1$s` will be replaced by the provider's domain.
 #define DC_STR_INVALID_UNENCRYPTED_MAIL 174
 
+/// "You reacted %1$s to '%2$s'"
+///
+/// `%1$s` will be replaced by the reaction, usually an emoji
+/// `%2$s` will be replaced by the summary of the message the reaction refers to
+///
+/// Used in summaries.
+#define DC_STR_YOU_REACTED 176
+
+/// "%1$s reacted %2$s to '%3$s'"
+///
+/// `%1$s` will be replaced by the name the contact who reacted
+/// `%2$s` will be replaced by the reaction, usually an emoji
+/// `%3$s` will be replaced by the summary of the message the reaction refers to
+///
+/// Used in summaries.
+#define DC_STR_REACTED_BY 177
 
 /**
  * @}
