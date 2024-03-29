@@ -33,14 +33,6 @@ use tokio::fs;
 /// e.g. bitmask 7 triggers actions defined with bits 1, 2 and 4.
 async fn reset_tables(context: &Context, bits: i32) {
     println!("Resetting tables ({bits})...");
-    if 0 != bits & 1 {
-        context
-            .sql()
-            .execute("DELETE FROM jobs;", ())
-            .await
-            .unwrap();
-        println!("(1) Jobs reset.");
-    }
     if 0 != bits & 2 {
         context
             .sql()

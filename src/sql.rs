@@ -809,13 +809,6 @@ pub async fn remove_unused_files(context: &Context) -> Result<()> {
     maybe_add_from_param(
         &context.sql,
         &mut files_in_use,
-        "SELECT param FROM jobs;",
-        Param::File,
-    )
-    .await?;
-    maybe_add_from_param(
-        &context.sql,
-        &mut files_in_use,
         "SELECT param FROM chats;",
         Param::ProfileImage,
     )
