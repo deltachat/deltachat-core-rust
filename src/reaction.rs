@@ -20,11 +20,12 @@ use std::fmt;
 
 use anyhow::Result;
 
-use crate::chat::{send_msg, ChatId};
+use crate::chat::{send_msg, Chat, ChatId};
 use crate::contact::ContactId;
 use crate::context::Context;
 use crate::events::EventType;
 use crate::message::{rfc724_mid_exists, Message, MsgId, Viewtype};
+use crate::param::Param;
 
 /// A single reaction consisting of multiple emoji sequences.
 ///
@@ -170,6 +171,7 @@ async fn set_msg_id_reaction(
     msg_id: MsgId,
     chat_id: ChatId,
     contact_id: ContactId,
+    timestamp: i64,
     reaction: Reaction,
 ) -> Result<()> {
     if reaction.is_empty() {
@@ -194,6 +196,17 @@ async fn set_msg_id_reaction(
                 (msg_id, contact_id, reaction.as_str()),
             )
             .await?;
+        let mut chat = Chat::load_from_db(context, chat_id).await?;
+        if chat
+            .param
+            .update_timestamp(Param::LastReactionTimestamp, timestamp)?
+        {
+            chat.param
+                .set_i64(Param::LastReactionMsgId, i64::from(msg_id.to_u32()));
+            chat.param
+                .set_i64(Param::LastReactionContactId, i64::from(contact_id.to_u32()));
+            chat.update_param(context).await?;
+        }
     }
 
     context.emit_event(EventType::ReactionsChanged {
@@ -223,7 +236,15 @@ pub async fn send_reaction(context: &Context, msg_id: MsgId, reaction: &str) -> 
     let reaction_msg_id = send_msg(context, chat_id, &mut reaction_msg).await?;
 
     // Only set reaction if we successfully sent the message.
-    set_msg_id_reaction(context, msg_id, msg.chat_id, ContactId::SELF, reaction).await?;
+    set_msg_id_reaction(
+        context,
+        msg_id,
+        msg.chat_id,
+        ContactId::SELF,
+        reaction_msg.get_timestamp(),
+        reaction,
+    )
+    .await?;
     Ok(reaction_msg_id)
 }
 
@@ -250,10 +271,11 @@ pub(crate) async fn set_msg_reaction(
     in_reply_to: &str,
     chat_id: ChatId,
     contact_id: ContactId,
+    timestamp: i64,
     reaction: Reaction,
 ) -> Result<()> {
     if let Some((msg_id, _)) = rfc724_mid_exists(context, in_reply_to).await? {
-        set_msg_id_reaction(context, msg_id, chat_id, contact_id, reaction).await
+        set_msg_id_reaction(context, msg_id, chat_id, contact_id, timestamp, reaction).await
     } else {
         info!(
             context,
@@ -305,6 +327,53 @@ pub async fn get_msg_reactions(context: &Context, msg_id: MsgId) -> Result<React
         .into_iter()
         .collect();
     Ok(Reactions { reactions })
+}
+
+impl Chat {
+    /// Check if there is a reaction newer than the given timestamp.
+    ///
+    /// If so, reaction details are returned and can be used to create a summary string.
+    pub async fn get_last_reaction_if_newer_than(
+        &self,
+        context: &Context,
+        timestamp: i64,
+    ) -> Result<Option<(Message, ContactId, String)>> {
+        if let Some(reaction_timestamp) = self.param.get_i64(Param::LastReactionTimestamp) {
+            if reaction_timestamp > timestamp {
+                let reaction_msg = Message::load_from_db(
+                    context,
+                    MsgId::new(
+                        self.param
+                            .get_int(Param::LastReactionMsgId)
+                            .unwrap_or_default() as u32,
+                    ),
+                )
+                .await?;
+                if !reaction_msg.chat_id.is_trash() {
+                    let reaction_contact_id = ContactId::new(
+                        self.param
+                            .get_int(Param::LastReactionContactId)
+                            .unwrap_or_default() as u32,
+                    );
+                    if let Some(reaction) = context
+                        .sql
+                        .query_row_optional(
+                            r#"SELECT reaction FROM reactions WHERE msg_id=? AND contact_id=?"#,
+                            (reaction_msg.id, reaction_contact_id),
+                            |row| {
+                                let reaction: String = row.get(0)?;
+                                Ok(reaction)
+                            },
+                        )
+                        .await?
+                    {
+                        return Ok(Some((reaction_msg, reaction_contact_id, reaction)));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

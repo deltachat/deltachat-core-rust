@@ -10,7 +10,9 @@ use crate::context::Context;
 use crate::message::{Message, MessageState, Viewtype};
 use crate::mimeparser::SystemMessage;
 use crate::stock_str;
+use crate::stock_str::msg_reacted;
 use crate::tools::truncate;
+use anyhow::Result;
 
 /// Prefix displayed before message and separated by ":" in the chatlist.
 #[derive(Debug)]
@@ -62,7 +64,24 @@ impl Summary {
         msg: &Message,
         chat: &Chat,
         contact: Option<&Contact>,
-    ) -> Self {
+    ) -> Result<Summary> {
+        if let Some((reaction_msg, reaction_contact_id, reaction)) = chat
+            .get_last_reaction_if_newer_than(context, msg.get_timestamp())
+            .await?
+        {
+            // there is a reaction newer than the latest message, show that.
+            // sorting and therefore date is still the one of the last message,
+            // the reaction is is more sth. that overlays temporarily.
+            let summary = reaction_msg.get_summary_text(context).await;
+            return Ok(Summary {
+                prefix: None,
+                text: msg_reacted(context, reaction_contact_id, &reaction, &summary).await,
+                timestamp: msg.get_timestamp(), // message timestamp (not reaction) - otherwise sorting is wrong
+                state: msg.state, // message state (not reaction) - indicating if it was me sending the last message
+                thumbnail_path: None,
+            });
+        }
+
         let prefix = if msg.state == MessageState::OutDraft {
             Some(SummaryPrefix::Draft(stock_str::draft(context).await))
         } else if msg.from_id == ContactId::SELF {
@@ -102,13 +121,13 @@ impl Summary {
             None
         };
 
-        Self {
+        Ok(Summary {
             prefix,
             text,
             timestamp: msg.get_timestamp(),
             state: msg.state,
             thumbnail_path,
-        }
+        })
     }
 
     /// Returns the [`Summary::text`] attribute truncated to an approximate length.
